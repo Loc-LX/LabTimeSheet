@@ -1,3 +1,10 @@
 spring:
   application:
     name: labtimesheet
+  profiles:
+    default: dev
+  docker:
+    compose:
+      enabled: false
+  jpa:
+    open-in-view: false
