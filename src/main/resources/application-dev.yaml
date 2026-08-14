@@ -1,60 +1,8 @@
-# Development profile. Machine-specific values come from the ignored root .env file.
 spring:
-  config:
-    import: "optional:file:${LAB_DEV_ENV_FILE:.env}[.properties]"
   datasource:
-    url: "${LAB_DB_URL}"
-    username: "${LAB_DB_USERNAME}"
-    password: "${LAB_DB_PASSWORD}"
-  jpa:
-    hibernate:
-      ddl-auto: validate
-    open-in-view: false
-  flyway:
-    enabled: true
-    locations: classpath:db/migration
-  docker:
-    compose:
-      enabled: false
-  # Mailpit keeps Spring's mail health check local. User-facing SMTP credentials remain Admin-console data.
+    url: ${LAB_DB_URL:jdbc:postgresql://localhost:55432/labtimesheet}
+    username: ${LAB_DB_USERNAME:labtimesheet}
+    password: ${LAB_DB_PASSWORD:labtimesheet_dev}
   mail:
-    host: "${LAB_SMTP_HOST}"
-    port: "${LAB_SMTP_PORT}"
-    protocol: smtp
-    test-connection: false
-    properties:
-      mail:
-        smtp:
-          auth: false
-          starttls:
-            enable: false
-          connectiontimeout: 5000
-          timeout: 5000
-          writetimeout: 5000
-
-server:
-  port: "${LAB_SERVER_PORT}"
-  forward-headers-strategy: "${LAB_FORWARD_HEADERS_STRATEGY}"
-  servlet:
-    session:
-      cookie:
-        http-only: true
-        secure: false
-        same-site: lax
-  error:
-    include-message: never
-    include-stacktrace: never
-
-management:
-  endpoints:
-    web:
-      exposure:
-        include: "health,info"
-  endpoint:
-    health:
-      show-details: when_authorized
-
-lab:
-  public-origin: "${LAB_PUBLIC_ORIGIN}"
-  security:
-    master-key: "${LAB_SECURITY_MASTER_KEY}"
+    host: ${LAB_SMTP_HOST:localhost}
+    port: ${LAB_SMTP_PORT:1025}

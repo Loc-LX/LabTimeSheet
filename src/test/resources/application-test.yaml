@@ -2,7 +2,3 @@ spring:
   docker:
     compose:
       enabled: false
-lab:
-  public-origin: http://localhost:8080
-  security:
-    master-key: AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=
