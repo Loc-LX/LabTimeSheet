@@ -44,7 +44,9 @@ class DashboardControllerWebTest {
                 .andExpect(model().attribute("dashboard", dashboard))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString(
                         "This installation remains restricted until tested SMTP is active.")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("href=\"/admin/smtp\"")));
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("href=\"/admin/smtp\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(
+                        "data-tooltip=\"SMTP settings\"")));
 
         verify(dashboards).admin("admin@example.test");
     }
@@ -58,20 +60,25 @@ class DashboardControllerWebTest {
         mvc.perform(get("/dashboard").with(user("admin@example.test").roles("ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString(
-                        "This installation remains restricted until tested SMTP is active."))));
+                        "This installation remains restricted until tested SMTP is active."))))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(
+                        "href=\"/admin/smtp\" data-tooltip=\"SMTP settings\"")));
     }
 
     @Test
     void mentorRendersMentorDashboardForAuthenticatedIdentity() throws Exception {
         var dashboard = new DashboardView.Mentor("Mentor", 2, 4, 1);
         given(dashboards.mentor("mentor@example.test")).willReturn(dashboard);
+        given(smtpConfiguration.hasActiveConfiguration()).willReturn(true);
 
         mvc.perform(get("/dashboard").with(user("mentor@example.test").roles("MENTOR")))
                 .andExpect(status().isOk())
                 .andExpect(view().name("dashboard/mentor"))
                 .andExpect(model().attribute("dashboard", dashboard))
                 .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString(
-                        "This installation remains restricted until tested SMTP is active."))));
+                        "This installation remains restricted until tested SMTP is active."))))
+                .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString(
+                        "data-tooltip=\"SMTP settings\""))));
 
         verify(dashboards).mentor("mentor@example.test");
     }
@@ -81,11 +88,14 @@ class DashboardControllerWebTest {
         var dashboard = new DashboardView.Intern(
                 "Intern", DashboardView.AttendanceState.NOT_CHECKED_IN, 1, 0, List.of());
         given(dashboards.intern("intern@example.test")).willReturn(dashboard);
+        given(smtpConfiguration.hasActiveConfiguration()).willReturn(true);
 
         mvc.perform(get("/dashboard").with(user("intern@example.test").roles("INTERN")))
                 .andExpect(status().isOk())
                 .andExpect(view().name("dashboard/intern"))
-                .andExpect(model().attribute("dashboard", dashboard));
+                .andExpect(model().attribute("dashboard", dashboard))
+                .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString(
+                        "data-tooltip=\"SMTP settings\""))));
 
         verify(dashboards).intern("intern@example.test");
     }
