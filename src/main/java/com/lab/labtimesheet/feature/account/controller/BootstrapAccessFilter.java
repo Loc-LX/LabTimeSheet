@@ -44,7 +44,8 @@ public class BootstrapAccessFilter extends OncePerRequestFilter {
 
     private static boolean allowedBeforeBootstrap(String path) {
         return path.equals("/bootstrap") || path.startsWith("/bootstrap/")
-                || path.equals("/actuator/health") || path.startsWith("/assets/")
+                || path.equals("/actuator/health") || path.startsWith("/actuator/health/")
+                || path.startsWith("/assets/")
                 || path.equals("/error");
     }
 }

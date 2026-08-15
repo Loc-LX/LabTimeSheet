@@ -12,8 +12,9 @@ import org.springframework.security.web.access.intercept.AuthorizationFilter;
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter.ReferrerPolicy;
 
 /**
- * Defines form authentication, role-based Admin routes, CSRF protection, and response security headers.
- * Bootstrap access is further constrained by {@link BootstrapAccessFilter} until initialization completes.
+ * Defines form authentication, role-based Admin routes, public health probes, CSRF protection, and response
+ * security headers. Bootstrap access is further constrained by {@link BootstrapAccessFilter} until initialization
+ * completes.
  */
 @Configuration(proxyBeanMethods = false)
 class SecurityConfiguration {
@@ -34,7 +35,7 @@ class SecurityConfiguration {
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers(
                                 "/bootstrap/**", "/activate/**", "/login", "/error", "/assets/**",
-                                "/actuator/health")
+                                "/actuator/health", "/actuator/health/**")
                         .permitAll()
                         .requestMatchers("/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated())
