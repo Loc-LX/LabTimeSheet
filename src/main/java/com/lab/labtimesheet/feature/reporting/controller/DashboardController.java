@@ -2,6 +2,7 @@ package com.lab.labtimesheet.feature.reporting.controller;
 
 import com.lab.labtimesheet.feature.reporting.exception.DashboardAccessDeniedException;
 import com.lab.labtimesheet.feature.reporting.service.DashboardService;
+import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -14,18 +15,10 @@ import org.springframework.web.bind.annotation.GetMapping;
  * reloads and revalidates the persisted account role and lifecycle before returning any data.
  */
 @Controller
+@RequiredArgsConstructor
 public class DashboardController {
 
     private final DashboardService dashboardService;
-
-    /**
-     * Creates the dashboard endpoint backed by the reporting composition service.
-     *
-     * @param dashboardService service that authorizes and assembles role-scoped dashboard data
-     */
-    public DashboardController(DashboardService dashboardService) {
-        this.dashboardService = dashboardService;
-    }
 
     /**
      * Renders the dashboard permitted by the caller's authenticated global role.
