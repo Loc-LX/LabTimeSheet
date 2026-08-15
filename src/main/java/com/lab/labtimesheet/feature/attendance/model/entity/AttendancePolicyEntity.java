@@ -19,12 +19,15 @@ import java.time.LocalTime;
 import java.time.ZoneId;
 import java.util.Set;
 import java.util.stream.Collectors;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 /**
  * JPA mapping of an immutable-on-effective attendance policy version and its configured workdays.
  */
 @Entity
 @Table(name = "attendance_policy_versions")
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class AttendancePolicyEntity {
 
     @Id
@@ -64,11 +67,6 @@ public class AttendancePolicyEntity {
 
     @Version
     private long version;
-
-    /**
-     * Required by JPA; application code resolves existing effective-dated versions instead of constructing them here.
-     */
-    protected AttendancePolicyEntity() {}
 
     /**
      * Converts the persisted version to the immutable policy used for historical boundary calculations.

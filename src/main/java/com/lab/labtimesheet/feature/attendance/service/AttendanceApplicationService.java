@@ -20,9 +20,11 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
-import org.springframework.security.access.AccessDeniedException;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,6 +33,7 @@ import org.springframework.transaction.annotation.Transactional;
  * Account eligibility is obtained only through {@link AccountService}; raw rows retain their attached policy.
  */
 @Service
+@RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 public class AttendanceApplicationService {
 
     private final Clock clock;
@@ -40,23 +43,6 @@ public class AttendanceApplicationService {
     private final AccountService accounts;
     private final CalendarApplicationService calendar;
     private final AttendanceService attendance;
-
-    AttendanceApplicationService(
-            Clock clock,
-            AttendancePolicyRepository policyEntities,
-            AttendanceRecordRepository recordEntities,
-            AttendanceQueryRepository queries,
-            AccountService accounts,
-            CalendarApplicationService calendar,
-            AttendanceService attendance) {
-        this.clock = clock;
-        this.policyEntities = policyEntities;
-        this.recordEntities = recordEntities;
-        this.queries = queries;
-        this.accounts = accounts;
-        this.calendar = calendar;
-        this.attendance = attendance;
-    }
 
     /**
      * Records the sole server-time check-in for the effective policy-local date.
