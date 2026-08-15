@@ -118,11 +118,12 @@ companion record under [`docs/tests`](docs/tests/README.md).
 
 ## Continuous integration and production containers
 
-Gitea Actions now verifies every pull request and push. A separate container
-workflow builds Linux AMD64 and publishes only from `main`; native Linux ARM64
-is added only when the repository explicitly declares that its ARM runner is
-online. Every published revision has an immutable `sha-<full-commit>` tag, with
-`main` as a convenience alias.
+Gitea Actions verifies every pull request and push. The separate container
+workflow runs only for a manual dispatch or a push to `main`, and its verification
+job must pass before either image build starts. Manual runs build without publishing;
+`main` pushes publish Linux AMD64 and add native Linux ARM64 only when the repository
+explicitly declares that its ARM runner is online. Every published revision has an
+immutable `sha-<full-commit>` tag, with `main` as a convenience alias.
 
 The production image is a non-root Java 25 image. The root [compose.yaml](compose.yaml)
 supports either a persistent PostgreSQL 18.4 sidecar or an external PostgreSQL

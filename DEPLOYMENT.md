@@ -63,7 +63,7 @@ Configure these repository settings:
 | Secret | `REGISTRY_USERNAME` | Registry user allowed to publish this package |
 | Secret | `REGISTRY_TOKEN` | Registry token with package write access |
 
-`verify.yml` runs for every pull request and push. `container.yml` builds AMD64 for every pull request and push, but publishes only a push to `main`. Main always receives immutable `sha-<commit>` and convenience `main` tags.
+`verify.yml` runs for every pull request and push. `container.yml` runs only when manually dispatched or when `main` is pushed, and it repeats verification before either architecture build. Manual runs build without publishing. A push to `main` publishes immutable `sha-<commit>` and convenience `main` tags.
 
 When ARM64 is disabled, those canonical tags remain valid AMD64 images and the workflow succeeds. When it is enabled, the native ARM runner publishes an architecture tag and the final job replaces the canonical tags with a combined AMD64/ARM64 manifest. Gitea cannot discover an unavailable runner from inside an unscheduled job, so the repository variable is the deliberate availability gate.
 
