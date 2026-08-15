@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{fragments/layout :: shell(
+          pageTitle=${errorTitle},
+          section='Error',
+          activeNav='',
+          primaryAction=~{},
+          content=~{::main})}">
+<body>
+<main>
+    <section class="panel empty-state">
+        <p class="auth-eyebrow" th:text="|Error ${errorStatus}|">Error</p>
+        <h2 th:text="${errorTitle}">Request could not be completed</h2>
+        <p th:text="${errorMessage}">The requested operation could not be completed.</p>
+        <p><a class="button button-primary" th:href="@{/dashboard}">Return to dashboard</a></p>
+    </section>
+</main>
+</body>
+</html>

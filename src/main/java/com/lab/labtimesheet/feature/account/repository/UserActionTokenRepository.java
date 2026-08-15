@@ -1,0 +1,36 @@
+package com.lab.labtimesheet.feature.account.repository;
+
+import java.util.Optional;
+
+import com.lab.labtimesheet.feature.account.model.TokenPurpose;
+import com.lab.labtimesheet.feature.account.model.entity.UserActionToken;
+import jakarta.persistence.LockModeType;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+
+/** Persistence boundary for hashed, one-time account-action tokens. */
+public interface UserActionTokenRepository extends JpaRepository<UserActionToken, Long> {
+    /**
+     * Locks a token selected by hash and purpose for atomic single-use consumption.
+     *
+     * @param hash SHA-256 hash of the supplied raw bearer token
+     * @param purpose expected workflow purpose
+     * @return locked matching token, if present
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select t from UserActionToken t where t.tokenHash = :hash and t.purpose = :purpose")
+    Optional<UserActionToken> findForUpdateByHashAndPurpose(
+            @Param("hash") byte[] hash, @Param("purpose") TokenPurpose purpose);
+
+    /**
+     * Locks a token by identifier for delivery-failure invalidation.
+     *
+     * @param id token identifier
+     * @return locked token, if present
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select t from UserActionToken t where t.id = :id")
+    Optional<UserActionToken> findForUpdateById(@Param("id") Long id);
+}
