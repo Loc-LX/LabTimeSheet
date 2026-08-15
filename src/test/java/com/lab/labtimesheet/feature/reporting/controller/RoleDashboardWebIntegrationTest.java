@@ -136,12 +136,12 @@ class RoleDashboardWebIntegrationTest {
                 .andExpect(content().string(containsString("BLOCKED")))
                 .andExpect(content().string(containsString("20/08/2026")));
 
-        followEveryVisibleNavigationLink("admin@example.test", "ADMIN");
-        followEveryVisibleNavigationLink("mentor@example.test", "MENTOR");
-        followEveryVisibleNavigationLink("intern@example.test", "INTERN");
+        followEveryVisibleNavigationLink("admin@example.test", "ADMIN", true);
+        followEveryVisibleNavigationLink("mentor@example.test", "MENTOR", false);
+        followEveryVisibleNavigationLink("intern@example.test", "INTERN", false);
     }
 
-    private void followEveryVisibleNavigationLink(String email, String role) throws Exception {
+    private void followEveryVisibleNavigationLink(String email, String role, boolean expectsSmtpSettings) throws Exception {
         String dashboard = mvc.perform(get("/dashboard").with(user(email).roles(role)))
                 .andExpect(status().isOk())
                 .andReturn()
@@ -153,6 +153,11 @@ class RoleDashboardWebIntegrationTest {
             paths.add(matcher.group(1));
         }
         assertThat(paths).isNotEmpty();
+        if (expectsSmtpSettings) {
+            assertThat(paths).contains("/admin/smtp");
+        } else {
+            assertThat(paths).doesNotContain("/admin/smtp");
+        }
         for (String path : paths) {
             mvc.perform(get(path).with(user(email).roles(role)))
                     .andExpect(status().isOk());
