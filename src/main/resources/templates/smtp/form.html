@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{fragments/layout :: shell(
+          pageTitle='SMTP configuration',
+          section='Admin',
+          activeNav='smtp',
+          primaryAction=~{::#primary-action},
+          content=~{::main})}">
+<body>
+<a id="primary-action" class="button" th:href="@{/dashboard}">Back to overview</a>
+<main>
+  <p class="page-description" th:if="${param.onboarding}">Configure SMTP now to enable account onboarding and recovery.</p>
+  <p class="alert" th:if="${smtpStatus.active}" role="status">SMTP is active.</p>
+  <p class="alert" th:if="${smtpStatus.draftId != null}" role="status">Draft saved.</p>
+  <p class="alert" th:if="${smtpStatus.tested}" role="status">Test passed.</p>
+  <p class="alert alert-error" th:if="${smtpActionError}" th:text="${smtpActionError}" role="alert"></p>
+
+  <form class="panel form-panel form-grid" method="post" th:action="@{/admin/smtp/draft}" th:object="${smtpForm}">
+    <div id="smtp-form-error-summary" class="alert alert-error" role="alert"
+         aria-labelledby="smtp-form-error-summary-title" th:if="${#fields.hasAnyErrors()}">
+      <strong id="smtp-form-error-summary-title">Please correct the highlighted SMTP settings.</strong>
+      <ul><li th:each="fieldError : ${#fields.allErrors()}" th:text="${fieldError}"></li></ul>
+    </div>
+    <div class="form-grid form-grid-three">
+      <div class="field">
+        <label class="field-label" for="smtp-host">Host</label>
+        <input class="control" id="smtp-host" th:field="*{host}" required
+               th:attr="aria-invalid=${#fields.hasErrors('host')},aria-describedby=${#fields.hasErrors('host') ? 'smtp-host-error' : null}">
+        <p class="field-error" id="smtp-host-error" th:if="${#fields.hasErrors('host')}" th:errors="*{host}" role="alert"></p>
+      </div>
+      <div class="field">
+        <label class="field-label" for="smtp-port">Port</label>
+        <input class="control" id="smtp-port" th:field="*{port}" type="number" min="1" max="65535" required
+               th:attr="aria-invalid=${#fields.hasErrors('port')},aria-describedby=${#fields.hasErrors('port') ? 'smtp-port-error' : null}">
+        <p class="field-error" id="smtp-port-error" th:if="${#fields.hasErrors('port')}" th:errors="*{port}" role="alert"></p>
+      </div>
+      <div class="field">
+        <label class="field-label" for="smtp-security-mode">Security</label>
+        <select class="control" id="smtp-security-mode" th:field="*{securityMode}"
+                th:attr="aria-invalid=${#fields.hasErrors('securityMode')},aria-describedby=${#fields.hasErrors('securityMode') ? 'smtp-security-mode-error' : null}">
+          <option value="STARTTLS">STARTTLS</option>
+          <option value="TLS">TLS</option>
+          <option value="NONE">NONE</option>
+        </select>
+        <p class="field-error" id="smtp-security-mode-error" th:if="${#fields.hasErrors('securityMode')}" th:errors="*{securityMode}" role="alert"></p>
+      </div>
+    </div>
+    <div class="form-grid form-grid-three">
+      <div class="field">
+        <label class="field-label" for="smtp-username">Username</label>
+        <input class="control" id="smtp-username" th:field="*{username}" autocomplete="username"
+               th:attr="aria-invalid=${#fields.hasErrors('authenticationComplete')},aria-describedby=${#fields.hasErrors('authenticationComplete') ? 'smtp-authentication-error' : null}">
+      </div>
+      <div class="field">
+        <label class="field-label" for="smtp-password">Password</label>
+        <input class="control" id="smtp-password" name="password" type="password" autocomplete="new-password"
+               th:attr="aria-invalid=${#fields.hasErrors('authenticationComplete')},aria-describedby=${#fields.hasErrors('authenticationComplete') ? 'smtp-authentication-error' : null}">
+        <p class="field-error" id="smtp-authentication-error" th:if="${#fields.hasErrors('authenticationComplete')}" th:errors="*{authenticationComplete}" role="alert"></p>
+      </div>
+      <div class="field">
+        <label class="field-label" for="smtp-from-address">From address</label>
+        <input class="control" id="smtp-from-address" th:field="*{fromAddress}" type="email" required
+               th:attr="aria-invalid=${#fields.hasErrors('fromAddress')},aria-describedby=${#fields.hasErrors('fromAddress') ? 'smtp-from-address-error' : null}">
+        <p class="field-error" id="smtp-from-address-error" th:if="${#fields.hasErrors('fromAddress')}" th:errors="*{fromAddress}" role="alert"></p>
+      </div>
+    </div>
+    <div class="field">
+      <label class="field-label" for="smtp-from-name">From name</label>
+      <input class="control" id="smtp-from-name" th:field="*{fromName}" required
+             th:attr="aria-invalid=${#fields.hasErrors('fromName')},aria-describedby=${#fields.hasErrors('fromName') ? 'smtp-from-name-error' : null}">
+      <p class="field-error" id="smtp-from-name-error" th:if="${#fields.hasErrors('fromName')}" th:errors="*{fromName}" role="alert"></p>
+    </div>
+    <div class="form-actions"><button class="button button-primary" type="submit">Save draft</button></div>
+  </form>
+
+  <div class="inline-actions">
+    <form th:if="${smtpStatus.draftId != null}" method="post" th:action="@{/admin/smtp/test}">
+      <input type="hidden" name="draftId" th:value="${smtpStatus.draftId}">
+      <button class="button" type="submit">Test connection</button>
+    </form>
+    <form th:if="${smtpStatus.draftId != null and smtpStatus.tested}" method="post" th:action="@{/admin/smtp/activate}">
+      <input type="hidden" name="draftId" th:value="${smtpStatus.draftId}">
+      <button class="button button-primary" type="submit">Activate SMTP</button>
+    </form>
+    <a class="button" th:if="${param.onboarding}" th:href="@{/admin/smtp/defer}">Defer SMTP</a>
+  </div>
+</main>
+</body>
+</html>
