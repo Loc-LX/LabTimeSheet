@@ -11,6 +11,7 @@ import com.lab.labtimesheet.feature.task.repository.TaskRepository;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,23 +24,13 @@ import org.springframework.transaction.annotation.Transactional;
  * priorities cover current assignments only where the actor still has an active membership.
  */
 @Service
+@RequiredArgsConstructor
 public class TaskDashboardService {
 
     private static final TaskDashboardView EMPTY_DASHBOARD = new TaskDashboardView(0, 0, List.of());
 
     private final TaskRepository tasks;
     private final ProjectQueryService projects;
-
-    /**
-     * Creates the dashboard query service.
-     *
-     * @param tasks Task persistence boundary
-     * @param projects authorized Project query boundary
-     */
-    public TaskDashboardService(TaskRepository tasks, ProjectQueryService projects) {
-        this.tasks = tasks;
-        this.projects = projects;
-    }
 
     /**
      * Builds the role-scoped Task dashboard for one authenticated account.
