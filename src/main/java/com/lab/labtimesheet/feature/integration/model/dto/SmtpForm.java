@@ -8,11 +8,15 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
+import lombok.Getter;
+import lombok.Setter;
 
 /**
  * Validated Admin input for an SMTP draft. The cleartext password exists only for the current request and is
  * cleared before the form is rendered again.
  */
+@Getter
+@Setter
 public class SmtpForm {
     @NotBlank(message = "Host is required")
     @Size(max = 255, message = "Host must contain at most 255 characters")
@@ -96,18 +100,4 @@ public class SmtpForm {
         return value == null || value.isEmpty() ? null : value;
     }
 
-    public String getHost() { return host; }
-    public void setHost(String host) { this.host = host; }
-    public int getPort() { return port; }
-    public void setPort(int port) { this.port = port; }
-    public SecurityMode getSecurityMode() { return securityMode; }
-    public void setSecurityMode(SecurityMode securityMode) { this.securityMode = securityMode; }
-    public String getUsername() { return username; }
-    public void setUsername(String username) { this.username = username; }
-    public String getPassword() { return password; }
-    public void setPassword(String password) { this.password = password; }
-    public String getFromAddress() { return fromAddress; }
-    public void setFromAddress(String fromAddress) { this.fromAddress = fromAddress; }
-    public String getFromName() { return fromName; }
-    public void setFromName(String fromName) { this.fromName = fromName; }
 }
