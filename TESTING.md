@@ -219,6 +219,16 @@ claim never replaces a test command and result.
 - Give tests names that describe the rule and expected result.
 - Clean up temporary browser data, application processes, and manually started containers after end-to-end work.
 
+### What CI runs
+
+Gitea runs the frontend tests/build, complete Maven/PostgreSQL suite, Javadoc,
+generated-asset check, and whitespace check for every pull request and push.
+The separate container workflow builds the production Dockerfile without
+publishing pull-request or work-branch images. Only `main` publishes.
+
+Run focused and affected tests locally before pushing. CI is the shared
+confirmation, not a substitute for local RED and GREEN evidence.
+
 ## 8. Common problems
 
 ### Testcontainers cannot find Docker
