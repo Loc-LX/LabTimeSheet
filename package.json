@@ -1,0 +1,18 @@
+{
+  "name": "labtimesheet-ui",
+  "private": true,
+  "engines": {
+    "node": "24.x",
+    "npm": "11.x"
+  },
+  "scripts": {
+    "build": "npm run build:css && npm run build:icons",
+    "build:css": "tailwindcss -i src/main/frontend/app.css -o src/main/resources/static/assets/app.css --minify",
+    "build:icons": "node src/main/frontend/build-icons.mjs"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "4.3.3",
+    "lucide-static": "1.27.0",
+    "tailwindcss": "4.3.3"
+  }
+}

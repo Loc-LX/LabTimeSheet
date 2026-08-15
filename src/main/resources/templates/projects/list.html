@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{fragments/layout :: shell(
+          pageTitle='Projects',
+          section='Projects',
+          activeNav='projects',
+          primaryAction=~{::#primary-action},
+          content=~{::main})}">
+<body>
+<a id="primary-action" class="button button-primary" th:if="${canCreateProject}" th:href="@{/projects/new}">Create Project</a>
+<main>
+    <p class="page-description">Projects visible to your current role and membership.</p>
+    <section class="panel" th:if="${#lists.isEmpty(projects)}">
+        <th:block th:replace="~{fragments/components :: empty('No authorized Projects', 'Projects you can access will appear here.')} "></th:block>
+    </section>
+    <section class="panel" th:unless="${#lists.isEmpty(projects)}">
+        <div class="table-scroll">
+            <table class="data-table">
+                <caption class="sr-only">Authorized Projects</caption>
+                <thead><tr><th scope="col">Name</th><th scope="col">Status</th><th scope="col">Start</th><th scope="col">End</th></tr></thead>
+                <tbody><tr th:each="project : ${projects}">
+                    <td><a th:href="@{/projects/{id}(id=${project.id})}" th:text="${project.name}">Project</a></td>
+                    <td><span class="badge" th:classappend="${project.status == 'ACTIVE' ? ' badge-success' : ''}" th:text="${project.status}">PLANNED</span></td>
+                    <td th:text="${#temporals.format(project.startDate, 'dd/MM/yyyy')}">15/08/2026</td>
+                    <td th:text="${#temporals.format(project.endDate, 'dd/MM/yyyy')}">30/09/2026</td>
+                </tr></tbody>
+            </table>
+        </div>
+    </section>
+</main>
+</body>
+</html>
