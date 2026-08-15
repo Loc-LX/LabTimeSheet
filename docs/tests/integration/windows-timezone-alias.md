@@ -4,7 +4,7 @@
 - **Requirement IDs:** `ARC-001`, `ARC-003`, `GOV-011`, `ATT-002`, `TST-001`, `TST-005`
 - **Scenario IDs:** `N/A — user-reported cross-platform startup defect`
 - **Test class/method:** `com.lab.labtimesheet.ApplicationTimeZoneIntegrationTest.mainCanonicalizesLegacyAliasBeforeStartingSpring`, `com.lab.labtimesheet.ApplicationTimeZoneIntegrationTest.canonicalizesLegacyVietnamAliasBeforePostgresConnects`, `com.lab.labtimesheet.ApplicationTimeZoneIntegrationTest.leavesSupportedSystemTimeZoneUnchanged`
-- **Implementation commit:** `pending`
+- **Implementation commit:** `a9fb9487692e84f5a7e7923570cbded58c362a2f`
 
 ## Protected behavior
 
