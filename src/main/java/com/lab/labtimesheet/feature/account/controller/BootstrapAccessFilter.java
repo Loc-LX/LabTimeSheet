@@ -19,7 +19,7 @@ public class BootstrapAccessFilter extends OncePerRequestFilter {
     private final BootstrapService bootstrap;
 
     /**
-     * Returns HTTP 404 for hidden routes before bootstrap so no authentication surface is exposed prematurely.
+     * Redirects the installation root to bootstrap and returns HTTP 404 for every other hidden route.
      *
      * @param request current HTTP request
      * @param response current HTTP response
@@ -31,6 +31,10 @@ public class BootstrapAccessFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
         String path = request.getRequestURI();
+        if (!bootstrap.isInitialized() && path.equals(request.getContextPath() + "/")) {
+            response.sendRedirect(request.getContextPath() + "/bootstrap");
+            return;
+        }
         if (!bootstrap.isInitialized() && !allowedBeforeBootstrap(path)) {
             response.sendError(HttpServletResponse.SC_NOT_FOUND);
             return;

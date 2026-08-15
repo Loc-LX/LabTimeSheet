@@ -4,7 +4,7 @@
 - **Requirement IDs:** `ACC-001`
 - **Scenario IDs:** `N/A — user-reported fresh-install navigation regression`
 - **Test class/method:** `com.lab.labtimesheet.feature.account.service.BootstrapIntegrationTest.rootGuidesFreshInstallToBootstrapWhileOtherRoutesRemainHidden`
-- **Implementation commit:** `531c6078521341b156d69cb1013e54f65c092311`
+- **Implementation commit:** `pending`
 
 ## Protected behavior
 
