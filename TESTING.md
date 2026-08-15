@@ -225,7 +225,8 @@ Run `java -version` and `./mvnw -version`. Both should report Java 25. Set
 
 ### The application cannot start for a manual browser check
 
-Confirm `.env` was loaded, PostgreSQL is reachable, and
+Confirm the process working directory is the repository root so
+`application-dev.yaml` can import `.env`, PostgreSQL is reachable, and
 `LAB_SECURITY_MASTER_KEY` decodes from Base64 to 32 bytes. Automated tests do
 not need this local file.
 

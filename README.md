@@ -75,9 +75,6 @@ console, not environment variables.
 ```bash
 cp .env.example .env
 # Edit .env. Generate LAB_SECURITY_MASTER_KEY with: openssl rand -base64 32
-set -a
-source .env
-set +a
 
 export JAVA_HOME=/opt/homebrew/opt/openjdk@25
 export PATH="/opt/homebrew/opt/node@24/bin:$JAVA_HOME/bin:$PATH"
@@ -89,10 +86,12 @@ npm run build
 
 Development defaults to the application on port `8080`, PostgreSQL on `55432`,
 and Mailpit SMTP on `1025`. The exact Spring settings are in
-[`application-dev.properties`](src/main/resources/application-dev.properties).
+[`application-dev.yaml`](src/main/resources/application-dev.yaml), which imports
+the ignored root `.env` file when the `dev` profile is active.
 
-On first launch, open `http://localhost:8080/bootstrap`, create the first Admin,
-then configure and test SMTP or complete all five explicit deferral warnings.
+On first launch, open `http://localhost:8080`; the application redirects to
+`/bootstrap`, where you create the first Admin. Then configure and test SMTP or
+complete all five explicit deferral warnings.
 
 ## Verification status
 
