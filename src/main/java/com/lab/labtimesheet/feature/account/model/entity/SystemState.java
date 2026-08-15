@@ -10,16 +10,21 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 /** Durable singleton installation state used to serialize and remember first-Admin bootstrap. */
 @Entity
 @Table(name = "system_state")
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class SystemState {
     @Id
     @Column(name = "singleton_id")
     private short singletonId;
 
     @Column(nullable = false)
+    @Getter
     private boolean initialized;
 
     @Column(name = "initialized_at")
@@ -37,14 +42,6 @@ public class SystemState {
 
     @Version
     private long version;
-
-    /** Required by JPA; Flyway creates the singleton row. */
-    protected SystemState() {
-    }
-
-    public boolean isInitialized() {
-        return initialized;
-    }
 
     /**
      * Marks the installation initialized and retains the first Admin attribution.
