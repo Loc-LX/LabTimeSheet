@@ -12,6 +12,7 @@ import com.lab.labtimesheet.feature.task.service.TaskService;
 import jakarta.validation.Valid;
 import java.util.Arrays;
 import java.util.Locale;
+import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -31,18 +32,10 @@ import org.springframework.web.bind.annotation.RequestParam;
  * successful mutations use redirects to prevent duplicate submissions.
  */
 @Controller
+@RequiredArgsConstructor
 public class TaskController {
 
     private final TaskService taskService;
-
-    /**
-     * Creates the MVC adapter for the Task application service.
-     *
-     * @param taskService authorized Task use cases
-     */
-    public TaskController(TaskService taskService) {
-        this.taskService = taskService;
-    }
 
     @GetMapping("/projects/{projectId}/tasks")
     String list(Authentication authentication, @PathVariable long projectId, Model model) {
