@@ -1,0 +1,10 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<body>
+<div th:replace="~{fragments/components :: input('displayName', 'Display name', 'Mai', null)}"></div>
+<div th:replace="~{fragments/components :: alert('error', 'Please correct the highlighted fields.')} "></div>
+<div th:replace="~{fragments/components :: empty('No records yet', 'Create the first record to begin.')} "></div>
+<span th:replace="~{fragments/components :: badge('Active', 'success')}"></span>
+<dialog th:replace="~{fragments/components :: confirmation('confirm-dialog', 'Confirm change', 'This action changes the current state.')} "></dialog>
+</body>
+</html>

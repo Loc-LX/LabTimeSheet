@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{fragments/layout :: shell(
+          pageTitle=${ownHistory ? 'My attendance' : 'Intern attendance'},
+          section=${ownHistory ? 'Intern' : 'Mentor'},
+          activeNav='attendance',
+          primaryAction=~{::#primary-action},
+          content=~{::main})}">
+<body>
+<a id="primary-action" class="button" th:href="@{/dashboard}">Back to overview</a>
+<main>
+    <p class="page-description">Review recorded punches and the policy snapshot applied to each work date.</p>
+    <p class="alert" th:if="${message}" role="status" th:text="${message}"></p>
+    <p class="alert alert-error" th:if="${error}" role="alert" th:text="${error}"></p>
+
+    <div class="inline-actions" th:if="${ownHistory}">
+        <form method="post" th:action="@{/attendance/check-in}"><button class="button button-primary" type="submit">Check in</button></form>
+        <form method="post" th:action="@{/attendance/check-out}"><button class="button" type="submit">Check out</button></form>
+    </div>
+
+    <form class="panel form-panel filter-form" method="get">
+        <div class="field"><label class="field-label" for="from">From</label><input class="control" id="from" name="from" type="date" th:value="${from}"></div>
+        <div class="field"><label class="field-label" for="to">To</label><input class="control" id="to" name="to" type="date" th:value="${to}"></div>
+        <button class="button" type="submit">Filter</button>
+    </form>
+
+    <section class="panel" th:if="${#lists.isEmpty(items)}"><th:block th:replace="~{fragments/components :: empty('No attendance records in this period', 'Choose another date range or record your first punch.')} "></th:block></section>
+    <div class="panel table-scroll" th:unless="${#lists.isEmpty(items)}"><table class="data-table">
+        <caption>Attendance records and applied policy</caption>
+        <thead>
+        <tr>
+            <th scope="col">Date</th>
+            <th scope="col">Check in</th>
+            <th scope="col">Check out</th>
+            <th scope="col">Applied schedule</th>
+            <th scope="col">Grace</th>
+            <th scope="col">Result</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="item : ${items}">
+            <td th:text="${item.workDateDisplay}"></td>
+            <td th:text="${item.checkInTimeDisplay}"></td>
+            <td th:text="${item.checkOutTimeDisplay}"></td>
+            <td th:text="|${item.scheduledStartDisplay}–${item.scheduledEndDisplay} (${item.policy.zoneId})|"></td>
+            <td th:text="|${item.policy.checkInGraceMinutes} min / ${item.policy.checkoutGraceMinutes} min|"></td>
+            <td th:text="${item.resultDisplay}"></td>
+        </tr>
+        </tbody>
+    </table></div>
+</main>
+</body>
+</html>
