@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{fragments/layout :: shell(
+          pageTitle='Create Project',
+          section='Projects',
+          activeNav='projects',
+          primaryAction=~{},
+          content=~{::main})}">
+<body>
+<main>
+    <p class="page-description">Define the initial Project window and Leader. Membership changes remain server-authorized.</p>
+    <form class="panel form-panel form-grid" method="post" th:action="@{/projects}" th:object="${projectForm}">
+        <div class="alert alert-error" role="alert" th:if="${#fields.hasAnyErrors()}">
+            <strong>Please correct the highlighted fields.</strong>
+            <ul><li th:each="fieldError : ${#fields.allErrors()}" th:text="${fieldError}">Validation error</li></ul>
+        </div>
+        <div class="field">
+            <label class="field-label" for="name">Name</label>
+            <input class="control" id="name" th:field="*{name}" required maxlength="160" th:attr="aria-invalid=${#fields.hasErrors('name')},aria-describedby=${#fields.hasErrors('name') ? 'name-error' : null}">
+            <p class="field-error" id="name-error" role="alert" th:if="${#fields.hasErrors('name')}" th:errors="*{name}">Name error</p>
+        </div>
+        <div class="field">
+            <label class="field-label" for="description">Description</label>
+            <textarea class="control" id="description" rows="5" th:field="*{description}"></textarea>
+        </div>
+        <div class="form-grid form-grid-three">
+            <div class="field"><label class="field-label" for="startDate">Start date</label><input class="control" id="startDate" type="date" th:field="*{startDate}" required th:attr="aria-invalid=${#fields.hasErrors('startDate')},aria-describedby=${#fields.hasErrors('startDate') ? 'startDate-error' : null}"><p class="field-error" id="startDate-error" role="alert" th:if="${#fields.hasErrors('startDate')}" th:errors="*{startDate}">Start date error</p></div>
+            <div class="field"><label class="field-label" for="endDate">End date</label><input class="control" id="endDate" type="date" th:field="*{endDate}" required th:attr="aria-invalid=${#fields.hasErrors('endDate') or #fields.hasErrors('dateRangeValid')},aria-describedby=${#fields.hasErrors('endDate') ? 'endDate-error' : (#fields.hasErrors('dateRangeValid') ? 'dateRangeValid-error' : null)}"><p class="field-error" id="endDate-error" role="alert" th:if="${#fields.hasErrors('endDate')}" th:errors="*{endDate}">End date error</p><p class="field-error" id="dateRangeValid-error" role="alert" th:if="${#fields.hasErrors('dateRangeValid')}" th:errors="*{dateRangeValid}">Date range error</p></div>
+            <div class="field">
+                <label class="field-label" for="leader">Initial Leader user ID</label>
+                <input class="control" id="leader" type="number" min="1" th:field="*{initialLeaderUserId}" required th:attr="aria-invalid=${#fields.hasErrors('initialLeaderUserId')},aria-describedby=${#fields.hasErrors('initialLeaderUserId') ? 'initialLeaderUserId-error' : null}">
+                <p class="field-error" id="initialLeaderUserId-error" role="alert" th:if="${#fields.hasErrors('initialLeaderUserId')}" th:errors="*{initialLeaderUserId}">Leader error</p>
+            </div>
+        </div>
+        <div class="form-actions"><a class="button" th:href="@{/projects}">Cancel</a><button class="button button-primary" type="submit">Create Project</button></div>
+    </form>
+</main>
+</body>
+</html>

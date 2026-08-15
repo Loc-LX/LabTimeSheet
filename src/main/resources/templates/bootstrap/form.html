@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{fragments/auth-layout :: shell(
+          pageTitle='Create the first administrator',
+          eyebrow='One-time initialization',
+          content=~{::main})}">
+<body>
+<main>
+  <p class="page-description">Initialize this installation once. Later accounts are created by an active Admin.</p>
+  <p class="alert alert-error" th:if="${error}" th:text="${error}" role="alert"></p>
+  <form class="form-grid auth-form" method="post" th:action="@{/bootstrap}" th:object="${bootstrapForm}">
+    <div class="alert alert-error" th:if="${#fields.hasAnyErrors()}" role="alert">
+      <strong>Please correct the highlighted fields.</strong>
+      <ul><li th:each="fieldError : ${#fields.allErrors()}" th:text="${fieldError}"></li></ul>
+    </div>
+    <div class="field">
+      <label class="field-label" for="email">Email</label>
+      <input class="control" id="email" th:field="*{email}" type="email" required autocomplete="email" autofocus th:attr="aria-invalid=${#fields.hasErrors('email')},aria-describedby=${#fields.hasErrors('email') ? 'bootstrap-email-error' : null}">
+      <p class="field-error" id="bootstrap-email-error" th:if="${#fields.hasErrors('email')}" th:errors="*{email}" role="alert"></p>
+    </div>
+    <div class="field">
+      <label class="field-label" for="displayName">Display name</label>
+      <input class="control" id="displayName" th:field="*{displayName}" required autocomplete="name" th:attr="aria-invalid=${#fields.hasErrors('displayName')},aria-describedby=${#fields.hasErrors('displayName') ? 'bootstrap-display-name-error' : null}">
+      <p class="field-error" id="bootstrap-display-name-error" th:if="${#fields.hasErrors('displayName')}" th:errors="*{displayName}" role="alert"></p>
+    </div>
+    <div class="field">
+      <label class="field-label" for="password">Password</label>
+      <input class="control" id="password" th:field="*{password}" type="password" minlength="12" maxlength="128" required autocomplete="new-password" th:attr="aria-invalid=${#fields.hasErrors('password')},aria-describedby=${#fields.hasErrors('password') ? 'bootstrap-password-error' : null}">
+      <p class="field-error" id="bootstrap-password-error" th:if="${#fields.hasErrors('password')}" th:errors="*{password}" role="alert"></p>
+    </div>
+    <button class="button button-primary" type="submit">Create administrator</button>
+  </form>
+</main>
+</body>
+</html>

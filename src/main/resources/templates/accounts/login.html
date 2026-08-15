@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{fragments/auth-layout :: shell(
+          pageTitle='Sign in',
+          eyebrow='Lab Timesheet',
+          content=~{::main})}">
+<body>
+<main>
+  <p class="page-description">Use the email address and password associated with your active account.</p>
+  <p class="alert alert-error" th:if="${param.error}" role="alert">Invalid email or password</p>
+  <p class="alert" th:if="${param.logout}" role="status">You have signed out</p>
+  <p class="alert" th:if="${param.activated}" role="status">Your account is active. Sign in to continue.</p>
+  <form class="form-grid auth-form" method="post" th:action="@{/login}">
+    <div class="field"><label class="field-label" for="username">Email</label><input class="control" id="username" name="username" type="email" autocomplete="username" required autofocus></div>
+    <div class="field"><label class="field-label" for="password">Password</label><input class="control" id="password" name="password" type="password" autocomplete="current-password" required></div>
+    <button class="button button-primary" type="submit">Sign in</button>
+  </form>
+</main>
+</body>
+</html>

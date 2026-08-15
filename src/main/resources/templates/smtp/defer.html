@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{fragments/layout :: shell(
+          pageTitle='Defer SMTP configuration',
+          section='Admin',
+          activeNav='smtp',
+          primaryAction=~{::#primary-action},
+          content=~{::main})}">
+<body>
+<a id="primary-action" class="button button-primary" th:href="@{/admin/smtp}">Configure SMTP</a>
+<main>
+  <p class="page-description">Review each consequence before continuing without an active mail service.</p>
+  <section class="panel form-panel form-grid" aria-labelledby="smtp-deferral-progress">
+    <p class="alert alert-warning" role="alert" th:text="${deferralWarning}"></p>
+    <p id="smtp-deferral-progress" th:text="|Confirmation ${deferralStep} of 5|"></p>
+    <div class="form-actions">
+      <form th:if="${deferralStep > 1}" method="post" th:action="@{/admin/smtp/defer/back}">
+        <button class="button" type="submit">Back</button>
+      </form>
+      <a class="button" th:if="${deferralStep == 1}" th:href="@{/admin/smtp}">Back</a>
+      <form th:if="${deferralStep < 5}" method="post" th:action="@{/admin/smtp/defer/next}">
+        <button class="button button-primary" type="submit">I understand; continue</button>
+      </form>
+      <form th:if="${deferralStep == 5}" method="post" th:action="@{/admin/smtp/defer/finish}">
+        <button class="button button-primary" type="submit">Finish without SMTP</button>
+      </form>
+    </div>
+  </section>
+</main>
+</body>
+</html>
