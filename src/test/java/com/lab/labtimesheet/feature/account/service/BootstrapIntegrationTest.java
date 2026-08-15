@@ -61,6 +61,8 @@ class BootstrapIntegrationTest {
     void rootGuidesFreshInstallToBootstrapWhileOtherRoutesRemainHidden() throws Exception {
         mockMvc.perform(get("/bootstrap")).andExpect(status().isOk());
         mockMvc.perform(get("/actuator/health")).andExpect(status().isOk());
+        mockMvc.perform(get("/actuator/health/liveness")).andExpect(status().isOk());
+        mockMvc.perform(get("/actuator/health/readiness")).andExpect(status().isOk());
         mockMvc.perform(get("/"))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl("/bootstrap"));
