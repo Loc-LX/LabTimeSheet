@@ -11,6 +11,8 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import java.time.Instant;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 /**
  * JPA membership interval linking one Intern to one Project.
@@ -20,6 +22,7 @@ import java.time.Instant;
  */
 @Entity
 @Table(name = "project_memberships")
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class ProjectMembershipEntity {
 
     @Id
@@ -47,10 +50,6 @@ public class ProjectMembershipEntity {
 
     @Version
     private long version;
-
-    /** Constructor reserved for JPA materialization. */
-    protected ProjectMembershipEntity() {
-    }
 
     ProjectMembershipEntity(ProjectEntity project, long internUserId, Instant joinedAt, long addedByUserId) {
         this.project = project;

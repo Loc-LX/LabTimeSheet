@@ -11,6 +11,7 @@ import com.lab.labtimesheet.feature.task.service.TaskQueryService;
 import java.time.Clock;
 import java.util.Set;
 import java.util.stream.Collectors;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
  * imports their repositories or entities.
  */
 @Service
+@RequiredArgsConstructor
 public class ProjectService {
 
     private final ProjectRepository projects;
@@ -29,28 +31,6 @@ public class ProjectService {
     private final ProjectQueryService queries;
     private final TaskQueryService taskQueries;
     private final Clock clock;
-
-    /**
-     * Creates the Project mutation service.
-     *
-     * @param projects Project aggregate repository
-     * @param accounts public Account identity and eligibility boundary
-     * @param queries DTO-only Project query boundary reused for locked Task context
-     * @param taskQueries public Task activation-guard boundary
-     * @param clock server clock supplying persisted mutation instants
-     */
-    public ProjectService(
-            ProjectRepository projects,
-            AccountService accounts,
-            ProjectQueryService queries,
-            TaskQueryService taskQueries,
-            Clock clock) {
-        this.projects = projects;
-        this.accounts = accounts;
-        this.queries = queries;
-        this.taskQueries = taskQueries;
-        this.clock = clock;
-    }
 
     /**
      * Atomically creates a planned Mentor-owned Project, eligible initial membership, and first
