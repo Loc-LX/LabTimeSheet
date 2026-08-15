@@ -15,6 +15,7 @@ import com.lab.labtimesheet.feature.project.model.dto.ProjectTaskMemberView;
 import com.lab.labtimesheet.feature.project.model.entity.ProjectEntity;
 import com.lab.labtimesheet.feature.project.repository.ProjectRepository;
 import java.util.List;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,21 +27,11 @@ import org.springframework.transaction.annotation.Transactional;
  * members but expose no current Leader or active-member context.
  */
 @Service
+@RequiredArgsConstructor
 public class ProjectQueryService {
 
     private final ProjectRepository projects;
     private final AccountService accounts;
-
-    /**
-     * Creates the Project read service.
-     *
-     * @param projects Project aggregate repository
-     * @param accounts public Account identity and internship-eligibility boundary
-     */
-    public ProjectQueryService(ProjectRepository projects, AccountService accounts) {
-        this.projects = projects;
-        this.accounts = accounts;
-    }
 
     /**
      * Resolves an active authenticated account to its stable user identifier.
