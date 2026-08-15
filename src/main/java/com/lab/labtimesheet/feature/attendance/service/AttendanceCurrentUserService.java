@@ -6,8 +6,6 @@ import com.lab.labtimesheet.feature.account.service.AccountService;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceRole;
 import java.security.Principal;
-import lombok.AccessLevel;
-import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
@@ -15,10 +13,13 @@ import org.springframework.stereotype.Service;
  * Converts Spring Security principals into active Attendance authorization contexts through AccountService DTOs.
  */
 @Service
-@RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 public class AttendanceCurrentUserService {
 
     private final AccountService accounts;
+
+    AttendanceCurrentUserService(AccountService accounts) {
+        this.accounts = accounts;
+    }
 
     /**
      * Resolves the authenticated email through the Account feature and rejects missing or inactive identities.

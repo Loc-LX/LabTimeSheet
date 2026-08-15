@@ -22,8 +22,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-import lombok.AccessLevel;
-import lombok.NoArgsConstructor;
 
 /**
  * JPA aggregate root for Project lifecycle, membership intervals, and leadership intervals.
@@ -34,7 +32,6 @@ import lombok.NoArgsConstructor;
  */
 @Entity
 @Table(name = "projects")
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class ProjectEntity {
 
     @Id
@@ -77,6 +74,10 @@ public class ProjectEntity {
 
     @Version
     private long version;
+
+    /** Constructor reserved for JPA materialization. */
+    protected ProjectEntity() {
+    }
 
     private ProjectEntity(
             long mentorUserId,

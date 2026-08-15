@@ -11,8 +11,6 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.time.Instant;
-import lombok.AccessLevel;
-import lombok.NoArgsConstructor;
 
 /**
  * JPA leadership interval attached to an active same-Project membership.
@@ -22,7 +20,6 @@ import lombok.NoArgsConstructor;
  */
 @Entity
 @Table(name = "project_leadership_terms")
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class ProjectLeadershipTermEntity {
 
     @Id
@@ -48,6 +45,10 @@ public class ProjectLeadershipTermEntity {
 
     @Column(name = "ended_by_mentor_user_id")
     private Long endedByMentorUserId;
+
+    /** Constructor reserved for JPA materialization. */
+    protected ProjectLeadershipTermEntity() {
+    }
 
     ProjectLeadershipTermEntity(
             ProjectEntity project,

@@ -8,20 +8,14 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.lab.labtimesheet.feature.account.service.AccountService;
 import com.lab.labtimesheet.feature.integration.service.SmtpConfigurationService;
 import com.lab.labtimesheet.feature.project.controller.ProjectController;
-import com.lab.labtimesheet.feature.project.model.dto.ProjectActorView;
 import com.lab.labtimesheet.feature.project.service.ProjectQueryService;
 import com.lab.labtimesheet.feature.project.service.ProjectService;
 import com.lab.labtimesheet.feature.task.controller.TaskController;
 import com.lab.labtimesheet.feature.task.model.dto.TaskAssigneeChoice;
 import com.lab.labtimesheet.feature.task.service.TaskService;
-import java.time.Clock;
-import java.time.Instant;
-import java.time.ZoneId;
 import java.util.List;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -41,24 +35,10 @@ class ProjectTaskFormAccessibilityWebTest {
     private ProjectService projects;
 
     @MockitoBean
-    private AccountService accounts;
-
-    @MockitoBean
-    private Clock clock;
-
-    @MockitoBean
     private TaskService tasks;
 
     @MockitoBean
     private SmtpConfigurationService smtpConfiguration;
-
-    @BeforeEach
-    void mentorActor() {
-        given(projectQueries.authenticatedActor("mentor@example.test"))
-                .willReturn(new ProjectActorView(10L, "MENTOR"));
-        given(clock.instant()).willReturn(Instant.parse("2026-08-15T01:00:00Z"));
-        given(clock.getZone()).willReturn(ZoneId.of("Asia/Ho_Chi_Minh"));
-    }
 
     @Test
     void projectFieldErrorsHaveStableIdsAndInputAssociations() throws Exception {

@@ -11,8 +11,6 @@ import com.lab.labtimesheet.feature.integration.model.dto.SmtpDraft;
 import com.lab.labtimesheet.feature.integration.model.dto.SmtpSetupStatus;
 import com.lab.labtimesheet.feature.integration.model.entity.SmtpConfiguration;
 import com.lab.labtimesheet.feature.integration.repository.SmtpConfigurationRepository;
-import lombok.AccessLevel;
-import lombok.RequiredArgsConstructor;
 import org.springframework.core.env.Environment;
 import org.springframework.core.env.Profiles;
 import org.springframework.stereotype.Service;
@@ -23,7 +21,6 @@ import org.springframework.transaction.annotation.Transactional;
  * A changed draft loses prior test status, and an active revision is retired when its tested successor activates.
  */
 @Service
-@RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 public class SmtpConfigurationService {
     private final SmtpConfigurationRepository configurations;
     private final AccountService accounts;
@@ -32,6 +29,18 @@ public class SmtpConfigurationService {
     private final Environment environment;
     private final Clock clock;
     private final MailDeliveryService mailDelivery;
+
+    SmtpConfigurationService(SmtpConfigurationRepository configurations, AccountService accounts,
+            SecretCipher secrets, SmtpProbe probe, Environment environment, Clock clock,
+            MailDeliveryService mailDelivery) {
+        this.configurations = configurations;
+        this.accounts = accounts;
+        this.secrets = secrets;
+        this.probe = probe;
+        this.environment = environment;
+        this.clock = clock;
+        this.mailDelivery = mailDelivery;
+    }
 
     /**
      * Creates or replaces the editable draft after validating Admin authority and environment transport rules.

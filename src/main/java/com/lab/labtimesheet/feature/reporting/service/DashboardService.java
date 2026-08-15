@@ -16,7 +16,6 @@ import com.lab.labtimesheet.feature.project.model.dto.ProjectDashboardSummary;
 import com.lab.labtimesheet.feature.project.service.ProjectQueryService;
 import com.lab.labtimesheet.feature.task.model.dto.TaskDashboardView;
 import com.lab.labtimesheet.feature.task.service.TaskDashboardService;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,13 +28,31 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 @Transactional(readOnly = true)
-@RequiredArgsConstructor
 public class DashboardService {
 
     private final AccountService accounts;
     private final ProjectQueryService projects;
     private final TaskDashboardService tasks;
     private final AttendanceApplicationService attendance;
+
+    /**
+     * Creates a reporting coordinator over the concrete feature query boundaries.
+     *
+     * @param accounts account identity and Admin summary boundary
+     * @param projects role-scoped Project summary boundary
+     * @param tasks role-scoped Task dashboard boundary
+     * @param attendance attendance state boundary using the active policy business date
+     */
+    public DashboardService(
+            AccountService accounts,
+            ProjectQueryService projects,
+            TaskDashboardService tasks,
+            AttendanceApplicationService attendance) {
+        this.accounts = accounts;
+        this.projects = projects;
+        this.tasks = tasks;
+        this.attendance = attendance;
+    }
 
     /**
      * Builds system-wide Admin counts after confirming an active persisted Admin identity.

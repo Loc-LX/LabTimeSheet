@@ -1,7 +1,6 @@
 package com.lab.labtimesheet.feature.project.service;
 
 import com.lab.labtimesheet.feature.project.exception.ProjectAccessDeniedException;
-import com.lab.labtimesheet.feature.project.exception.ProjectRuleViolationException;
 import com.lab.labtimesheet.feature.account.service.AccountService;
 import com.lab.labtimesheet.feature.project.model.ProjectInternEligibility;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectCreateCommand;
@@ -10,12 +9,8 @@ import com.lab.labtimesheet.feature.project.model.entity.ProjectEntity;
 import com.lab.labtimesheet.feature.project.repository.ProjectRepository;
 import com.lab.labtimesheet.feature.task.service.TaskQueryService;
 import java.time.Clock;
-import java.time.LocalDate;
-import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,7 +22,6 @@ import org.springframework.transaction.annotation.Transactional;
  * imports their repositories or entities.
  */
 @Service
-@RequiredArgsConstructor
 public class ProjectService {
 
     private final ProjectRepository projects;
@@ -35,6 +29,28 @@ public class ProjectService {
     private final ProjectQueryService queries;
     private final TaskQueryService taskQueries;
     private final Clock clock;
+
+    /**
+     * Creates the Project mutation service.
+     *
+     * @param projects Project aggregate repository
+     * @param accounts public Account identity and eligibility boundary
+     * @param queries DTO-only Project query boundary reused for locked Task context
+     * @param taskQueries public Task activation-guard boundary
+     * @param clock server clock supplying persisted mutation instants
+     */
+    public ProjectService(
+            ProjectRepository projects,
+            AccountService accounts,
+            ProjectQueryService queries,
+            TaskQueryService taskQueries,
+            Clock clock) {
+        this.projects = projects;
+        this.accounts = accounts;
+        this.queries = queries;
+        this.taskQueries = taskQueries;
+        this.clock = clock;
+    }
 
     /**
      * Atomically creates a planned Mentor-owned Project, eligible initial membership, and first
@@ -72,42 +88,9 @@ public class ProjectService {
      */
     @Transactional
     public void addMember(long actorUserId, long projectId, long internUserId) {
-        addMembers(actorUserId, projectId, List.of(internUserId));
-    }
-
-    /**
-     * Adds a complete selection of eligible nonmembers while holding one Project write lock.
-     * Every identifier is revalidated after owner authorization and before the aggregate changes,
-     * so missing, duplicate, stale, ineligible, or current-member selections leave membership
-     * unchanged.
-     *
-     * @param actorUserId authenticated owning Mentor
-     * @param projectId Project to update
-     * @param internUserIds distinct eligible Intern account identifiers
-     * @throws com.lab.labtimesheet.feature.project.exception.ProjectRuleViolationException when
-     *         the selection is null, empty, malformed, duplicate, stale, ineligible, or already
-     *         contains a current member
-     */
-    @Transactional
-    public void addMembers(long actorUserId, long projectId, List<Long> internUserIds) {
         var project = lockedProject(projectId);
         project.authorizeOwner(actorUserId);
-        if (internUserIds == null || internUserIds.isEmpty()) {
-            throw new ProjectRuleViolationException("Select at least one Intern");
-        }
-        if (internUserIds.stream().anyMatch(userId -> userId == null || userId <= 0)
-                || new HashSet<>(internUserIds).size() != internUserIds.size()) {
-            throw new ProjectRuleViolationException("Intern selection is invalid");
-        }
-
-        var selectedInterns = internUserIds.stream().map(this::eligibleIntern).toList();
-        if (selectedInterns.stream().anyMatch(intern -> !intern.isEligible())
-                || selectedInterns.stream().anyMatch(intern -> project.hasCurrentMember(intern.userId()))) {
-            throw new ProjectRuleViolationException("One or more selected Interns are no longer eligible");
-        }
-
-        var addedAt = clock.instant();
-        selectedInterns.forEach(intern -> project.addMember(actorUserId, intern, addedAt));
+        project.addMember(actorUserId, eligibleIntern(internUserId), clock.instant());
         projects.flush();
     }
 
@@ -182,7 +165,7 @@ public class ProjectService {
     }
 
     private ProjectInternEligibility eligibleIntern(long userId) {
-        return new ProjectInternEligibility(userId, accounts.isEligibleIntern(userId, LocalDate.now(clock)));
+        return new ProjectInternEligibility(userId, accounts.isEligibleIntern(userId));
     }
 
     private void requireActiveMentor(long userId) {

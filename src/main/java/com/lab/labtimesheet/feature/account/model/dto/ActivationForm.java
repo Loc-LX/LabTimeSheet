@@ -3,14 +3,10 @@ package com.lab.labtimesheet.feature.account.model.dto;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
-import lombok.Getter;
-import lombok.Setter;
 
 /**
  * Validated activation submission. Password fields remain request-local and are never repopulated by the view.
  */
-@Getter
-@Setter
 public class ActivationForm {
     @NotBlank(message = "This activation link is invalid or no longer usable")
     private String token;
@@ -38,4 +34,10 @@ public class ActivationForm {
         confirmPassword = null;
     }
 
+    public String getToken() { return token; }
+    public void setToken(String token) { this.token = token; }
+    public String getPassword() { return password; }
+    public void setPassword(String password) { this.password = password; }
+    public String getConfirmPassword() { return confirmPassword; }
+    public void setConfirmPassword(String confirmPassword) { this.confirmPassword = confirmPassword; }
 }

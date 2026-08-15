@@ -9,15 +9,12 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.MapsId;
 import jakarta.persistence.Table;
 import java.time.LocalDate;
-import lombok.AccessLevel;
-import lombok.NoArgsConstructor;
 
 /**
  * JPA mapping of an immutable leave-day allocation whose exact date, policy, and quota snapshot remain historical.
  */
 @Entity
 @Table(name = "leave_request_days")
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class LeaveRequestDayEntity {
 
     @EmbeddedId
@@ -37,6 +34,11 @@ public class LeaveRequestDayEntity {
 
     @Column(name = "monthly_quota_snapshot", nullable = false)
     private int monthlyQuotaSnapshot;
+
+    /**
+     * Required by JPA.
+     */
+    protected LeaveRequestDayEntity() {}
 
     LeaveRequestDayEntity(
             LeaveRequestEntity request,

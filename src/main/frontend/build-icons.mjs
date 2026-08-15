@@ -10,14 +10,10 @@ const names = [
 const output = resolve('src/main/resources/static/assets/icons.svg');
 const symbols = await Promise.all(names.map(async (name) => {
   const svg = await readFile(resolve(`node_modules/lucide-static/icons/${name}.svg`), 'utf8');
-  const root = svg.match(/<svg\b([^>]*)>/)?.[1];
-  const viewBox = root?.match(/viewBox="([^"]+)"/)?.[1] ?? '0 0 24 24';
-  const presentation = ['fill', 'stroke', 'stroke-width', 'stroke-linecap', 'stroke-linejoin']
-    .map((attribute) => root?.match(new RegExp(`${attribute}="[^"]+"`))?.[0])
-    .join(' ');
+  const viewBox = svg.match(/viewBox="([^"]+)"/)?.[1] ?? '0 0 24 24';
   const body = svg.match(/<svg[\s\S]*?>([\s\S]*?)<\/svg>/)?.[1];
   if (!body) throw new Error(`Invalid Lucide SVG: ${name}`);
-  return `<symbol id="${name}" viewBox="${viewBox}" ${presentation}>${body.trim()}</symbol>`;
+  return `<symbol id="${name}" viewBox="${viewBox}">${body.trim()}</symbol>`;
 }));
 
 await mkdir(dirname(output), { recursive: true });

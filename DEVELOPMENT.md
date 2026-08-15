@@ -4,9 +4,8 @@ This guide explains how to prepare and run Lab Timesheet on a developer
 computer. The application runs from Java. PostgreSQL and Mailpit run in Docker
 containers.
 
-The root Dockerfile and Compose file are production-only. They are not part of
-the development loop. Development still runs Java from the IDE or Maven while
-PostgreSQL and Mailpit run as separate local containers.
+Application containerization and Docker Compose are planned for a later
+iteration, so they are not required for Iteration 1 development.
 
 ## 1. Install the required tools
 
@@ -62,16 +61,6 @@ Install and build the local frontend assets:
 npm ci
 npm run build
 ```
-
-### Use an isolated repair branch
-
-For a targeted repair, start a clean worktree from the taskmaster-verified
-current `main` on `work/fix/<feature>/<what-fix>`. Keep it separate from the
-five persistent `work/<feature>` branches. Do not use
-`work/<feature>/fix/<what-fix>` because the persistent `work/<feature>` ref
-already occupies that Git ref prefix.
-
-Every targeted repair starts from the taskmaster-verified latest `main`, uses TDD RED → GREEN, adds Javadoc during implementation, records companion evidence, undergoes independent review, and uses a normal, non-force merge only when separately authorized.
 
 ## 3. Start the development containers
 
@@ -135,27 +124,18 @@ unless you intentionally want to discard your local development data.
 
 ## 4. Run from a terminal
 
-The `dev` profile imports the ignored root `.env` file automatically. From the
-repository root, run:
+Load the environment file in the same terminal that will run Spring Boot:
 
 ```bash
+set -a
+source .env
+set +a
 ./mvnw spring-boot:run
 ```
 
-On Windows PowerShell, use the batch wrapper instead:
-
-```powershell
-.\mvnw.cmd spring-boot:run
-```
-
-Shell environment variables still override values from `.env`, which is useful
-for a one-off local override. If you run from another working directory, set
-`LAB_DEV_ENV_FILE` to the absolute path of your `.env` file.
-
 Open:
 
-- First-Admin setup: open `http://localhost:8080` and follow the automatic
-  redirect to `/bootstrap`.
+- First-Admin setup: `http://localhost:8080/bootstrap`
 - Login: `http://localhost:8080/login`
 - Mailpit inbox: `http://localhost:8025`
 
@@ -197,14 +177,14 @@ Stop the application with `Control+C`.
 6. Set **JRE** to Java 25.
 7. Set **Active profiles** to `dev`.
 8. Set **Working directory** to the repository root.
-9. Leave **Environment variables** empty. With the repository root as the
-   working directory, `application-dev.yaml` imports the ignored `.env` file.
+9. Open the **Environment variables** editor and add every variable from your
+   local `.env` file.
 10. Apply the configuration and run it.
 
-If company policy requires IntelliJ to inject the values instead, select the
-local `.env` in the **Environment variables** field. Environment variables take
-precedence over the imported file. Do not store real secrets in a shared or
-committed run configuration.
+Some IntelliJ editions can load variables from an environment file directly.
+If that option is available, select the local `.env`; otherwise use the
+environment-variable table. Do not store real secrets in a shared or committed
+run configuration.
 
 Run `npm ci` and `npm run build` in IntelliJ's terminal before the first launch
 and after changing Tailwind or icon sources.
@@ -240,13 +220,6 @@ does not by itself prove that SMTP is unavailable; use the Admin SMTP test.
 Check both **Project SDK** and the run configuration's **JRE**. They should both
 be Java 25.
 
-### Spring reports an unresolved `LAB_*` placeholder
-
-Confirm the run configuration uses the repository root as its working
-directory and that `.env` exists there. If the working directory must differ,
-set `LAB_DEV_ENV_FILE` to the absolute `.env` path in the run configuration's
-environment variables.
-
 ### Styles or icons are missing
 
 Run:
@@ -258,7 +231,3 @@ npm run build
 
 For test setup, commands, TDD, and test evidence rules, read
 [TESTING.md](TESTING.md).
-
-For production image and Compose operation, read [DEPLOYMENT.md](DEPLOYMENT.md).
-Do not use the production Compose file as a replacement for this development
-setup.

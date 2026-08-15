@@ -20,34 +20,10 @@
             <tbody><tr th:each="member : ${members}"><td th:text="${member.displayName}">Intern</td><td th:text="${#temporals.format(member.joinedAt, 'dd/MM/yyyy HH:mm')}">Joined</td><td th:text="${member.leftAt == null ? 'Current' : #temporals.format(member.leftAt, 'dd/MM/yyyy HH:mm')}">Current</td><td><span class="badge" th:classappend="${member.currentLeader ? ' badge-success' : ''}" th:text="${member.currentLeader ? 'Leader' : 'Member'}">Member</span></td></tr></tbody>
         </table></div>
     </section>
-    <form class="panel form-panel form-grid" th:if="${project.canManage}" method="post" th:action="@{/projects/{id}/members(id=${project.id})}" th:object="${projectMembersForm}">
-        <div class="alert alert-error" role="alert" th:if="${#fields.hasAnyErrors()}"><strong>Member selection could not be saved.</strong><ul><li th:each="fieldError : ${#fields.allErrors()}" th:text="${fieldError}">Selection error</li></ul></div>
-        <div class="field" data-intern-picker>
-            <span class="field-label">Interns to add</span>
-            <button class="button picker-trigger" type="button" data-picker-open th:disabled="${#lists.isEmpty(eligibleInternOptions)}"
-                    th:attr="aria-invalid=${#fields.hasErrors('internUserIds')},aria-describedby=${#fields.hasErrors('internUserIds') ? 'member-intern-user-error' : null}">Choose eligible Interns</button>
-            <p class="picker-summary" data-picker-summary aria-live="polite">No Interns selected</p>
-            <p class="field-help" th:if="${#lists.isEmpty(eligibleInternOptions)}">No eligible nonmembers are available.</p>
-            <p class="field-error" id="member-intern-user-error" role="alert" th:if="${#fields.hasErrors('internUserIds')}" th:errors="*{internUserIds}"></p>
-            <p class="field-help" role="status" th:if="${unavailableSelectionCount != null and unavailableSelectionCount > 0}"
-               th:text="${unavailableSelectionCount == 1 ? '1 previously selected Intern is no longer eligible; choose a replacement.' : unavailableSelectionCount + ' previously selected Interns are no longer eligible; choose replacements.'}">Unavailable selection recovery</p>
-            <dialog class="picker-drawer" data-picker-dialog aria-labelledby="member-picker-title">
-                <div class="picker-header"><div><h2 class="panel-title" id="member-picker-title">Add Project members</h2><p class="field-help">Select one or more eligible Interns who are not current members.</p></div><button class="button" type="button" data-picker-cancel>Cancel</button></div>
-                <div class="picker-body">
-                    <label class="field-label" for="member-search">Search by name or Student Code</label>
-                    <input class="control" id="member-search" type="search" autocomplete="off" data-picker-search>
-                    <div class="picker-options">
-                        <label class="picker-option" data-picker-option th:each="option : ${eligibleInternOptions}" th:attr="data-picker-search=${option.displayName + ' ' + option.studentCode}">
-                            <input type="checkbox" th:field="*{internUserIds}" th:value="${option.userId}">
-                            <span><strong data-picker-label th:text="|${option.displayName} (${option.studentCode})|">Intern (Code)</strong><small th:text="|${#temporals.format(option.internshipStart, 'dd/MM/yyyy')} – ${#temporals.format(option.internshipEnd, 'dd/MM/yyyy')}|">Dates</small></span>
-                        </label>
-                        <p class="picker-empty" data-picker-empty th:hidden="${!#lists.isEmpty(eligibleInternOptions)}">No matching eligible Interns.</p>
-                    </div>
-                </div>
-                <div class="picker-footer"><button class="button button-primary" type="button" data-picker-apply>Use selection</button></div>
-            </dialog>
-        </div>
-        <div class="form-actions"><button class="button button-primary" type="submit">Add selected members</button></div>
+    <form class="panel form-panel filter-form" th:if="${project.canManage}" method="post" th:action="@{/projects/{id}/members(id=${project.id})}" th:object="${projectMemberForm}">
+        <div class="alert alert-error" role="alert" th:if="${#fields.hasAnyErrors()}">Please correct the member selection.</div>
+        <div class="field"><label class="field-label" for="intern">Intern user ID</label><input class="control" id="intern" th:field="*{internUserId}" type="number" min="1" required th:attr="aria-invalid=${#fields.hasErrors('internUserId')},aria-describedby=${#fields.hasErrors('internUserId') ? 'member-intern-user-error' : null}"><p class="field-error" id="member-intern-user-error" role="alert" th:if="${#fields.hasErrors('internUserId')}" th:errors="*{internUserId}"></p></div>
+        <span></span><button class="button button-primary" type="submit">Add member</button>
     </form>
 </main>
 </body>

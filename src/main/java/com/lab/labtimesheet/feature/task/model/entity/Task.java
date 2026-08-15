@@ -12,9 +12,6 @@ import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import java.time.Instant;
 import java.time.LocalDate;
-import lombok.AccessLevel;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
 
 /**
  * Persisted Task aggregate row with one current same-Project assignee.
@@ -25,8 +22,6 @@ import lombok.NoArgsConstructor;
  */
 @Entity
 @Table(name = "tasks")
-@Getter
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Task {
 
     @Id
@@ -65,19 +60,19 @@ public class Task {
     private Instant deletedAt;
 
     @Column(name = "deleted_by_membership_id")
-    @Getter(AccessLevel.NONE)
     private Long deletedByMembershipId;
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
     @Column(name = "updated_at", nullable = false)
-    @Getter(AccessLevel.NONE)
     private Instant updatedAt;
 
     @Version
-    @Getter(AccessLevel.NONE)
     private long version;
+
+    /** Constructor reserved for JPA materialization. */
+    protected Task() {}
 
     /**
      * Creates a TODO Task and records the creating membership as both creator and assigner.
@@ -126,4 +121,111 @@ public class Task {
         updatedAt = now;
     }
 
+    /**
+     * Returns the persistence identity.
+     *
+     * @return Task identifier, or {@code null} before insertion
+     */
+    public Long getId() {
+        return id;
+    }
+
+    /**
+     * Returns the aggregate identity.
+     *
+     * @return owning Project identifier
+     */
+    public long getProjectId() {
+        return projectId;
+    }
+
+    /**
+     * Returns the current assignment identity.
+     *
+     * @return current same-Project assignee membership identifier
+     */
+    public long getAssigneeMembershipId() {
+        return assigneeMembershipId;
+    }
+
+    /**
+     * Returns the display title.
+     *
+     * @return normalized Task title
+     */
+    public String getTitle() {
+        return title;
+    }
+
+    /**
+     * Returns the descriptive text.
+     *
+     * @return optional normalized description
+     */
+    public String getDescription() {
+        return description;
+    }
+
+    /**
+     * Returns the workflow state.
+     *
+     * @return current fixed workflow status
+     */
+    public TaskStatus getStatus() {
+        return status;
+    }
+
+    /**
+     * Returns the business deadline.
+     *
+     * @return optional validated due date
+     */
+    public LocalDate getDueDate() {
+        return dueDate;
+    }
+
+    /**
+     * Returns current assignment timing.
+     *
+     * @return instant when the current assignment was established
+     */
+    public Instant getAssignedAt() {
+        return assignedAt;
+    }
+
+    /**
+     * Returns original creator attribution.
+     *
+     * @return immutable creating membership identifier
+     */
+    public long getCreatorMembershipId() {
+        return creatorMembershipId;
+    }
+
+    /**
+     * Returns current assignment attribution.
+     *
+     * @return membership identifier responsible for the current assignment
+     */
+    public long getAssignerMembershipId() {
+        return assignerMembershipId;
+    }
+
+    /**
+     * Returns lifecycle visibility state.
+     *
+     * @return soft-deletion instant, or {@code null} while current
+     */
+    public Instant getDeletedAt() {
+        return deletedAt;
+    }
+
+    /**
+     * Returns creation timing.
+     *
+     * @return immutable creation instant
+     */
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
 }

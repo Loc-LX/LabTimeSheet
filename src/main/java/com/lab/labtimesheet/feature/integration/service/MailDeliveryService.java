@@ -4,8 +4,6 @@ import com.lab.labtimesheet.feature.integration.model.dto.SmtpConnection;
 import com.lab.labtimesheet.feature.integration.model.entity.SmtpConfiguration;
 import com.lab.labtimesheet.feature.integration.model.SmtpStatus;
 import com.lab.labtimesheet.feature.integration.repository.SmtpConfigurationRepository;
-import lombok.AccessLevel;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -14,11 +12,16 @@ import org.springframework.transaction.annotation.Transactional;
  * Stored credentials are decrypted only while constructing the immediate adapter call.
  */
 @Service
-@RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 public class MailDeliveryService {
     private final SmtpConfigurationRepository configurations;
     private final SecretCipher secrets;
     private final SmtpProbe probe;
+
+    MailDeliveryService(SmtpConfigurationRepository configurations, SecretCipher secrets, SmtpProbe probe) {
+        this.configurations = configurations;
+        this.secrets = secrets;
+        this.probe = probe;
+    }
 
     /**
      * Reports whether workflows may emit required email.

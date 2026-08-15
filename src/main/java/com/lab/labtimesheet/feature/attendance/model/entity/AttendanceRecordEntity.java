@@ -13,15 +13,12 @@ import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import java.time.Instant;
 import java.time.LocalDate;
-import lombok.AccessLevel;
-import lombok.NoArgsConstructor;
 
 /**
  * JPA persistence model for one Intern/work-date punch row with its permanently attached policy version.
  */
 @Entity
 @Table(name = "attendance_records")
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class AttendanceRecordEntity {
 
     @Id
@@ -46,6 +43,11 @@ public class AttendanceRecordEntity {
 
     @Version
     private long version;
+
+    /**
+     * Required by JPA.
+     */
+    protected AttendanceRecordEntity() {}
 
     /**
      * Creates a new persistence row from server-authoritative raw punch values.

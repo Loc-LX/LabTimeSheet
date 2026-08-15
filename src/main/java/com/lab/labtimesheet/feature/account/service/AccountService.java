@@ -8,7 +8,6 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.util.Base64;
-import java.util.List;
 
 import com.lab.labtimesheet.feature.account.model.AccountStatus;
 import com.lab.labtimesheet.feature.account.model.GlobalRole;
@@ -18,7 +17,6 @@ import com.lab.labtimesheet.feature.account.model.dto.AccountCreation;
 import com.lab.labtimesheet.feature.account.model.dto.AccountIdentity;
 import com.lab.labtimesheet.feature.account.model.dto.AccountSummary;
 import com.lab.labtimesheet.feature.account.model.dto.CreateAccountCommand;
-import com.lab.labtimesheet.feature.account.model.dto.EligibleInternOption;
 import com.lab.labtimesheet.feature.account.model.entity.AppUser;
 import com.lab.labtimesheet.feature.account.model.entity.InternProfile;
 import com.lab.labtimesheet.feature.account.model.entity.UserActionToken;
@@ -238,24 +236,6 @@ public class AccountService {
                         .existsByUserIdAndInternshipStatusAndInternshipStartDateLessThanEqualAndInternshipEndDateGreaterThanEqual(
                                 user.getId(), InternshipStatus.ACTIVE, workDate, workDate))
                 .isPresent();
-    }
-
-    /**
-     * Lists non-secret Intern selection options eligible on an explicit business date.
-     * The result requires active account and internship states plus inclusive internship dates, but it does not
-     * authorize a consuming Project operation; that operation must recheck its own ownership and membership rules.
-     *
-     * @param businessDate server-derived business date to evaluate inclusively
-     * @return deterministic options ordered by display name, student code, then account ID
-     * @throws IllegalArgumentException when {@code businessDate} is {@code null}
-     */
-    @Transactional(readOnly = true)
-    public List<EligibleInternOption> eligibleInternOptions(LocalDate businessDate) {
-        if (businessDate == null) {
-            throw new IllegalArgumentException("Business date is required");
-        }
-        return internProfiles.findEligibleInternOptions(
-                GlobalRole.INTERN, AccountStatus.ACTIVE, InternshipStatus.ACTIVE, businessDate);
     }
 
     /**

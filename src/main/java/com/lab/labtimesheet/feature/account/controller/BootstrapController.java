@@ -3,8 +3,6 @@ package com.lab.labtimesheet.feature.account.controller;
 import com.lab.labtimesheet.feature.account.model.dto.BootstrapForm;
 import com.lab.labtimesheet.feature.account.service.BootstrapService;
 import jakarta.validation.Valid;
-import lombok.AccessLevel;
-import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -18,9 +16,12 @@ import org.springframework.web.server.ResponseStatusException;
 /** Renders and processes the one-time first-Admin installation form. */
 @Controller
 @RequestMapping("/bootstrap")
-@RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 class BootstrapController {
     private final BootstrapService bootstrap;
+
+    BootstrapController(BootstrapService bootstrap) {
+        this.bootstrap = bootstrap;
+    }
 
     @GetMapping
     String form(Model model) {

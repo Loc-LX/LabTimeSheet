@@ -7,9 +7,6 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
-import lombok.AccessLevel;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
 
 /**
  * Persisted append-only Task comment.
@@ -19,8 +16,6 @@ import lombok.NoArgsConstructor;
  */
 @Entity
 @Table(name = "task_comments")
-@Getter
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class TaskComment {
 
     @Id
@@ -39,6 +34,9 @@ public class TaskComment {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
+    /** Constructor reserved for JPA materialization. */
+    protected TaskComment() {}
+
     /**
      * Creates an immutable comment from server-authorized values.
      *
@@ -54,4 +52,48 @@ public class TaskComment {
         this.createdAt = createdAt;
     }
 
+    /**
+     * Returns the persistence identity.
+     *
+     * @return comment identifier, or {@code null} before insertion
+     */
+    public Long getId() {
+        return id;
+    }
+
+    /**
+     * Returns the owning record identity.
+     *
+     * @return owning Task identifier
+     */
+    public long getTaskId() {
+        return taskId;
+    }
+
+    /**
+     * Returns historical authorship.
+     *
+     * @return immutable historical author user identifier
+     */
+    public long getAuthorUserId() {
+        return authorUserId;
+    }
+
+    /**
+     * Returns comment content.
+     *
+     * @return normalized comment text
+     */
+    public String getBody() {
+        return body;
+    }
+
+    /**
+     * Returns creation timing.
+     *
+     * @return immutable creation instant
+     */
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
 }

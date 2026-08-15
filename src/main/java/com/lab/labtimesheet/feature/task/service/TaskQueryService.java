@@ -2,7 +2,6 @@ package com.lab.labtimesheet.feature.task.service;
 
 import com.lab.labtimesheet.feature.task.repository.TaskRepository;
 import java.util.Set;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -10,10 +9,18 @@ import org.springframework.transaction.annotation.Transactional;
  * Public Task query boundary used by other features without exposing Task entities or repositories.
  */
 @Service
-@RequiredArgsConstructor
 public class TaskQueryService {
 
     private final TaskRepository tasks;
+
+    /**
+     * Creates the cross-feature Task query service.
+     *
+     * @param tasks Task persistence boundary
+     */
+    public TaskQueryService(TaskRepository tasks) {
+        this.tasks = tasks;
+    }
 
     /**
      * Counts current Tasks assigned outside the supplied active membership set.

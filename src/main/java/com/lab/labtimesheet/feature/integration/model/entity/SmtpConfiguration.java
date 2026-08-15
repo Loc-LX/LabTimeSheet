@@ -15,9 +15,6 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
-import lombok.AccessLevel;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
 
 /**
  * Versioned SMTP configuration entity whose credentials remain AES-GCM encrypted at rest.
@@ -25,33 +22,26 @@ import lombok.NoArgsConstructor;
  */
 @Entity
 @Table(name = "smtp_configurations")
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class SmtpConfiguration {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Getter
     private Long id;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 16)
-    @Getter
     private SmtpStatus status;
 
     @Column(nullable = false, length = 255)
-    @Getter
     private String host;
 
     @Column(nullable = false)
-    @Getter
     private int port;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "security_mode", nullable = false, length = 16)
-    @Getter
     private SecurityMode securityMode;
 
     @Column(length = 320)
-    @Getter
     private String username;
 
     @Column(name = "password_ciphertext")
@@ -61,19 +51,15 @@ public class SmtpConfiguration {
     private byte[] passwordNonce;
 
     @Column(name = "secret_key_version")
-    @Getter
     private Integer secretKeyVersion;
 
     @Column(name = "from_address", nullable = false, length = 320)
-    @Getter
     private String fromAddress;
 
     @Column(name = "from_name", nullable = false, length = 120)
-    @Getter
     private String fromName;
 
     @Column(name = "tested_at")
-    @Getter
     private Instant testedAt;
 
     @Column(name = "tested_by_user_id")
@@ -102,6 +88,10 @@ public class SmtpConfiguration {
 
     @Version
     private long version;
+
+    /** Required by JPA; revisions are created through {@link #draft}. */
+    protected SmtpConfiguration() {
+    }
 
     /**
      * Creates an editable SMTP revision with encrypted credential material.
@@ -201,6 +191,30 @@ public class SmtpConfiguration {
         return value == null || value.isBlank() ? null : value.trim();
     }
 
+    public Long getId() {
+        return id;
+    }
+
+    public SmtpStatus getStatus() {
+        return status;
+    }
+
+    public String getHost() {
+        return host;
+    }
+
+    public int getPort() {
+        return port;
+    }
+
+    public SecurityMode getSecurityMode() {
+        return securityMode;
+    }
+
+    public String getUsername() {
+        return username;
+    }
+
     /** @return a defensive copy of encrypted password bytes, or {@code null} */
     public byte[] getPasswordCiphertext() {
         return passwordCiphertext == null ? null : passwordCiphertext.clone();
@@ -211,4 +225,19 @@ public class SmtpConfiguration {
         return passwordNonce == null ? null : passwordNonce.clone();
     }
 
+    public Integer getSecretKeyVersion() {
+        return secretKeyVersion;
+    }
+
+    public String getFromAddress() {
+        return fromAddress;
+    }
+
+    public String getFromName() {
+        return fromName;
+    }
+
+    public Instant getTestedAt() {
+        return testedAt;
+    }
 }

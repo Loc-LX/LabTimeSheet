@@ -107,53 +107,6 @@ class ProjectServiceIntegrationTest {
     }
 
     @Test
-    void ownerAddsSeveralEligibleMembersInOneLockedTransaction() {
-        long mentorId = user("mentor-batch-add@example.test", "MENTOR");
-        long leaderId = intern("leader-batch-add@example.test", "I017");
-        long firstMemberId = intern("first-batch-add@example.test", "I018");
-        long secondMemberId = intern("second-batch-add@example.test", "I019");
-        long projectId = createProject(mentorId, leaderId, "Batch membership");
-
-        projectService.addMembers(mentorId, projectId, List.of(firstMemberId, secondMemberId));
-
-        assertEquals(3, count("""
-                select count(*) from project_memberships
-                where project_id = ? and left_at is null
-                """, projectId));
-    }
-
-    @Test
-    void memberBatchRejectsMissingDuplicateCurrentAndStaleSelectionsWithoutPartialMutation() {
-        long mentorId = user("mentor-batch-guard@example.test", "MENTOR");
-        long leaderId = intern("leader-batch-guard@example.test", "I020");
-        long eligibleId = intern("eligible-batch-guard@example.test", "I021");
-        long staleId = intern("stale-batch-guard@example.test", "I022");
-        long projectId = createProject(mentorId, leaderId, "Batch guard");
-        jdbc.update("update intern_profiles set internship_end_date = date '2026-08-13' where user_id = ?", staleId);
-        entityManager.clear();
-
-        assertThrows(ProjectRuleViolationException.class,
-                () -> projectService.addMembers(mentorId, projectId, null));
-        assertThrows(ProjectRuleViolationException.class,
-                () -> projectService.addMembers(mentorId, projectId, List.of()));
-        assertThrows(ProjectRuleViolationException.class,
-                () -> projectService.addMembers(mentorId, projectId, List.of(eligibleId, eligibleId)));
-        assertThrows(ProjectRuleViolationException.class,
-                () -> projectService.addMembers(mentorId, projectId, List.of(Long.MAX_VALUE)));
-        assertThrows(ProjectRuleViolationException.class,
-                () -> projectService.addMembers(mentorId, projectId, List.of(mentorId)));
-        assertThrows(ProjectRuleViolationException.class,
-                () -> projectService.addMembers(mentorId, projectId, List.of(leaderId)));
-        assertThrows(ProjectRuleViolationException.class,
-                () -> projectService.addMembers(mentorId, projectId, List.of(eligibleId, staleId)));
-
-        assertEquals(0, count("""
-                select count(*) from project_memberships
-                where project_id = ? and intern_user_id in (?, ?) and left_at is null
-                """, projectId, eligibleId, staleId));
-    }
-
-    @Test
     void leaderChangeClosesOneTermAndDoesNotMoveTaskAssignments() {
         long mentorId = user("mentor-leader@example.test", "MENTOR");
         long firstLeaderId = intern("leader-one@example.test", "I005");

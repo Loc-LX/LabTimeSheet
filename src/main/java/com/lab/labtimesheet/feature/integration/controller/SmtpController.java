@@ -9,8 +9,6 @@ import com.lab.labtimesheet.feature.integration.model.dto.SmtpForm;
 import com.lab.labtimesheet.feature.integration.service.SmtpConfigurationService;
 import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
-import lombok.AccessLevel;
-import lombok.RequiredArgsConstructor;
 import org.springframework.mail.MailException;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -27,7 +25,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
  */
 @Controller
 @RequestMapping("/admin/smtp")
-@RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 class SmtpController {
     private static final String TEST_FAILURE_MESSAGE =
             "SMTP test failed. Verify the draft settings and server availability, then try again.";
@@ -43,6 +40,11 @@ class SmtpController {
 
     private final SmtpConfigurationService smtp;
     private final AccountService accounts;
+
+    SmtpController(SmtpConfigurationService smtp, AccountService accounts) {
+        this.smtp = smtp;
+        this.accounts = accounts;
+    }
 
     @GetMapping
     String form(Model model) {

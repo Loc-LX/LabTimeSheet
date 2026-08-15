@@ -11,9 +11,6 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
-import lombok.AccessLevel;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
 
 /**
  * Persistent internship lifecycle and inclusive eligibility dates for an Intern account.
@@ -21,7 +18,6 @@ import lombok.NoArgsConstructor;
  */
 @Entity
 @Table(name = "intern_profiles")
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class InternProfile {
     @Id
     @Column(name = "user_id")
@@ -37,16 +33,13 @@ public class InternProfile {
     private String phone;
 
     @Column(name = "internship_start_date", nullable = false)
-    @Getter
     private LocalDate internshipStartDate;
 
     @Column(name = "internship_end_date", nullable = false)
-    @Getter
     private LocalDate internshipEndDate;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "internship_status", nullable = false, length = 24)
-    @Getter
     private InternshipStatus internshipStatus;
 
     @Column(name = "activated_at")
@@ -66,6 +59,10 @@ public class InternProfile {
 
     @Version
     private long version;
+
+    /** Required by JPA; domain instances are created through {@link #notStarted}. */
+    protected InternProfile() {
+    }
 
     private InternProfile(
             long userId, String studentCode, LocalDate internshipStartDate, LocalDate internshipEndDate, Instant now) {
@@ -108,4 +105,15 @@ public class InternProfile {
         updatedAt = now;
     }
 
+    public InternshipStatus getInternshipStatus() {
+        return internshipStatus;
+    }
+
+    public LocalDate getInternshipStartDate() {
+        return internshipStartDate;
+    }
+
+    public LocalDate getInternshipEndDate() {
+        return internshipEndDate;
+    }
 }

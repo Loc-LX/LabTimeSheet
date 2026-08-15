@@ -5,14 +5,11 @@ import jakarta.persistence.Embeddable;
 import java.io.Serializable;
 import java.time.LocalDate;
 import java.util.Objects;
-import lombok.AccessLevel;
-import lombok.NoArgsConstructor;
 
 /**
  * Composite identifier of one frozen quota-consuming date within a leave request.
  */
 @Embeddable
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class LeaveRequestDayId implements Serializable {
 
     /** Parent request identity used by the composite primary key. */
@@ -22,6 +19,11 @@ public class LeaveRequestDayId implements Serializable {
     /** Exact frozen allocation date used by the composite primary key. */
     @Column(name = "leave_date", nullable = false)
     private LocalDate leaveDate;
+
+    /**
+     * Required by JPA.
+     */
+    protected LeaveRequestDayId() {}
 
     /**
      * Creates the identity for an already-persisted request and its exact allocated date.

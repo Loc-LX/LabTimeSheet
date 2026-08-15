@@ -2,16 +2,20 @@ package com.lab.labtimesheet.config;
 
 import java.util.Base64;
 
-import lombok.Getter;
-import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /** Security material used to encrypt integration credentials at rest. */
 @ConfigurationProperties("lab.security")
-@Getter
-@Setter
 public class SecurityProperties {
     private String masterKey;
+
+    public String getMasterKey() {
+        return masterKey;
+    }
+
+    public void setMasterKey(String masterKey) {
+        this.masterKey = masterKey;
+    }
 
     /**
      * Decodes and validates the configured AES-256 master key.

@@ -30,7 +30,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -43,7 +42,6 @@ import org.springframework.transaction.annotation.Transactional;
  * to a non-disclosing Task 404, while authenticated business-rule failures use Task validation.
  */
 @Service
-@RequiredArgsConstructor
 public class TaskService {
 
     private final TaskRepository tasks;
@@ -52,6 +50,31 @@ public class TaskService {
     private final ProjectService projectMutations;
     private final CalendarApplicationService calendar;
     private final Clock clock;
+
+    /**
+     * Creates the Task application service and its feature boundaries.
+     *
+     * @param tasks Task persistence boundary
+     * @param comments append-only comment persistence boundary
+     * @param projects authorized Project read boundary
+     * @param projectMutations Project-first locking mutation boundary
+     * @param calendar authoritative global day-off query boundary
+     * @param clock server time source for persisted instants
+     */
+    public TaskService(
+            TaskRepository tasks,
+            TaskCommentRepository comments,
+            ProjectQueryService projects,
+            ProjectService projectMutations,
+            CalendarApplicationService calendar,
+            Clock clock) {
+        this.tasks = tasks;
+        this.comments = comments;
+        this.projects = projects;
+        this.projectMutations = projectMutations;
+        this.calendar = calendar;
+        this.clock = clock;
+    }
 
     /**
      * Creates a TODO Task in a PLANNED or ACTIVE Project.

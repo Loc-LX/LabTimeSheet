@@ -9,15 +9,12 @@ import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import java.time.Instant;
 import java.time.LocalDate;
-import lombok.AccessLevel;
-import lombok.NoArgsConstructor;
 
 /**
  * Minimal Attendance-owned JPA mapping of leave request state used when evaluating frozen leave-day allocations.
  */
 @Entity
 @Table(name = "leave_requests")
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class LeaveRequestEntity {
 
     @Id
@@ -53,6 +50,11 @@ public class LeaveRequestEntity {
 
     @Version
     private long version;
+
+    /**
+     * Required by JPA.
+     */
+    protected LeaveRequestEntity() {}
 
     LeaveRequestEntity(
             long internUserId,

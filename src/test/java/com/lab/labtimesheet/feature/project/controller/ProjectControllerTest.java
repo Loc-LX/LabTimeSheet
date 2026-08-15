@@ -1,7 +1,5 @@
 package com.lab.labtimesheet.feature.project.controller;
 
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -19,8 +17,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.lab.labtimesheet.feature.project.exception.ProjectAccessDeniedException;
 import com.lab.labtimesheet.feature.project.exception.ProjectRuleViolationException;
-import com.lab.labtimesheet.feature.account.model.dto.EligibleInternOption;
-import com.lab.labtimesheet.feature.account.service.AccountService;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectCreateCommand;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectActorView;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectDetail;
@@ -31,13 +27,9 @@ import com.lab.labtimesheet.feature.project.service.ProjectQueryService;
 import com.lab.labtimesheet.feature.project.service.ProjectService;
 import com.lab.labtimesheet.feature.integration.service.SmtpConfigurationService;
 import java.time.Instant;
-import java.time.Clock;
 import java.time.LocalDate;
-import java.time.ZoneId;
 import java.util.List;
-import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -59,118 +51,7 @@ class ProjectControllerTest {
     private ProjectService projects;
 
     @MockitoBean
-    private AccountService accounts;
-
-    @MockitoBean
-    private Clock clock;
-
-    @MockitoBean
     private SmtpConfigurationService smtpConfiguration;
-
-    @BeforeEach
-    void serverBusinessDate() {
-        when(clock.instant()).thenReturn(Instant.parse("2026-08-15T01:00:00Z"));
-        when(clock.getZone()).thenReturn(ZoneId.of("Asia/Ho_Chi_Minh"));
-    }
-
-    @Test
-    @WithMockUser(username = "mentor@example.test")
-    void projectCreationRendersSearchableEligibleLeaderOptionsWithoutVisibleNumericIds() throws Exception {
-        when(pages.authenticatedActor("mentor@example.test"))
-                .thenReturn(new ProjectActorView(10L, "MENTOR"));
-        when(accounts.eligibleInternOptions(LocalDate.of(2026, 8, 15))).thenReturn(List.of(
-                option(20L, "Nguyen An", "STU-020"),
-                option(21L, "Tran Binh", "STU-021")));
-
-        String html = mvc.perform(get("/projects/new"))
-                .andExpect(status().isOk())
-                .andExpect(model().attributeExists("eligibleInternOptions"))
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
-                        .string(containsString("data-intern-picker")))
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
-                        .string(containsString("type=\"radio\"")))
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
-                        .string(containsString("Nguyen An")))
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
-                        .string(containsString("STU-020")))
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
-                        .string(containsString("01/08/2026 – 31/12/2026")))
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
-                        .string(not(containsString("Initial Leader user ID"))))
-                .andReturn().getResponse().getContentAsString();
-        assertFalse(containsRequiredRadio(html));
-    }
-
-    @Test
-    @WithMockUser(username = "mentor@example.test")
-    void projectCreationExplainsWhenNoEligibleLeaderIsAvailable() throws Exception {
-        when(pages.authenticatedActor("mentor@example.test"))
-                .thenReturn(new ProjectActorView(10L, "MENTOR"));
-        when(accounts.eligibleInternOptions(LocalDate.of(2026, 8, 15))).thenReturn(List.of());
-
-        mvc.perform(get("/projects/new"))
-                .andExpect(status().isOk())
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
-                        .string(containsString("No eligible Interns are available.")));
-    }
-
-    @Test
-    @WithMockUser(username = "mentor@example.test")
-    void memberAndLeadershipPickersExposeOnlyValidServerFilteredOptions() throws Exception {
-        when(pages.authenticatedUserId("mentor@example.test")).thenReturn(10L);
-        when(pages.detail(10L, 30L)).thenReturn(plannedOwnerDetail());
-        when(pages.members(10L, 30L)).thenReturn(List.of(
-                new ProjectMemberView(40L, 20L, "Current Leader", Instant.parse("2026-08-15T00:00:00Z"), null, true),
-                new ProjectMemberView(41L, 21L, "Current Member", Instant.parse("2026-08-15T00:00:00Z"), null, false)));
-        when(pages.leadership(10L, 30L)).thenReturn(List.of());
-        when(accounts.eligibleInternOptions(LocalDate.of(2026, 8, 15))).thenReturn(List.of(
-                option(20L, "Current Leader", "STU-020"),
-                option(21L, "Current Member", "STU-021"),
-                option(22L, "Eligible Nonmember", "STU-022")));
-
-        String membersHtml = mvc.perform(get("/projects/30/members"))
-                .andExpect(status().isOk())
-                .andReturn().getResponse().getContentAsString();
-        assertTrue(membersHtml.contains("name=\"internUserIds\""));
-        assertTrue(membersHtml.contains("Eligible Nonmember"));
-        assertFalse(membersHtml.contains("data-picker-label>Current Member"));
-
-        String leadershipHtml = mvc.perform(get("/projects/30/leadership"))
-                .andExpect(status().isOk())
-                .andReturn().getResponse().getContentAsString();
-        assertTrue(leadershipHtml.contains("type=\"radio\""));
-        assertTrue(leadershipHtml.contains("Current Member"));
-        assertFalse(leadershipHtml.contains("Eligible Nonmember"));
-        assertFalse(leadershipHtml.contains("data-picker-label>Current Leader"));
-        assertFalse(containsRequiredRadio(leadershipHtml));
-    }
-
-    @Test
-    @WithMockUser(username = "mentor@example.test")
-    void rejectedMemberBatchRetainsEligibleSelectionsAndExplainsUnavailableCountWithoutIds() throws Exception {
-        when(pages.authenticatedUserId("mentor@example.test")).thenReturn(10L);
-        when(pages.detail(10L, 30L)).thenReturn(plannedOwnerDetail());
-        when(pages.members(10L, 30L)).thenReturn(List.of());
-        when(accounts.eligibleInternOptions(LocalDate.of(2026, 8, 15))).thenReturn(List.of(
-                option(21L, "First Intern", "STU-021")));
-        doThrow(new ProjectRuleViolationException("One or more selected Interns are no longer eligible"))
-                .when(projects).addMembers(10L, 30L, List.of(21L, 22L));
-
-        mvc.perform(post("/projects/30/members")
-                        .with(csrf())
-                        .param("internUserIds", "21", "22"))
-                .andExpect(status().isOk())
-                .andExpect(view().name("projects/members"))
-                .andExpect(model().attributeHasFieldErrors("projectMembersForm", "internUserIds"))
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
-                        .string(containsString("One or more selected Interns are no longer eligible")))
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
-                        .string(containsString("1 previously selected Intern is no longer eligible; choose a replacement.")))
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
-                        .string(containsString("value=\"21\" id=\"internUserIds1\" name=\"internUserIds\" checked=\"checked\"")))
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
-                        .string(not(containsString("value=\"22\""))));
-    }
 
     @Test
     @WithMockUser(username = "mentor@example.test")
@@ -263,8 +144,7 @@ class ProjectControllerTest {
     @Test
     @WithMockUser(username = "mentor@example.test")
     void validCreateSubmissionUsesAuthenticatedMentorAndRedirectsToDetail() throws Exception {
-        when(pages.authenticatedActor("mentor@example.test"))
-                .thenReturn(new ProjectActorView(10L, "MENTOR"));
+        when(pages.authenticatedUserId("mentor@example.test")).thenReturn(10L);
         when(projects.create(
                         10L,
                         new ProjectCreateCommand(
@@ -284,50 +164,6 @@ class ProjectControllerTest {
                         .param("initialLeaderUserId", "20"))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl("/projects/30"));
-    }
-
-    @Test
-    @WithMockUser(username = "mentor@example.test")
-    void missingInitialLeaderReRendersServerFieldError() throws Exception {
-        when(pages.authenticatedActor("mentor@example.test"))
-                .thenReturn(new ProjectActorView(10L, "MENTOR"));
-
-        mvc.perform(post("/projects")
-                        .with(csrf())
-                        .param("name", "Intern Portal Refresh")
-                        .param("startDate", "2026-08-15")
-                        .param("endDate", "2026-09-30"))
-                .andExpect(status().isOk())
-                .andExpect(view().name("projects/form"))
-                .andExpect(model().attributeHasFieldErrors("projectForm", "initialLeaderUserId"))
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
-                        .string(containsString("id=\"initialLeaderUserId-error\"")));
-
-        verify(projects, never()).create(org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.any());
-    }
-
-    @Test
-    @WithMockUser(username = "mentor@example.test")
-    void missingReplacementLeaderReRendersServerFieldError() throws Exception {
-        when(pages.authenticatedUserId("mentor@example.test")).thenReturn(10L);
-        when(pages.detail(10L, 30L)).thenReturn(plannedOwnerDetail());
-        when(pages.leadership(10L, 30L)).thenReturn(List.of());
-        when(pages.members(10L, 30L)).thenReturn(List.of(new ProjectMemberView(
-                41L, 21L, "Current Member", Instant.parse("2026-08-15T00:00:00Z"), null, false)));
-        when(accounts.eligibleInternOptions(LocalDate.of(2026, 8, 15))).thenReturn(List.of(
-                option(21L, "Current Member", "STU-021")));
-
-        mvc.perform(post("/projects/30/leadership").with(csrf()))
-                .andExpect(status().isOk())
-                .andExpect(view().name("projects/leadership"))
-                .andExpect(model().attributeHasFieldErrors("projectMemberForm", "internUserId"))
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
-                        .string(containsString("id=\"leadership-intern-user-error\"")));
-
-        verify(projects, never()).changeLeader(
-                org.mockito.ArgumentMatchers.anyLong(),
-                org.mockito.ArgumentMatchers.anyLong(),
-                org.mockito.ArgumentMatchers.anyLong());
     }
 
     @Test
@@ -381,9 +217,6 @@ class ProjectControllerTest {
     @Test
     @WithMockUser(username = "mentor@example.test")
     void invalidCreateSubmissionStaysOnSafeFormWithoutMutation() throws Exception {
-        when(pages.authenticatedActor("mentor@example.test"))
-                .thenReturn(new ProjectActorView(10L, "MENTOR"));
-
         mvc.perform(post("/projects")
                         .with(csrf())
                         .param("name", " ")
@@ -406,8 +239,6 @@ class ProjectControllerTest {
     @Test
     @WithMockUser(username = "mentor@example.test")
     void domainValidationErrorsStayOnTheirSafeFormsWithRetainedInput() throws Exception {
-        when(pages.authenticatedActor("mentor@example.test"))
-                .thenReturn(new ProjectActorView(10L, "MENTOR"));
         when(pages.authenticatedUserId("mentor@example.test")).thenReturn(10L);
         when(pages.detail(10L, 30L)).thenReturn(plannedOwnerDetail());
         when(pages.members(10L, 30L)).thenReturn(List.of(new ProjectMemberView(
@@ -424,7 +255,7 @@ class ProjectControllerTest {
                                 99L)))
                 .thenThrow(new ProjectRuleViolationException("Intern must have an active account and internship"));
         doThrow(new ProjectRuleViolationException("Intern is already a current Project member"))
-                .when(projects).addMembers(10L, 30L, List.of(20L));
+                .when(projects).addMember(10L, 30L, 20L);
         doThrow(new ProjectRuleViolationException("Selected Intern is already the current Leader"))
                 .when(projects).changeLeader(10L, 30L, 20L);
 
@@ -443,14 +274,12 @@ class ProjectControllerTest {
 
         mvc.perform(post("/projects/30/members")
                         .with(csrf())
-                        .param("internUserIds", "20"))
+                        .param("internUserId", "20"))
                 .andExpect(status().isOk())
                 .andExpect(view().name("projects/members"))
-                .andExpect(model().attributeHasFieldErrors("projectMembersForm", "internUserIds"))
+                .andExpect(model().attributeHasFieldErrors("projectMemberForm", "internUserId"))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
-                        .string(containsString("Intern is already a current Project member")))
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
-                        .string(not(containsString("value=\"20\""))));
+                        .string(containsString("value=\"20\"")));
 
         mvc.perform(post("/projects/30/leadership")
                         .with(csrf())
@@ -459,9 +288,7 @@ class ProjectControllerTest {
                 .andExpect(view().name("projects/leadership"))
                 .andExpect(model().attributeHasFieldErrors("projectMemberForm", "internUserId"))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
-                        .string(containsString("Selected Intern is already the current Leader")))
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
-                        .string(not(containsString("value=\"20\""))));
+                        .string(containsString("value=\"20\"")));
     }
 
     @Test
@@ -560,20 +387,5 @@ class ProjectControllerTest {
                 "Mentor",
                 "Current Leader",
                 true);
-    }
-
-    private static EligibleInternOption option(long userId, String name, String studentCode) {
-        return new EligibleInternOption(
-                userId,
-                name,
-                studentCode,
-                LocalDate.of(2026, 8, 1),
-                LocalDate.of(2026, 12, 31));
-    }
-
-    private static boolean containsRequiredRadio(String html) {
-        return Pattern.compile("<input(?=[^>]*type=\\\"radio\\\")(?=[^>]*required(?:=|\\s|>))[^>]*>")
-                .matcher(html)
-                .find();
     }
 }

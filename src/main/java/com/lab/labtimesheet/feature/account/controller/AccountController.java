@@ -6,8 +6,6 @@ import com.lab.labtimesheet.feature.account.model.dto.ActivationForm;
 import com.lab.labtimesheet.feature.account.model.dto.CreateAccountForm;
 import com.lab.labtimesheet.feature.account.service.AccountService;
 import jakarta.validation.Valid;
-import lombok.AccessLevel;
-import lombok.RequiredArgsConstructor;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Controller;
@@ -22,9 +20,12 @@ import org.springframework.web.bind.annotation.PostMapping;
  * constraints are mapped to their owning form fields without exposing persistence diagnostics.
  */
 @Controller
-@RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 class AccountController {
     private final AccountService accounts;
+
+    AccountController(AccountService accounts) {
+        this.accounts = accounts;
+    }
 
     @GetMapping("/admin/accounts/new")
     String newAccount(Model model) {

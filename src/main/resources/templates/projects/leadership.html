@@ -20,32 +20,10 @@
             <tbody><tr th:each="term : ${leadership}"><td th:text="${term.leaderName}">Leader</td><td th:text="${#temporals.format(term.startedAt, 'dd/MM/yyyy HH:mm')}">Started</td><td th:text="${term.endedAt == null ? 'Current' : #temporals.format(term.endedAt, 'dd/MM/yyyy HH:mm')}">Current</td></tr></tbody>
         </table></div>
     </section>
-    <form class="panel form-panel form-grid" th:if="${project.canManage}" method="post" th:action="@{/projects/{id}/leadership(id=${project.id})}" th:object="${projectMemberForm}">
+    <form class="panel form-panel filter-form" th:if="${project.canManage}" method="post" th:action="@{/projects/{id}/leadership(id=${project.id})}" th:object="${projectMemberForm}">
         <div class="alert alert-error" role="alert" th:if="${#fields.hasAnyErrors()}">Please correct the Leader selection.</div>
-        <div class="field" data-intern-picker>
-            <span class="field-label">New Leader</span>
-            <button class="button picker-trigger" type="button" data-picker-open th:disabled="${#lists.isEmpty(eligibleInternOptions)}"
-                    th:attr="aria-invalid=${#fields.hasErrors('internUserId')},aria-describedby=${#fields.hasErrors('internUserId') ? 'leadership-intern-user-error' : null}">Choose a current member</button>
-            <p class="picker-summary" data-picker-summary aria-live="polite">No Intern selected</p>
-            <p class="field-help" th:if="${#lists.isEmpty(eligibleInternOptions)}">No eligible current members are available.</p>
-            <p class="field-error" id="leadership-intern-user-error" role="alert" th:if="${#fields.hasErrors('internUserId')}" th:errors="*{internUserId}"></p>
-            <dialog class="picker-drawer" data-picker-dialog aria-labelledby="leadership-picker-title">
-                <div class="picker-header"><div><h2 class="panel-title" id="leadership-picker-title">Choose new Leader</h2><p class="field-help">Only eligible current members other than the current Leader are available.</p></div><button class="button" type="button" data-picker-cancel>Cancel</button></div>
-                <div class="picker-body">
-                    <label class="field-label" for="leadership-search">Search by name or Student Code</label>
-                    <input class="control" id="leadership-search" type="search" autocomplete="off" data-picker-search>
-                    <div class="picker-options">
-                        <label class="picker-option" data-picker-option th:each="option : ${eligibleInternOptions}" th:attr="data-picker-search=${option.displayName + ' ' + option.studentCode}">
-                            <input type="radio" th:field="*{internUserId}" th:value="${option.userId}">
-                            <span><strong data-picker-label th:text="|${option.displayName} (${option.studentCode})|">Intern (Code)</strong><small th:text="|${#temporals.format(option.internshipStart, 'dd/MM/yyyy')} – ${#temporals.format(option.internshipEnd, 'dd/MM/yyyy')}|">Dates</small></span>
-                        </label>
-                        <p class="picker-empty" data-picker-empty th:hidden="${!#lists.isEmpty(eligibleInternOptions)}">No matching eligible current members.</p>
-                    </div>
-                </div>
-                <div class="picker-footer"><button class="button button-primary" type="button" data-picker-apply>Use selection</button></div>
-            </dialog>
-        </div>
-        <div class="form-actions"><button class="button button-primary" type="submit">Change Leader</button></div>
+        <div class="field"><label class="field-label" for="leader">New Leader user ID</label><input class="control" id="leader" th:field="*{internUserId}" type="number" min="1" required th:attr="aria-invalid=${#fields.hasErrors('internUserId')},aria-describedby=${#fields.hasErrors('internUserId') ? 'leadership-intern-user-error' : null}"><p class="field-error" id="leadership-intern-user-error" role="alert" th:if="${#fields.hasErrors('internUserId')}" th:errors="*{internUserId}"></p></div>
+        <span></span><button class="button button-primary" type="submit">Change Leader</button>
     </form>
 </main>
 </body>

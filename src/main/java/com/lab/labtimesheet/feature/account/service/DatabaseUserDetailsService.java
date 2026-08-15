@@ -2,8 +2,6 @@ package com.lab.labtimesheet.feature.account.service;
 
 import com.lab.labtimesheet.feature.account.model.AccountStatus;
 import com.lab.labtimesheet.feature.account.repository.AppUserRepository;
-import lombok.AccessLevel;
-import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -13,9 +11,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 /** Adapts persisted account credentials and lifecycle state to Spring Security authentication. */
 @Service
-@RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 class DatabaseUserDetailsService implements UserDetailsService {
     private final AppUserRepository users;
+
+    DatabaseUserDetailsService(AppUserRepository users) {
+        this.users = users;
+    }
 
     /**
      * Loads the normalized account and disables authentication unless its lifecycle state is active.
