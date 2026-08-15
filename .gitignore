@@ -34,15 +34,5 @@ node_modules/
 ### VS Code ###
 .vscode/
 
-### Agentic ###
-.agents/
-.agent/
-AGENTS.md
-
 # Local requirements review artifacts
 /labtimesheet-docs-hub/
-
-# Local Impeccable product context
-/PRODUCT.md
-/DESIGN.md
-/.impeccable/
