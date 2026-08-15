@@ -126,6 +126,14 @@ companion record under [`docs/tests`](docs/tests/README.md).
 | `work/attendance` | Policy, calendar, attendance workflows |
 | `work/reports-ui` | Shared UI, dashboards, reporting presentation |
 
+For a targeted repair, create a clean isolated branch and worktree from the
+taskmaster-verified current `main` named
+`work/fix/<feature>/<what-fix>`. Do not nest it as
+`work/<feature>/fix/<what-fix>`: the persistent `work/<feature>` ref already
+uses that Git ref prefix.
+
+Every targeted repair starts from the taskmaster-verified latest `main`, uses TDD RED → GREEN, adds Javadoc during implementation, records companion evidence, undergoes independent review, and uses a normal, non-force merge only when separately authorized.
+
 Iteration 2 work must start from the merged Iteration 1 `main`, continue with
 strict RED-to-GREEN TDD, add Javadoc during implementation, and update the
 matching Markdown evidence record before each milestone commit.
