@@ -17,10 +17,6 @@ import org.springframework.web.servlet.ModelAndView;
 @ControllerAdvice(assignableTypes = ProjectController.class)
 public class ProjectControllerAdvice {
 
-    /** Creates the stateless Project exception-to-view adapter. */
-    public ProjectControllerAdvice() {
-    }
-
     /**
      * Hides whether a requested Project or nested resource exists.
      *
