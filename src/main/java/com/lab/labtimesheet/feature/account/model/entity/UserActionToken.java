@@ -12,6 +12,9 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 /**
  * Persistent one-time user-action token state. Only a defensive copy of the SHA-256 token hash is stored; raw
@@ -19,28 +22,35 @@ import jakarta.persistence.Table;
  */
 @Entity
 @Table(name = "user_action_tokens")
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class UserActionToken {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Getter
     private Long id;
 
     @Column(name = "user_id", nullable = false)
+    @Getter
     private Long userId;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 24)
+    @Getter
     private TokenPurpose purpose;
 
     @Column(name = "token_hash", nullable = false, columnDefinition = "bytea")
     private byte[] tokenHash;
 
     @Column(name = "expires_at", nullable = false)
+    @Getter
     private Instant expiresAt;
 
     @Column(name = "used_at")
+    @Getter
     private Instant usedAt;
 
     @Column(name = "invalidated_at")
+    @Getter
     private Instant invalidatedAt;
 
     @Column(name = "issued_by_user_id")
@@ -48,10 +58,6 @@ public class UserActionToken {
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
-
-    /** Required by JPA; domain instances are created through named factories. */
-    protected UserActionToken() {
-    }
 
     private UserActionToken(long userId, byte[] tokenHash, Instant expiresAt, long issuedByUserId, Instant now) {
         this.userId = userId;
@@ -115,18 +121,6 @@ public class UserActionToken {
         }
     }
 
-    public Long getId() {
-        return id;
-    }
-
-    public Long getUserId() {
-        return userId;
-    }
-
-    public TokenPurpose getPurpose() {
-        return purpose;
-    }
-
     /**
      * Returns a defensive copy of the persisted token hash.
      *
@@ -136,15 +130,4 @@ public class UserActionToken {
         return Arrays.copyOf(tokenHash, tokenHash.length);
     }
 
-    public Instant getExpiresAt() {
-        return expiresAt;
-    }
-
-    public Instant getUsedAt() {
-        return usedAt;
-    }
-
-    public Instant getInvalidatedAt() {
-        return invalidatedAt;
-    }
 }

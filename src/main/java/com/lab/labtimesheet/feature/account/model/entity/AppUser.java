@@ -16,6 +16,9 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 /**
  * Persistent global account with immutable role, authentication lifecycle, creator attribution, and optimistic
@@ -23,29 +26,37 @@ import jakarta.persistence.Version;
  */
 @Entity
 @Table(name = "app_users")
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class AppUser {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Getter
     private Long id;
 
     @Column(nullable = false, length = 320)
+    @Getter
     private String email;
 
     @Column(name = "display_name", nullable = false, length = 120)
+    @Getter
     private String displayName;
 
     @Column(name = "password_hash", length = 255)
+    @Getter
     private String passwordHash;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "global_role", nullable = false, length = 16, updatable = false)
+    @Getter
     private GlobalRole globalRole;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "account_status", nullable = false, length = 32)
+    @Getter
     private AccountStatus accountStatus;
 
     @Column(name = "activated_at")
+    @Getter
     private Instant activatedAt;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -60,10 +71,6 @@ public class AppUser {
 
     @Version
     private long version;
-
-    /** Required by JPA; domain instances are created through named factories. */
-    protected AppUser() {
-    }
 
     private AppUser(String email, String displayName, String passwordHash, GlobalRole globalRole,
             AccountStatus accountStatus, Instant activatedAt, AppUser createdBy, Instant now) {
@@ -124,31 +131,4 @@ public class AppUser {
         updatedAt = now;
     }
 
-    public Long getId() {
-        return id;
-    }
-
-    public String getEmail() {
-        return email;
-    }
-
-    public String getDisplayName() {
-        return displayName;
-    }
-
-    public String getPasswordHash() {
-        return passwordHash;
-    }
-
-    public GlobalRole getGlobalRole() {
-        return globalRole;
-    }
-
-    public AccountStatus getAccountStatus() {
-        return accountStatus;
-    }
-
-    public Instant getActivatedAt() {
-        return activatedAt;
-    }
 }
