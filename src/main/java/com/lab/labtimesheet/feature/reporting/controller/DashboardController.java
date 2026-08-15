@@ -1,0 +1,60 @@
+package com.lab.labtimesheet.feature.reporting.controller;
+
+import com.lab.labtimesheet.feature.reporting.exception.DashboardAccessDeniedException;
+import com.lab.labtimesheet.feature.reporting.service.DashboardService;
+import org.springframework.security.core.Authentication;
+import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.GetMapping;
+
+/**
+ * Selects the dashboard view for the authenticated global authority.
+ *
+ * <p>The authority selects only which role-specific flow to invoke. The reporting service then
+ * reloads and revalidates the persisted account role and lifecycle before returning any data.
+ */
+@Controller
+public class DashboardController {
+
+    private final DashboardService dashboardService;
+
+    /**
+     * Creates the dashboard endpoint backed by the reporting composition service.
+     *
+     * @param dashboardService service that authorizes and assembles role-scoped dashboard data
+     */
+    public DashboardController(DashboardService dashboardService) {
+        this.dashboardService = dashboardService;
+    }
+
+    /**
+     * Renders the dashboard permitted by the caller's authenticated global role.
+     *
+     * @param authentication authenticated caller whose name is the persisted account email
+     * @param model Thymeleaf model populated with the role-specific {@code dashboard} projection
+     * @return the Admin, Mentor, or Intern dashboard template name
+     * @throws DashboardAccessDeniedException when the authority is unsupported or does not match
+     *     an active persisted account identity
+     */
+    @GetMapping("/dashboard")
+    public String dashboard(Authentication authentication, Model model) {
+        String email = authentication.getName();
+        if (hasRole(authentication, "ROLE_ADMIN")) {
+            model.addAttribute("dashboard", dashboardService.admin(email));
+            return "dashboard/admin";
+        }
+        if (hasRole(authentication, "ROLE_MENTOR")) {
+            model.addAttribute("dashboard", dashboardService.mentor(email));
+            return "dashboard/mentor";
+        }
+        if (hasRole(authentication, "ROLE_INTERN")) {
+            model.addAttribute("dashboard", dashboardService.intern(email));
+            return "dashboard/intern";
+        }
+        throw new DashboardAccessDeniedException("Dashboard access requires a supported global role");
+    }
+
+    private boolean hasRole(Authentication authentication, String role) {
+        return authentication.getAuthorities().stream().anyMatch(authority -> authority.getAuthority().equals(role));
+    }
+}
