@@ -28,7 +28,7 @@ const documents = [
   },
   {
     file: 'docs/superpowers/plans/2026-08-15-access-navigation-icon-intern-picker.md',
-    approved: '2. Add one branch rule everywhere contributors, coordinators, and requirement\n   reviewers rely on it: `work/fix/<feature>/<what-fix>` from verified `main`.\n3. State why `work/<feature>/fix/<what-fix>` is invalid while its persistent\n   `work/<feature>` ref exists.'
+    approved: '2. Add one branch rule to contributor guides, design records, plans, and tracked\n   coordination authority: `work/fix/<feature>/<what-fix>` from verified\n   `main`.\n3. State why `work/<feature>/fix/<what-fix>` is invalid while its persistent\n   `work/<feature>` ref exists.'
   }
 ];
 
