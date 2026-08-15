@@ -7,23 +7,16 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
  * Hides all non-bootstrap application routes until durable first-Admin initialization completes.
  * Only bootstrap pages, health, public assets, and error rendering remain reachable beforehand.
  */
+@RequiredArgsConstructor
 public class BootstrapAccessFilter extends OncePerRequestFilter {
     private final BootstrapService bootstrap;
-
-    /**
-     * Creates the pre-bootstrap access guard.
-     *
-     * @param bootstrap durable installation-state service
-     */
-    public BootstrapAccessFilter(BootstrapService bootstrap) {
-        this.bootstrap = bootstrap;
-    }
 
     /**
      * Returns HTTP 404 for hidden routes before bootstrap so no authentication surface is exposed prematurely.

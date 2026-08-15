@@ -1,6 +1,8 @@
 package com.lab.labtimesheet.feature.integration.controller;
 
 import com.lab.labtimesheet.feature.integration.service.SmtpConfigurationService;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ModelAttribute;
 
@@ -9,12 +11,9 @@ import org.springframework.web.bind.annotation.ModelAttribute;
  * configuration is active.
  */
 @ControllerAdvice
+@RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 class SmtpWarningAdvice {
     private final SmtpConfigurationService smtp;
-
-    SmtpWarningAdvice(SmtpConfigurationService smtp) {
-        this.smtp = smtp;
-    }
 
     @ModelAttribute("smtpRestricted")
     boolean smtpRestricted() {
