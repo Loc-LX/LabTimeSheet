@@ -70,6 +70,8 @@ five persistent `work/<feature>` branches. Do not use
 `work/<feature>/fix/<what-fix>` because the persistent `work/<feature>` ref
 already occupies that Git ref prefix.
 
+Every targeted repair starts from the taskmaster-verified latest `main`, uses TDD RED → GREEN, adds Javadoc during implementation, records companion evidence, undergoes independent review, and uses a normal, non-force merge only when separately authorized.
+
 ## 3. Start the development containers
 
 ### PostgreSQL 18.4

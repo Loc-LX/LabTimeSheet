@@ -5,6 +5,15 @@ const path = require('node:path');
 const repositoryRoot = path.resolve(__dirname, '..');
 const validForm = '`work/fix/<feature>/<what-fix>`';
 const invalidForm = '`work/<feature>/fix/<what-fix>`';
+const requiredWorkflow = 'Every targeted repair starts from the taskmaster-verified latest `main`, uses TDD RED → GREEN, adds Javadoc during implementation, records companion evidence, undergoes independent review, and uses a normal, non-force merge only when separately authorized.';
+const workflowElements = [
+  'taskmaster-verified latest `main`',
+  'TDD RED → GREEN',
+  'Javadoc during implementation',
+  'companion evidence',
+  'independent review',
+  'normal, non-force merge'
+];
 const documents = [
   {
     file: 'AGENTS.md',
@@ -40,6 +49,9 @@ function validate(contents) {
     const content = contents.get(file);
     if (count(content, validForm) !== 1) failures.push(`${file} must contain ${validForm} exactly once`);
     if (!content.includes(approved)) failures.push(`${file} is missing its approved branch workflow statement`);
+    if (count(content, requiredWorkflow) !== 1) {
+      failures.push(`${file} must contain the complete required targeted-repair workflow exactly once`);
+    }
 
     const outsideApprovedStatement = content.replace(approved, '');
     if (outsideApprovedStatement.includes(validForm) || outsideApprovedStatement.includes(invalidForm)) {
@@ -61,8 +73,24 @@ function readContents() {
 const contents = readContents();
 validate(contents);
 
+let workflowElementRejections = 0;
+
 if (process.argv.includes('--self-test')) {
   for (const {file} of documents) {
+    for (const workflowElement of workflowElements) {
+      const missingWorkflowElement = new Map(contents);
+      missingWorkflowElement.set(
+        file,
+        contents.get(file).replace(requiredWorkflow, requiredWorkflow.replace(workflowElement, ''))
+      );
+      assert.throws(
+        () => validate(missingWorkflowElement),
+        (error) => error instanceof Error
+          && error.message.includes(`${file} must contain the complete required targeted-repair workflow exactly once`)
+      );
+      workflowElementRejections += 1;
+    }
+
     const positiveRecommendation = new Map(contents);
     positiveRecommendation.set(file, `${contents.get(file)}\nUse ${invalidForm} for a targeted repair.\n`);
     assert.throws(
@@ -75,5 +103,6 @@ if (process.argv.includes('--self-test')) {
 
 console.log(`Fix-branch workflow documentation: ${documents.length} approved statements validated`);
 if (process.argv.includes('--self-test')) {
+  console.log(`Targeted-repair workflow element removals: ${workflowElementRejections}/${workflowElements.length * documents.length} rejected`);
   console.log(`Positive nested branch recommendations: ${documents.length}/${documents.length} rejected`);
 }
