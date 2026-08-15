@@ -10,12 +10,15 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import java.time.LocalDate;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 /**
  * JPA model for the locally authoritative global calendar decision.
  */
 @Entity
 @Table(name = "global_calendar_events")
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class GlobalCalendarEventEntity {
 
     @Id
@@ -42,11 +45,6 @@ public class GlobalCalendarEventEntity {
 
     @Version
     private long version;
-
-    /**
-     * Required by JPA.
-     */
-    protected GlobalCalendarEventEntity() {}
 
     /**
      * Creates a custom calendar event attributed to the Admin actor.

@@ -7,6 +7,8 @@ import com.lab.labtimesheet.feature.attendance.service.AttendanceCurrentUserServ
 import com.lab.labtimesheet.feature.attendance.service.CalendarApplicationService;
 import java.security.Principal;
 import java.time.LocalDate;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Controller;
@@ -23,20 +25,12 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
  */
 @Controller
 @RequestMapping("/attendance/calendar")
+@RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 public class CalendarController {
 
     private final CalendarApplicationService calendar;
     private final AttendanceApplicationService attendance;
     private final AttendanceCurrentUserService currentUsers;
-
-    CalendarController(
-            CalendarApplicationService calendar,
-            AttendanceApplicationService attendance,
-            AttendanceCurrentUserService currentUsers) {
-        this.calendar = calendar;
-        this.attendance = attendance;
-        this.currentUsers = currentUsers;
-    }
 
     /**
      * Renders the next year of locally stored calendar events for an authenticated Admin.
