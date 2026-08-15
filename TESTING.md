@@ -223,8 +223,9 @@ claim never replaces a test command and result.
 
 Gitea runs the frontend tests/build, complete Maven/PostgreSQL suite, Javadoc,
 generated-asset check, and whitespace check for every pull request and push.
-The separate container workflow builds the production Dockerfile without
-publishing pull-request or work-branch images. Only `main` publishes.
+The separate container workflow runs only when manually dispatched or when
+`main` is pushed. It repeats the verification job before building either image.
+Manual runs do not publish; only a push to `main` publishes.
 
 Run focused and affected tests locally before pushing. CI is the shared
 confirmation, not a substitute for local RED and GREEN evidence.
@@ -235,6 +236,10 @@ confirmation, not a substitute for local RED and GREEN evidence.
 
 Start Docker Desktop or OrbStack. Run `docker version`. OrbStack users should
 also check the `DOCKER_HOST` command shown in Section 1.
+
+The Gitea Docker runner exposes the daemon through Docker Desktop, so its jobs
+set `TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal`. Keep that override if
+the runner stays containerized; otherwise Ryuk may try an unreachable bridge IP.
 
 ### The wrong Java version is used
 
