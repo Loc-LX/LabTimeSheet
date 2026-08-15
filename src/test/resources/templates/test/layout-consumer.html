@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{fragments/layout :: shell(
+          pageTitle='Shared shell contract',
+          section='Mentor',
+          activeNav='dashboard',
+          primaryAction=~{::#primary-action},
+          content=~{::main})}">
+<body>
+<a id="primary-action" href="/projects/new">Create Project</a>
+<main>
+    <p>Domain-owned content</p>
+</main>
+</body>
+</html>

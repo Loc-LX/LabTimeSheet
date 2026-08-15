@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{fragments/layout :: shell(
+          pageTitle='Create account',
+          section='Admin',
+          activeNav='accounts',
+          primaryAction=~{::#primary-action},
+          content=~{::main})}">
+<body>
+<a id="primary-action" class="button" th:href="@{/dashboard}">Back to overview</a>
+<main>
+  <p class="page-description">Create a role-specific account and send its one-time activation link.</p>
+  <p class="alert" th:if="${param.created}" role="status">Account created and activation email sent.</p>
+  <p class="alert alert-error" th:if="${param.deliveryFailed}" role="alert">Account created, but activation delivery failed.</p>
+  <form class="panel form-panel form-grid" method="post" th:action="@{/admin/accounts}" th:object="${accountForm}">
+    <div class="alert alert-error" th:if="${#fields.hasAnyErrors()}" role="alert">
+      <strong>Please correct the highlighted fields.</strong>
+      <ul><li th:each="fieldError : ${#fields.allErrors()}" th:text="${fieldError}"></li></ul>
+    </div>
+    <div class="field">
+      <label class="field-label" for="email">Email</label>
+      <input class="control" id="email" th:field="*{email}" type="email" required autocomplete="off" th:attr="aria-invalid=${#fields.hasErrors('email')},aria-describedby=${#fields.hasErrors('email') ? 'account-email-error' : null}">
+      <p class="field-error" id="account-email-error" th:if="${#fields.hasErrors('email')}" th:errors="*{email}" role="alert"></p>
+    </div>
+    <div class="field">
+      <label class="field-label" for="displayName">Display name</label>
+      <input class="control" id="displayName" th:field="*{displayName}" required autocomplete="off" th:attr="aria-invalid=${#fields.hasErrors('displayName')},aria-describedby=${#fields.hasErrors('displayName') ? 'account-display-name-error' : null}">
+      <p class="field-error" id="account-display-name-error" th:if="${#fields.hasErrors('displayName')}" th:errors="*{displayName}" role="alert"></p>
+    </div>
+    <div class="field">
+      <label class="field-label" for="role">Role</label>
+      <select class="control" id="role" th:field="*{role}" required th:attr="aria-invalid=${#fields.hasErrors('role')},aria-describedby=${#fields.hasErrors('role') ? 'account-role-error' : null}">
+        <option value="ADMIN">Admin</option>
+        <option value="MENTOR">Mentor</option>
+        <option value="INTERN">Intern</option>
+      </select>
+      <p class="field-error" id="account-role-error" th:if="${#fields.hasErrors('role')}" th:errors="*{role}" role="alert"></p>
+    </div>
+    <fieldset class="form-section" th:attr="aria-describedby=${#fields.hasErrors('internDetailsValid') ? 'account-intern-details-error' : null}">
+      <legend>Intern details</legend>
+      <p class="field-help">Required only when the selected role is Intern.</p>
+      <div class="form-grid form-grid-three">
+        <div class="field"><label class="field-label" for="studentCode">Student code</label><input class="control" id="studentCode" th:field="*{studentCode}" autocomplete="off" th:attr="aria-invalid=${#fields.hasErrors('studentCode')},aria-describedby=${#fields.hasErrors('studentCode') ? 'account-student-code-error' : null}"><p class="field-error" id="account-student-code-error" th:if="${#fields.hasErrors('studentCode')}" th:errors="*{studentCode}" role="alert"></p></div>
+        <div class="field"><label class="field-label" for="internshipStart">Internship start</label><input class="control" id="internshipStart" th:field="*{internshipStart}" type="date"></div>
+        <div class="field"><label class="field-label" for="internshipEnd">Internship end</label><input class="control" id="internshipEnd" th:field="*{internshipEnd}" type="date"></div>
+      </div>
+      <p class="field-error" id="account-intern-details-error" th:if="${#fields.hasErrors('internDetailsValid')}" th:errors="*{internDetailsValid}" role="alert"></p>
+    </fieldset>
+    <div class="form-actions"><a class="button" th:href="@{/dashboard}">Cancel</a><button class="button button-primary" type="submit">Create account</button></div>
+  </form>
+</main>
+</body>
+</html>

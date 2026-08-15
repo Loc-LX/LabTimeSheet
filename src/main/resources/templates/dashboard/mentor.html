@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{fragments/layout :: shell(
+          pageTitle=${'Good morning, ' + dashboard.displayName},
+          section='Mentor',
+          activeNav='dashboard',
+          primaryAction=~{::#primary-action},
+          content=~{::main})}">
+<body>
+<a id="primary-action" class="button button-primary" th:href="@{/projects/new}">Create Project</a>
+<main>
+    <p class="page-description">Scan owned Project health, current eligible members, and blocked work.</p>
+    <section class="panel metric-strip metric-strip-three" aria-label="Mentor metrics">
+        <div class="metric"><div class="metric-label">Active owned Projects</div><div class="metric-value" th:text="${dashboard.activeProjects}">0</div><div class="metric-detail">Only your Project scope</div></div>
+        <div class="metric"><div class="metric-label">Active members</div><div class="metric-value" th:text="${dashboard.activeMembers}">0</div><div class="metric-detail">Across owned active Projects</div></div>
+        <div class="metric"><div class="metric-label">Blocked Tasks</div><div class="metric-value" th:text="${dashboard.blockedTasks}">0</div><div class="metric-detail">View and comment</div></div>
+    </section>
+    <section class="panel" th:if="${dashboard.activeProjects == 0}"><th:block th:replace="~{fragments/components :: empty('No active owned Projects', 'Create or activate a Project to begin tracking current work.')} "></th:block></section>
+</main>
+</body>
+</html>

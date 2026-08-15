@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{fragments/layout :: shell(
+          pageTitle='Project Tasks',
+          section='Projects',
+          activeNav='projects',
+          primaryAction=~{::#primary-action},
+          content=~{::main})}">
+<body>
+<a id="primary-action" class="button button-primary" th:if="${taskList.canCreate}" th:href="@{/projects/{projectId}/tasks/new(projectId=${projectId})}">Create Task</a>
+<main>
+    <p class="page-description">Current non-deleted Tasks and Project completion progress.</p>
+    <section class="panel metric-strip" aria-label="Task progress">
+        <div class="metric"><div class="metric-label">Progress</div><div class="metric-value" th:text="${progressLabel}">N/A</div></div>
+        <div class="metric"><div class="metric-label">TODO</div><div class="metric-value" th:text="${taskList.progress.todo}">0</div></div>
+        <div class="metric"><div class="metric-label">IN PROGRESS</div><div class="metric-value" th:text="${taskList.progress.inProgress}">0</div></div>
+        <div class="metric"><div class="metric-label">BLOCKED / DONE</div><div class="metric-value" th:text="${taskList.progress.blocked + ' / ' + taskList.progress.done}">0 / 0</div></div>
+    </section>
+    <section class="panel" th:if="${#lists.isEmpty(taskList.tasks)}"><th:block th:replace="~{fragments/components :: empty('No current Tasks', 'Tasks for this Project will appear here.')} "></th:block></section>
+    <section class="panel" th:unless="${#lists.isEmpty(taskList.tasks)}">
+        <div class="table-scroll"><table class="data-table"><caption class="sr-only">Current non-deleted Tasks</caption><thead><tr><th scope="col">Title</th><th scope="col">Assignee</th><th scope="col">Status</th><th scope="col">Due date</th></tr></thead>
+            <tbody><tr th:each="task : ${taskList.tasks}"><td><a th:href="@{/projects/{projectId}/tasks/{taskId}(projectId=${projectId},taskId=${task.id})}" th:text="${task.title}">Task</a></td><td th:text="${task.assigneeName}">Assignee</td><td><span class="badge" th:classappend="${task.status.name() == 'BLOCKED' ? ' badge-warning' : task.status.name() == 'DONE' ? ' badge-success' : ''}" th:text="${task.status}">TODO</span></td><td th:text="${task.dueDate == null ? 'No due date' : #temporals.format(task.dueDate, 'dd/MM/yyyy')}">No due date</td></tr></tbody>
+        </table></div>
+    </section>
+</main>
+</body>
+</html>

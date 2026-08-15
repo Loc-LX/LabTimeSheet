@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{fragments/layout :: shell(
+          pageTitle='System overview',
+          section='Admin',
+          activeNav='dashboard',
+          primaryAction=~{::#primary-action},
+          content=~{::main})}">
+<body>
+<a id="primary-action" class="button button-primary" th:href="@{/admin/accounts/new}">Create account</a>
+<main>
+    <p class="page-description">Account readiness, internship activity, and active Project work.</p>
+    <section class="panel metric-strip" aria-label="System metrics">
+        <div class="metric"><div class="metric-label">Active accounts</div><div class="metric-value" th:text="${dashboard.activeAccounts}">0</div><div class="metric-detail">Can authenticate when otherwise eligible</div></div>
+        <div class="metric"><div class="metric-label">Pending activation</div><div class="metric-value" th:text="${dashboard.pendingActivations}">0</div><div class="metric-detail">Awaiting first password</div></div>
+        <div class="metric"><div class="metric-label">Active internships</div><div class="metric-value" th:text="${dashboard.activeInternships}">0</div><div class="metric-detail">Current Intern lifecycle</div></div>
+        <div class="metric"><div class="metric-label">Active Projects</div><div class="metric-value" th:text="${dashboard.activeProjects}">0</div><div class="metric-detail">Read-only Admin scope</div></div>
+    </section>
+    <section class="panel" th:if="${dashboard.pendingActivations == 0}"><th:block th:replace="~{fragments/components :: empty('No pending activations', 'New accounts awaiting activation will appear here.')} "></th:block></section>
+    <section class="panel" th:unless="${dashboard.pendingActivations == 0}">
+        <header class="panel-header"><h2 class="panel-title">Attention required</h2></header>
+        <div class="alert alert-warning" role="status"><strong th:text="${dashboard.pendingActivations}">0</strong> account(s) are waiting for activation.</div>
+    </section>
+</main>
+</body>
+</html>
