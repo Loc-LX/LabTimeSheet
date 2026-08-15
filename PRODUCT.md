@@ -79,6 +79,7 @@ The product joins attendance oversight and Project delivery without pretending t
 3. **Attendance and Project work stay distinct.** The product may report them together, but one never derives or proves the other.
 4. **Deadlines are enforced at every path.** Scheduled workers improve timeliness, while request-time guards preserve correctness when scheduling is late.
 5. **Prefer explicit, reviewable operations.** Feature-owned controller/service/repository flows, constrained state transitions, focused integrations, and shared report datasets serve clarity over speculative machinery.
+6. **Fixes preserve branch ownership.** A targeted repair uses a clean `work/fix/<feature>/<what-fix>` branch from verified `main`, not `work/<feature>/fix/<what-fix>`; persistent `work/<feature>` refs already occupy that Git ref prefix.
 
 ## Accessibility & Inclusion
 
