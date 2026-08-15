@@ -1,6 +1,7 @@
 package com.lab.labtimesheet.feature.account.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -81,6 +82,13 @@ class EligibleInternOptionIntegrationTest {
                 new EligibleInternOption(
                         laterName, "Zeta", "STU-300", BUSINESS_DATE.minusDays(1), BUSINESS_DATE.plusDays(1)));
         assertThat(options).extracting(EligibleInternOption::userId).doesNotHaveDuplicates();
+    }
+
+    @Test
+    void rejectsMissingBusinessDate() {
+        assertThatThrownBy(() -> accounts.eligibleInternOptions(null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Business date is required");
     }
 
     private long activeIntern(String displayName, String studentCode, LocalDate startDate, LocalDate endDate) {
