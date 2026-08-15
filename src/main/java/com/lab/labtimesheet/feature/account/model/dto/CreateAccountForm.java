@@ -8,9 +8,12 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
+import lombok.Getter;
+import lombok.Setter;
 import org.springframework.format.annotation.DateTimeFormat;
 
 /** Validated, non-secret Admin input for creating an immutable-role account. */
+@Getter
 public class CreateAccountForm {
     @NotBlank(message = "Email is required")
     @Email(message = "Enter a valid email address")
@@ -22,15 +25,19 @@ public class CreateAccountForm {
     private String displayName;
 
     @NotNull(message = "Role is required")
+    @Setter
     private GlobalRole role;
 
     @Size(max = 64, message = "Student code must contain at most 64 characters")
+    @Setter
     private String studentCode;
 
     @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+    @Setter
     private LocalDate internshipStart;
 
     @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+    @Setter
     private LocalDate internshipEnd;
 
     /**
@@ -67,16 +74,6 @@ public class CreateAccountForm {
         return hasText(value) ? value.trim() : null;
     }
 
-    public String getEmail() { return email; }
     public void setEmail(String email) { this.email = email == null ? null : email.trim(); }
-    public String getDisplayName() { return displayName; }
     public void setDisplayName(String displayName) { this.displayName = displayName == null ? null : displayName.trim(); }
-    public GlobalRole getRole() { return role; }
-    public void setRole(GlobalRole role) { this.role = role; }
-    public String getStudentCode() { return studentCode; }
-    public void setStudentCode(String studentCode) { this.studentCode = studentCode; }
-    public LocalDate getInternshipStart() { return internshipStart; }
-    public void setInternshipStart(LocalDate internshipStart) { this.internshipStart = internshipStart; }
-    public LocalDate getInternshipEnd() { return internshipEnd; }
-    public void setInternshipEnd(LocalDate internshipEnd) { this.internshipEnd = internshipEnd; }
 }
