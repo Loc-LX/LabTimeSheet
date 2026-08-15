@@ -64,6 +64,11 @@ test("container workflow runs only manually or on main and verifies before eithe
   assert.match(workflow, /sha-\$\{GITEA_SHA\}-amd64/);
   assert.match(workflow, /sha-\$\{GITEA_SHA\}-arm64/);
   assert.match(workflow, /imagetools create/);
+  assert.match(workflow, /REGISTRY: git\.sechmachine\.io\.vn/);
+  assert.match(workflow, /IMAGE_NAME: sechmachine\/labtimesheet/);
+  assert.match(workflow, /username: \$\{\{ gitea\.actor \}\}/);
+  assert.match(workflow, /password: \$\{\{ secrets\.REGISTRY_TOKEN \}\}/);
+  assert.doesNotMatch(workflow, /CONTAINER_IMAGE|REGISTRY_USERNAME/);
   assert.doesNotMatch(workflow, /ssh|DEPLOY_HOST|DEPLOY_KEY/i);
 });
 
