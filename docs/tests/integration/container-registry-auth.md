@@ -4,7 +4,7 @@
 - **Requirement IDs:** `OPS-012`, `OPS-016`, `OPS-017`
 - **Scenario IDs:** `AC-OPS-004`
 - **Test class/method:** `src/test/js/delivery-contract.test.mjs` — `container workflow runs only manually or on main and verifies before either image build`
-- **Implementation commit:** `pending`
+- **Implementation commit:** `4dd9f96a231316ce2c14755157a380a2123c2f0b`
 
 ## Protected behavior
 
