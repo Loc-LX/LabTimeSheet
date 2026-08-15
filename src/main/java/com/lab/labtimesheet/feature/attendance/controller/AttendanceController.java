@@ -7,6 +7,8 @@ import com.lab.labtimesheet.feature.attendance.service.AttendanceApplicationServ
 import com.lab.labtimesheet.feature.attendance.service.AttendanceCurrentUserService;
 import java.security.Principal;
 import java.time.LocalDate;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Controller;
@@ -22,16 +24,11 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
  */
 @Controller
 @RequestMapping("/attendance")
+@RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 public class AttendanceController {
 
     private final AttendanceApplicationService attendance;
     private final AttendanceCurrentUserService currentUsers;
-
-    AttendanceController(
-            AttendanceApplicationService attendance, AttendanceCurrentUserService currentUsers) {
-        this.attendance = attendance;
-        this.currentUsers = currentUsers;
-    }
 
     /**
      * Renders the authenticated Intern's inclusive attendance history, defaulting to the current month.
