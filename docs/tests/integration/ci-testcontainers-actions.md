@@ -4,7 +4,7 @@
 - **Requirement IDs:** `OPS-011`, `OPS-012`, `TST-001`, `TST-005`, `TST-009`
 - **Scenario IDs:** `AC-OPS-002`, `AC-OPS-004`
 - **Test class/method:** `src/test/js/delivery-contract.test.mjs`
-- **Implementation commit:** `pending`
+- **Implementation commit:** `d13443e338770dec0ca9822600f9a9d8405dfdbb`
 
 ## Protected behavior
 
@@ -92,7 +92,9 @@ Result: BUILD SUCCESS with 83 existing missing-comment warnings and no productio
 Ruby YAML parsing and git diff --check
 Result: both workflow files parsed and the diff check passed.
 
-Pending branch and main Gitea Actions validation after commit and push.
+Gitea Actions run 177 on `work/fix/platform/ci-testcontainers-actions`
+Result: Verify completed successfully in 8 minutes on the real Docker-mode runner.
+The non-main branch push scheduled `verify.yml` only; `container.yml` did not run.
 ```
 
 ## External-test boundaries
