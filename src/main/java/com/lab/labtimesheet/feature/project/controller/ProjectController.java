@@ -8,6 +8,7 @@ import com.lab.labtimesheet.feature.project.service.ProjectQueryService;
 import com.lab.labtimesheet.feature.project.service.ProjectService;
 import jakarta.validation.Valid;
 import java.security.Principal;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
@@ -27,21 +28,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
  */
 @Controller
 @RequestMapping("/projects")
+@RequiredArgsConstructor
 public class ProjectController {
 
     private final ProjectQueryService pages;
     private final ProjectService projects;
-
-    /**
-     * Creates the MVC adapter for Project queries and mutations.
-     *
-     * @param pages authorized Project read operations
-     * @param projects transactional Project mutation operations
-     */
-    public ProjectController(ProjectQueryService pages, ProjectService projects) {
-        this.pages = pages;
-        this.projects = projects;
-    }
 
     /**
      * Lists only Projects visible to the authenticated actor and exposes Project creation only
