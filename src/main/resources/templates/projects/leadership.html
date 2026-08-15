@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{fragments/layout :: shell(
+          pageTitle=${project.name + ' leadership'},
+          section='Projects',
+          activeNav='projects',
+          primaryAction=~{},
+          content=~{::main})}">
+<body>
+<main>
+    <nav class="tabs" aria-label="Project sections">
+        <a class="tab" th:href="@{/projects/{id}(id=${project.id})}">Overview</a>
+        <a class="tab" th:href="@{/projects/{id}/members(id=${project.id})}">Members</a>
+        <a class="tab" th:href="@{/projects/{id}/leadership(id=${project.id})}" aria-current="page">Leadership</a>
+        <a class="tab" th:href="@{/projects/{id}/tasks(id=${project.id})}">Tasks</a>
+    </nav>
+    <section class="panel form-panel" th:if="${#lists.isEmpty(leadership)}"><th:block th:replace="~{fragments/components :: empty('No leadership history', 'Leadership terms will appear here.')} "></th:block></section>
+    <section class="panel form-panel" th:unless="${#lists.isEmpty(leadership)}">
+        <div class="table-scroll"><table class="data-table"><caption class="sr-only">Leadership history</caption><thead><tr><th scope="col">Leader</th><th scope="col">Started</th><th scope="col">Ended</th></tr></thead>
+            <tbody><tr th:each="term : ${leadership}"><td th:text="${term.leaderName}">Leader</td><td th:text="${#temporals.format(term.startedAt, 'dd/MM/yyyy HH:mm')}">Started</td><td th:text="${term.endedAt == null ? 'Current' : #temporals.format(term.endedAt, 'dd/MM/yyyy HH:mm')}">Current</td></tr></tbody>
+        </table></div>
+    </section>
+    <form class="panel form-panel filter-form" th:if="${project.canManage}" method="post" th:action="@{/projects/{id}/leadership(id=${project.id})}" th:object="${projectMemberForm}">
+        <div class="alert alert-error" role="alert" th:if="${#fields.hasAnyErrors()}">Please correct the Leader selection.</div>
+        <div class="field"><label class="field-label" for="leader">New Leader user ID</label><input class="control" id="leader" th:field="*{internUserId}" type="number" min="1" required th:attr="aria-invalid=${#fields.hasErrors('internUserId')},aria-describedby=${#fields.hasErrors('internUserId') ? 'leadership-intern-user-error' : null}"><p class="field-error" id="leadership-intern-user-error" role="alert" th:if="${#fields.hasErrors('internUserId')}" th:errors="*{internUserId}"></p></div>
+        <span></span><button class="button button-primary" type="submit">Change Leader</button>
+    </form>
+</main>
+</body>
+</html>

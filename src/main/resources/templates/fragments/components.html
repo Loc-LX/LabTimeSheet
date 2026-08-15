@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<body>
+<a th:fragment="buttonLink(href, label, tone)" class="button" th:classappend="${tone == 'primary' ? ' button-primary' : tone == 'danger' ? ' button-danger' : ''}" th:href="${href}" th:text="${label}">Action</a>
+
+<div th:fragment="input(name, label, value, error)" class="field">
+    <label class="field-label" th:for="${name}" th:text="${label}">Label</label>
+    <input class="control" th:id="${name}" th:name="${name}" th:value="${value}" th:attr="aria-invalid=${error != null},aria-describedby=${error != null ? name + '-error' : null}">
+    <p class="field-error" th:if="${error != null}" th:id="${name + '-error'}" th:text="${error}">Error</p>
+</div>
+
+<div th:fragment="select(name, label, options, selected, error)" class="field">
+    <label class="field-label" th:for="${name}" th:text="${label}">Label</label>
+    <select class="control" th:id="${name}" th:name="${name}" th:attr="aria-invalid=${error != null},aria-describedby=${error != null ? name + '-error' : null}">
+        <option th:each="option : ${options}" th:value="${option.key}" th:text="${option.value}" th:selected="${option.key == selected}">Option</option>
+    </select>
+    <p class="field-error" th:if="${error != null}" th:id="${name + '-error'}" th:text="${error}">Error</p>
+</div>
+
+<label th:fragment="checkbox(name, label, checked)" class="checkbox"><input type="checkbox" th:id="${name}" th:name="${name}" th:checked="${checked}"><span th:text="${label}">Label</span></label>
+<section th:fragment="card(title, content)" class="panel"><header class="panel-header"><h2 class="panel-title" th:text="${title}">Title</h2></header><div th:replace="${content}"></div></section>
+<div th:fragment="metric(label, value, detail)" class="metric"><div class="metric-label" th:text="${label}">Label</div><div class="metric-value" th:text="${value}">Value</div><div class="metric-detail" th:text="${detail}">Detail</div></div>
+<span th:fragment="badge(label, tone)" class="badge" th:classappend="${' badge-' + tone}" th:attr="aria-label=${'Status: ' + label}" th:text="${label}">Status</span>
+<nav th:fragment="tabs(items, active)" class="tabs" aria-label="Views"><a th:each="item : ${items}" class="tab" th:href="${item.href}" th:text="${item.label}" th:attr="aria-current=${item.key == active} ? 'page' : null">View</a></nav>
+<div th:fragment="table(caption, head, body)" class="table-scroll"><table class="data-table"><caption class="sr-only" th:text="${caption}">Data</caption><thead th:replace="${head}"></thead><tbody th:replace="${body}"></tbody></table></div>
+<nav th:fragment="pagination(previous, next)" class="pagination" aria-label="Pagination"><a class="button" th:if="${previous != null}" th:href="${previous}">Previous</a><a class="button" th:if="${next != null}" th:href="${next}">Next</a></nav>
+<div th:fragment="alert(tone, message)" class="alert" th:classappend="${' alert-' + tone}" role="alert" th:text="${message}">Message</div>
+<dialog th:fragment="confirmation(id, title, description)" th:id="${id}" th:attr="aria-labelledby=${id + '-title'},aria-describedby=${id + '-description'}"><h2 th:id="${id + '-title'}" th:text="${title}">Confirm</h2><p th:id="${id + '-description'}" th:text="${description}">Consequence</p><form method="dialog"><button class="button" value="cancel">Cancel</button><button class="button button-danger" value="confirm">Confirm</button></form></dialog>
+<section th:fragment="empty(title, description)" class="empty-state"><h2 th:text="${title}">No records</h2><p th:text="${description}">Nothing to show.</p></section>
+<div th:fragment="skeleton(label)" role="status" th:attr="aria-label=${label}"><div class="skeleton"></div></div>
+<div th:fragment="notificationMenu(items)" class="panel notification-menu"><h2 class="panel-title">Notifications</h2><div th:if="${#lists.isEmpty(items)}">No unread notifications.</div><a th:each="item : ${items}" th:href="${item.actionUrl}" th:text="${item.title}">Notification</a></div>
+</body>
+</html>
