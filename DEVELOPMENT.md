@@ -124,18 +124,21 @@ unless you intentionally want to discard your local development data.
 
 ## 4. Run from a terminal
 
-Load the environment file in the same terminal that will run Spring Boot:
+The `dev` profile imports the ignored root `.env` file automatically. From the
+repository root, run:
 
 ```bash
-set -a
-source .env
-set +a
 ./mvnw spring-boot:run
 ```
 
+Shell environment variables still override values from `.env`, which is useful
+for a one-off local override. If you run from another working directory, set
+`LAB_DEV_ENV_FILE` to the absolute path of your `.env` file.
+
 Open:
 
-- First-Admin setup: `http://localhost:8080/bootstrap`
+- First-Admin setup: open `http://localhost:8080` and follow the automatic
+  redirect to `/bootstrap`.
 - Login: `http://localhost:8080/login`
 - Mailpit inbox: `http://localhost:8025`
 
@@ -177,14 +180,14 @@ Stop the application with `Control+C`.
 6. Set **JRE** to Java 25.
 7. Set **Active profiles** to `dev`.
 8. Set **Working directory** to the repository root.
-9. Open the **Environment variables** editor and add every variable from your
-   local `.env` file.
+9. Leave **Environment variables** empty. With the repository root as the
+   working directory, `application-dev.yaml` imports the ignored `.env` file.
 10. Apply the configuration and run it.
 
-Some IntelliJ editions can load variables from an environment file directly.
-If that option is available, select the local `.env`; otherwise use the
-environment-variable table. Do not store real secrets in a shared or committed
-run configuration.
+If company policy requires IntelliJ to inject the values instead, select the
+local `.env` in the **Environment variables** field. Environment variables take
+precedence over the imported file. Do not store real secrets in a shared or
+committed run configuration.
 
 Run `npm ci` and `npm run build` in IntelliJ's terminal before the first launch
 and after changing Tailwind or icon sources.
@@ -219,6 +222,13 @@ does not by itself prove that SMTP is unavailable; use the Admin SMTP test.
 
 Check both **Project SDK** and the run configuration's **JRE**. They should both
 be Java 25.
+
+### Spring reports an unresolved `LAB_*` placeholder
+
+Confirm the run configuration uses the repository root as its working
+directory and that `.env` exists there. If the working directory must differ,
+set `LAB_DEV_ENV_FILE` to the absolute `.env` path in the run configuration's
+environment variables.
 
 ### Styles or icons are missing
 
