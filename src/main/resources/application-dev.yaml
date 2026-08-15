@@ -1,8 +1,0 @@
-spring:
-  datasource:
-    url: ${LAB_DB_URL:jdbc:postgresql://localhost:55432/labtimesheet}
-    username: ${LAB_DB_USERNAME:labtimesheet}
-    password: ${LAB_DB_PASSWORD:labtimesheet_dev}
-  mail:
-    host: ${LAB_SMTP_HOST:localhost}
-    port: ${LAB_SMTP_PORT:1025}

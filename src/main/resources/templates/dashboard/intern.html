@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{fragments/layout :: shell(
+          pageTitle='Today',
+          section='Intern',
+          activeNav='dashboard',
+          primaryAction=~{::#primary-action},
+          content=~{::main})}">
+<body>
+<form id="primary-action" th:if="${dashboard.attendanceState.name() != 'CHECKED_OUT'}"
+      th:action="${dashboard.attendanceState.name() == 'CHECKED_IN' ? '/attendance/check-out' : '/attendance/check-in'}" method="post">
+    <button class="button button-primary" type="submit" th:text="${dashboard.attendanceState.name() == 'CHECKED_IN' ? 'Check out' : 'Check in'}">Check in</button>
+</form>
+<main>
+    <p class="page-description" th:text="${'Attendance, assigned work, and Project activity for ' + dashboard.displayName + '.'}">Today.</p>
+    <section class="panel metric-strip metric-strip-three" aria-label="Intern metrics">
+        <div class="metric"><div class="metric-label">Attendance</div><div class="metric-value" th:text="${dashboard.attendanceState.label}">Not checked in</div><div class="metric-detail">Server-authoritative state</div></div>
+        <div class="metric"><div class="metric-label">Active Projects</div><div class="metric-value" th:text="${dashboard.activeProjects}">0</div><div class="metric-detail">Current memberships</div></div>
+        <div class="metric"><div class="metric-label">Assigned Tasks</div><div class="metric-value" th:text="${dashboard.assignedTasks}">0</div><div class="metric-detail">Current assignment scope</div></div>
+    </section>
+    <section class="panel">
+        <header class="panel-header"><h2 class="panel-title">Priority Tasks</h2></header>
+        <th:block th:if="${#lists.isEmpty(dashboard.priorityTasks)}"><th:block th:replace="~{fragments/components :: empty('No assigned Tasks', 'Assigned active-Project Tasks will appear here.')} "></th:block></th:block>
+        <div class="table-scroll" th:unless="${#lists.isEmpty(dashboard.priorityTasks)}">
+            <table class="data-table">
+                <caption class="sr-only">Current assigned Tasks</caption>
+                <thead><tr><th scope="col">Task</th><th scope="col">Project</th><th scope="col">Status</th><th scope="col">Due</th></tr></thead>
+                <tbody><tr th:each="task : ${dashboard.priorityTasks}"><td th:text="${task.title}">Task</td><td th:text="${task.projectName}">Project</td><td><span class="badge" th:classappend="${task.status == 'BLOCKED' ? ' badge-warning' : task.status == 'DONE' ? ' badge-success' : ''}" th:attr="aria-label=${'Status: ' + task.status}" th:text="${task.status}">TODO</span></td><td th:text="${task.dueDate == null ? 'No due date' : #temporals.format(task.dueDate, 'dd/MM/yyyy')}">No due date</td></tr></tbody>
+            </table>
+        </div>
+    </section>
+</main>
+</body>
+</html>

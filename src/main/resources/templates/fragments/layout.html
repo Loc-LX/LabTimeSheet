@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security"
+      th:fragment="shell(pageTitle, section, activeNav, primaryAction, content)">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title th:text="${pageTitle + ' · Lab Timesheet'}">Lab Timesheet</title>
+    <link rel="icon" th:href="@{/assets/icons.svg}" type="image/svg+xml">
+    <script th:src="@{/assets/theme.js}"></script>
+    <link rel="stylesheet" th:href="@{/assets/app.css}">
+    <script defer th:src="@{/assets/app.js}"></script>
+</head>
+<body>
+<div class="app-shell">
+    <aside class="sidebar" aria-label="Primary navigation">
+        <a class="brand" th:href="@{/dashboard}">
+            <span class="brand-mark" aria-hidden="true">LT</span>
+            <span class="sidebar-label"><strong>Lab Timesheet</strong><br><small th:text="${section + ' workspace'}">Workspace</small></span>
+        </a>
+        <nav>
+            <p class="nav-label sidebar-label">Workspace</p>
+            <ul class="nav-list">
+                <li><a class="nav-link" th:href="@{/dashboard}" data-tooltip="Overview" th:attr="aria-current=${activeNav == 'dashboard'} ? 'page' : null">
+                    <svg class="nav-icon" aria-hidden="true"><use th:href="@{/assets/icons.svg#layout-dashboard}"></use></svg><span class="sidebar-label">Overview</span></a></li>
+                <li sec:authorize="hasRole('ADMIN')"><a class="nav-link" th:href="@{/admin/accounts/new}" data-tooltip="Accounts" th:attr="aria-current=${activeNav == 'accounts'} ? 'page' : null"><svg class="nav-icon" aria-hidden="true"><use th:href="@{/assets/icons.svg#users}"></use></svg><span class="sidebar-label">Accounts</span></a></li>
+                <li sec:authorize="hasRole('ADMIN')"><a class="nav-link" th:href="@{/attendance/calendar}" data-tooltip="Global calendar" th:attr="aria-current=${activeNav == 'calendar'} ? 'page' : null"><svg class="nav-icon" aria-hidden="true"><use th:href="@{/assets/icons.svg#calendar-days}"></use></svg><span class="sidebar-label">Global calendar</span></a></li>
+                <li sec:authorize="hasRole('MENTOR')"><a class="nav-link" th:href="@{/projects}" data-tooltip="Owned Projects" th:attr="aria-current=${activeNav == 'projects'} ? 'page' : null"><svg class="nav-icon" aria-hidden="true"><use th:href="@{/assets/icons.svg#folder-kanban}"></use></svg><span class="sidebar-label">Owned Projects</span></a></li>
+                <li sec:authorize="hasRole('INTERN')"><a class="nav-link" th:href="@{/attendance}" data-tooltip="My attendance" th:attr="aria-current=${activeNav == 'attendance'} ? 'page' : null"><svg class="nav-icon" aria-hidden="true"><use th:href="@{/assets/icons.svg#clock}"></use></svg><span class="sidebar-label">My attendance</span></a></li>
+                <li sec:authorize="hasRole('INTERN')"><a class="nav-link" th:href="@{/projects}" data-tooltip="My Projects" th:attr="aria-current=${activeNav == 'projects'} ? 'page' : null"><svg class="nav-icon" aria-hidden="true"><use th:href="@{/assets/icons.svg#folder-kanban}"></use></svg><span class="sidebar-label">My Projects</span></a></li>
+            </ul>
+        </nav>
+        <div class="sidebar-footer">
+            <div class="theme-field">
+                <label class="field-label sidebar-label" for="theme-preference">Theme</label>
+                <select id="theme-preference" data-theme-select aria-label="Theme" title="Theme preference">
+                    <option value="light">Light</option>
+                    <option value="dark">Dark</option>
+                    <option value="system">System</option>
+                </select>
+            </div>
+            <div class="account"><svg class="nav-icon" aria-hidden="true"><use th:href="@{/assets/icons.svg#circle-user-round}"></use></svg><span class="sidebar-label" sec:authentication="name">Account</span></div>
+            <form class="logout-form" th:action="@{/logout}" method="post"><button class="nav-link" type="submit" data-tooltip="Logout"><svg class="nav-icon" aria-hidden="true"><use th:href="@{/assets/icons.svg#log-out}"></use></svg><span class="sidebar-label">Logout</span></button></form>
+        </div>
+    </aside>
+    <div class="app-column">
+        <header class="app-header">
+            <button class="icon-button" type="button" data-sidebar-toggle aria-expanded="true" aria-label="Toggle sidebar" title="Toggle sidebar"><svg class="nav-icon" aria-hidden="true"><use th:href="@{/assets/icons.svg#panel-left}"></use></svg></button>
+            <div class="header-title"><span class="breadcrumb" th:text="${section}">Section</span> / <span th:text="${pageTitle}">Page</span></div>
+        </header>
+        <div class="page">
+            <div class="page-heading">
+                <div class="page-heading-copy"><h1 class="page-title" th:text="${pageTitle}">Page</h1></div>
+                <div class="primary-action" th:if="${primaryAction != null}" th:replace="${primaryAction}"></div>
+            </div>
+            <div class="alert alert-warning" role="alert" sec:authorize="hasRole('ADMIN')"
+                 th:if="${smtpRestricted}">
+                <strong>This installation remains restricted until tested SMTP is active.</strong>
+                <a class="alert-action" th:href="@{/admin/smtp}">Configure SMTP</a>
+            </div>
+            <th:block th:replace="${content}"></th:block>
+        </div>
+    </div>
+</div>
+</body>
+</html>
