@@ -58,12 +58,10 @@ Configure these repository settings:
 
 | Kind | Name | Value |
 |---|---|---|
-| Variable | `CONTAINER_IMAGE` | Full image name, for example `git.sechmachine.io.vn/sechmachine/labtimesheet` |
 | Variable | `ARM64_RUNNER_AVAILABLE` | `true` only while a trusted `ubuntu-latest-arm` runner is registered and online; otherwise omit it or set `false` |
-| Secret | `REGISTRY_USERNAME` | Registry user allowed to publish this package |
-| Secret | `REGISTRY_TOKEN` | Registry token with package write access |
+| Secret | `REGISTRY_TOKEN` | Token for the triggering Gitea account with package read/write access |
 
-`verify.yml` runs for every pull request and push. `container.yml` runs only when manually dispatched or when `main` is pushed, and it repeats verification before either architecture build. Manual runs build without publishing. A push to `main` publishes immutable `sha-<commit>` and convenience `main` tags.
+The workflow publishes `git.sechmachine.io.vn/sechmachine/labtimesheet` and authenticates as the triggering Gitea account. `verify.yml` runs for every pull request and push. `container.yml` runs only when manually dispatched or when `main` is pushed, and it repeats verification before either architecture build. Manual runs build without publishing. A push to `main` publishes immutable `sha-<commit>` and convenience `main` tags.
 
 When ARM64 is disabled, those canonical tags remain valid AMD64 images and the workflow succeeds. When it is enabled, the native ARM runner publishes an architecture tag and the final job replaces the canonical tags with a combined AMD64/ARM64 manifest. Gitea cannot discover an unavailable runner from inside an unscheduled job, so the repository variable is the deliberate availability gate.
 
