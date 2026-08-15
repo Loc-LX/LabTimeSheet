@@ -7,6 +7,8 @@ import com.lab.labtimesheet.feature.account.model.entity.AppUser;
 import com.lab.labtimesheet.feature.account.model.entity.SystemState;
 import com.lab.labtimesheet.feature.account.repository.AppUserRepository;
 import com.lab.labtimesheet.feature.account.repository.SystemStateRepository;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,19 +18,12 @@ import org.springframework.transaction.annotation.Transactional;
  * Successful creation persists the first active Admin and initialization marker atomically.
  */
 @Service
+@RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 public class BootstrapService {
     private final SystemStateRepository systemStates;
     private final AppUserRepository users;
     private final PasswordEncoder passwords;
     private final Clock clock;
-
-    BootstrapService(SystemStateRepository systemStates, AppUserRepository users, PasswordEncoder passwords,
-            Clock clock) {
-        this.systemStates = systemStates;
-        this.users = users;
-        this.passwords = passwords;
-        this.clock = clock;
-    }
 
     /**
      * Creates the first active Admin exactly once.
