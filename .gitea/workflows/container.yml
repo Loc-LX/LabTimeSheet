@@ -1,0 +1,149 @@
+name: Container
+
+'on':
+  pull_request:
+  push:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: container-${{ gitea.workflow }}-${{ gitea.ref }}
+  cancel-in-progress: true
+
+jobs:
+  amd64:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Select image tags
+        id: image
+        env:
+          CONFIGURED_IMAGE: ${{ vars.CONTAINER_IMAGE }}
+          EVENT_NAME: ${{ gitea.event_name }}
+          GITEA_REF: ${{ gitea.ref }}
+          GITEA_SHA: ${{ gitea.sha }}
+        run: |
+          publish=false
+          image=labtimesheet
+          if [ "$EVENT_NAME" = "push" ] && [ "$GITEA_REF" = "refs/heads/main" ]; then
+            test -n "$CONFIGURED_IMAGE" || { echo "Repository variable CONTAINER_IMAGE is required" >&2; exit 1; }
+            publish=true
+            image="$CONFIGURED_IMAGE"
+          fi
+          {
+            echo "publish=$publish"
+            echo "image=$image"
+            echo "registry=${image%%/*}"
+            echo "tags<<EOF"
+            echo "$image:sha-${GITEA_SHA}-amd64"
+            if [ "$publish" = "true" ]; then
+              echo "$image:sha-${GITEA_SHA}"
+              echo "$image:main"
+            fi
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Log in to registry
+        if: steps.image.outputs.publish == 'true'
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ${{ steps.image.outputs.registry }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_TOKEN }}
+
+      - name: Build AMD64 image and publish main
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          platforms: linux/amd64
+          push: ${{ steps.image.outputs.publish }}
+          tags: ${{ steps.image.outputs.tags }}
+          build-args: |
+            VCS_REF=${{ gitea.sha }}
+
+  arm64:
+    # Gitea cannot schedule a probe on a missing label. Enable this repository variable only
+    # while a trusted ubuntu-latest-arm runner is registered and online.
+    if: gitea.event_name == 'push' && gitea.ref == 'refs/heads/main' && vars.ARM64_RUNNER_AVAILABLE == 'true'
+    runs-on: ubuntu-latest-arm
+    timeout-minutes: 30
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Require image configuration
+        id: image
+        env:
+          CONFIGURED_IMAGE: ${{ vars.CONTAINER_IMAGE }}
+          GITEA_SHA: ${{ gitea.sha }}
+        run: |
+          test -n "$CONFIGURED_IMAGE" || { echo "Repository variable CONTAINER_IMAGE is required" >&2; exit 1; }
+          echo "image=$CONFIGURED_IMAGE" >> "$GITHUB_OUTPUT"
+          echo "registry=${CONFIGURED_IMAGE%%/*}" >> "$GITHUB_OUTPUT"
+          echo "tag=$CONFIGURED_IMAGE:sha-${GITEA_SHA}-arm64" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to registry
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ${{ steps.image.outputs.registry }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_TOKEN }}
+
+      - name: Build native ARM64 image
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          platforms: linux/arm64
+          push: true
+          tags: ${{ steps.image.outputs.tag }}
+          build-args: |
+            VCS_REF=${{ gitea.sha }}
+
+  manifest:
+    if: gitea.event_name == 'push' && gitea.ref == 'refs/heads/main' && vars.ARM64_RUNNER_AVAILABLE == 'true'
+    needs: [amd64, arm64]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Resolve registry
+        id: image
+        env:
+          CONFIGURED_IMAGE: ${{ vars.CONTAINER_IMAGE }}
+        run: |
+          test -n "$CONFIGURED_IMAGE" || { echo "Repository variable CONTAINER_IMAGE is required" >&2; exit 1; }
+          echo "registry=${CONFIGURED_IMAGE%%/*}" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to registry
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ${{ steps.image.outputs.registry }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_TOKEN }}
+
+      - name: Publish combined manifest
+        env:
+          IMAGE: ${{ vars.CONTAINER_IMAGE }}
+          GITEA_SHA: ${{ gitea.sha }}
+        run: |
+          docker buildx imagetools create \
+            --tag "$IMAGE:sha-${GITEA_SHA}" \
+            --tag "$IMAGE:main" \
+            "$IMAGE:sha-${GITEA_SHA}-amd64" \
+            "$IMAGE:sha-${GITEA_SHA}-arm64"
