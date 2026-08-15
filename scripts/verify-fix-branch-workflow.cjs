@@ -62,10 +62,18 @@ const contents = readContents();
 validate(contents);
 
 if (process.argv.includes('--self-test')) {
-  const positiveRecommendation = new Map(contents);
-  positiveRecommendation.set('AGENTS.md', `${contents.get('AGENTS.md')}\nUse ${invalidForm} for a targeted repair.\n`);
-  assert.throws(() => validate(positiveRecommendation), /AGENTS\.md contains an unapproved branch-form reference/);
+  for (const {file} of documents) {
+    const positiveRecommendation = new Map(contents);
+    positiveRecommendation.set(file, `${contents.get(file)}\nUse ${invalidForm} for a targeted repair.\n`);
+    assert.throws(
+      () => validate(positiveRecommendation),
+      (error) => error instanceof Error
+        && error.message.includes(`${file} contains an unapproved branch-form reference`)
+    );
+  }
 }
 
 console.log(`Fix-branch workflow documentation: ${documents.length} approved statements validated`);
-if (process.argv.includes('--self-test')) console.log('Positive nested branch recommendation: rejected');
+if (process.argv.includes('--self-test')) {
+  console.log(`Positive nested branch recommendations: ${documents.length}/${documents.length} rejected`);
+}
