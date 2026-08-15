@@ -12,6 +12,8 @@ import com.lab.labtimesheet.feature.attendance.repository.GlobalCalendarEventRep
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.List;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,20 +22,12 @@ import org.springframework.transaction.annotation.Transactional;
  * Transactional boundary for the locally authoritative global calendar and its cross-feature day-off decision.
  */
 @Service
+@RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 public class CalendarApplicationService {
 
     private final Clock clock;
     private final AttendancePolicyRepository policies;
     private final GlobalCalendarEventRepository events;
-
-    CalendarApplicationService(
-            Clock clock,
-            AttendancePolicyRepository policies,
-            GlobalCalendarEventRepository events) {
-        this.clock = clock;
-        this.policies = policies;
-        this.events = events;
-    }
 
     /**
      * Creates an Admin-authored custom event on a non-past policy-local date.

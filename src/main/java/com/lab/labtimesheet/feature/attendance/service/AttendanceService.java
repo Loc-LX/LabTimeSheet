@@ -8,15 +8,16 @@ import com.lab.labtimesheet.feature.attendance.model.AttendanceRecord;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Optional;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 import org.springframework.stereotype.Service;
 
 /**
  * Pure attendance punch rules over immutable policy, date context, and raw record values.
  */
 @Service
+@NoArgsConstructor(access = AccessLevel.PACKAGE)
 public final class AttendanceService {
-
-    AttendanceService() {}
 
     /**
      * Creates the sole raw check-in for an eligible Intern/date using the supplied server instant.
