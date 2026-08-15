@@ -120,6 +120,7 @@
   .primary-action { margin-left: auto; }
   .button { display: inline-flex; min-height: 2.35rem; align-items: center; justify-content: center; gap: .45rem; border: 1px solid var(--border-strong); border-radius: .5rem; padding: .5rem .8rem; background: var(--panel); color: var(--ink); font-weight: 650; text-decoration: none; cursor: pointer; }
   .button-primary { border-color: var(--ink); background: var(--ink); color: var(--panel); }
+  .button:disabled { cursor: not-allowed; opacity: .55; }
   .button-danger { border-color: color-mix(in srgb, var(--danger), transparent 65%); background: color-mix(in srgb, var(--danger), transparent 90%); color: var(--danger); }
   .panel { border: 1px solid var(--border); border-radius: .75rem; background: var(--panel); box-shadow: 0 10px 28px rgb(20 25 35 / .06); }
   .panel-header { padding: .9rem 1rem; border-bottom: 1px solid var(--border); }
@@ -170,6 +171,21 @@
   .notification-menu { min-width: 18rem; padding: .75rem; }
   dialog { max-width: 30rem; border: 1px solid var(--border); border-radius: .9rem; background: var(--panel); color: var(--ink); padding: 1.25rem; }
   dialog::backdrop { background: rgb(0 0 0 / .45); }
+  .picker-trigger { justify-content: flex-start; }
+  .picker-summary { margin: 0; color: var(--muted); font-size: .78rem; }
+  .picker-drawer { width: min(32rem, 100%); max-width: 32rem; height: 100dvh; max-height: 100dvh; margin: 0 0 0 auto; border-radius: .9rem 0 0 .9rem; padding: 0; }
+  .picker-header, .picker-footer { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem; }
+  .picker-header { border-bottom: 1px solid var(--border); }
+  .picker-header .field-help { margin: .2rem 0 0; }
+  .picker-body { display: grid; gap: .5rem; padding: 1rem; }
+  .picker-options { display: grid; gap: .5rem; margin-top: .5rem; }
+  .picker-option { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: .75rem; border: 1px solid var(--border); border-radius: .65rem; padding: .75rem; cursor: pointer; }
+  .picker-option:hover { border-color: var(--border-strong); background: var(--panel-muted); }
+  .picker-option input { margin-top: .2rem; }
+  .picker-option span { display: grid; gap: .18rem; min-width: 0; }
+  .picker-option small, .picker-empty { color: var(--muted); }
+  .picker-empty { margin: 1rem 0; text-align: center; }
+  .picker-footer { border-top: 1px solid var(--border); justify-content: flex-end; }
   @keyframes pulse { 50% { opacity: .45; } }
   @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; } }
 }
