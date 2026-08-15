@@ -4,7 +4,7 @@
 - **Requirement IDs:** `OPS-001`, `OPS-004`, `SEC-013`
 - **Scenario IDs:** `AC-OPS-001`, `AC-SEC-005`
 - **Test class/method:** Shell configuration contract, an unsourced dev-profile startup probe, and the full Spring Boot Maven suite
-- **Implementation commit:** Pending local review
+- **Implementation commit:** `531c6078521341b156d69cb1013e54f65c092311`
 
 ## Protected behavior
 
