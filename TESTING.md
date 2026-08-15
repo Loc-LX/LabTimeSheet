@@ -126,6 +126,8 @@ Run that check from the clean targeted-fix branch named
 occupies that Git ref prefix. Record the expected RED and the matching GREEN
 shell output in the evidence record.
 
+Every targeted repair starts from the taskmaster-verified latest `main`, uses TDD RED → GREEN, adds Javadoc during implementation, records companion evidence, undergoes independent review, and uses a normal, non-force merge only when separately authorized.
+
 ## 4. Useful commands
 
 Run one test method:
