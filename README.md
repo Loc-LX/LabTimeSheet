@@ -50,7 +50,7 @@ The baseline schema includes later-workflow tables; table presence does not mean
 the corresponding feature is complete.
 
 - Iteration 2: Project invitations and approved membership exits, broader Project lifecycle transfers, Task edit/delete/reassignment and work logs, leave, missed-checkout corrections, notifications, schedulers, and complete metrics.
-- Iteration 3: HTML/XLSX/PDF report parity, Chart.js trends, production security hardening, application containers, Compose, Gitea CI publication, and deployment scaffolding.
+- Iteration 3: HTML/XLSX/PDF report parity, Chart.js trends, remaining production security hardening, and operational backup/restore qualification.
 - Mobile layouts are best-effort. Desktop is the supported interface target.
 
 ## Architecture and versions
@@ -115,6 +115,21 @@ export DOCKER_HOST=unix:///Users/your-name/.orbstack/run/docker.sock # only when
 See [TESTING.md](TESTING.md) for setup, test commands, the required TDD cycle,
 evidence records, best practices, and common fixes. Every behavior test has a
 companion record under [`docs/tests`](docs/tests/README.md).
+
+## Continuous integration and production containers
+
+Gitea Actions verifies every pull request and push. The separate container
+workflow runs only for a manual dispatch or a push to `main`, and its verification
+job must pass before either image build starts. Manual runs build without publishing;
+`main` pushes publish Linux AMD64 and add native Linux ARM64 only when the repository
+explicitly declares that its ARM runner is online. Every published revision has an
+immutable `sha-<full-commit>` tag, with `main` as a convenience alias.
+
+The production image is a non-root Java 25 image. The root [compose.yaml](compose.yaml)
+supports either a persistent PostgreSQL 18.4 sidecar or an external PostgreSQL
+database. It is not used for development. Follow [DEPLOYMENT.md](DEPLOYMENT.md)
+and start from [`.env.compose.example`](.env.compose.example); keep the real
+production environment file outside the repository.
 
 ## Branch ownership
 
