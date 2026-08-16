@@ -219,12 +219,27 @@ claim never replaces a test command and result.
 - Give tests names that describe the rule and expected result.
 - Clean up temporary browser data, application processes, and manually started containers after end-to-end work.
 
+### What CI runs
+
+Gitea runs the frontend tests/build, complete Maven/PostgreSQL suite, Javadoc,
+generated-asset check, and whitespace check for every pull request and push.
+The separate container workflow runs only when manually dispatched or when
+`main` is pushed. It repeats the verification job before building either image.
+Manual runs do not publish; only a push to `main` publishes.
+
+Run focused and affected tests locally before pushing. CI is the shared
+confirmation, not a substitute for local RED and GREEN evidence.
+
 ## 8. Common problems
 
 ### Testcontainers cannot find Docker
 
 Start Docker Desktop or OrbStack. Run `docker version`. OrbStack users should
 also check the `DOCKER_HOST` command shown in Section 1.
+
+The Gitea Docker runner exposes the daemon through Docker Desktop, so its jobs
+set `TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal`. Keep that override if
+the runner stays containerized; otherwise Ryuk may try an unreachable bridge IP.
 
 ### The wrong Java version is used
 
