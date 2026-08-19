@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.lab.labtimesheet.feature.account.service.AccountService;
 import com.lab.labtimesheet.feature.attendance.controller.AttendanceController;
 import com.lab.labtimesheet.feature.attendance.controller.CalendarController;
+import com.lab.labtimesheet.feature.attendance.controller.InternLeaveController;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceDayContext;
 import com.lab.labtimesheet.feature.attendance.model.AttendancePolicy;
@@ -17,6 +18,9 @@ import com.lab.labtimesheet.feature.attendance.model.dto.GlobalCalendarEvent;
 import com.lab.labtimesheet.feature.attendance.model.dto.HolidayCandidate;
 import com.lab.labtimesheet.feature.attendance.model.dto.HolidayImportForm;
 import com.lab.labtimesheet.feature.attendance.model.dto.HolidayImportSummary;
+import com.lab.labtimesheet.feature.attendance.model.dto.LeaveOverview;
+import com.lab.labtimesheet.feature.attendance.model.dto.LeaveSubmission;
+import com.lab.labtimesheet.feature.attendance.model.dto.LeaveSubmissionCommand;
 import com.lab.labtimesheet.feature.attendance.model.entity.AttendancePolicyEntity;
 import com.lab.labtimesheet.feature.attendance.model.entity.AttendanceRecordEntity;
 import com.lab.labtimesheet.feature.attendance.model.entity.GlobalCalendarEventEntity;
@@ -27,12 +31,15 @@ import com.lab.labtimesheet.feature.attendance.repository.AttendancePolicyReposi
 import com.lab.labtimesheet.feature.attendance.repository.AttendanceQueryRepository;
 import com.lab.labtimesheet.feature.attendance.repository.AttendanceRecordRepository;
 import com.lab.labtimesheet.feature.attendance.repository.GlobalCalendarEventRepository;
+import com.lab.labtimesheet.feature.attendance.repository.LeaveRequestDayRepository;
+import com.lab.labtimesheet.feature.attendance.repository.LeaveRequestRepository;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceApplicationService;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceCurrentUserService;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceService;
 import com.lab.labtimesheet.feature.attendance.service.CalendarApplicationService;
 import com.lab.labtimesheet.feature.attendance.service.HolidayApiClient;
 import com.lab.labtimesheet.feature.attendance.service.HolidayImportService;
+import com.lab.labtimesheet.feature.attendance.service.LeaveService;
 import com.lab.labtimesheet.feature.attendance.service.UnconfiguredHolidayApiClient;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
@@ -73,6 +80,13 @@ class AttendanceLombokBoilerplateTest {
                         AttendanceApplicationService.class,
                         AttendanceCurrentUserService.class));
         assertConstructors(
+                InternLeaveController.class,
+                constructor(
+                        PACKAGE_PRIVATE,
+                        LeaveService.class,
+                        AttendanceApplicationService.class,
+                        AttendanceCurrentUserService.class));
+        assertConstructors(
                 AttendanceApplicationService.class,
                 constructor(
                         PACKAGE_PRIVATE,
@@ -103,6 +117,16 @@ class AttendanceLombokBoilerplateTest {
                         HolidayApiClient.class,
                         GlobalCalendarEventRepository.class));
         assertConstructors(UnconfiguredHolidayApiClient.class, constructor(PACKAGE_PRIVATE));
+        assertConstructors(
+                LeaveService.class,
+                constructor(
+                        PACKAGE_PRIVATE,
+                        Clock.class,
+                        AccountService.class,
+                        AttendancePolicyRepository.class,
+                        CalendarApplicationService.class,
+                        LeaveRequestRepository.class,
+                        LeaveRequestDayRepository.class));
 
         assertConstructors(
                 AttendancePolicyEntity.class,
@@ -139,7 +163,7 @@ class AttendanceLombokBoilerplateTest {
                 LeaveRequestDayEntity.class,
                 constructor(Modifier.PROTECTED),
                 constructor(
-                        PACKAGE_PRIVATE,
+                        Modifier.PUBLIC,
                         LeaveRequestEntity.class,
                         LocalDate.class,
                         AttendancePolicyEntity.class,
@@ -160,6 +184,14 @@ class AttendanceLombokBoilerplateTest {
                         Instant.class,
                         Instant.class,
                         long.class,
+                        Instant.class),
+                constructor(
+                        Modifier.PRIVATE,
+                        long.class,
+                        LocalDate.class,
+                        LocalDate.class,
+                        String.class,
+                        Instant.class,
                         Instant.class));
     }
 
@@ -246,12 +278,36 @@ class AttendanceLombokBoilerplateTest {
                 method(Modifier.PUBLIC, "toDomain", GlobalCalendarEvent.class),
                 method(Modifier.PUBLIC, "calendarDate", LocalDate.class),
                 method(Modifier.PUBLIC, "version", long.class));
-        assertMethodSurface(LeaveRequestDayEntity.class);
+        assertMethodSurface(
+                LeaveRequestDayEntity.class,
+                method(Modifier.PUBLIC, "leaveDate", LocalDate.class),
+                method(Modifier.PUBLIC, "quotaMonth", LocalDate.class),
+                method(Modifier.PUBLIC, "monthlyQuotaSnapshot", int.class));
         assertMethodSurface(
                 LeaveRequestDayId.class,
                 method(Modifier.PUBLIC, "equals", boolean.class, Object.class),
-                method(Modifier.PUBLIC, "hashCode", int.class));
-        assertMethodSurface(LeaveRequestEntity.class);
+                method(Modifier.PUBLIC, "hashCode", int.class),
+                method(Modifier.PUBLIC, "leaveDate", LocalDate.class));
+        assertMethodSurface(
+                LeaveRequestEntity.class,
+                method(
+                        Modifier.PUBLIC | Modifier.STATIC,
+                        "pending",
+                        LeaveRequestEntity.class,
+                        long.class,
+                        LocalDate.class,
+                        LocalDate.class,
+                        String.class,
+                        Instant.class,
+                        Instant.class),
+                method(Modifier.PUBLIC, "id", long.class),
+                method(Modifier.PUBLIC, "internUserId", long.class),
+                method(Modifier.PUBLIC, "startDate", LocalDate.class),
+                method(Modifier.PUBLIC, "endDate", LocalDate.class),
+                method(Modifier.PUBLIC, "reason", String.class),
+                method(Modifier.PUBLIC, "status", String.class),
+                method(Modifier.PUBLIC, "submittedAt", Instant.class),
+                method(Modifier.PUBLIC, "firstCountedStartAt", Instant.class));
     }
 
     @Test
@@ -324,6 +380,32 @@ class AttendanceLombokBoilerplateTest {
                         Principal.class,
                         HolidayImportForm.class,
                         RedirectAttributes.class));
+        assertMethodSurface(
+                InternLeaveController.class,
+                method(Modifier.PUBLIC, "form", String.class, Principal.class, Model.class),
+                method(
+                        Modifier.PUBLIC,
+                        "submit",
+                        String.class,
+                        Principal.class,
+                        LocalDate.class,
+                        LocalDate.class,
+                        String.class,
+                        RedirectAttributes.class));
+        assertMethodSurface(
+                LeaveService.class,
+                method(
+                        Modifier.PUBLIC,
+                        "submit",
+                        LeaveSubmission.class,
+                        long.class,
+                        LeaveSubmissionCommand.class),
+                method(
+                        Modifier.PUBLIC,
+                        "overview",
+                        LeaveOverview.class,
+                        long.class,
+                        LocalDate.class));
         assertMethodSurface(
                 AttendanceApplicationService.class,
                 method(Modifier.PUBLIC, "checkIn", AttendanceRecord.class, long.class),

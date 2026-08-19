@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{fragments/layout :: shell(
+          pageTitle='My leave',
+          section='Intern',
+          activeNav='leave',
+          primaryAction=~{},
+          content=~{::main})}">
+<body>
+<main>
+    <p class="page-description">Request full-day leave; only eligible workdays reserve monthly quota.</p>
+    <p class="alert alert-error" th:if="${error}" role="alert" th:text="${error}"></p>
+    <p class="alert" th:if="${message}" role="status" th:text="${message}"></p>
+
+    <section class="panel">
+        <header class="panel-header"><h2 class="panel-title">New request</h2></header>
+        <form class="form-panel form-grid" method="post" th:action="@{/intern/leave}">
+            <div class="field"><label class="field-label" for="startDate">Start date</label><input class="control" id="startDate" name="startDate" type="date" required></div>
+            <div class="field"><label class="field-label" for="endDate">End date</label><input class="control" id="endDate" name="endDate" type="date" required></div>
+            <div class="field"><label class="field-label" for="reason">Reason</label><input class="control" id="reason" name="reason" type="text" required maxlength="200"></div>
+            <div class="form-actions"><button class="button button-primary" type="submit">Submit leave</button></div>
+        </form>
+    </section>
+
+    <section class="panel metric-strip metric-strip-three" aria-label="Monthly quota">
+        <div class="metric"><div class="metric-label">Monthly quota</div><div class="metric-value" th:text="${overview.quota}">3</div><div class="metric-detail">Policy snapshot</div></div>
+        <div class="metric"><div class="metric-label">Reserved</div><div class="metric-value" th:text="${overview.reserved}">0</div><div class="metric-detail">Pending + approved days</div></div>
+        <div class="metric"><div class="metric-label">Available</div><div class="metric-value" th:text="${overview.available}">3</div><div class="metric-detail">Remaining this month</div></div>
+    </section>
+
+    <section class="panel">
+        <header class="panel-header"><h2 class="panel-title">Prior requests</h2></header>
+        <th:block th:if="${#lists.isEmpty(overview.requests)}"><th:block th:replace="~{fragments/components :: empty('No leave requests', 'Submitted requests will appear here.')} "></th:block></th:block>
+        <div class="table-scroll" th:unless="${#lists.isEmpty(overview.requests)}">
+            <table class="data-table">
+                <caption class="sr-only">Prior leave requests</caption>
+                <thead><tr><th scope="col">Dates</th><th scope="col">Reason</th><th scope="col">Counted days</th><th scope="col">Status</th></tr></thead>
+                <tbody>
+                <tr th:each="request : ${overview.requests}">
+                    <td th:text="|${#temporals.format(request.startDate, 'dd/MM/yyyy')} → ${#temporals.format(request.endDate, 'dd/MM/yyyy')}|">Date</td>
+                    <td th:text="${request.reason}">Reason</td>
+                    <td th:text="${#lists.size(request.countedDays)}">0</td>
+                    <td><span class="badge" th:text="${request.status}">PENDING</span></td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+</main>
+</body>
+</html>
