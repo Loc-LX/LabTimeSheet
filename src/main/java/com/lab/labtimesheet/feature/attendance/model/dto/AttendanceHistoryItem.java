@@ -17,6 +17,7 @@ import java.util.List;
  * @param workDate immutable policy-local work date
  * @param checkInAt raw server check-in instant
  * @param checkOutAt raw server checkout instant, or {@code null} when absent
+ * @param effectiveCheckOutAt raw checkout when present, otherwise an approved correction's proposed checkout
  * @param policy historical policy version attached to the row
  * @param violations all applicable violations at query time
  */
@@ -24,6 +25,7 @@ public record AttendanceHistoryItem(
         LocalDate workDate,
         Instant checkInAt,
         Instant checkOutAt,
+        Instant effectiveCheckOutAt,
         AttendancePolicy policy,
         AttendanceViolations violations) {
 
@@ -48,13 +50,13 @@ public record AttendanceHistoryItem(
         return TIME_FORMAT.format(checkInAt.atZone(policy.zoneId()));
     }
 
-    /**
-     * Formats raw checkout in the attached policy timezone or reports {@code Missing} when absent.
+/**
+     * Formats the effective checkout in the attached policy timezone or reports {@code Missing} when absent.
      *
-     * @return presentation-ready local checkout value
+     * @return presentation-ready effective checkout value
      */
     public String checkOutTimeDisplay() {
-        return checkOutAt == null ? "Missing" : TIME_FORMAT.format(checkOutAt.atZone(policy.zoneId()));
+        return effectiveCheckOutAt == null ? "Missing" : TIME_FORMAT.format(effectiveCheckOutAt.atZone(policy.zoneId()));
     }
 
     /**

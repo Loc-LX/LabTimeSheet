@@ -80,6 +80,7 @@ class AttendanceControllerTest {
                 LocalDate.of(2026, 8, 14),
                 Instant.parse("2026-08-14T02:00:00Z"),
                 Instant.parse("2026-08-14T09:00:00Z"),
+                Instant.parse("2026-08-14T09:00:00Z"),
                 AttendancePolicyFixtures.seeded(1L),
                 new AttendanceViolations(false, false, false))));
 
@@ -100,6 +101,7 @@ class AttendanceControllerTest {
         when(attendance.history(eq(actor), eq(42L), any(), any())).thenReturn(List.of(new AttendanceHistoryItem(
                 LocalDate.of(2026, 8, 14),
                 Instant.parse("2026-08-14T02:00:00.001Z"),
+                Instant.parse("2026-08-14T08:00:00Z"),
                 Instant.parse("2026-08-14T08:00:00Z"),
                 AttendancePolicyFixtures.seeded(1L),
                 new AttendanceViolations(true, true, false))));

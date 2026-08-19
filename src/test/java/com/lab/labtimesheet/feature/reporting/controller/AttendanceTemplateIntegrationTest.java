@@ -96,11 +96,13 @@ class AttendanceTemplateIntegrationTest {
                             LocalDate.of(2026, 8, 14),
                             Instant.parse("2026-08-14T02:05:00Z"),
                             Instant.parse("2026-08-14T09:00:00Z"),
+                            Instant.parse("2026-08-14T09:00:00Z"),
                             AttendancePolicyFixtures.seeded(1L),
                             new AttendanceViolations(true, true, false)),
                     new AttendanceHistoryItem(
                             LocalDate.of(2026, 8, 13),
                             Instant.parse("2026-08-13T01:30:00Z"),
+                            null,
                             null,
                             AttendancePolicyFixtures.seeded(1L),
                             new AttendanceViolations(true, false, true))));
