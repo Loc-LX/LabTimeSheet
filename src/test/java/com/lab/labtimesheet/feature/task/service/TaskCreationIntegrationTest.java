@@ -319,6 +319,32 @@ class TaskCreationIntegrationTest {
                 });
     }
 
+    /** [I2-PRJ-06] Thành viên cũ đọc được Task đã lưu nhưng không thể ghi thêm sau khi Project hoàn tất. */
+    @Test
+    void completedProjectHistoryRejectsFormerMemberTaskMutations() {
+        TaskView task = createMemberTask("Read-only Task");
+        completeProject();
+
+        // I2-PRJ-06: các endpoint ghi phải bị chặn ở service, không phụ thuộc việc UI có ẩn form hay không.
+        assertThatThrownBy(() -> taskService.create(
+                        "member@example.test",
+                        new CreateTaskCommand(projectId, memberMembershipId, "Rejected", null, null)))
+                .isInstanceOf(TaskNotFoundException.class);
+        assertThatThrownBy(() -> taskService.changeStatus(
+                        "member@example.test", projectId, task.id(), TaskStatus.IN_PROGRESS))
+                .isInstanceOf(TaskNotFoundException.class);
+        assertThatThrownBy(() -> taskService.addComment(
+                        "member@example.test", projectId, task.id(), "Rejected comment"))
+                .isInstanceOf(TaskNotFoundException.class);
+
+        assertThat(taskCount()).isEqualTo(1);
+        assertThat(commentCount()).isZero();
+        assertThat(jdbc.sql("select status from tasks where id = :id")
+                .param("id", task.id())
+                .query(String.class)
+                .single()).isEqualTo(TaskStatus.DONE.name());
+    }
+
     @Test
     void createFormChoicesAreSelfOnlyForMembersAndAllActiveMembersForLeader() {
         assertThat(taskService.assignmentChoices("member@example.test", projectId))

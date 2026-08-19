@@ -583,6 +583,57 @@ class ProjectServiceIntegrationTest {
         assertTrue(members.stream().noneMatch(member -> member.currentLeader()));
     }
 
+    /** [I2-PRJ-06] Project đã hoàn tất chỉ cho đọc lịch sử, kể cả khi gọi thẳng các operation ghi. */
+    @Test
+    void completedProjectRejectsDirectProjectMutationsWithoutChangingHistory() {
+        long mentorId = user("mentor-read-only@example.test", "MENTOR");
+        long leaderId = intern("leader-read-only@example.test", "I027");
+        long memberId = intern("member-read-only@example.test", "I028");
+        long replacementId = intern("replacement-read-only@example.test", "I029");
+        long lateMemberId = intern("late-read-only@example.test", "I030");
+        long projectId = createProject(mentorId, leaderId, "Read-only history");
+        projectService.addMember(mentorId, projectId, memberId);
+        projectService.addMember(mentorId, projectId, replacementId);
+        long currentTermId = number("""
+                select id from project_leadership_terms
+                where project_id = ? and ended_at is null
+                """, projectId);
+        var completedAt = dbTime(NOW.plusSeconds(60));
+        jdbc.update("""
+                update project_leadership_terms
+                set ended_at = ?, ended_by_mentor_user_id = ?
+                where project_id = ? and ended_at is null
+                """, completedAt, mentorId, projectId);
+        jdbc.update("""
+                update project_memberships
+                set left_at = ?, removed_by_mentor_user_id = ?, updated_at = ?
+                where project_id = ? and left_at is null
+                """, completedAt, mentorId, completedAt, projectId);
+        jdbc.update("""
+                update projects
+                set status = 'COMPLETED', activated_at = ?, completed_at = ?, updated_at = ?
+                where id = ?
+                """, dbTime(NOW.plusSeconds(30)), completedAt, completedAt, projectId);
+        entityManager.clear();
+
+        // I2-PRJ-06: ẩn form trên UI không đủ; aggregate phải tự chặn request giả mạo.
+        assertThrows(ProjectRuleViolationException.class,
+                () -> projectService.addMember(mentorId, projectId, lateMemberId));
+        assertThrows(ProjectRuleViolationException.class,
+                () -> projectService.changeLeader(mentorId, projectId, currentTermId, replacementId));
+        assertThrows(ProjectRuleViolationException.class,
+                () -> projectService.removeLeader(mentorId, projectId, currentTermId, replacementId));
+        assertThrows(ProjectRuleViolationException.class,
+                () -> projectService.removeMember(mentorId, projectId, memberId));
+        assertThrows(ProjectRuleViolationException.class,
+                () -> projectService.complete(mentorId, projectId));
+
+        assertEquals("COMPLETED", text("select status from projects where id = ?", projectId));
+        assertEquals(3, count("select count(*) from project_memberships where project_id = ?", projectId));
+        assertEquals(0, count("select count(*) from project_memberships where project_id = ? and left_at is null", projectId));
+        assertEquals(0, count("select count(*) from project_leadership_terms where project_id = ? and ended_at is null", projectId));
+    }
+
     /** [I1-PRJ-04] Kích hoạt Project khi các guard member, Leader và Task assignee hợp lệ. */
     @Test
     void ownerActivatesAPlannedProjectWhenCurrentMemberAndTaskAssigneeGuardsPass() {
