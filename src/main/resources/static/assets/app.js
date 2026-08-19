@@ -90,4 +90,74 @@ document.addEventListener('DOMContentLoaded', () => {
     apply.addEventListener('click', () => dialog.close());
     updateSummary();
   });
+
+  document.querySelectorAll('[data-leader-dropdown]').forEach((dropdown) => {
+    const trigger = dropdown.querySelector('[data-leader-dropdown-trigger]');
+    const menu = dropdown.querySelector('[data-leader-dropdown-menu]');
+    const search = dropdown.querySelector('[data-leader-dropdown-search]');
+    const valueInput = dropdown.querySelector('[data-leader-dropdown-value-input]');
+    const valueLabel = dropdown.querySelector('[data-leader-dropdown-value]');
+    const empty = dropdown.querySelector('[data-leader-dropdown-empty]');
+    const options = [...dropdown.querySelectorAll('[data-leader-dropdown-option]')];
+    if (!trigger || !menu || !search || !valueInput || !valueLabel || !empty) return;
+
+    // Đóng danh sách và cập nhật trạng thái trợ năng của nút mở dropdown.
+    const close = () => {
+      menu.hidden = true;
+      trigger.setAttribute('aria-expanded', 'false');
+    };
+
+    // Đồng bộ tên hiển thị, giá trị hidden gửi về server và option đang chọn.
+    const syncSelection = () => {
+      const initial = options.find((option) => option.dataset.selected === 'true');
+      if (!valueInput.value && initial) valueInput.value = initial.dataset.value;
+      const selected = options.find((option) => option.dataset.value === valueInput.value);
+      valueLabel.textContent = selected?.dataset.label || 'Choose a current member';
+      options.forEach((option) => {
+        option.setAttribute('aria-selected', String(option === selected));
+      });
+    };
+
+    // Lọc theo tên hoặc Student Code, không thay đổi danh sách hợp lệ server đã trả về.
+    const filter = () => {
+      const query = search.value.trim().toLocaleLowerCase();
+      let visible = 0;
+      options.forEach((option) => {
+        const matches = option.dataset.search.toLocaleLowerCase().includes(query);
+        option.hidden = !matches;
+        if (matches) visible += 1;
+      });
+      empty.hidden = visible !== 0;
+    };
+
+    trigger.addEventListener('click', () => {
+      const opening = menu.hidden;
+      menu.hidden = !opening;
+      trigger.setAttribute('aria-expanded', String(opening));
+      if (opening) {
+        search.value = '';
+        filter();
+        search.focus();
+      }
+    });
+    search.addEventListener('input', filter);
+    options.forEach((option) => option.addEventListener('click', () => {
+      valueInput.value = option.dataset.value || '';
+      syncSelection();
+      close();
+      trigger.focus();
+    }));
+    document.addEventListener('click', (event) => {
+      if (!dropdown.contains(event.target)) close();
+    });
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && !menu.hidden) {
+        close();
+        trigger.focus();
+      }
+    });
+
+    syncSelection();
+    filter();
+  });
 });

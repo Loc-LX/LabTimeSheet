@@ -8,6 +8,7 @@
           content=~{::main})}">
 <body>
 <main>
+    <th:block th:replace="~{fragments/components :: projectTabs(${projectId}, 'tasks')}"></th:block>
     <p class="page-description">Assign work to a current eligible Project member.</p>
     <form class="panel form-panel form-grid" method="post" th:action="@{/projects/{projectId}/tasks(projectId=${projectId})}" th:object="${taskForm}">
         <div class="alert alert-error" role="alert" th:if="${#fields.hasAnyErrors()}"><strong>Please correct the highlighted fields.</strong><ul><li th:each="error : ${#fields.allErrors()}" th:text="${error}">Validation error</li></ul></div>

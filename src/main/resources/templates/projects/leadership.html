@@ -1,19 +1,14 @@
 <!doctype html>
 <html lang="en" xmlns:th="http://www.thymeleaf.org"
       th:replace="~{fragments/layout :: shell(
-          pageTitle=${project.name + ' leadership'},
+          pageTitle=${project.name},
           section='Projects',
           activeNav='projects',
           primaryAction=~{},
           content=~{::main})}">
 <body>
 <main>
-    <nav class="tabs" aria-label="Project sections">
-        <a class="tab" th:href="@{/projects/{id}(id=${project.id})}">Overview</a>
-        <a class="tab" th:href="@{/projects/{id}/members(id=${project.id})}">Members</a>
-        <a class="tab" th:href="@{/projects/{id}/leadership(id=${project.id})}" aria-current="page">Leadership</a>
-        <a class="tab" th:href="@{/projects/{id}/tasks(id=${project.id})}">Tasks</a>
-    </nav>
+    <th:block th:replace="~{fragments/components :: projectTabs(${project.id}, 'leadership')}"></th:block>
     <section class="panel form-panel" th:if="${#lists.isEmpty(leadership)}"><th:block th:replace="~{fragments/components :: empty('No leadership history', 'Leadership terms will appear here.')} "></th:block></section>
     <section class="panel form-panel" th:unless="${#lists.isEmpty(leadership)}">
         <div class="table-scroll"><table class="data-table"><caption class="sr-only">Leadership history</caption><thead><tr><th scope="col">Leader</th><th scope="col">Started</th><th scope="col">Ended</th></tr></thead>
@@ -23,33 +18,43 @@
     <form class="panel form-panel form-grid" th:if="${project.canManage}" method="post" th:action="@{/projects/{id}/leadership(id=${project.id})}" th:object="${projectMemberForm}">
         <input type="hidden" th:field="*{expectedLeadershipTermId}">
         <div class="alert alert-error" role="alert" th:if="${#fields.hasAnyErrors()}">Please correct the Leader selection.</div>
-        <div class="field" data-intern-picker>
+        <div class="field" data-leader-dropdown>
             <span class="field-label">New Leader</span>
-            <button class="button picker-trigger" type="button" data-picker-open th:disabled="${#lists.isEmpty(eligibleInternOptions)}"
-                    th:attr="aria-invalid=${#fields.hasErrors('internUserId')},aria-describedby=${#fields.hasErrors('internUserId') ? 'leadership-intern-user-error' : null}">Choose a current member</button>
-            <p class="picker-summary" data-picker-summary aria-live="polite">No Intern selected</p>
-            <p class="field-help" th:if="${#lists.isEmpty(eligibleInternOptions)}">No eligible current members are available.</p>
-            <p class="field-error" id="leadership-intern-user-error" role="alert" th:if="${#fields.hasErrors('internUserId')}" th:errors="*{internUserId}"></p>
-            <dialog class="picker-drawer" data-picker-dialog aria-labelledby="leadership-picker-title">
-                <div class="picker-header"><div><h2 class="panel-title" id="leadership-picker-title">Choose new Leader</h2><p class="field-help">Only eligible current members other than the current Leader are available.</p></div><button class="button" type="button" data-picker-cancel>Cancel</button></div>
-                <div class="picker-body">
-                    <label class="field-label" for="leadership-search">Search by name or Student Code</label>
-                    <input class="control" id="leadership-search" type="search" autocomplete="off" data-picker-search>
-                    <div class="picker-options">
-                        <label class="picker-option" data-picker-option th:each="option : ${eligibleInternOptions}" th:attr="data-picker-search=${option.displayName + ' ' + option.studentCode}">
-                            <input type="radio" th:field="*{internUserId}" th:value="${option.userId}">
-                            <span><strong data-picker-label th:text="|${option.displayName} (${option.studentCode})|">Intern (Code)</strong><small th:text="|${#temporals.format(option.internshipStart, 'dd/MM/yyyy')} – ${#temporals.format(option.internshipEnd, 'dd/MM/yyyy')}|">Dates</small></span>
-                        </label>
-                        <p class="picker-empty" data-picker-empty th:hidden="${!#lists.isEmpty(eligibleInternOptions)}">No matching eligible current members.</p>
+            <input type="hidden" data-leader-dropdown-value-input id="internUserId" name="internUserId" value="">
+            <div class="leader-dropdown">
+                <button class="leader-dropdown-trigger" type="button" data-leader-dropdown-trigger
+                        aria-haspopup="listbox" aria-expanded="false" aria-controls="leadership-leader-options"
+                        th:disabled="${#lists.isEmpty(eligibleInternOptions)}"
+                        th:attr="aria-invalid=${#fields.hasErrors('internUserId')},aria-describedby=${#fields.hasErrors('internUserId') ? 'leadership-intern-user-error' : null}">
+                    <span data-leader-dropdown-value>Choose a current member</span>
+                    <span aria-hidden="true">⌄</span>
+                </button>
+                <div class="leader-dropdown-menu" id="leadership-leader-options" data-leader-dropdown-menu hidden>
+                    <label class="field-label" for="leadership-leader-search">Search by name or Student Code</label>
+                    <input class="control" id="leadership-leader-search" type="search" autocomplete="off"
+                           data-leader-dropdown-search placeholder="Search current members">
+                    <div class="leader-dropdown-options" role="listbox" aria-label="Eligible current members">
+                        <button class="leader-dropdown-option" type="button" role="option"
+                                data-leader-dropdown-option
+                                th:each="option : ${eligibleInternOptions}"
+                                th:attr="data-value=${option.userId},data-label=|${option.displayName} (${option.studentCode})|,data-search=|${option.displayName} ${option.studentCode}|,data-selected=${option.userId == projectMemberForm.internUserId}">
+                            <span>
+                                <strong th:text="|${option.displayName} (${option.studentCode})|">Intern (Code)</strong>
+                                <small th:text="|${#temporals.format(option.internshipStart, 'dd/MM/yyyy')} – ${#temporals.format(option.internshipEnd, 'dd/MM/yyyy')}|">Dates</small>
+                            </span>
+                        </button>
+                        <p class="leader-dropdown-empty" data-leader-dropdown-empty
+                           th:hidden="${!#lists.isEmpty(eligibleInternOptions)}">No matching eligible current members.</p>
                     </div>
                 </div>
-                <div class="picker-footer"><button class="button button-primary" type="button" data-picker-apply>Use selection</button></div>
-            </dialog>
+            </div>
+            <p class="field-help" th:if="${#lists.isEmpty(eligibleInternOptions)}">No eligible current members are available.</p>
+            <p class="field-error" id="leadership-intern-user-error" role="alert" th:if="${#fields.hasErrors('internUserId')}" th:errors="*{internUserId}"></p>
         </div>
         <div class="form-actions">
-            <button class="button button-primary" type="submit">Change Leader</button>
             <button class="button button-danger" type="submit"
                     th:attr="formaction=@{/projects/{id}/leadership/remove(id=${project.id})}">Replace and remove current Leader</button>
+            <button class="button button-primary" type="submit">Change Leader</button>
         </div>
     </form>
 </main>

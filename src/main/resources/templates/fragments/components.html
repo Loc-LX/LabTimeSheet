@@ -22,6 +22,14 @@
 <div th:fragment="metric(label, value, detail)" class="metric"><div class="metric-label" th:text="${label}">Label</div><div class="metric-value" th:text="${value}">Value</div><div class="metric-detail" th:text="${detail}">Detail</div></div>
 <span th:fragment="badge(label, tone)" class="badge" th:classappend="${' badge-' + tone}" th:attr="aria-label=${'Status: ' + label}" th:text="${label}">Status</span>
 <nav th:fragment="tabs(items, active)" class="tabs" aria-label="Views"><a th:each="item : ${items}" class="tab" th:href="${item.href}" th:text="${item.label}" th:attr="aria-current=${item.key == active} ? 'page' : null">View</a></nav>
+<nav th:fragment="projectTabs(projectId, active)" class="project-tabs" aria-label="Project sections">
+    <div class="tabs">
+        <a class="tab" th:href="@{/projects/{id}(id=${projectId})}" th:attr="aria-current=${active == 'overview'} ? 'page' : null">Overview</a>
+        <a class="tab" th:href="@{/projects/{id}/members(id=${projectId})}" th:attr="aria-current=${active == 'members'} ? 'page' : null">Members</a>
+        <a class="tab" th:href="@{/projects/{id}/leadership(id=${projectId})}" th:attr="aria-current=${active == 'leadership'} ? 'page' : null">Leadership</a>
+        <a class="tab" th:href="@{/projects/{id}/tasks(id=${projectId})}" th:attr="aria-current=${active == 'tasks'} ? 'page' : null">Tasks</a>
+    </div>
+</nav>
 <div th:fragment="table(caption, head, body)" class="table-scroll"><table class="data-table"><caption class="sr-only" th:text="${caption}">Data</caption><thead th:replace="${head}"></thead><tbody th:replace="${body}"></tbody></table></div>
 <nav th:fragment="pagination(previous, next)" class="pagination" aria-label="Pagination"><a class="button" th:if="${previous != null}" th:href="${previous}">Previous</a><a class="button" th:if="${next != null}" th:href="${next}">Next</a></nav>
 <div th:fragment="alert(tone, message)" class="alert" th:classappend="${' alert-' + tone}" role="alert" th:text="${message}">Message</div>

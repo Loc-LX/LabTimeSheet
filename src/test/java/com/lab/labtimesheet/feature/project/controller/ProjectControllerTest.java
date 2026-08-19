@@ -145,7 +145,10 @@ class ProjectControllerTest {
         String leadershipHtml = mvc.perform(get("/projects/30/leadership"))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
-        assertTrue(leadershipHtml.contains("type=\"radio\""));
+        assertTrue(leadershipHtml.contains("data-leader-dropdown"));
+        assertTrue(leadershipHtml.contains("data-leader-dropdown-search"));
+        assertTrue(leadershipHtml.contains("data-leader-dropdown-option"));
+        assertTrue(leadershipHtml.contains("name=\"internUserId\""));
         assertTrue(leadershipHtml.contains("name=\"expectedLeadershipTermId\""));
         assertTrue(leadershipHtml.contains("value=\"50\""));
         assertTrue(leadershipHtml.contains("formaction=\"/projects/30/leadership/remove\""));

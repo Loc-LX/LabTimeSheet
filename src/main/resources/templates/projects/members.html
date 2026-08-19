@@ -1,19 +1,14 @@
 <!doctype html>
 <html lang="en" xmlns:th="http://www.thymeleaf.org"
       th:replace="~{fragments/layout :: shell(
-          pageTitle=${project.name + ' members'},
+          pageTitle=${project.name},
           section='Projects',
           activeNav='projects',
           primaryAction=~{},
           content=~{::main})}">
 <body>
 <main>
-    <nav class="tabs" aria-label="Project sections">
-        <a class="tab" th:href="@{/projects/{id}(id=${project.id})}">Overview</a>
-        <a class="tab" th:href="@{/projects/{id}/members(id=${project.id})}" aria-current="page">Members</a>
-        <a class="tab" th:href="@{/projects/{id}/leadership(id=${project.id})}">Leadership</a>
-        <a class="tab" th:href="@{/projects/{id}/tasks(id=${project.id})}">Tasks</a>
-    </nav>
+    <th:block th:replace="~{fragments/components :: projectTabs(${project.id}, 'members')}"></th:block>
     <section class="panel form-panel" th:if="${#lists.isEmpty(members)}"><th:block th:replace="~{fragments/components :: empty('No membership history', 'Project members will appear here.')} "></th:block></section>
     <section class="panel form-panel" th:unless="${#lists.isEmpty(members)}">
         <div class="table-scroll"><table class="data-table"><caption class="sr-only">Membership history</caption><thead><tr><th scope="col">Intern</th><th scope="col">Joined</th><th scope="col">Left</th><th scope="col">Role</th><th scope="col">Action</th></tr></thead>
