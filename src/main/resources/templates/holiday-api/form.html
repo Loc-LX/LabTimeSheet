@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{fragments/layout :: shell(
+          pageTitle='HolidayAPI configuration',
+          section='Admin',
+          activeNav='smtp',
+          primaryAction=~{::#primary-action},
+          content=~{::main})}">
+<body>
+<a id="primary-action" class="button" th:href="@{/dashboard}">Back to overview</a>
+<main>
+  <p class="page-description">Configure the Vietnam holiday provider for explicit administrator tests and previews.</p>
+  <p class="alert" th:if="${param.saved}" role="status">HolidayAPI draft saved. Test it before activation.</p>
+  <p class="alert" th:if="${param.tested}" role="status">HolidayAPI test passed.</p>
+  <p class="alert" th:if="${param.activated}" role="status">HolidayAPI is active.</p>
+  <p class="alert" th:if="${holidayApiStatus.active}" role="status">An active HolidayAPI configuration is serving explicit previews.</p>
+  <p class="alert alert-error" th:if="${holidayApiActionError}" th:text="${holidayApiActionError}" role="alert"></p>
+  <p class="alert alert-error" th:if="${holidayApiTestError}" th:text="${holidayApiTestError}" role="alert"></p>
+  <p class="alert alert-error" th:if="${holidayApiPreviewError}" th:text="${holidayApiPreviewError}" role="alert"></p>
+
+  <section class="panel form-panel">
+    <div class="section-heading">
+      <div>
+        <h2>Provider credentials</h2>
+        <p class="section-description">Country is fixed to Vietnam (VN). The key is stored encrypted and is never shown again.</p>
+      </div>
+      <span class="badge" th:text="${holidayApiStatus.countryCode}">VN</span>
+    </div>
+    <form class="form-grid" method="post" th:action="@{/admin/holiday-api/draft}" th:object="${holidayApiForm}">
+      <div id="holiday-api-form-error-summary" class="alert alert-error" role="alert"
+           aria-labelledby="holiday-api-form-error-summary-title" th:if="${#fields.hasAnyErrors()}">
+        <strong id="holiday-api-form-error-summary-title">Please correct the HolidayAPI settings.</strong>
+        <ul><li th:each="fieldError : ${#fields.allErrors()}" th:text="${fieldError}"></li></ul>
+      </div>
+      <div class="field">
+        <label class="field-label" for="holiday-api-key">HolidayAPI key</label>
+        <input class="control" id="holiday-api-key" th:field="*{apiKey}" type="password"
+               autocomplete="new-password" required
+               th:attr="aria-invalid=${#fields.hasErrors('apiKey')},aria-describedby=${#fields.hasErrors('apiKey') ? 'holiday-api-key-error' : null}">
+        <p class="field-help">For security, this field is blank after every response.</p>
+        <p class="field-error" id="holiday-api-key-error" th:if="${#fields.hasErrors('apiKey')}" th:errors="*{apiKey}" role="alert"></p>
+      </div>
+      <div class="form-actions"><button class="button button-primary" type="submit">Save draft</button></div>
+    </form>
+  </section>
+
+  <div class="inline-actions">
+    <form th:if="${holidayApiStatus.draftId != null}" method="post" th:action="@{/admin/holiday-api/test}">
+      <input type="hidden" name="draftId" th:value="${holidayApiStatus.draftId}">
+      <input type="hidden" name="year" value="2026">
+      <button class="button" type="submit">Test draft</button>
+    </form>
+    <form th:if="${holidayApiStatus.draftId != null and holidayApiStatus.tested}" method="post" th:action="@{/admin/holiday-api/activate}">
+      <input type="hidden" name="draftId" th:value="${holidayApiStatus.draftId}">
+      <button class="button button-primary" type="submit">Activate HolidayAPI</button>
+    </form>
+    <a class="button" th:href="@{/admin/smtp}">SMTP settings</a>
+  </div>
+
+  <section class="panel form-panel">
+    <div class="section-heading">
+      <div>
+        <h2>Explicit holiday preview</h2>
+        <p class="section-description">This action calls the active provider only when an Admin submits this form.</p>
+      </div>
+    </div>
+    <form class="form-grid form-grid-three" method="post" th:action="@{/admin/holiday-api/preview}" th:object="${holidayApiPreviewForm}">
+      <div class="field">
+        <label class="field-label" for="holiday-api-year">Year</label>
+        <input class="control" id="holiday-api-year" th:field="*{year}" type="number" min="2000" max="2100" required>
+        <p class="field-error" th:if="${#fields.hasErrors('year')}" th:errors="*{year}" role="alert"></p>
+      </div>
+      <div class="form-actions"><button class="button" type="submit">Preview holidays</button></div>
+    </form>
+    <div th:if="${holidayApiPreview}" class="data-table-wrap">
+      <table class="data-table">
+        <caption class="visually-hidden" th:text="${'HolidayAPI holidays for ' + holidayApiPreview.year}">HolidayAPI holidays</caption>
+        <thead><tr><th scope="col">Name</th><th scope="col">Actual date</th><th scope="col">Observed date</th><th scope="col">Public holiday</th></tr></thead>
+        <tbody>
+        <tr th:each="holiday : ${holidayApiPreview.holidays}">
+          <td th:text="${holiday.name}">National Day</td>
+          <td th:text="${holiday.actualDate}">2026-09-02</td>
+          <td th:text="${holiday.observedDate != null ? holiday.observedDate : '—'}">—</td>
+          <td th:text="${holiday.publicHoliday ? 'Yes' : 'No'}">Yes</td>
+        </tr>
+        <tr th:if="${#lists.isEmpty(holidayApiPreview.holidays)}"><td colspan="4">No holidays returned for this year.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</main>
+</body>
+</html>
