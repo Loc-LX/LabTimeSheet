@@ -36,14 +36,14 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
-@Import({TestcontainersConfiguration.class, InternLeaveWebIntegrationTest.MailProbeConfiguration.class})
+@Import({TestcontainersConfiguration.class, MentorLeaveWebIntegrationTest.MailProbeConfiguration.class})
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
-class InternLeaveWebIntegrationTest {
+class MentorLeaveWebIntegrationTest {
     private static final String PASSWORD = "correct horse battery staple";
-    private static final String ADMIN_EMAIL = "leave-admin@example.test";
+    private static final String ADMIN_EMAIL = "mentor-leave-admin@example.test";
 
     @Autowired
     private MockMvc mockMvc;
@@ -61,97 +61,86 @@ class InternLeaveWebIntegrationTest {
     private LeaveRequestRepository requests;
 
     @Test
-    void internCanCancelAndEditOwnPendingRequestBeforeBoundary() throws Exception {
+    void mentorSeesPendingRequestsAndApprovesOrRejectsThem() throws Exception {
         MockHttpSession adminSession = seedAdmin();
         long adminId = accounts.requireActiveAdminId(ADMIN_EMAIL);
-        configureSmtp(adminId);
-        createAndActivateIntern(adminId);
-        MockHttpSession internSession = login("leave-intern@example.test", PASSWORD, "INTERN");
-
-        mockMvc.perform(post("/intern/leave").session(internSession)
-                        .with(csrf())
-                        .param("startDate", "2026-09-01")
-                        .param("endDate", "2026-09-03")
-                        .param("reason", "Family trip"))
-                .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/intern/leave"));
-
-        mockMvc.perform(get("/intern/leave").session(internSession))
-                .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Actions")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString(">Edit</button>")));
-
-        LeaveRequestEntity request = requests.findAll().getFirst();
-
-        mockMvc.perform(post("/intern/leave/{id}/edit", request.id()).session(internSession)
-                        .with(csrf())
-                        .param("startDate", "2026-09-07")
-                        .param("endDate", "2026-09-07")
-                        .param("reason", "Rescheduled"))
-                .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/intern/leave"));
-        mockMvc.perform(get("/intern/leave").session(internSession))
-                .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Rescheduled")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("07/09/2026 → 07/09/2026")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Leave updated to 1 counted day(s)")));
-
-        mockMvc.perform(post("/intern/leave/{id}/cancel", request.id()).session(internSession)
-                        .with(csrf()))
-                .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/intern/leave"));
-        mockMvc.perform(get("/intern/leave").session(internSession))
-                .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("CANCELLED")));
-    }
-
-    @Test
-    void internCanOpenFormAndSubmittedLeaveMaterializesAndShowsInPriorRequests() throws Exception {
-        MockHttpSession adminSession = seedAdmin();
-        long adminId = accounts.requireActiveAdminId(ADMIN_EMAIL);
-        configureSmtp(adminId);
-        createAndActivateIntern(adminId);
-
-        MockHttpSession internSession = login("leave-intern@example.test", PASSWORD, "INTERN");
-        mockMvc.perform(get("/intern/leave").session(internSession))
-                .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("New request")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Monthly quota")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Prior requests")));
-
-        mockMvc.perform(post("/intern/leave").session(internSession)
-                        .with(csrf())
-                        .param("startDate", "2026-09-01")
-                        .param("endDate", "2026-09-03")
-                        .param("reason", "Family trip"))
-                .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/intern/leave"));
-
-        mockMvc.perform(get("/intern/leave").session(internSession))
-                .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Family trip")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("PENDING")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("01/09/2026 → 03/09/2026")));
-    }
-
-    @Test
-    void mentorAndAdminCannotRequestLeave() throws Exception {
-        MockHttpSession adminSession = seedAdmin();
-        long adminId = accounts.requireActiveAdminId(ADMIN_EMAIL);
-
-        mockMvc.perform(get("/intern/leave").session(adminSession)).andExpect(status().isForbidden());
-        mockMvc.perform(post("/intern/leave").session(adminSession)
-                        .with(csrf())
-                        .param("startDate", "2026-09-01")
-                        .param("endDate", "2026-09-03")
-                        .param("reason", "Admin leave"))
-                .andExpect(status().isForbidden());
-
         configureSmtp(adminId);
         createAndActivate(adminId, new CreateAccountCommand(
-                "leave-mentor@example.test", "Leave Mentor", GlobalRole.MENTOR, null, null, null));
-        MockHttpSession mentorSession = login("leave-mentor@example.test", PASSWORD, "MENTOR");
-        mockMvc.perform(get("/intern/leave").session(mentorSession)).andExpect(status().isForbidden());
+                "mentor-leave-mentor@example.test", "Mentor Leave", GlobalRole.MENTOR, null, null, null));
+        createAndActivateIntern(adminId);
+
+        MockHttpSession internSession = login("mentor-leave-intern@example.test", PASSWORD, "INTERN");
+        mockMvc.perform(post("/intern/leave").session(internSession)
+                        .with(csrf())
+                        .param("startDate", "2026-09-01")
+                        .param("endDate", "2026-09-02")
+                        .param("reason", "Family trip"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/intern/leave"));
+
+        MockHttpSession mentorSession = login("mentor-leave-mentor@example.test", PASSWORD, "MENTOR");
+        mockMvc.perform(get("/mentor/leave").session(mentorSession))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Pending decisions")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Mentor Leave Intern")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Family trip")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("PENDING")));
+
+        LeaveRequestEntity request = requests.findAll().getFirst();
+        mockMvc.perform(post("/mentor/leave/{id}/approve", request.id()).session(mentorSession)
+                        .with(csrf())
+                        .param("decisionNote", "Family first"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/mentor/leave"));
+
+        mockMvc.perform(get("/mentor/leave").session(mentorSession))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Request " + request.id() + " approved")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("APPROVED")));
+        assertThat(requests.findById(request.id()).orElseThrow().decisionNote()).isEqualTo("Family first");
+        assertThat(requests.findById(request.id()).orElseThrow().decidedByMentorUserId()).isNotNull();
+
+        LeaveRequestEntity rejected = submitInternLeave(internSession, "2026-09-07", "2026-09-07", "Clinic");
+        mockMvc.perform(post("/mentor/leave/{id}/reject", rejected.id()).session(mentorSession)
+                        .with(csrf())
+                        .param("decisionNote", "Not enough notice"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/mentor/leave"));
+        mockMvc.perform(get("/mentor/leave").session(mentorSession))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Request " + rejected.id() + " rejected")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("REJECTED")));
+    }
+
+    @Test
+    void internAndAdminCannotDecideLeave() throws Exception {
+        MockHttpSession adminSession = seedAdmin();
+        long adminId = accounts.requireActiveAdminId(ADMIN_EMAIL);
+        configureSmtp(adminId);
+        createAndActivate(adminId, new CreateAccountCommand(
+                "mentor-leave-intern@example.test", "Mentor Leave Intern", GlobalRole.INTERN, "INT-MENTOR-LEAVE",
+                LocalDate.of(2026, 8, 1), LocalDate.of(2026, 12, 31)));
+        createAndActivate(adminId, new CreateAccountCommand(
+                "mentor-leave-mentor@example.test", "Mentor Leave", GlobalRole.MENTOR, null, null, null));
+        MockHttpSession internSession = login("mentor-leave-intern@example.test", PASSWORD, "INTERN");
+
+        mockMvc.perform(get("/mentor/leave").session(adminSession)).andExpect(status().isForbidden());
+        mockMvc.perform(get("/mentor/leave").session(internSession)).andExpect(status().isForbidden());
+    }
+
+    private LeaveRequestEntity submitInternLeave(MockHttpSession internSession, String start, String end, String reason)
+            throws Exception {
+        mockMvc.perform(post("/intern/leave").session(internSession)
+                        .with(csrf())
+                        .param("startDate", start)
+                        .param("endDate", end)
+                        .param("reason", reason))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/intern/leave"));
+        return requests.findAll().stream()
+                .filter(candidate -> candidate.reason().equals(reason))
+                .findFirst()
+                .orElseThrow();
     }
 
     private MockHttpSession seedAdmin() throws Exception {
@@ -166,16 +155,13 @@ class InternLeaveWebIntegrationTest {
     }
 
     private void createAndActivateIntern(long adminId) {
-        var creation = accounts.create(new CreateAccountCommand(
-                "leave-intern@example.test",
-                "Leave Intern",
+        createAndActivate(adminId, new CreateAccountCommand(
+                "mentor-leave-intern@example.test",
+                "Mentor Leave Intern",
                 GlobalRole.INTERN,
-                "INT-LEAVE",
+                "INT-MENTOR-LEAVE",
                 LocalDate.of(2026, 8, 1),
-                LocalDate.of(2026, 12, 31)), adminId);
-        assertThat(creation.deliverySucceeded()).isTrue();
-        assertThat(accounts.activate(mail.activationTokenFor("leave-intern@example.test"), PASSWORD)).isTrue();
-        accounts.activateInternship(creation.userId(), adminId);
+                LocalDate.of(2026, 12, 31)));
     }
 
     private MockHttpSession login(String email, String password, String role) throws Exception {
@@ -199,9 +185,13 @@ class InternLeaveWebIntegrationTest {
     }
 
     private void createAndActivate(long adminId, CreateAccountCommand command) {
+        mail.clear();
         var creation = accounts.create(command, adminId);
         assertThat(creation.deliverySucceeded()).isTrue();
         assertThat(accounts.activate(mail.activationTokenFor(command.email()), PASSWORD)).isTrue();
+        if (command.role() == GlobalRole.INTERN) {
+            accounts.activateInternship(creation.userId(), adminId);
+        }
     }
 
     @TestConfiguration(proxyBeanMethods = false)

@@ -205,6 +205,7 @@ class LeaveServiceTest {
         when(prior.status()).thenReturn("PENDING");
         when(prior.reason()).thenReturn("Clinic visit");
         when(prior.submittedAt()).thenReturn(NOW);
+        when(prior.firstCountedStartAt()).thenReturn(Instant.parse("2026-08-10T01:30:00Z"));
         when(requests.findByInternUserIdOrderByIdDesc(INTERN_ID)).thenReturn(List.of(prior));
         when(days.findLeaveDatesByRequestId(5L)).thenReturn(List.of(LocalDate.of(2026, 8, 10)));
 

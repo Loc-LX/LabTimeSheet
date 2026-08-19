@@ -17,6 +17,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -73,6 +74,64 @@ public class InternLeaveController {
             redirectAttributes.addFlashAttribute(
                     "message",
                     "Leave submitted for " + submission.countedDays().size() + " counted day(s)");
+        } catch (LeaveException exception) {
+            redirectAttributes.addFlashAttribute("error", exception.rejection().name());
+        }
+        return "redirect:/intern/leave";
+    }
+
+    /**
+     * Cancels the authenticated Intern's pending or approved request before its boundary and redirects.
+     *
+     * @param principal authenticated Intern
+     * @param requestId request identifier
+     * @param redirectAttributes flash-message destination
+     * @return redirect to the Intern leave form
+     */
+    @PostMapping("/{requestId}/cancel")
+    public String cancel(
+            Principal principal,
+            @PathVariable long requestId,
+            RedirectAttributes redirectAttributes) {
+        AttendanceActor actor = requireIntern(currentUsers.actor(principal));
+        try {
+            LeaveSubmission cancelled = leave.cancel(actor.userId(), requestId);
+            redirectAttributes.addFlashAttribute(
+                    "message",
+                    "Leave " + cancelled.status().toLowerCase() + " (" + cancelled.countedDays().size()
+                            + " counted day(s) released)");
+        } catch (LeaveException exception) {
+            redirectAttributes.addFlashAttribute("error", exception.rejection().name());
+        }
+        return "redirect:/intern/leave";
+    }
+
+    /**
+     * Replaces the authenticated Intern's pending request before its boundary and redirects.
+     *
+     * @param principal authenticated Intern
+     * @param requestId request identifier
+     * @param startDate inclusive new first local date
+     * @param endDate inclusive new last local date
+     * @param reason new reason
+     * @param redirectAttributes flash-message destination
+     * @return redirect to the Intern leave form
+     */
+    @PostMapping("/{requestId}/edit")
+    public String edit(
+            Principal principal,
+            @PathVariable long requestId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam String reason,
+            RedirectAttributes redirectAttributes) {
+        AttendanceActor actor = requireIntern(currentUsers.actor(principal));
+        try {
+            LeaveSubmission edited = leave.edit(
+                    actor.userId(), requestId, new LeaveSubmissionCommand(startDate, endDate, reason));
+            redirectAttributes.addFlashAttribute(
+                    "message",
+                    "Leave updated to " + edited.countedDays().size() + " counted day(s)");
         } catch (LeaveException exception) {
             redirectAttributes.addFlashAttribute("error", exception.rejection().name());
         }

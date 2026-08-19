@@ -329,6 +329,23 @@ public class AccountService {
         return requireActiveAdmin(user);
     }
 
+    /**
+     * Requires the identified account to be an active Mentor.
+     *
+     * @param userId account identifier
+     * @return the same identifier after authorization
+     * @throws IllegalArgumentException when the account is missing or not an active Mentor
+     */
+    @Transactional(readOnly = true)
+    public long requireActiveMentorId(long userId) {
+        AppUser user = users.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("Mentor not found"));
+        if (user.getGlobalRole() != GlobalRole.MENTOR || user.getAccountStatus() != AccountStatus.ACTIVE) {
+            throw new IllegalArgumentException("An active Mentor is required");
+        }
+        return user.getId();
+    }
+
     private static long requireActiveAdmin(AppUser user) {
         if (user.getGlobalRole() != GlobalRole.ADMIN || user.getAccountStatus() != AccountStatus.ACTIVE) {
             throw new IllegalArgumentException("An active Admin is required");

@@ -34,13 +34,24 @@
         <div class="table-scroll" th:unless="${#lists.isEmpty(overview.requests)}">
             <table class="data-table">
                 <caption class="sr-only">Prior leave requests</caption>
-                <thead><tr><th scope="col">Dates</th><th scope="col">Reason</th><th scope="col">Counted days</th><th scope="col">Status</th></tr></thead>
+                <thead><tr><th scope="col">Dates</th><th scope="col">Reason</th><th scope="col">Counted days</th><th scope="col">Status</th><th scope="col">Actions</th></tr></thead>
                 <tbody>
                 <tr th:each="request : ${overview.requests}">
                     <td th:text="|${#temporals.format(request.startDate, 'dd/MM/yyyy')} → ${#temporals.format(request.endDate, 'dd/MM/yyyy')}|">Date</td>
                     <td th:text="${request.reason}">Reason</td>
                     <td th:text="${#lists.size(request.countedDays)}">0</td>
                     <td><span class="badge" th:text="${request.status}">PENDING</span></td>
+                    <td>
+                        <form th:if="${request.editable}" method="post" th:action="@{/intern/leave/{id}/edit(id=${request.id})}" class="inline-actions">
+                            <input class="control control-inline" type="date" name="startDate" th:value="${request.startDate}" required>
+                            <input class="control control-inline" type="date" name="endDate" th:value="${request.endDate}" required>
+                            <input class="control control-inline" type="text" name="reason" th:value="${request.reason}" required maxlength="200">
+                            <button class="button button-secondary" type="submit">Edit</button>
+                        </form>
+                        <form th:if="${request.cancellable}" method="post" th:action="@{/intern/leave/{id}/cancel(id=${request.id})}" class="inline-actions">
+                            <button class="button button-secondary" type="submit">Cancel</button>
+                        </form>
+                    </td>
                 </tr>
                 </tbody>
             </table>

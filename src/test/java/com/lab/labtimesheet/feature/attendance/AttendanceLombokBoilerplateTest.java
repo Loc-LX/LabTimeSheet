@@ -6,6 +6,7 @@ import com.lab.labtimesheet.feature.account.service.AccountService;
 import com.lab.labtimesheet.feature.attendance.controller.AttendanceController;
 import com.lab.labtimesheet.feature.attendance.controller.CalendarController;
 import com.lab.labtimesheet.feature.attendance.controller.InternLeaveController;
+import com.lab.labtimesheet.feature.attendance.controller.MentorLeaveController;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceDayContext;
 import com.lab.labtimesheet.feature.attendance.model.AttendancePolicy;
@@ -18,6 +19,7 @@ import com.lab.labtimesheet.feature.attendance.model.dto.GlobalCalendarEvent;
 import com.lab.labtimesheet.feature.attendance.model.dto.HolidayCandidate;
 import com.lab.labtimesheet.feature.attendance.model.dto.HolidayImportForm;
 import com.lab.labtimesheet.feature.attendance.model.dto.HolidayImportSummary;
+import com.lab.labtimesheet.feature.attendance.model.dto.LeaveDecisionCommand;
 import com.lab.labtimesheet.feature.attendance.model.dto.LeaveOverview;
 import com.lab.labtimesheet.feature.attendance.model.dto.LeaveSubmission;
 import com.lab.labtimesheet.feature.attendance.model.dto.LeaveSubmissionCommand;
@@ -307,7 +309,23 @@ class AttendanceLombokBoilerplateTest {
                 method(Modifier.PUBLIC, "reason", String.class),
                 method(Modifier.PUBLIC, "status", String.class),
                 method(Modifier.PUBLIC, "submittedAt", Instant.class),
-                method(Modifier.PUBLIC, "firstCountedStartAt", Instant.class));
+                method(Modifier.PUBLIC, "firstCountedStartAt", Instant.class),
+                method(Modifier.PUBLIC, "approve", void.class, long.class, Instant.class, String.class),
+                method(Modifier.PUBLIC, "reject", void.class, long.class, Instant.class, String.class),
+                method(Modifier.PUBLIC, "cancel", void.class, Instant.class),
+                method(
+                        Modifier.PUBLIC,
+                        "updateRange",
+                        void.class,
+                        LocalDate.class,
+                        LocalDate.class,
+                        String.class,
+                        Instant.class,
+                        Instant.class),
+                method(Modifier.PUBLIC, "decidedByMentorUserId", Long.class),
+                method(Modifier.PUBLIC, "decidedAt", Instant.class),
+                method(Modifier.PUBLIC, "decisionNote", String.class),
+                method(Modifier.PUBLIC, "cancelledAt", Instant.class));
     }
 
     @Test
@@ -391,6 +409,42 @@ class AttendanceLombokBoilerplateTest {
                         LocalDate.class,
                         LocalDate.class,
                         String.class,
+                        RedirectAttributes.class),
+                method(
+                        Modifier.PUBLIC,
+                        "cancel",
+                        String.class,
+                        Principal.class,
+                        long.class,
+                        RedirectAttributes.class),
+                method(
+                        Modifier.PUBLIC,
+                        "edit",
+                        String.class,
+                        Principal.class,
+                        long.class,
+                        LocalDate.class,
+                        LocalDate.class,
+                        String.class,
+                        RedirectAttributes.class));
+        assertMethodSurface(
+                MentorLeaveController.class,
+                method(Modifier.PUBLIC, "form", String.class, Principal.class, Model.class),
+                method(
+                        Modifier.PUBLIC,
+                        "approve",
+                        String.class,
+                        Principal.class,
+                        long.class,
+                        String.class,
+                        RedirectAttributes.class),
+                method(
+                        Modifier.PUBLIC,
+                        "reject",
+                        String.class,
+                        Principal.class,
+                        long.class,
+                        String.class,
                         RedirectAttributes.class));
         assertMethodSurface(
                 LeaveService.class,
@@ -405,7 +459,23 @@ class AttendanceLombokBoilerplateTest {
                         "overview",
                         LeaveOverview.class,
                         long.class,
-                        LocalDate.class));
+                        LocalDate.class),
+                method(
+                        Modifier.PUBLIC,
+                        "decide",
+                        LeaveSubmission.class,
+                        long.class,
+                        long.class,
+                        LeaveDecisionCommand.class),
+                method(Modifier.PUBLIC, "cancel", LeaveSubmission.class, long.class, long.class),
+                method(
+                        Modifier.PUBLIC,
+                        "edit",
+                        LeaveSubmission.class,
+                        long.class,
+                        long.class,
+                        LeaveSubmissionCommand.class),
+                method(Modifier.PUBLIC, "decisions", List.class));
         assertMethodSurface(
                 AttendanceApplicationService.class,
                 method(Modifier.PUBLIC, "checkIn", AttendanceRecord.class, long.class),

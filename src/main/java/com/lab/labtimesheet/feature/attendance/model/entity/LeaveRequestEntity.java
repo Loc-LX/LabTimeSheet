@@ -51,6 +51,12 @@ public class LeaveRequestEntity {
     @Column(name = "decided_at")
     private Instant decidedAt;
 
+    @Column(name = "decision_note")
+    private String decisionNote;
+
+    @Column(name = "cancelled_at")
+    private Instant cancelledAt;
+
     @Version
     private long version;
 
@@ -184,5 +190,101 @@ public class LeaveRequestEntity {
      */
     public Instant firstCountedStartAt() {
         return firstCountedStartAt;
+    }
+
+    /**
+     * Marks the request approved by an active Mentor before the first counted start.
+     *
+     * @param mentorUserId deciding Mentor account identifier
+     * @param at server decision instant
+     * @param note optional decision note
+     */
+    public void approve(long mentorUserId, Instant at, String note) {
+        this.status = "APPROVED";
+        this.decidedByMentorUserId = mentorUserId;
+        this.decidedAt = at;
+        this.decisionNote = note;
+    }
+
+    /**
+     * Marks the request rejected by an active Mentor before the first counted start.
+     *
+     * @param mentorUserId deciding Mentor account identifier
+     * @param at server decision instant
+     * @param note optional decision note
+     */
+    public void reject(long mentorUserId, Instant at, String note) {
+        this.status = "REJECTED";
+        this.decidedByMentorUserId = mentorUserId;
+        this.decidedAt = at;
+        this.decisionNote = note;
+    }
+
+    /**
+     * Cancels a pending or approved request before the first counted start, releasing its reservation.
+     *
+     * @param at server cancellation instant
+     */
+    public void cancel(Instant at) {
+        this.status = "CANCELLED";
+        this.cancelledAt = at;
+    }
+
+    /**
+     * Replaces the range and submission facts of a pending request after revalidation; the request keeps its identity.
+     *
+     * @param startDate inclusive new first local date
+     * @param endDate inclusive new last local date
+     * @param reason new non-blank reason
+     * @param submittedAt new server submission instant
+     * @param firstCountedStartAt new first counted workday's scheduled start
+     */
+    public void updateRange(
+            LocalDate startDate,
+            LocalDate endDate,
+            String reason,
+            Instant submittedAt,
+            Instant firstCountedStartAt) {
+        this.startDate = startDate;
+        this.endDate = endDate;
+        this.reason = reason;
+        this.submittedAt = submittedAt;
+        this.firstCountedStartAt = firstCountedStartAt;
+    }
+
+    /**
+     * Returns the deciding Mentor account identifier once decided.
+     *
+     * @return deciding Mentor identifier, or {@code null} while pending or cancelled
+     */
+    public Long decidedByMentorUserId() {
+        return decidedByMentorUserId;
+    }
+
+    /**
+     * Returns the server decision instant once decided.
+     *
+     * @return decision instant, or {@code null} while pending or cancelled
+     */
+    public Instant decidedAt() {
+        return decidedAt;
+    }
+
+    /**
+     * Returns the optional Mentor decision note.
+     *
+     * @return decision note, or {@code null} when none was recorded
+     */
+    public String decisionNote() {
+        return decisionNote;
+    }
+
+    /**
+     * Returns the server cancellation instant once cancelled.
+     *
+     * @return cancellation instant, or {@code null} until cancelled
+     */
+    public Instant cancelledAt() {
+        return cancelledAt;
     }
 }
