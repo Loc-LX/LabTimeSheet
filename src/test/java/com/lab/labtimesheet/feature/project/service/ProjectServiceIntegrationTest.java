@@ -204,6 +204,71 @@ class ProjectServiceIntegrationTest {
         assertEquals(taskBeforeChange, taskAssignment(projectId));
     }
 
+    /**
+     * [I2-PRJ-03] Mentor phải bổ nhiệm replacement trước khi đóng membership Leader cũ; lịch sử
+     * nhiệm kỳ và nguồn gốc Mentor được giữ nguyên.
+     */
+    @Test
+    void ownerRemovesCurrentLeaderOnlyAfterSelectingAReplacement() {
+        long mentorId = user("mentor-remove-leader@example.test", "MENTOR");
+        long firstLeaderId = intern("remove-leader-one@example.test", "I007");
+        long replacementId = intern("remove-leader-two@example.test", "I008");
+        long projectId = createProject(mentorId, firstLeaderId, "Remove leader");
+        projectService.addMember(mentorId, projectId, replacementId);
+        long firstMembershipId = membershipId(projectId, firstLeaderId);
+        long termId = number("""
+                select id from project_leadership_terms
+                where project_id = ? and ended_at is null
+                """, projectId);
+
+        projectService.removeLeader(mentorId, projectId, termId, replacementId);
+
+        assertEquals(replacementId, number("""
+                select membership.intern_user_id
+                from project_leadership_terms leadership
+                join project_memberships membership on membership.id = leadership.membership_id
+                where leadership.project_id = ? and leadership.ended_at is null
+                """, projectId));
+        assertEquals(1, count("select count(*) from project_leadership_terms where project_id = ? and ended_at is null", projectId));
+        assertEquals(2, count("select count(*) from project_leadership_terms where project_id = ?", projectId));
+        assertEquals(1, count("""
+                select count(*) from project_memberships
+                where id = ? and project_id = ? and intern_user_id = ? and left_at is not null
+                  and removed_by_mentor_user_id = ?
+                """, firstMembershipId, projectId, firstLeaderId, mentorId));
+        assertEquals(1, count("""
+                select count(*) from project_memberships
+                where project_id = ? and intern_user_id = ? and left_at is null
+                """, projectId, replacementId));
+    }
+
+    /** [I2-PRJ-03] Replacement không hợp lệ hoặc Mentor không sở hữu thì không được đổi dữ liệu. */
+    @Test
+    void leaderRemovalRejectsInvalidReplacementAndUnauthorizedMentorWithoutMutation() {
+        long mentorId = user("mentor-remove-guard@example.test", "MENTOR");
+        long otherMentorId = user("other-remove-guard@example.test", "MENTOR");
+        long firstLeaderId = intern("remove-guard-one@example.test", "I009");
+        long replacementId = intern("remove-guard-two@example.test", "I010");
+        long projectId = createProject(mentorId, firstLeaderId, "Remove leader guard");
+        long termId = number("""
+                select id from project_leadership_terms
+                where project_id = ? and ended_at is null
+                """, projectId);
+
+        assertThrows(ProjectRuleViolationException.class,
+                () -> projectService.removeLeader(mentorId, projectId, termId, replacementId));
+        assertThrows(ProjectAccessDeniedException.class,
+                () -> projectService.removeLeader(otherMentorId, projectId, termId, firstLeaderId));
+        assertEquals(firstLeaderId, number("""
+                select membership.intern_user_id
+                from project_leadership_terms leadership
+                join project_memberships membership on membership.id = leadership.membership_id
+                where leadership.project_id = ? and leadership.ended_at is null
+                """, projectId));
+        assertEquals(1, count("select count(*) from project_memberships where project_id = ? and left_at is null", projectId));
+        assertEquals(1, count("select count(*) from project_leadership_terms where project_id = ?", projectId));
+    }
+
     /** [I2-PRJ-01] Form cũ không được ghi đè nhiệm kỳ hiện tại đã thay đổi. */
     @Test
     void staleLeaderChangeCannotReplaceTheCurrentTermAfterAnotherChangeCommits() {

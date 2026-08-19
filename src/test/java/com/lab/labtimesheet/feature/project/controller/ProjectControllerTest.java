@@ -47,8 +47,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 /**
- * Kiểm thử web cho {@code I1-PRJ-01}–{@code I1-PRJ-05}, cùng các trạng thái lịch sử
- * {@code I2-PRJ-01}, {@code I2-PRJ-02} và {@code I2-PRJ-06} của luồng Project.
+ * Kiểm thử web cho {@code I1-PRJ-01}–{@code I1-PRJ-05}, cùng các trạng thái lịch sử/thay Leader
+ * {@code I2-PRJ-01}–{@code I2-PRJ-03} và {@code I2-PRJ-06} của luồng Project.
  */
 @WebMvcTest(ProjectController.class)
 class ProjectControllerTest {
@@ -146,6 +146,7 @@ class ProjectControllerTest {
         assertTrue(leadershipHtml.contains("type=\"radio\""));
         assertTrue(leadershipHtml.contains("name=\"expectedLeadershipTermId\""));
         assertTrue(leadershipHtml.contains("value=\"50\""));
+        assertTrue(leadershipHtml.contains("formaction=\"/projects/30/leadership/remove\""));
         assertTrue(leadershipHtml.contains("Current Member"));
         assertFalse(leadershipHtml.contains("Eligible Nonmember"));
         assertFalse(leadershipHtml.contains("data-picker-label>Current Leader"));
@@ -339,6 +340,22 @@ class ProjectControllerTest {
                 org.mockito.ArgumentMatchers.anyLong(),
                 org.mockito.ArgumentMatchers.anyLong(),
                 org.mockito.ArgumentMatchers.anyLong());
+    }
+
+    /** [I2-PRJ-03] Form xóa Leader dùng replacement và token nhiệm kỳ hiện tại. */
+    @Test
+    @WithMockUser(username = "mentor@example.test")
+    void validLeaderRemovalUsesAuthenticatedOwnerAndRedirects() throws Exception {
+        when(pages.authenticatedUserId("mentor@example.test")).thenReturn(10L);
+
+        mvc.perform(post("/projects/30/leadership/remove")
+                        .with(csrf())
+                        .param("internUserId", "21")
+                        .param("expectedLeadershipTermId", "50"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/projects/30/leadership"));
+
+        verify(projects).removeLeader(10L, 30L, 50L, 21L);
     }
 
     @Test

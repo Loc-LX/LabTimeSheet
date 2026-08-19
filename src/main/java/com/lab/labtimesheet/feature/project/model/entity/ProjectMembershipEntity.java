@@ -1,5 +1,6 @@
 package com.lab.labtimesheet.feature.project.model.entity;
 
+import com.lab.labtimesheet.feature.project.exception.ProjectRuleViolationException;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -15,7 +16,7 @@ import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 /**
- * [I1-PRJ-02, I2-PRJ-02, I2-PRJ-06] Khoảng thời gian thành viên JPA liên kết một Intern với một Project.
+ * [I1-PRJ-02, I2-PRJ-02, I2-PRJ-03, I2-PRJ-06] Khoảng thời gian thành viên JPA liên kết một Intern với một Project.
  *
  * <p>Khi rời Project, khoảng thời gian được đóng; dòng dữ liệu và nguồn gốc vẫn được giữ lại cho
  * lịch sử Project và Task đã hoàn tất. Thành viên hiện tại được biểu diễn bằng {@code leftAt} null.
@@ -44,6 +45,9 @@ public class ProjectMembershipEntity {
 
     @Column(name = "left_at")
     private Instant leftAt;
+
+    @Column(name = "removed_by_mentor_user_id")
+    private Long removedByMentorUserId;
 
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
@@ -112,5 +116,26 @@ public class ProjectMembershipEntity {
      */
     public boolean isCurrent() {
         return leftAt == null;
+    }
+
+    /**
+     * [I2-PRJ-03] Đóng membership sau khi replacement Leader đã được chuẩn bị và ghi nhận Mentor
+     * thực hiện. Không xóa dòng lịch sử và không đụng vào các Task đang tham chiếu membership này.
+     *
+     * @param at thời điểm rời Project do server cấp
+     * @param mentorUserId Mentor sở hữu thực hiện thao tác
+     */
+    void close(Instant at, long mentorUserId) {
+        if (!isCurrent() || at == null || at.isBefore(joinedAt) || mentorUserId <= 0) {
+            throw new ProjectRuleViolationException("Membership can only be closed at a valid time");
+        }
+        leftAt = at.equals(joinedAt) ? joinedAt.plusNanos(1_000) : at;
+        removedByMentorUserId = mentorUserId;
+        updatedAt = leftAt;
+    }
+
+    /** Trả về Mentor đã đóng membership, hoặc null khi membership còn hiện tại. */
+    public Long removedByMentorUserId() {
+        return removedByMentorUserId;
     }
 }

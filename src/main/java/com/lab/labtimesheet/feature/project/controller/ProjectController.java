@@ -36,8 +36,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
  *
  * <p>Truy vết mã UI Project: {@code I1-PRJ-01} tạo Project, {@code I1-PRJ-02} thêm member,
  * {@code I1-PRJ-03} đổi Leader, {@code I1-PRJ-04} kích hoạt, {@code I1-PRJ-05} hiển thị các
- * trang Project; {@code I2-PRJ-01}, {@code I2-PRJ-02} và {@code I2-PRJ-06} giữ lịch sử, handoff
- * an toàn và đọc lịch sử hoàn tất.
+ * trang Project; {@code I2-PRJ-01}, {@code I2-PRJ-02}, {@code I2-PRJ-03} và {@code I2-PRJ-06}
+ * giữ lịch sử, handoff/xóa Leader an toàn và đọc lịch sử hoàn tất.
  */
 @Controller
 @RequestMapping("/projects")
@@ -257,6 +257,41 @@ public class ProjectController {
                 return "redirect:/projects/" + projectId + "/leadership";
             } catch (ProjectRuleViolationException exception) {
                 bindingResult.rejectValue("internUserId", "project.leader.ineligible", exception.getMessage());
+            }
+        }
+        populateLeadershipModel(actorId, projectId, model);
+        return "projects/leadership";
+    }
+
+    /**
+     * [I2-PRJ-03] Thay Leader trước rồi đóng membership Leader cũ trong một transaction; chỉ
+     * Mentor sở hữu mới đi qua được phân quyền ở ProjectService.
+     *
+     * @param principal người dùng đã xác thực
+     * @param projectId mã Project cần thay Leader và xóa membership cũ
+     * @param memberForm replacement cùng token nhiệm kỳ hiện tại
+     * @param bindingResult lỗi binding/validation của form
+     * @param model model dùng khi hiển thị lại form lỗi
+     * @return redirect sau khi thành công hoặc leadership view khi thất bại
+     */
+    @PostMapping("/{projectId}/leadership/remove")
+    public String removeLeader(
+            Principal principal,
+            @PathVariable long projectId,
+            @Valid @ModelAttribute("projectMemberForm") ProjectMemberForm memberForm,
+            BindingResult bindingResult,
+            Model model) {
+        long actorId = actorId(principal);
+        if (!bindingResult.hasErrors()) {
+            try {
+                projects.removeLeader(
+                        actorId,
+                        projectId,
+                        memberForm.expectedLeadershipTermId(),
+                        memberForm.internUserId());
+                return "redirect:/projects/" + projectId + "/leadership";
+            } catch (ProjectRuleViolationException exception) {
+                bindingResult.rejectValue("internUserId", "project.leader.removal", exception.getMessage());
             }
         }
         populateLeadershipModel(actorId, projectId, model);

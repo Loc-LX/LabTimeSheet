@@ -28,9 +28,9 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>Truy vết mã công việc: Iter 1 gồm {@code I1-PRJ-01} đến {@code I1-PRJ-04}; trong đó
  * {@code I1-PRJ-01} hiện gắn vào path tạo vì chưa có operation chỉnh sửa riêng. Iter 2 đã có
- * trong service này gồm {@code I2-PRJ-01} và {@code I2-PRJ-02}. Các mã {@code I2-PRJ-03},
- * {@code I2-PRJ-04} và {@code I2-PRJ-05} là luồng thay thế/xóa thành viên/chốt Project chưa có operation ở service này,
- * nên không gắn nhầm vào luồng tạo, thêm thành viên, đổi Leader hoặc kích hoạt.
+ * trong service này gồm {@code I2-PRJ-01}, {@code I2-PRJ-02} và {@code I2-PRJ-03}. Các mã
+ * {@code I2-PRJ-04} và {@code I2-PRJ-05} là luồng chuyển Task khi xóa member/chốt Project chưa
+ * có operation ở service này, nên không gắn nhầm vào luồng tạo, thêm thành viên, đổi Leader hoặc kích hoạt.
  */
 @Service
 @RequiredArgsConstructor
@@ -148,6 +148,38 @@ public class ProjectService {
         // Toàn bộ bàn giao vẫn nguyên tử trong transaction.
         projects.flush();
         project.completeLeaderChange(actorUserId, change);
+        projects.flush();
+    }
+
+    /**
+     * [I2-PRJ-03] Thay Leader và đóng membership Leader cũ chỉ sau khi replacement đã được kiểm
+     * tra. Transaction giữ khóa Project, flush term cũ trước khi mở term mới để PostgreSQL kiểm tra
+     * khoảng thời gian không chồng lấn; membership cũ chỉ được đóng ở bước cuối.
+     *
+     * <p>Luồng chuyển Task chưa hoàn tất thuộc {@code I2-PRJ-04}; operation này không tự ý sửa các
+     * cột assignee/creator/assigner của Task.
+     *
+     * @param actorUserId mã Mentor sở hữu đã xác thực
+     * @param projectId mã Project cần thay Leader và đóng membership cũ
+     * @param expectedLeadershipTermId mã nhiệm kỳ hiện tại từ form, dùng chống form cũ
+     * @param replacementUserId mã Intern đang là member hiện tại được chọn làm replacement
+     */
+    @Transactional
+    public void removeLeader(
+            long actorUserId, long projectId, Long expectedLeadershipTermId, long replacementUserId) {
+        if (expectedLeadershipTermId == null || expectedLeadershipTermId <= 0) {
+            throw new ProjectRuleViolationException("Leadership term is invalid; refresh the Project and try again");
+        }
+        var project = lockedProject(projectId);
+        var removal = project.prepareLeaderRemoval(
+                actorUserId,
+                expectedLeadershipTermId,
+                eligibleIntern(replacementUserId),
+                clock.instant());
+
+        // I2-PRJ-03: replacement được chuẩn bị trước, term cũ được flush trước khi mở term mới.
+        projects.flush();
+        project.completeLeaderRemoval(actorUserId, removal);
         projects.flush();
     }
 

@@ -46,7 +46,11 @@
                 <div class="picker-footer"><button class="button button-primary" type="button" data-picker-apply>Use selection</button></div>
             </dialog>
         </div>
-        <div class="form-actions"><button class="button button-primary" type="submit">Change Leader</button></div>
+        <div class="form-actions">
+            <button class="button button-primary" type="submit">Change Leader</button>
+            <button class="button button-danger" type="submit"
+                    th:attr="formaction=@{/projects/{id}/leadership/remove(id=${project.id})}">Replace and remove current Leader</button>
+        </div>
     </form>
 </main>
 </body>

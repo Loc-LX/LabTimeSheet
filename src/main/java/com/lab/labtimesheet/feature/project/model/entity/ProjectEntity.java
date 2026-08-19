@@ -4,6 +4,7 @@ import com.lab.labtimesheet.feature.project.exception.ProjectAccessDeniedExcepti
 import com.lab.labtimesheet.feature.project.exception.ProjectRuleViolationException;
 import com.lab.labtimesheet.feature.project.model.ProjectInternEligibility;
 import com.lab.labtimesheet.feature.project.model.ProjectLeaderChange;
+import com.lab.labtimesheet.feature.project.model.ProjectLeaderRemoval;
 import com.lab.labtimesheet.feature.project.model.ProjectStatus;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -35,7 +36,7 @@ import lombok.NoArgsConstructor;
  *
  * <p>Truy vết mã công việc: {@code I1-PRJ-01} tạo Project, {@code I1-PRJ-02} quản lý membership,
  * {@code I1-PRJ-03} quản lý Leader, {@code I1-PRJ-04} kích hoạt Project, và
- * {@code I2-PRJ-01}–{@code I2-PRJ-02} bảo toàn lịch sử/bàn giao Leader.
+ * {@code I2-PRJ-01}–{@code I2-PRJ-03} bảo toàn lịch sử/bàn giao và thay Leader an toàn.
  */
 @Entity
 @Table(name = "projects")
@@ -228,6 +229,76 @@ public class ProjectEntity {
         }
         leadershipTerms.add(new ProjectLeadershipTermEntity(
                 this, change.replacement(), change.effectiveAt(), actorMentorUserId));
+    }
+
+    /**
+     * [I2-PRJ-03] Kiểm tra replacement trước khi kết thúc nhiệm kỳ Leader hiện tại cho luồng rời
+     * Project. Membership Leader cũ vẫn còn mở ở bước này để service có thể flush nhiệm kỳ cũ,
+     * mở nhiệm kỳ mới rồi mới đóng membership cũ.
+     *
+     * @param actorMentorUserId Mentor sở hữu đã xác thực
+     * @param expectedCurrentLeadershipTermId mã nhiệm kỳ hiện tại từ form
+     * @param replacementIntern Intern được chọn làm replacement và phải là member hiện tại
+     * @param at thời điểm thay đổi do server cấp
+     * @return dữ liệu cần cho transaction replacement-first
+     */
+    public ProjectLeaderRemoval prepareLeaderRemoval(
+            long actorMentorUserId,
+            Long expectedCurrentLeadershipTermId,
+            ProjectInternEligibility replacementIntern,
+            Instant at) {
+        requireOwner(actorMentorUserId);
+        requireMutable();
+        requireEligible(replacementIntern);
+        Objects.requireNonNull(at, "at");
+
+        var current = currentLeadershipTerm();
+        var departing = currentMembership(current.internUserId());
+        var replacement = currentMembership(replacementIntern.userId());
+        if (expectedCurrentLeadershipTermId != null
+                && !Objects.equals(current.id(), expectedCurrentLeadershipTermId)) {
+            throw new ProjectRuleViolationException("Leadership changed; refresh the Project and try again");
+        }
+        if (departing == replacement || departing.internUserId() == replacement.internUserId()) {
+            throw new ProjectRuleViolationException("Replacement Leader must differ from the current Leader");
+        }
+
+        // I2-PRJ-03: mọi kiểm tra replacement phải xong trước khi đóng nhiệm kỳ cũ.
+        var effectiveAt = current.end(at, actorMentorUserId);
+        updatedAt = effectiveAt;
+        return new ProjectLeaderRemoval(departing, replacement, effectiveAt);
+    }
+
+    /**
+     * [I2-PRJ-03] Mở nhiệm kỳ replacement trước, sau đó mới đóng membership Leader cũ. Hai thay
+     * đổi cùng nằm trong transaction của service nên Project không commit trạng thái không có Leader.
+     *
+     * @param actorMentorUserId Mentor sở hữu đã xác thực
+     * @param removal dữ liệu đã được chuẩn bị và đã đóng nhiệm kỳ cũ
+     */
+    public void completeLeaderRemoval(long actorMentorUserId, ProjectLeaderRemoval removal) {
+        requireOwner(actorMentorUserId);
+        requireMutable();
+        Objects.requireNonNull(removal, "removal");
+        if (!removal.departing().isCurrent()) {
+            throw new ProjectRuleViolationException("Departing Leader must still be a current member");
+        }
+        if (!removal.replacement().isCurrent()) {
+            throw new ProjectRuleViolationException("Replacement Leader must be a current Project member");
+        }
+        if (removal.departing() == removal.replacement()
+                || removal.departing().internUserId() == removal.replacement().internUserId()) {
+            throw new ProjectRuleViolationException("Replacement Leader must differ from the current Leader");
+        }
+        if (leadershipTerms.stream().anyMatch(ProjectLeadershipTermEntity::isCurrent)) {
+            throw new ProjectRuleViolationException("Current Leader must be closed before replacement");
+        }
+
+        leadershipTerms.add(new ProjectLeadershipTermEntity(
+                this, removal.replacement(), removal.effectiveAt(), actorMentorUserId));
+        // I2-PRJ-03: chỉ đóng membership sau khi replacement term đã được tạo.
+        removal.departing().close(removal.effectiveAt(), actorMentorUserId);
+        updatedAt = removal.effectiveAt();
     }
 
     /**

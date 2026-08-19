@@ -117,6 +117,37 @@ class ProjectEntityTest {
                 () -> project.prepareLeaderChange(10L, null, activeIntern(22L), CREATED_AT.plusSeconds(180)));
     }
 
+    /** [I2-PRJ-03] Replacement được mở trước rồi mới đóng membership Leader cũ. */
+    @Test
+    void ownerRemovesCurrentLeaderOnlyAfterPreparingAReplacement() {
+        var project = plannedProject();
+        project.addMember(10L, activeIntern(21L), CREATED_AT.plusSeconds(60));
+
+        var removal = project.prepareLeaderRemoval(
+                10L, null, activeIntern(21L), CREATED_AT.plusSeconds(120));
+        project.completeLeaderRemoval(10L, removal);
+
+        assertFalse(project.memberships().getFirst().isCurrent());
+        assertTrue(project.memberships().get(1).isCurrent());
+        assertEquals(21L, project.currentLeader().internUserId());
+        assertEquals(2, project.leadershipTerms().size());
+        assertEquals(1, project.leadershipTerms().stream().filter(ProjectLeadershipTermEntity::isCurrent).count());
+        assertEquals(10L, project.memberships().getFirst().removedByMentorUserId());
+    }
+
+    /** [I2-PRJ-03] Replacement lỗi không được làm thay đổi Leader hoặc membership hiện tại. */
+    @Test
+    void leaderRemovalRejectsAnIneligibleReplacementBeforeMutation() {
+        var project = plannedProject();
+
+        assertThrows(ProjectRuleViolationException.class, () -> project.prepareLeaderRemoval(
+                10L, null, new ProjectInternEligibility(21L, false), CREATED_AT.plusSeconds(60)));
+
+        assertTrue(project.memberships().getFirst().isCurrent());
+        assertEquals(20L, project.currentLeader().internUserId());
+        assertEquals(1, project.leadershipTerms().stream().filter(ProjectLeadershipTermEntity::isCurrent).count());
+    }
+
     /** [I1-PRJ-04] Chỉ kích hoạt khi owner, member, Leader và assignee guard đều hợp lệ. */
     @Test
     void activationRequiresOwnerAndValidCurrentTaskAssignees() {
