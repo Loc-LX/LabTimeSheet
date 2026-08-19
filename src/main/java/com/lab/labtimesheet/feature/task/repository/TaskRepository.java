@@ -78,6 +78,22 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
     long countByProjectIdAndDeletedAtIsNull(long projectId);
 
     /**
+     * [I2-PRJ-05] Đếm Task hiện tại chưa hoàn thành để quyết định Project có thể chuyển sang
+     * trạng thái terminal hay chưa.
+     *
+     * @param projectId Project sở hữu Task
+     * @return số Task chưa xóa có trạng thái khác DONE
+     */
+    @Query("""
+            select count(task)
+            from Task task
+            where task.projectId = :projectId
+              and task.deletedAt is null
+              and task.status <> com.lab.labtimesheet.feature.task.model.TaskStatus.DONE
+            """)
+    long countUnfinishedByProjectId(@Param("projectId") long projectId);
+
+    /**
      * Counts current Tasks in a status across the supplied Projects.
      *
      * @param projectIds authorized Project identifiers

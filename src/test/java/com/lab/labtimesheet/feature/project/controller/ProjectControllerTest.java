@@ -48,7 +48,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 /**
  * Kiểm thử web cho {@code I1-PRJ-01}–{@code I1-PRJ-05}, cùng các trạng thái lịch sử/thay Leader
- * {@code I2-PRJ-01}–{@code I2-PRJ-03} và {@code I2-PRJ-06} của luồng Project.
+ * {@code I2-PRJ-01}–{@code I2-PRJ-06} của luồng Project.
  */
 @WebMvcTest(ProjectController.class)
 class ProjectControllerTest {
@@ -383,6 +383,43 @@ class ProjectControllerTest {
                 .andExpect(redirectedUrl("/projects/30"));
 
         verify(projects).activate(10L, 30L);
+    }
+
+    /** [I2-PRJ-05] Mentor sở hữu gửi yêu cầu hoàn tất và được chuyển hướng khi service thành công. */
+    @Test
+    @WithMockUser(username = "mentor@example.test")
+    void owningMentorCanCompleteAnActiveProject() throws Exception {
+        when(pages.authenticatedUserId("mentor@example.test")).thenReturn(10L);
+
+        mvc.perform(post("/projects/30/complete").with(csrf()))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/projects/30"));
+
+        verify(projects).complete(10L, 30L);
+    }
+
+    /** [I2-PRJ-05] Guard Task lỗi hiển thị lại detail và giữ thông báo nghiệp vụ an toàn. */
+    @Test
+    @WithMockUser(username = "mentor@example.test")
+    void completionRuleErrorReturnsToDetail() throws Exception {
+        when(pages.authenticatedUserId("mentor@example.test")).thenReturn(10L);
+        when(pages.detail(10L, 30L)).thenReturn(new ProjectDetail(
+                30L,
+                "Active Project",
+                null,
+                "ACTIVE",
+                LocalDate.of(2026, 8, 15),
+                LocalDate.of(2026, 9, 30),
+                "Mentor",
+                "Leader",
+                true));
+        doThrow(new ProjectRuleViolationException("Every non-deleted Task must be DONE"))
+                .when(projects).complete(10L, 30L);
+
+        mvc.perform(post("/projects/30/complete").with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(view().name("projects/detail"))
+                .andExpect(model().attribute("projectError", "Every non-deleted Task must be DONE"));
     }
 
     @Test

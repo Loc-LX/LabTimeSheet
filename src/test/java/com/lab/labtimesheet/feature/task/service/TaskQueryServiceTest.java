@@ -43,6 +43,16 @@ class TaskQueryServiceTest {
         verify(tasks).countCurrentTasksAssignedOutside(42L, Set.of(7L, 9L));
     }
 
+    /** [I2-PRJ-05] Boundary trả về số Task chưa DONE để Project quyết định hoàn tất. */
+    @Test
+    void countsUnfinishedTasksForProjectCompletion() {
+        given(tasks.countUnfinishedByProjectId(42L)).willReturn(2L);
+
+        assertThat(taskQueries.countUnfinishedTasks(42L)).isEqualTo(2L);
+
+        verify(tasks).countUnfinishedByProjectId(42L);
+    }
+
     /** [I2-PRJ-04] Boundary khóa và chuyển các Task chưa hoàn thành sang Leader nhận. */
     @Test
     void transfersLockedUnfinishedTasksAndFlushesBeforeReturning() {

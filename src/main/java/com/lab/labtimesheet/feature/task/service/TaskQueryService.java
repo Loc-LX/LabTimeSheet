@@ -37,6 +37,22 @@ public class TaskQueryService {
     }
 
     /**
+     * [I2-PRJ-05] Đếm Task chưa xóa chưa ở DONE để boundary Project kiểm tra điều kiện hoàn tất.
+     * ProjectService giữ khóa Project trước khi gọi nên các luồng đổi trạng thái Task trong ứng
+     * dụng không thể chạy song song với quyết định hoàn tất.
+     *
+     * @param projectId mã Project cần kiểm tra
+     * @return số Task còn TODO, IN_PROGRESS hoặc BLOCKED
+     */
+    @Transactional(readOnly = true)
+    public long countUnfinishedTasks(long projectId) {
+        if (projectId <= 0) {
+            throw new IllegalArgumentException("Project ID must be positive");
+        }
+        return tasks.countUnfinishedByProjectId(projectId);
+    }
+
+    /**
      * [I2-PRJ-04] Chuyển toàn bộ Task chưa hoàn thành của membership sắp rời sang Leader hiện tại.
      *
      * <p>ProjectService đã khóa Project trước khi gọi. Các dòng Task được khóa theo cùng thứ tự,

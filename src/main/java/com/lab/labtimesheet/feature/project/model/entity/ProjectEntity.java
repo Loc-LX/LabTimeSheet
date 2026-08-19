@@ -37,7 +37,7 @@ import lombok.NoArgsConstructor;
  *
  * <p>Truy vết mã công việc: {@code I1-PRJ-01} tạo Project, {@code I1-PRJ-02} quản lý membership,
  * {@code I1-PRJ-03} quản lý Leader, {@code I1-PRJ-04} kích hoạt Project, và
- * {@code I2-PRJ-01}–{@code I2-PRJ-04} bảo toàn lịch sử, thay Leader và chuyển Task an toàn.
+ * {@code I2-PRJ-01}–{@code I2-PRJ-05} bảo toàn lịch sử, thay Leader, chuyển Task và hoàn tất an toàn.
  */
 @Entity
 @Table(name = "projects")
@@ -75,6 +75,9 @@ public class ProjectEntity {
 
     @Column(name = "activated_at")
     private Instant activatedAt;
+
+    @Column(name = "completed_at")
+    private Instant completedAt;
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
@@ -357,6 +360,51 @@ public class ProjectEntity {
     }
 
     /**
+     * [I2-PRJ-05] Hoàn tất Project đang Active chỉ khi toàn bộ Task chưa xóa đã ở trạng thái DONE.
+     *
+     * <p>Phương thức đóng nhiệm kỳ Leader cuối và mọi membership hiện tại tại cùng một mốc thời
+     * gian, rồi chuyển aggregate sang COMPLETED. Sau bước này các operation thay đổi khác bị
+     * {@link #requireMutable()} từ chối; các dòng lịch sử vẫn được giữ nguyên.
+     *
+     * @param actorMentorUserId Mentor sở hữu thực hiện hoàn tất
+     * @param everyNonDeletedTaskIsDone kết quả kiểm tra Task từ boundary Task trong transaction
+     * @param at thời điểm hoàn tất do server cấp
+     */
+    public void complete(
+            long actorMentorUserId, boolean everyNonDeletedTaskIsDone, Instant at) {
+        requireOwner(actorMentorUserId);
+        requireMutable();
+        Objects.requireNonNull(at, "at");
+        if (status != ProjectStatus.ACTIVE) {
+            throw new ProjectRuleViolationException("Only an active Project can be completed");
+        }
+        if (!everyNonDeletedTaskIsDone) {
+            throw new ProjectRuleViolationException("Every non-deleted Task must be DONE");
+        }
+        if (activatedAt == null || at.isBefore(activatedAt)) {
+            throw new ProjectRuleViolationException("Project completion must follow activation");
+        }
+
+        var currentTerm = currentLeadershipTerm();
+        // I2-PRJ-05: nhiệm kỳ cuối phải vẫn trỏ tới một membership hiện tại trước khi đóng.
+        currentMembership(currentTerm.internUserId());
+        var currentMemberships = memberships.stream()
+                .filter(ProjectMembershipEntity::isCurrent)
+                .toList();
+        if (currentMemberships.isEmpty()
+                || currentMemberships.stream().anyMatch(membership -> at.isBefore(membership.joinedAt()))) {
+            throw new ProjectRuleViolationException("Project has an invalid current membership interval");
+        }
+
+        // I2-PRJ-05: đóng term cuối trước, dùng đúng thời điểm hiệu lực cho toàn bộ membership.
+        var effectiveAt = currentTerm.end(at, actorMentorUserId);
+        currentMemberships.forEach(membership -> membership.close(effectiveAt, actorMentorUserId));
+        status = ProjectStatus.COMPLETED;
+        completedAt = effectiveAt;
+        updatedAt = effectiveAt;
+    }
+
+    /**
      * [I1-PRJ-04] Chuyển Project Planned sang Active sau khi vượt qua các kiểm tra về thành viên hiện tại,
      * Leader và người được giao Task. Chuyển trạng thái chỉ đi một chiều và lưu thời điểm kích hoạt
      * do server cấp.
@@ -462,6 +510,15 @@ public class ProjectEntity {
      */
     public Instant activatedAt() {
         return activatedAt;
+    }
+
+    /**
+     * Trả về thời điểm Project được chuyển sang trạng thái kết thúc.
+     *
+     * @return thời điểm hoàn tất, hoặc null khi Project chưa hoàn tất
+     */
+    public Instant completedAt() {
+        return completedAt;
     }
 
     /**

@@ -36,7 +36,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
  *
  * <p>Truy vết mã UI Project: {@code I1-PRJ-01} tạo Project, {@code I1-PRJ-02} thêm member,
  * {@code I1-PRJ-03} đổi Leader, {@code I1-PRJ-04} kích hoạt, {@code I1-PRJ-05} hiển thị các
- * trang Project; {@code I2-PRJ-01}–{@code I2-PRJ-04} và {@code I2-PRJ-06}
+ * trang Project; {@code I2-PRJ-01}–{@code I2-PRJ-05} và {@code I2-PRJ-06}
  * giữ lịch sử, handoff/xóa Leader an toàn và đọc lịch sử hoàn tất.
  */
 @Controller
@@ -236,6 +236,29 @@ public class ProjectController {
             model.addAttribute("projectMembersForm", new ProjectMembersForm());
             model.addAttribute("memberRemovalError", exception.getMessage());
             return "projects/members";
+        }
+    }
+
+    /**
+     * [I2-PRJ-05] Hoàn tất Project sau khi service đã kiểm tra toàn bộ Task và đóng các interval.
+     * Lỗi nghiệp vụ được hiển thị lại ở trang chi tiết, còn quyền sở hữu vẫn được kiểm tra trong
+     * ProjectService.
+     *
+     * @param principal Mentor đang đăng nhập
+     * @param projectId mã Project cần hoàn tất
+     * @param model model hiển thị lỗi
+     * @return redirect về chi tiết hoặc view chi tiết khi bị từ chối
+     */
+    @PostMapping("/{projectId}/complete")
+    public String complete(Principal principal, @PathVariable long projectId, Model model) {
+        long actorId = actorId(principal);
+        try {
+            projects.complete(actorId, projectId);
+            return "redirect:/projects/" + projectId;
+        } catch (ProjectRuleViolationException exception) {
+            model.addAttribute("project", pages.detail(actorId, projectId));
+            model.addAttribute("projectError", exception.getMessage());
+            return "projects/detail";
         }
     }
 

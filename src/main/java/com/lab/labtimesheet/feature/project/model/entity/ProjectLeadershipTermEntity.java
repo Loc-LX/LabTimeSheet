@@ -15,7 +15,7 @@ import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 /**
- * [I1-PRJ-03, I2-PRJ-01, I2-PRJ-02] Khoảng thời gian nhiệm kỳ Leader JPA gắn với một lượt tham gia
+ * [I1-PRJ-03, I2-PRJ-01, I2-PRJ-02, I2-PRJ-05] Khoảng thời gian nhiệm kỳ Leader JPA gắn với một lượt tham gia
  * đang hoạt động của cùng Project.
  *
  * <p>Mỗi lần thay đổi sẽ đóng nhiệm kỳ hiện tại và tạo nhiệm kỳ mới; khi hoàn tất Project, nhiệm kỳ

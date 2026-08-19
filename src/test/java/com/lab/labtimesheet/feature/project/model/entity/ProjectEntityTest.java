@@ -175,6 +175,42 @@ class ProjectEntityTest {
         assertTrue(project.leadershipTerms().getFirst().isCurrent());
     }
 
+    /** [I2-PRJ-05] Hoàn tất đóng term Leader cuối, mọi membership hiện tại và khóa aggregate. */
+    @Test
+    void ownerCompletesActiveProjectAfterEveryTaskIsDone() {
+        var project = plannedProject();
+        project.addMember(10L, activeIntern(21L), CREATED_AT.plusSeconds(60));
+        project.activate(10L, Set.of(20L, 21L), true, CREATED_AT.plusSeconds(120));
+
+        project.complete(10L, true, CREATED_AT.plusSeconds(180));
+
+        assertEquals(ProjectStatus.COMPLETED, project.status());
+        assertEquals(CREATED_AT.plusSeconds(180), project.completedAt());
+        assertTrue(project.memberships().stream().noneMatch(ProjectMembershipEntity::isCurrent));
+        assertTrue(project.leadershipTerms().stream().noneMatch(ProjectLeadershipTermEntity::isCurrent));
+        assertThrows(ProjectRuleViolationException.class,
+                () -> project.addMember(10L, activeIntern(22L), CREATED_AT.plusSeconds(240)));
+        assertThrows(ProjectRuleViolationException.class,
+                () -> project.prepareLeaderChange(10L, null, activeIntern(21L), CREATED_AT.plusSeconds(240)));
+    }
+
+    /** [I2-PRJ-05] Chặn hoàn tất trước ACTIVE hoặc khi còn Task chưa DONE mà không đóng interval. */
+    @Test
+    void completionRequiresActiveProjectAndDoneTasks() {
+        var project = plannedProject();
+
+        assertThrows(ProjectRuleViolationException.class,
+                () -> project.complete(10L, true, CREATED_AT.plusSeconds(60)));
+
+        project.activate(10L, Set.of(20L), true, CREATED_AT.plusSeconds(60));
+        assertThrows(ProjectRuleViolationException.class,
+                () -> project.complete(10L, false, CREATED_AT.plusSeconds(120)));
+
+        assertEquals(ProjectStatus.ACTIVE, project.status());
+        assertTrue(project.memberships().getFirst().isCurrent());
+        assertTrue(project.leadershipTerms().getFirst().isCurrent());
+    }
+
     /** [I1-PRJ-04] Chỉ kích hoạt khi owner, member, Leader và assignee guard đều hợp lệ. */
     @Test
     void activationRequiresOwnerAndValidCurrentTaskAssignees() {

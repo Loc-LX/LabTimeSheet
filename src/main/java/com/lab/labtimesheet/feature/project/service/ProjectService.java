@@ -29,8 +29,8 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>Truy vết mã công việc: Iter 1 gồm {@code I1-PRJ-01} đến {@code I1-PRJ-04}; trong đó
  * {@code I1-PRJ-01} hiện gắn vào path tạo vì chưa có operation chỉnh sửa riêng. Iter 2 đã có
  * trong service này gồm {@code I2-PRJ-01}, {@code I2-PRJ-02}, {@code I2-PRJ-03} và
- * {@code I2-PRJ-04}. Mã {@code I2-PRJ-05} vẫn là luồng chốt Project chưa có operation ở service
- * này, nên không gắn nhầm vào luồng tạo, thêm thành viên, đổi Leader, xóa member hoặc kích hoạt.
+ * {@code I2-PRJ-04}, {@code I2-PRJ-05}. Mã {@code I2-PRJ-06} là luồng đọc lịch sử hoàn tất ở
+ * ProjectQueryService, không gắn nhầm vào operation ghi của service này.
  */
 @Service
 @RequiredArgsConstructor
@@ -211,6 +211,25 @@ public class ProjectService {
                 removal.transferTarget().id(),
                 removal.effectiveAt());
         project.completeMemberRemoval(actorUserId, removal);
+        projects.flush();
+    }
+
+    /**
+     * [I2-PRJ-05] Hoàn tất Project thuộc Mentor khi mọi Task chưa xóa đã DONE.
+     *
+     * <p>Project được khóa trước khi đếm Task và aggregate tự đóng nhiệm kỳ Leader cuối cùng
+     * cùng tất cả membership hiện tại. Flush buộc các điều kiện interval và completed_at của DB
+     * được kiểm tra trước khi transaction kết thúc.
+     *
+     * @param actorUserId mã Mentor sở hữu đã xác thực
+     * @param projectId mã Project cần hoàn tất
+     */
+    @Transactional
+    public void complete(long actorUserId, long projectId) {
+        var project = lockedProject(projectId);
+        project.authorizeOwner(actorUserId);
+        boolean everyNonDeletedTaskIsDone = taskQueries.countUnfinishedTasks(projectId) == 0;
+        project.complete(actorUserId, everyNonDeletedTaskIsDone, clock.instant());
         projects.flush();
     }
 

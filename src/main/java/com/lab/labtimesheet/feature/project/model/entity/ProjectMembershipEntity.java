@@ -119,8 +119,9 @@ public class ProjectMembershipEntity {
     }
 
     /**
-     * [I2-PRJ-03] Đóng membership sau khi replacement Leader đã được chuẩn bị và ghi nhận Mentor
-     * thực hiện. Không xóa dòng lịch sử và không đụng vào các Task đang tham chiếu membership này.
+     * [I2-PRJ-03, I2-PRJ-05] Đóng membership sau khi replacement Leader hoặc hoàn tất Project đã
+     * được chuẩn bị và ghi nhận Mentor thực hiện. Không xóa dòng lịch sử và không đụng vào các
+     * Task đang tham chiếu membership này.
      *
      * @param at thời điểm rời Project do server cấp
      * @param mentorUserId Mentor sở hữu thực hiện thao tác

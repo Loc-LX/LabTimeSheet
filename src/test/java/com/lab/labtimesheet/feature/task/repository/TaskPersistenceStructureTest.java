@@ -58,6 +58,14 @@ class TaskPersistenceStructureTest {
         assertThat(lock.value()).isEqualTo(LockModeType.PESSIMISTIC_WRITE);
     }
 
+    /** [I2-PRJ-05] Repository phải có truy vấn đếm Task chưa DONE cho guard hoàn tất Project. */
+    @Test
+    void unfinishedTaskCountLookupIsPresent() throws NoSuchMethodException {
+        var method = TaskRepository.class.getMethod("countUnfinishedByProjectId", long.class);
+
+        assertThat(method).isNotNull();
+    }
+
     @Test
     void taskBusinessCodeContainsNoDirectJdbcOrSqlImports() throws IOException {
         Path taskSource = Path.of("src/main/java/com/lab/labtimesheet/feature/task");

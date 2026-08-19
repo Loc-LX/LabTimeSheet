@@ -20,6 +20,9 @@
     <form class="inline-actions" th:if="${project.canManage and project.status == 'PLANNED'}" th:action="@{/projects/{id}/activate(id=${project.id})}" method="post">
         <button class="button button-primary" type="submit">Activate</button>
     </form>
+    <form class="inline-actions" th:if="${project.canManage and project.status == 'ACTIVE'}" th:action="@{/projects/{id}/complete(id=${project.id})}" method="post">
+        <button class="button button-primary" type="submit">Complete Project</button>
+    </form>
     <nav class="tabs" aria-label="Project sections">
         <a class="tab" th:href="@{/projects/{id}(id=${project.id})}" aria-current="page">Overview</a>
         <a class="tab" th:href="@{/projects/{id}/members(id=${project.id})}">Members</a>

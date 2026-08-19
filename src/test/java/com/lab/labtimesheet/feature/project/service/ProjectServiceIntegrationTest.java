@@ -596,6 +596,70 @@ class ProjectServiceIntegrationTest {
         assertEquals(1, count("select count(*) from projects where id = ? and activated_at is not null", projectId));
     }
 
+    /** [I2-PRJ-05] Task chưa DONE chặn hoàn tất và không đóng các interval hiện tại. */
+    @Test
+    void completionRejectsAnUnfinishedTaskWithoutClosingCurrentIntervals() {
+        long mentorId = user("mentor-complete-guard@example.test", "MENTOR");
+        long leaderId = intern("leader-complete-guard@example.test", "I023");
+        long projectId = createProject(mentorId, leaderId, "Completion guard");
+        projectService.activate(mentorId, projectId);
+        long currentMembershipId = membershipId(projectId, leaderId);
+        jdbc.update("""
+                insert into tasks (
+                    project_id, assignee_membership_id, title,
+                    created_by_membership_id, assigned_by_membership_id)
+                values (?, ?, 'Still open', ?, ?)
+                """, projectId, currentMembershipId, currentMembershipId, currentMembershipId);
+        entityManager.clear();
+
+        assertThrows(ProjectRuleViolationException.class,
+                () -> projectService.complete(mentorId, projectId));
+
+        assertEquals("ACTIVE", text("select status from projects where id = ?", projectId));
+        assertEquals(1, count("select count(*) from project_memberships where project_id = ? and left_at is null", projectId));
+        assertEquals(1, count("select count(*) from project_leadership_terms where project_id = ? and ended_at is null", projectId));
+        assertEquals(0, count("select count(*) from projects where id = ? and completed_at is not null", projectId));
+    }
+
+    /** [I2-PRJ-05] Khi mọi Task hiện tại DONE, Project terminal hóa và đóng interval nhưng giữ lịch sử Task. */
+    @Test
+    void completionClosesCurrentIntervalsAndMakesProjectReadOnly() {
+        long mentorId = user("mentor-complete@example.test", "MENTOR");
+        long leaderId = intern("leader-complete@example.test", "I024");
+        long memberId = intern("member-complete@example.test", "I025");
+        long projectId = createProject(mentorId, leaderId, "Completion");
+        projectService.addMember(mentorId, projectId, memberId);
+        projectService.activate(mentorId, projectId);
+        long leaderMembershipId = membershipId(projectId, leaderId);
+        long memberMembershipId = membershipId(projectId, memberId);
+        var taskTime = dbTime(NOW.plusSeconds(45));
+        jdbc.update("""
+                insert into tasks (
+                    project_id, assignee_membership_id, title, status,
+                    created_by_membership_id, assigned_by_membership_id)
+                values (?, ?, 'Done work', 'DONE', ?, ?),
+                       (?, ?, 'Deleted open history', 'TODO', ?, ?)
+                """, projectId, leaderMembershipId, leaderMembershipId, leaderMembershipId,
+                projectId, memberMembershipId, memberMembershipId, memberMembershipId);
+        jdbc.update("""
+                update tasks
+                set deleted_at = ?, deleted_by_membership_id = ?, updated_at = ?
+                where project_id = ? and title = 'Deleted open history'
+                """, taskTime, leaderMembershipId, taskTime, projectId);
+        entityManager.clear();
+
+        projectService.complete(mentorId, projectId);
+
+        assertEquals("COMPLETED", text("select status from projects where id = ?", projectId));
+        assertEquals(1, count("select count(*) from projects where id = ? and completed_at is not null", projectId));
+        assertEquals(0, count("select count(*) from project_memberships where project_id = ? and left_at is null", projectId));
+        assertEquals(0, count("select count(*) from project_leadership_terms where project_id = ? and ended_at is null", projectId));
+        assertEquals(1, count("select count(*) from tasks where project_id = ? and status = 'DONE' and deleted_at is null", projectId));
+        assertEquals(1, count("select count(*) from tasks where project_id = ? and deleted_at is not null", projectId));
+        assertThrows(ProjectRuleViolationException.class,
+                () -> projectService.addMember(mentorId, projectId, intern("late-member@example.test", "I026")));
+    }
+
     /** [I1-PRJ-04] Guard assignee không hợp lệ giữ Project ở Planned và không mất Task. */
     @Test
     void activationRejectsATaskAssignedToAFormerMemberWithoutPartialMutation() {
