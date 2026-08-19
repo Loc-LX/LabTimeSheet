@@ -16,12 +16,19 @@
     </nav>
     <section class="panel form-panel" th:if="${#lists.isEmpty(members)}"><th:block th:replace="~{fragments/components :: empty('No membership history', 'Project members will appear here.')} "></th:block></section>
     <section class="panel form-panel" th:unless="${#lists.isEmpty(members)}">
-        <div class="table-scroll"><table class="data-table"><caption class="sr-only">Membership history</caption><thead><tr><th scope="col">Intern</th><th scope="col">Joined</th><th scope="col">Left</th><th scope="col">Role</th></tr></thead>
-            <tbody><tr th:each="member : ${members}"><td th:text="${member.displayName}">Intern</td><td th:text="${#temporals.format(member.joinedAt, 'dd/MM/yyyy HH:mm')}">Joined</td><td th:text="${member.leftAt == null ? 'Current' : #temporals.format(member.leftAt, 'dd/MM/yyyy HH:mm')}">Current</td><td><span class="badge" th:classappend="${member.currentLeader ? ' badge-success' : ''}" th:text="${member.currentLeader ? 'Leader' : 'Member'}">Member</span></td></tr></tbody>
+        <div class="table-scroll"><table class="data-table"><caption class="sr-only">Membership history</caption><thead><tr><th scope="col">Intern</th><th scope="col">Joined</th><th scope="col">Left</th><th scope="col">Role</th><th scope="col">Action</th></tr></thead>
+            <tbody><tr th:each="member : ${members}"><td th:text="${member.displayName}">Intern</td><td th:text="${#temporals.format(member.joinedAt, 'dd/MM/yyyy HH:mm')}">Joined</td><td th:text="${member.leftAt == null ? 'Current' : #temporals.format(member.leftAt, 'dd/MM/yyyy HH:mm')}">Current</td><td><span class="badge" th:classappend="${member.currentLeader ? ' badge-success' : ''}" th:text="${member.currentLeader ? 'Leader' : 'Member'}">Member</span></td><td>
+                <form class="inline-form" method="post" th:if="${project.canManage and member.leftAt == null and !member.currentLeader}"
+                      th:action="@{/projects/{projectId}/members/{internUserId}/remove(projectId=${project.id},internUserId=${member.internUserId})}">
+                    <button class="button button-danger" type="submit">Remove member</button>
+                </form>
+                <span class="field-help" th:if="${project.canManage and member.leftAt == null and member.currentLeader}">Replace on Leadership tab</span>
+            </td></tr></tbody>
         </table></div>
     </section>
     <form class="panel form-panel form-grid" th:if="${project.canManage}" method="post" th:action="@{/projects/{id}/members(id=${project.id})}" th:object="${projectMembersForm}">
         <div class="alert alert-error" role="alert" th:if="${#fields.hasAnyErrors()}"><strong>Member selection could not be saved.</strong><ul><li th:each="fieldError : ${#fields.allErrors()}" th:text="${fieldError}">Selection error</li></ul></div>
+        <div class="alert alert-error" role="alert" th:if="${memberRemovalError != null}"><strong>Member removal could not be completed.</strong><span th:text="${memberRemovalError}">Removal error</span></div>
         <div class="field" data-intern-picker>
             <span class="field-label">Interns to add</span>
             <button class="button picker-trigger" type="button" data-picker-open th:disabled="${#lists.isEmpty(eligibleInternOptions)}"

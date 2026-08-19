@@ -17,11 +17,11 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
- * Persisted Task aggregate row with one current same-Project assignee.
+ * Dòng Task được lưu với đúng một người được giao hiện tại trong cùng Project.
  *
- * <p>Creator attribution never changes. Assignment actor/time describe the current assignment,
- * deletion is soft and historical, and the JPA version detects conflicting updates. Newly created
- * Tasks always begin in TODO; status changes must follow the fixed {@link TaskStatus} graph.
+ * <p>Thông tin người tạo không bao giờ đổi. Người thực hiện và thời điểm phân công mô tả lần phân
+ * công hiện tại; xóa là xóa mềm để giữ lịch sử và version JPA phát hiện cập nhật cạnh tranh. Task
+ * mới luôn bắt đầu ở TODO; trạng thái phải đi theo đồ thị cố định của {@link TaskStatus}.
  */
 @Entity
 @Table(name = "tasks")
@@ -80,15 +80,15 @@ public class Task {
     private long version;
 
     /**
-     * Creates a TODO Task and records the creating membership as both creator and assigner.
+     * Tạo Task TODO và ghi membership tạo Task đồng thời là người phân công ban đầu.
      *
-     * @param projectId owning Project identifier
-     * @param assigneeMembershipId active membership identifier in the same Project
-     * @param title normalized required title
-     * @param description optional normalized description
-     * @param dueDate optional validated business due date
-     * @param actorMembershipId authenticated creating membership identifier
-     * @param now server-controlled creation and assignment instant
+     * @param projectId mã Project sở hữu Task
+     * @param assigneeMembershipId membership hiện tại nhận Task trong cùng Project
+     * @param title tiêu đề bắt buộc đã chuẩn hóa
+     * @param description mô tả tùy chọn đã chuẩn hóa
+     * @param dueDate ngày đến hạn tùy chọn đã được kiểm tra
+     * @param actorMembershipId membership của người tạo Task
+     * @param now thời điểm tạo và phân công do server cấp
      */
     public Task(
             long projectId,
@@ -109,6 +109,34 @@ public class Task {
         this.assignerMembershipId = actorMembershipId;
         this.createdAt = now;
         this.updatedAt = now;
+    }
+
+    /**
+     * [I2-PRJ-04] Chuyển một Task chưa hoàn thành sang membership hiện tại khác.
+     *
+     * <p>Không sửa membership tạo Task, trạng thái, bình luận hay work log. Vì luồng hỗ trợ này
+     * không có một Mentor membership riêng, membership nhận Task được ghi là actor của lần phân
+     * công mới để các khóa ngoại cùng Project vẫn hợp lệ.
+     *
+     * @param targetMembershipId membership hiện tại nhận Task
+     * @param assignmentActorMembershipId membership được ghi là người thực hiện lần phân công mới
+     * @param now thời điểm phân công do server cấp
+     */
+    public void transferUnfinishedTo(
+            long targetMembershipId, long assignmentActorMembershipId, Instant now) {
+        if (deletedAt != null || status == TaskStatus.DONE) {
+            throw new IllegalArgumentException("Only a current unfinished Task can be transferred");
+        }
+        if (targetMembershipId <= 0
+                || assignmentActorMembershipId <= 0
+                || now == null
+                || targetMembershipId == assigneeMembershipId) {
+            throw new IllegalArgumentException("Task transfer target is invalid");
+        }
+        assigneeMembershipId = targetMembershipId;
+        assignerMembershipId = assignmentActorMembershipId;
+        assignedAt = now;
+        updatedAt = now;
     }
 
     /**

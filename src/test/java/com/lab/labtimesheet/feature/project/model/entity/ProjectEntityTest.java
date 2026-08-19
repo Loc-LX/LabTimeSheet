@@ -148,6 +148,33 @@ class ProjectEntityTest {
         assertEquals(1, project.leadershipTerms().stream().filter(ProjectLeadershipTermEntity::isCurrent).count());
     }
 
+    /** [I2-PRJ-04] Member thường chỉ được đóng sau khi boundary Task đã chuẩn bị transfer sang Leader. */
+    @Test
+    void ordinaryMemberRemovalKeepsLeaderAndClosesOnlyTheDepartingMembership() {
+        var project = plannedProject();
+        project.addMember(10L, activeIntern(21L), CREATED_AT.plusSeconds(60));
+
+        var removal = project.prepareMemberRemoval(10L, 21L, CREATED_AT.plusSeconds(120));
+        project.completeMemberRemoval(10L, removal);
+
+        assertTrue(project.memberships().getFirst().isCurrent());
+        assertFalse(project.memberships().get(1).isCurrent());
+        assertEquals(20L, project.currentLeader().internUserId());
+        assertEquals(10L, project.memberships().get(1).removedByMentorUserId());
+    }
+
+    /** [I2-PRJ-04] Không cho đóng membership của current Leader bằng nút remove member thường. */
+    @Test
+    void ordinaryMemberRemovalRejectsTheCurrentLeader() {
+        var project = plannedProject();
+
+        assertThrows(ProjectRuleViolationException.class,
+                () -> project.prepareMemberRemoval(10L, 20L, CREATED_AT.plusSeconds(60)));
+
+        assertTrue(project.memberships().getFirst().isCurrent());
+        assertTrue(project.leadershipTerms().getFirst().isCurrent());
+    }
+
     /** [I1-PRJ-04] Chỉ kích hoạt khi owner, member, Leader và assignee guard đều hợp lệ. */
     @Test
     void activationRequiresOwnerAndValidCurrentTaskAssignees() {

@@ -137,6 +137,8 @@ class ProjectControllerTest {
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
         assertTrue(membersHtml.contains("name=\"internUserIds\""));
+        assertTrue(membersHtml.contains("/projects/30/members/21/remove"));
+        assertTrue(membersHtml.contains("Remove member"));
         assertTrue(membersHtml.contains("Eligible Nonmember"));
         assertFalse(membersHtml.contains("data-picker-label>Current Member"));
 
@@ -356,6 +358,19 @@ class ProjectControllerTest {
                 .andExpect(redirectedUrl("/projects/30/leadership"));
 
         verify(projects).removeLeader(10L, 30L, 50L, 21L);
+    }
+
+    /** [I2-PRJ-04] Form member thường gửi đúng Intern hiện tại và chuyển hướng sau khi xử lý. */
+    @Test
+    @WithMockUser(username = "mentor@example.test")
+    void validMemberRemovalUsesAuthenticatedOwnerAndRedirects() throws Exception {
+        when(pages.authenticatedUserId("mentor@example.test")).thenReturn(10L);
+
+        mvc.perform(post("/projects/30/members/21/remove").with(csrf()))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/projects/30/members"));
+
+        verify(projects).removeMember(10L, 30L, 21L);
     }
 
     @Test

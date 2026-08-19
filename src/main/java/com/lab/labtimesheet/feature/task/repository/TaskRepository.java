@@ -13,12 +13,34 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 /**
- * JPA persistence and current-read queries for Task rows.
+ * JPA persistence, khóa ghi và truy vấn hiện tại cho các dòng Task.
  *
  * <p>Normal reads consistently exclude soft-deleted rows. Mutation callers acquire the owning
  * Project lock before requesting the Task row lock so aggregate and Task lock order remains stable.
  */
 public interface TaskRepository extends JpaRepository<Task, Long> {
+
+    /**
+     * [I2-PRJ-04] Khóa các Task chưa DONE của một membership trước khi luồng rời Project chuyển
+     * chúng sang Leader hiện tại.
+     *
+     * @param projectId Project sở hữu Task
+     * @param assigneeMembershipId membership sắp đóng
+     * @return Task hiện tại chưa DONE theo thứ tự ổn định
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select task
+            from Task task
+            where task.projectId = :projectId
+              and task.assigneeMembershipId = :assigneeMembershipId
+              and task.status <> com.lab.labtimesheet.feature.task.model.TaskStatus.DONE
+              and task.deletedAt is null
+            order by task.id
+            """)
+    List<Task> findLockedUnfinishedByProjectIdAndAssigneeMembershipId(
+            @Param("projectId") long projectId,
+            @Param("assigneeMembershipId") long assigneeMembershipId);
 
     /**
      * Finds a current Task only when its identifier belongs to the supplied Project.

@@ -36,7 +36,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
  *
  * <p>Truy vết mã UI Project: {@code I1-PRJ-01} tạo Project, {@code I1-PRJ-02} thêm member,
  * {@code I1-PRJ-03} đổi Leader, {@code I1-PRJ-04} kích hoạt, {@code I1-PRJ-05} hiển thị các
- * trang Project; {@code I2-PRJ-01}, {@code I2-PRJ-02}, {@code I2-PRJ-03} và {@code I2-PRJ-06}
+ * trang Project; {@code I2-PRJ-01}–{@code I2-PRJ-04} và {@code I2-PRJ-06}
  * giữ lịch sử, handoff/xóa Leader an toàn và đọc lịch sử hoàn tất.
  */
 @Controller
@@ -209,6 +209,34 @@ public class ProjectController {
             model.addAttribute("unavailableSelectionCount", unavailableSelectionCount);
         }
         return "projects/members";
+    }
+
+    /**
+     * [I2-PRJ-04] Chuyển Task chưa hoàn thành sang Leader hiện tại rồi đóng membership member
+     * thường; khi lỗi thì nạp lại trang cùng thông báo và không tự ý đổi dữ liệu biểu mẫu thêm member.
+     *
+     * @param principal Mentor đang đăng nhập
+     * @param projectId mã Project
+     * @param internUserId mã Intern hiện tại cần loại
+     * @param model model dùng khi hiển thị lỗi nghiệp vụ
+     * @return redirect về lịch sử member khi thành công hoặc view member khi thất bại
+     */
+    @PostMapping("/{projectId}/members/{internUserId}/remove")
+    public String removeMember(
+            Principal principal,
+            @PathVariable long projectId,
+            @PathVariable long internUserId,
+            Model model) {
+        long actorId = actorId(principal);
+        try {
+            projects.removeMember(actorId, projectId, internUserId);
+            return "redirect:/projects/" + projectId + "/members";
+        } catch (ProjectRuleViolationException exception) {
+            populateMembersModel(actorId, projectId, model);
+            model.addAttribute("projectMembersForm", new ProjectMembersForm());
+            model.addAttribute("memberRemovalError", exception.getMessage());
+            return "projects/members";
+        }
     }
 
     /**

@@ -4,6 +4,7 @@ import com.lab.labtimesheet.feature.project.exception.ProjectAccessDeniedExcepti
 import com.lab.labtimesheet.feature.project.exception.ProjectRuleViolationException;
 import com.lab.labtimesheet.feature.project.model.ProjectInternEligibility;
 import com.lab.labtimesheet.feature.project.model.ProjectLeaderChange;
+import com.lab.labtimesheet.feature.project.model.ProjectMemberRemoval;
 import com.lab.labtimesheet.feature.project.model.ProjectLeaderRemoval;
 import com.lab.labtimesheet.feature.project.model.ProjectStatus;
 import jakarta.persistence.CascadeType;
@@ -36,7 +37,7 @@ import lombok.NoArgsConstructor;
  *
  * <p>Truy vết mã công việc: {@code I1-PRJ-01} tạo Project, {@code I1-PRJ-02} quản lý membership,
  * {@code I1-PRJ-03} quản lý Leader, {@code I1-PRJ-04} kích hoạt Project, và
- * {@code I2-PRJ-01}–{@code I2-PRJ-03} bảo toàn lịch sử/bàn giao và thay Leader an toàn.
+ * {@code I2-PRJ-01}–{@code I2-PRJ-04} bảo toàn lịch sử, thay Leader và chuyển Task an toàn.
  */
 @Entity
 @Table(name = "projects")
@@ -302,6 +303,60 @@ public class ProjectEntity {
     }
 
     /**
+     * [I2-PRJ-04] Kiểm tra member thường cần rời Project trước khi Task được chuyển sang Leader.
+     *
+     * <p>Không thay đổi aggregate ở bước chuẩn bị. Vì vậy nếu boundary Task báo lỗi, membership
+     * vẫn còn nguyên và transaction có thể rollback mà không để lại trạng thái dở dang.
+     *
+     * @param actorMentorUserId Mentor sở hữu đã xác thực
+     * @param internUserId Intern hiện tại cần loại khỏi Project
+     * @param at thời điểm đóng membership do server cấp
+     * @return dữ liệu member và Leader nhận Task cho bước hoàn tất
+     */
+    public ProjectMemberRemoval prepareMemberRemoval(
+            long actorMentorUserId, long internUserId, Instant at) {
+        requireOwner(actorMentorUserId);
+        requireMutable();
+        if (internUserId <= 0) {
+            throw new ProjectRuleViolationException("Member selection is invalid");
+        }
+        Objects.requireNonNull(at, "at");
+
+        var departing = currentMember(internUserId);
+        var leader = currentLeader();
+        if (departing == leader || departing.internUserId() == leader.internUserId()) {
+            throw new ProjectRuleViolationException(
+                    "Current Leader must be replaced before membership removal");
+        }
+        return new ProjectMemberRemoval(departing, leader, at);
+    }
+
+    /**
+     * [I2-PRJ-04] Đóng membership sau khi boundary Task đã chuyển xong mọi Task chưa hoàn thành.
+     *
+     * @param actorMentorUserId Mentor sở hữu thực hiện thao tác
+     * @param removal dữ liệu đã được kiểm tra ở bước chuẩn bị
+     */
+    public void completeMemberRemoval(long actorMentorUserId, ProjectMemberRemoval removal) {
+        requireOwner(actorMentorUserId);
+        requireMutable();
+        Objects.requireNonNull(removal, "removal");
+        if (!removal.departing().isCurrent()) {
+            throw new ProjectRuleViolationException("Member must still be current");
+        }
+        if (!removal.transferTarget().isCurrent()) {
+            throw new ProjectRuleViolationException("Current Leader must still be a Project member");
+        }
+        if (removal.departing() == removal.transferTarget()
+                || removal.departing().internUserId() == removal.transferTarget().internUserId()) {
+            throw new ProjectRuleViolationException(
+                    "Current Leader must be replaced before membership removal");
+        }
+        removal.departing().close(removal.effectiveAt(), actorMentorUserId);
+        updatedAt = removal.effectiveAt();
+    }
+
+    /**
      * [I1-PRJ-04] Chuyển Project Planned sang Active sau khi vượt qua các kiểm tra về thành viên hiện tại,
      * Leader và người được giao Task. Chuyển trạng thái chỉ đi một chiều và lưu thời điểm kích hoạt
      * do server cấp.
@@ -478,13 +533,22 @@ public class ProjectEntity {
         return membership;
     }
 
-    /** Tìm lượt tham gia hiện tại của Intern hoặc báo lỗi nếu Leader không còn là thành viên. */
+    /** Tìm lượt tham gia hiện tại của Leader hoặc báo lỗi nếu Leader không còn là thành viên. */
     private ProjectMembershipEntity currentMembership(long internUserId) {
+        return findCurrentMembership(internUserId, "Leader must be a current same-Project member");
+    }
+
+    /** Tìm lượt tham gia hiện tại của member thường cho luồng đóng membership. */
+    private ProjectMembershipEntity currentMember(long internUserId) {
+        return findCurrentMembership(internUserId, "Intern must be a current same-Project member");
+    }
+
+    /** Tìm membership hiện tại theo Intern và dùng thông báo đúng ngữ cảnh nghiệp vụ. */
+    private ProjectMembershipEntity findCurrentMembership(long internUserId, String message) {
         return memberships.stream()
                 .filter(membership -> membership.internUserId() == internUserId && membership.isCurrent())
                 .findFirst()
-                .orElseThrow(() -> new ProjectRuleViolationException(
-                        "Leader must be a current same-Project member"));
+                .orElseThrow(() -> new ProjectRuleViolationException(message));
     }
 
     /** Bảo đảm aggregate có đúng một nhiệm kỳ Leader hiện tại và trả về nhiệm kỳ đó. */

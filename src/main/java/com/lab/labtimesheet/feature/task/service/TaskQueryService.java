@@ -1,13 +1,14 @@
 package com.lab.labtimesheet.feature.task.service;
 
 import com.lab.labtimesheet.feature.task.repository.TaskRepository;
+import java.time.Instant;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Public Task query boundary used by other features without exposing Task entities or repositories.
+ * Boundary công khai của Task để feature khác dùng mà không truy cập entity hoặc repository Task.
  */
 @Service
 @RequiredArgsConstructor
@@ -33,5 +34,37 @@ public class TaskQueryService {
             return tasks.countByProjectIdAndDeletedAtIsNull(projectId);
         }
         return tasks.countCurrentTasksAssignedOutside(projectId, Set.copyOf(activeMembershipIds));
+    }
+
+    /**
+     * [I2-PRJ-04] Chuyển toàn bộ Task chưa hoàn thành của membership sắp rời sang Leader hiện tại.
+     *
+     * <p>ProjectService đã khóa Project trước khi gọi. Các dòng Task được khóa theo cùng thứ tự,
+     * cập nhật trong transaction đang mở và flush ngay; nếu bất kỳ dòng nào lỗi, exception chạy ra
+     * ngoài để transaction Project rollback cả transfer lẫn đóng membership.
+     *
+     * @param projectId Project sở hữu các Task
+     * @param departingMembershipId membership đang rời Project
+     * @param leaderMembershipId membership Leader hiện tại hoặc replacement mới
+     * @param assignedAt thời điểm transfer do server cấp
+     */
+    @Transactional
+    public void transferUnfinishedTasks(
+            long projectId,
+            long departingMembershipId,
+            long leaderMembershipId,
+            Instant assignedAt) {
+        if (projectId <= 0
+                || departingMembershipId <= 0
+                || leaderMembershipId <= 0
+                || departingMembershipId == leaderMembershipId
+                || assignedAt == null) {
+            throw new IllegalArgumentException("Task transfer context is invalid");
+        }
+        var unfinishedTasks = tasks.findLockedUnfinishedByProjectIdAndAssigneeMembershipId(
+                projectId, departingMembershipId);
+        unfinishedTasks.forEach(task -> task.transferUnfinishedTo(
+                leaderMembershipId, leaderMembershipId, assignedAt));
+        tasks.flush();
     }
 }

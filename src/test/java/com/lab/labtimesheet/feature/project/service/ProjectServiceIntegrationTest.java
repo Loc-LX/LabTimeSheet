@@ -242,6 +242,108 @@ class ProjectServiceIntegrationTest {
                 """, projectId, replacementId));
     }
 
+    /**
+     * [I2-PRJ-04] Member thường rời Project sau khi Task chưa DONE chuyển sang Leader; Task DONE
+     * vẫn giữ assignee và creator/assigner attribution cũ.
+     */
+    @Test
+    void memberRemovalTransfersOnlyUnfinishedTasksBeforeClosingMembership() {
+        long mentorId = user("mentor-remove-member@example.test", "MENTOR");
+        long leaderId = intern("remove-member-leader@example.test", "I011");
+        long memberId = intern("remove-member-target@example.test", "I012");
+        long projectId = createProject(mentorId, leaderId, "Remove member transfer");
+        projectService.addMember(mentorId, projectId, memberId);
+        long leaderMembershipId = membershipId(projectId, leaderId);
+        long memberMembershipId = membershipId(projectId, memberId);
+
+        jdbc.update("""
+                insert into tasks (
+                    project_id, assignee_membership_id, title,
+                    created_by_membership_id, assigned_by_membership_id)
+                values (?, ?, 'Move unfinished', ?, ?),
+                       (?, ?, 'Keep completed', ?, ?)
+                """,
+                projectId, memberMembershipId, memberMembershipId, memberMembershipId,
+                projectId, memberMembershipId, memberMembershipId, memberMembershipId);
+        jdbc.update("""
+                update tasks
+                set status = 'DONE'
+                where project_id = ? and title = 'Keep completed'
+                """, projectId);
+
+        projectService.removeMember(mentorId, projectId, memberId);
+
+        assertEquals(leaderMembershipId, number("""
+                select assignee_membership_id from tasks
+                where project_id = ? and title = 'Move unfinished'
+                """, projectId));
+        assertEquals(leaderMembershipId, number("""
+                select assigned_by_membership_id from tasks
+                where project_id = ? and title = 'Move unfinished'
+                """, projectId));
+        assertEquals(memberMembershipId, number("""
+                select created_by_membership_id from tasks
+                where project_id = ? and title = 'Move unfinished'
+                """, projectId));
+        assertEquals(memberMembershipId, number("""
+                select assignee_membership_id from tasks
+                where project_id = ? and title = 'Keep completed'
+                """, projectId));
+        assertEquals(1, count("""
+                select count(*) from project_memberships
+                where project_id = ? and intern_user_id = ? and left_at is not null
+                """, projectId, memberId));
+        assertEquals(1, count("""
+                select count(*) from project_memberships
+                where project_id = ? and intern_user_id = ? and left_at is null
+                """, projectId, leaderId));
+    }
+
+    /** [I2-PRJ-04] Leader rời Project cũng chuyển Task chưa hoàn thành sang replacement trước khi đóng membership. */
+    @Test
+    void leaderRemovalTransfersOnlyUnfinishedTasksToTheReplacement() {
+        long mentorId = user("mentor-remove-leader-task@example.test", "MENTOR");
+        long leaderId = intern("remove-leader-task-one@example.test", "I013");
+        long replacementId = intern("remove-leader-task-two@example.test", "I014");
+        long projectId = createProject(mentorId, leaderId, "Remove leader task transfer");
+        projectService.addMember(mentorId, projectId, replacementId);
+        long leaderMembershipId = membershipId(projectId, leaderId);
+        long replacementMembershipId = membershipId(projectId, replacementId);
+        jdbc.update("""
+                insert into tasks (
+                    project_id, assignee_membership_id, title,
+                    created_by_membership_id, assigned_by_membership_id)
+                values (?, ?, 'Move leader unfinished', ?, ?),
+                       (?, ?, 'Keep leader completed', ?, ?)
+                """,
+                projectId, leaderMembershipId, leaderMembershipId, leaderMembershipId,
+                projectId, leaderMembershipId, leaderMembershipId, leaderMembershipId);
+        jdbc.update("""
+                update tasks
+                set status = 'DONE'
+                where project_id = ? and title = 'Keep leader completed'
+                """, projectId);
+        long termId = number("""
+                select id from project_leadership_terms
+                where project_id = ? and ended_at is null
+                """, projectId);
+
+        projectService.removeLeader(mentorId, projectId, termId, replacementId);
+
+        assertEquals(replacementMembershipId, number("""
+                select assignee_membership_id from tasks
+                where project_id = ? and title = 'Move leader unfinished'
+                """, projectId));
+        assertEquals(leaderMembershipId, number("""
+                select assignee_membership_id from tasks
+                where project_id = ? and title = 'Keep leader completed'
+                """, projectId));
+        assertEquals(1, count("""
+                select count(*) from project_memberships
+                where project_id = ? and intern_user_id = ? and left_at is not null
+                """, projectId, leaderId));
+    }
+
     /** [I2-PRJ-03] Replacement không hợp lệ hoặc Mentor không sở hữu thì không được đổi dữ liệu. */
     @Test
     void leaderRemovalRejectsInvalidReplacementAndUnauthorizedMentorWithoutMutation() {

@@ -28,9 +28,9 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>Truy vết mã công việc: Iter 1 gồm {@code I1-PRJ-01} đến {@code I1-PRJ-04}; trong đó
  * {@code I1-PRJ-01} hiện gắn vào path tạo vì chưa có operation chỉnh sửa riêng. Iter 2 đã có
- * trong service này gồm {@code I2-PRJ-01}, {@code I2-PRJ-02} và {@code I2-PRJ-03}. Các mã
- * {@code I2-PRJ-04} và {@code I2-PRJ-05} là luồng chuyển Task khi xóa member/chốt Project chưa
- * có operation ở service này, nên không gắn nhầm vào luồng tạo, thêm thành viên, đổi Leader hoặc kích hoạt.
+ * trong service này gồm {@code I2-PRJ-01}, {@code I2-PRJ-02}, {@code I2-PRJ-03} và
+ * {@code I2-PRJ-04}. Mã {@code I2-PRJ-05} vẫn là luồng chốt Project chưa có operation ở service
+ * này, nên không gắn nhầm vào luồng tạo, thêm thành viên, đổi Leader, xóa member hoặc kích hoạt.
  */
 @Service
 @RequiredArgsConstructor
@@ -156,8 +156,8 @@ public class ProjectService {
      * tra. Transaction giữ khóa Project, flush term cũ trước khi mở term mới để PostgreSQL kiểm tra
      * khoảng thời gian không chồng lấn; membership cũ chỉ được đóng ở bước cuối.
      *
-     * <p>Luồng chuyển Task chưa hoàn tất thuộc {@code I2-PRJ-04}; operation này không tự ý sửa các
-     * cột assignee/creator/assigner của Task.
+     * <p>[I2-PRJ-04] Nếu Leader cũ còn Task chưa hoàn thành, các Task đó được chuyển sang
+     * replacement trước khi membership cũ đóng. Task DONE và creator attribution không bị sửa.
      *
      * @param actorUserId mã Mentor sở hữu đã xác thực
      * @param projectId mã Project cần thay Leader và đóng membership cũ
@@ -177,9 +177,40 @@ public class ProjectService {
                 eligibleIntern(replacementUserId),
                 clock.instant());
 
+        // I2-PRJ-04: chuyển Task chưa hoàn thành trước khi đóng membership Leader cũ. Nếu boundary
+        // Task lỗi, transaction rollback nên cả term và membership vẫn giữ nguyên trong DB.
+        taskQueries.transferUnfinishedTasks(
+                project.id(),
+                removal.departing().id(),
+                removal.replacement().id(),
+                removal.effectiveAt());
         // I2-PRJ-03: replacement được chuẩn bị trước, term cũ được flush trước khi mở term mới.
         projects.flush();
         project.completeLeaderRemoval(actorUserId, removal);
+        projects.flush();
+    }
+
+    /**
+     * [I2-PRJ-04] Mentor loại một member thường sau khi chuyển các Task chưa hoàn thành sang Leader
+     * hiện tại. Membership chỉ được đóng ở bước cuối của transaction; lỗi transfer sẽ rollback mọi
+     * thay đổi trước đó.
+     *
+     * @param actorUserId mã Mentor sở hữu đã xác thực
+     * @param projectId mã Project cần cập nhật
+     * @param internUserId mã Intern đang là member hiện tại cần loại
+     */
+    @Transactional
+    public void removeMember(long actorUserId, long projectId, long internUserId) {
+        var project = lockedProject(projectId);
+        var removal = project.prepareMemberRemoval(actorUserId, internUserId, clock.instant());
+
+        // I2-PRJ-04: transfer phải hoàn tất trước khi interval membership bị đóng.
+        taskQueries.transferUnfinishedTasks(
+                project.id(),
+                removal.departing().id(),
+                removal.transferTarget().id(),
+                removal.effectiveAt());
+        project.completeMemberRemoval(actorUserId, removal);
         projects.flush();
     }
 
