@@ -32,9 +32,10 @@
     </section>
     <section class="panel">
         <header class="panel-header"><h2 class="panel-title">Account actions</h2></header>
-        <div class="form-actions" th:if="${account.status.name() == 'ACTIVE'}">
-            <form method="post" th:action="@{/admin/accounts/{id}/lock(id=${account.id})}"><button class="button button-danger" type="submit">Lock account</button></form>
-            <form method="post" th:action="@{/admin/accounts/{id}/deactivate(id=${account.id})}"><button class="button button-danger" type="submit">Deactivate account</button></form>
+        <div class="form-actions">
+            <a class="button button-primary" th:href="@{/admin/accounts/{id}/edit(id=${account.id})}">Edit account</a>
+            <form method="post" th:action="@{/admin/accounts/{id}/lock(id=${account.id})}" th:if="${account.status.name() == 'ACTIVE'}"><button class="button button-danger" type="submit">Lock account</button></form>
+            <form method="post" th:action="@{/admin/accounts/{id}/deactivate(id=${account.id})}" th:if="${account.status.name() == 'ACTIVE'}"><button class="button button-danger" type="submit">Deactivate account</button></form>
         </div>
         <div class="form-actions" th:if="${account.status.name() == 'LOCKED'}">
             <form method="post" th:action="@{/admin/accounts/{id}/unlock(id=${account.id})}"><button class="button button-primary" type="submit">Unlock account</button></form>

@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{fragments/layout :: shell(
+          pageTitle='Edit account',
+          section='Admin',
+          activeNav='accounts',
+          primaryAction=~{::#primary-action},
+          content=~{::main})}">
+<body>
+<a id="primary-action" class="button" th:href="@{/admin/accounts/{id}(id=${account.id})}">Back to account</a>
+<main>
+  <p class="page-description">Update the email, display name, and Intern profile details. Every saved change is recorded in the audit trail.</p>
+  <p class="alert" th:if="${param.updated}" role="status">Account details updated.</p>
+  <form class="panel form-panel form-grid" method="post" th:action="@{/admin/accounts/{id}/edit(id=${account.id})}" th:object="${editAccountForm}">
+    <div class="alert alert-error" th:if="${#fields.hasAnyErrors()}" role="alert">
+      <strong>Please correct the highlighted fields.</strong>
+      <ul><li th:each="fieldError : ${#fields.allErrors()}" th:text="${fieldError}"></li></ul>
+    </div>
+    <input type="hidden" th:field="*{userVersion}">
+    <input type="hidden" th:field="*{profileVersion}">
+    <div class="field">
+      <label class="field-label" for="email">Email</label>
+      <input class="control" id="email" th:field="*{email}" type="email" required autocomplete="off" th:attr="aria-invalid=${#fields.hasErrors('email')},aria-describedby=${#fields.hasErrors('email') ? 'edit-email-error' : null}">
+      <p class="field-error" id="edit-email-error" th:if="${#fields.hasErrors('email')}" th:errors="*{email}" role="alert"></p>
+    </div>
+    <div class="field">
+      <label class="field-label" for="displayName">Display name</label>
+      <input class="control" id="displayName" th:field="*{displayName}" required autocomplete="off" th:attr="aria-invalid=${#fields.hasErrors('displayName')},aria-describedby=${#fields.hasErrors('displayName') ? 'edit-display-name-error' : null}">
+      <p class="field-error" id="edit-display-name-error" th:if="${#fields.hasErrors('displayName')}" th:errors="*{displayName}" role="alert"></p>
+    </div>
+    <div class="field">
+      <label class="field-label">Role</label>
+      <p class="field-static" th:text="${account.role + ' · immutable'}">ROLE</p>
+    </div>
+    <fieldset class="form-section" th:if="${account.role.name() == 'INTERN'}">
+      <legend>Intern details</legend>
+      <div class="form-grid form-grid-three">
+        <div class="field"><label class="field-label" for="studentCode">Student code</label><input class="control" id="studentCode" th:field="*{studentCode}" autocomplete="off" th:attr="aria-invalid=${#fields.hasErrors('studentCode')},aria-describedby=${#fields.hasErrors('studentCode') ? 'edit-student-code-error' : null}"><p class="field-error" id="edit-student-code-error" th:if="${#fields.hasErrors('studentCode')}" th:errors="*{studentCode}" role="alert"></p></div>
+        <div class="field"><label class="field-label" for="internshipStart">Internship start</label><input class="control" id="internshipStart" th:field="*{internshipStart}" type="date"></div>
+        <div class="field"><label class="field-label" for="internshipEnd">Internship end</label><input class="control" id="internshipEnd" th:field="*{internshipEnd}" type="date"></div>
+      </div>
+    </fieldset>
+    <div class="form-actions"><a class="button" th:href="@{/admin/accounts/{id}(id=${account.id})}">Cancel</a><button class="button button-primary" type="submit">Save changes</button></div>
+  </form>
+</main>
+</body>
+</html>

@@ -7,6 +7,7 @@ import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 
@@ -21,9 +22,12 @@ import com.lab.labtimesheet.feature.account.model.dto.AccountIdentity;
 import com.lab.labtimesheet.feature.account.model.dto.AccountSummary;
 import com.lab.labtimesheet.feature.account.model.dto.CreateAccountCommand;
 import com.lab.labtimesheet.feature.account.model.dto.EligibleInternOption;
+import com.lab.labtimesheet.feature.account.model.entity.AccountAdminEditEvent;
+import com.lab.labtimesheet.feature.account.model.entity.AccountAdminEditField;
 import com.lab.labtimesheet.feature.account.model.entity.AppUser;
 import com.lab.labtimesheet.feature.account.model.entity.InternProfile;
 import com.lab.labtimesheet.feature.account.model.entity.UserActionToken;
+import com.lab.labtimesheet.feature.account.repository.AccountAdminEditEventRepository;
 import com.lab.labtimesheet.feature.account.repository.AppUserRepository;
 import com.lab.labtimesheet.feature.account.repository.InternProfileRepository;
 import com.lab.labtimesheet.feature.account.repository.UserActionTokenRepository;
@@ -50,6 +54,7 @@ public class AccountService {
     private final AppUserRepository users;
     private final InternProfileRepository internProfiles;
     private final UserActionTokenRepository tokens;
+    private final AccountAdminEditEventRepository editEvents;
     private final MailDeliveryService mailDelivery;
     private final PasswordEncoder passwords;
     private final Clock clock;
@@ -61,6 +66,7 @@ public class AccountService {
             AppUserRepository users,
             InternProfileRepository internProfiles,
             UserActionTokenRepository tokens,
+            AccountAdminEditEventRepository editEvents,
             MailDeliveryService mailDelivery,
             PasswordEncoder passwords,
             Clock clock,
@@ -70,6 +76,7 @@ public class AccountService {
         this.users = users;
         this.internProfiles = internProfiles;
         this.tokens = tokens;
+        this.editEvents = editEvents;
         this.mailDelivery = mailDelivery;
         this.passwords = passwords;
         this.clock = clock;
@@ -367,7 +374,104 @@ public class AccountService {
                 profile == null ? null : profile.getStudentCode(),
                 profile == null ? null : profile.getInternshipStartDate(),
                 profile == null ? null : profile.getInternshipEndDate(),
-                profile == null ? null : profile.getInternshipStatus());
+                profile == null ? null : profile.getInternshipStatus(),
+                user.getVersion(),
+                profile == null ? null : profile.getVersion());
+    }
+
+    /**
+     * Applies an Admin-authorized edit to the account's identity and, for Intern accounts, its profile
+     * fields. The immutable role cannot change, duplicates are rejected by the database unique indexes,
+     * and one append-only audit row is written per changed field naming the authorizing Admin. When the
+     * optimistic-lock versions rendered to the edit form are stale, the whole edit is rejected before any
+     * field or audit row changes, so a concurrent Admin edit cannot be silently overwritten.
+     *
+     * @param userId account being edited
+     * @param adminId active Admin authorizing the edit
+     * @param expectedUserVersion optimistic-lock version of the account rendered to the edit form
+     * @param expectedProfileVersion optimistic-lock version of the Intern profile, {@code null} for non-Intern
+     * @param email replacement email, normalized before comparison
+     * @param displayName replacement display name
+     * @param studentCode replacement Intern student code, required only for Intern accounts
+     * @param internshipStart replacement inclusive Intern start date, required only for Intern accounts
+     * @param internshipEnd replacement inclusive Intern end date, required only for Intern accounts
+     * @return refreshed detail with advanced optimistic-lock versions
+     * @throws IllegalArgumentException when the account is missing, the authorizer is not an active Admin,
+     *         Intern fields are supplied for a non-Intern account, or Intern details are incomplete or invalid
+     * @throws IllegalStateException when the supplied versions are stale
+     */
+    @Transactional
+    public AccountAdminDetail updateAccountAdminFields(
+            long userId, long adminId, long expectedUserVersion, Long expectedProfileVersion,
+            String email, String displayName, String studentCode,
+            LocalDate internshipStart, LocalDate internshipEnd) {
+        AppUser admin = users.findById(adminId)
+                .orElseThrow(() -> new IllegalArgumentException("Admin not found"));
+        requireActiveAdmin(admin);
+
+        AppUser user = users.findForUpdateById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("Account not found"));
+        if (user.getVersion() != expectedUserVersion) {
+            throw new IllegalStateException("Account was changed by another request");
+        }
+
+        String normalizedEmail = BootstrapService.normalizeEmail(email);
+        String normalizedDisplayName = requireText(displayName, "Display name");
+        var now = clock.instant();
+        var changes = new ArrayList<AccountAdminEditEvent>();
+
+        if (!user.getEmail().equals(normalizedEmail)) {
+            changes.add(AccountAdminEditEvent.of(user.getId(), admin.getId(), AccountAdminEditField.EMAIL,
+                    user.getEmail(), normalizedEmail, now));
+            user.changeEmail(normalizedEmail, now);
+        }
+        if (!user.getDisplayName().equals(normalizedDisplayName)) {
+            changes.add(AccountAdminEditEvent.of(user.getId(), admin.getId(), AccountAdminEditField.DISPLAY_NAME,
+                    user.getDisplayName(), normalizedDisplayName, now));
+            user.changeDisplayName(normalizedDisplayName, now);
+        }
+
+        if (user.getGlobalRole() == GlobalRole.INTERN) {
+            String normalizedCode = requireText(studentCode, "Student code");
+            if (internshipStart == null || internshipEnd == null || internshipEnd.isBefore(internshipStart)) {
+                throw new IllegalArgumentException("A valid internship date range is required");
+            }
+            if (expectedProfileVersion == null) {
+                throw new IllegalArgumentException("Internship profile version is required");
+            }
+            InternProfile profile = internProfiles.findForUpdateByUserId(user.getId())
+                    .orElseThrow(() -> new IllegalArgumentException("Intern profile not found"));
+            if (profile.getVersion() != expectedProfileVersion) {
+                throw new IllegalStateException("Account was changed by another request");
+            }
+            boolean codeChanged = !profile.getStudentCode().equals(normalizedCode);
+            boolean startChanged = !profile.getInternshipStartDate().equals(internshipStart);
+            boolean endChanged = !profile.getInternshipEndDate().equals(internshipEnd);
+            if (codeChanged) {
+                changes.add(AccountAdminEditEvent.of(user.getId(), admin.getId(), AccountAdminEditField.STUDENT_CODE,
+                        profile.getStudentCode(), normalizedCode, now));
+            }
+            if (startChanged) {
+                changes.add(AccountAdminEditEvent.of(user.getId(), admin.getId(),
+                        AccountAdminEditField.INTERNSHIP_START,
+                        profile.getInternshipStartDate().toString(), internshipStart.toString(), now));
+            }
+            if (endChanged) {
+                changes.add(AccountAdminEditEvent.of(user.getId(), admin.getId(), AccountAdminEditField.INTERNSHIP_END,
+                        profile.getInternshipEndDate().toString(), internshipEnd.toString(), now));
+            }
+            if (codeChanged || startChanged || endChanged) {
+                profile.updateFields(normalizedCode, internshipStart, internshipEnd, now);
+            }
+        } else if (expectedProfileVersion != null || studentCode != null || internshipStart != null
+                || internshipEnd != null) {
+            throw new IllegalArgumentException("Internship fields are allowed only for Intern accounts");
+        }
+
+        if (!changes.isEmpty()) {
+            editEvents.saveAll(changes);
+        }
+        return requireAccountDetail(user.getId());
     }
 
     /**

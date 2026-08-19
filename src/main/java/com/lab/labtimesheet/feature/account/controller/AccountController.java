@@ -3,8 +3,10 @@ package com.lab.labtimesheet.feature.account.controller;
 import java.security.Principal;
 
 import com.lab.labtimesheet.feature.account.model.GlobalRole;
+import com.lab.labtimesheet.feature.account.model.dto.AccountAdminDetail;
 import com.lab.labtimesheet.feature.account.model.dto.ActivationForm;
 import com.lab.labtimesheet.feature.account.model.dto.CreateAccountForm;
+import com.lab.labtimesheet.feature.account.model.dto.EditAccountForm;
 import com.lab.labtimesheet.feature.account.model.dto.ForgotPasswordForm;
 import com.lab.labtimesheet.feature.account.model.dto.ResetPasswordForm;
 import com.lab.labtimesheet.feature.account.service.AccountService;
@@ -55,6 +57,40 @@ class AccountController {
     String detail(@PathVariable long id, Model model) {
         model.addAttribute("account", accounts.requireAccountDetail(id));
         return "accounts/detail";
+    }
+
+    @GetMapping("/admin/accounts/{id}/edit")
+    String editAccount(@PathVariable long id, Model model) {
+        AccountAdminDetail detail = accounts.requireAccountDetail(id);
+        model.addAttribute("account", detail);
+        if (!model.containsAttribute("editAccountForm")) {
+            model.addAttribute("editAccountForm", EditAccountForm.from(detail));
+        }
+        return "accounts/edit";
+    }
+
+    @PostMapping("/admin/accounts/{id}/edit")
+    String editAccountSubmit(@PathVariable long id,
+            @Valid @ModelAttribute("editAccountForm") EditAccountForm form, BindingResult bindingResult,
+            Principal principal, Model model) {
+        if (bindingResult.hasErrors()) {
+            model.addAttribute("account", accounts.requireAccountDetail(id));
+            return "accounts/edit";
+        }
+        try {
+            accounts.updateAccountAdminFields(
+                    id, accounts.requireActiveAdminId(principal.getName()),
+                    form.getUserVersion(), form.getProfileVersion(),
+                    form.getEmail(), form.getDisplayName(),
+                    form.getStudentCode(), form.getInternshipStart(), form.getInternshipEnd());
+            return "redirect:/admin/accounts/" + id + "?updated";
+        } catch (DataIntegrityViolationException duplicate) {
+            rejectUniquenessViolation(bindingResult, duplicate);
+        } catch (IllegalArgumentException | IllegalStateException exception) {
+            bindingResult.reject("account.invalid", exception.getMessage());
+        }
+        model.addAttribute("account", accounts.requireAccountDetail(id));
+        return "accounts/edit";
     }
 
     @PostMapping("/admin/accounts/{id}/lock")

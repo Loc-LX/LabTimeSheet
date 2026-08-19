@@ -83,6 +83,7 @@ public class AppUser {
     private Instant updatedAt;
 
     @Version
+    @Getter
     private long version;
 
     private AppUser(String email, String displayName, String passwordHash, GlobalRole globalRole,
@@ -203,6 +204,29 @@ public class AppUser {
         accountStatus = AccountStatus.DEACTIVATED;
         deactivatedAt = now;
         updatedAt = now;
+    }
+
+    /**
+     * Replaces the normalized email of the account after an authorized Admin edit. The immutable
+     * role and lifecycle state are untouched; the database unique index guards against duplicates.
+     *
+     * @param email normalized replacement email
+     * @param now server edit timestamp
+     */
+    public void changeEmail(String email, Instant now) {
+        this.email = email;
+        this.updatedAt = now;
+    }
+
+    /**
+     * Replaces the user-facing name after an authorized Admin edit.
+     *
+     * @param displayName trimmed replacement display name
+     * @param now server edit timestamp
+     */
+    public void changeDisplayName(String displayName, Instant now) {
+        this.displayName = displayName;
+        this.updatedAt = now;
     }
 
 }

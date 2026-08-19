@@ -66,6 +66,7 @@ public class InternProfile {
     private Instant updatedAt;
 
     @Version
+    @Getter
     private long version;
 
     private InternProfile(
@@ -107,6 +108,24 @@ public class InternProfile {
         internshipStatus = InternshipStatus.ACTIVE;
         activatedAt = now;
         updatedAt = now;
+    }
+
+    /**
+     * Replaces the Intern profile details after an authorized Admin edit. Dates are expected to
+     * form an inclusive range and the student code a normalized value, both validated by the caller.
+     * The lifecycle state and timestamps are untouched.
+     *
+     * @param studentCode replacement student code
+     * @param internshipStartDate replacement inclusive start date
+     * @param internshipEndDate replacement inclusive end date
+     * @param now server edit timestamp
+     */
+    public void updateFields(
+            String studentCode, LocalDate internshipStartDate, LocalDate internshipEndDate, Instant now) {
+        this.studentCode = studentCode;
+        this.internshipStartDate = internshipStartDate;
+        this.internshipEndDate = internshipEndDate;
+        this.updatedAt = now;
     }
 
 }

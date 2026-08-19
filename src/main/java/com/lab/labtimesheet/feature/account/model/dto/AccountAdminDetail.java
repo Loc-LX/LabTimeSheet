@@ -25,6 +25,8 @@ import com.lab.labtimesheet.feature.account.model.InternshipStatus;
  * @param internshipStartDate inclusive internship start date, {@code null} for non-Intern roles
  * @param internshipEndDate inclusive internship end date, {@code null} for non-Intern roles
  * @param internshipStatus internship lifecycle state, {@code null} for non-Intern roles
+ * @param userVersion optimistic-lock version of the account row for the edit form
+ * @param profileVersion optimistic-lock version of the Intern profile row, {@code null} for non-Intern roles
  */
 public record AccountAdminDetail(
         long id,
@@ -40,5 +42,7 @@ public record AccountAdminDetail(
         String studentCode,
         LocalDate internshipStartDate,
         LocalDate internshipEndDate,
-        InternshipStatus internshipStatus) {
+        InternshipStatus internshipStatus,
+        long userVersion,
+        Long profileVersion) {
 }
