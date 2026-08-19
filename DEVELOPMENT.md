@@ -4,8 +4,9 @@ This guide explains how to prepare and run Lab Timesheet on a developer
 computer. The application runs from Java. PostgreSQL and Mailpit run in Docker
 containers.
 
-Application containerization and Docker Compose are planned for a later
-iteration, so they are not required for Iteration 1 development.
+The root Dockerfile and Compose file are production-only. They are not part of
+the development loop. Development still runs Java from the IDE or Maven while
+PostgreSQL and Mailpit run as separate local containers.
 
 ## 1. Install the required tools
 
@@ -141,6 +142,12 @@ repository root, run:
 ./mvnw spring-boot:run
 ```
 
+On Windows PowerShell, use the batch wrapper instead:
+
+```powershell
+.\mvnw.cmd spring-boot:run
+```
+
 Shell environment variables still override values from `.env`, which is useful
 for a one-off local override. If you run from another working directory, set
 `LAB_DEV_ENV_FILE` to the absolute path of your `.env` file.
@@ -251,3 +258,7 @@ npm run build
 
 For test setup, commands, TDD, and test evidence rules, read
 [TESTING.md](TESTING.md).
+
+For production image and Compose operation, read [DEPLOYMENT.md](DEPLOYMENT.md).
+Do not use the production Compose file as a replacement for this development
+setup.
