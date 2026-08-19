@@ -89,6 +89,16 @@ BUILD SUCCESS
 Process exited 0.
 ```
 
+## Extension (I2-ATT-03)
+
+`69b54eb` extended the compiled-contract audit to the leave stack: the
+`InternLeaveController` (form/submit) and `LeaveService` (submit/overview)
+method surfaces were added, `LeaveRequestDayEntity` gained its public 4-arg
+constructor and getter surface, `LeaveRequestDayId` gained `leaveDate()`, and
+`LeaveRequestEntity` gained the `PENDING` 7-arg constructor plus the public
+static `pending` factory and its getter surface. All four test methods still
+pass unchanged at the full-suite run recorded in `docs/tests/unit/leave-service.md`.
+
 ## External-test boundaries
 
 The reflection audit does not replace Spring/JPA bootstrapping, MVC property access, PostgreSQL persistence, or

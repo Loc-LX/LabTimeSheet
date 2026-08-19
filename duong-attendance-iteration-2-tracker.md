@@ -10,7 +10,7 @@ suite → evidence + commit SHA.
 |---|---|---|---|---|
 | I2-ATT-01 | Schedule future-month attendance-policy versions, including separate grace values, and preserve effective history. | `DONE` | Duong / 2026-08-19 | `a2205b5` |
 | I2-ATT-02 | Preview/import VN HolidayAPI candidates with Admin selection, override, provenance, and deduplication. | `DONE` | Duong / 2026-08-19 | `9be57ef` |
-| I2-ATT-03 | Materialize frozen full-day leave allocations and monthly/cross-month quota reservations. | `TODO` | — | — |
+| I2-ATT-03 | Materialize frozen full-day leave allocations and monthly/cross-month quota reservations. | `DONE` | Duong / 2026-08-19 | `69b54eb` |
 | I2-ATT-04 | Implement leave submit/approve/reject/cancel and overlap protection. | `TODO` | — | — |
 | I2-ATT-05 | Implement missed-checkout correction submission and effective-checkout derivation. | `TODO` | — | — |
 | I2-ATT-06 | Implement Mentor approve/reject/revert and separate decision-window locking. | `TODO` | — | — |
