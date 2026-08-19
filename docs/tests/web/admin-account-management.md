@@ -4,7 +4,7 @@
 - **Requirement IDs:** `ACC-008`–`ACC-025` (listing/detail carriers), `ACC-014`, `ACC-015`, `ACC-016`, `ACC-017`, `ACC-018`
 - **Scenario IDs:** `AC-ACC-009`
 - **Test class/method:** `com.lab.labtimesheet.feature.account.controller.AccountManagementWebIntegrationTest`
-- **Implementation commit:** `pending`
+- **Implementation commit:** `476b6d7` (GREEN); RED `6c1491c`; LayerStructureTest Windows fix `0c52691`
 
 ## Protected behavior
 
