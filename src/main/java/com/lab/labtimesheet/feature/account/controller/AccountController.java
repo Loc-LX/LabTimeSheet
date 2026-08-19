@@ -5,6 +5,8 @@ import java.security.Principal;
 import com.lab.labtimesheet.feature.account.model.GlobalRole;
 import com.lab.labtimesheet.feature.account.model.dto.ActivationForm;
 import com.lab.labtimesheet.feature.account.model.dto.CreateAccountForm;
+import com.lab.labtimesheet.feature.account.model.dto.ForgotPasswordForm;
+import com.lab.labtimesheet.feature.account.model.dto.ResetPasswordForm;
 import com.lab.labtimesheet.feature.account.service.AccountService;
 import jakarta.validation.Valid;
 import lombok.AccessLevel;
@@ -83,6 +85,57 @@ class AccountController {
         } catch (IllegalArgumentException | IllegalStateException exception) {
             return "redirect:/admin/accounts/" + id + "?error";
         }
+    }
+
+    @PostMapping("/admin/accounts/{id}/resend-activation")
+    String resendActivation(@PathVariable long id, Principal principal) {
+        try {
+            var result = accounts.resendActivation(id, accounts.requireActiveAdminId(principal.getName()));
+            return "redirect:/admin/accounts/" + id + (result.deliverySucceeded() ? "?resent" : "?error");
+        } catch (IllegalArgumentException | IllegalStateException exception) {
+            return "redirect:/admin/accounts/" + id + "?error";
+        }
+    }
+
+    @GetMapping("/forgot-password")
+    String forgotPassword(@ModelAttribute("forgotPasswordForm") ForgotPasswordForm form) {
+        return "accounts/forgot-password";
+    }
+
+    @PostMapping("/forgot-password")
+    String forgotPasswordSubmit(@Valid @ModelAttribute("forgotPasswordForm") ForgotPasswordForm form,
+            BindingResult bindingResult) {
+        if (!bindingResult.hasErrors()) {
+            accounts.requestPasswordReset(form.getEmail());
+        }
+        return "redirect:/forgot-password?sent";
+    }
+
+    @GetMapping("/reset-password")
+    String resetPasswordForm(@ModelAttribute("resetPasswordForm") ResetPasswordForm form, Model model) {
+        if (!accounts.isResetTokenUsable(form.getToken())) {
+            model.addAttribute("error", "This reset link is invalid or no longer usable");
+        }
+        return "accounts/reset-password";
+    }
+
+    @PostMapping("/reset-password")
+    String resetPasswordSubmit(@Valid @ModelAttribute("resetPasswordForm") ResetPasswordForm form,
+            BindingResult bindingResult) {
+        if (bindingResult.hasErrors()) {
+            form.clearPasswords();
+            return "accounts/reset-password";
+        }
+        try {
+            if (accounts.resetPassword(form.getToken(), form.getPassword())) {
+                return "redirect:/login?reset";
+            }
+            bindingResult.reject("reset.invalid", "This reset link is invalid or no longer usable");
+        } catch (IllegalArgumentException exception) {
+            bindingResult.reject("reset.invalid", exception.getMessage());
+        }
+        form.clearPasswords();
+        return "accounts/reset-password";
     }
 
     @ResponseStatus(HttpStatus.NOT_FOUND)

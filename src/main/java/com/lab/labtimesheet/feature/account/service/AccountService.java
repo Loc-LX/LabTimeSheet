@@ -44,6 +44,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Service
 public class AccountService {
     private static final Duration ACTIVATION_LIFETIME = Duration.ofHours(24);
+    private static final Duration RESET_LIFETIME = Duration.ofMinutes(30);
     private static final SecureRandom TOKEN_RANDOM = new SecureRandom();
 
     private final AppUserRepository users;
@@ -142,6 +143,149 @@ public class AccountService {
         user.activate(passwords.encode(password), now);
         token.markUsed(now);
         return true;
+    }
+
+    /**
+     * Reissues a pending account's activation email, invalidating the prior live token so only the newest link can
+     * activate the account. The invalidation and issuance share one transaction, and a delivery failure invalidates
+     * the fresh token without affecting the pending account row.
+     *
+     * @param userId pending account being resent
+     * @param adminId active Admin authorizing the resend
+     * @return account identifier and whether the replacement email was accepted by the configured SMTP boundary
+     * @throws IllegalArgumentException when the account is not pending or the Admin is not active
+     * @throws IllegalStateException when no active SMTP configuration exists or the workflow cannot complete
+     */
+    public AccountCreation resendActivation(long userId, long adminId) {
+        long verifiedAdminId = requireActiveAdminId(adminId);
+        AppUser user = users.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("Account not found"));
+        if (user.getAccountStatus() != AccountStatus.PENDING_ACTIVATION) {
+            throw new IllegalArgumentException("Activation can be resent only for a pending account");
+        }
+        if (!mailDelivery.isAvailable()) {
+            throw new IllegalStateException("Active SMTP configuration is required to resend activation");
+        }
+
+        String rawToken = newRawToken();
+        byte[] tokenHash = sha256(rawToken);
+        PendingActivation pending = transactions.execute(status -> {
+            var now = clock.instant();
+            tokens.invalidateLive(userId, TokenPurpose.ACTIVATION, now);
+            UserActionToken token = tokens.save(UserActionToken.activation(
+                    userId, tokenHash, now.plus(ACTIVATION_LIFETIME), verifiedAdminId, now));
+            return new PendingActivation(userId, token.getId());
+        });
+        if (pending == null) {
+            throw new IllegalStateException("Activation resend did not complete");
+        }
+
+        try {
+            mailDelivery.send(
+                    user.getEmail(),
+                    "Activate your Lab Timesheet account",
+                    "Activate your account using this single-use link:\n" + activationLink(rawToken));
+            return new AccountCreation(pending.userId(), true);
+        } catch (RuntimeException deliveryFailure) {
+            transactions.executeWithoutResult(status -> tokens.findForUpdateById(pending.tokenId())
+                    .orElseThrow(() -> new IllegalStateException("Activation token is missing"))
+                    .invalidate(clock.instant()));
+            return new AccountCreation(pending.userId(), false);
+        }
+    }
+
+    /**
+     * Requests a password-reset link for an active account. Unknown, pending, and locked accounts receive the same
+     * generic no-op so an unauthenticated caller cannot enumerate accounts; no token row is written and no message
+     * is sent for them. A live reset token is invalidated before its replacement is issued, and a delivery failure
+     * invalidates the fresh token.
+     *
+     * @param email account email as supplied by the user
+     * @return {@code true} when a reset link was accepted by the configured SMTP boundary
+     */
+    public boolean requestPasswordReset(String email) {
+        if (!mailDelivery.isAvailable()) {
+            return false;
+        }
+        AppUser user = users.findByNormalizedEmail(BootstrapService.normalizeEmail(email)).orElse(null);
+        if (user == null || user.getAccountStatus() != AccountStatus.ACTIVE) {
+            return false;
+        }
+
+        String rawToken = newRawToken();
+        byte[] tokenHash = sha256(rawToken);
+        var issued = transactions.execute(status -> {
+            var now = clock.instant();
+            tokens.invalidateLive(user.getId(), TokenPurpose.PASSWORD_RESET, now);
+            UserActionToken token = tokens.save(UserActionToken.passwordReset(
+                    user.getId(), tokenHash, now.plus(RESET_LIFETIME), user.getId(), now));
+            return token.getId();
+        });
+        if (issued == null) {
+            throw new IllegalStateException("Password reset request did not complete");
+        }
+
+        try {
+            mailDelivery.send(
+                    user.getEmail(),
+                    "Reset your Lab Timesheet password",
+                    "Reset your password using this single-use link:\n" + resetLink(rawToken));
+            return true;
+        } catch (RuntimeException deliveryFailure) {
+            transactions.executeWithoutResult(status -> tokens.findForUpdateById(issued)
+                    .orElseThrow(() -> new IllegalStateException("Password reset token is missing"))
+                    .invalidate(clock.instant()));
+            return false;
+        }
+    }
+
+    /**
+     * Consumes a valid, unexpired password-reset bearer token once, replaces the active account's credentials, and
+     * expires the account's existing authenticated sessions.
+     *
+     * @param rawToken raw token received from the reset link
+     * @param password new password, containing 12 through 128 characters
+     * @return {@code true} when the reset completed; {@code false} for an invalid, expired, used, or stale token
+     */
+    @Transactional
+    public boolean resetPassword(String rawToken, String password) {
+        BootstrapService.requirePassword(password);
+        if (rawToken == null || rawToken.isBlank()) {
+            return false;
+        }
+
+        UserActionToken token = tokens.findForUpdateByHashAndPurpose(sha256(rawToken), TokenPurpose.PASSWORD_RESET)
+                .orElse(null);
+        var now = clock.instant();
+        if (token == null || !token.isUsableAt(now)) {
+            return false;
+        }
+
+        AppUser user = users.findForUpdateById(token.getUserId()).orElse(null);
+        if (user == null || user.getAccountStatus() != AccountStatus.ACTIVE) {
+            return false;
+        }
+        user.resetPassword(passwords.encode(password), now);
+        token.markUsed(now);
+        expireSessions(user.getEmail());
+        return true;
+    }
+
+    /**
+     * Reports whether a supplied raw reset token still maps to a live, unexpired password-reset token without
+     * consuming it, so the reset form can render a direct error instead of waiting for submission.
+     *
+     * @param rawToken raw token received from the reset link
+     * @return {@code true} when the token is present and currently usable
+     */
+    @Transactional(readOnly = true)
+    public boolean isResetTokenUsable(String rawToken) {
+        if (rawToken == null || rawToken.isBlank()) {
+            return false;
+        }
+        UserActionToken token = tokens.findByHashAndPurpose(sha256(rawToken), TokenPurpose.PASSWORD_RESET)
+                .orElse(null);
+        return token != null && token.isUsableAt(clock.instant());
     }
 
     /**
@@ -463,6 +607,10 @@ public class AccountService {
 
     private String activationLink(String rawToken) {
         return publicOrigin + "/activate?token=" + rawToken;
+    }
+
+    private String resetLink(String rawToken) {
+        return publicOrigin + "/reset-password?token=" + rawToken;
     }
 
     private static ValidatedAccount validate(CreateAccountCommand command) {

@@ -49,6 +49,7 @@ class SecurityConfiguration {
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers(
                                 "/bootstrap/**", "/activate/**", "/login", "/error", "/assets/**",
+                                "/forgot-password", "/reset-password",
                                 "/actuator/health", "/actuator/health/**")
                         .permitAll()
                         .requestMatchers("/admin/**").hasRole("ADMIN")

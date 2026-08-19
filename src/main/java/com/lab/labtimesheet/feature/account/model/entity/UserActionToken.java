@@ -60,8 +60,13 @@ public class UserActionToken {
     private Instant createdAt;
 
     private UserActionToken(long userId, byte[] tokenHash, Instant expiresAt, long issuedByUserId, Instant now) {
+        this(userId, TokenPurpose.ACTIVATION, tokenHash, expiresAt, issuedByUserId, now);
+    }
+
+    private UserActionToken(long userId, TokenPurpose purpose, byte[] tokenHash, Instant expiresAt,
+            long issuedByUserId, Instant now) {
         this.userId = userId;
-        this.purpose = TokenPurpose.ACTIVATION;
+        this.purpose = purpose;
         this.tokenHash = Arrays.copyOf(tokenHash, tokenHash.length);
         this.expiresAt = expiresAt;
         this.issuedByUserId = issuedByUserId;
@@ -84,6 +89,22 @@ public class UserActionToken {
     }
 
     /**
+     * Creates an unused password-reset token record from a cryptographic hash. Only the hash is stored; the raw
+     * bearer token never enters the database.
+     *
+     * @param userId account requesting the reset
+     * @param tokenHash 32-byte SHA-256 hash of the raw bearer token
+     * @param expiresAt exclusive expiry instant
+     * @param issuedByUserId Admin issuing the token
+     * @param now server creation timestamp
+     * @return new password-reset token entity
+     */
+    public static UserActionToken passwordReset(
+            long userId, byte[] tokenHash, Instant expiresAt, long issuedByUserId, Instant now) {
+        return new UserActionToken(userId, TokenPurpose.PASSWORD_RESET, tokenHash, expiresAt, issuedByUserId, now);
+    }
+
+    /**
      * Checks single-use and exclusive-expiry state at a server timestamp.
      *
      * @param now server timestamp
@@ -101,7 +122,7 @@ public class UserActionToken {
      */
     public void markUsed(Instant now) {
         if (!isUsableAt(now)) {
-            throw new IllegalStateException("Activation token is not usable");
+            throw new IllegalStateException("Token is not usable");
         }
         usedAt = now;
     }

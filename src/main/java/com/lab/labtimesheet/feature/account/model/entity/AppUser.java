@@ -175,6 +175,22 @@ public class AppUser {
     }
 
     /**
+     * Replaces the stored password hash of an active account after a verified password-reset token is consumed,
+     * leaving role, status, and sign-in history untouched.
+     *
+     * @param encodedPassword password-encoder output, never cleartext
+     * @param now server reset timestamp
+     * @throws IllegalStateException when the account is not active
+     */
+    public void resetPassword(String encodedPassword, Instant now) {
+        if (accountStatus != AccountStatus.ACTIVE) {
+            throw new IllegalStateException("Only an active account can reset its password");
+        }
+        passwordHash = encodedPassword;
+        updatedAt = now;
+    }
+
+    /**
      * Deactivates an active account, recording when the explicit Admin action occurred.
      *
      * @param now server deactivation timestamp

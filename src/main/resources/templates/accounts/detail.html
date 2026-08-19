@@ -13,6 +13,7 @@
     <p class="alert" th:if="${param.locked}" role="status">Account locked.</p>
     <p class="alert" th:if="${param.unlocked}" role="status">Account unlocked.</p>
     <p class="alert" th:if="${param.deactivated}" role="status">Account deactivated.</p>
+    <p class="alert" th:if="${param.resent}" role="status">A fresh activation link was sent.</p>
     <p class="alert alert-error" th:if="${param.error}" role="alert">That action is not allowed for the account's current state.</p>
     <section class="panel">
         <header class="panel-header"><h2 class="panel-title" th:text="${account.displayName}">Name</h2></header>
@@ -37,6 +38,9 @@
         </div>
         <div class="form-actions" th:if="${account.status.name() == 'LOCKED'}">
             <form method="post" th:action="@{/admin/accounts/{id}/unlock(id=${account.id})}"><button class="button button-primary" type="submit">Unlock account</button></form>
+        </div>
+        <div class="form-actions" th:if="${account.status.name() == 'PENDING_ACTIVATION'}">
+            <form method="post" th:action="@{/admin/accounts/{id}/resend-activation(id=${account.id})}"><button class="button button-primary" type="submit">Resend activation link</button></form>
         </div>
         <p class="field-help" th:if="${account.internshipStatus != null}">Completion or withdrawal is blocked while the Intern leads a Project or owns unfinished Tasks.</p>
     </section>
