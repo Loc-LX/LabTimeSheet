@@ -25,6 +25,9 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>Admin xem mọi Project, Mentor chỉ xem Project mình sở hữu, còn Intern chỉ xem Project đang
  * mở khi vẫn đang tham gia. Project đã hoàn tất vẫn hiển thị cho thành viên lịch sử nhưng không
  * cung cấp context Leader hiện tại hoặc thành viên đang hoạt động.
+ *
+ * <p>Truy vết mã công việc: {@code I1-PRJ-05} bao phủ các truy vấn list/detail/member/leadership;
+ * {@code I2-PRJ-06} bổ sung quyền đọc lịch sử của thành viên cũ và Project đã hoàn tất.
  */
 @Service
 @RequiredArgsConstructor
@@ -66,7 +69,7 @@ public class ProjectQueryService {
     }
 
     /**
-     * Liệt kê Project hiển thị theo vai trò hiện tại và quan hệ của người thực hiện với Project.
+     * [I1-PRJ-05, I2-PRJ-06] Liệt kê Project hiển thị theo vai trò hiện tại và quan hệ của người thực hiện với Project.
      * Lượt tham gia lịch sử của Intern chỉ cấp quyền xem Project đã hoàn tất.
      *
      * @param actorUserId mã người dùng đang hoạt động
@@ -79,7 +82,7 @@ public class ProjectQueryService {
     }
 
     /**
-     * Trả về chi tiết một Project đã phân quyền. Project đã hoàn tất không có Leader hiện tại và
+     * [I1-PRJ-05, I2-PRJ-06] Trả về chi tiết một Project đã phân quyền. Project đã hoàn tất không có Leader hiện tại và
      * không bao giờ cấp khả năng thay đổi, kể cả cho Mentor sở hữu.
      *
      * @param actorUserId mã người dùng đang hoạt động
@@ -104,7 +107,7 @@ public class ProjectQueryService {
     }
 
     /**
-     * Trả về lịch sử khoảng thời gian thành viên của Project đã phân quyền. Lịch sử Project đã
+     * [I1-PRJ-05, I2-PRJ-06] Trả về lịch sử khoảng thời gian thành viên của Project đã phân quyền. Lịch sử Project đã
      * hoàn tất không đánh dấu thành viên nào là Leader hiện tại vì việc hoàn tất đã đóng nhiệm kỳ cuối.
      *
      * @param actorUserId mã người dùng đang hoạt động
@@ -131,7 +134,7 @@ public class ProjectQueryService {
     }
 
     /**
-     * Trả về các nhiệm kỳ Leader được lưu lại của Project đã phân quyền, nhiệm kỳ mới nhất trước.
+     * [I1-PRJ-05, I2-PRJ-01, I2-PRJ-06] Trả về các nhiệm kỳ Leader được lưu lại của Project đã phân quyền, nhiệm kỳ mới nhất trước.
      *
      * @param actorUserId mã người dùng đang hoạt động
      * @param projectId mã Project được yêu cầu
@@ -150,7 +153,7 @@ public class ProjectQueryService {
     }
 
     /**
-     * Trả về thông tin Project chỉ gồm DTO mà Task cần khi đọc. Project đang mở gồm lượt tham gia
+     * [I1-PRJ-04, I2-PRJ-02, I2-PRJ-06] Trả về thông tin Project chỉ gồm DTO mà Task cần khi đọc. Project đang mở gồm lượt tham gia
      * Leader hiện tại và các thành viên hiện tại đủ điều kiện; Project đã hoàn tất trả Leader null
      * cùng danh sách thành viên đang hoạt động rỗng nhưng vẫn hiển thị cho thành viên cũ.
      *
@@ -201,7 +204,7 @@ public class ProjectQueryService {
     }
 
     /**
-     * Tính số liệu dashboard theo vai trò từ các quan hệ Project hiện tại và đang hoạt động.
+     * [I1-PRJ-05, I2-PRJ-06] Tính số liệu dashboard theo vai trò từ các quan hệ Project hiện tại và đang hoạt động.
      * Lượt tham gia lịch sử không bao giờ góp vào số liệu hiện tại của Intern hoặc Mentor.
      *
      * @param actorUserId mã người dùng đang hoạt động

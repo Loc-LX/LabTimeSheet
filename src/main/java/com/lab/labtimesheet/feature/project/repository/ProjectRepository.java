@@ -14,11 +14,15 @@ import org.springframework.data.repository.query.Param;
  *
  * <p>Các feature bên ngoài Project sử dụng service và DTO của Project thay vì truy cập repository
  * hoặc entity JPA này.
+ *
+ * <p>Truy vết mã: {@code I1-PRJ-01}–{@code I1-PRJ-04} dùng aggregate cho các thao tác ghi;
+ * {@code I1-PRJ-05} và {@code I2-PRJ-06} dùng các truy vấn đọc theo quyền; lock phục vụ
+ * {@code I2-PRJ-01}–{@code I2-PRJ-02}.
  */
 public interface ProjectRepository extends JpaRepository<ProjectEntity, Long> {
 
     /**
-     * Tải một Project với khóa ghi bi quan để phân quyền và kiểm tra bất biến ngay lúc thay
+     * [I1-PRJ-01, I1-PRJ-02, I1-PRJ-03, I1-PRJ-04, I2-PRJ-01, I2-PRJ-02] Tải một Project với khóa ghi bi quan để phân quyền và kiểm tra bất biến ngay lúc thay
      * đổi. Transaction của bên gọi giữ lock đến khi commit hoặc rollback.
      *
      * @param id mã Project
@@ -29,14 +33,14 @@ public interface ProjectRepository extends JpaRepository<ProjectEntity, Long> {
     Optional<ProjectEntity> findLockedById(@Param("id") long id);
 
     /**
-     * Liệt kê mọi Project để Admin kiểm tra chỉ đọc, theo thứ tự cập nhật mới nhất trước.
+     * [I1-PRJ-05, I2-PRJ-06] Liệt kê mọi Project để Admin kiểm tra chỉ đọc, theo thứ tự cập nhật mới nhất trước.
      *
      * @return danh sách Project đã sắp xếp
      */
     List<ProjectEntity> findAllByOrderByUpdatedAtDescIdDesc();
 
     /**
-     * Liệt kê các Project do một Mentor sở hữu, theo thứ tự cập nhật mới nhất trước.
+     * [I1-PRJ-05] Liệt kê các Project do một Mentor sở hữu, theo thứ tự cập nhật mới nhất trước.
      *
      * @param mentorUserId mã người dùng Mentor sở hữu
      * @return các Project thuộc sở hữu đã sắp xếp
@@ -44,7 +48,7 @@ public interface ProjectRepository extends JpaRepository<ProjectEntity, Long> {
     List<ProjectEntity> findByMentorUserIdOrderByUpdatedAtDescIdDesc(long mentorUserId);
 
     /**
-     * Liệt kê Project mà Intern được xem: lượt tham gia hiện tại trong Project đang mở và lượt
+     * [I1-PRJ-05, I2-PRJ-06] Liệt kê Project mà Intern được xem: lượt tham gia hiện tại trong Project đang mở và lượt
      * tham gia lịch sử chỉ được xem sau khi Project hoàn tất.
      *
      * @param internUserId mã người dùng Intern

@@ -51,6 +51,7 @@ class ProjectServiceIntegrationTest {
     @PersistenceContext
     private EntityManager entityManager;
 
+    /** [I1-PRJ-01] Tạo Project nguyên tử cùng membership và Leader đầu tiên. */
     @Test
     void createsProjectMembershipAndLeadershipInOneTransaction() {
         long mentorId = user("mentor-create@example.test", "MENTOR");
@@ -87,6 +88,7 @@ class ProjectServiceIntegrationTest {
         assertEquals(0, count("select count(*) from projects where name = 'Denied'"));
     }
 
+    /** [I1-PRJ-02] Thêm member và từ chối membership hiện tại bị trùng. */
     @Test
     void ownerAddsEligibleMemberAndDuplicateCurrentMembershipIsRejected() {
         long mentorId = user("mentor-add@example.test", "MENTOR");
@@ -112,6 +114,7 @@ class ProjectServiceIntegrationTest {
                         user("other-mentor@example.test", "MENTOR"), projectId, Long.MAX_VALUE));
     }
 
+    /** [I1-PRJ-02] Thêm nhiều member trong cùng transaction có khóa Project. */
     @Test
     void ownerAddsSeveralEligibleMembersInOneLockedTransaction() {
         long mentorId = user("mentor-batch-add@example.test", "MENTOR");
@@ -128,6 +131,7 @@ class ProjectServiceIntegrationTest {
                 """, projectId));
     }
 
+    /** [I1-PRJ-02] Lựa chọn member lỗi không được tạo dữ liệu một phần. */
     @Test
     void memberBatchRejectsMissingDuplicateCurrentAndStaleSelectionsWithoutPartialMutation() {
         long mentorId = user("mentor-batch-guard@example.test", "MENTOR");
@@ -159,6 +163,10 @@ class ProjectServiceIntegrationTest {
                 """, projectId, eligibleId, staleId));
     }
 
+    /**
+     * [I1-PRJ-03, I2-PRJ-01, I2-PRJ-02] Đổi Leader chỉ đổi nhiệm kỳ; membership cũ và toàn bộ thông tin phân công Task
+     * phải được giữ nguyên để Leader cũ tiếp tục làm việc trên Task đã giao cho mình.
+     */
     @Test
     void leaderChangeClosesOneTermAndDoesNotMoveTaskAssignments() {
         long mentorId = user("mentor-leader@example.test", "MENTOR");
@@ -173,6 +181,7 @@ class ProjectServiceIntegrationTest {
                     created_by_membership_id, assigned_by_membership_id)
                 values (?, ?, 'Keep assignee', ?, ?)
                 """, projectId, firstMembershipId, firstMembershipId, firstMembershipId);
+        var taskBeforeChange = taskAssignment(projectId);
 
         long expectedTermId = number("""
                 select id from project_leadership_terms
@@ -182,9 +191,20 @@ class ProjectServiceIntegrationTest {
 
         assertEquals(1, count("select count(*) from project_leadership_terms where project_id = ? and ended_at is null", projectId));
         assertEquals(1, count("select count(*) from project_leadership_terms where project_id = ? and ended_at is not null", projectId));
-        assertEquals(firstMembershipId, number("select assignee_membership_id from tasks where project_id = ?", projectId));
+        assertEquals(nextLeaderId, number("""
+                select membership.intern_user_id
+                from project_leadership_terms leadership
+                join project_memberships membership on membership.id = leadership.membership_id
+                where leadership.project_id = ? and leadership.ended_at is null
+                """, projectId));
+        assertEquals(1, count("""
+                select count(*) from project_memberships
+                where project_id = ? and intern_user_id = ? and left_at is null
+                """, projectId, firstLeaderId));
+        assertEquals(taskBeforeChange, taskAssignment(projectId));
     }
 
+    /** [I2-PRJ-01] Form cũ không được ghi đè nhiệm kỳ hiện tại đã thay đổi. */
     @Test
     void staleLeaderChangeCannotReplaceTheCurrentTermAfterAnotherChangeCommits() {
         long mentorId = user("mentor-stale-leader@example.test", "MENTOR");
@@ -212,6 +232,7 @@ class ProjectServiceIntegrationTest {
         assertEquals(2, count("select count(*) from project_leadership_terms where project_id = ?", projectId));
     }
 
+    /** [I2-PRJ-01] Hai handoff cạnh tranh cùng token chỉ có một request thắng. */
     @Test
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     void concurrentLeaderChangesWithTheSameTermAllowOneWinner() throws Exception {
@@ -291,6 +312,7 @@ class ProjectServiceIntegrationTest {
                 mentorId, firstLeaderId, firstReplacementId, secondReplacementId);
     }
 
+    /** [I1-PRJ-05, I2-PRJ-06] Query Project kiểm tra quyền sở hữu, membership và ID đoán ngẫu nhiên. */
     @Test
     void listAndDetailQueriesEnforceRoleOwnershipAndMembershipWithoutIdDisclosure() {
         long adminId = user("admin-view@example.test", "ADMIN");
@@ -344,6 +366,7 @@ class ProjectServiceIntegrationTest {
         assertEquals(1, projectPages.dashboardSummary(mentorId).distinctActiveMemberCount());
     }
 
+    /** [I2-PRJ-06] Thành viên cũ vẫn đọc được Project đã hoàn tất ở chế độ lịch sử. */
     @Test
     void completedProjectQueriesReturnHistoricalMembersWithoutRequiringACurrentLeader() {
         long adminId = user("admin-history@example.test", "ADMIN");
@@ -393,6 +416,7 @@ class ProjectServiceIntegrationTest {
         assertTrue(members.stream().noneMatch(member -> member.currentLeader()));
     }
 
+    /** [I1-PRJ-04] Kích hoạt Project khi các guard member, Leader và Task assignee hợp lệ. */
     @Test
     void ownerActivatesAPlannedProjectWhenCurrentMemberAndTaskAssigneeGuardsPass() {
         long mentorId = user("mentor-activate@example.test", "MENTOR");
@@ -405,6 +429,7 @@ class ProjectServiceIntegrationTest {
         assertEquals(1, count("select count(*) from projects where id = ? and activated_at is not null", projectId));
     }
 
+    /** [I1-PRJ-04] Guard assignee không hợp lệ giữ Project ở Planned và không mất Task. */
     @Test
     void activationRejectsATaskAssignedToAFormerMemberWithoutPartialMutation() {
         long mentorId = user("mentor-guard@example.test", "MENTOR");
@@ -482,6 +507,29 @@ class ProjectServiceIntegrationTest {
     private String text(String sql, Object... arguments) {
         return jdbc.queryForObject(sql, String.class, arguments);
     }
+
+    /** Đọc các cột assignment để chứng minh I2-PRJ-02 không phát sinh chuyển Task ngầm. */
+    private TaskAssignmentSnapshot taskAssignment(long projectId) {
+        return jdbc.queryForObject("""
+                select assignee_membership_id, created_by_membership_id,
+                       assigned_by_membership_id, status, title
+                from tasks
+                where project_id = ?
+                """, (resultSet, rowNumber) -> new TaskAssignmentSnapshot(
+                resultSet.getLong("assignee_membership_id"),
+                resultSet.getLong("created_by_membership_id"),
+                resultSet.getLong("assigned_by_membership_id"),
+                resultSet.getString("status"),
+                resultSet.getString("title")), projectId);
+    }
+
+    /** Snapshot tối thiểu của Task dùng riêng để kiểm thử bàn giao Leader. */
+    private record TaskAssignmentSnapshot(
+            long assigneeMembershipId,
+            long creatorMembershipId,
+            long assignerMembershipId,
+            String status,
+            String title) {}
 
     private OffsetDateTime dbTime(Instant instant) {
         return instant.atOffset(ZoneOffset.UTC);

@@ -25,6 +25,12 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>Aggregate đã tồn tại được khóa bi quan trước khi phân quyền và kiểm tra vòng đời tại thời
  * điểm thay đổi. Thông tin Account và Task được lấy qua service công khai của feature tương ứng;
  * Project không import repository hoặc entity của các feature đó.
+ *
+ * <p>Truy vết mã công việc: Iter 1 gồm {@code I1-PRJ-01} đến {@code I1-PRJ-04}; trong đó
+ * {@code I1-PRJ-01} hiện gắn vào path tạo vì chưa có operation chỉnh sửa riêng. Iter 2 đã có
+ * trong service này gồm {@code I2-PRJ-01} và {@code I2-PRJ-02}. Các mã {@code I2-PRJ-03},
+ * {@code I2-PRJ-04} và {@code I2-PRJ-05} là luồng thay thế/xóa thành viên/chốt Project chưa có operation ở service này,
+ * nên không gắn nhầm vào luồng tạo, thêm thành viên, đổi Leader hoặc kích hoạt.
  */
 @Service
 @RequiredArgsConstructor
@@ -37,7 +43,7 @@ public class ProjectService {
     private final Clock clock;
 
     /**
-     * Nguyên tử tạo Project Planned thuộc Mentor, lượt tham gia ban đầu đủ điều kiện và nhiệm kỳ
+     * [I1-PRJ-01] Nguyên tử tạo Project Planned thuộc Mentor, lượt tham gia ban đầu đủ điều kiện và nhiệm kỳ
      * Leader đầu tiên. {@code saveAndFlush} phát hiện lỗi bất biến cơ sở dữ liệu trước khi commit.
      *
      * @param actorUserId mã Mentor đang hoạt động và đã xác thực, là người tạo và sở hữu Project
@@ -76,7 +82,7 @@ public class ProjectService {
     }
 
     /**
-     * Thêm trọn bộ lựa chọn các Intern đủ điều kiện chưa là thành viên trong khi giữ một khóa ghi
+     * [I1-PRJ-02] Thêm trọn bộ lựa chọn các Intern đủ điều kiện chưa là thành viên trong khi giữ một khóa ghi
      * của Project. Mọi mã đều được kiểm tra lại sau khi phân quyền chủ sở hữu và trước khi aggregate
      * thay đổi, vì vậy lựa chọn thiếu, trùng, cũ, không đủ điều kiện hoặc đã là thành viên sẽ không
      * làm thay đổi dữ liệu thành viên.
@@ -111,11 +117,12 @@ public class ProjectService {
     }
 
     /**
-     * Thay Leader hiện tại chỉ khi nhiệm kỳ được gửi lên vẫn là nhiệm kỳ hiện tại.
+     * [I1-PRJ-03, I2-PRJ-01, I2-PRJ-02] Thay Leader hiện tại chỉ khi nhiệm kỳ được gửi lên vẫn là nhiệm kỳ hiện tại.
      *
      * <p>Khóa ghi của Project tuần tự hóa các lần bàn giao cạnh tranh. Kiểm tra token nhiệm kỳ sẽ
      * từ chối form được gửi sau khi một lần bàn giao khác đã commit; việc đóng/mở hai khoảng thời
-     * gian vẫn nằm trong một transaction nguyên tử. Phân công Task được giữ nguyên.
+     * gian vẫn nằm trong một transaction nguyên tử. Phân công Task, người tạo và người thực hiện
+     * phân công được giữ nguyên; Leader cũ chỉ mất quyền quản lý Task khi nhiệm kỳ kết thúc.
      *
      * @param actorUserId mã Mentor sở hữu đã xác thực
      * @param projectId mã Project cần thay Leader
@@ -137,7 +144,8 @@ public class ProjectService {
                 clock.instant());
 
         // PostgreSQL kiểm tra ngay việc chồng lấn nhiệm kỳ. Flush thời điểm kết thúc nhiệm kỳ cũ
-        // trước khi thêm nhiệm kỳ thay thế; toàn bộ thao tác vẫn nguyên tử trong transaction.
+        // trước khi thêm nhiệm kỳ thay thế; I2-PRJ-02: không có thao tác cập nhật bảng tasks.
+        // Toàn bộ bàn giao vẫn nguyên tử trong transaction.
         projects.flush();
         project.completeLeaderChange(actorUserId, change);
         projects.flush();
@@ -159,7 +167,7 @@ public class ProjectService {
     }
 
     /**
-     * Kích hoạt Project Planned trong khi giữ khóa ghi. Điều kiện Account hiện tại và tính hợp lệ
+     * [I1-PRJ-04] Kích hoạt Project Planned trong khi giữ khóa ghi. Điều kiện Account hiện tại và tính hợp lệ
      * của người được giao Task được kiểm tra trong cùng transaction; lỗi ở bất kỳ bước nào giữ
      * Project ở Planned và bảo toàn Task cùng lịch sử khoảng thời gian.
      *

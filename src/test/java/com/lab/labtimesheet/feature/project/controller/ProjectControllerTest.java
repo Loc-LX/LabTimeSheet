@@ -46,6 +46,10 @@ import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+/**
+ * Kiểm thử web cho {@code I1-PRJ-01}–{@code I1-PRJ-05}, cùng các trạng thái lịch sử
+ * {@code I2-PRJ-01}, {@code I2-PRJ-02} và {@code I2-PRJ-06} của luồng Project.
+ */
 @WebMvcTest(ProjectController.class)
 class ProjectControllerTest {
 

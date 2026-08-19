@@ -15,7 +15,7 @@ import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 /**
- * Khoảng thời gian thành viên JPA liên kết một Intern với một Project.
+ * [I1-PRJ-02, I2-PRJ-02, I2-PRJ-06] Khoảng thời gian thành viên JPA liên kết một Intern với một Project.
  *
  * <p>Khi rời Project, khoảng thời gian được đóng; dòng dữ liệu và nguồn gốc vẫn được giữ lại cho
  * lịch sử Project và Task đã hoàn tất. Thành viên hiện tại được biểu diễn bằng {@code leftAt} null.

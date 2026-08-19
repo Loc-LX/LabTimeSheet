@@ -18,6 +18,7 @@ class ProjectEntityTest {
 
     private static final Instant CREATED_AT = Instant.parse("2026-08-14T02:00:00Z");
 
+    /** [I1-PRJ-01, I1-PRJ-03] Tạo aggregate có membership và Leader đầu tiên cùng lúc. */
     @Test
     void planningCreatesTheInitialLeaderMembershipAndTermTogether() {
         var project = ProjectEntity.plan(
@@ -39,6 +40,7 @@ class ProjectEntityTest {
         assertEquals(20L, project.currentLeader().internUserId());
     }
 
+    /** [I1-PRJ-01, I1-PRJ-03] Từ chối ngày hoặc Leader ban đầu không hợp lệ. */
     @Test
     void planningRejectsAnIneligibleInitialLeaderAndInvalidDates() {
         assertThrows(ProjectRuleViolationException.class, () -> ProjectEntity.plan(
@@ -59,6 +61,7 @@ class ProjectEntityTest {
                 CREATED_AT));
     }
 
+    /** [I1-PRJ-02] Thêm member đủ điều kiện và chặn membership hiện tại bị trùng. */
     @Test
     void ownerAddsEligibleMembersButNotDuplicateCurrentMemberships() {
         var project = plannedProject();
@@ -73,6 +76,7 @@ class ProjectEntityTest {
                 () -> project.addMember(11L, activeIntern(22L), CREATED_AT.plusSeconds(120)));
     }
 
+    /** [I1-PRJ-02] Một Intern có thể có membership hiện tại ở nhiều Project. */
     @Test
     void theSameInternCanBelongToSeparateProjects() {
         var first = plannedProject();
@@ -91,6 +95,7 @@ class ProjectEntityTest {
         assertTrue(second.hasCurrentMember(21L));
     }
 
+    /** [I1-PRJ-03, I2-PRJ-01, I2-PRJ-02] Leader cũ hạ vai trò nhưng vẫn là thành viên hiện tại của Project. */
     @Test
     void ownerChangesExactlyOneLeaderWithoutChangingMemberships() {
         var project = plannedProject();
@@ -100,6 +105,8 @@ class ProjectEntityTest {
         project.completeLeaderChange(10L, change);
 
         assertEquals(2, project.memberships().size());
+        assertTrue(project.hasCurrentMember(20L));
+        assertTrue(project.hasCurrentMember(21L));
         assertEquals(2, project.leadershipTerms().size());
         assertEquals(1, project.leadershipTerms().stream().filter(ProjectLeadershipTermEntity::isCurrent).count());
         assertEquals(21L, project.currentLeader().internUserId());
@@ -110,6 +117,7 @@ class ProjectEntityTest {
                 () -> project.prepareLeaderChange(10L, null, activeIntern(22L), CREATED_AT.plusSeconds(180)));
     }
 
+    /** [I1-PRJ-04] Chỉ kích hoạt khi owner, member, Leader và assignee guard đều hợp lệ. */
     @Test
     void activationRequiresOwnerAndValidCurrentTaskAssignees() {
         var project = plannedProject();

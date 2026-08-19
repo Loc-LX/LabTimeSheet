@@ -33,6 +33,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
  * <p>Service Project vẫn là nơi quyết định về sở hữu, thành viên, vòng đời và kiểm tra trong
  * transaction. Lỗi nghiệp vụ đã biết được trả về view an toàn ban đầu, còn lỗi phân quyền được
  * chuyển cho {@code ProjectControllerAdvice} để không tiết lộ mã tài nguyên.
+ *
+ * <p>Truy vết mã UI Project: {@code I1-PRJ-01} tạo Project, {@code I1-PRJ-02} thêm member,
+ * {@code I1-PRJ-03} đổi Leader, {@code I1-PRJ-04} kích hoạt, {@code I1-PRJ-05} hiển thị các
+ * trang Project; {@code I2-PRJ-01}, {@code I2-PRJ-02} và {@code I2-PRJ-06} giữ lịch sử, handoff
+ * an toàn và đọc lịch sử hoàn tất.
  */
 @Controller
 @RequestMapping("/projects")
@@ -45,7 +50,7 @@ public class ProjectController {
     private final Clock clock;
 
     /**
-     * Chỉ liệt kê Project mà người thực hiện đã xác thực được xem và chỉ hiển thị chức năng tạo
+     * [I1-PRJ-01, I1-PRJ-05, I2-PRJ-06] Chỉ liệt kê Project mà người thực hiện đã xác thực được xem và chỉ hiển thị chức năng tạo
      * Project cho Mentor.
      *
      * @param principal người dùng đã xác thực
@@ -61,7 +66,7 @@ public class ProjectController {
     }
 
     /**
-     * Mở biểu mẫu tạo Project cho Mentor đã xác thực.
+     * [I1-PRJ-01, I1-PRJ-05] Mở biểu mẫu tạo Project cho Mentor đã xác thực.
      *
      * @param principal người dùng đã xác thực
      * @param model model của phản hồi
@@ -79,7 +84,7 @@ public class ProjectController {
     }
 
     /**
-     * Tạo Project hoặc hiển thị lại biểu mẫu với dữ liệu an toàn đã nhập khi kiểm tra thất bại.
+     * [I1-PRJ-01, I1-PRJ-05] Tạo Project hoặc hiển thị lại biểu mẫu với dữ liệu an toàn đã nhập khi kiểm tra thất bại.
      *
      * @param principal người dùng đã xác thực
      * @param projectForm dữ liệu biểu mẫu trên trình duyệt sau khi gắn dữ liệu
@@ -113,7 +118,7 @@ public class ProjectController {
     }
 
     /**
-     * Hiển thị chi tiết Project đã phân quyền mà không tiết lộ mã được đoán ngẫu nhiên.
+     * [I1-PRJ-05, I2-PRJ-06] Hiển thị chi tiết Project đã phân quyền mà không tiết lộ mã được đoán ngẫu nhiên.
      *
      * @param principal người dùng đã xác thực
      * @param projectId mã Project được yêu cầu
@@ -127,7 +132,7 @@ public class ProjectController {
     }
 
     /**
-     * Kích hoạt Project Planned hoặc hiển thị lại chi tiết với lỗi vòng đời an toàn.
+     * [I1-PRJ-04, I1-PRJ-05] Kích hoạt Project Planned hoặc hiển thị lại chi tiết với lỗi vòng đời an toàn.
      *
      * @param principal người dùng đã xác thực
      * @param projectId mã Project cần kích hoạt
@@ -148,7 +153,7 @@ public class ProjectController {
     }
 
     /**
-     * Hiển thị các khoảng thời gian thành viên hiện tại và lịch sử đã được phân quyền.
+     * [I1-PRJ-02, I1-PRJ-05, I2-PRJ-06] Hiển thị các khoảng thời gian thành viên hiện tại và lịch sử đã được phân quyền.
      *
      * @param principal người dùng đã xác thực
      * @param projectId mã Project được yêu cầu
@@ -164,7 +169,7 @@ public class ProjectController {
     }
 
     /**
-     * Nguyên tử thêm toàn bộ Intern đủ điều kiện đã chọn hoặc hiển thị lại lịch sử thành viên với
+     * [I1-PRJ-02, I1-PRJ-05] Nguyên tử thêm toàn bộ Intern đủ điều kiện đã chọn hoặc hiển thị lại lịch sử thành viên với
      * các lựa chọn vẫn còn đủ điều kiện và số lựa chọn không còn khả dụng.
      *
      * @param principal người dùng đã xác thực
@@ -207,7 +212,7 @@ public class ProjectController {
     }
 
     /**
-     * Hiển thị lịch sử nhiệm kỳ Leader đã được phân quyền và biểu mẫu thay đổi Leader chỉ dành
+     * [I1-PRJ-03, I1-PRJ-05, I2-PRJ-01, I2-PRJ-06] Hiển thị lịch sử nhiệm kỳ Leader đã được phân quyền và biểu mẫu thay đổi Leader chỉ dành
      * cho Mentor sở hữu khi Project còn cho phép thay đổi.
      *
      * @param principal người dùng đã xác thực
@@ -224,7 +229,7 @@ public class ProjectController {
     }
 
     /**
-     * Bổ nhiệm một thành viên hiện tại đủ điều kiện làm Leader mới; nếu thất bại thì hiển thị lại
+     * [I1-PRJ-03, I1-PRJ-05, I2-PRJ-01, I2-PRJ-02] Bổ nhiệm một thành viên hiện tại đủ điều kiện làm Leader mới; nếu thất bại thì hiển thị lại
      * lịch sử Leader cùng dữ liệu người dùng đã nhập.
      *
      * @param principal người dùng đã xác thực

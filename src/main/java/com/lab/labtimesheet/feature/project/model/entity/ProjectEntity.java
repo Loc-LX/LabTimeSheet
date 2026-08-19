@@ -32,6 +32,10 @@ import lombok.NoArgsConstructor;
  * Trạng thái Completed là kết thúc; các khoảng thời gian hiện tại được đóng và lịch sử được giữ
  * lại thay vì gán lại hoặc xóa. Các phương thức thay đổi tự kiểm tra quy tắc aggregate, độc lập với
  * việc nút điều khiển có được hiển thị trên trình duyệt hay không.
+ *
+ * <p>Truy vết mã công việc: {@code I1-PRJ-01} tạo Project, {@code I1-PRJ-02} quản lý membership,
+ * {@code I1-PRJ-03} quản lý Leader, {@code I1-PRJ-04} kích hoạt Project, và
+ * {@code I2-PRJ-01}–{@code I2-PRJ-02} bảo toàn lịch sử/bàn giao Leader.
  */
 @Entity
 @Table(name = "projects")
@@ -97,7 +101,7 @@ public class ProjectEntity {
     }
 
     /**
-     * Tạo Project ở trạng thái Planned với một lượt tham gia Leader ban đầu đủ điều kiện và nhiệm
+     * [I1-PRJ-01, I1-PRJ-03] Tạo Project ở trạng thái Planned với một lượt tham gia Leader ban đầu đủ điều kiện và nhiệm
      * kỳ Leader đầu tiên. Aggregate trả về không bao giờ rỗng hoặc không có Leader.
      *
      * @param mentorUserId Mentor đang hoạt động sở hữu Project
@@ -142,7 +146,7 @@ public class ProjectEntity {
     }
 
     /**
-     * Thêm một thành viên hiện tại đủ điều kiện và không trùng vào Project còn thay đổi được sau
+     * [I1-PRJ-02] Thêm một thành viên hiện tại đủ điều kiện và không trùng vào Project còn thay đổi được sau
      * khi đã xác thực Mentor sở hữu.
      *
      * @param actorMentorUserId mã Mentor sở hữu đã xác thực
@@ -163,13 +167,14 @@ public class ProjectEntity {
     }
 
     /**
-     * Đóng nhiệm kỳ Leader hiện tại và chuẩn bị thành viên hiện tại đủ điều kiện làm Leader thay
-     * thế chỉ khi bên gọi vẫn đang giữ đúng nhiệm kỳ đã đọc. Bên gọi phải flush khoảng thời gian đã
-     * đóng trước khi mở nhiệm kỳ thay thế.
+     * [I1-PRJ-03, I2-PRJ-01, I2-PRJ-02] Đóng nhiệm kỳ Leader hiện tại và chuẩn bị thành viên hiện tại đủ điều kiện làm
+     * Leader thay thế chỉ khi bên gọi vẫn đang giữ đúng nhiệm kỳ đã đọc. Bên gọi phải flush khoảng
+     * thời gian đã đóng trước khi mở nhiệm kỳ thay thế.
      *
      * <p>Token nhiệm kỳ là cơ chế chống ghi đè từ biểu mẫu Leader. Service khóa Project trước khi
      * gọi hàm này; nếu nhiệm kỳ đã đổi thì có nghĩa một lần bàn giao khác đã commit sau khi biểu
-     * mẫu được hiển thị và yêu cầu hiện tại không được ghi đè lên kết quả đó.
+     * mẫu được hiển thị và yêu cầu hiện tại không được ghi đè lên kết quả đó. Việc đổi Leader chỉ
+     * đóng/mở nhiệm kỳ; khoảng thời gian thành viên cũ và các khóa phân công Task không bị chạm tới.
      *
      * @param actorMentorUserId mã Mentor sở hữu đã xác thực
      * @param expectedCurrentLeadershipTermId mã nhiệm kỳ bên gọi đã đọc, hoặc null với aggregate
@@ -188,8 +193,10 @@ public class ProjectEntity {
         requireMutable();
         requireEligible(intern);
         Objects.requireNonNull(at, "at");
-        var replacement = currentMembership(intern.userId());
         var current = currentLeadershipTerm();
+        // I2-PRJ-02: Leader cũ phải còn là thành viên hiện tại để vẫn giữ quyền assignee của Task.
+        currentMembership(current.internUserId());
+        var replacement = currentMembership(intern.userId());
         if (expectedCurrentLeadershipTermId != null
                 && !Objects.equals(current.id(), expectedCurrentLeadershipTermId)) {
             throw new ProjectRuleViolationException("Leadership changed; refresh the Project and try again");
@@ -204,7 +211,8 @@ public class ProjectEntity {
     }
 
     /**
-     * Mở nhiệm kỳ Leader thay thế sau khi nhiệm kỳ hiện tại trước đó đã được đóng và flush.
+     * [I1-PRJ-03, I2-PRJ-01, I2-PRJ-02] Mở nhiệm kỳ Leader thay thế sau khi nhiệm kỳ hiện tại trước đó đã được đóng và
+     * flush; không đóng membership cũ và không cập nhật các dòng Task.
      *
      * @param actorMentorUserId mã Mentor sở hữu đã xác thực
      * @param change thông tin Leader thay thế đã chuẩn bị trong transaction này
@@ -212,6 +220,9 @@ public class ProjectEntity {
     public void completeLeaderChange(long actorMentorUserId, ProjectLeaderChange change) {
         requireOwner(actorMentorUserId);
         Objects.requireNonNull(change, "change");
+        if (!change.replacement().isCurrent()) {
+            throw new ProjectRuleViolationException("Replacement Leader must be a current Project member");
+        }
         if (leadershipTerms.stream().anyMatch(ProjectLeadershipTermEntity::isCurrent)) {
             throw new ProjectRuleViolationException("Current Leader must be closed before replacement");
         }
@@ -220,7 +231,7 @@ public class ProjectEntity {
     }
 
     /**
-     * Chuyển Project Planned sang Active sau khi vượt qua các kiểm tra về thành viên hiện tại,
+     * [I1-PRJ-04] Chuyển Project Planned sang Active sau khi vượt qua các kiểm tra về thành viên hiện tại,
      * Leader và người được giao Task. Chuyển trạng thái chỉ đi một chiều và lưu thời điểm kích hoạt
      * do server cấp.
      *
