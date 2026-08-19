@@ -88,7 +88,10 @@ class AttendanceLombokBoilerplateTest {
                         GlobalCalendarEventRepository.class));
         assertConstructors(AttendanceService.class, constructor(PACKAGE_PRIVATE));
 
-        assertConstructors(AttendancePolicyEntity.class, constructor(Modifier.PROTECTED));
+        assertConstructors(
+                AttendancePolicyEntity.class,
+                constructor(Modifier.PROTECTED),
+                constructor(Modifier.PUBLIC, AttendancePolicy.class, long.class));
         assertConstructors(
                 AttendanceRecordEntity.class,
                 constructor(Modifier.PROTECTED),
@@ -191,7 +194,10 @@ class AttendanceLombokBoilerplateTest {
     void entitiesExposeOnlyIntentionalPublicAndProtectedDeclaredMethods() {
         assertMethodSurface(
                 AttendancePolicyEntity.class,
-                method(Modifier.PUBLIC, "toDomain", AttendancePolicy.class));
+                method(Modifier.PUBLIC, "toDomain", AttendancePolicy.class),
+                method(Modifier.PUBLIC, "update", void.class, AttendancePolicy.class),
+                method(Modifier.PUBLIC, "effectiveFrom", LocalDate.class),
+                method(Modifier.PUBLIC, "version", long.class));
         assertMethodSurface(
                 AttendanceRecordEntity.class,
                 method(Modifier.PUBLIC, "toDomain", AttendanceRecord.class),
