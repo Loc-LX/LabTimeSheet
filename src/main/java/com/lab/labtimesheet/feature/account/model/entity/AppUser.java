@@ -59,8 +59,21 @@ public class AppUser {
     @Getter
     private Instant activatedAt;
 
+    @Column(name = "locked_at")
+    @Getter
+    private Instant lockedAt;
+
+    @Column(name = "deactivated_at")
+    @Getter
+    private Instant deactivatedAt;
+
+    @Column(name = "last_login_at")
+    @Getter
+    private Instant lastLoginAt;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by_user_id")
+    @Getter
     private AppUser createdBy;
 
     @Column(name = "created_at", nullable = false)
@@ -128,6 +141,51 @@ public class AppUser {
         passwordHash = encodedPassword;
         accountStatus = AccountStatus.ACTIVE;
         activatedAt = now;
+        updatedAt = now;
+    }
+
+    /**
+     * Locks an active account, recording when the explicit Admin action occurred.
+     *
+     * @param now server lock timestamp
+     * @throws IllegalStateException when the account is not active
+     */
+    public void lock(Instant now) {
+        if (accountStatus != AccountStatus.ACTIVE) {
+            throw new IllegalStateException("Only an active account can be locked");
+        }
+        accountStatus = AccountStatus.LOCKED;
+        lockedAt = now;
+        updatedAt = now;
+    }
+
+    /**
+     * Unlocks a locked account without changing its role or recreating its credentials.
+     *
+     * @param now server unlock timestamp
+     * @throws IllegalStateException when the account is not locked
+     */
+    public void unlock(Instant now) {
+        if (accountStatus != AccountStatus.LOCKED) {
+            throw new IllegalStateException("Only a locked account can be unlocked");
+        }
+        accountStatus = AccountStatus.ACTIVE;
+        lockedAt = null;
+        updatedAt = now;
+    }
+
+    /**
+     * Deactivates an active account, recording when the explicit Admin action occurred.
+     *
+     * @param now server deactivation timestamp
+     * @throws IllegalStateException when the account is not active
+     */
+    public void deactivate(Instant now) {
+        if (accountStatus != AccountStatus.ACTIVE) {
+            throw new IllegalStateException("Only an active account can be deactivated");
+        }
+        accountStatus = AccountStatus.DEACTIVATED;
+        deactivatedAt = now;
         updatedAt = now;
     }
 

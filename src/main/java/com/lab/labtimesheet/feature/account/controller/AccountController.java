@@ -2,6 +2,7 @@ package com.lab.labtimesheet.feature.account.controller;
 
 import java.security.Principal;
 
+import com.lab.labtimesheet.feature.account.model.GlobalRole;
 import com.lab.labtimesheet.feature.account.model.dto.ActivationForm;
 import com.lab.labtimesheet.feature.account.model.dto.CreateAccountForm;
 import com.lab.labtimesheet.feature.account.service.AccountService;
@@ -10,16 +11,23 @@ import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
 
 /**
- * Handles Admin account creation and single-use account activation browser flows. Known database uniqueness
- * constraints are mapped to their owning form fields without exposing persistence diagnostics.
+ * Handles Admin account management browser flows: creation, single-use activation, listing, detail,
+ * and the lock/unlock/deactivation lifecycle actions. Known database uniqueness constraints are mapped
+ * to their owning form fields without exposing persistence diagnostics, and lifecycle transition
+ * failures redirect back to the affected detail page rather than surfacing a crash page.
  */
 @Controller
 @RequiredArgsConstructor(access = AccessLevel.PACKAGE)
@@ -32,6 +40,58 @@ class AccountController {
             model.addAttribute("accountForm", new CreateAccountForm());
         }
         return "accounts/new";
+    }
+
+    @GetMapping("/admin/accounts")
+    String list(@RequestParam(value = "role", required = false) GlobalRole role, Model model) {
+        model.addAttribute("accountRows", accounts.listAccounts(role));
+        model.addAttribute("selectedRole", role);
+        return "accounts/list";
+    }
+
+    @GetMapping("/admin/accounts/{id}")
+    String detail(@PathVariable long id, Model model) {
+        model.addAttribute("account", accounts.requireAccountDetail(id));
+        return "accounts/detail";
+    }
+
+    @PostMapping("/admin/accounts/{id}/lock")
+    String lock(@PathVariable long id, Principal principal) {
+        try {
+            accounts.lockAccount(id, accounts.requireActiveAdminId(principal.getName()));
+            return "redirect:/admin/accounts/" + id + "?locked";
+        } catch (IllegalArgumentException | IllegalStateException exception) {
+            return "redirect:/admin/accounts/" + id + "?error";
+        }
+    }
+
+    @PostMapping("/admin/accounts/{id}/unlock")
+    String unlock(@PathVariable long id, Principal principal) {
+        try {
+            accounts.unlockAccount(id, accounts.requireActiveAdminId(principal.getName()));
+            return "redirect:/admin/accounts/" + id + "?unlocked";
+        } catch (IllegalArgumentException | IllegalStateException exception) {
+            return "redirect:/admin/accounts/" + id + "?error";
+        }
+    }
+
+    @PostMapping("/admin/accounts/{id}/deactivate")
+    String deactivate(@PathVariable long id, Principal principal) {
+        try {
+            accounts.deactivateAccount(id, accounts.requireActiveAdminId(principal.getName()));
+            return "redirect:/admin/accounts/" + id + "?deactivated";
+        } catch (IllegalArgumentException | IllegalStateException exception) {
+            return "redirect:/admin/accounts/" + id + "?error";
+        }
+    }
+
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    @ExceptionHandler(IllegalArgumentException.class)
+    String missingAccount(IllegalArgumentException exception, Model model) {
+        model.addAttribute("errorStatus", 404);
+        model.addAttribute("errorTitle", "Account not found");
+        model.addAttribute("errorMessage", "The requested account could not be found.");
+        return "error/generic";
     }
 
     @PostMapping("/admin/accounts")

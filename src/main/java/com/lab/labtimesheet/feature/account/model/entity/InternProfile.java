@@ -28,6 +28,7 @@ public class InternProfile {
     private Long userId;
 
     @Column(name = "student_code", nullable = false, length = 64)
+    @Getter
     private String studentCode;
 
     @Column(length = 120)

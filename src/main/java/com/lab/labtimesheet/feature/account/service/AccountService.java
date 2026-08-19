@@ -14,6 +14,8 @@ import com.lab.labtimesheet.feature.account.model.AccountStatus;
 import com.lab.labtimesheet.feature.account.model.GlobalRole;
 import com.lab.labtimesheet.feature.account.model.InternshipStatus;
 import com.lab.labtimesheet.feature.account.model.TokenPurpose;
+import com.lab.labtimesheet.feature.account.model.dto.AccountAdminDetail;
+import com.lab.labtimesheet.feature.account.model.dto.AccountAdminListItem;
 import com.lab.labtimesheet.feature.account.model.dto.AccountCreation;
 import com.lab.labtimesheet.feature.account.model.dto.AccountIdentity;
 import com.lab.labtimesheet.feature.account.model.dto.AccountSummary;
@@ -27,6 +29,9 @@ import com.lab.labtimesheet.feature.account.repository.InternProfileRepository;
 import com.lab.labtimesheet.feature.account.repository.UserActionTokenRepository;
 import com.lab.labtimesheet.feature.integration.service.MailDeliveryService;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.core.session.SessionInformation;
+import org.springframework.security.core.session.SessionRegistry;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -48,6 +53,7 @@ public class AccountService {
     private final PasswordEncoder passwords;
     private final Clock clock;
     private final TransactionTemplate transactions;
+    private final SessionRegistry sessionRegistry;
     private final String publicOrigin;
 
     AccountService(
@@ -58,6 +64,7 @@ public class AccountService {
             PasswordEncoder passwords,
             Clock clock,
             TransactionTemplate transactions,
+            SessionRegistry sessionRegistry,
             @Value("${lab.public-origin}") String publicOrigin) {
         this.users = users;
         this.internProfiles = internProfiles;
@@ -66,6 +73,7 @@ public class AccountService {
         this.passwords = passwords;
         this.clock = clock;
         this.transactions = transactions;
+        this.sessionRegistry = sessionRegistry;
         this.publicOrigin = normalizeOrigin(publicOrigin);
     }
 
@@ -174,6 +182,105 @@ public class AccountService {
                 users.countByAccountStatus(AccountStatus.ACTIVE),
                 users.countByAccountStatus(AccountStatus.PENDING_ACTIVATION),
                 internProfiles.countByInternshipStatus(InternshipStatus.ACTIVE));
+    }
+
+    /**
+     * Lists the non-secret Admin account rows, optionally restricted to one immutable role.
+     *
+     * @param role role filter, or {@code null} to include every account
+     * @return deterministic listing rows without secret data
+     */
+    @Transactional(readOnly = true)
+    public List<AccountAdminListItem> listAccounts(GlobalRole role) {
+        return users.findAdminListItems(role);
+    }
+
+    /**
+     * Resolves the non-secret Admin account-detail projection, including lifecycle timestamps and
+     * the owning internship when the account role is Intern.
+     *
+     * @param userId account identifier
+     * @return complete non-secret detail projection
+     * @throws IllegalArgumentException when the account does not exist
+     */
+    @Transactional(readOnly = true)
+    public AccountAdminDetail requireAccountDetail(long userId) {
+        AppUser user = users.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("Account not found"));
+        String createdByEmail = user.getCreatedBy() == null ? null : user.getCreatedBy().getEmail();
+        InternProfile profile = internProfiles.findById(userId).orElse(null);
+        return new AccountAdminDetail(
+                user.getId(),
+                user.getEmail(),
+                user.getDisplayName(),
+                user.getGlobalRole(),
+                user.getAccountStatus(),
+                user.getActivatedAt(),
+                user.getLockedAt(),
+                user.getDeactivatedAt(),
+                user.getLastLoginAt(),
+                createdByEmail,
+                profile == null ? null : profile.getStudentCode(),
+                profile == null ? null : profile.getInternshipStartDate(),
+                profile == null ? null : profile.getInternshipEndDate(),
+                profile == null ? null : profile.getInternshipStatus());
+    }
+
+    /**
+     * Locks an active account and expires its existing authenticated sessions per ACC-018.
+     *
+     * @param userId account to lock
+     * @param adminId active Admin authorizing the transition
+     * @throws IllegalArgumentException when the account is missing or not active
+     */
+    @Transactional
+    public void lockAccount(long userId, long adminId) {
+        requireActiveAdmin(users.findById(adminId)
+                .orElseThrow(() -> new IllegalArgumentException("Admin not found")));
+        AppUser user = requireMutable(userId);
+        if (user.getAccountStatus() != AccountStatus.ACTIVE) {
+            throw new IllegalArgumentException("Only an active account can be locked");
+        }
+        user.lock(clock.instant());
+        expireSessions(user.getEmail());
+    }
+
+    /**
+     * Unlocks a locked account, preserving its role and credentials per ACC-015.
+     *
+     * @param userId account to unlock
+     * @param adminId active Admin authorizing the transition
+     * @throws IllegalArgumentException when the account is missing or not locked
+     */
+    @Transactional
+    public void unlockAccount(long userId, long adminId) {
+        requireActiveAdmin(users.findById(adminId)
+                .orElseThrow(() -> new IllegalArgumentException("Admin not found")));
+        AppUser user = requireMutable(userId);
+        if (user.getAccountStatus() != AccountStatus.LOCKED) {
+            throw new IllegalArgumentException("Only a locked account can be unlocked");
+        }
+        user.unlock(clock.instant());
+    }
+
+    /**
+     * Deactivates an active account and expires its existing authenticated sessions per ACC-018.
+     * Historical attribution remains visible through the identity and detail projections.
+     *
+     * @param userId account to deactivate
+     * @param adminId active Admin authorizing the transition
+     * @throws IllegalArgumentException when the account is missing or not active
+     */
+    @Transactional
+    public void deactivateAccount(long userId, long adminId) {
+        requireActiveAdmin(users.findById(adminId)
+                .orElseThrow(() -> new IllegalArgumentException("Admin not found")));
+        AppUser user = requireMutable(userId);
+        if (user.getAccountStatus() != AccountStatus.ACTIVE) {
+            throw new IllegalArgumentException("Only an active account can be deactivated");
+        }
+        user.deactivate(clock.instant());
+        expireSessions(user.getEmail());
     }
 
     /**
@@ -306,6 +413,30 @@ public class AccountService {
             throw new IllegalArgumentException("An active Admin is required");
         }
         return user.getId();
+    }
+
+    private AppUser requireMutable(long userId) {
+        return users.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("Account not found"));
+    }
+
+    /**
+     * Expires every registered Spring Security session whose principal matches the account email,
+     * so a locked or deactivated account cannot keep using existing authenticated sessions.
+     *
+     * @param email normalized account email used as the authentication principal name
+     */
+    private void expireSessions(String email) {
+        for (Object principal : sessionRegistry.getAllPrincipals()) {
+            String principalName = principal instanceof UserDetails details
+                    ? details.getUsername()
+                    : String.valueOf(principal);
+            if (email.equalsIgnoreCase(principalName)) {
+                for (SessionInformation information : sessionRegistry.getAllSessions(principal, false)) {
+                    information.expireNow();
+                }
+            }
+        }
     }
 
     private static AccountIdentity identity(AppUser user) {

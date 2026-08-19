@@ -1,8 +1,10 @@
 package com.lab.labtimesheet.feature.account.repository;
 
+import java.util.List;
 import java.util.Optional;
 
 import com.lab.labtimesheet.feature.account.model.AccountStatus;
+import com.lab.labtimesheet.feature.account.model.dto.AccountAdminListItem;
 import com.lab.labtimesheet.feature.account.model.entity.AppUser;
 import com.lab.labtimesheet.feature.account.model.GlobalRole;
 import jakarta.persistence.LockModeType;
@@ -37,4 +39,22 @@ public interface AppUserRepository extends JpaRepository<AppUser, Long> {
 
     /** Counts accounts in a lifecycle state. */
     long countByAccountStatus(AccountStatus status);
+
+    /**
+     * Projects the non-secret Admin listing rows, including each Intern's internship summary.
+     * When {@code role} is supplied the result is restricted to that immutable role.
+     *
+     * @param role optional role filter, or {@code null} for every role
+     * @return deterministic rows ordered by display name then account ID
+     */
+    @Query("""
+            select new com.lab.labtimesheet.feature.account.model.dto.AccountAdminListItem(
+                u.id, u.email, u.displayName, u.globalRole, u.accountStatus,
+                p.internshipStatus, p.internshipEndDate, u.lastLoginAt)
+            from AppUser u
+            left join InternProfile p on p.userId = u.id
+            where :role is null or u.globalRole = :role
+            order by u.displayName asc, u.id asc
+            """)
+    List<AccountAdminListItem> findAdminListItems(@Param("role") GlobalRole role);
 }
