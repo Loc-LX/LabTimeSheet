@@ -9,7 +9,8 @@
 <body>
 <a id="primary-action" class="button" th:href="@{/dashboard}">Back to overview</a>
 <main>
-    <p class="page-description">Maintain the global events and day-off rules applied to attendance.</p>
+    <p class="page-description">Maintain the global events and day-off rules applied to attendance.
+    <a th:href="@{/attendance/calendar/holidays}">Preview Vietnamese holidays</a>.</p>
     <p class="alert" th:if="${message}" role="status" th:text="${message}"></p>
 
     <form class="panel form-panel form-grid" method="post" th:action="@{/attendance/calendar}">

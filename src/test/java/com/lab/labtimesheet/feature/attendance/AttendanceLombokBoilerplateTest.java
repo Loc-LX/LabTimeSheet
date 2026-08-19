@@ -14,6 +14,9 @@ import com.lab.labtimesheet.feature.attendance.model.AttendanceViolations;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceCurrentState;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceHistoryItem;
 import com.lab.labtimesheet.feature.attendance.model.dto.GlobalCalendarEvent;
+import com.lab.labtimesheet.feature.attendance.model.dto.HolidayCandidate;
+import com.lab.labtimesheet.feature.attendance.model.dto.HolidayImportForm;
+import com.lab.labtimesheet.feature.attendance.model.dto.HolidayImportSummary;
 import com.lab.labtimesheet.feature.attendance.model.entity.AttendancePolicyEntity;
 import com.lab.labtimesheet.feature.attendance.model.entity.AttendanceRecordEntity;
 import com.lab.labtimesheet.feature.attendance.model.entity.GlobalCalendarEventEntity;
@@ -28,6 +31,9 @@ import com.lab.labtimesheet.feature.attendance.service.AttendanceApplicationServ
 import com.lab.labtimesheet.feature.attendance.service.AttendanceCurrentUserService;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceService;
 import com.lab.labtimesheet.feature.attendance.service.CalendarApplicationService;
+import com.lab.labtimesheet.feature.attendance.service.HolidayApiClient;
+import com.lab.labtimesheet.feature.attendance.service.HolidayImportService;
+import com.lab.labtimesheet.feature.attendance.service.UnconfiguredHolidayApiClient;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
@@ -63,6 +69,7 @@ class AttendanceLombokBoilerplateTest {
                 constructor(
                         PACKAGE_PRIVATE,
                         CalendarApplicationService.class,
+                        HolidayImportService.class,
                         AttendanceApplicationService.class,
                         AttendanceCurrentUserService.class));
         assertConstructors(
@@ -86,7 +93,16 @@ class AttendanceLombokBoilerplateTest {
                         Clock.class,
                         AttendancePolicyRepository.class,
                         GlobalCalendarEventRepository.class));
-        assertConstructors(AttendanceService.class, constructor(PACKAGE_PRIVATE));
+        assertConstructors(
+                AttendanceService.class, constructor(PACKAGE_PRIVATE));
+        assertConstructors(
+                HolidayImportService.class,
+                constructor(
+                        PACKAGE_PRIVATE,
+                        Clock.class,
+                        HolidayApiClient.class,
+                        GlobalCalendarEventRepository.class));
+        assertConstructors(UnconfiguredHolidayApiClient.class, constructor(PACKAGE_PRIVATE));
 
         assertConstructors(
                 AttendancePolicyEntity.class,
@@ -110,6 +126,14 @@ class AttendanceLombokBoilerplateTest {
                         LocalDate.class,
                         String.class,
                         boolean.class,
+                        long.class),
+                constructor(
+                        Modifier.PUBLIC,
+                        LocalDate.class,
+                        String.class,
+                        HolidayCandidate.class,
+                        boolean.class,
+                        Instant.class,
                         long.class));
         assertConstructors(
                 LeaveRequestDayEntity.class,
@@ -187,7 +211,13 @@ class AttendanceLombokBoilerplateTest {
                 component("date", LocalDate.class),
                 component("name", String.class),
                 component("dayOff", boolean.class),
-                component("version", long.class));
+                component("version", long.class),
+                component("source", String.class),
+                component("sourceUuid", String.class),
+                component("actualDate", LocalDate.class),
+                component("observedDate", LocalDate.class),
+                component("publicHoliday", Boolean.class),
+                component("importedAt", Instant.class));
     }
 
     @Test
@@ -279,6 +309,20 @@ class AttendanceLombokBoilerplateTest {
                         LocalDate.class,
                         String.class,
                         boolean.class,
+                        RedirectAttributes.class),
+                method(
+                        Modifier.PUBLIC,
+                        "holidays",
+                        String.class,
+                        Principal.class,
+                        Integer.class,
+                        Model.class),
+                method(
+                        Modifier.PUBLIC,
+                        "importHolidays",
+                        String.class,
+                        Principal.class,
+                        HolidayImportForm.class,
                         RedirectAttributes.class));
         assertMethodSurface(
                 AttendanceApplicationService.class,
@@ -336,6 +380,24 @@ class AttendanceLombokBoilerplateTest {
                         boolean.class),
                 method(Modifier.PUBLIC, "list", List.class, LocalDate.class, LocalDate.class),
                 method(Modifier.PUBLIC, "isGlobalDayOff", boolean.class, LocalDate.class));
+        assertMethodSurface(
+                HolidayImportService.class,
+                method(
+                        Modifier.PUBLIC,
+                        "preview",
+                        List.class,
+                        AttendanceActor.class,
+                        int.class),
+                method(
+                        Modifier.PUBLIC,
+                        "importSelections",
+                        HolidayImportSummary.class,
+                        AttendanceActor.class,
+                        int.class,
+                        List.class));
+        assertMethodSurface(
+                UnconfiguredHolidayApiClient.class,
+                method(Modifier.PUBLIC, "fetchVnHolidays", List.class, int.class));
     }
 
     private static void assertConstructors(

@@ -26,6 +26,7 @@ import com.lab.labtimesheet.feature.attendance.model.dto.GlobalCalendarEvent;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceApplicationService;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceCurrentUserService;
 import com.lab.labtimesheet.feature.attendance.service.CalendarApplicationService;
+import com.lab.labtimesheet.feature.attendance.service.HolidayImportService;
 import com.lab.labtimesheet.feature.integration.service.SmtpConfigurationService;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -47,6 +48,9 @@ class AttendanceControllerTest {
 
     @MockitoBean
     private CalendarApplicationService calendar;
+
+    @MockitoBean
+    private HolidayImportService holidays;
 
     @MockitoBean
     private AttendanceCurrentUserService currentUsers;
@@ -162,7 +166,8 @@ class AttendanceControllerTest {
         when(attendance.currentBusinessDate()).thenReturn(LocalDate.of(2026, 8, 14));
         when(calendar.list(LocalDate.of(2026, 8, 14), LocalDate.of(2027, 8, 14)))
                 .thenReturn(List.of(new GlobalCalendarEvent(
-                        9L, LocalDate.of(2026, 8, 20), "Lab closure", true, 3L)));
+                        9L, LocalDate.of(2026, 8, 20), "Lab closure", true, 3L,
+                        "CUSTOM", null, null, null, null, null)));
 
         mockMvc.perform(get("/attendance/calendar")
                         .with(user("admin@example.test").roles("ADMIN")))
