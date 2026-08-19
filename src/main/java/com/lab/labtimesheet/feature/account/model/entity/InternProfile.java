@@ -111,6 +111,36 @@ public class InternProfile {
     }
 
     /**
+     * Completes an active internship and retains the completion timestamp for history.
+     *
+     * @param now server completion timestamp
+     * @throws IllegalStateException when the internship is not active
+     */
+    public void complete(Instant now) {
+        if (internshipStatus != InternshipStatus.ACTIVE) {
+            throw new IllegalStateException("Only an active internship can complete");
+        }
+        internshipStatus = InternshipStatus.COMPLETED;
+        completedAt = now;
+        updatedAt = now;
+    }
+
+    /**
+     * Withdraws an internship that has not started or is currently active.
+     *
+     * @param now server withdrawal timestamp
+     * @throws IllegalStateException when the internship is already terminal
+     */
+    public void withdraw(Instant now) {
+        if (internshipStatus != InternshipStatus.NOT_STARTED && internshipStatus != InternshipStatus.ACTIVE) {
+            throw new IllegalStateException("Only a not-started or active internship can withdraw");
+        }
+        internshipStatus = InternshipStatus.WITHDRAWN;
+        withdrawnAt = now;
+        updatedAt = now;
+    }
+
+    /**
      * Replaces the Intern profile details after an authorized Admin edit. Dates are expected to
      * form an inclusive range and the student code a normalized value, both validated by the caller.
      * The lifecycle state and timestamps are untouched.

@@ -55,6 +55,23 @@ public interface InternProfileRepository extends JpaRepository<InternProfile, Lo
     long countByInternshipStatus(InternshipStatus status);
 
     /**
+     * Lists profile owners whose not-started internship has reached its inclusive start date.
+     *
+     * @param status lifecycle state to scan
+     * @param businessDate Vietnam business date
+     * @return due account identifiers
+     */
+    @Query("""
+            select p.userId
+            from InternProfile p
+            where p.internshipStatus = :status
+              and p.internshipStartDate <= :businessDate
+            order by p.userId
+            """)
+    List<Long> findUserIdsDueForStart(
+            @Param("status") InternshipStatus status, @Param("businessDate") LocalDate businessDate);
+
+    /**
      * Locks an Intern profile for lifecycle mutation until the current transaction completes.
      *
      * @param userId owning account identifier

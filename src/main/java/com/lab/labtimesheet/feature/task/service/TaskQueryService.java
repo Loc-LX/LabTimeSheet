@@ -1,5 +1,6 @@
 package com.lab.labtimesheet.feature.task.service;
 
+import com.lab.labtimesheet.feature.task.model.TaskStatus;
 import com.lab.labtimesheet.feature.task.repository.TaskRepository;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
@@ -33,5 +34,20 @@ public class TaskQueryService {
             return tasks.countByProjectIdAndDeletedAtIsNull(projectId);
         }
         return tasks.countCurrentTasksAssignedOutside(projectId, Set.copyOf(activeMembershipIds));
+    }
+
+    /**
+     * Counts current unfinished Tasks assigned through any retained membership of one Intern.
+     *
+     * @param membershipIds retained Project membership identifiers
+     * @return non-deleted Task count whose status is not {@code DONE}
+     */
+    @Transactional(readOnly = true)
+    public long countUnfinishedTasksForMemberships(Set<Long> membershipIds) {
+        if (membershipIds.isEmpty()) {
+            return 0L;
+        }
+        return tasks.countByAssigneeMembershipIdInAndStatusNotAndDeletedAtIsNull(
+                Set.copyOf(membershipIds), TaskStatus.DONE);
     }
 }

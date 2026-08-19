@@ -123,6 +123,26 @@ class AccountController {
         }
     }
 
+    @PostMapping("/admin/accounts/{id}/complete-internship")
+    String completeInternship(@PathVariable long id, Principal principal) {
+        try {
+            accounts.completeInternship(id, accounts.requireActiveAdminId(principal.getName()));
+            return "redirect:/admin/accounts/" + id + "?completed";
+        } catch (IllegalArgumentException | IllegalStateException exception) {
+            return "redirect:/admin/accounts/" + id + "?error";
+        }
+    }
+
+    @PostMapping("/admin/accounts/{id}/withdraw-internship")
+    String withdrawInternship(@PathVariable long id, Principal principal) {
+        try {
+            accounts.withdrawInternship(id, accounts.requireActiveAdminId(principal.getName()));
+            return "redirect:/admin/accounts/" + id + "?withdrawn";
+        } catch (IllegalArgumentException | IllegalStateException exception) {
+            return "redirect:/admin/accounts/" + id + "?error";
+        }
+    }
+
     @PostMapping("/admin/accounts/{id}/resend-activation")
     String resendActivation(@PathVariable long id, Principal principal) {
         try {

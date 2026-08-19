@@ -60,6 +60,7 @@ public class AccountService {
     private final Clock clock;
     private final TransactionTemplate transactions;
     private final SessionRegistry sessionRegistry;
+    private final InternshipLifecycleService internshipLifecycle;
     private final String publicOrigin;
 
     AccountService(
@@ -72,6 +73,7 @@ public class AccountService {
             Clock clock,
             TransactionTemplate transactions,
             SessionRegistry sessionRegistry,
+            InternshipLifecycleService internshipLifecycle,
             @Value("${lab.public-origin}") String publicOrigin) {
         this.users = users;
         this.internProfiles = internProfiles;
@@ -82,6 +84,7 @@ public class AccountService {
         this.clock = clock;
         this.transactions = transactions;
         this.sessionRegistry = sessionRegistry;
+        this.internshipLifecycle = internshipLifecycle;
         this.publicOrigin = normalizeOrigin(publicOrigin);
     }
 
@@ -305,21 +308,27 @@ public class AccountService {
      */
     @Transactional
     public void activateInternship(long internUserId, long adminId) {
-        AppUser admin = users.findById(adminId)
-                .orElseThrow(() -> new IllegalArgumentException("Admin not found"));
-        requireActiveAdmin(admin);
+        internshipLifecycle.activateInternship(internUserId, adminId);
+    }
 
-        AppUser intern = users.findForUpdateById(internUserId)
-                .orElseThrow(() -> new IllegalArgumentException("Intern not found"));
-        if (intern.getGlobalRole() != GlobalRole.INTERN || intern.getAccountStatus() != AccountStatus.ACTIVE) {
-            throw new IllegalArgumentException("An active Intern account is required");
-        }
-        InternProfile profile = internProfiles.findForUpdateByUserId(internUserId)
-                .orElseThrow(() -> new IllegalArgumentException("Intern profile not found"));
-        if (LocalDate.now(clock).isBefore(profile.getInternshipStartDate())) {
-            throw new IllegalStateException("Internship cannot activate before its start date");
-        }
-        profile.activate(clock.instant());
+    /**
+     * Completes an active Intern internship after Project and Task terminal guards pass.
+     *
+     * @param internUserId Intern account identifier
+     * @param adminId active Admin authorizing the transition
+     */
+    public void completeInternship(long internUserId, long adminId) {
+        internshipLifecycle.completeInternship(internUserId, adminId);
+    }
+
+    /**
+     * Withdraws a not-started or active Intern internship after Project and Task terminal guards pass.
+     *
+     * @param internUserId Intern account identifier
+     * @param adminId active Admin authorizing the transition
+     */
+    public void withdrawInternship(long internUserId, long adminId) {
+        internshipLifecycle.withdrawInternship(internUserId, adminId);
     }
 
     /**
@@ -565,6 +574,7 @@ public class AccountService {
      */
     @Transactional(readOnly = true)
     public boolean isEligibleIntern(long userId) {
+        internshipLifecycle.ensureStartedIfDue(userId);
         return users.findById(userId)
                 .filter(user -> user.getGlobalRole() == GlobalRole.INTERN)
                 .filter(user -> user.getAccountStatus() == AccountStatus.ACTIVE)
@@ -586,6 +596,7 @@ public class AccountService {
         if (workDate == null) {
             throw new IllegalArgumentException("Work date is required");
         }
+        internshipLifecycle.ensureStartedIfDue(userId);
         return users.findById(userId)
                 .filter(user -> user.getGlobalRole() == GlobalRole.INTERN)
                 .filter(user -> user.getAccountStatus() == AccountStatus.ACTIVE)
