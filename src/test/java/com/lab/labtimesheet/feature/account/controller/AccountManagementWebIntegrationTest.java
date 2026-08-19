@@ -105,7 +105,13 @@ class AccountManagementWebIntegrationTest {
                 .andExpect(content().string(Matchers.containsString("Accounts and internships")))
                 .andExpect(content().string(Matchers.containsString("Mentor One")))
                 .andExpect(content().string(Matchers.containsString("Intern One")))
-                .andExpect(content().string(Matchers.containsString("Last sign-in")));
+                .andExpect(content().string(Matchers.containsString("Last sign-in")))
+                .andExpect(content().string(Matchers.containsString("#pencil")))
+                .andExpect(content().string(Matchers.containsString("class=\"table-row-link\"")))
+                .andExpect(content().string(Matchers.containsString(
+                        "href=\"/admin/accounts/" + mentorId + "/edit\"")))
+                .andExpect(content().string(Matchers.containsString(
+                        "href=\"/admin/accounts/" + internId + "/edit\"")));
 
         mockMvc.perform(get("/admin/accounts").with(user("mentor@example.com").roles("MENTOR")))
                 .andExpect(status().isForbidden());
