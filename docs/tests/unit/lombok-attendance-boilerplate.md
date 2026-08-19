@@ -99,6 +99,18 @@ constructor and getter surface, `LeaveRequestDayId` gained `leaveDate()`, and
 static `pending` factory and its getter surface. All four test methods still
 pass unchanged at the full-suite run recorded in `docs/tests/unit/leave-service.md`.
 
+## Extension (I2-ATT-04)
+
+`5e9e598` extended the compiled-contract audit to the leave lifecycle:
+`LeaveRequestEntity` gained its decision/cancellation mutators
+(`approve`/`reject`/`cancel`/`updateRange`) and getters
+(`decidedByMentorUserId`/`decidedAt`/`decisionNote`/`cancelledAt`),
+`LeaveService` gained `decide`/`cancel`/`edit`/`decisions`, the
+`InternLeaveController` gained `cancel`/`edit`, and the new
+`MentorLeaveController` surface (form/approve/reject) is asserted. All four
+test methods still pass unchanged at the full-suite run recorded in
+`docs/tests/unit/leave-lifecycle.md`.
+
 ## External-test boundaries
 
 The reflection audit does not replace Spring/JPA bootstrapping, MVC property access, PostgreSQL persistence, or

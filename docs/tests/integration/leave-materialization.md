@@ -79,5 +79,8 @@ BUILD SUCCESS
 These tests drive the service layer against the real schema but do not prove
 the rendered Intern page, CSRF/form binding, or the HTTP 403 role enforcement.
 Those are covered by `docs/tests/web/intern-leave.md`. Overlap exclusion
-(`LEV-006`), same-day boundary (`LEV-009`), and decide/cancel flows are
-deferred to I2-ATT-04.
+(`LEV-006`), same-day boundary (`LEV-009`), and decide/cancel/edit flows were
+implemented in I2-ATT-04 and are covered by
+`docs/tests/unit/leave-lifecycle.md`, `docs/tests/integration/leave-workflow.md`,
+`docs/tests/integration/leave-concurrency.md`, and
+`docs/tests/web/mentor-leave.md`.

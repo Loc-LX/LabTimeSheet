@@ -100,5 +100,18 @@ BUILD SUCCESS
 
 MockMvc exercises the servlet, CSRF, form binding, and the layout shell but not
 a real browser. The `RecordingSmtpProbe` replaces the real transport; SMTP
-credentials and platform-side storage are out of scope here. Same-day
-boundary/overlap/decide flows are deferred to I2-ATT-04.
+credentials and platform-side storage are out of scope here.
+
+## Extension (I2-ATT-04)
+
+`5e9e598` extended the Intern page with an Actions column and two routes:
+`POST /intern/leave/{id}/edit` and `POST /intern/leave/{id}/cancel`, driven by
+the new `PriorLeaveRequest.editable`/`cancellable` flags (pending/approved and
+before the first counted start). The web test now additionally verifies that
+editing to `2026-09-07` re-renders "Rescheduled" and the range
+`07/09/2026 → 07/09/2026` with the "Leave updated to 1 counted day(s)" message,
+and that cancelling re-renders "CANCELLED". The intern web suite is now
+`Tests run: 3`; the decision flows are covered by
+`docs/tests/web/mentor-leave.md`, and the boundary/overlap/decide/cancel/edit
+service semantics by `docs/tests/unit/leave-lifecycle.md` and
+`docs/tests/integration/leave-workflow.md`.
