@@ -9,9 +9,59 @@
 <body>
 <main>
     <th:block th:replace="~{fragments/components :: projectTabs(${project.id}, 'members')}"></th:block>
-    <section class="panel form-panel" th:if="${#lists.isEmpty(members)}"><th:block th:replace="~{fragments/components :: empty('No membership history', 'Project members will appear here.')} "></th:block></section>
+    <form class="panel form-panel form-grid" th:if="${project.canManage}" method="post" th:action="@{/projects/{id}/members(id=${project.id})}" th:object="${projectMembersForm}">
+        <div class="alert alert-error" data-member-validation-alert role="alert" th:if="${#fields.hasAnyErrors()}"><strong>Member selection could not be saved.</strong><ul><li th:each="fieldError : ${#fields.allErrors()}" th:text="${fieldError}">Selection error</li></ul></div>
+        <div class="alert alert-error" role="alert" th:if="${memberRemovalError != null}"><strong>Member removal could not be completed.</strong><span th:text="${memberRemovalError}">Removal error</span></div>
+        <div class="field member-dropdown" data-member-dropdown>
+            <span class="field-label">Interns to add</span>
+            <button class="member-dropdown-trigger" type="button" data-member-dropdown-trigger
+                    aria-haspopup="listbox" aria-expanded="false" aria-controls="members-intern-options"
+                    th:disabled="${#lists.isEmpty(eligibleInternOptions)}"
+                    th:attr="aria-invalid=${#fields.hasErrors('internUserIds')},aria-describedby=${#fields.hasErrors('internUserIds') ? 'member-intern-user-error' : null}">
+                <span data-member-dropdown-value aria-live="polite">No Interns selected</span>
+                <span aria-hidden="true">⌄</span>
+            </button>
+            <p class="field-help" th:if="${#lists.isEmpty(eligibleInternOptions)}">No eligible nonmembers are available.</p>
+            <p class="field-error" id="member-intern-user-error" data-member-validation-error role="alert" th:if="${#fields.hasErrors('internUserIds')}" th:errors="*{internUserIds}"></p>
+            <p class="field-help" role="status" th:if="${unavailableSelectionCount != null and unavailableSelectionCount > 0}"
+               th:text="${unavailableSelectionCount == 1 ? '1 previously selected Intern is no longer eligible; choose a replacement.' : unavailableSelectionCount + ' previously selected Interns are no longer eligible; choose replacements.'}">Unavailable selection recovery</p>
+            <div class="member-dropdown-menu" id="members-intern-options" data-member-dropdown-menu hidden>
+                <label class="field-label" for="members-intern-search">Search by name or Student Code</label>
+                <input class="control" id="members-intern-search" type="search" autocomplete="off"
+                       data-member-dropdown-search placeholder="Search eligible Interns">
+                <div class="member-dropdown-options" role="listbox" aria-multiselectable="true" aria-label="Eligible Interns">
+                    <label class="member-dropdown-option" data-member-dropdown-option
+                           th:each="option : ${eligibleInternOptions}"
+                           th:attr="data-search=|${option.displayName} ${option.studentCode}|,aria-selected=${#lists.contains(projectMembersForm.internUserIds, option.userId)}">
+                        <input type="checkbox" th:field="*{internUserIds}" th:value="${option.userId}">
+                        <span>
+                            <strong data-member-dropdown-label th:text="|${option.displayName} (${option.studentCode})|">Intern (Code)</strong>
+                            <small th:text="|${#temporals.format(option.internshipStart, 'dd/MM/yyyy')} – ${#temporals.format(option.internshipEnd, 'dd/MM/yyyy')}|">Dates</small>
+                        </span>
+                    </label>
+                    <p class="member-dropdown-empty" data-member-dropdown-empty
+                       th:hidden="${!#lists.isEmpty(eligibleInternOptions)}">No matching eligible Interns.</p>
+                </div>
+                <div class="member-dropdown-footer">
+                    <button class="button button-primary" type="button" data-member-dropdown-done>Done</button>
+                </div>
+            </div>
+        </div>
+        <div class="form-actions"><button class="button button-primary" type="submit">Add selected members</button></div>
+    </form>
+    <section class="panel form-panel" th:if="${#lists.isEmpty(members)}">
+        <div class="panel-header history-toolbar">
+            <h2 class="panel-title">Current members</h2>
+            <a class="button" th:href="@{/projects/{id}/members/history(id=${project.id})}">History</a>
+        </div>
+        <th:block th:replace="~{fragments/components :: empty('No current members', 'There are no active Intern memberships in this Project.')} "></th:block>
+    </section>
     <section class="panel form-panel" th:unless="${#lists.isEmpty(members)}">
-        <div class="table-scroll"><table class="data-table"><caption class="sr-only">Membership history</caption><thead><tr><th scope="col">Intern</th><th scope="col">Joined</th><th scope="col">Left</th><th scope="col">Role</th><th scope="col">Action</th></tr></thead>
+        <div class="panel-header history-toolbar">
+            <h2 class="panel-title">Current members</h2>
+            <a class="button" th:href="@{/projects/{id}/members/history(id=${project.id})}">History</a>
+        </div>
+        <div class="table-scroll"><table class="data-table"><caption class="sr-only">Current members</caption><thead><tr><th scope="col">Intern</th><th scope="col">Joined</th><th scope="col">Left</th><th scope="col">Role</th><th scope="col">Action</th></tr></thead>
             <tbody><tr th:each="member : ${members}"><td th:text="${member.displayName}">Intern</td><td th:text="${#temporals.format(member.joinedAt, 'dd/MM/yyyy HH:mm')}">Joined</td><td th:text="${member.leftAt == null ? 'Current' : #temporals.format(member.leftAt, 'dd/MM/yyyy HH:mm')}">Current</td><td><span class="badge" th:classappend="${member.currentLeader ? ' badge-success' : ''}" th:text="${member.currentLeader ? 'Leader' : 'Member'}">Member</span></td><td>
                 <form class="inline-form" method="post" th:if="${project.canManage and member.leftAt == null and !member.currentLeader}"
                       th:action="@{/projects/{projectId}/members/{internUserId}/remove(projectId=${project.id},internUserId=${member.internUserId})}">
@@ -21,36 +71,6 @@
             </td></tr></tbody>
         </table></div>
     </section>
-    <form class="panel form-panel form-grid" th:if="${project.canManage}" method="post" th:action="@{/projects/{id}/members(id=${project.id})}" th:object="${projectMembersForm}">
-        <div class="alert alert-error" role="alert" th:if="${#fields.hasAnyErrors()}"><strong>Member selection could not be saved.</strong><ul><li th:each="fieldError : ${#fields.allErrors()}" th:text="${fieldError}">Selection error</li></ul></div>
-        <div class="alert alert-error" role="alert" th:if="${memberRemovalError != null}"><strong>Member removal could not be completed.</strong><span th:text="${memberRemovalError}">Removal error</span></div>
-        <div class="field" data-intern-picker>
-            <span class="field-label">Interns to add</span>
-            <button class="button picker-trigger" type="button" data-picker-open th:disabled="${#lists.isEmpty(eligibleInternOptions)}"
-                    th:attr="aria-invalid=${#fields.hasErrors('internUserIds')},aria-describedby=${#fields.hasErrors('internUserIds') ? 'member-intern-user-error' : null}">Choose eligible Interns</button>
-            <p class="picker-summary" data-picker-summary aria-live="polite">No Interns selected</p>
-            <p class="field-help" th:if="${#lists.isEmpty(eligibleInternOptions)}">No eligible nonmembers are available.</p>
-            <p class="field-error" id="member-intern-user-error" role="alert" th:if="${#fields.hasErrors('internUserIds')}" th:errors="*{internUserIds}"></p>
-            <p class="field-help" role="status" th:if="${unavailableSelectionCount != null and unavailableSelectionCount > 0}"
-               th:text="${unavailableSelectionCount == 1 ? '1 previously selected Intern is no longer eligible; choose a replacement.' : unavailableSelectionCount + ' previously selected Interns are no longer eligible; choose replacements.'}">Unavailable selection recovery</p>
-            <dialog class="picker-drawer" data-picker-dialog aria-labelledby="member-picker-title">
-                <div class="picker-header"><div><h2 class="panel-title" id="member-picker-title">Add Project members</h2><p class="field-help">Select one or more eligible Interns who are not current members.</p></div><button class="button" type="button" data-picker-cancel>Cancel</button></div>
-                <div class="picker-body">
-                    <label class="field-label" for="member-search">Search by name or Student Code</label>
-                    <input class="control" id="member-search" type="search" autocomplete="off" data-picker-search>
-                    <div class="picker-options">
-                        <label class="picker-option" data-picker-option th:each="option : ${eligibleInternOptions}" th:attr="data-picker-search=${option.displayName + ' ' + option.studentCode}">
-                            <input type="checkbox" th:field="*{internUserIds}" th:value="${option.userId}">
-                            <span><strong data-picker-label th:text="|${option.displayName} (${option.studentCode})|">Intern (Code)</strong><small th:text="|${#temporals.format(option.internshipStart, 'dd/MM/yyyy')} – ${#temporals.format(option.internshipEnd, 'dd/MM/yyyy')}|">Dates</small></span>
-                        </label>
-                        <p class="picker-empty" data-picker-empty th:hidden="${!#lists.isEmpty(eligibleInternOptions)}">No matching eligible Interns.</p>
-                    </div>
-                </div>
-                <div class="picker-footer"><button class="button button-primary" type="button" data-picker-apply>Use selection</button></div>
-            </dialog>
-        </div>
-        <div class="form-actions"><button class="button button-primary" type="submit">Add selected members</button></div>
-    </form>
 </main>
 </body>
 </html>

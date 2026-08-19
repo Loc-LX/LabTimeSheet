@@ -5,7 +5,9 @@ import com.lab.labtimesheet.feature.account.service.AccountService;
 import com.lab.labtimesheet.feature.project.exception.ProjectAccessDeniedException;
 import com.lab.labtimesheet.feature.project.exception.ProjectRuleViolationException;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectCreateForm;
+import com.lab.labtimesheet.feature.project.model.dto.ProjectLeadershipTermView;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectMemberForm;
+import com.lab.labtimesheet.feature.project.model.dto.ProjectMemberView;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectMembersForm;
 import com.lab.labtimesheet.feature.project.service.ProjectQueryService;
 import com.lab.labtimesheet.feature.project.service.ProjectService;
@@ -13,6 +15,7 @@ import jakarta.validation.Valid;
 import java.security.Principal;
 import java.time.Clock;
 import java.time.LocalDate;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -153,12 +156,13 @@ public class ProjectController {
     }
 
     /**
-     * [I1-PRJ-02, I1-PRJ-05, I2-PRJ-06] Hiển thị các khoảng thời gian thành viên hiện tại và lịch sử đã được phân quyền.
+     * [I1-PRJ-02, I1-PRJ-05, I2-PRJ-06] Hiển thị các membership đang hoạt động; lịch sử được mở
+     * qua nút History ở trang riêng.
      *
      * @param principal người dùng đã xác thực
      * @param projectId mã Project được yêu cầu
      * @param model model của phản hồi
-     * @return view lịch sử thành viên
+     * @return view danh sách thành viên hiện tại
      */
     @GetMapping("/{projectId}/members")
     public String members(Principal principal, @PathVariable long projectId, Model model) {
@@ -166,6 +170,20 @@ public class ProjectController {
         populateMembersModel(actorId, projectId, model);
         model.addAttribute("projectMembersForm", new ProjectMembersForm());
         return "projects/members";
+    }
+
+    /** [I2-PRJ-06] Hiển thị read-only toàn bộ lịch sử vào/ra của membership Project. */
+    @GetMapping("/{projectId}/members/history")
+    public String memberHistory(Principal principal, @PathVariable long projectId, Model model) {
+        long actorId = actorId(principal);
+        model.addAttribute("project", pages.detail(actorId, projectId));
+        // Lịch sử riêng được hiển thị từ mới đến cũ; danh sách active không dùng thứ tự này.
+        model.addAttribute("members", pages.members(actorId, projectId).stream()
+                .sorted(Comparator.comparing(ProjectMemberView::joinedAt)
+                        .reversed()
+                        .thenComparing(ProjectMemberView::membershipId, Comparator.reverseOrder()))
+                .toList());
+        return "projects/members-history";
     }
 
     /**
@@ -263,13 +281,14 @@ public class ProjectController {
     }
 
     /**
-     * [I1-PRJ-03, I1-PRJ-05, I2-PRJ-01, I2-PRJ-06] Hiển thị lịch sử nhiệm kỳ Leader đã được phân quyền và biểu mẫu thay đổi Leader chỉ dành
-     * cho Mentor sở hữu khi Project còn cho phép thay đổi.
+     * [I1-PRJ-03, I1-PRJ-05, I2-PRJ-01, I2-PRJ-06] Hiển thị Leader hiện tại và biểu mẫu thay đổi
+     * Leader chỉ dành cho Mentor sở hữu khi Project còn cho phép thay đổi. Lịch sử nhiệm kỳ được
+     * mở qua nút History ở trang riêng.
      *
      * @param principal người dùng đã xác thực
      * @param projectId mã Project được yêu cầu
      * @param model model dùng để hiển thị phản hồi
-     * @return view lịch sử nhiệm kỳ Leader
+     * @return view Leader hiện tại
      */
     @GetMapping("/{projectId}/leadership")
     public String leadership(Principal principal, @PathVariable long projectId, Model model) {
@@ -277,6 +296,20 @@ public class ProjectController {
         var currentTermId = populateLeadershipModel(actorId, projectId, model);
         model.addAttribute("projectMemberForm", new ProjectMemberForm(null, currentTermId));
         return "projects/leadership";
+    }
+
+    /** [I2-PRJ-06] Hiển thị read-only toàn bộ lịch sử các nhiệm kỳ Leader của Project. */
+    @GetMapping("/{projectId}/leadership/history")
+    public String leadershipHistory(Principal principal, @PathVariable long projectId, Model model) {
+        long actorId = actorId(principal);
+        model.addAttribute("project", pages.detail(actorId, projectId));
+        // Bảo đảm bản ghi mới nhất đứng trước ngay tại trang History, độc lập với dữ liệu từ service.
+        model.addAttribute("leadership", pages.leadership(actorId, projectId).stream()
+                .sorted(Comparator.comparing(ProjectLeadershipTermView::startedAt)
+                        .reversed()
+                        .thenComparing(ProjectLeadershipTermView::id, Comparator.reverseOrder()))
+                .toList());
+        return "projects/leadership-history";
     }
 
     /**
@@ -349,10 +382,12 @@ public class ProjectController {
         return "projects/leadership";
     }
 
-    /** Nạp chi tiết, lịch sử thành viên và danh sách Intern còn có thể thêm vào model. */
+    /** Nạp chi tiết, membership hiện tại và danh sách Intern còn có thể thêm vào model. */
     private List<EligibleInternOption> populateMembersModel(long actorId, long projectId, Model model) {
         var project = pages.detail(actorId, projectId);
-        var members = pages.members(actorId, projectId);
+        var members = pages.members(actorId, projectId).stream()
+                .filter(member -> member.leftAt() == null)
+                .toList();
         model.addAttribute("project", project);
         model.addAttribute("members", members);
         if (project.canManage()) {
@@ -370,12 +405,14 @@ public class ProjectController {
     }
 
     /**
-     * Nạp lịch sử Leader và trả về mã nhiệm kỳ hiện tại dùng làm token chống ghi đè từ form cũ.
-     * Project đã hoàn tất cố ý không trả token vì không hiển thị biểu mẫu thay đổi.
+     * Nạp Leader hiện tại và trả về mã nhiệm kỳ dùng làm token chống ghi đè từ form cũ. Project đã
+     * hoàn tất cố ý không trả token vì không hiển thị biểu mẫu thay đổi.
      */
     private Long populateLeadershipModel(long actorId, long projectId, Model model) {
         var project = pages.detail(actorId, projectId);
-        var leadership = pages.leadership(actorId, projectId);
+        var leadership = pages.leadership(actorId, projectId).stream()
+                .filter(term -> term.endedAt() == null)
+                .toList();
         model.addAttribute("project", project);
         model.addAttribute("leadership", leadership);
         if (project.canManage()) {

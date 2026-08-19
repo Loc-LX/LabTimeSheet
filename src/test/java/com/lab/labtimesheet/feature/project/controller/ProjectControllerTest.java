@@ -124,10 +124,12 @@ class ProjectControllerTest {
         when(pages.authenticatedUserId("mentor@example.test")).thenReturn(10L);
         when(pages.detail(10L, 30L)).thenReturn(plannedOwnerDetail());
         when(pages.members(10L, 30L)).thenReturn(List.of(
+                new ProjectMemberView(42L, 22L, "Former Member", Instant.parse("2026-08-01T00:00:00Z"), Instant.parse("2026-08-10T00:00:00Z"), false),
                 new ProjectMemberView(40L, 20L, "Current Leader", Instant.parse("2026-08-15T00:00:00Z"), null, true),
                 new ProjectMemberView(41L, 21L, "Current Member", Instant.parse("2026-08-15T00:00:00Z"), null, false)));
-        when(pages.leadership(10L, 30L)).thenReturn(List.of(new ProjectLeadershipTermView(
-                50L, "Current Leader", Instant.parse("2026-08-15T00:00:00Z"), null)));
+        when(pages.leadership(10L, 30L)).thenReturn(List.of(
+                new ProjectLeadershipTermView(51L, "Former Leader", Instant.parse("2026-08-01T00:00:00Z"), Instant.parse("2026-08-10T00:00:00Z")),
+                new ProjectLeadershipTermView(50L, "Current Leader", Instant.parse("2026-08-15T00:00:00Z"), null)));
         when(accounts.eligibleInternOptions(LocalDate.of(2026, 8, 15))).thenReturn(List.of(
                 option(20L, "Current Leader", "STU-020"),
                 option(21L, "Current Member", "STU-021"),
@@ -136,11 +138,19 @@ class ProjectControllerTest {
         String membersHtml = mvc.perform(get("/projects/30/members"))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
+        assertTrue(membersHtml.contains("data-member-dropdown"));
+        assertTrue(membersHtml.contains("data-member-dropdown-search"));
+        assertTrue(membersHtml.contains("data-member-dropdown-option"));
+        assertTrue(membersHtml.contains("aria-multiselectable=\"true\""));
         assertTrue(membersHtml.contains("name=\"internUserIds\""));
         assertTrue(membersHtml.contains("/projects/30/members/21/remove"));
         assertTrue(membersHtml.contains("Remove member"));
         assertTrue(membersHtml.contains("Eligible Nonmember"));
+        assertTrue(membersHtml.contains("History"));
+        assertFalse(membersHtml.contains("Former Member"));
+        assertFalse(membersHtml.contains("data-picker-dialog"));
         assertFalse(membersHtml.contains("data-picker-label>Current Member"));
+        assertTrue(membersHtml.indexOf("data-member-dropdown") < membersHtml.indexOf("Current members"));
 
         String leadershipHtml = mvc.perform(get("/projects/30/leadership"))
                 .andExpect(status().isOk())
@@ -152,10 +162,39 @@ class ProjectControllerTest {
         assertTrue(leadershipHtml.contains("name=\"expectedLeadershipTermId\""));
         assertTrue(leadershipHtml.contains("value=\"50\""));
         assertTrue(leadershipHtml.contains("formaction=\"/projects/30/leadership/remove\""));
+        assertTrue(leadershipHtml.contains("title=\"Changes the Leader only; the previous Leader stays as a current Project member.\""));
+        assertTrue(leadershipHtml.contains("title=\"Replaces the Leader and removes the previous Leader from the Project."));
         assertTrue(leadershipHtml.contains("Current Member"));
+        assertTrue(leadershipHtml.contains("History"));
+        assertFalse(leadershipHtml.contains("Former Leader"));
         assertFalse(leadershipHtml.contains("Eligible Nonmember"));
         assertFalse(leadershipHtml.contains("data-picker-label>Current Leader"));
         assertFalse(containsRequiredRadio(leadershipHtml));
+        assertTrue(leadershipHtml.indexOf("data-leader-dropdown") < leadershipHtml.indexOf("Current Leader"));
+
+        String memberHistoryHtml = mvc.perform(get("/projects/30/members/history"))
+                .andExpect(status().isOk())
+                .andExpect(view().name("projects/members-history"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(containsString("Former Member")))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(containsString("Current members")))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(not(containsString("Add selected members"))))
+                .andReturn().getResponse().getContentAsString();
+        assertTrue(memberHistoryHtml.indexOf("Current Leader") < memberHistoryHtml.indexOf("Former Member"));
+
+        String leadershipHistoryHtml = mvc.perform(get("/projects/30/leadership/history"))
+                .andExpect(status().isOk())
+                .andExpect(view().name("projects/leadership-history"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(containsString("Former Leader")))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(containsString("Current Leader")))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(not(containsString("Change Leader"))))
+                .andReturn().getResponse().getContentAsString();
+        assertTrue(leadershipHistoryHtml.indexOf("Current Leader") < leadershipHistoryHtml.indexOf("Former Leader"));
     }
 
     @Test
@@ -345,6 +384,22 @@ class ProjectControllerTest {
                 org.mockito.ArgumentMatchers.anyLong(),
                 org.mockito.ArgumentMatchers.anyLong(),
                 org.mockito.ArgumentMatchers.anyLong());
+    }
+
+    /** [I2-PRJ-02] Form dropdown gửi đúng mã Intern đã chọn và chuyển hướng sau khi đổi Leader. */
+    @Test
+    @WithMockUser(username = "mentor@example.test")
+    void validLeaderChangeUsesSelectedInternAndRedirects() throws Exception {
+        when(pages.authenticatedUserId("mentor@example.test")).thenReturn(10L);
+
+        mvc.perform(post("/projects/30/leadership")
+                        .with(csrf())
+                        .param("internUserId", "21")
+                        .param("expectedLeadershipTermId", "50"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/projects/30/leadership"));
+
+        verify(projects).changeLeader(10L, 30L, 50L, 21L);
     }
 
     /** [I2-PRJ-03] Form xóa Leader dùng replacement và token nhiệm kỳ hiện tại. */
@@ -617,8 +672,16 @@ class ProjectControllerTest {
         mvc.perform(get("/projects/30/members").with(user(email)))
                 .andExpect(status().isOk())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
-                        .string(not(containsString("Add member"))));
+                        .string(not(containsString("Add selected members"))));
         mvc.perform(get("/projects/30/leadership").with(user(email)))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(not(containsString("Former Leader"))))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(not(containsString("Change Leader"))))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(containsString("History")));
+        mvc.perform(get("/projects/30/leadership/history").with(user(email)))
                 .andExpect(status().isOk())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
                         .string(containsString("Former Leader")))

@@ -9,15 +9,9 @@
 <body>
 <main>
     <th:block th:replace="~{fragments/components :: projectTabs(${project.id}, 'leadership')}"></th:block>
-    <section class="panel form-panel" th:if="${#lists.isEmpty(leadership)}"><th:block th:replace="~{fragments/components :: empty('No leadership history', 'Leadership terms will appear here.')} "></th:block></section>
-    <section class="panel form-panel" th:unless="${#lists.isEmpty(leadership)}">
-        <div class="table-scroll"><table class="data-table"><caption class="sr-only">Leadership history</caption><thead><tr><th scope="col">Leader</th><th scope="col">Started</th><th scope="col">Ended</th></tr></thead>
-            <tbody><tr th:each="term : ${leadership}"><td th:text="${term.leaderName}">Leader</td><td th:text="${#temporals.format(term.startedAt, 'dd/MM/yyyy HH:mm')}">Started</td><td th:text="${term.endedAt == null ? 'Current' : #temporals.format(term.endedAt, 'dd/MM/yyyy HH:mm')}">Current</td></tr></tbody>
-        </table></div>
-    </section>
     <form class="panel form-panel form-grid" th:if="${project.canManage}" method="post" th:action="@{/projects/{id}/leadership(id=${project.id})}" th:object="${projectMemberForm}">
         <input type="hidden" th:field="*{expectedLeadershipTermId}">
-        <div class="alert alert-error" role="alert" th:if="${#fields.hasAnyErrors()}">Please correct the Leader selection.</div>
+        <div class="alert alert-error" data-leader-validation-alert role="alert" th:if="${#fields.hasAnyErrors()}">Please correct the Leader selection.</div>
         <div class="field" data-leader-dropdown>
             <span class="field-label">New Leader</span>
             <input type="hidden" data-leader-dropdown-value-input id="internUserId" name="internUserId" value="">
@@ -49,14 +43,32 @@
                 </div>
             </div>
             <p class="field-help" th:if="${#lists.isEmpty(eligibleInternOptions)}">No eligible current members are available.</p>
-            <p class="field-error" id="leadership-intern-user-error" role="alert" th:if="${#fields.hasErrors('internUserId')}" th:errors="*{internUserId}"></p>
+            <p class="field-error" id="leadership-intern-user-error" data-leader-validation-error role="alert" th:if="${#fields.hasErrors('internUserId')}" th:errors="*{internUserId}"></p>
         </div>
         <div class="form-actions">
             <button class="button button-danger" type="submit"
+                    title="Replaces the Leader and removes the previous Leader from the Project. Unfinished Tasks assigned to them move to the new Leader."
                     th:attr="formaction=@{/projects/{id}/leadership/remove(id=${project.id})}">Replace and remove current Leader</button>
-            <button class="button button-primary" type="submit">Change Leader</button>
+            <button class="button button-primary" type="submit"
+                    title="Changes the Leader only; the previous Leader stays as a current Project member.">Change Leader</button>
         </div>
     </form>
+    <section class="panel form-panel" th:if="${#lists.isEmpty(leadership)}">
+        <div class="panel-header history-toolbar">
+            <h2 class="panel-title">Current Leader</h2>
+            <a class="button" th:href="@{/projects/{id}/leadership/history(id=${project.id})}">History</a>
+        </div>
+        <th:block th:replace="~{fragments/components :: empty('No current Leader', 'This Project has no active Leader.')} "></th:block>
+    </section>
+    <section class="panel form-panel" th:unless="${#lists.isEmpty(leadership)}">
+        <div class="panel-header history-toolbar">
+            <h2 class="panel-title">Current Leader</h2>
+            <a class="button" th:href="@{/projects/{id}/leadership/history(id=${project.id})}">History</a>
+        </div>
+        <div class="table-scroll"><table class="data-table"><caption class="sr-only">Current Leader</caption><thead><tr><th scope="col">Leader</th><th scope="col">Started</th><th scope="col">Ended</th></tr></thead>
+            <tbody><tr th:each="term : ${leadership}"><td th:text="${term.leaderName}">Leader</td><td th:text="${#temporals.format(term.startedAt, 'dd/MM/yyyy HH:mm')}">Started</td><td th:text="${term.endedAt == null ? 'Current' : #temporals.format(term.endedAt, 'dd/MM/yyyy HH:mm')}">Current</td></tr></tbody>
+        </table></div>
+    </section>
 </main>
 </body>
 </html>

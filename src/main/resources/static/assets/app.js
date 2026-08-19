@@ -91,6 +91,91 @@ document.addEventListener('DOMContentLoaded', () => {
     updateSummary();
   });
 
+  document.querySelectorAll('[data-member-dropdown]').forEach((dropdown) => {
+    const trigger = dropdown.querySelector('[data-member-dropdown-trigger]');
+    const menu = dropdown.querySelector('[data-member-dropdown-menu]');
+    const search = dropdown.querySelector('[data-member-dropdown-search]');
+    const valueLabel = dropdown.querySelector('[data-member-dropdown-value]');
+    const empty = dropdown.querySelector('[data-member-dropdown-empty]');
+    const done = dropdown.querySelector('[data-member-dropdown-done]');
+    const form = dropdown.closest('form');
+    const validationAlert = form?.querySelector('[data-member-validation-alert]');
+    const validationError = dropdown.querySelector('[data-member-validation-error]');
+    const options = [...dropdown.querySelectorAll('[data-member-dropdown-option]')];
+    if (!trigger || !menu || !search || !valueLabel || !empty || !done) return;
+
+    // Đóng menu và trả trạng thái trợ năng về nút mở dropdown.
+    const close = () => {
+      menu.hidden = true;
+      trigger.setAttribute('aria-expanded', 'false');
+    };
+
+    // Hiển thị số lượng và tên Intern đang được chọn trong form.
+    const syncSelection = () => {
+      const selected = options
+        .filter((option) => option.querySelector('input').checked)
+        .map((option) => option.querySelector('[data-member-dropdown-label]').textContent.trim());
+      valueLabel.textContent = selected.length === 0
+        ? 'No Interns selected'
+        : `${selected.length} Intern${selected.length === 1 ? '' : 's'} selected: ${selected.join(', ')}`;
+      options.forEach((option) => {
+        option.setAttribute('aria-selected', String(option.querySelector('input').checked));
+      });
+    };
+
+    // Chỉ lọc các option server đã xác định là Intern đủ điều kiện.
+    const filter = () => {
+      const query = search.value.trim().toLocaleLowerCase();
+      let visible = 0;
+      options.forEach((option) => {
+        const matches = option.dataset.search.toLocaleLowerCase().includes(query);
+        option.hidden = !matches;
+        if (matches) visible += 1;
+      });
+      empty.hidden = visible !== 0;
+    };
+
+    // Khi người dùng chọn lại sau lỗi submit, bỏ trạng thái lỗi cũ trên giao diện.
+    const clearValidation = () => {
+      if (validationAlert) validationAlert.hidden = true;
+      if (validationError) validationError.hidden = true;
+      trigger.removeAttribute('aria-invalid');
+      trigger.removeAttribute('aria-describedby');
+    };
+
+    trigger.addEventListener('click', () => {
+      const opening = menu.hidden;
+      menu.hidden = !opening;
+      trigger.setAttribute('aria-expanded', String(opening));
+      if (opening) {
+        search.value = '';
+        filter();
+        search.focus();
+      }
+    });
+    search.addEventListener('input', filter);
+    options.forEach((option) => option.querySelector('input').addEventListener('change', () => {
+      syncSelection();
+      clearValidation();
+    }));
+    done.addEventListener('click', () => {
+      close();
+      trigger.focus();
+    });
+    document.addEventListener('click', (event) => {
+      if (!dropdown.contains(event.target)) close();
+    });
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && !menu.hidden) {
+        close();
+        trigger.focus();
+      }
+    });
+
+    syncSelection();
+    filter();
+  });
+
   document.querySelectorAll('[data-leader-dropdown]').forEach((dropdown) => {
     const trigger = dropdown.querySelector('[data-leader-dropdown-trigger]');
     const menu = dropdown.querySelector('[data-leader-dropdown-menu]');
@@ -98,6 +183,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const valueInput = dropdown.querySelector('[data-leader-dropdown-value-input]');
     const valueLabel = dropdown.querySelector('[data-leader-dropdown-value]');
     const empty = dropdown.querySelector('[data-leader-dropdown-empty]');
+    const form = dropdown.closest('form');
+    const validationAlert = form?.querySelector('[data-leader-validation-alert]');
+    const validationError = dropdown.querySelector('[data-leader-validation-error]');
     const options = [...dropdown.querySelectorAll('[data-leader-dropdown-option]')];
     if (!trigger || !menu || !search || !valueInput || !valueLabel || !empty) return;
 
@@ -130,6 +218,14 @@ document.addEventListener('DOMContentLoaded', () => {
       empty.hidden = visible !== 0;
     };
 
+    // Khi chọn lại sau một lần submit lỗi, xóa thông báo cũ để giao diện phản ánh lựa chọn mới.
+    const clearValidation = () => {
+      if (validationAlert) validationAlert.hidden = true;
+      if (validationError) validationError.hidden = true;
+      trigger.removeAttribute('aria-invalid');
+      trigger.removeAttribute('aria-describedby');
+    };
+
     trigger.addEventListener('click', () => {
       const opening = menu.hidden;
       menu.hidden = !opening;
@@ -144,6 +240,7 @@ document.addEventListener('DOMContentLoaded', () => {
     options.forEach((option) => option.addEventListener('click', () => {
       valueInput.value = option.dataset.value || '';
       syncSelection();
+      clearValidation();
       close();
       trigger.focus();
     }));
