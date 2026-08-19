@@ -96,7 +96,7 @@ class ProjectEntityTest {
         var project = plannedProject();
         project.addMember(10L, activeIntern(21L), CREATED_AT.plusSeconds(60));
 
-        var change = project.prepareLeaderChange(10L, activeIntern(21L), CREATED_AT.plusSeconds(120));
+        var change = project.prepareLeaderChange(10L, null, activeIntern(21L), CREATED_AT.plusSeconds(120));
         project.completeLeaderChange(10L, change);
 
         assertEquals(2, project.memberships().size());
@@ -105,9 +105,9 @@ class ProjectEntityTest {
         assertEquals(21L, project.currentLeader().internUserId());
         assertFalse(project.leadershipTerms().getFirst().isCurrent());
         assertThrows(ProjectRuleViolationException.class,
-                () -> project.prepareLeaderChange(10L, activeIntern(21L), CREATED_AT.plusSeconds(180)));
+                () -> project.prepareLeaderChange(10L, null, activeIntern(21L), CREATED_AT.plusSeconds(180)));
         assertThrows(ProjectRuleViolationException.class,
-                () -> project.prepareLeaderChange(10L, activeIntern(22L), CREATED_AT.plusSeconds(180)));
+                () -> project.prepareLeaderChange(10L, null, activeIntern(22L), CREATED_AT.plusSeconds(180)));
     }
 
     @Test

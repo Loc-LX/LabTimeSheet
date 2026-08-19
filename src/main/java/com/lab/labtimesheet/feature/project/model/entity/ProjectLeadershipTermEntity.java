@@ -15,10 +15,10 @@ import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 /**
- * JPA leadership interval attached to an active same-Project membership.
+ * Khoảng thời gian nhiệm kỳ Leader JPA gắn với một lượt tham gia đang hoạt động của cùng Project.
  *
- * <p>Changes close the current term and create a new term; completion closes the final term.
- * Historical terms retain the appointing and ending Mentor attribution.
+ * <p>Mỗi lần thay đổi sẽ đóng nhiệm kỳ hiện tại và tạo nhiệm kỳ mới; khi hoàn tất Project, nhiệm kỳ
+ * cuối cùng được đóng. Nhiệm kỳ lịch sử giữ lại thông tin Mentor bổ nhiệm và Mentor kết thúc.
  */
 @Entity
 @Table(name = "project_leadership_terms")
@@ -49,6 +49,7 @@ public class ProjectLeadershipTermEntity {
     @Column(name = "ended_by_mentor_user_id")
     private Long endedByMentorUserId;
 
+    /** Tạo nhiệm kỳ Leader mới cho lượt tham gia hiện tại. */
     ProjectLeadershipTermEntity(
             ProjectEntity project,
             ProjectMembershipEntity membership,
@@ -61,68 +62,69 @@ public class ProjectLeadershipTermEntity {
     }
 
     /**
-     * Returns the interval identity.
+     * Trả về định danh khoảng thời gian.
      *
-     * @return persisted leadership-term identifier, or null before insertion
+     * @return mã nhiệm kỳ đã lưu, hoặc null trước khi insert
      */
     public Long id() {
         return id;
     }
 
     /**
-     * Returns the Intern who led during this interval.
+     * Trả về Intern giữ vai trò Leader trong khoảng thời gian này.
      *
-     * @return Intern account identifier obtained from the retained membership interval
+     * @return mã tài khoản Intern lấy từ lượt tham gia được lưu lại
      */
     public long internUserId() {
         return membership.internUserId();
     }
 
     /**
-     * Returns when leadership authority began.
+     * Trả về thời điểm quyền Leader bắt đầu.
      *
-     * @return inclusive leadership start instant
+     * @return thời điểm bắt đầu nhiệm kỳ Leader, được tính cả thời điểm này
      */
     public Instant startedAt() {
         return startedAt;
     }
 
     /**
-     * Returns appointment provenance.
+     * Trả về nguồn gốc bổ nhiệm.
      *
-     * @return owning Mentor account that appointed this Leader
+     * @return tài khoản Mentor sở hữu đã bổ nhiệm Leader này
      */
     public long appointedByMentorUserId() {
         return appointedByMentorUserId;
     }
 
     /**
-     * Returns when leadership authority ended.
+     * Trả về thời điểm quyền Leader kết thúc.
      *
-     * @return term end instant, or null while current
+     * @return thời điểm kết thúc nhiệm kỳ, hoặc null khi còn hiện tại
      */
     public Instant endedAt() {
         return endedAt;
     }
 
     /**
-     * Returns closure provenance.
+     * Trả về nguồn gốc thao tác đóng nhiệm kỳ.
      *
-     * @return Mentor that closed the term, or null while current
+     * @return Mentor đã đóng nhiệm kỳ, hoặc null khi nhiệm kỳ còn hiện tại
      */
     public Long endedByMentorUserId() {
         return endedByMentorUserId;
     }
 
     /**
-     * Indicates whether this term currently grants Leader authority.
+     * Cho biết nhiệm kỳ này hiện còn cấp quyền Leader hay không.
      *
-     * @return true while the term has no end instant
+     * @return true khi nhiệm kỳ chưa có thời điểm kết thúc
      */
     public boolean isCurrent() {
         return endedAt == null;
     }
 
+    /** Đóng nhiệm kỳ hiện tại tại thời điểm hợp lệ và ghi nhận Mentor thực hiện. */
     Instant end(Instant at, long mentorUserId) {
         if (!isCurrent() || at.isBefore(startedAt)) {
             throw new ProjectRuleViolationException("Leadership term end must follow its start");

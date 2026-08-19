@@ -15,10 +15,10 @@ import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 /**
- * JPA membership interval linking one Intern to one Project.
+ * Khoảng thời gian thành viên JPA liên kết một Intern với một Project.
  *
- * <p>Leaving closes the interval; the row and its provenance remain for completed Project and
- * Task history. Current membership is represented by a null {@code leftAt}.
+ * <p>Khi rời Project, khoảng thời gian được đóng; dòng dữ liệu và nguồn gốc vẫn được giữ lại cho
+ * lịch sử Project và Task đã hoàn tất. Thành viên hiện tại được biểu diễn bằng {@code leftAt} null.
  */
 @Entity
 @Table(name = "project_memberships")
@@ -51,6 +51,7 @@ public class ProjectMembershipEntity {
     @Version
     private long version;
 
+    /** Tạo khoảng thời gian tham gia mới và lưu thông tin người thêm thành viên. */
     ProjectMembershipEntity(ProjectEntity project, long internUserId, Instant joinedAt, long addedByUserId) {
         this.project = project;
         this.internUserId = internUserId;
@@ -60,54 +61,54 @@ public class ProjectMembershipEntity {
     }
 
     /**
-     * Returns the interval identity used by Project and Task relationships.
+     * Trả về định danh khoảng thời gian được Project và Task sử dụng.
      *
-     * @return persisted membership identifier, or null before insertion
+     * @return mã lượt tham gia đã lưu, hoặc null trước khi insert
      */
     public Long id() {
         return id;
     }
 
     /**
-     * Returns the participating Intern.
+     * Trả về Intern tham gia.
      *
-     * @return participating Intern account identifier
+     * @return mã tài khoản Intern tham gia
      */
     public long internUserId() {
         return internUserId;
     }
 
     /**
-     * Returns when membership authority began.
+     * Trả về thời điểm quyền thành viên bắt đầu.
      *
-     * @return inclusive membership start instant
+     * @return thời điểm bắt đầu tham gia, được tính cả thời điểm này
      */
     public Instant joinedAt() {
         return joinedAt;
     }
 
     /**
-     * Returns membership provenance.
+     * Trả về nguồn gốc tạo lượt tham gia.
      *
-     * @return account identifier that directly created this interval
+     * @return mã tài khoản trực tiếp tạo khoảng thời gian này
      */
     public long addedByUserId() {
         return addedByUserId;
     }
 
     /**
-     * Returns when membership authority ended.
+     * Trả về thời điểm quyền thành viên kết thúc.
      *
-     * @return interval end instant, or null while membership is current
+     * @return thời điểm kết thúc khoảng thời gian, hoặc null khi thành viên còn hiện tại
      */
     public Instant leftAt() {
         return leftAt;
     }
 
     /**
-     * Indicates whether the Intern currently belongs to the Project.
+     * Cho biết Intern hiện còn thuộc Project hay không.
      *
-     * @return true while the membership interval has no end instant
+     * @return true khi khoảng thời gian tham gia chưa có thời điểm kết thúc
      */
     public boolean isCurrent() {
         return leftAt == null;

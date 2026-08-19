@@ -15,6 +15,11 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import org.junit.jupiter.api.Test;
@@ -23,6 +28,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Import(TestcontainersConfiguration.class)
@@ -168,11 +174,121 @@ class ProjectServiceIntegrationTest {
                 values (?, ?, 'Keep assignee', ?, ?)
                 """, projectId, firstMembershipId, firstMembershipId, firstMembershipId);
 
-        projectService.changeLeader(mentorId, projectId, nextLeaderId);
+        long expectedTermId = number("""
+                select id from project_leadership_terms
+                where project_id = ? and ended_at is null
+                """, projectId);
+        projectService.changeLeader(mentorId, projectId, expectedTermId, nextLeaderId);
 
         assertEquals(1, count("select count(*) from project_leadership_terms where project_id = ? and ended_at is null", projectId));
         assertEquals(1, count("select count(*) from project_leadership_terms where project_id = ? and ended_at is not null", projectId));
         assertEquals(firstMembershipId, number("select assignee_membership_id from tasks where project_id = ?", projectId));
+    }
+
+    @Test
+    void staleLeaderChangeCannotReplaceTheCurrentTermAfterAnotherChangeCommits() {
+        long mentorId = user("mentor-stale-leader@example.test", "MENTOR");
+        long firstLeaderId = intern("stale-leader-one@example.test", "I901");
+        long nextLeaderId = intern("stale-leader-two@example.test", "I902");
+        long projectId = createProject(mentorId, firstLeaderId, "Stale leadership");
+        projectService.addMember(mentorId, projectId, nextLeaderId);
+
+        long termLoadedByTheFirstForm = number("""
+                select id from project_leadership_terms
+                where project_id = ? and ended_at is null
+                """, projectId);
+
+        projectService.changeLeader(mentorId, projectId, termLoadedByTheFirstForm, nextLeaderId);
+
+        assertThrows(ProjectRuleViolationException.class, () -> projectService.changeLeader(
+                mentorId, projectId, termLoadedByTheFirstForm, firstLeaderId));
+        assertEquals(nextLeaderId, number("""
+                select membership.intern_user_id
+                from project_leadership_terms leadership
+                join project_memberships membership on membership.id = leadership.membership_id
+                where leadership.project_id = ? and leadership.ended_at is null
+                """, projectId));
+        assertEquals(1, count("select count(*) from project_leadership_terms where project_id = ? and ended_at is null", projectId));
+        assertEquals(2, count("select count(*) from project_leadership_terms where project_id = ?", projectId));
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void concurrentLeaderChangesWithTheSameTermAllowOneWinner() throws Exception {
+        long mentorId = user("mentor-concurrent-leader@example.test", "MENTOR");
+        long firstLeaderId = intern("concurrent-leader-one@example.test", "I903");
+        long firstReplacementId = intern("concurrent-leader-two@example.test", "I904");
+        long secondReplacementId = intern("concurrent-leader-three@example.test", "I905");
+        long projectId = createProject(mentorId, firstLeaderId, "Concurrent leadership");
+        projectService.addMembers(mentorId, projectId, List.of(firstReplacementId, secondReplacementId));
+        long termId = number("""
+                select id from project_leadership_terms
+                where project_id = ? and ended_at is null
+                """, projectId);
+
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        var ready = new CountDownLatch(2);
+        var start = new CountDownLatch(1);
+        try {
+            var first = executor.submit(() -> changeLeaderAfterStart(
+                    ready, start, mentorId, projectId, termId, firstReplacementId));
+            var second = executor.submit(() -> changeLeaderAfterStart(
+                    ready, start, mentorId, projectId, termId, secondReplacementId));
+            assertTrue(ready.await(5, TimeUnit.SECONDS));
+            start.countDown();
+
+            int successes = 0;
+            int staleFailures = 0;
+            for (var result : List.of(first, second)) {
+                try {
+                    result.get();
+                    successes++;
+                } catch (ExecutionException exception) {
+                    assertTrue(exception.getCause() instanceof ProjectRuleViolationException);
+                    staleFailures++;
+                }
+            }
+            assertEquals(1, successes);
+            assertEquals(1, staleFailures);
+            assertEquals(1, count(
+                    "select count(*) from project_leadership_terms where project_id = ? and ended_at is null",
+                    projectId));
+            assertEquals(2, count(
+                    "select count(*) from project_leadership_terms where project_id = ?", projectId));
+        } finally {
+            executor.shutdownNow();
+            deleteConcurrentLeadershipFixture(
+                    projectId, mentorId, firstLeaderId, firstReplacementId, secondReplacementId);
+        }
+    }
+
+    private Void changeLeaderAfterStart(
+            CountDownLatch ready,
+            CountDownLatch start,
+            long mentorId,
+            long projectId,
+            long expectedTermId,
+            long replacementId) throws InterruptedException {
+        ready.countDown();
+        start.await();
+        projectService.changeLeader(mentorId, projectId, expectedTermId, replacementId);
+        return null;
+    }
+
+    /** Xóa fixture đã commit vì test concurrency này chủ động tắt rollback. */
+    private void deleteConcurrentLeadershipFixture(
+            long projectId,
+            long mentorId,
+            long firstLeaderId,
+            long firstReplacementId,
+            long secondReplacementId) {
+        jdbc.update("delete from project_leadership_terms where project_id = ?", projectId);
+        jdbc.update("delete from project_memberships where project_id = ?", projectId);
+        jdbc.update("delete from projects where id = ?", projectId);
+        jdbc.update("delete from intern_profiles where user_id in (?, ?, ?, ?)",
+                firstLeaderId, firstReplacementId, secondReplacementId, mentorId);
+        jdbc.update("delete from app_users where id in (?, ?, ?, ?)",
+                mentorId, firstLeaderId, firstReplacementId, secondReplacementId);
     }
 
     @Test

@@ -10,45 +10,45 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 /**
- * Persists the Project aggregate, including its membership and leadership intervals.
+ * Lưu aggregate Project, bao gồm các khoảng thời gian thành viên và nhiệm kỳ Leader.
  *
- * <p>Consumers outside the Project feature use Project services and DTOs rather than this
- * repository or its JPA entities.
+ * <p>Các feature bên ngoài Project sử dụng service và DTO của Project thay vì truy cập repository
+ * hoặc entity JPA này.
  */
 public interface ProjectRepository extends JpaRepository<ProjectEntity, Long> {
 
     /**
-     * Loads one Project under a pessimistic write lock for mutation-time authorization and
-     * invariant checks. The caller's transaction retains the lock through commit or rollback.
+     * Tải một Project với khóa ghi bi quan để phân quyền và kiểm tra bất biến ngay lúc thay
+     * đổi. Transaction của bên gọi giữ lock đến khi commit hoặc rollback.
      *
-     * @param id Project identifier
-     * @return the locked aggregate, or empty when the identifier does not exist
+     * @param id mã Project
+     * @return aggregate đã khóa, hoặc rỗng khi mã không tồn tại
      */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select project from ProjectEntity project where project.id = :id")
     Optional<ProjectEntity> findLockedById(@Param("id") long id);
 
     /**
-     * Lists all Projects for Admin read-only inspection, most recently updated first.
+     * Liệt kê mọi Project để Admin kiểm tra chỉ đọc, theo thứ tự cập nhật mới nhất trước.
      *
-     * @return ordered Projects
+     * @return danh sách Project đã sắp xếp
      */
     List<ProjectEntity> findAllByOrderByUpdatedAtDescIdDesc();
 
     /**
-     * Lists Projects owned by one Mentor, most recently updated first.
+     * Liệt kê các Project do một Mentor sở hữu, theo thứ tự cập nhật mới nhất trước.
      *
-     * @param mentorUserId owning Mentor user identifier
-     * @return ordered owned Projects
+     * @param mentorUserId mã người dùng Mentor sở hữu
+     * @return các Project thuộc sở hữu đã sắp xếp
      */
     List<ProjectEntity> findByMentorUserIdOrderByUpdatedAtDescIdDesc(long mentorUserId);
 
     /**
-     * Lists Projects visible to an Intern: current memberships in open Projects and historical
-     * memberships only after completion.
+     * Liệt kê Project mà Intern được xem: lượt tham gia hiện tại trong Project đang mở và lượt
+     * tham gia lịch sử chỉ được xem sau khi Project hoàn tất.
      *
-     * @param internUserId Intern user identifier
-     * @return ordered visible Projects without duplicate rows
+     * @param internUserId mã người dùng Intern
+     * @return các Project hiển thị đã sắp xếp, không có dòng trùng
      */
     @Query("""
             select distinct project from ProjectEntity project

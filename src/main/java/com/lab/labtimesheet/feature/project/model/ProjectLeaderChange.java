@@ -4,11 +4,11 @@ import com.lab.labtimesheet.feature.project.model.entity.ProjectMembershipEntity
 import java.time.Instant;
 
 /**
- * In-transaction handoff between closing the current leadership term and opening its replacement.
- * It exists so the old interval can be flushed before PostgreSQL validates the new current term.
+ * Dữ liệu bàn giao trong transaction giữa việc đóng nhiệm kỳ hiện tại và mở nhiệm kỳ thay thế.
+ * Đối tượng này cho phép flush khoảng thời gian cũ trước khi PostgreSQL kiểm tra nhiệm kỳ mới.
  *
- * @param replacement active same-Project membership appointed as Leader
- * @param effectiveAt end/start instant shared by the adjacent leadership terms
+ * @param replacement lượt tham gia đang hoạt động trong cùng Project được bổ nhiệm làm Leader
+ * @param effectiveAt thời điểm kết thúc/bắt đầu chung của hai nhiệm kỳ liền kề
  */
 public record ProjectLeaderChange(ProjectMembershipEntity replacement, Instant effectiveAt) {
 }

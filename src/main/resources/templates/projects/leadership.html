@@ -21,6 +21,7 @@
         </table></div>
     </section>
     <form class="panel form-panel form-grid" th:if="${project.canManage}" method="post" th:action="@{/projects/{id}/leadership(id=${project.id})}" th:object="${projectMemberForm}">
+        <input type="hidden" th:field="*{expectedLeadershipTermId}">
         <div class="alert alert-error" role="alert" th:if="${#fields.hasAnyErrors()}">Please correct the Leader selection.</div>
         <div class="field" data-intern-picker>
             <span class="field-label">New Leader</span>

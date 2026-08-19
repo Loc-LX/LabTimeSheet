@@ -3,17 +3,17 @@ package com.lab.labtimesheet.feature.project.model.dto;
 import java.time.LocalDate;
 
 /**
- * Authorized Project detail for server-rendered pages.
+ * Chi tiết Project đã được phân quyền cho các trang hiển thị phía máy chủ.
  *
- * @param id Project identifier
- * @param name display name
- * @param description optional description
- * @param status lifecycle status
- * @param startDate inclusive Project start date
- * @param endDate inclusive Project end date
- * @param mentorName owning Mentor display name
- * @param leaderName current Leader display name, or null after completion closes leadership
- * @param canManage whether the viewer is the owner and the Project remains mutable
+ * @param id mã Project
+ * @param name tên hiển thị
+ * @param description mô tả tùy chọn
+ * @param status trạng thái vòng đời
+ * @param startDate ngày bắt đầu Project, được tính cả ngày này
+ * @param endDate ngày kết thúc Project, được tính cả ngày này
+ * @param mentorName tên hiển thị của Mentor sở hữu
+ * @param leaderName tên hiển thị của Leader hiện tại, hoặc null sau khi hoàn tất và đóng nhiệm kỳ
+ * @param canManage cho biết người xem có phải chủ sở hữu và Project còn cho phép thay đổi hay không
  */
 public record ProjectDetail(
         long id,

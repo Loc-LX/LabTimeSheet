@@ -122,7 +122,8 @@ class ProjectControllerTest {
         when(pages.members(10L, 30L)).thenReturn(List.of(
                 new ProjectMemberView(40L, 20L, "Current Leader", Instant.parse("2026-08-15T00:00:00Z"), null, true),
                 new ProjectMemberView(41L, 21L, "Current Member", Instant.parse("2026-08-15T00:00:00Z"), null, false)));
-        when(pages.leadership(10L, 30L)).thenReturn(List.of());
+        when(pages.leadership(10L, 30L)).thenReturn(List.of(new ProjectLeadershipTermView(
+                50L, "Current Leader", Instant.parse("2026-08-15T00:00:00Z"), null)));
         when(accounts.eligibleInternOptions(LocalDate.of(2026, 8, 15))).thenReturn(List.of(
                 option(20L, "Current Leader", "STU-020"),
                 option(21L, "Current Member", "STU-021"),
@@ -139,6 +140,8 @@ class ProjectControllerTest {
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
         assertTrue(leadershipHtml.contains("type=\"radio\""));
+        assertTrue(leadershipHtml.contains("name=\"expectedLeadershipTermId\""));
+        assertTrue(leadershipHtml.contains("value=\"50\""));
         assertTrue(leadershipHtml.contains("Current Member"));
         assertFalse(leadershipHtml.contains("Eligible Nonmember"));
         assertFalse(leadershipHtml.contains("data-picker-label>Current Leader"));
@@ -311,13 +314,16 @@ class ProjectControllerTest {
     void missingReplacementLeaderReRendersServerFieldError() throws Exception {
         when(pages.authenticatedUserId("mentor@example.test")).thenReturn(10L);
         when(pages.detail(10L, 30L)).thenReturn(plannedOwnerDetail());
-        when(pages.leadership(10L, 30L)).thenReturn(List.of());
+        when(pages.leadership(10L, 30L)).thenReturn(List.of(new ProjectLeadershipTermView(
+                50L, "Current Leader", Instant.parse("2026-08-15T00:00:00Z"), null)));
         when(pages.members(10L, 30L)).thenReturn(List.of(new ProjectMemberView(
                 41L, 21L, "Current Member", Instant.parse("2026-08-15T00:00:00Z"), null, false)));
         when(accounts.eligibleInternOptions(LocalDate.of(2026, 8, 15))).thenReturn(List.of(
                 option(21L, "Current Member", "STU-021")));
 
-        mvc.perform(post("/projects/30/leadership").with(csrf()))
+        mvc.perform(post("/projects/30/leadership")
+                        .with(csrf())
+                        .param("expectedLeadershipTermId", "50"))
                 .andExpect(status().isOk())
                 .andExpect(view().name("projects/leadership"))
                 .andExpect(model().attributeHasFieldErrors("projectMemberForm", "internUserId"))
@@ -325,6 +331,7 @@ class ProjectControllerTest {
                         .string(containsString("id=\"leadership-intern-user-error\"")));
 
         verify(projects, never()).changeLeader(
+                org.mockito.ArgumentMatchers.anyLong(),
                 org.mockito.ArgumentMatchers.anyLong(),
                 org.mockito.ArgumentMatchers.anyLong(),
                 org.mockito.ArgumentMatchers.anyLong());
@@ -426,7 +433,7 @@ class ProjectControllerTest {
         doThrow(new ProjectRuleViolationException("Intern is already a current Project member"))
                 .when(projects).addMembers(10L, 30L, List.of(20L));
         doThrow(new ProjectRuleViolationException("Selected Intern is already the current Leader"))
-                .when(projects).changeLeader(10L, 30L, 20L);
+                .when(projects).changeLeader(10L, 30L, 50L, 20L);
 
         mvc.perform(post("/projects")
                         .with(csrf())
@@ -454,7 +461,8 @@ class ProjectControllerTest {
 
         mvc.perform(post("/projects/30/leadership")
                         .with(csrf())
-                        .param("internUserId", "20"))
+                        .param("internUserId", "20")
+                        .param("expectedLeadershipTermId", "50"))
                 .andExpect(status().isOk())
                 .andExpect(view().name("projects/leadership"))
                 .andExpect(model().attributeHasFieldErrors("projectMemberForm", "internUserId"))

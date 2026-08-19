@@ -20,11 +20,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Provides authorization-aware, DTO-only Project reads to MVC and other features.
+ * Cung cấp dữ liệu đọc Project chỉ gồm DTO và có kiểm tra phân quyền cho MVC cùng các feature khác.
  *
- * <p>Admins inspect all Projects, Mentors inspect only owned Projects, and Interns inspect open
- * Projects only while currently enrolled. Completed Projects remain visible to historical
- * members but expose no current Leader or active-member context.
+ * <p>Admin xem mọi Project, Mentor chỉ xem Project mình sở hữu, còn Intern chỉ xem Project đang
+ * mở khi vẫn đang tham gia. Project đã hoàn tất vẫn hiển thị cho thành viên lịch sử nhưng không
+ * cung cấp context Leader hiện tại hoặc thành viên đang hoạt động.
  */
 @Service
 @RequiredArgsConstructor
@@ -34,11 +34,11 @@ public class ProjectQueryService {
     private final AccountService accounts;
 
     /**
-     * Resolves an active authenticated account to its stable user identifier.
+     * Tìm mã người dùng ổn định từ tài khoản đang hoạt động và đã xác thực.
      *
-     * @param email authenticated email address
-     * @return active user identifier
-     * @throws ProjectAccessDeniedException when no active identity is available
+     * @param email địa chỉ email đã xác thực
+     * @return mã người dùng đang hoạt động
+     * @throws ProjectAccessDeniedException khi không có danh tính đang hoạt động
      */
     @Transactional(readOnly = true)
     public long authenticatedUserId(String email) {
@@ -46,11 +46,11 @@ public class ProjectQueryService {
     }
 
     /**
-     * Resolves the active authenticated actor needed for role-aware Project navigation.
+     * Tìm người thực hiện đang hoạt động và đã xác thực để điều hướng Project theo vai trò.
      *
-     * @param email authenticated email address
-     * @return user identifier and immutable global role
-     * @throws ProjectAccessDeniedException when no active identity is available
+     * @param email địa chỉ email đã xác thực
+     * @return mã người dùng và vai trò toàn cục bất biến
+     * @throws ProjectAccessDeniedException khi không có danh tính đang hoạt động
      */
     @Transactional(readOnly = true)
     public ProjectActorView authenticatedActor(String email) {
@@ -66,11 +66,11 @@ public class ProjectQueryService {
     }
 
     /**
-     * Lists Projects visible under the actor's current role and Project relationship.
-     * Historical Intern membership grants visibility only to completed Projects.
+     * Liệt kê Project hiển thị theo vai trò hiện tại và quan hệ của người thực hiện với Project.
+     * Lượt tham gia lịch sử của Intern chỉ cấp quyền xem Project đã hoàn tất.
      *
-     * @param actorUserId active actor user identifier
-     * @return ordered authorized summaries
+     * @param actorUserId mã người dùng đang hoạt động
+     * @return các thông tin tóm tắt đã phân quyền, được sắp xếp
      */
     @Transactional(readOnly = true)
     public List<ProjectSummary> listVisible(long actorUserId) {
@@ -79,13 +79,13 @@ public class ProjectQueryService {
     }
 
     /**
-     * Returns one authorized Project detail. Completed Projects have no current Leader and never
-     * grant mutation capability, including to their owning Mentor.
+     * Trả về chi tiết một Project đã phân quyền. Project đã hoàn tất không có Leader hiện tại và
+     * không bao giờ cấp khả năng thay đổi, kể cả cho Mentor sở hữu.
      *
-     * @param actorUserId active actor user identifier
-     * @param projectId requested Project identifier
-     * @return authorized detail
-     * @throws ProjectAccessDeniedException for missing and unauthorized identifiers alike
+     * @param actorUserId mã người dùng đang hoạt động
+     * @param projectId mã Project được yêu cầu
+     * @return chi tiết đã phân quyền
+     * @throws ProjectAccessDeniedException cho cả mã không tồn tại và mã không được phép
      */
     @Transactional(readOnly = true)
     public ProjectDetail detail(long actorUserId, long projectId) {
@@ -104,12 +104,12 @@ public class ProjectQueryService {
     }
 
     /**
-     * Returns membership interval history for an authorized Project. Completed history marks no
-     * membership as current Leader because completion closes the final leadership term.
+     * Trả về lịch sử khoảng thời gian thành viên của Project đã phân quyền. Lịch sử Project đã
+     * hoàn tất không đánh dấu thành viên nào là Leader hiện tại vì việc hoàn tất đã đóng nhiệm kỳ cuối.
      *
-     * @param actorUserId active actor user identifier
-     * @param projectId requested Project identifier
-     * @return membership history in aggregate order
+     * @param actorUserId mã người dùng đang hoạt động
+     * @param projectId mã Project được yêu cầu
+     * @return lịch sử thành viên theo thứ tự trong aggregate
      */
     @Transactional(readOnly = true)
     public List<ProjectMemberView> members(long actorUserId, long projectId) {
@@ -131,11 +131,11 @@ public class ProjectQueryService {
     }
 
     /**
-     * Returns retained leadership terms for an authorized Project, newest first.
+     * Trả về các nhiệm kỳ Leader được lưu lại của Project đã phân quyền, nhiệm kỳ mới nhất trước.
      *
-     * @param actorUserId active actor user identifier
-     * @param projectId requested Project identifier
-     * @return leadership history, including closed terms
+     * @param actorUserId mã người dùng đang hoạt động
+     * @param projectId mã Project được yêu cầu
+     * @return lịch sử nhiệm kỳ Leader, bao gồm cả nhiệm kỳ đã đóng
      */
     @Transactional(readOnly = true)
     public List<ProjectLeadershipTermView> leadership(long actorUserId, long projectId) {
@@ -150,13 +150,13 @@ public class ProjectQueryService {
     }
 
     /**
-     * Returns the DTO-only Project facts needed for Task reads. Open Projects include the current
-     * Leader membership and active eligible members; completed Projects return a null Leader and
-     * an empty active-member list while remaining visible to former members.
+     * Trả về thông tin Project chỉ gồm DTO mà Task cần khi đọc. Project đang mở gồm lượt tham gia
+     * Leader hiện tại và các thành viên hiện tại đủ điều kiện; Project đã hoàn tất trả Leader null
+     * cùng danh sách thành viên đang hoạt động rỗng nhưng vẫn hiển thị cho thành viên cũ.
      *
-     * @param actorUserId active actor user identifier
-     * @param projectId requested Project identifier
-     * @return authorized Task context
+     * @param actorUserId mã người dùng đang hoạt động
+     * @param projectId mã Project được yêu cầu
+     * @return context Task đã phân quyền
      */
     @Transactional(readOnly = true)
     public ProjectTaskContext taskContext(long actorUserId, long projectId) {
@@ -164,6 +164,7 @@ public class ProjectQueryService {
         return taskContext(actorUserId, project);
     }
 
+    /** Tạo context Task từ aggregate đã được khóa bởi service thay đổi. */
     ProjectTaskContext taskContext(long actorUserId, ProjectEntity project) {
         requireVisibleProject(actorUserId, project);
         if (project.status() == ProjectStatus.COMPLETED) {
@@ -200,11 +201,11 @@ public class ProjectQueryService {
     }
 
     /**
-     * Computes role-scoped dashboard counts from current active Project relationships.
-     * Historical memberships never contribute to current Intern or Mentor metrics.
+     * Tính số liệu dashboard theo vai trò từ các quan hệ Project hiện tại và đang hoạt động.
+     * Lượt tham gia lịch sử không bao giờ góp vào số liệu hiện tại của Intern hoặc Mentor.
      *
-     * @param actorUserId active actor user identifier
-     * @return active Project count and, for Mentors, distinct eligible active-member count
+     * @param actorUserId mã người dùng đang hoạt động
+     * @return số Project đang hoạt động và, với Mentor, số thành viên đang hoạt động đủ điều kiện không trùng
      */
     @Transactional(readOnly = true)
     public ProjectDashboardSummary dashboardSummary(long actorUserId) {
@@ -226,12 +227,14 @@ public class ProjectQueryService {
         return new ProjectDashboardSummary(activeProjects.size(), distinctActiveMembers);
     }
 
+    /** Tải Project và chỉ trả về sau khi kiểm tra người thực hiện được phép xem. */
     private ProjectEntity visibleProject(long actorUserId, long projectId) {
         var project = projects.findById(projectId).orElseThrow(ProjectAccessDeniedException::new);
         requireVisibleProject(actorUserId, project);
         return project;
     }
 
+    /** Kiểm tra quyền xem Project theo vai trò và quan hệ thành viên của người thực hiện. */
     private void requireVisibleProject(long actorUserId, ProjectEntity project) {
         var actor = activeActor(actorUserId);
         var visible = "ADMIN".equals(actor.role().name())
@@ -245,6 +248,7 @@ public class ProjectQueryService {
         }
     }
 
+    /** Chọn truy vấn danh sách Project tương ứng với vai trò toàn cục của người thực hiện. */
     private List<ProjectEntity> visibleProjects(AccountIdentity actor, long actorUserId) {
         return switch (actor.role().name()) {
             case "ADMIN" -> projects.findAllByOrderByUpdatedAtDescIdDesc();
@@ -254,6 +258,7 @@ public class ProjectQueryService {
         };
     }
 
+    /** Lấy danh tính Account đang hoạt động hoặc chuyển mọi lỗi nhận diện thành lỗi truy cập chung. */
     private AccountIdentity activeActor(long actorUserId) {
         try {
             var actor = accounts.requireIdentityById(actorUserId);
@@ -266,6 +271,7 @@ public class ProjectQueryService {
         }
     }
 
+    /** Lấy tên hiển thị của Account để đưa vào DTO; không để lộ lỗi tra cứu cho bên ngoài. */
     private String displayName(long userId) {
         try {
             return accounts.requireIdentityById(userId).displayName();
@@ -274,10 +280,12 @@ public class ProjectQueryService {
         }
     }
 
+    /** Kiểm tra nhanh Intern còn đủ điều kiện để xuất hiện trong context Task hay không. */
     private boolean isEligibleIntern(long userId) {
         return accounts.isEligibleIntern(userId);
     }
 
+    /** Chuyển aggregate Project thành dòng tóm tắt chỉ đọc cho trang danh sách. */
     private static ProjectSummary summary(ProjectEntity project) {
         return new ProjectSummary(
                 project.id(),
