@@ -111,6 +111,23 @@ pass unchanged at the full-suite run recorded in `docs/tests/unit/leave-service.
 test methods still pass unchanged at the full-suite run recorded in
 `docs/tests/unit/leave-lifecycle.md`.
 
+## Extension (I2-ATT-05)
+
+`4c09382` extended the compiled-contract audit to the correction stack:
+`AttendanceApplicationService` gained the injected
+`AttendanceCorrectionRepository` (8-param constructor),
+`AttendanceRecordEntity` gained `id()`/`checkInAt()`/`checkOutAt()`,
+`AttendanceHistoryItem` gained its `effectiveCheckOutAt` component, the new
+`InternCorrectionController` (form/submit) and `CorrectionService`
+(submit/overview) surfaces are asserted, and the new correction entities and
+DTOs are covered: `AttendanceCorrectionEntity` (protected JPA + 6-arg public
+constructor, `approve` mutator, and decision getters), `AttendanceCorrectionEventEntity`
+(protected JPA + 7-arg public constructor and getter surface), and the
+`CorrectionSubmission` (9 components), `CorrectionSubmissionCommand`
+(3 components), and `CorrectionsOverview` (2 components) records. All four test
+methods still pass unchanged at the full-suite run recorded in
+`docs/tests/unit/correction-submission.md`.
+
 ## External-test boundaries
 
 The reflection audit does not replace Spring/JPA bootstrapping, MVC property access, PostgreSQL persistence, or
