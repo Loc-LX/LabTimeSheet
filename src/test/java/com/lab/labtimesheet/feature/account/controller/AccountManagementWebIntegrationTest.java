@@ -186,6 +186,32 @@ class AccountManagementWebIntegrationTest {
                 .andExpect(redirectedUrl("/admin/accounts/" + mentorId + "?error"));
     }
 
+    @Test
+    void adminResendsActivationEmailAndOnlyAdminMayDoSo() throws Exception {
+        mockMvc.perform(post("/admin/accounts")
+                        .with(user("admin@example.com").roles("ADMIN"))
+                        .with(csrf())
+                        .param("email", "pending@example.com")
+                        .param("displayName", "Pending One")
+                        .param("role", "MENTOR"))
+                .andExpect(status().is3xxRedirection());
+        long pendingId = accounts.requireIdentityByEmail("pending@example.com").id();
+        mail.messages.clear();
+
+        mockMvc.perform(post("/admin/accounts/" + pendingId + "/resend-activation")
+                        .with(user("admin@example.com").roles("ADMIN"))
+                        .with(csrf()))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/admin/accounts/" + pendingId + "?resent"));
+        assertThat(mail.messages).hasSize(1);
+        assertThat(mail.activationTokenFor("pending@example.com")).isNotBlank();
+
+        mockMvc.perform(post("/admin/accounts/" + pendingId + "/resend-activation")
+                        .with(user("mentor@example.com").roles("MENTOR"))
+                        .with(csrf()))
+                .andExpect(status().isForbidden());
+    }
+
     private void activate(String email, String password) throws Exception {
         String rawToken = mail.activationTokenFor(email);
         mockMvc.perform(post("/activate")
