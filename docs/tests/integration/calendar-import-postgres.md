@@ -6,7 +6,7 @@
 - **Test class/method:** `com.lab.labtimesheet.feature.attendance.service.AttendancePersistenceIntegrationTest#importsPlatformCandidateWithCanonicalProvenanceAndIdempotentHistory`,
   `#rejectsPlatformCandidateOutsideRequestedYearBeforePersistence`; `com.lab.labtimesheet.feature.attendance.service.AttendanceConcurrencyIntegrationTest#concurrentSameHolidayUuidImportsAreIdempotent`,
   `#publicImportRejectsClientIdentityOutsideTrustedPreview`
-- **Implementation commit:** pending local green milestone
+- **Implementation commit:** `0eb57691265c4afda67e9a60b4d3387dd57d0d46`
 
 ## Protected behavior
 

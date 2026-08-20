@@ -7,7 +7,7 @@
   `#providerFailureStaysActionableAndDoesNotBecomeImportRows`, `#previewRejectsCandidateOutsideRequestedYear`,
   `#importsExistingCandidatesInCanonicalSourceUuidLockOrder`, `#publicHolidayOnlySetsTheDefaultAndRepeatedImportDoesNotOverwrite`,
   and `#importResolvesCandidateAndProvenanceFromTrustedPreview`
-- **Implementation commit:** pending local green milestone
+- **Implementation commit:** `0eb57691265c4afda67e9a60b4d3387dd57d0d46`
 
 ## Protected behavior
 
