@@ -65,14 +65,14 @@ public class Task {
     private Instant deletedAt;
 
     @Column(name = "deleted_by_membership_id")
-    @Getter(AccessLevel.NONE)
+    @Getter
     private Long deletedByMembershipId;
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
     @Column(name = "updated_at", nullable = false)
-    @Getter(AccessLevel.NONE)
+    @Getter
     private Instant updatedAt;
 
     @Version
@@ -124,6 +124,61 @@ public class Task {
         }
         status = target;
         updatedAt = now;
+    }
+
+    /**
+     * Replaces editable Task definition fields without changing attribution or lifecycle facts.
+     *
+     * @param title normalized required title
+     * @param description optional normalized description
+     * @param dueDate optional validated business due date
+     * @param now server-controlled edit instant
+     */
+    public void updateDefinition(String title, String description, LocalDate dueDate, Instant now) {
+        this.title = title;
+        this.description = description;
+        this.dueDate = dueDate;
+        this.updatedAt = now;
+    }
+
+    /**
+     * Changes the current assignee while retaining creator, status, comments, logs, and creation
+     * lifecycle attribution.
+     *
+     * @param assigneeMembershipId eligible same-Project recipient membership
+     * @param assignerMembershipId authenticated Leader or guarded Project-operation actor
+     * @param now server-controlled assignment instant
+     */
+    public void reassign(long assigneeMembershipId, long assignerMembershipId, Instant now) {
+        this.assigneeMembershipId = assigneeMembershipId;
+        this.assignerMembershipId = assignerMembershipId;
+        this.assignedAt = now;
+        this.updatedAt = now;
+    }
+
+    /**
+     * Marks an unfinished Task deleted while retaining the row and all historical attribution.
+     *
+     * @param deleterMembershipId authenticated same-Project membership performing the deletion
+     * @param now server-controlled deletion instant
+     * @throws IllegalStateException when this Task is already deleted
+     */
+    public void softDelete(long deleterMembershipId, Instant now) {
+        if (deletedAt != null) {
+            throw new IllegalStateException("Task is already deleted");
+        }
+        deletedAt = now;
+        deletedByMembershipId = deleterMembershipId;
+        updatedAt = now;
+    }
+
+    /**
+     * Indicates whether this row is excluded from current Task lists and progress.
+     *
+     * @return true after soft deletion
+     */
+    public boolean isDeleted() {
+        return deletedAt != null;
     }
 
 }

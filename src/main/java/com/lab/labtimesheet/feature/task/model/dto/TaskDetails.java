@@ -9,12 +9,36 @@ import java.util.List;
  * @param comments append-only comment history in creation order
  * @param canChangeStatus true only for the current assignee of an ACTIVE Project
  * @param canComment true only for an eligible active member or owning Mentor before completion
+ * @param canEdit true for the current Leader or self-created current-assignee unfinished Task
+ * @param canDelete true for the same definition owner as {@code canEdit}
+ * @param canReassign true only for the current Leader on an unfinished Task
+ * @param canLogWork true only for the current assignee on an ACTIVE Project
  */
 public record TaskDetails(
         TaskView task,
         List<TaskCommentView> comments,
         boolean canChangeStatus,
-        boolean canComment) {
+        boolean canComment,
+        boolean canEdit,
+        boolean canDelete,
+        boolean canReassign,
+        boolean canLogWork) {
+
+    /**
+     * Retains the Iteration 1 constructor for callers that do not render definition controls.
+     *
+     * @param task visible Task
+     * @param comments append-only comments
+     * @param canChangeStatus status capability
+     * @param canComment comment capability
+     */
+    public TaskDetails(
+            TaskView task,
+            List<TaskCommentView> comments,
+            boolean canChangeStatus,
+            boolean canComment) {
+        this(task, comments, canChangeStatus, canComment, false, false, false, false);
+    }
 
     /** Copies the comment list so historical output cannot be modified by a view consumer. */
     public TaskDetails {
