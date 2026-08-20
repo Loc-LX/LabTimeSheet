@@ -4,7 +4,7 @@
 - **Requirement IDs:** `ATT-001`, `ATT-002`, `ATT-003`, `ATT-004`, `ATT-005`, `ATT-006`
 - **Scenario IDs:** `AC-ATT-001`
 - **Test class/method:** `com.lab.labtimesheet.feature.attendance.service.AttendancePolicySchedulingIntegrationTest`
-- **Implementation commit:** `a2205b5`
+- **Implementation commit:** `3f617fe`
 
 ## Protected behavior
 

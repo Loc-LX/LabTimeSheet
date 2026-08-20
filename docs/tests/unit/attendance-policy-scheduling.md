@@ -4,7 +4,7 @@
 - **Requirement IDs:** `ATT-001`, `ATT-002`, `ATT-003`, `ATT-004`, `ATT-005`, `ATT-006`
 - **Scenario IDs:** `AC-ATT-001`
 - **Test class/method:** `com.lab.labtimesheet.feature.attendance.service.AttendancePolicyServiceTest`
-- **Implementation commit:** `a2205b5`
+- **Implementation commit:** `3f617fe`
 
 ## Protected behavior
 
@@ -85,7 +85,7 @@ BUILD SUCCESS
 ```
 
 The full suite also required the pre-existing package-by-feature structure guard
-to be path-separator agnostic on Windows (`69357f6`); the guard still enforces the
+to be path-separator agnostic on Windows (`96c2974`); the guard still enforces the
 approved package list.
 
 ## External-test boundaries
