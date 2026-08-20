@@ -5,7 +5,7 @@
 - **Iteration deliverables:** `I2-ATT-04`, `I2-ATT-06`, `I2-ATT-07`
 - **Scenario IDs:** `AC-NOT-001`
 - **Test class/method:** `com.lab.labtimesheet.feature.attendance.service.AttendancePersistenceIntegrationTest#leaveNotificationsUseGlobalMentorsForSubmissionAndInternForDecisionWithoutCancellation`; `#leaveRequestTimeAutoRejectionPublishesOnceThenSchedulerIsIdempotent`; `#correctionNotificationsCoverSubmissionDecisionRevertAndRequestTimeAutoRejectionOnce`; `#recipientAccountLocksPrecedeLeaveAndCorrectionRows`; `#unauthorizedLateLeaveCancellationDoesNotExpireRequest`; `com.lab.labtimesheet.feature.attendance.service.LeaveApplicationServiceTest#expirySamplesClockAfterLockedRowAcquisition`; `com.lab.labtimesheet.feature.attendance.service.AttendanceCorrectionApplicationServiceTest#expirySamplesClockAfterLockedRowAcquisition`
-- **Implementation commit:** pending local green milestone
+- **Implementation commit:** `7101082b2ea9651e4d6b7ebc25d2d380474a8065`
 
 ## Protected behavior
 
