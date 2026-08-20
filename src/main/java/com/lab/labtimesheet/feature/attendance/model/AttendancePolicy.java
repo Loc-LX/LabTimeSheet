@@ -36,6 +36,7 @@ public record AttendancePolicy(
         Set<DayOfWeek> workdays) {
 
     private static final int MAX_GRACE_MINUTES = 720;
+    private static final int MAX_MONTHLY_LEAVE_QUOTA = 31;
     private static final int SECONDS_PER_DAY = 86_400;
 
     /**
@@ -51,6 +52,15 @@ public record AttendancePolicy(
 
         requireGraceInRange(checkInGraceMinutes, "checkInGraceMinutes");
         requireGraceInRange(checkoutGraceMinutes, "checkoutGraceMinutes");
+        if (monthlyLeaveQuota < 0 || monthlyLeaveQuota > MAX_MONTHLY_LEAVE_QUOTA) {
+            throw new IllegalArgumentException("monthlyLeaveQuota must be between 0 and " + MAX_MONTHLY_LEAVE_QUOTA);
+        }
+        if (violationPenalty.compareTo(BigDecimal.ZERO) < 0 || violationPenalty.compareTo(BigDecimal.ONE) > 0) {
+            throw new IllegalArgumentException("violationPenalty must be between 0 and 1");
+        }
+        if (workdays.isEmpty()) {
+            throw new IllegalArgumentException("at least one workday is required");
+        }
         if (!scheduledEnd.isAfter(scheduledStart)) {
             throw new IllegalArgumentException("scheduledEnd must be after scheduledStart");
         }
