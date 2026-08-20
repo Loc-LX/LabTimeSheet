@@ -4,7 +4,7 @@
 - **Requirement IDs:** `TSK-013`, `TSK-014`, `TSK-015`, `TSK-016`, `DB-008`
 - **Scenario IDs:** `AC-TSK-007`, `AC-TSK-008`
 - **Test class/method:** `TaskWorkLogIntegrationTest#workLogRejectsDateOutsideInternshipAndCombinedDailyLimit`, `#workLogRejectsFutureProjectAndMembershipBoundaries`, `#workLogRejectsDateAfterRetainedMembershipClosure`, `#retainedMembershipClosureDateRemainsInclusiveForCombinedTotal`, `#authorCorrectionRetainsStoredIdentityAndRejectsAnotherMember`, `#workLogRejectsInactiveAndTerminalInternLifecycle`, `#profileLockBlocksWorkLogUntilOuterTransactionCommits`, `#accountFirstProjectMutationDoesNotDeadlockWithWorkLog`, `#concurrentProjectsRejectOneOfExactly1441AttemptedMinutes`; `TaskMutationBoundaryTest#workLogLocksAccountBeforeReadingDailyTotalAndWriting`, `#workLogRejectsLockedAccountBeforeReadingDailyTotal`, `#correctionPreReadsDateThenLocksAccountBeforeProjectLogAndTask`, `#pendingExitCurrentAssigneeRetainsExistingStatusEditAndDeleteRights`, `#pendingExitCurrentAssigneeRetainsExistingWorkLogRight`; `TaskTransferServiceTest#pendingExitSourceMayTransferExistingUnfinishedTaskAway`
-- **Implementation commit:** `pending local milestone`
+- **Implementation commit:** `1967f211e25aefb40ddb42c077abbd6db210ffba`
 
 ## Protected behavior
 
