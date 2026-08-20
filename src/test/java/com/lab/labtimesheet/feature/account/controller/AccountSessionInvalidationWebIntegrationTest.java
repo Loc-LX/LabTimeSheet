@@ -59,7 +59,7 @@ class AccountSessionInvalidationWebIntegrationTest {
         long adminId = accounts.requireActiveAdminId("admin@example.com");
         long draftId = smtp.saveDraft(adminId,
                 new SmtpDraft("mailpit", 1025, SecurityMode.NONE, null, null, "admin@example.com", "Lab Timesheet"));
-        smtp.testDraft(draftId, adminId, "admin@example.com");
+        smtp.testDraft(draftId, adminId);
         smtp.activate(draftId, adminId);
 
         var creation = accounts.create(new CreateAccountCommand(

@@ -1,6 +1,7 @@
 package com.lab.labtimesheet.feature.integration.service;
 
 import java.time.Clock;
+import java.util.List;
 
 import com.lab.labtimesheet.feature.account.service.AccountService;
 import com.lab.labtimesheet.feature.integration.model.SecurityMode;
@@ -8,6 +9,7 @@ import com.lab.labtimesheet.feature.integration.model.SmtpStatus;
 import com.lab.labtimesheet.feature.integration.model.dto.EncryptedSecret;
 import com.lab.labtimesheet.feature.integration.model.dto.SmtpConnection;
 import com.lab.labtimesheet.feature.integration.model.dto.SmtpDraft;
+import com.lab.labtimesheet.feature.integration.model.dto.SmtpRevisionHistory;
 import com.lab.labtimesheet.feature.integration.model.dto.SmtpSetupStatus;
 import com.lab.labtimesheet.feature.integration.model.entity.SmtpConfiguration;
 import com.lab.labtimesheet.feature.integration.repository.SmtpConfigurationRepository;
@@ -43,10 +45,10 @@ public class SmtpConfigurationService {
      */
     @Transactional
     public long saveDraft(long adminId, SmtpDraft draft) {
+        long verifiedAdminId = accounts.requireActiveAdminId(adminId);
         validate(draft);
         EncryptedSecret password = draft.password() == null ? null : secrets.encrypt(draft.password());
         var now = clock.instant();
-        long verifiedAdminId = accounts.requireActiveAdminId(adminId);
         SmtpConfiguration configuration = configurations.findByStatus(SmtpStatus.DRAFT)
                 .map(existing -> {
                     existing.updateDraft(draft, password, now);
@@ -57,18 +59,20 @@ public class SmtpConfigurationService {
     }
 
     /**
-     * Sends a real probe using a draft and records success only after the adapter returns successfully.
+     * Sends a real probe using a draft to the authenticated Admin and records success only after the adapter
+     * returns successfully. The destination is resolved from the retained account identity rather than from
+     * request input.
      *
      * @param draftId draft revision to test
      * @param adminId active Admin performing the test
-     * @param recipient Admin email receiving the test message
      */
-    public void testDraft(long draftId, long adminId, String recipient) {
+    public void testDraft(long draftId, long adminId) {
+        long verifiedAdminId = accounts.requireActiveAdminId(adminId);
+        String recipient = accounts.requireIdentityById(verifiedAdminId).email();
         SmtpConfiguration draft = configurations.findById(draftId)
                 .filter(configuration -> configuration.getStatus() == SmtpStatus.DRAFT)
                 .orElseThrow(() -> new IllegalStateException("SMTP configuration is not available"));
         probe.send(connection(draft), recipient, "Lab Timesheet SMTP test", "SMTP configuration test succeeded.");
-        long verifiedAdminId = accounts.requireActiveAdminId(adminId);
         draft.markTested(verifiedAdminId, clock.instant());
         configurations.save(draft);
     }
@@ -81,12 +85,15 @@ public class SmtpConfigurationService {
      */
     @Transactional
     public void activate(long draftId, long adminId) {
+        long verifiedAdminId = accounts.requireActiveAdminId(adminId);
         SmtpConfiguration draft = configurations.findWithLockByIdAndStatus(draftId, SmtpStatus.DRAFT)
                 .orElseThrow(() -> new IllegalStateException("SMTP draft must pass a test before activation"));
-        long verifiedAdminId = accounts.requireActiveAdminId(adminId);
         var now = clock.instant();
         configurations.findByStatus(SmtpStatus.ACTIVE)
-                .ifPresent(active -> active.retire(verifiedAdminId, now));
+                .ifPresent(active -> {
+                    active.retire(verifiedAdminId, now);
+                    configurations.saveAndFlush(active);
+                });
         draft.activate(verifiedAdminId, now);
     }
 
@@ -100,10 +107,12 @@ public class SmtpConfigurationService {
      * Returns the non-secret SMTP state needed by the Admin setup page.
      * Password ciphertext, nonce, and decrypted credentials are never included.
      *
+     * @param adminId active Admin requesting setup state
      * @return current active flag and editable draft metadata
      */
     @Transactional(readOnly = true)
-    public SmtpSetupStatus setupStatus() {
+    public SmtpSetupStatus setupStatus(long adminId) {
+        accounts.requireActiveAdminId(adminId);
         boolean active = configurations.existsByStatus(SmtpStatus.ACTIVE);
         return configurations.findByStatus(SmtpStatus.DRAFT)
                 .map(draft -> new SmtpSetupStatus(
@@ -118,6 +127,27 @@ public class SmtpConfigurationService {
                         draft.getFromName()))
                 .orElseGet(() -> new SmtpSetupStatus(active, null, false, null, 587,
                         SecurityMode.STARTTLS, null, null, null));
+    }
+
+    /**
+     * Returns retained SMTP lifecycle metadata newest first without exposing any credential material.
+     *
+     * @param adminId active Admin requesting History
+     * @return immutable non-secret revision history
+     */
+    @Transactional(readOnly = true)
+    public List<SmtpRevisionHistory> history(long adminId) {
+        accounts.requireActiveAdminId(adminId);
+        return configurations.findAllByOrderByCreatedAtDescIdDesc().stream()
+                .map(configuration -> new SmtpRevisionHistory(
+                        configuration.getId(), configuration.getStatus(), configuration.getHost(),
+                        configuration.getPort(), configuration.getSecurityMode(), configuration.getUsername(),
+                        configuration.getFromAddress(), configuration.getFromName(), configuration.getTestedAt(),
+                        configuration.getTestedByUserId(), configuration.getActivatedAt(),
+                        configuration.getActivatedByUserId(), configuration.getRetiredAt(),
+                        configuration.getRetiredByUserId(), configuration.getCreatedByUserId(),
+                        configuration.getCreatedAt(), configuration.getUpdatedAt()))
+                .toList();
     }
 
     /**
