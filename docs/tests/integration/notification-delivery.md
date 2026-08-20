@@ -6,7 +6,7 @@
   mandatory caller transaction; rollback/after-commit delivery; safe action-route rejection
 - **Test class/method:** `com.lab.labtimesheet.feature.notification.service.NotificationServiceIntegrationTest` and
   `com.lab.labtimesheet.feature.notification.model.dto.NotificationActionContractTest`
-- **Implementation commit:** `pending (uncommitted producer patch; base 1f55c3a078494ab88673b27bbf66b09a0c4e1bba)`
+- **Implementation commit:** `461e93d53bddc6260c03e649fd9ad5483d016c1e`
 
 ## Protected behavior
 
