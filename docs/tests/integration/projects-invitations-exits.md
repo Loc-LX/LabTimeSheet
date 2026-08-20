@@ -4,7 +4,7 @@
 - **Requirement IDs:** `AUTH-001`, `AUTH-002`, `AUTH-006`, `AUTH-009`, `AUTH-011`, `PRJ-017`–`PRJ-022`, `NOT-001`, `NOT-002`, `NOT-004`, `NOT-010`, and delivery milestone `I2-PRJ-06`
 - **Scenario IDs:** `AC-AUTH-010`; the executed invitation/exit slice of `AC-PRJ-011`–`AC-PRJ-013`; the Project recipient/in-app slice of `AC-NOT-004`
 - **Test class/method:** `com.lab.labtimesheet.feature.project.service.ProjectInvitationExitIntegrationTest`, `ProjectLifecycleLockIntegrationTest`, `ProjectTaskMutationContextTest`
-- **Implementation commit:** `pending` (current merged HEAD `7f37666a7165599e063d82e4bf80b9bee807bb10`; Project delta remains uncommitted)
+- **Implementation commit:** `91f74146a15e24bac3d22aae05e052cdfec8c76c`
 
 ## Protected behavior
 
