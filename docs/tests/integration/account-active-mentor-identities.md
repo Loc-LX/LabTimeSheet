@@ -4,7 +4,7 @@
 - **Requirement IDs:** `I2-ATT-PLAT-04` (root-authorized producer slice); `AUTH-003`; `NOT-002`
 - **Scenario IDs:** `AC-AUTH-002` global Mentor decision queue; active-account filtering; deterministic recipient ordering
 - **Test class/method:** `com.lab.labtimesheet.feature.account.service.ActiveMentorIdentityIntegrationTest#returnsOnlyActiveMentorsInAscendingIdOrderThroughImmutableProjection`
-- **Implementation commit:** pending independent review
+- **Implementation commit:** `a6338fec71f60e45462145d56f0d97de3083f7e8`
 
 ## Protected behavior
 
