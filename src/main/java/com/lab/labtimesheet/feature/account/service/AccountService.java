@@ -459,6 +459,22 @@ public class AccountService {
     }
 
     /**
+     * Resolves only an Account identifier for an authenticated principal's email as a routing operation.
+     * This method deliberately performs no lifecycle authorization, entity hydration, or row lock. Consumers must
+     * pass the identifier to a subsequent Account-owned operation that acquires the required lifecycle locks and
+     * authorizes the requested mutation inside its surrounding transaction.
+     *
+     * @param email authenticated principal email, normalized by trimming and lower-casing
+     * @return matching Account identifier
+     * @throws IllegalArgumentException when the email is blank or no account matches it
+     */
+    @Transactional(readOnly = true)
+    public long requireAccountIdByEmail(String email) {
+        return users.findAccountIdByNormalizedEmail(BootstrapService.normalizeEmail(email))
+                .orElseThrow(() -> new IllegalArgumentException("Account not found"));
+    }
+
+    /**
      * Checks whether the account and its internship are both currently active.
      *
      * @param userId account identifier
