@@ -1,6 +1,7 @@
 package com.lab.labtimesheet.feature.attendance.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.doReturn;
 
 import com.lab.labtimesheet.feature.account.model.GlobalRole;
 import com.lab.labtimesheet.feature.account.model.dto.CreateAccountCommand;
@@ -8,6 +9,7 @@ import com.lab.labtimesheet.feature.account.service.AccountService;
 import com.lab.labtimesheet.feature.account.service.BootstrapService;
 import com.lab.labtimesheet.feature.attendance.exception.AttendanceException;
 import com.lab.labtimesheet.feature.attendance.exception.AttendanceRejection;
+import com.lab.labtimesheet.feature.attendance.exception.CalendarException;
 import com.lab.labtimesheet.feature.attendance.exception.CorrectionException;
 import com.lab.labtimesheet.feature.attendance.exception.LeaveException;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
@@ -17,13 +19,19 @@ import com.lab.labtimesheet.feature.attendance.model.entity.AttendanceCorrection
 import com.lab.labtimesheet.feature.attendance.model.entity.AttendancePolicyEntity;
 import com.lab.labtimesheet.feature.attendance.model.entity.AttendanceRecordEntity;
 import com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestCommand;
+import com.lab.labtimesheet.feature.attendance.model.dto.CalendarHistoryItem;
+import com.lab.labtimesheet.feature.attendance.model.dto.CalendarImportSelection;
 import com.lab.labtimesheet.feature.attendance.model.dto.CorrectionDecision;
 import com.lab.labtimesheet.feature.attendance.model.dto.CorrectionRequestCommand;
 import com.lab.labtimesheet.feature.attendance.repository.AttendanceCorrectionRepository;
 import com.lab.labtimesheet.feature.attendance.repository.AttendancePolicyRepository;
 import com.lab.labtimesheet.feature.attendance.repository.AttendanceRecordRepository;
+import com.lab.labtimesheet.feature.integration.model.dto.HolidayApiCandidate;
+import com.lab.labtimesheet.feature.integration.model.dto.HolidayApiPreview;
+import com.lab.labtimesheet.feature.integration.model.dto.HolidayApiPreviewStatus;
 import com.lab.labtimesheet.feature.integration.model.SecurityMode;
 import com.lab.labtimesheet.feature.integration.model.dto.SmtpDraft;
+import com.lab.labtimesheet.feature.integration.service.HolidayApiConfigurationService;
 import com.lab.labtimesheet.feature.integration.service.SmtpConfigurationService;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -43,6 +51,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.transaction.support.TransactionTemplate;
 
 @Import(AttendancePersistenceIntegrationTest.IntegrationConfiguration.class)
@@ -57,6 +66,9 @@ class AttendanceConcurrencyIntegrationTest {
 
     @Autowired
     private AttendanceApplicationService attendance;
+
+    @Autowired
+    private CalendarApplicationService calendar;
 
     @Autowired
     private LeaveApplicationService leaves;
@@ -81,6 +93,9 @@ class AttendanceConcurrencyIntegrationTest {
 
     @Autowired
     private AccountService accounts;
+
+    @MockitoSpyBean
+    private HolidayApiConfigurationService holidayApi;
 
     @Autowired
     private SmtpConfigurationService smtp;
@@ -267,6 +282,66 @@ class AttendanceConcurrencyIntegrationTest {
                 return "FAILURE:" + failure.getClass().getSimpleName();
             }
         })).containsExactlyInAnyOrder("EDITED", "CANCELLED");
+    }
+
+    @Test
+    void concurrentSameHolidayUuidImportsAreIdempotent() throws Exception {
+        createActiveIntern();
+        long adminId = accounts.requireActiveAdminId("concurrency-admin@example.test");
+        AttendanceActor admin = new AttendanceActor(adminId, AttendanceRole.ADMIN);
+        clock.set(Instant.parse("2026-11-09T00:00:00Z"));
+        HolidayApiCandidate candidate = new HolidayApiCandidate(
+                "vn-concurrent-2026-11-10",
+                "Concurrent holiday",
+                LocalDate.of(2026, 11, 10),
+                LocalDate.of(2026, 11, 10),
+                true);
+        HolidayApiPreview trustedPreview = new HolidayApiPreview(
+                HolidayApiPreviewStatus.SUCCESS,
+                List.of(candidate),
+                "loaded",
+                Instant.parse("2026-11-08T12:00:00Z"));
+        doReturn(trustedPreview).when(holidayApi).preview(adminId, 2026);
+        CalendarImportSelection selection = new CalendarImportSelection(
+                "vn-concurrent-2026-11-10", true);
+
+        List<String> outcomes = runConcurrently(() -> {
+            try {
+                List<CalendarHistoryItem> imported = calendar.importSelected(
+                        admin, 2026, List.of(selection));
+                return imported.isEmpty() ? "DUPLICATE" : "IMPORTED";
+            } catch (RuntimeException failure) {
+                return "FAILURE:" + failure.getClass().getSimpleName();
+            }
+        });
+
+        assertThat(outcomes).containsExactlyInAnyOrder("IMPORTED", "DUPLICATE");
+        assertThat(calendar.history(admin)).filteredOn(item ->
+                        "vn-concurrent-2026-11-10".equals(item.sourceUuid()))
+                .hasSize(1);
+    }
+
+    @Test
+    void publicImportRejectsClientIdentityOutsideTrustedPreview() {
+        createActiveIntern();
+        long adminId = accounts.requireActiveAdminId("concurrency-admin@example.test");
+        AttendanceActor admin = new AttendanceActor(adminId, AttendanceRole.ADMIN);
+        HolidayApiPreview trustedPreview = new HolidayApiPreview(
+                HolidayApiPreviewStatus.SUCCESS,
+                List.of(new HolidayApiCandidate(
+                        "trusted-source", "Trusted holiday", LocalDate.of(2026, 11, 10),
+                        LocalDate.of(2026, 11, 10), true)),
+                "loaded",
+                Instant.parse("2026-11-08T12:00:00Z"));
+        doReturn(trustedPreview).when(holidayApi).preview(adminId, 2026);
+
+        assertThat(org.assertj.core.api.Assertions.catchThrowable(() -> calendar.importSelected(
+                        admin, 2026, List.of(new CalendarImportSelection("client-altered-source", true)))))
+                .isInstanceOf(CalendarException.class)
+                .hasMessage("Selected HolidayAPI candidate was not present in the trusted preview");
+        assertThat(calendar.history(admin)).filteredOn(item ->
+                        "client-altered-source".equals(item.sourceUuid()))
+                .isEmpty();
     }
 
     private long createActiveIntern() {

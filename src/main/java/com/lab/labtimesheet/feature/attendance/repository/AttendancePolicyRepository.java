@@ -23,6 +23,17 @@ public interface AttendancePolicyRepository extends JpaRepository<AttendancePoli
     List<AttendancePolicyEntity> findAllByOrderByEffectiveFromAsc();
 
     /**
+     * Locks the earliest retained policy row as the calendar import mutation anchor.
+     *
+     * <p>The anchor serializes imports that have no existing source row to lock, allowing the unique provenance
+     * check to remain an idempotent decision rather than an uncontrolled insert race.</p>
+     *
+     * @return earliest retained policy, which is always present after the schema seed
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    Optional<AttendancePolicyEntity> findFirstByOrderByEffectiveFromAsc();
+
+    /**
      * Finds the unique policy scheduled for one first-of-month effective date.
      *
      * @param effectiveFrom first effective local date

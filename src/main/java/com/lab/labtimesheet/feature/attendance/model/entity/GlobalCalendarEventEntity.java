@@ -2,7 +2,7 @@ package com.lab.labtimesheet.feature.attendance.model.entity;
 
 import com.lab.labtimesheet.feature.attendance.model.dto.GlobalCalendarEvent;
 import com.lab.labtimesheet.feature.attendance.model.dto.CalendarHistoryItem;
-import com.lab.labtimesheet.feature.attendance.model.dto.HolidayCandidate;
+import com.lab.labtimesheet.feature.integration.model.dto.HolidayApiCandidate;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -105,22 +105,27 @@ public class GlobalCalendarEventEntity {
     /**
      * Creates a locally authoritative imported event while retaining all upstream provenance.
      *
-     * @param candidate validated upstream candidate
+     * @param candidate validated Platform-owned upstream candidate
      * @param dayOff explicit local Admin decision
      * @param actorUserId Admin performing import
-     * @param now local import timestamp
+     * @param importedAt Platform preview retrieval instant retained as local import provenance
+     * @param now local persistence timestamp
      */
     public GlobalCalendarEventEntity(
-            HolidayCandidate candidate, boolean dayOff, long actorUserId, Instant now) {
+            HolidayApiCandidate candidate,
+            boolean dayOff,
+            long actorUserId,
+            Instant importedAt,
+            Instant now) {
         this.calendarDate = candidate.observedDate();
         this.name = candidate.name();
         this.source = "HOLIDAY_API";
-        this.sourceUuid = candidate.sourceUuid();
+        this.sourceUuid = candidate.uuid();
         this.actualDate = candidate.actualDate();
         this.observedDate = candidate.observedDate();
         this.publicHoliday = candidate.publicHoliday();
         this.dayOff = dayOff;
-        this.importedAt = candidate.importedAt();
+        this.importedAt = importedAt;
         this.createdByUserId = actorUserId;
         this.updatedByUserId = actorUserId;
         this.createdAt = now;

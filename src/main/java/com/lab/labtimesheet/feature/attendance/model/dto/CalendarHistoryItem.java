@@ -15,7 +15,7 @@ import java.time.LocalDate;
  * @param observedDate imported observed holiday date
  * @param publicHoliday upstream public marker
  * @param dayOff local authoritative day-off decision
- * @param importedAt upstream fetch instant
+ * @param importedAt Platform preview retrieval instant retained as local import provenance
  * @param createdByUserId creator account identifier
  * @param updatedByUserId last editor account identifier
  * @param createdAt local creation instant

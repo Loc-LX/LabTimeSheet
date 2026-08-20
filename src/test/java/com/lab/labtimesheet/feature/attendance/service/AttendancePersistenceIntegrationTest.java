@@ -3,6 +3,7 @@ package com.lab.labtimesheet.feature.attendance.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
 
 import com.lab.labtimesheet.feature.account.model.AccountStatus;
 import com.lab.labtimesheet.feature.account.model.GlobalRole;
@@ -23,6 +24,8 @@ import com.lab.labtimesheet.feature.attendance.model.LeaveStatus;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceCurrentState;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceHistoryItem;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendancePolicyCommand;
+import com.lab.labtimesheet.feature.attendance.model.dto.CalendarHistoryItem;
+import com.lab.labtimesheet.feature.attendance.model.dto.CalendarImportSelection;
 import com.lab.labtimesheet.feature.attendance.model.dto.CorrectionDecision;
 import com.lab.labtimesheet.feature.attendance.model.dto.CorrectionRequestCommand;
 import com.lab.labtimesheet.feature.attendance.model.dto.LeaveAllocation;
@@ -39,8 +42,12 @@ import com.lab.labtimesheet.feature.attendance.repository.AttendanceRecordReposi
 import com.lab.labtimesheet.feature.attendance.repository.LeaveRequestDayRepository;
 import com.lab.labtimesheet.feature.attendance.repository.LeaveRequestRepository;
 import com.lab.labtimesheet.feature.integration.model.SecurityMode;
+import com.lab.labtimesheet.feature.integration.model.dto.HolidayApiCandidate;
+import com.lab.labtimesheet.feature.integration.model.dto.HolidayApiPreview;
+import com.lab.labtimesheet.feature.integration.model.dto.HolidayApiPreviewStatus;
 import com.lab.labtimesheet.feature.integration.model.dto.SmtpConnection;
 import com.lab.labtimesheet.feature.integration.model.dto.SmtpDraft;
+import com.lab.labtimesheet.feature.integration.service.HolidayApiConfigurationService;
 import com.lab.labtimesheet.feature.integration.service.SmtpConfigurationService;
 import com.lab.labtimesheet.feature.integration.service.SmtpProbe;
 import java.time.Clock;
@@ -73,6 +80,7 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.transaction.TestTransaction;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -104,6 +112,9 @@ class AttendancePersistenceIntegrationTest {
 
     @MockitoSpyBean
     private AccountService accountSpy;
+
+    @MockitoSpyBean
+    private HolidayApiConfigurationService holidayApi;
 
     @Autowired
     private SmtpConfigurationService smtp;
@@ -295,6 +306,73 @@ class AttendancePersistenceIntegrationTest {
         assertThatThrownBy(() -> calendar.updateManual(
                         admin, event.id(), event.version(), date, "Stale edit", true))
                 .isInstanceOf(CalendarException.class);
+    }
+
+    @Test
+    @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
+    void importsPlatformCandidateWithCanonicalProvenanceAndIdempotentHistory() {
+        AttendanceActor admin = new AttendanceActor(adminId, AttendanceRole.ADMIN);
+        HolidayApiCandidate candidate = new HolidayApiCandidate(
+                "  vn-september-2  ",
+                " National Day ",
+                LocalDate.of(2026, 9, 2),
+                LocalDate.of(2026, 9, 3),
+                true);
+        HolidayApiPreview upstream = new HolidayApiPreview(
+                HolidayApiPreviewStatus.SUCCESS,
+                List.of(candidate, candidate),
+                "loaded",
+                Instant.parse("2026-08-13T12:34:56Z"));
+        doReturn(upstream).when(holidayApi).preview(adminId, 2026);
+
+        assertThat(calendar.preview(admin, 2026, upstream))
+                .singleElement()
+                .satisfies(item -> {
+                    assertThat(item.candidate().uuid()).isEqualTo("vn-september-2");
+                    assertThat(item.selectedByDefault()).isTrue();
+                });
+
+        TestTransaction.flagForCommit();
+        TestTransaction.end();
+
+        CalendarImportSelection selection = new CalendarImportSelection("vn-september-2", false);
+        assertThat(calendar.importSelected(admin, 2026, List.of(selection))).hasSize(1);
+        CalendarHistoryItem imported = calendar.history(admin).stream()
+                .filter(item -> "vn-september-2".equals(item.sourceUuid()))
+                .findFirst()
+                .orElseThrow();
+        assertThat(imported.source()).isEqualTo("HOLIDAY_API");
+        assertThat(imported.name()).isEqualTo("National Day");
+        assertThat(imported.actualDate()).isEqualTo(LocalDate.of(2026, 9, 2));
+        assertThat(imported.observedDate()).isEqualTo(LocalDate.of(2026, 9, 3));
+        assertThat(imported.publicHoliday()).isTrue();
+        assertThat(imported.dayOff()).isFalse();
+        assertThat(imported.importedAt()).isEqualTo(upstream.retrievedAt());
+        assertThat(calendar.importSelected(admin, 2026, List.of(selection))).isEmpty();
+        assertThat(calendar.history(admin)).filteredOn(item -> "vn-september-2".equals(item.sourceUuid()))
+                .hasSize(1);
+    }
+
+    @Test
+    void rejectsPlatformCandidateOutsideRequestedYearBeforePersistence() {
+        AttendanceActor admin = new AttendanceActor(adminId, AttendanceRole.ADMIN);
+        HolidayApiPreview trustedPreview = new HolidayApiPreview(
+                HolidayApiPreviewStatus.SUCCESS,
+                List.of(new HolidayApiCandidate(
+                        "vn-prior-year",
+                        "Prior year",
+                        LocalDate.of(2025, 12, 31),
+                        LocalDate.of(2025, 12, 31),
+                        true)),
+                "loaded",
+                Instant.parse("2026-08-14T00:00:00Z"));
+        doReturn(trustedPreview).when(holidayApi).preview(adminId, 2026);
+        CalendarImportSelection selection = new CalendarImportSelection("vn-prior-year", true);
+
+        assertThatThrownBy(() -> calendar.importSelected(admin, 2026, List.of(selection)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Holiday candidate dates must belong to the requested year");
+        assertThat(calendar.history(admin)).isEmpty();
     }
 
     @Test
