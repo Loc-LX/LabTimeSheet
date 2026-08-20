@@ -50,6 +50,23 @@ class TaskTransferServiceTest {
     }
 
     @Test
+    void pendingExitSourceMayTransferExistingUnfinishedTaskAway() {
+        Task sourceTask = task(11L);
+        when(tasks.findLockedByIdAndProjectIdAndDeletedAtIsNull(11L, 10L))
+                .thenReturn(Optional.of(sourceTask));
+        when(tasks.saveAllAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        TaskTransferService service = new TaskTransferService(tasks, Clock.fixed(NOW, ZoneOffset.UTC));
+
+        TaskTransferResult result = service.transferBatch(
+                context(Set.of(71L)), 70L, 71L, Set.of(11L), 72L);
+
+        assertThat(result.transferredTaskCount()).isEqualTo(1);
+        assertThat(result.recipientMembershipId()).isEqualTo(72L);
+        verify(sourceTask).reassign(72L, 70L, NOW);
+        verify(tasks).saveAllAndFlush(List.of(sourceTask));
+    }
+
+    @Test
     void rejectsSameSourceAndRecipientBeforeLoadingTasks() {
         TaskTransferService service = new TaskTransferService(tasks, Clock.fixed(NOW, ZoneOffset.UTC));
 
@@ -78,7 +95,23 @@ class TaskTransferServiceTest {
         verify(tasks, org.mockito.Mockito.never()).saveAllAndFlush(any());
     }
 
+    @Test
+    void rejectsPendingExitRecipientWhileAllowingExistingSourceContext() {
+        TaskTransferService service = new TaskTransferService(tasks, Clock.fixed(NOW, ZoneOffset.UTC));
+
+        assertThatThrownBy(() -> service.transferBatch(
+                        context(Set.of(72L)), 70L, 71L, Set.of(11L), 72L))
+                .isInstanceOf(com.lab.labtimesheet.feature.task.exception.TaskNotFoundException.class);
+
+        verify(tasks, org.mockito.Mockito.never())
+                .findLockedByIdAndProjectIdAndDeletedAtIsNull(11L, 10L);
+    }
+
     private static ProjectTaskContext context() {
+        return context(Set.of());
+    }
+
+    private static ProjectTaskContext context(Set<Long> pendingExitMembershipIds) {
         return new ProjectTaskContext(
                 10L,
                 3L,
@@ -87,9 +120,10 @@ class TaskTransferServiceTest {
                 LocalDate.of(2026, 8, 31),
                 70L,
                 List.of(
-                        new ProjectTaskMemberView(70L, 5L, "Leader"),
-                        new ProjectTaskMemberView(71L, 6L, "Target"),
-                        new ProjectTaskMemberView(72L, 7L, "Recipient")));
+                        new ProjectTaskMemberView(70L, 5L, "Leader", NOW),
+                        new ProjectTaskMemberView(71L, 6L, "Target", NOW),
+                        new ProjectTaskMemberView(72L, 7L, "Recipient", NOW)),
+                pendingExitMembershipIds);
     }
 
     private static Task task(long id) {

@@ -1,10 +1,13 @@
 package com.lab.labtimesheet.feature.task.repository;
 
 import com.lab.labtimesheet.feature.task.model.dto.TaskMemberWorkView;
+import com.lab.labtimesheet.feature.task.model.dto.TaskWorkLogCandidate;
 import com.lab.labtimesheet.feature.task.model.entity.TaskWorkLog;
 import jakarta.persistence.LockModeType;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
@@ -31,6 +34,50 @@ public interface TaskWorkLogRepository extends JpaRepository<TaskWorkLog, Long> 
      * @return retained logs
      */
     List<TaskWorkLog> findAllByTaskIdAndProjectIdOrderByWorkDateAscIdAsc(long taskId, long projectId);
+
+    /**
+     * Reads a narrow Project-scoped work-log projection without taking a row lock.
+     *
+     * <p>Correction uses this immutable, non-managed projection only to discover the date needed
+     * before acquiring the Account profile lock. It then loads the entity for the first time with
+     * {@link #findLockedByIdAndProjectId(long, long)} and re-checks every projection field before
+     * authorizing or changing the row.</p>
+     *
+     * @param id work-log identifier
+     * @param projectId owning Project identifier
+     * @return immutable candidate projection when it belongs to the Project
+     */
+    @Query("""
+            select new com.lab.labtimesheet.feature.task.model.dto.TaskWorkLogCandidate(
+                log.id, log.projectId, log.taskId, log.membershipId, log.workDate)
+            from TaskWorkLog log
+            where log.id = :id
+              and log.projectId = :projectId
+            """)
+    Optional<TaskWorkLogCandidate> findCandidateByIdAndProjectId(
+            @Param("id") long id,
+            @Param("projectId") long projectId);
+
+    /**
+     * Sums one Intern's dated effort across authoritative retained membership intervals.
+     *
+     * <p>The Task service derives the complete interval identifier set through the Project DTO boundary
+     * while holding the mutation locks; this repository query only executes the aggregate over that
+     * reviewed set and never resolves Project or Account persistence.</p>
+     *
+     * @param membershipIds current and historical membership identifiers authorized by Project for the Intern/date
+     * @param workDate local business date whose combined effort is read
+     * @return combined minutes, or zero when no supplied membership has a log on the date
+     */
+    @Query("""
+            select coalesce(sum(log.minutes), 0)
+            from TaskWorkLog log
+            where log.membershipId in :membershipIds
+              and log.workDate = :workDate
+            """)
+    long sumMinutesByMembershipIdsAndWorkDate(
+            @Param("membershipIds") Set<Long> membershipIds,
+            @Param("workDate") LocalDate workDate);
 
     /**
      * Sums all dated work in one Project, treating an empty set as zero.

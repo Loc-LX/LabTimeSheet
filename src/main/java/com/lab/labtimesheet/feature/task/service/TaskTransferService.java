@@ -38,8 +38,9 @@ public class TaskTransferService {
     /**
      * Transfers a selected batch from one source membership to one eligible recipient.
      *
-     * <p>Every selected row must still be unfinished and assigned to the source. Any stale or
-     * unauthorized row aborts the transaction before a mutation is flushed.
+     * <p>Every selected row must still be unfinished and assigned to the source. A pending-exit
+     * source remains eligible for redistribution, but a pending-exit recipient is rejected. Any
+     * stale or unauthorized row aborts the transaction before a mutation is flushed.
      *
      * @param project locked Project task context supplied by the Project service
      * @param actorMembershipId current Leader membership performing the batch
@@ -153,6 +154,9 @@ public class TaskTransferService {
 
     private static ProjectTaskMemberView requireRecipient(
             ProjectTaskContext project, long recipientMembershipId) {
+        if (project.pendingExitMembershipIds().contains(recipientMembershipId)) {
+            throw new TaskNotFoundException();
+        }
         return project.activeMembers().stream()
                 .filter(member -> member.membershipId() == recipientMembershipId)
                 .findFirst()

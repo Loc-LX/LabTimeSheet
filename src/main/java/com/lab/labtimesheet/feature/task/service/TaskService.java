@@ -1,9 +1,12 @@
 package com.lab.labtimesheet.feature.task.service;
 
+import com.lab.labtimesheet.feature.account.model.dto.InternWorkWindow;
+import com.lab.labtimesheet.feature.account.service.AccountService;
 import com.lab.labtimesheet.feature.attendance.service.CalendarApplicationService;
 import com.lab.labtimesheet.feature.project.exception.ProjectAccessDeniedException;
 import com.lab.labtimesheet.feature.project.exception.ProjectRuleViolationException;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectActorView;
+import com.lab.labtimesheet.feature.project.model.dto.ProjectMembershipIntervalView;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectMemberView;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectTaskContext;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectTaskMemberView;
@@ -18,16 +21,21 @@ import com.lab.labtimesheet.feature.task.model.dto.TaskAssigneeChoice;
 import com.lab.labtimesheet.feature.task.model.dto.TaskCommentView;
 import com.lab.labtimesheet.feature.task.model.dto.TaskDetails;
 import com.lab.labtimesheet.feature.task.model.dto.TaskListView;
+import com.lab.labtimesheet.feature.task.model.dto.TaskWorkLogCandidate;
 import com.lab.labtimesheet.feature.task.model.dto.TaskView;
+import com.lab.labtimesheet.feature.task.model.dto.TaskWorkLogView;
 import com.lab.labtimesheet.feature.task.model.entity.Task;
 import com.lab.labtimesheet.feature.task.model.entity.TaskComment;
+import com.lab.labtimesheet.feature.task.model.entity.TaskWorkLog;
 import com.lab.labtimesheet.feature.task.repository.TaskCommentRepository;
 import com.lab.labtimesheet.feature.task.repository.TaskRepository;
+import com.lab.labtimesheet.feature.task.repository.TaskWorkLogRepository;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -38,8 +46,9 @@ import org.springframework.transaction.annotation.Transactional;
  * Executes authorized Task creation, status, comment, and current/historical read use cases.
  *
  * <p>Project identity, lifecycle, ownership, leadership, and membership are obtained through
- * Project service DTOs. Mutations lock and re-evaluate the Project first; status/comment mutations
- * then lock the Task row, preserving the Project-to-Task lock order. Access failures are translated
+ * Project service DTOs. Authenticated mutations route through a scalar Account identifier, then
+ * the Project mutation context, and finally feature-owned Task rows; work logs re-enter the
+ * Account-owned date window before reading or writing daily totals. Access failures are translated
  * to a non-disclosing Task 404, while authenticated business-rule failures use Task validation.
  */
 @Service
@@ -48,10 +57,12 @@ public class TaskService {
 
     private final TaskRepository tasks;
     private final TaskCommentRepository comments;
+    private final TaskWorkLogRepository workLogs;
     private final ProjectQueryService projects;
     private final ProjectService projectMutations;
     private final CalendarApplicationService calendar;
     private final Clock clock;
+    private final AccountService accounts;
 
     /**
      * Creates a TODO Task in a PLANNED or ACTIVE Project.
@@ -59,7 +70,8 @@ public class TaskService {
      * <p>The Project is write-locked before membership and lifecycle checks. A current Leader may
      * choose any active same-Project member; another active member may choose only themselves.
      * Creator, assigner, and assignment time are stored from authenticated current context. An
-     * optional due date must be within Project dates and not a current global day off.
+     * optional due date must be within Project dates and not a current global day off. A membership
+     * with a pending exit remains visible for existing rights but cannot receive a new Task.
      *
      * @param actorEmail authenticated account email
      * @param command requested Project, membership, and Task fields
@@ -258,6 +270,113 @@ public class TaskService {
     }
 
     /**
+     * Records one dated effort row after serializing the Intern's combined daily budget.
+     *
+     * <p>The scalar Account email route is followed by the Project mutation context, which locks
+     * every current-member Account/profile in ascending order and then the Project. The existing
+     * Account work-window lock re-enters the already-held actor rows before Task and work-log rows
+     * are locked. Retained Project membership intervals are then filtered in the server clock zone,
+     * with both joined and closure dates inclusive, to derive the complete cross-Project total.</p>
+     *
+     * @param actorEmail authenticated current Task assignee email
+     * @param projectId owning Project identifier
+     * @param taskId current Task identifier
+     * @param workDate local effort date, evaluated against Account, Project, membership, and server-date bounds
+     * @param minutes effort minutes in the inclusive range 1 through 1440
+     * @param note optional non-blank note
+     * @return persisted immutable work-log projection
+     * @throws TaskNotFoundException when Project, Task, actor membership, or assignment is not authorized
+     * @throws TaskValidationException when lifecycle/date/minute/note/daily-total rules fail
+     */
+    @Transactional
+    public TaskWorkLogView addWorkLog(
+            String actorEmail,
+            long projectId,
+            long taskId,
+            LocalDate workDate,
+            int minutes,
+            String note) {
+        validateWorkLogInput(workDate, minutes, note);
+        long actorUserId = requireAccountId(actorEmail);
+        TaskAccess access = requireMutationAccess(actorUserId, projectId);
+        requireActiveProject(access.project());
+        InternWorkWindow window = lockedWorkWindow(actorUserId, workDate);
+        requireEligibleWorkWindow(window, workDate);
+        ProjectTaskMemberView actorMembership = requireActorMembership(
+                access.project(), actorUserId);
+        requireWorkDate(access.project(), actorMembership, workDate);
+        Set<Long> membershipIds = membershipIdsForWorkDate(actorUserId, workDate);
+        requireMembershipIncluded(membershipIds, actorMembership.membershipId());
+        Task task = requireLockedTask(projectId, taskId);
+        if (task.getAssigneeMembershipId() != actorMembership.membershipId()) {
+            throw new TaskNotFoundException();
+        }
+        requireDailyLimit(workLogs.sumMinutesByMembershipIdsAndWorkDate(membershipIds, workDate), minutes);
+
+        TaskWorkLog log = new TaskWorkLog(
+                projectId,
+                taskId,
+                actorMembership.membershipId(),
+                workDate,
+                minutes,
+                note,
+                clock.instant());
+        return view(workLogs.saveAndFlush(log));
+    }
+
+    /**
+     * Corrects an existing work log while retaining its author, date, and creation instant.
+     *
+     * <p>Only the active author membership may correct its own row. A non-locking Project-scoped
+     * candidate projection supplies the date needed for routing; the scalar Account route, locked
+     * Project context, and Account work-window lock then precede the first managed work-log load.
+     * Retained membership intervals are filtered in the server clock zone, including a membership's
+     * closure date, before the replacement total is checked and persisted.</p>
+     *
+     * @param actorEmail authenticated author email
+     * @param projectId owning Project identifier
+     * @param workLogId work-log identifier within the Project
+     * @param minutes replacement effort in the inclusive range 1 through 1440
+     * @param note replacement optional non-blank note
+     * @return corrected immutable work-log projection
+     * @throws TaskNotFoundException when Project, Task, author membership, or work-log scope is not authorized
+     * @throws TaskValidationException when lifecycle/date/minute/note/daily-total rules fail
+     */
+    @Transactional
+    public TaskWorkLogView correctWorkLog(
+            String actorEmail,
+            long projectId,
+            long workLogId,
+            int minutes,
+            String note) {
+        validateWorkLogValues(minutes, note);
+        TaskWorkLogCandidate candidate = workLogs.findCandidateByIdAndProjectId(workLogId, projectId)
+                .orElseThrow(TaskNotFoundException::new);
+        long actorUserId = requireAccountId(actorEmail);
+        TaskAccess access = requireMutationAccess(actorUserId, projectId);
+        requireActiveProject(access.project());
+        InternWorkWindow window = lockedWorkWindow(actorUserId, candidate.workDate());
+        requireEligibleWorkWindow(window, candidate.workDate());
+        ProjectTaskMemberView actorMembership = requireActorMembership(
+                access.project(), actorUserId);
+        requireWorkDate(access.project(), actorMembership, candidate.workDate());
+        Set<Long> membershipIds = membershipIdsForWorkDate(actorUserId, candidate.workDate());
+        TaskWorkLog log = workLogs.findLockedByIdAndProjectId(workLogId, projectId)
+                .orElseThrow(TaskNotFoundException::new);
+        requireSameCandidate(candidate, log, projectId, workLogId);
+        requireMembershipIncluded(membershipIds, log.getMembershipId());
+        requireLockedTask(projectId, log.getTaskId());
+        if (log.getMembershipId() != actorMembership.membershipId()) {
+            throw new TaskNotFoundException();
+        }
+        validateWorkLogInput(log.getWorkDate(), minutes, note);
+        long currentMinutes = workLogs.sumMinutesByMembershipIdsAndWorkDate(membershipIds, log.getWorkDate());
+        requireDailyLimit(currentMinutes - log.getMinutes(), minutes);
+        log.correct(minutes, note, clock.instant());
+        return view(workLogs.saveAndFlush(log));
+    }
+
+    /**
      * Lists current Tasks and progress for an authorized Project reader.
      *
      * <p>Soft-deleted Tasks are excluded. Active members may read open Projects; former members may
@@ -350,8 +469,12 @@ public class TaskService {
                 access.project(), access.actor().userId());
         if (Objects.equals(access.project().currentLeaderMembershipId(), actorMembership.membershipId())) {
             return access.project().activeMembers().stream()
+                    .filter(member -> !access.project().pendingExitMembershipIds().contains(member.membershipId()))
                     .map(member -> new TaskAssigneeChoice(member.membershipId(), member.displayName()))
                     .toList();
+        }
+        if (access.project().pendingExitMembershipIds().contains(actorMembership.membershipId())) {
+            return List.of();
         }
         return List.of(new TaskAssigneeChoice(
                 actorMembership.membershipId(), actorMembership.displayName()));
@@ -367,10 +490,23 @@ public class TaskService {
     }
 
     private TaskAccess requireMutationAccess(String actorEmail, long projectId) {
+        return requireMutationAccess(requireAccountId(actorEmail), projectId);
+    }
+
+    private TaskAccess requireMutationAccess(long actorUserId, long projectId) {
         try {
-            ProjectActorView actor = projects.authenticatedActor(actorEmail);
-            return new TaskAccess(actor, projectMutations.taskMutationContext(actor.userId(), projectId));
+            ProjectTaskContext project = projectMutations.taskMutationContext(actorUserId, projectId);
+            String role = project.mentorUserId() == actorUserId ? "MENTOR" : "INTERN";
+            return new TaskAccess(new ProjectActorView(actorUserId, role), project);
         } catch (ProjectAccessDeniedException | ProjectRuleViolationException exception) {
+            throw new TaskNotFoundException();
+        }
+    }
+
+    private long requireAccountId(String actorEmail) {
+        try {
+            return accounts.requireAccountIdByEmail(actorEmail);
+        } catch (IllegalArgumentException exception) {
             throw new TaskNotFoundException();
         }
     }
@@ -426,6 +562,110 @@ public class TaskService {
         }
     }
 
+    private static void requireActiveProject(ProjectTaskContext project) {
+        if (!"ACTIVE".equals(project.status())) {
+            throw new TaskNotFoundException();
+        }
+    }
+
+    private InternWorkWindow lockedWorkWindow(long userId, LocalDate workDate) {
+        try {
+            return accounts.lockedInternWorkWindow(userId, workDate);
+        } catch (IllegalArgumentException exception) {
+            throw new TaskNotFoundException();
+        }
+    }
+
+    private static void validateWorkLogInput(LocalDate workDate, int minutes, String note) {
+        if (workDate == null) {
+            throw new TaskValidationException("Work date is required");
+        }
+        validateWorkLogValues(minutes, note);
+    }
+
+    private static void validateWorkLogValues(int minutes, String note) {
+        if (minutes < 1 || minutes > 1440) {
+            throw new TaskValidationException("Work minutes must be between 1 and 1440");
+        }
+        if (note != null && note.isBlank()) {
+            throw new TaskValidationException("Work-log note cannot be blank");
+        }
+    }
+
+    private static void requireEligibleWorkWindow(InternWorkWindow window, LocalDate workDate) {
+        if (!window.eligibleOn(workDate)) {
+            throw new TaskValidationException("Intern is not eligible for that work date");
+        }
+    }
+
+    private void requireWorkDate(
+            ProjectTaskContext project, ProjectTaskMemberView actorMembership, LocalDate workDate) {
+        LocalDate serverDate = LocalDate.now(clock);
+        if (workDate.isAfter(serverDate)) {
+            throw new TaskValidationException("Work date cannot be in the future");
+        }
+        if (workDate.isBefore(project.startDate()) || workDate.isAfter(project.endDate())) {
+            throw new TaskValidationException("Work date must be within Project dates");
+        }
+        if (actorMembership.joinedAt() == null
+                || workDate.isBefore(actorMembership.joinedAt().atZone(clock.getZone()).toLocalDate())) {
+            throw new TaskValidationException("Work date is before the membership start");
+        }
+    }
+
+    private Set<Long> membershipIdsForWorkDate(long actorUserId, LocalDate workDate) {
+        try {
+            Set<Long> membershipIds = projects.membershipIntervals(actorUserId).stream()
+                    .filter(interval -> intervalCoversDate(interval, workDate))
+                    .map(ProjectMembershipIntervalView::membershipId)
+                    .collect(Collectors.toUnmodifiableSet());
+            if (membershipIds.isEmpty()) {
+                throw new TaskNotFoundException();
+            }
+            return membershipIds;
+        } catch (ProjectAccessDeniedException | ProjectRuleViolationException exception) {
+            throw new TaskNotFoundException();
+        }
+    }
+
+    private boolean intervalCoversDate(ProjectMembershipIntervalView interval, LocalDate workDate) {
+        if (interval.joinedAt() == null) {
+            return false;
+        }
+        LocalDate joinedDate = interval.joinedAt().atZone(clock.getZone()).toLocalDate();
+        LocalDate leftDate = interval.leftAt() == null
+                ? null
+                : interval.leftAt().atZone(clock.getZone()).toLocalDate();
+        return !workDate.isBefore(joinedDate)
+                && (leftDate == null || !workDate.isAfter(leftDate));
+    }
+
+    private static void requireMembershipIncluded(Set<Long> membershipIds, long membershipId) {
+        if (!membershipIds.contains(membershipId)) {
+            throw new TaskNotFoundException();
+        }
+    }
+
+    private static void requireSameCandidate(
+            TaskWorkLogCandidate candidate, TaskWorkLog locked, long projectId, long workLogId) {
+        if (locked.getId() == null
+                || locked.getId() != workLogId
+                || locked.getProjectId() != projectId
+                || candidate.id() != locked.getId()
+                || candidate.projectId() != locked.getProjectId()
+                || candidate.taskId() != locked.getTaskId()
+                || candidate.membershipId() != locked.getMembershipId()
+                || !Objects.equals(candidate.workDate(), locked.getWorkDate())) {
+            throw new TaskNotFoundException();
+        }
+    }
+
+    private static void requireDailyLimit(long currentMinutes, int additionalMinutes) {
+        if (currentMinutes < 0 || currentMinutes + additionalMinutes > 1440) {
+            throw new TaskValidationException("Combined daily work cannot exceed 1440 minutes");
+        }
+    }
+
     private static void requireUnfinished(Task task) {
         if (task.getStatus() == TaskStatus.DONE) {
             throw new TaskValidationException("Reopen the Task before reassignment or editing");
@@ -454,6 +694,9 @@ public class TaskService {
     }
 
     private static ProjectTaskMemberView requireAssigneeMembership(ProjectTaskContext project, long membershipId) {
+        if (project.pendingExitMembershipIds().contains(membershipId)) {
+            throw new TaskNotFoundException();
+        }
         return project.activeMembers().stream()
                 .filter(member -> member.membershipId() == membershipId)
                 .findFirst()
@@ -495,6 +738,19 @@ public class TaskService {
                 comment.getAuthorUserId(),
                 comment.getBody(),
                 comment.getCreatedAt());
+    }
+
+    private static TaskWorkLogView view(TaskWorkLog log) {
+        return new TaskWorkLogView(
+                log.getId(),
+                log.getProjectId(),
+                log.getTaskId(),
+                log.getMembershipId(),
+                log.getWorkDate(),
+                log.getMinutes(),
+                log.getNote(),
+                log.getCreatedAt(),
+                log.getUpdatedAt());
     }
 
     private static String requireTitle(String title) {
