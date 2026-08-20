@@ -11,9 +11,13 @@
 A persisted first Admin can open `/attendance/policy`, schedule a new future-month
 policy version through the real CSRF-protected form (separate grace values, quota,
 penalty, and a reduced workday set), and replace a scheduled-but-not-yet-effective
-version using its optimistic version. Persisted Mentor and Intern accounts,
-authenticated by the same form-login path, receive HTTP 403 for both the GET page
-and the POST scheduling route, and no policy row is inserted.
+version using its optimistic version. Invalid schedule submissions re-render the
+page with retained input and field-level errors without persisting a row; a
+non-first-of-month or past effective date rejects with a retained-input global
+error; an invalid replacement redirects with a flash error and leaves the row
+unchanged; the timezone is rendered as a selectable list. Persisted Mentor and
+Intern accounts, authenticated by the same form-login path, receive HTTP 403 for
+both the GET page and the POST scheduling route, and no policy row is inserted.
 
 ## Test method
 
@@ -35,6 +39,12 @@ through `AttendancePolicyRepository.findAllByOrderByEffectiveFromAsc()`.
   plus the flash message.
 - Replacing that future row with `version 0` and grace `30/30`, quota `3`, penalty
   `0.25`, Mon–Fri advances its optimistic version to `1`.
+- Invalid submissions (grace `721`, zone `Mars/Olympus`, quota `32`, penalty `1.5`,
+  empty workdays, reversed schedule) each re-render HTTP 200 with the field error and
+  no new row; `effectiveFrom 2026-09-15` retains the entered date with a
+  "first day of a calendar month" error; replacing with zone `Mars/Olympus` + grace
+  `721` redirects, flashes the error, and leaves the row at version `0`.
+- The timezone control renders as a `<select>` offering the curated zone list.
 - Mentor/Intern GET and POST both return HTTP 403; the timeline stays at exactly one row.
 
 ## RED
@@ -52,10 +62,11 @@ Tests run: 2, Failures: 0, Errors: 0, Skipped: 0
 BUILD SUCCESS
 ```
 
-Authored after the controller/template were implemented as the binding
-regression surface. The genuine behavior-missing RED is the earlier service-level
-evidence in `docs/tests/unit/attendance-policy-scheduling.md`, which drove the
-scheduling boundary into existence.
+The pre-existing two tests (Admin journey + non-Admin 403s) already passed. The
+four new validation tests target behavior that did not exist before this change:
+without Bean Validation and the re-render/redirect handling they fail on content
+assertions (no field errors render, the timezone stays a text input, and invalid
+submissions redirect instead of re-rendering with retained input).
 
 ## GREEN
 
@@ -68,20 +79,21 @@ cmd /c "mvnw.cmd -Dtest=AttendancePolicyWebIntegrationTest test"
 **Observed result**
 
 ```text
-AttendancePolicyWebIntegrationTest: Tests run: 2, Failures: 0, Errors: 0, Skipped: 0
+AttendancePolicyWebIntegrationTest: Tests run: 6, Failures: 0, Errors: 0, Skipped: 0
 BUILD SUCCESS
 ```
 
-The Admin schedule+replace journey and the Mentor/Intern 403s both passed against
-PostgreSQL 18.4 with a real form-login session.
+The Admin schedule+replace journey, all six invalid-input re-render/redirect paths,
+the timezone dropdown, and the Mentor/Intern 403s all passed against PostgreSQL
+18.4 with a real form-login session.
 
 ## Affected suite
 
 **Command and result**
 
 ```text
-cmd /c "mvnw.cmd -Dtest=AttendancePolicyWebIntegrationTest,AttendanceControllerTest,AttendanceTemplateIntegrationTest,LayerStructureTest,AttendanceLayerStructureTest,AttendancePolicyServiceTest,AttendancePolicySchedulingIntegrationTest,AttendanceLombokBoilerplateTest test"
-Tests run: 32, Failures: 0, Errors: 0, Skipped: 0
+cmd /c "mvnw.cmd -Dtest=com.lab.labtimesheet.feature.attendance.**.*Test test"
+Tests run: 173, Failures: 0, Errors: 0, Skipped: 0
 BUILD SUCCESS
 ```
 

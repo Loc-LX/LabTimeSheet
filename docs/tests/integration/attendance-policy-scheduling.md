@@ -38,7 +38,9 @@ Seed policy is `checkout_grace 30`; scheduled version for `2026-09-01` is
 - `2026-09-01` is a Tuesday: workday set `{MON,WED,FRI}` rejects check-in;
   `2026-09-02` (Wednesday) accepts it.
 - `grace 721` and `scheduled_end 23:30 + grace 30` are rejected by the service;
-  quota `99` violates `ck_attendance_policy_versions_quota`.
+  quota `99` violates `ck_attendance_policy_versions_quota`. Domain construction
+  now rejects the out-of-range quota first, so the DB backstop is asserted by
+  mutating the entity's quota field before persisting it.
 
 ## RED
 
