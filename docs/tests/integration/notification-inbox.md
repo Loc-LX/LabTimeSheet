@@ -5,7 +5,7 @@
 - **Iteration deliverable:** `I2-UI-PLAT-01` (recipient-scoped notification inbox producer)
 - **Scenario IDs:** N/A — the requirements catalogue has no dedicated acceptance scenario for the NOT-009 inbox boundary; executable evidence follows the general TDD rule in `AC-TST-001`.
 - **Test class/methods:** `com.lab.labtimesheet.feature.notification.service.NotificationInboxIntegrationTest#listsOnlyTheAuthenticatedRecipientAndMarksOwnRowsReadIdempotently`; `#concurrentOwnMarkReadRequestsAreIdempotent`
-- **Implementation commit:** pending (frozen uncommitted producer)
+- **Implementation commit:** `47fe16dbdee1980e420fa73b52becc8eb20f8eb1`
 
 ## Protected behavior
 
