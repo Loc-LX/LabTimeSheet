@@ -13,5 +13,5 @@ suite → evidence + commit SHA.
 | I2-ATT-03 | Materialize frozen full-day leave allocations and monthly/cross-month quota reservations. | `DONE` | Duong / 2026-08-19 | `69b54eb` |
 | I2-ATT-04 | Implement leave submit/approve/reject/cancel and overlap protection. | `DONE` | Duong / 2026-08-19 | `5e9e598` |
 | I2-ATT-05 | Implement missed-checkout correction submission and effective-checkout derivation. | `DONE` | Duong / 2026-08-20 | `4c09382` |
-| I2-ATT-06 | Implement Mentor approve/reject/revert and separate decision-window locking. | `TODO` | — | — |
+| I2-ATT-06 | Implement Mentor approve/reject/revert and separate decision-window locking. | `DONE` | Duong / 2026-08-20 | `2ace890` |
 | I2-ATT-07 | Add idempotent schedulers and equivalent request-time deadline guards. | `TODO` | — | — |
