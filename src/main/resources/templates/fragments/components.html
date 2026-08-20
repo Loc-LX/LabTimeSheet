@@ -28,7 +28,7 @@
 <dialog th:fragment="confirmation(id, title, description)" th:id="${id}" th:attr="aria-labelledby=${id + '-title'},aria-describedby=${id + '-description'}"><h2 th:id="${id + '-title'}" th:text="${title}">Confirm</h2><p th:id="${id + '-description'}" th:text="${description}">Consequence</p><form method="dialog"><button class="button" value="cancel">Cancel</button><button class="button button-danger" value="confirm">Confirm</button></form></dialog>
 <section th:fragment="empty(title, description)" class="empty-state"><h2 th:text="${title}">No records</h2><p th:text="${description}">Nothing to show.</p></section>
 <div th:fragment="skeleton(label)" role="status" th:attr="aria-label=${label}"><div class="skeleton"></div></div>
-<div th:fragment="notificationMenu(items)" class="panel notification-menu"><h2 class="panel-title">Notifications</h2><div th:if="${#lists.isEmpty(items)}">No unread notifications.</div><a th:each="item : ${items}" th:href="${item.actionUrl}" th:text="${item.title}">Notification</a></div>
+<section th:fragment="notificationMenu(items)" class="panel notification-menu" aria-label="Notifications"><h2 class="panel-title">Notifications</h2><div th:if="${#lists.isEmpty(items)}">No unread notifications.</div><a th:each="item : ${items}" th:href="${item.actionUrl}" th:text="${item.title}">Notification</a></section>
 <div th:fragment="errorSummary(id, title, issues)" class="alert alert-error error-summary" role="alert"
      th:id="${id}" th:if="${issues != null and !#lists.isEmpty(issues)}"
      th:attr="aria-labelledby=${id + '-title'}">

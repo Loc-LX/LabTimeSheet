@@ -10,6 +10,7 @@
 <a id="primary-action" class="button button-primary" th:href="@{/projects/new}">Create Project</a>
 <main>
     <p class="page-description">Scan owned Project health, current eligible members, and blocked work.</p>
+    <th:block th:if="${notifications != null}" th:replace="~{fragments/components :: notificationMenu(${notifications})}"></th:block>
     <section class="panel metric-strip metric-strip-three" aria-label="Mentor metrics">
         <div class="metric"><div class="metric-label">Active owned Projects</div><div class="metric-value" th:text="${dashboard.activeProjects}">0</div><div class="metric-detail">Only your Project scope</div></div>
         <div class="metric"><div class="metric-label">Active members</div><div class="metric-value" th:text="${dashboard.activeMembers}">0</div><div class="metric-detail">Across owned active Projects</div></div>

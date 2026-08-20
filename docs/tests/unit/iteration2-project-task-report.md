@@ -4,7 +4,7 @@
 - **Requirement IDs:** `I2-UI-04`, `RPT-008`, `RPT-009`
 - **Scenario IDs:** `AC-RPT-004`, `AC-RPT-005`
 - **Test class/method:** `com.lab.labtimesheet.feature.reporting.service.ProjectTaskReportServiceTest#filtersAuthorizedCurrentTasksByMemberStatusAndDueDate`
-- **Implementation commit:** pending local commit
+- **Implementation commit:** `6c869b65c99903d8b0ac0db19a3c10b06c920e01`
 
 ## Protected behavior
 

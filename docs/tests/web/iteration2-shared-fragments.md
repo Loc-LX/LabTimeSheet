@@ -4,7 +4,7 @@
 - **Requirement IDs:** `UI-001`, `UI-002`, `UI-005`, `UI-013`, `UI-019`, `RPT-008`, `RPT-009`
 - **Scenario IDs:** `AC-UI-001`, `AC-UI-004`, `AC-UI-009`, `AC-RPT-004`
 - **Test class/method:** `com.lab.labtimesheet.feature.reporting.controller.Iteration2ComponentsWebTest#sharedIteration2FragmentsExposeKeyboardSafeErrorsDrawersAndChartAlternative`
-- **Implementation commit:** pending
+- **Implementation commit:** `49c9075aa6c33656201acc5c654e243d830028eb`
 
 ## Protected behavior
 
