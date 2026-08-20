@@ -4,7 +4,7 @@
 - **Requirement IDs:** `I2-UI-01`, `AUTH-001`, `AUTH-002`, `NOT-009`, `UI-004`, `UI-010`
 - **Scenario IDs:** `AC-AUTH-001`
 - **Test class/method:** `com.lab.labtimesheet.feature.reporting.controller.DashboardControllerWebTest#dashboardLoadsRecipientScopedNotificationsAndHeaderAccess`, `com.lab.labtimesheet.feature.reporting.controller.NotificationControllerWebTest`
-- **Implementation commit:** `pending local review commit`
+- **Implementation commit:** `96c6cf2866e00062860a0c0b45cb010be6ca30b1`
 
 ## Protected behavior
 

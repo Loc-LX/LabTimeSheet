@@ -4,7 +4,7 @@
 - **Requirement IDs:** `I2-UI-04`, `AUTH-001`, `AUTH-002`, `RPT-003`, `RPT-005`, `RPT-009`
 - **Scenario IDs:** `AC-AUTH-008`; `AC-RPT-002` HTML Project/Task role-scope slice only
 - **Test class/method:** `com.lab.labtimesheet.feature.reporting.service.ProjectTaskReportServiceTest`, including `currentLeaderKeepsMemberFilterAndReceivesMemberBreakdown`
-- **Implementation commit:** `pending local review commit`
+- **Implementation commit:** `96c6cf2866e00062860a0c0b45cb010be6ca30b1`
 
 ## Protected behavior
 
