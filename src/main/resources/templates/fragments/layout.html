@@ -49,6 +49,16 @@
         <header class="app-header">
             <button class="icon-button" type="button" data-sidebar-toggle aria-expanded="true" aria-label="Toggle sidebar" title="Toggle sidebar"><svg class="nav-icon" aria-hidden="true"><use th:href="@{/assets/icons.svg#panel-left}"></use></svg></button>
             <div class="header-title"><span class="breadcrumb" th:text="${section}">Section</span> / <span th:text="${pageTitle}">Page</span></div>
+            <nav class="header-actions" aria-label="Header actions" sec:authorize="isAuthenticated()">
+                <a class="icon-button notification-trigger" th:href="@{/notifications}"
+                   th:attr="aria-label=${notifications != null ? 'Notifications, ' + notifications.unreadCount + ' unread' : 'Notifications'}"
+                   title="Notifications">
+                    <svg class="nav-icon" aria-hidden="true"><use th:href="@{/assets/icons.svg#bell}"></use></svg>
+                    <span class="notification-count" aria-hidden="true"
+                          th:if="${notifications != null and notifications.unreadCount > 0}"
+                          th:text="${notifications.unreadCount}">0</span>
+                </a>
+            </nav>
         </header>
         <div class="page">
             <div class="page-heading">

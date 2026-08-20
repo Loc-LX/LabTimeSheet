@@ -13,7 +13,9 @@
 </form>
 <main>
     <p class="page-description" th:text="${'Attendance, assigned work, and Project activity for ' + dashboard.displayName + '.'}">Today.</p>
-    <th:block th:if="${notifications != null}" th:replace="~{fragments/components :: notificationMenu(${notifications})}"></th:block>
+    <th:block th:if="${notifications != null}">
+        <th:block th:replace="~{fragments/components :: notificationMenu(${notifications})}"></th:block>
+    </th:block>
     <section class="panel metric-strip metric-strip-three" aria-label="Intern metrics">
         <div class="metric"><div class="metric-label">Attendance</div><div class="metric-value" th:text="${dashboard.attendanceState.label}">Not checked in</div><div class="metric-detail">Server-authoritative state</div></div>
         <div class="metric"><div class="metric-label">Active Projects</div><div class="metric-value" th:text="${dashboard.activeProjects}">0</div><div class="metric-detail">Current memberships</div></div>

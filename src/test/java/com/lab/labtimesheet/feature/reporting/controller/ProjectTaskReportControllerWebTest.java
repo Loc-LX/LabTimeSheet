@@ -38,6 +38,8 @@ class ProjectTaskReportControllerWebTest {
                 org.mockito.ArgumentMatchers.isNull(),
                 org.mockito.ArgumentMatchers.isNull(),
                 org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.isNull(),
                 org.mockito.ArgumentMatchers.isNull()))
                 .willReturn(new ProjectTaskReportView(
                         new ProjectTaskReportFilter(null, null, null, null, null),
@@ -62,6 +64,8 @@ class ProjectTaskReportControllerWebTest {
                 org.mockito.ArgumentMatchers.isNull(),
                 org.mockito.ArgumentMatchers.isNull(),
                 org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.isNull(),
                 org.mockito.ArgumentMatchers.isNull()))
                 .willReturn(new ProjectTaskReportView(
                         new ProjectTaskReportFilter(null, null, null, null, null),
@@ -79,6 +83,10 @@ class ProjectTaskReportControllerWebTest {
                         .string(org.hamcrest.Matchers.containsString("id=\"task-report-project\"")))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
                         .string(org.hamcrest.Matchers.containsString("id=\"task-report-status\"")))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.containsString("Work date from")))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.containsString("Logged minutes")))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
                         .string(org.hamcrest.Matchers.containsString("N/A")));
     }

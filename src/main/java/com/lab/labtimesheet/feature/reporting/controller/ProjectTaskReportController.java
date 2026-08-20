@@ -30,6 +30,8 @@ public class ProjectTaskReportController {
      * @param status optional Task status filter
      * @param dueFrom optional inclusive due-date lower bound
      * @param dueTo optional inclusive due-date upper bound
+     * @param workFrom optional inclusive work-date lower bound
+     * @param workTo optional inclusive work-date upper bound
      * @param model Thymeleaf model
      * @return Project/Task report template
      */
@@ -41,9 +43,11 @@ public class ProjectTaskReportController {
             @RequestParam(required = false) TaskStatus status,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dueFrom,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dueTo,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate workFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate workTo,
             Model model) {
         model.addAttribute("report", reports.build(
-                authentication.getName(), projectId, memberMembershipId, status, dueFrom, dueTo));
+                authentication.getName(), projectId, memberMembershipId, status, dueFrom, dueTo, workFrom, workTo));
         model.addAttribute("statuses", List.of(TaskStatus.values()));
         return "reports/project-tasks";
     }

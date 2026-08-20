@@ -44,6 +44,14 @@
             <label class="field-label" for="task-report-due-to">Due to</label>
             <input class="control" id="task-report-due-to" name="dueTo" type="date" th:value="${report.filter.dueTo}">
         </div>
+        <div class="field">
+            <label class="field-label" for="task-report-work-from">Work date from</label>
+            <input class="control" id="task-report-work-from" name="workFrom" type="date" th:value="${report.filter.workFrom}">
+        </div>
+        <div class="field">
+            <label class="field-label" for="task-report-work-to">Work date to</label>
+            <input class="control" id="task-report-work-to" name="workTo" type="date" th:value="${report.filter.workTo}">
+        </div>
         <div class="field form-actions"><button class="button button-primary" type="submit">Apply filters</button></div>
     </form>
     <section class="panel metric-strip metric-strip-three" aria-label="Project and Task report summary">
@@ -51,15 +59,31 @@
         <div class="metric"><div class="metric-label">Done</div><div class="metric-value" th:text="${report.doneTasks}">0</div><div class="metric-detail">Filtered DONE status</div></div>
         <div class="metric"><div class="metric-label">Completion</div><div class="metric-value" th:text="${report.completionRate}">N/A</div><div class="metric-detail">N/A when no Tasks match</div></div>
     </section>
+    <section class="panel metric-strip" aria-label="Task status and work summary">
+        <div class="metric"><div class="metric-label">TODO</div><div class="metric-value" th:text="${report.todoTasks}">0</div><div class="metric-detail">Filtered current Tasks</div></div>
+        <div class="metric"><div class="metric-label">In progress</div><div class="metric-value" th:text="${report.inProgressTasks}">0</div><div class="metric-detail">Filtered current Tasks</div></div>
+        <div class="metric"><div class="metric-label">Blocked</div><div class="metric-value" th:text="${report.blockedTasks}">0</div><div class="metric-detail">Requires attention</div></div>
+        <div class="metric"><div class="metric-label">Logged minutes</div><div class="metric-value" th:text="${report.totalLoggedMinutes}">0</div><div class="metric-detail">Retained Task work logs</div></div>
+    </section>
+    <section class="panel" th:if="${report.detailedMemberHours}">
+        <header class="panel-header"><h2 class="panel-title">Hours by member</h2></header>
+        <div class="table-scroll">
+            <table class="data-table">
+                <caption class="sr-only">Filtered retained Task work minutes by Project member</caption>
+                <thead><tr><th scope="col">Member</th><th scope="col">Logged minutes</th></tr></thead>
+                <tbody><tr th:each="member : ${report.memberHours}"><th scope="row" th:text="${member.displayName}">Member</th><td th:text="${member.totalMinutes}">0</td></tr></tbody>
+            </table>
+        </div>
+    </section>
     <section class="panel" th:if="${#lists.isEmpty(report.rows)}">
-        <th:block th:replace="~{fragments/components :: empty(${report.filter.projectId == null ? 'Select a Project' : 'No Tasks match these filters'}, ${report.filter.projectId == null ? 'Choose an authorized Project to inspect its current Task dataset.' : 'Try a wider due-date range or another status/member filter.'})} "></th:block>
+        <th:block th:replace="~{fragments/components :: empty(${report.filter.projectId == null ? 'Select a Project' : 'No Tasks match these filters'}, ${report.filter.projectId == null ? 'Choose an authorized Project to inspect its current Task dataset.' : 'Try a wider due-date, work-date, status, or member filter.'})} "></th:block>
     </section>
     <section class="panel" th:unless="${#lists.isEmpty(report.rows)}">
         <header class="panel-header"><h2 class="panel-title">Task detail</h2></header>
         <div class="table-scroll">
             <table class="data-table">
                 <caption class="sr-only">Current Project Task report</caption>
-                <thead><tr><th scope="col">Project</th><th scope="col">Task</th><th scope="col">Assignee</th><th scope="col">Status</th><th scope="col">Due</th><th scope="col">Created</th><th scope="col">Attribution</th></tr></thead>
+                <thead><tr><th scope="col">Project</th><th scope="col">Task</th><th scope="col">Assignee</th><th scope="col">Status</th><th scope="col">Due</th><th scope="col">Logged minutes</th><th scope="col">Created</th><th scope="col">Attribution</th></tr></thead>
                 <tbody>
                 <tr th:each="row : ${report.rows}">
                     <td th:text="${row.projectName}">Project</td>
@@ -67,6 +91,7 @@
                     <td th:text="${row.assigneeName}">Intern</td>
                     <td><span class="badge" th:classappend="${row.status.name() == 'DONE' ? ' badge-success' : row.status.name() == 'BLOCKED' ? ' badge-warning' : ''}" th:attr="aria-label=${'Status: ' + row.status}" th:text="${row.status}">TODO</span></td>
                     <td th:text="${row.dueDate == null ? 'N/A' : #temporals.format(row.dueDate, 'dd/MM/yyyy')}">N/A</td>
+                    <td th:text="${row.loggedMinutes}">0</td>
                     <td th:text="${#temporals.format(row.createdAt, 'dd/MM/yyyy HH:mm')}">Created</td>
                     <td th:text="|Created by membership ${row.creatorMembershipId}; assigned by membership ${row.assignerMembershipId}|">Attribution</td>
                 </tr>

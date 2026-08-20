@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{fragments/layout :: shell(
+          pageTitle='Notifications',
+          section='Workspace',
+          activeNav='notifications',
+          primaryAction=~{},
+          content=~{::main})}">
+<body>
+<main>
+    <p class="page-description">Notifications for the signed-in account. Email delivery details are not shown here.</p>
+    <th:block th:replace="~{fragments/components :: notificationMenu(${notifications})}"></th:block>
+</main>
+</body>
+</html>
