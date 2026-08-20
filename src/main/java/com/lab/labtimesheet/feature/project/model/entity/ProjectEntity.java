@@ -69,6 +69,9 @@ public class ProjectEntity {
     @Column(name = "activated_at")
     private Instant activatedAt;
 
+    @Column(name = "completed_at")
+    private Instant completedAt;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -306,6 +309,41 @@ public class ProjectEntity {
      */
     public Instant activatedAt() {
         return activatedAt;
+    }
+
+    /**
+     * Returns when the Project became terminal and all current intervals were closed.
+     *
+     * @return server completion instant, or null while the Project is open
+     */
+    public Instant completedAt() {
+        return completedAt;
+    }
+
+    /**
+     * Completes an active Project after its caller has verified every current Task is DONE.
+     *
+     * <p>The final leadership term and every current membership are closed before the terminal
+     * status is stored. Their retained rows and Task attribution are never deleted or rewritten.</p>
+     *
+     * @param actorMentorUserId authenticated owning Mentor
+     * @param at server completion instant
+     * @throws ProjectAccessDeniedException when the actor does not own this Project
+     * @throws ProjectRuleViolationException when the Project is not active or has no current Leader
+     */
+    public void complete(long actorMentorUserId, Instant at) {
+        requireOwner(actorMentorUserId);
+        Objects.requireNonNull(at, "at");
+        if (status != ProjectStatus.ACTIVE) {
+            throw new ProjectRuleViolationException("Only an active Project can be completed");
+        }
+        var endedAt = currentLeadershipTerm().end(at, actorMentorUserId);
+        memberships.stream()
+                .filter(ProjectMembershipEntity::isCurrent)
+                .forEach(membership -> membership.close(endedAt, actorMentorUserId));
+        status = ProjectStatus.COMPLETED;
+        completedAt = endedAt;
+        updatedAt = endedAt;
     }
 
     /**

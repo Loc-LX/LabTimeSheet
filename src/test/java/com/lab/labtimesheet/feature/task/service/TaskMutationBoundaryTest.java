@@ -146,7 +146,7 @@ class TaskMutationBoundaryTest {
                 .thenReturn(Optional.of(task));
         when(tasks.saveAndFlush(task)).thenReturn(task);
         when(projectQueries.members(5L, 10L)).thenReturn(List.of(
-                new ProjectMemberView(70L, 5L, "Member", JOINED, null, true)));
+                new ProjectMemberView(70L, 5L, "Member", JOINED, null, true, 10L, null)));
 
         service.changeStatus("member@example.test", 10L, 25L, TaskStatus.IN_PROGRESS);
         service.edit("member@example.test", 10L, 25L, "Updated", "Details", null);

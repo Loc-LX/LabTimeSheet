@@ -7,6 +7,10 @@ import com.lab.labtimesheet.feature.project.model.ProjectStatus;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectDetail;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectActorView;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectDashboardSummary;
+import com.lab.labtimesheet.feature.project.model.dto.ProjectExitRequestHistoryView;
+import com.lab.labtimesheet.feature.project.model.dto.ProjectExitReadinessView;
+import com.lab.labtimesheet.feature.project.model.dto.ProjectHistoryView;
+import com.lab.labtimesheet.feature.project.model.dto.ProjectInvitationHistoryView;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectLeadershipTermView;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectMemberView;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectMembershipIntervalView;
@@ -15,7 +19,10 @@ import com.lab.labtimesheet.feature.project.model.dto.ProjectTaskContext;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectTaskMemberView;
 import com.lab.labtimesheet.feature.project.model.entity.ProjectEntity;
 import com.lab.labtimesheet.feature.project.repository.ProjectExitRequestRepository;
+import com.lab.labtimesheet.feature.project.repository.ProjectInvitationRepository;
 import com.lab.labtimesheet.feature.project.repository.ProjectRepository;
+import com.lab.labtimesheet.feature.task.service.TaskQueryService;
+import com.lab.labtimesheet.feature.task.service.TaskTransferService;
 import java.util.List;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
@@ -35,7 +42,10 @@ public class ProjectQueryService {
 
     private final ProjectRepository projects;
     private final ProjectExitRequestRepository exitRequests;
+    private final ProjectInvitationRepository invitations;
     private final AccountService accounts;
+    private final TaskQueryService taskQueries;
+    private final TaskTransferService taskTransfers;
 
     /**
      * Resolves an active authenticated account to its stable user identifier.
@@ -130,7 +140,9 @@ public class ProjectQueryService {
                         membership.leftAt(),
                         membership.isCurrent()
                                 && leaderUserId != null
-                                && membership.internUserId() == leaderUserId))
+                                && membership.internUserId() == leaderUserId,
+                        membership.addedByUserId(),
+                        membership.removedByMentorUserId()))
                 .toList();
     }
 
@@ -170,7 +182,117 @@ public class ProjectQueryService {
                         term.id(),
                         displayName(term.internUserId()),
                         term.startedAt(),
-                        term.endedAt()))
+                        term.endedAt(),
+                        term.appointedByMentorUserId(),
+                        term.endedByMentorUserId()))
+                .toList();
+    }
+
+    /**
+     * Returns one authorized Project History snapshot from retained Project and Task facts.
+     *
+     * <p>Open visibility is limited to Admin, the owning Mentor, and current members. A former
+     * member becomes eligible only after Project completion through the same authorization boundary
+     * used by detail and membership reads. Task rows are obtained through the Task DTO service;
+     * this method never imports Task persistence.</p>
+     *
+     * @param actorUserId active authenticated viewer
+     * @param projectId requested Project identifier
+     * @return immutable retained history snapshot
+     * @throws ProjectAccessDeniedException when the viewer is outside the exact AUTH-006 scope
+     */
+    @Transactional(readOnly = true)
+    public ProjectHistoryView history(long actorUserId, long projectId) {
+        var project = visibleProject(actorUserId, projectId);
+        var memberships = project.memberships().stream()
+                .map(membership -> new ProjectMemberView(
+                        membership.id(),
+                        membership.internUserId(),
+                        displayName(membership.internUserId()),
+                        membership.joinedAt(),
+                        membership.leftAt(),
+                        project.status() != ProjectStatus.COMPLETED
+                                && membership.isCurrent()
+                                && project.currentLeader().id().equals(membership.id()),
+                        membership.addedByUserId(),
+                        membership.removedByMentorUserId()))
+                .toList();
+        var leadership = project.leadershipTerms().stream()
+                .sorted((left, right) -> right.startedAt().compareTo(left.startedAt()))
+                .map(term -> new ProjectLeadershipTermView(
+                        term.id(),
+                        displayName(term.internUserId()),
+                        term.startedAt(),
+                        term.endedAt(),
+                        term.appointedByMentorUserId(),
+                        term.endedByMentorUserId()))
+                .toList();
+        var invitationHistory = invitations.findByProject_IdOrderByCreatedAtAscIdAsc(projectId).stream()
+                .map(invitation -> new ProjectInvitationHistoryView(
+                        invitation.id(),
+                        invitation.invitedInternUserId(),
+                        invitation.issuingLeadershipTerm().id(),
+                        invitation.status(),
+                        invitation.acceptedMembership() == null
+                                ? null : invitation.acceptedMembership().id(),
+                        invitation.resolvedAt(),
+                        invitation.resolvedByUserId(),
+                        invitation.resolutionCode(),
+                        invitation.createdAt(),
+                        invitation.updatedAt()))
+                .toList();
+        var exitHistory = exitRequests.findByProject_IdOrderByCreatedAtAscIdAsc(projectId).stream()
+                .map(request -> new ProjectExitRequestHistoryView(
+                        request.id(),
+                        request.targetMembershipId(),
+                        request.requesterMembershipId(),
+                        request.requestType(),
+                        request.reason(),
+                        request.status(),
+                        request.resolutionNote(),
+                        request.resolvedAt(),
+                        request.resolvedByUserId(),
+                        request.createdAt(),
+                        request.updatedAt()))
+                .toList();
+        return new ProjectHistoryView(
+                project.id(),
+                memberships,
+                leadership,
+                invitationHistory,
+                exitHistory,
+                taskQueries.history(projectId));
+    }
+
+    /**
+     * Returns pending-exit readiness facts for an authorized Project viewer.
+     *
+     * <p>The snapshot exposes only retained request IDs, membership IDs, current-Leader status,
+     * and the Task-owned unfinished count. It is informational and cannot replace the locked
+     * approval boundary in {@link ProjectService#approveExit(long, long, String)}.</p>
+     *
+     * @param actorUserId active authenticated viewer
+     * @param projectId requested Project identifier
+     * @return pending requests in stable request order
+     */
+    @Transactional(readOnly = true)
+    public List<ProjectExitReadinessView> exitReadiness(long actorUserId, long projectId) {
+        var project = visibleProject(actorUserId, projectId);
+        var currentLeaderId = project.status() == ProjectStatus.COMPLETED
+                ? null : project.currentLeader().id();
+        return exitRequests.findByProject_IdOrderByCreatedAtAscIdAsc(projectId).stream()
+                .filter(request -> request.isPending())
+                .map(request -> {
+                    boolean leader = currentLeaderId != null
+                            && currentLeaderId.equals(request.targetMembershipId());
+                    long unfinished = taskTransfers.unfinishedCount(projectId, request.targetMembershipId());
+                    return new ProjectExitReadinessView(
+                            request.id(),
+                            request.targetMembershipId(),
+                            leader,
+                            unfinished,
+                            !leader && unfinished == 0);
+                })
                 .toList();
     }
 

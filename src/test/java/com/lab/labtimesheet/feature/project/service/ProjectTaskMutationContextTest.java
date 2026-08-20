@@ -20,6 +20,8 @@ import com.lab.labtimesheet.feature.project.repository.ProjectRepository;
 import com.lab.labtimesheet.feature.project.repository.ProjectExitRequestRepository;
 import com.lab.labtimesheet.feature.project.repository.ProjectInvitationRepository;
 import com.lab.labtimesheet.feature.task.service.TaskQueryService;
+import com.lab.labtimesheet.feature.task.service.TaskTransferService;
+import com.lab.labtimesheet.feature.notification.service.NotificationService;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.List;
@@ -52,6 +54,12 @@ class ProjectTaskMutationContextTest {
     private TaskQueryService taskQueries;
 
     @Mock
+    private TaskTransferService taskTransfers;
+
+    @Mock
+    private NotificationService notifications;
+
+    @Mock
     private ProjectEntity project;
 
     @Mock
@@ -74,7 +82,8 @@ class ProjectTaskMutationContextTest {
                 List.of(),
                 Set.of(41L));
         var service = new ProjectService(
-                projects, invitations, exitRequests, accounts, queries, taskQueries, Clock.systemUTC());
+                projects, invitations, exitRequests, accounts, queries, taskQueries, taskTransfers, notifications,
+                Clock.systemUTC());
         when(projects.findMutationRouteById(projectId))
                 .thenReturn(Optional.of(new ProjectMutationRoute(projectId, 10L, actorUserId)));
         when(projects.findCurrentInternUserIdsByProjectId(projectId)).thenReturn(List.of(actorUserId));
@@ -103,7 +112,8 @@ class ProjectTaskMutationContextTest {
         long actorUserId = 20L;
         long projectId = 30L;
         var service = new ProjectService(
-                projects, invitations, exitRequests, accounts, queries, taskQueries, Clock.systemUTC());
+                projects, invitations, exitRequests, accounts, queries, taskQueries, taskTransfers, notifications,
+                Clock.systemUTC());
         when(projects.findMutationRouteById(projectId))
                 .thenReturn(Optional.of(new ProjectMutationRoute(projectId, 10L, 40L)));
         when(projects.findCurrentInternUserIdsByProjectId(projectId)).thenReturn(List.of(40L, 41L));
@@ -121,7 +131,8 @@ class ProjectTaskMutationContextTest {
         long actorUserId = 20L;
         long projectId = 30L;
         var service = new ProjectService(
-                projects, invitations, exitRequests, accounts, queries, taskQueries, Clock.systemUTC());
+                projects, invitations, exitRequests, accounts, queries, taskQueries, taskTransfers, notifications,
+                Clock.systemUTC());
         when(projects.findMutationRouteById(projectId))
                 .thenReturn(Optional.of(new ProjectMutationRoute(projectId, 10L, 40L)));
 
@@ -138,7 +149,8 @@ class ProjectTaskMutationContextTest {
         long actorUserId = 20L;
         long invitationId = 30L;
         var service = new ProjectService(
-                projects, invitations, exitRequests, accounts, queries, taskQueries, Clock.systemUTC());
+                projects, invitations, exitRequests, accounts, queries, taskQueries, taskTransfers, notifications,
+                Clock.systemUTC());
         when(invitations.findRouteById(invitationId))
                 .thenReturn(Optional.of(new ProjectInvitationRoute(40L, 50L)));
 
