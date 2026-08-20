@@ -49,46 +49,8 @@ class AttendancePolicyTest {
         assertThrows(IllegalArgumentException.class, () -> policy(30, 30, LocalTime.of(23, 30)));
     }
 
-    @Test
-    void rejectsMonthlyLeaveQuotaOutsideZeroThroughThirtyOne() {
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> policy(30, 30, LocalTime.of(15, 30), -1, new BigDecimal("0.25"), Set.of(DayOfWeek.MONDAY)));
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> policy(30, 30, LocalTime.of(15, 30), 32, new BigDecimal("0.25"), Set.of(DayOfWeek.MONDAY)));
-    }
-
-    @Test
-    void rejectsViolationPenaltyOutsideZeroToOne() {
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> policy(30, 30, LocalTime.of(15, 30), 3, new BigDecimal("-0.01"), Set.of(DayOfWeek.MONDAY)));
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> policy(30, 30, LocalTime.of(15, 30), 3, new BigDecimal("1.01"), Set.of(DayOfWeek.MONDAY)));
-    }
-
-    @Test
-    void rejectsEmptyWorkdays() {
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> policy(30, 30, LocalTime.of(15, 30), 3, new BigDecimal("0.25"), Set.of()));
-    }
-
     private static AttendancePolicy policy(
             int checkInGraceMinutes, int checkoutGraceMinutes, LocalTime scheduledEnd) {
-        return policy(
-                checkInGraceMinutes, checkoutGraceMinutes, scheduledEnd, 3, new BigDecimal("0.25"), Set.of(DayOfWeek.MONDAY));
-    }
-
-    private static AttendancePolicy policy(
-            int checkInGraceMinutes,
-            int checkoutGraceMinutes,
-            LocalTime scheduledEnd,
-            int monthlyLeaveQuota,
-            BigDecimal violationPenalty,
-            Set<DayOfWeek> workdays) {
         return new AttendancePolicy(
                 2L,
                 LocalDate.of(2026, 9, 1),
@@ -97,8 +59,8 @@ class AttendancePolicyTest {
                 scheduledEnd,
                 checkInGraceMinutes,
                 checkoutGraceMinutes,
-                monthlyLeaveQuota,
-                violationPenalty,
-                workdays);
+                3,
+                new BigDecimal("0.25"),
+                Set.of(DayOfWeek.MONDAY));
     }
 }

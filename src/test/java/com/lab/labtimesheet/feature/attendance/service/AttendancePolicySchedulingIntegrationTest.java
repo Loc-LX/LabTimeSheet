@@ -34,7 +34,6 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.annotation.Transactional;
 
 @Import(AttendancePersistenceIntegrationTest.IntegrationConfiguration.class)
@@ -200,7 +199,7 @@ class AttendancePolicySchedulingIntegrationTest {
                                 Set.of(DayOfWeek.MONDAY))))
                 .isInstanceOf(IllegalArgumentException.class);
 
-        AttendancePolicyEntity invalidQuota = new AttendancePolicyEntity(new AttendancePolicy(
+        AttendancePolicy invalidQuota = new AttendancePolicy(
                 0L,
                 LocalDate.of(2026, 10, 1),
                 ZONE,
@@ -208,12 +207,11 @@ class AttendancePolicySchedulingIntegrationTest {
                 LocalTime.of(15, 30),
                 30,
                 30,
-                5,
+                99,
                 new BigDecimal("0.5"),
-                Set.of(DayOfWeek.MONDAY)), adminId);
-        ReflectionTestUtils.setField(invalidQuota, "monthlyLeaveQuota", 99);
+                Set.of(DayOfWeek.MONDAY));
         assertThatThrownBy(() -> policyEntities.saveAndFlush(
-                        invalidQuota))
+                        new AttendancePolicyEntity(invalidQuota, adminId)))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 
