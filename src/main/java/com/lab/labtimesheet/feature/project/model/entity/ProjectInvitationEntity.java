@@ -187,6 +187,24 @@ public class ProjectInvitationEntity {
     }
 
     /**
+     * Returns when the invitation was created by its issuing leadership term.
+     *
+     * @return immutable creation instant
+     */
+    public Instant createdAt() {
+        return createdAt;
+    }
+
+    /**
+     * Returns when the invitation row last changed state.
+     *
+     * @return latest stored update instant
+     */
+    public Instant updatedAt() {
+        return updatedAt;
+    }
+
+    /**
      * Indicates whether the invitation can still be answered or revoked.
      *
      * @return true only while pending

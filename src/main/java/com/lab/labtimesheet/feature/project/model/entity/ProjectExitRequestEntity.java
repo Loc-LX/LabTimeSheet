@@ -218,6 +218,24 @@ public class ProjectExitRequestEntity {
     }
 
     /**
+     * Returns when the retained exit request was created.
+     *
+     * @return immutable creation instant
+     */
+    public Instant createdAt() {
+        return createdAt;
+    }
+
+    /**
+     * Returns when the retained request most recently changed state.
+     *
+     * @return latest stored update instant
+     */
+    public Instant updatedAt() {
+        return updatedAt;
+    }
+
+    /**
      * Indicates whether this request still awaits a decision.
      *
      * @return true while pending

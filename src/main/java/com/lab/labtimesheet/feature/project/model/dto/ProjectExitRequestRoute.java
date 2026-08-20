@@ -7,6 +7,7 @@ package com.lab.labtimesheet.feature.project.model.dto;
  * lock order has been established.</p>
  *
  * @param projectId owning Project identifier
+ * @param requesterUserId immutable Intern account that created the request
  */
-public record ProjectExitRequestRoute(long projectId) {
+public record ProjectExitRequestRoute(long projectId, long requesterUserId) {
 }

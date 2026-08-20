@@ -35,7 +35,7 @@ public interface ProjectExitRequestRepository extends JpaRepository<ProjectExitR
      */
     @Query("""
             select new com.lab.labtimesheet.feature.project.model.dto.ProjectExitRequestRoute(
-                    request.project.id)
+                    request.project.id, request.requesterMembership.internUserId)
             from ProjectExitRequestEntity request
             where request.id = :id
             """)
@@ -71,6 +71,24 @@ public interface ProjectExitRequestRepository extends JpaRepository<ProjectExitR
               and request.status = com.lab.labtimesheet.feature.project.model.ProjectExitRequestStatus.PENDING
             """)
     Set<Long> findPendingTargetMembershipIdsByProjectId(@Param("projectId") long projectId);
+
+    /**
+     * Reads the immutable requester account IDs for pending requests before a Project mutation
+     * acquires its Account/profile locks. A requester may be a retained historical member rather
+     * than a current member, so current-member snapshots alone are insufficient for notification
+     * lock ordering.
+     *
+     * @param projectId Project identifier
+     * @return pending requester account identifiers
+     */
+    @Query("""
+            select request.requesterMembership.internUserId
+            from ProjectExitRequestEntity request
+            where request.project.id = :projectId
+              and request.status = com.lab.labtimesheet.feature.project.model.ProjectExitRequestStatus.PENDING
+            order by request.requesterMembership.internUserId asc
+            """)
+    List<Long> findPendingRequesterUserIdsByProjectId(@Param("projectId") long projectId);
 
     /**
      * Lists a Project's exit-request history in creation order.

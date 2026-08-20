@@ -99,10 +99,13 @@ class ProjectLifecycleLockIntegrationTest {
 
     @Test
     void staleRoutingAndAccountReadsCannotIssueAfterLeadershipAndAccountStateChange() throws Exception {
+        // Create the pending invitee first so the issuing mutation blocks on that target Account
+        // before it reaches the current-Leader row. The Mentor can therefore replace the Leader
+        // while the invitation request is waiting, exercising the post-lock route recheck.
+        long inviteeId = intern("invitee-stale-route@example.test", "I905");
         long mentorId = user("mentor-stale-route@example.test", "MENTOR");
         long leaderId = intern("leader-stale-route@example.test", "I903");
         long replacementId = intern("replacement-stale-route@example.test", "I904");
-        long inviteeId = intern("invitee-stale-route@example.test", "I905");
         long projectId = transactions.execute(status -> projects.create(
                 mentorId,
                 new ProjectCreateCommand(
@@ -113,18 +116,22 @@ class ProjectLifecycleLockIntegrationTest {
                         leaderId)));
         transactions.executeWithoutResult(status -> projects.addMember(mentorId, projectId, replacementId));
 
-        CountDownLatch leaderAccountHeld = new CountDownLatch(1);
-        CountDownLatch releaseLeaderAccount = new CountDownLatch(1);
+        CountDownLatch inviteeAccountHeld = new CountDownLatch(1);
+        CountDownLatch releaseInviteeAccount = new CountDownLatch(1);
         CountDownLatch mutationStarted = new CountDownLatch(1);
         ExecutorService executor = Executors.newFixedThreadPool(2);
         try {
             Future<?> holder = executor.submit(() -> transactions.executeWithoutResult(status -> {
                 jdbc.queryForObject(
-                        "select id from app_users where id = ? for update", Long.class, leaderId);
-                leaderAccountHeld.countDown();
-                awaitLatch(releaseLeaderAccount, "leader Account release");
+                        "select id from app_users where id = ? for update", Long.class, inviteeId);
+                jdbc.update(
+                        "update app_users set account_status = 'LOCKED', locked_at = ? where id = ?",
+                        NOW.atOffset(ZoneOffset.UTC),
+                        inviteeId);
+                inviteeAccountHeld.countDown();
+                awaitLatch(releaseInviteeAccount, "invitee Account release");
             }));
-            assertThat(leaderAccountHeld.await(5, TimeUnit.SECONDS)).isTrue();
+            assertThat(inviteeAccountHeld.await(5, TimeUnit.SECONDS)).isTrue();
 
             Future<?> mutation = executor.submit(() -> transactions.executeWithoutResult(status -> {
                 mutationStarted.countDown();
@@ -135,18 +142,14 @@ class ProjectLifecycleLockIntegrationTest {
 
             transactions.executeWithoutResult(status -> {
                 projects.changeLeader(mentorId, projectId, replacementId);
-                jdbc.update(
-                        "update app_users set account_status = 'LOCKED', locked_at = ? where id = ?",
-                        NOW.atOffset(ZoneOffset.UTC),
-                        inviteeId);
             });
 
-            releaseLeaderAccount.countDown();
+            releaseInviteeAccount.countDown();
             assertThatThrownBy(() -> mutation.get(10, TimeUnit.SECONDS))
                     .hasRootCauseInstanceOf(ProjectAccessDeniedException.class);
             holder.get(10, TimeUnit.SECONDS);
         } finally {
-            releaseLeaderAccount.countDown();
+            releaseInviteeAccount.countDown();
             executor.shutdownNow();
             assertThat(executor.awaitTermination(10, TimeUnit.SECONDS)).isTrue();
         }
@@ -156,6 +159,185 @@ class ProjectLifecycleLockIntegrationTest {
                 Integer.class,
                 projectId,
                 inviteeId)).isZero();
+    }
+
+    @Test
+    void exitRequestLocksMentorNotificationRecipientBeforeProject() throws Exception {
+        long mentorId = user("mentor-exit-notification-lock@example.test", "MENTOR");
+        long leaderId = intern("leader-exit-notification-lock@example.test", "I908");
+        long projectId = transactions.execute(status -> projects.create(
+                mentorId,
+                new ProjectCreateCommand(
+                        "Exit notification lock order",
+                        null,
+                        LocalDate.of(2026, 8, 1),
+                        LocalDate.of(2026, 12, 31),
+                        leaderId)));
+
+        CountDownLatch mentorAccountHeld = new CountDownLatch(1);
+        CountDownLatch releaseMentorAccount = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(3);
+        try {
+            Future<?> holder = executor.submit(() -> transactions.executeWithoutResult(status -> {
+                jdbc.queryForObject(
+                        "select id from app_users where id = ? for update", Long.class, mentorId);
+                mentorAccountHeld.countDown();
+                awaitLatch(releaseMentorAccount, "Mentor Account release");
+            }));
+            assertThat(mentorAccountHeld.await(5, TimeUnit.SECONDS)).isTrue();
+
+            Future<Long> mutation = executor.submit(() -> transactions.execute(status ->
+                    projects.requestOwnLeave(leaderId, projectId, "Mentor notification lock order")));
+            awaitAccountLockWait();
+
+            Future<Long> projectProbe = executor.submit(() -> transactions.execute(status -> jdbc.queryForObject(
+                    "select id from projects where id = ? for update", Long.class, projectId)));
+            assertThat(projectProbe.get(1, TimeUnit.SECONDS)).isEqualTo(projectId);
+
+            releaseMentorAccount.countDown();
+            long requestId = mutation.get(10, TimeUnit.SECONDS);
+            holder.get(10, TimeUnit.SECONDS);
+
+            assertThat(jdbc.queryForList(
+                    "select recipient_user_id from notifications "
+                            + "where notification_type = 'MEMBERSHIP_EXIT_REQUESTED' and action_url = ? "
+                            + "order by recipient_user_id",
+                    Long.class,
+                    "/projects/" + projectId + "/exits/" + requestId))
+                    .containsExactly(mentorId, leaderId);
+        } finally {
+            releaseMentorAccount.countDown();
+            executor.shutdownNow();
+            assertThat(executor.awaitTermination(10, TimeUnit.SECONDS)).isTrue();
+        }
+    }
+
+    @Test
+    void leaderChangeLocksNotificationRecipientsBeforeProject() throws Exception {
+        long mentorId = user("mentor-notification-lock@example.test", "MENTOR");
+        long outgoingLeaderId = intern("outgoing-notification-lock@example.test", "I906");
+        long replacementId = intern("replacement-notification-lock@example.test", "I907");
+        long projectId = transactions.execute(status -> projects.create(
+                mentorId,
+                new ProjectCreateCommand(
+                        "Notification lock order",
+                        null,
+                        LocalDate.of(2026, 8, 1),
+                        LocalDate.of(2026, 12, 31),
+                        outgoingLeaderId)));
+        transactions.executeWithoutResult(status -> projects.addMember(mentorId, projectId, replacementId));
+
+        CountDownLatch outgoingAccountHeld = new CountDownLatch(1);
+        CountDownLatch releaseOutgoingAccount = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(3);
+        try {
+            Future<?> holder = executor.submit(() -> transactions.executeWithoutResult(status -> {
+                jdbc.queryForObject(
+                        "select id from app_users where id = ? for update", Long.class, outgoingLeaderId);
+                outgoingAccountHeld.countDown();
+                awaitLatch(releaseOutgoingAccount, "outgoing Leader Account release");
+            }));
+            assertThat(outgoingAccountHeld.await(5, TimeUnit.SECONDS)).isTrue();
+
+            Future<?> mutation = executor.submit(() -> transactions.executeWithoutResult(status ->
+                    projects.changeLeader(mentorId, projectId, replacementId)));
+            awaitAccountLockWait();
+
+            Future<Long> projectProbe = executor.submit(() -> transactions.execute(status -> jdbc.queryForObject(
+                    "select id from projects where id = ? for update", Long.class, projectId)));
+            assertThat(projectProbe.get(1, TimeUnit.SECONDS)).isEqualTo(projectId);
+
+            releaseOutgoingAccount.countDown();
+            mutation.get(10, TimeUnit.SECONDS);
+            holder.get(10, TimeUnit.SECONDS);
+        } finally {
+            releaseOutgoingAccount.countDown();
+            executor.shutdownNow();
+            assertThat(executor.awaitTermination(10, TimeUnit.SECONDS)).isTrue();
+        }
+
+        assertThat(jdbc.queryForList(
+                "select recipient_user_id from notifications "
+                        + "where notification_type = 'LEADERSHIP_CHANGED' and action_url = ? "
+                        + "and body like ? order by recipient_user_id",
+                Long.class,
+                "/projects/" + projectId,
+                "%Transition: LEADER_CHANGED%")).containsExactly(outgoingLeaderId, replacementId);
+    }
+
+    @Test
+    void exitDecisionLocksHistoricalRequesterBeforeProject() throws Exception {
+        long mentorId = user("mentor-historical-requester-lock@example.test", "MENTOR");
+        long outgoingLeaderId = intern("outgoing-historical-requester-lock@example.test", "I909");
+        long targetId = intern("target-historical-requester-lock@example.test", "I910");
+        long replacementId = intern("replacement-historical-requester-lock@example.test", "I911");
+        long projectId = transactions.execute(status -> projects.create(
+                mentorId,
+                new ProjectCreateCommand(
+                        "Historical requester lock order",
+                        null,
+                        LocalDate.of(2026, 8, 1),
+                        LocalDate.of(2026, 12, 31),
+                        outgoingLeaderId)));
+        transactions.executeWithoutResult(status ->
+                projects.addMembers(mentorId, projectId, java.util.List.of(targetId, replacementId)));
+        long outgoingMembershipId = membershipId(projectId, outgoingLeaderId);
+        long targetMembershipId = membershipId(projectId, targetId);
+        long requestId = transactions.execute(status ->
+                projects.requestMemberRemoval(outgoingLeaderId, projectId, targetMembershipId,
+                        "Historical requester decision"));
+
+        transactions.executeWithoutResult(status ->
+                projects.directRemoveMember(mentorId, projectId, outgoingMembershipId, replacementId));
+
+        CountDownLatch outgoingAccountHeld = new CountDownLatch(1);
+        CountDownLatch releaseOutgoingAccount = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(3);
+        try {
+            Future<?> holder = executor.submit(() -> transactions.executeWithoutResult(status -> {
+                jdbc.queryForObject(
+                        "select id from app_users where id = ? for update", Long.class, outgoingLeaderId);
+                outgoingAccountHeld.countDown();
+                awaitLatch(releaseOutgoingAccount, "historical requester Account release");
+            }));
+            assertThat(outgoingAccountHeld.await(5, TimeUnit.SECONDS)).isTrue();
+
+            Future<?> decision = executor.submit(() -> transactions.executeWithoutResult(status ->
+                    projects.approveExit(mentorId, requestId, "Approved after replacement")));
+            awaitAccountLockWait();
+
+            Future<Long> projectProbe = executor.submit(() -> transactions.execute(status -> jdbc.queryForObject(
+                    "select id from projects where id = ? for update", Long.class, projectId)));
+            assertThat(projectProbe.get(1, TimeUnit.SECONDS)).isEqualTo(projectId);
+
+            releaseOutgoingAccount.countDown();
+            decision.get(10, TimeUnit.SECONDS);
+            holder.get(10, TimeUnit.SECONDS);
+        } finally {
+            releaseOutgoingAccount.countDown();
+            executor.shutdownNow();
+            assertThat(executor.awaitTermination(10, TimeUnit.SECONDS)).isTrue();
+        }
+
+        assertThat(jdbc.queryForList(
+                "select recipient_user_id from notifications "
+                        + "where notification_type = 'MEMBERSHIP_EXIT_RESOLVED' and action_url = ? "
+                        + "order by recipient_user_id",
+                Long.class,
+                "/projects/" + projectId + "/exits/" + requestId))
+                .containsExactly(outgoingLeaderId, targetId, replacementId);
+        assertThat(jdbc.queryForObject(
+                "select left_at is not null from project_memberships where id = ?",
+                Boolean.class,
+                targetMembershipId)).isTrue();
+    }
+
+    private long membershipId(long projectId, long internUserId) {
+        return jdbc.queryForObject(
+                "select id from project_memberships where project_id = ? and intern_user_id = ?",
+                Long.class,
+                projectId,
+                internUserId);
     }
 
     private long user(String email, String role) {
