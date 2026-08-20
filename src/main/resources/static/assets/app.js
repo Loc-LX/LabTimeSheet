@@ -90,4 +90,33 @@ document.addEventListener('DOMContentLoaded', () => {
     apply.addEventListener('click', () => dialog.close());
     updateSummary();
   });
+
+  document.querySelectorAll('[data-drawer]').forEach((drawer) => {
+    let opener = null;
+    const close = drawer.querySelector('[data-drawer-close]');
+    const restoreFocus = () => { opener?.focus(); opener = null; };
+    document.querySelectorAll(`[data-drawer-open="${drawer.id}"]`).forEach((trigger) => {
+      trigger.addEventListener('click', () => {
+        opener = trigger;
+        drawer.showModal();
+        close?.focus();
+      });
+    });
+    close?.addEventListener('click', () => drawer.close());
+    drawer.addEventListener('cancel', () => restoreFocus());
+    drawer.addEventListener('close', restoreFocus);
+  });
+
+  document.querySelectorAll('[data-report-chart]').forEach((figure) => {
+    if (typeof window.Chart !== 'function') return;
+    const canvas = figure.querySelector('canvas');
+    const rows = [...figure.querySelectorAll('.chart-data tbody tr')];
+    const labels = rows.map((row) => row.cells[0].textContent.trim());
+    const values = rows.map((row) => Number.parseFloat(row.cells[1].textContent.replace(',', '.')) || 0);
+    new window.Chart(canvas, {
+      type: 'line',
+      data: { labels, datasets: [{ data: values, borderColor: getComputedStyle(root).getPropertyValue('--accent').trim(), tension: 0 }] },
+      options: { animation: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+    });
+  });
 });
