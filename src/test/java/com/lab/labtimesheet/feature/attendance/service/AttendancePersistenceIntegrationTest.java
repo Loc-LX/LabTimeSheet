@@ -25,6 +25,9 @@ import com.lab.labtimesheet.feature.attendance.model.CorrectionEventType;
 import com.lab.labtimesheet.feature.attendance.model.LeaveStatus;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceCurrentState;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceHistoryItem;
+import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceReport;
+import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceReportClassification;
+import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceReportDay;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendancePolicyCommand;
 import com.lab.labtimesheet.feature.attendance.model.dto.CalendarHistoryItem;
 import com.lab.labtimesheet.feature.attendance.model.dto.CalendarImportSelection;
@@ -36,6 +39,7 @@ import com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestView;
 import com.lab.labtimesheet.feature.attendance.model.entity.AttendancePolicyEntity;
 import com.lab.labtimesheet.feature.attendance.model.entity.AttendanceCorrectionEntity;
 import com.lab.labtimesheet.feature.attendance.model.entity.AttendanceRecordEntity;
+import com.lab.labtimesheet.feature.attendance.model.entity.GlobalCalendarEventEntity;
 import com.lab.labtimesheet.feature.attendance.model.entity.LeaveRequestEntity;
 import com.lab.labtimesheet.feature.attendance.repository.AttendanceCorrectionEventRepository;
 import com.lab.labtimesheet.feature.attendance.repository.AttendanceCorrectionRepository;
@@ -107,6 +111,9 @@ class AttendancePersistenceIntegrationTest {
 
     @Autowired
     private AttendanceApplicationService attendance;
+
+    @Autowired
+    private AttendanceReportQueryService attendanceReports;
 
     @Autowired
     private CalendarApplicationService calendar;
@@ -197,6 +204,23 @@ class AttendancePersistenceIntegrationTest {
                 adminId);
         assertThat(creation.deliverySucceeded()).isTrue();
         assertThat(accounts.activate(mail.onlyActivationToken(), "new secure mentor password")).isTrue();
+        return creation.userId();
+    }
+
+    private long createActiveIntern(
+            String email, String studentCode, LocalDate startDate, LocalDate endDate) {
+        mail.clear();
+        var creation = accounts.create(new CreateAccountCommand(
+                email,
+                "Second report Intern",
+                GlobalRole.INTERN,
+                studentCode,
+                startDate,
+                endDate),
+                adminId);
+        assertThat(creation.deliverySucceeded()).isTrue();
+        assertThat(accounts.activate(mail.onlyActivationToken(), "new secure report intern password")).isTrue();
+        accounts.activateInternship(creation.userId(), adminId);
         return creation.userId();
     }
 
@@ -1267,6 +1291,330 @@ class AttendancePersistenceIntegrationTest {
 
         assertThatThrownBy(() -> currentUsers.actor(() -> "missing@example.test"))
                 .isInstanceOf(AccessDeniedException.class);
+    }
+
+    @Test
+    void attendanceReportUsesClassificationPrecedenceAndApprovedEffectiveCheckout() {
+        LocalDate holidayDate = LocalDate.of(2026, 8, 17);
+        LocalDate customOffDate = LocalDate.of(2026, 8, 18);
+        LocalDate leaveDate = LocalDate.of(2026, 8, 19);
+        LocalDate correctedDate = LocalDate.of(2026, 8, 20);
+        LocalDate absentDate = LocalDate.of(2026, 8, 21);
+
+        HolidayApiCandidate holiday = new HolidayApiCandidate(
+                "vn-report-holiday",
+                "Report holiday",
+                holidayDate,
+                holidayDate,
+                true);
+        entityManager.persist(new GlobalCalendarEventEntity(
+                holiday,
+                true,
+                adminId,
+                Instant.parse("2026-08-01T00:00:00Z"),
+                Instant.parse("2026-08-01T00:00:00Z")));
+        calendar.createManual(
+                new AttendanceActor(adminId, AttendanceRole.ADMIN),
+                customOffDate,
+                "Custom closure",
+                true);
+
+        LeaveRequestEntity leave = approvedRequest(
+                internId,
+                leaveDate,
+                leaveDate,
+                Instant.parse("2026-08-10T00:00:00Z"),
+                Instant.parse("2026-08-19T01:30:00Z"),
+                adminId,
+                Instant.parse("2026-08-10T01:00:00Z"));
+        entityManager.persist(leave);
+        entityManager.flush();
+        entityManager.persist(allocatedDay(
+                leave,
+                leaveDate,
+                entityManager.getReference(AttendancePolicyEntity.class, 1L),
+                3));
+
+        AttendanceRecordEntity raw = new AttendanceRecordEntity(
+                internId,
+                correctedDate,
+                entityManager.getReference(AttendancePolicyEntity.class, 1L),
+                Instant.parse("2026-08-20T02:15:00Z"),
+                null);
+        entityManager.persist(raw);
+        entityManager.flush();
+        AttendanceCorrectionEntity correction = new AttendanceCorrectionEntity(
+                raw.id(),
+                Instant.parse("2026-08-20T08:00:00Z"),
+                "approved report correction",
+                Instant.parse("2026-08-20T09:01:00Z"),
+                Instant.parse("2026-08-21T09:00:00Z"),
+                Instant.parse("2026-08-21T09:01:00Z"));
+        correction.approve(adminId, Instant.parse("2026-08-20T10:00:00Z"), null);
+        entityManager.persist(correction);
+        entityManager.flush();
+
+        AttendanceReport report = attendanceReports.query(
+                new AttendanceActor(adminId, AttendanceRole.ADMIN),
+                internId,
+                holidayDate,
+                absentDate);
+
+        assertThat(report.days()).extracting(AttendanceReportDay::classification)
+                .containsExactly(
+                        AttendanceReportClassification.HOLIDAY,
+                        AttendanceReportClassification.OFF_DAY,
+                        AttendanceReportClassification.APPROVED_LEAVE,
+                        AttendanceReportClassification.PRESENT,
+                        AttendanceReportClassification.ABSENT);
+        AttendanceReportDay corrected = report.days().get(3);
+        assertThat(corrected.rawCheckoutAt()).isNull();
+        assertThat(corrected.effectiveCheckoutAt()).isEqualTo(Instant.parse("2026-08-20T08:00:00Z"));
+        assertThat(corrected.late()).isTrue();
+        assertThat(corrected.earlyDeparture()).isTrue();
+        assertThat(corrected.missingCheckout()).isFalse();
+        assertThat(corrected.dailyComplianceScore()).hasValueSatisfying(
+                score -> assertThat(score).isEqualByComparingTo("0.50"));
+        assertThat(report.expectedWorkdays()).isEqualTo(2);
+        assertThat(report.presentWorkdays()).isEqualTo(1);
+        assertThat(report.attendanceRatePercent()).contains(new BigDecimal("50.00"));
+        assertThat(report.compliancePercent()).contains(new BigDecimal("25.00"));
+        assertThat(report.attendanceRateDisplay()).isEqualTo("50.00%");
+    }
+
+    @Test
+    void attendanceReportMatchesAcAtt006DenominatorAndHistoricalPenalty() {
+        AttendanceActor admin = new AttendanceActor(adminId, AttendanceRole.ADMIN);
+        var laterPolicy = policyApplication.schedule(admin, new AttendancePolicyCommand(
+                LocalDate.of(2026, 9, 1),
+                ZoneId.of("UTC"),
+                LocalTime.of(9, 15),
+                LocalTime.of(16, 45),
+                7,
+                11,
+                4,
+                new BigDecimal("0.10"),
+                Set.of(
+                        DayOfWeek.MONDAY,
+                        DayOfWeek.TUESDAY,
+                        DayOfWeek.WEDNESDAY,
+                        DayOfWeek.THURSDAY,
+                        DayOfWeek.FRIDAY)));
+        long laterPolicyId = laterPolicy.policy().id();
+
+        LocalDate leaveDate = LocalDate.of(2026, 8, 25);
+        LeaveRequestEntity leave = approvedRequest(
+                internId,
+                leaveDate,
+                leaveDate,
+                Instant.parse("2026-08-01T00:00:00Z"),
+                Instant.parse("2026-08-25T01:30:00Z"),
+                adminId,
+                Instant.parse("2026-08-01T01:00:00Z"));
+        entityManager.persist(leave);
+        entityManager.flush();
+        entityManager.persist(allocatedDay(
+                leave,
+                leaveDate,
+                entityManager.getReference(AttendancePolicyEntity.class, 1L),
+                3));
+
+        LocalDate firstWorkday = LocalDate.of(2026, 8, 24);
+        LocalDate lastWorkday = LocalDate.of(2026, 9, 18);
+        LocalDate date = firstWorkday;
+        while (!date.isAfter(lastWorkday)) {
+            if (date.getDayOfWeek().getValue() <= 5
+                    && !date.equals(leaveDate)
+                    && !date.equals(LocalDate.of(2026, 9, 17))
+                    && !date.equals(LocalDate.of(2026, 9, 18))) {
+                boolean later = !date.isBefore(LocalDate.of(2026, 9, 1));
+                long policyId = later ? laterPolicyId : 1L;
+                Instant checkIn = date.equals(firstWorkday)
+                        ? date.atTime(10, 15).atZone(ZoneId.of("Asia/Ho_Chi_Minh")).toInstant()
+                        : date.atTime(later ? 9 : 8, later ? 15 : 30)
+                                .atZone(later ? ZoneId.of("UTC") : ZoneId.of("Asia/Ho_Chi_Minh"))
+                                .toInstant();
+                Instant checkOut = date.equals(firstWorkday)
+                        ? date.atTime(13, 0).atZone(ZoneId.of("Asia/Ho_Chi_Minh")).toInstant()
+                        : date.atTime(later ? 16 : 15, later ? 45 : 30)
+                                .atZone(later ? ZoneId.of("UTC") : ZoneId.of("Asia/Ho_Chi_Minh"))
+                                .toInstant();
+                entityManager.persist(new AttendanceRecordEntity(
+                        internId,
+                        date,
+                        entityManager.getReference(AttendancePolicyEntity.class, policyId),
+                        checkIn,
+                        checkOut));
+            }
+            date = date.plusDays(1);
+        }
+        entityManager.flush();
+
+        AttendanceReport report = attendanceReports.query(admin, internId, firstWorkday, lastWorkday);
+
+        assertThat(report.days()).filteredOn(day ->
+                        day.classification() == AttendanceReportClassification.APPROVED_LEAVE)
+                .hasSize(1);
+        assertThat(report.days()).filteredOn(day ->
+                        day.classification() == AttendanceReportClassification.PRESENT)
+                .hasSize(17);
+        assertThat(report.days()).filteredOn(day ->
+                        day.classification() == AttendanceReportClassification.ABSENT)
+                .hasSize(2);
+        assertThat(report.expectedWorkdays()).isEqualTo(19);
+        assertThat(report.presentWorkdays()).isEqualTo(17);
+        assertThat(report.attendanceRatePercent()).contains(new BigDecimal("89.47"));
+        assertThat(report.compliancePercent()).contains(new BigDecimal("86.84"));
+
+        AttendanceReportDay historical = report.days().stream()
+                .filter(day -> day.workDate().equals(firstWorkday))
+                .findFirst()
+                .orElseThrow();
+        assertThat(historical.policyId()).isEqualTo(1L);
+        assertThat(historical.policyEffectiveFrom()).isEqualTo(LocalDate.of(1970, 1, 1));
+        assertThat(historical.policyZoneId()).isEqualTo(ZoneId.of("Asia/Ho_Chi_Minh"));
+        assertThat(historical.scheduledStart()).isEqualTo(LocalTime.of(8, 30));
+        assertThat(historical.scheduledEnd()).isEqualTo(LocalTime.of(15, 30));
+        assertThat(historical.checkInGraceMinutes()).isEqualTo(30);
+        assertThat(historical.checkoutGraceMinutes()).isEqualTo(30);
+        assertThat(historical.violationPenalty()).isEqualByComparingTo("0.25");
+        assertThat(historical.dailyComplianceScore()).hasValueSatisfying(
+                score -> assertThat(score).isEqualByComparingTo("0.50"));
+        AttendanceReportDay attachedLater = report.days().stream()
+                .filter(day -> day.workDate().equals(LocalDate.of(2026, 9, 1)))
+                .findFirst()
+                .orElseThrow();
+        assertThat(attachedLater.policyId()).isEqualTo(laterPolicyId);
+        assertThat(attachedLater.policyEffectiveFrom()).isEqualTo(LocalDate.of(2026, 9, 1));
+        assertThat(attachedLater.policyZoneId()).isEqualTo(ZoneId.of("UTC"));
+        assertThat(attachedLater.scheduledStart()).isEqualTo(LocalTime.of(9, 15));
+        assertThat(attachedLater.scheduledEnd()).isEqualTo(LocalTime.of(16, 45));
+        assertThat(attachedLater.checkInGraceMinutes()).isEqualTo(7);
+        assertThat(attachedLater.checkoutGraceMinutes()).isEqualTo(11);
+        assertThat(attachedLater.violationPenalty()).isEqualByComparingTo("0.10");
+
+        AttendanceReportDay timelineDerived = report.days().stream()
+                .filter(day -> day.workDate().equals(LocalDate.of(2026, 9, 17)))
+                .findFirst()
+                .orElseThrow();
+        assertThat(timelineDerived.classification()).isEqualTo(AttendanceReportClassification.ABSENT);
+        assertThat(timelineDerived.policyId()).isEqualTo(laterPolicyId);
+        assertThat(timelineDerived.policyEffectiveFrom()).isEqualTo(LocalDate.of(2026, 9, 1));
+        assertThat(timelineDerived.policyZoneId()).isEqualTo(ZoneId.of("UTC"));
+        assertThat(timelineDerived.scheduledStart()).isEqualTo(LocalTime.of(9, 15));
+        assertThat(timelineDerived.scheduledEnd()).isEqualTo(LocalTime.of(16, 45));
+        assertThat(timelineDerived.checkInGraceMinutes()).isEqualTo(7);
+        assertThat(timelineDerived.checkoutGraceMinutes()).isEqualTo(11);
+        assertThat(timelineDerived.violationPenalty()).isEqualByComparingTo("0.10");
+    }
+
+    @Test
+    void attendanceReportPreservesFourDecimalPenaltyBeforeFinalRounding() {
+        AttendanceActor admin = new AttendanceActor(adminId, AttendanceRole.ADMIN);
+        var precisePolicy = policyApplication.schedule(admin, new AttendancePolicyCommand(
+                LocalDate.of(2026, 10, 1),
+                ZoneId.of("UTC"),
+                LocalTime.of(9, 0),
+                LocalTime.of(17, 0),
+                0,
+                0,
+                3,
+                new BigDecimal("0.3333"),
+                Set.of(
+                        DayOfWeek.MONDAY,
+                        DayOfWeek.TUESDAY,
+                        DayOfWeek.WEDNESDAY,
+                        DayOfWeek.THURSDAY,
+                        DayOfWeek.FRIDAY)));
+        LocalDate date = LocalDate.of(2026, 10, 1);
+        entityManager.persist(new AttendanceRecordEntity(
+                internId,
+                date,
+                entityManager.getReference(AttendancePolicyEntity.class, precisePolicy.policy().id()),
+                Instant.parse("2026-10-01T09:00:01Z"),
+                Instant.parse("2026-10-01T17:00:00Z")));
+        entityManager.flush();
+
+        AttendanceReport report = attendanceReports.query(admin, internId, date, date);
+
+        assertThat(report.days()).singleElement().satisfies(day -> {
+            assertThat(day.late()).isTrue();
+            assertThat(day.dailyComplianceScore()).contains(new BigDecimal("0.6667"));
+        });
+        assertThat(report.compliancePercent()).contains(new BigDecimal("66.67"));
+    }
+
+    @Test
+    void attendanceReportUsesExplicitNaForZeroExpectedWorkdays() {
+        AttendanceReport report = attendanceReports.query(
+                new AttendanceActor(adminId, AttendanceRole.ADMIN),
+                internId,
+                LocalDate.of(2026, 8, 15),
+                LocalDate.of(2026, 8, 16));
+
+        assertThat(report.expectedWorkdays()).isZero();
+        assertThat(report.presentWorkdays()).isZero();
+        assertThat(report.attendanceRatePercent()).isEmpty();
+        assertThat(report.compliancePercent()).isEmpty();
+        assertThat(report.attendanceRateDisplay()).isEqualTo("N/A");
+        assertThat(report.complianceDisplay()).isEqualTo("N/A");
+        assertThat(report.days()).extracting(AttendanceReportDay::classification)
+                .containsExactly(
+                        AttendanceReportClassification.OFF_DAY,
+                        AttendanceReportClassification.OFF_DAY);
+        assertThatThrownBy(() -> attendanceReports.query(
+                        new AttendanceActor(adminId, AttendanceRole.ADMIN),
+                        internId,
+                        LocalDate.of(2026, 1, 1),
+                        LocalDate.of(2027, 1, 2)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("366 days");
+    }
+
+    @Test
+    void attendanceReportEnforcesOwnInternScopeAndAllowsActiveMentorAndAdmin() {
+        long mentor = createActiveMentor();
+        long otherIntern = createActiveIntern(
+                "second-report-intern@example.test",
+                "INT-REPORT-002",
+                LocalDate.of(2026, 8, 1),
+                LocalDate.of(2026, 12, 31));
+        LocalDate from = LocalDate.of(2026, 8, 15);
+        LocalDate to = LocalDate.of(2026, 8, 16);
+
+        assertThatThrownBy(() -> attendanceReports.query(
+                        new AttendanceActor(internId, AttendanceRole.INTERN), otherIntern, from, to))
+                .isInstanceOf(AccessDeniedException.class);
+        assertThat(attendanceReports.query(
+                        new AttendanceActor(mentor, AttendanceRole.MENTOR), internId, from, to).internId())
+                .isEqualTo(internId);
+        assertThat(attendanceReports.query(
+                new AttendanceActor(adminId, AttendanceRole.ADMIN), otherIntern, from, to).internId())
+                .isEqualTo(otherIntern);
+    }
+
+    @Test
+    void attendanceReportNormalizesTargetGuessesAcrossActorScopes() {
+        long otherIntern = createActiveIntern(
+                "third-report-intern@example.test",
+                "INT-REPORT-003",
+                LocalDate.of(2026, 8, 1),
+                LocalDate.of(2026, 12, 31));
+        LocalDate from = LocalDate.of(2026, 8, 15);
+        LocalDate to = LocalDate.of(2026, 8, 16);
+
+        for (long guessedTarget : List.of(otherIntern, adminId, 999_999L)) {
+            assertThatThrownBy(() -> attendanceReports.query(
+                            new AttendanceActor(internId, AttendanceRole.INTERN), guessedTarget, from, to))
+                    .isInstanceOf(AccessDeniedException.class)
+                    .hasMessage("Interns may view only their own attendance");
+        }
+        for (long unavailableTarget : List.of(adminId, 999_999L)) {
+            assertThatThrownBy(() -> attendanceReports.query(
+                            new AttendanceActor(adminId, AttendanceRole.ADMIN), unavailableTarget, from, to))
+                    .isInstanceOf(AccessDeniedException.class)
+                    .hasMessage("Attendance report target must be an Intern");
+        }
     }
 
     @TestConfiguration(proxyBeanMethods = false)
