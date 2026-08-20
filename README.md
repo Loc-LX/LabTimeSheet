@@ -49,7 +49,7 @@ Projects, Tasks, and attendance. Iteration 1 is complete and was verified on
 The baseline schema includes later-workflow tables; table presence does not mean
 the corresponding feature is complete.
 
-- Iteration 2: Project invitations and approved membership exits, broader Project lifecycle transfers, Task edit/delete/reassignment and work logs, leave, missed-checkout corrections, notifications, schedulers, and complete metrics.
+- Iteration 2: Project invitations; assisted membership exits with persistent readiness warnings and Leader-managed transfer batches before approval; the existing direct-removal automatic-transfer shortcut; Task edit/delete/reassignment and work logs; authorized Project History; Admin-only non-secret Policy/Calendar/SMTP/HolidayAPI History; leave, missed-checkout corrections, notifications, schedulers, and complete metrics.
 - Iteration 3: HTML/XLSX/PDF report parity, Chart.js trends, remaining production security hardening, and operational backup/restore qualification.
 - Mobile layouts are best-effort. Desktop is the supported interface target.
 
