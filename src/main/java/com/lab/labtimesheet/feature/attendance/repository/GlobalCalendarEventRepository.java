@@ -3,6 +3,7 @@ package com.lab.labtimesheet.feature.attendance.repository;
 import com.lab.labtimesheet.feature.attendance.model.entity.GlobalCalendarEventEntity;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 /**
@@ -27,4 +28,13 @@ public interface GlobalCalendarEventRepository extends JpaRepository<GlobalCalen
      */
     List<GlobalCalendarEventEntity> findByCalendarDateBetweenOrderByCalendarDateAscIdAsc(
             LocalDate from, LocalDate to);
+
+    /**
+     * Finds an imported event by its immutable upstream provenance key.
+     *
+     * @param source local source discriminator
+     * @param sourceUuid upstream stable identifier
+     * @return matching local event, when imported
+     */
+    Optional<GlobalCalendarEventEntity> findBySourceAndSourceUuid(String source, String sourceUuid);
 }

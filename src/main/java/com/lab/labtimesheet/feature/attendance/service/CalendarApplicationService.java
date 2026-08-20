@@ -5,13 +5,20 @@ import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
 import com.lab.labtimesheet.feature.attendance.model.AttendancePolicy;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceRole;
 import com.lab.labtimesheet.feature.attendance.model.dto.GlobalCalendarEvent;
+import com.lab.labtimesheet.feature.attendance.model.dto.CalendarHistoryItem;
+import com.lab.labtimesheet.feature.attendance.model.dto.CalendarImportSelection;
+import com.lab.labtimesheet.feature.attendance.model.dto.CalendarPreviewItem;
+import com.lab.labtimesheet.feature.attendance.model.dto.HolidayCandidate;
 import com.lab.labtimesheet.feature.attendance.model.entity.AttendancePolicyEntity;
 import com.lab.labtimesheet.feature.attendance.model.entity.GlobalCalendarEventEntity;
 import com.lab.labtimesheet.feature.attendance.repository.AttendancePolicyRepository;
 import com.lab.labtimesheet.feature.attendance.repository.GlobalCalendarEventRepository;
 import java.time.Clock;
 import java.time.LocalDate;
+import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
@@ -43,8 +50,67 @@ public class CalendarApplicationService {
             AttendanceActor actor, LocalDate date, String name, boolean dayOff) {
         requireAdmin(actor);
         requireMutableDate(date);
-        return events.saveAndFlush(new GlobalCalendarEventEntity(date, requireName(name), dayOff, actor.userId()))
+        return events.saveAndFlush(new GlobalCalendarEventEntity(
+                        date, requireName(name), dayOff, actor.userId(), clock.instant()))
                 .toDomain();
+    }
+
+    /**
+     * Presents upstream holiday candidates for explicit Admin review without making them authoritative.
+     *
+     * @param actor authenticated Admin actor
+     * @param candidates non-secret candidates returned by the Platform HolidayAPI client
+     * @return preview rows with public holidays preselected only
+     */
+    @Transactional(readOnly = true)
+    public List<CalendarPreviewItem> preview(AttendanceActor actor, List<HolidayCandidate> candidates) {
+        requireAdmin(actor);
+        if (candidates == null) {
+            throw new IllegalArgumentException("Holiday candidates are required");
+        }
+        Set<String> seenSourceUuids = new HashSet<>();
+        return candidates.stream()
+                .map(CalendarApplicationService::requireCandidate)
+                .filter(candidate -> seenSourceUuids.add(candidate.sourceUuid()))
+                .map(candidate -> new CalendarPreviewItem(candidate, candidate.publicHoliday()))
+                .toList();
+    }
+
+    /**
+     * Copies explicitly selected candidates into the local calendar, skipping an existing source UUID idempotently.
+     * Existing rows are never overwritten by a repeated import.
+     *
+     * @param actor authenticated Admin actor
+     * @param selections explicit local day-off decisions
+     * @return newly imported local history rows; an empty result means every selection was already imported
+     */
+    @Transactional
+    public List<CalendarHistoryItem> importSelected(
+            AttendanceActor actor, List<CalendarImportSelection> selections) {
+        requireAdmin(actor);
+        if (selections == null) {
+            throw new IllegalArgumentException("Calendar selections are required");
+        }
+        return selections.stream()
+                .map(selection -> importOne(actor, selection))
+                .flatMap(java.util.Optional::stream)
+                .toList();
+    }
+
+    /**
+     * Lists all retained past/current/future event metadata for the Admin History view.
+     *
+     * @param actor authenticated Admin actor
+     * @return retained events ordered by local date and version
+     */
+    @Transactional(readOnly = true)
+    public List<CalendarHistoryItem> history(AttendanceActor actor) {
+        requireAdmin(actor);
+        return events.findAll().stream()
+                .map(GlobalCalendarEventEntity::toHistory)
+                .sorted(Comparator.comparing(CalendarHistoryItem::calendarDate)
+                        .thenComparingLong(CalendarHistoryItem::id))
+                .toList();
     }
 
     /**
@@ -75,7 +141,7 @@ public class CalendarApplicationService {
         if (event.version() != expectedVersion) {
             throw new CalendarException("Calendar event was changed by another request");
         }
-        event.update(date, requireName(name), dayOff, actor.userId());
+        event.update(date, requireName(name), dayOff, actor.userId(), clock.instant());
         return events.saveAndFlush(event).toDomain();
     }
 
@@ -123,9 +189,24 @@ public class CalendarApplicationService {
     }
 
     private static void requireAdmin(AttendanceActor actor) {
-        if (actor.role() != AttendanceRole.ADMIN) {
+        if (actor == null || actor.role() != AttendanceRole.ADMIN) {
             throw new AccessDeniedException("Only Admin may manage the global calendar");
         }
+    }
+
+    private java.util.Optional<CalendarHistoryItem> importOne(
+            AttendanceActor actor, CalendarImportSelection selection) {
+        if (selection == null) {
+            throw new IllegalArgumentException("Calendar selection is required");
+        }
+        HolidayCandidate candidate = selection.candidate();
+        if (events.findBySourceAndSourceUuid("HOLIDAY_API", candidate.sourceUuid()).isPresent()) {
+            return java.util.Optional.empty();
+        }
+        requireMutableDate(candidate.observedDate());
+        GlobalCalendarEventEntity entity = events.saveAndFlush(new GlobalCalendarEventEntity(
+                candidate, selection.dayOff(), actor.userId(), clock.instant()));
+        return java.util.Optional.of(entity.toHistory());
     }
 
     private static String requireName(String name) {
@@ -133,5 +214,12 @@ public class CalendarApplicationService {
             throw new IllegalArgumentException("name must not be blank");
         }
         return name.strip();
+    }
+
+    private static HolidayCandidate requireCandidate(HolidayCandidate candidate) {
+        if (candidate == null) {
+            throw new IllegalArgumentException("Holiday candidate is required");
+        }
+        return candidate;
     }
 }
