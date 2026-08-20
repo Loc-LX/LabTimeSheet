@@ -99,7 +99,7 @@ class AttendancePersistenceIntegrationTest {
                 null,
                 "admin@example.test",
                 "Lab Timesheet"));
-        smtp.testDraft(draftId, adminId, "admin@example.test");
+        smtp.testDraft(draftId, adminId);
         smtp.activate(draftId, adminId);
         mail.clear();
 

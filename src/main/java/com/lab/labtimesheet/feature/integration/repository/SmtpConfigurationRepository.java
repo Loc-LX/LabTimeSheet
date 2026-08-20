@@ -1,5 +1,6 @@
 package com.lab.labtimesheet.feature.integration.repository;
 
+import java.util.List;
 import java.util.Optional;
 
 import com.lab.labtimesheet.feature.integration.model.entity.SmtpConfiguration;
@@ -15,6 +16,12 @@ public interface SmtpConfigurationRepository extends JpaRepository<SmtpConfigura
 
     /** Returns whether a revision exists in a lifecycle state. */
     boolean existsByStatus(SmtpStatus status);
+
+    /** Returns retained revisions newest first for the Admin-only non-secret History projection. */
+    List<SmtpConfiguration> findAllByOrderByCreatedAtDescIdDesc();
+
+    /** Returns all revisions currently in the requested lifecycle state. */
+    List<SmtpConfiguration> findAllByStatus(SmtpStatus status);
 
     /**
      * Locks the identified revision in the expected state for atomic activation.
