@@ -15,6 +15,7 @@ import com.lab.labtimesheet.feature.attendance.model.AttendanceRecord;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceCurrentState;
 import com.lab.labtimesheet.feature.attendance.model.entity.AttendancePolicyEntity;
 import com.lab.labtimesheet.feature.attendance.model.entity.AttendanceRecordEntity;
+import com.lab.labtimesheet.feature.attendance.repository.AttendanceCorrectionRepository;
 import com.lab.labtimesheet.feature.attendance.repository.AttendancePolicyRepository;
 import com.lab.labtimesheet.feature.attendance.repository.AttendanceQueryRepository;
 import com.lab.labtimesheet.feature.attendance.repository.AttendanceRecordRepository;
@@ -50,6 +51,7 @@ class AttendanceApplicationServiceTest {
                 Clock.fixed(NOW, ZoneOffset.UTC),
                 policies,
                 records,
+                mock(AttendanceCorrectionRepository.class),
                 mock(AttendanceQueryRepository.class),
                 accounts,
                 mock(CalendarApplicationService.class),

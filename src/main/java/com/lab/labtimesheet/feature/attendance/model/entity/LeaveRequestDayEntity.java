@@ -38,7 +38,15 @@ public class LeaveRequestDayEntity {
     @Column(name = "monthly_quota_snapshot", nullable = false)
     private int monthlyQuotaSnapshot;
 
-    LeaveRequestDayEntity(
+    /**
+     * Creates an immutable frozen day allocation under the request that already owns a persisted identifier.
+     *
+     * @param request persisted parent request
+     * @param leaveDate exact frozen quota-consuming date
+     * @param policy effective policy version on the date
+     * @param monthlyQuotaSnapshot monthly leave quota snapshot from that policy
+     */
+    public LeaveRequestDayEntity(
             LeaveRequestEntity request,
             LocalDate leaveDate,
             AttendancePolicyEntity policy,
@@ -48,5 +56,32 @@ public class LeaveRequestDayEntity {
         this.policy = policy;
         this.quotaMonth = leaveDate.withDayOfMonth(1);
         this.monthlyQuotaSnapshot = monthlyQuotaSnapshot;
+    }
+
+    /**
+     * Returns the exact frozen date.
+     *
+     * @return frozen leave date
+     */
+    public LocalDate leaveDate() {
+        return id.leaveDate();
+    }
+
+    /**
+     * Returns the calendar month that owns the reservation.
+     *
+     * @return first day of the quota month
+     */
+    public LocalDate quotaMonth() {
+        return quotaMonth;
+    }
+
+    /**
+     * Returns the frozen monthly leave quota snapshot.
+     *
+     * @return snapshot at submission
+     */
+    public int monthlyQuotaSnapshot() {
+        return monthlyQuotaSnapshot;
     }
 }

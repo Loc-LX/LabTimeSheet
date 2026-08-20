@@ -10,8 +10,10 @@ import com.lab.labtimesheet.feature.attendance.model.AttendanceRecord;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceRole;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceCurrentState;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceHistoryItem;
+import com.lab.labtimesheet.feature.attendance.model.entity.AttendanceCorrectionEntity;
 import com.lab.labtimesheet.feature.attendance.model.entity.AttendancePolicyEntity;
 import com.lab.labtimesheet.feature.attendance.model.entity.AttendanceRecordEntity;
+import com.lab.labtimesheet.feature.attendance.repository.AttendanceCorrectionRepository;
 import com.lab.labtimesheet.feature.attendance.repository.AttendancePolicyRepository;
 import com.lab.labtimesheet.feature.attendance.repository.AttendanceQueryRepository;
 import com.lab.labtimesheet.feature.attendance.repository.AttendanceRecordRepository;
@@ -39,6 +41,7 @@ public class AttendanceApplicationService {
     private final Clock clock;
     private final AttendancePolicyRepository policyEntities;
     private final AttendanceRecordRepository recordEntities;
+    private final AttendanceCorrectionRepository corrections;
     private final AttendanceQueryRepository queries;
     private final AccountService accounts;
     private final CalendarApplicationService calendar;
@@ -127,6 +130,8 @@ public class AttendanceApplicationService {
     /**
      * Returns inclusive historical rows newest-first, allowing Interns only their own history while Mentor and Admin
      * actors may inspect another Intern. DTOs retain raw instants and provide attached-policy local display values.
+     * Violations are derived from the effective checkout: raw checkout when present, otherwise an approved
+     * correction's proposed checkout (ATT-016), so approved corrections clear missing checkout without editing raw.
      *
      * @param actor authenticated Attendance authorization context
      * @param internId target Intern account identifier
@@ -145,13 +150,22 @@ public class AttendanceApplicationService {
         }
         return recordEntities.findByInternUserIdAndWorkDateBetweenOrderByWorkDateDesc(internId, from, to)
                 .stream()
-                .map(AttendanceRecordEntity::toDomain)
-                .map(record -> new AttendanceHistoryItem(
-                        record.workDate(),
-                        record.checkInAt(),
-                        record.checkOutAt(),
-                        record.policy(),
-                        record.violations(clock.instant())))
+                .map(record -> {
+                    AttendanceRecord domain = record.toDomain();
+                    Instant effective = domain.checkOutAt() != null
+                            ? domain.checkOutAt()
+                            : corrections.findByAttendanceRecordId(record.id())
+                                    .filter(correction -> "APPROVED".equals(correction.status()))
+                                    .map(AttendanceCorrectionEntity::requestedCheckoutAt)
+                                    .orElse(null);
+                    return new AttendanceHistoryItem(
+                            domain.workDate(),
+                            domain.checkInAt(),
+                            domain.checkOutAt(),
+                            effective,
+                            domain.policy(),
+                            domain.violations(clock.instant(), effective));
+                })
                 .toList();
     }
 
