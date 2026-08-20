@@ -169,7 +169,7 @@ class RoleDashboardWebIntegrationTest {
         long adminId = accounts.requireActiveAdminId("admin@example.test");
         long draftId = smtp.saveDraft(adminId, new SmtpDraft(
                 "mailpit", 1025, SecurityMode.NONE, null, null, "admin@example.test", "Lab Timesheet"));
-        smtp.testDraft(draftId, adminId, "admin@example.test");
+        smtp.testDraft(draftId, adminId);
         smtp.activate(draftId, adminId);
         mail.clear();
         return adminId;

@@ -276,7 +276,7 @@ class PasswordResetIntegrationTest {
         long adminId = accounts.requireActiveAdminId(ADMIN_EMAIL);
         long draftId = smtp.saveDraft(adminId,
                 new SmtpDraft("mailpit", 1025, SecurityMode.NONE, null, null, ADMIN_EMAIL, "Lab Timesheet"));
-        smtp.testDraft(draftId, adminId, ADMIN_EMAIL);
+        smtp.testDraft(draftId, adminId);
         smtp.activate(draftId, adminId);
         mail.clear();
     }
