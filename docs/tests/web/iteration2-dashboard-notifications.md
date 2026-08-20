@@ -4,7 +4,7 @@
 - **Requirement IDs:** `I2-UI-01`, `NOT-009`, `UI-001`, `UI-013`
 - **Scenario IDs:** `AC-UI-001`, `AC-UI-005`
 - **Test class/method:** `com.lab.labtimesheet.feature.reporting.controller.DashboardTemplateWebTest#internTemplateRendersNotificationMenuWhenDashboardSuppliesNotifications`
-- **Implementation commit:** pending local commit
+- **Implementation commit:** `9172f1b10005a0d13f8b7de1c00b9f964981473a`
 
 ## Protected behavior
 
