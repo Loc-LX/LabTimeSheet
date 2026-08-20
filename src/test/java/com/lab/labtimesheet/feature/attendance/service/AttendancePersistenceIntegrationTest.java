@@ -2,9 +2,13 @@ package com.lab.labtimesheet.feature.attendance.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.doAnswer;
 
+import com.lab.labtimesheet.feature.account.model.AccountStatus;
 import com.lab.labtimesheet.feature.account.model.GlobalRole;
 import com.lab.labtimesheet.feature.account.model.dto.CreateAccountCommand;
+import com.lab.labtimesheet.feature.account.model.dto.InternWorkWindow;
+import com.lab.labtimesheet.feature.account.model.dto.InternshipLifecycleGuard;
 import com.lab.labtimesheet.feature.account.service.AccountService;
 import com.lab.labtimesheet.feature.account.service.BootstrapService;
 import com.lab.labtimesheet.feature.attendance.exception.AttendanceException;
@@ -21,13 +25,16 @@ import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceHistoryItem;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendancePolicyCommand;
 import com.lab.labtimesheet.feature.attendance.model.dto.CorrectionDecision;
 import com.lab.labtimesheet.feature.attendance.model.dto.CorrectionRequestCommand;
+import com.lab.labtimesheet.feature.attendance.model.dto.LeaveAllocation;
 import com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestCommand;
+import com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestView;
 import com.lab.labtimesheet.feature.attendance.model.entity.AttendancePolicyEntity;
 import com.lab.labtimesheet.feature.attendance.model.entity.AttendanceCorrectionEntity;
 import com.lab.labtimesheet.feature.attendance.model.entity.AttendanceRecordEntity;
 import com.lab.labtimesheet.feature.attendance.model.entity.LeaveRequestEntity;
 import com.lab.labtimesheet.feature.attendance.repository.AttendanceCorrectionEventRepository;
 import com.lab.labtimesheet.feature.attendance.repository.AttendanceCorrectionRepository;
+import com.lab.labtimesheet.feature.attendance.repository.AttendancePolicyRepository;
 import com.lab.labtimesheet.feature.attendance.repository.AttendanceRecordRepository;
 import com.lab.labtimesheet.feature.attendance.repository.LeaveRequestDayRepository;
 import com.lab.labtimesheet.feature.attendance.repository.LeaveRequestRepository;
@@ -47,6 +54,12 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -60,6 +73,7 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.postgresql.PostgreSQLContainer;
@@ -87,6 +101,9 @@ class AttendancePersistenceIntegrationTest {
 
     @Autowired
     private AccountService accounts;
+
+    @MockitoSpyBean
+    private AccountService accountSpy;
 
     @Autowired
     private SmtpConfigurationService smtp;
@@ -126,6 +143,12 @@ class AttendancePersistenceIntegrationTest {
 
     @Autowired
     private AmbientMutationInvoker ambientMutations;
+
+    @Autowired
+    private LifecycleMutationInvoker lifecycleMutations;
+
+    @Autowired
+    private PolicyLockInvoker policyLocks;
 
     private long internId;
     private long adminId;
@@ -349,6 +372,73 @@ class AttendancePersistenceIntegrationTest {
     }
 
     @Test
+    void leaveSubmitRejectsDatesOutsideInclusiveInternshipWindow() {
+        assertThatThrownBy(() -> leaves.submit(
+                        new AttendanceActor(internId, AttendanceRole.INTERN),
+                        new LeaveRequestCommand(
+                                LocalDate.of(2026, 7, 31), LocalDate.of(2026, 8, 3), "before internship")))
+                .isInstanceOf(LeaveException.class)
+                .hasMessageContaining("internship interval");
+        assertThat(leaveRequests.findAll()).isEmpty();
+        assertThat(leaveDays.findAll()).isEmpty();
+    }
+
+    @Test
+    void leaveSubmitRejectsDeactivatedInternBeforeAllocation() {
+        accounts.deactivateAccount(internId, adminId);
+
+        assertThatThrownBy(() -> leaves.submit(
+                        new AttendanceActor(internId, AttendanceRole.INTERN),
+                        new LeaveRequestCommand(
+                                LocalDate.of(2026, 8, 17), LocalDate.of(2026, 8, 17), "deactivated")))
+                .isInstanceOf(LeaveException.class)
+                .hasMessageContaining("active Intern");
+        assertThat(leaveRequests.findAll()).isEmpty();
+        assertThat(leaveDays.findAll()).isEmpty();
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
+    void leaveEditRejectsCompletedInternBeforeReplacingAllocation() {
+        AttendanceActor intern = new AttendanceActor(internId, AttendanceRole.INTERN);
+        var submitted = leaves.submit(intern, new LeaveRequestCommand(
+                LocalDate.of(2026, 8, 17), LocalDate.of(2026, 8, 17), "terminal edit"));
+        accounts.completeInternship(internId, adminId, new InternshipLifecycleGuard(false, 0));
+
+        assertThatThrownBy(() -> leaves.edit(intern, submitted.id(), new LeaveRequestCommand(
+                        LocalDate.of(2026, 8, 18), LocalDate.of(2026, 8, 18), "must reject")))
+                .isInstanceOf(LeaveException.class)
+                .hasMessageContaining("active Intern");
+        assertThat(leaveRequests.findById(submitted.id()).orElseThrow().status())
+                .isEqualTo(LeaveStatus.PENDING);
+        assertThat(leaveDays.findByRequestIdOrderByLeaveDate(submitted.id()))
+                .extracting(day -> day.leaveDate())
+                .containsExactly(LocalDate.of(2026, 8, 17));
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
+    void lateEditByDeactivatedOwnerPersistsExpiryBeforeLifecycleRejection() {
+        AttendanceActor intern = new AttendanceActor(internId, AttendanceRole.INTERN);
+        var submitted = leaves.submit(intern, new LeaveRequestCommand(
+                LocalDate.of(2026, 8, 17), LocalDate.of(2026, 8, 17), "late lifecycle edit"));
+        accounts.deactivateAccount(internId, adminId);
+        clock.set(submitted.firstCountedStartAt());
+
+        assertThatThrownBy(() -> leaves.edit(intern, submitted.id(), new LeaveRequestCommand(
+                        LocalDate.of(2026, 8, 18), LocalDate.of(2026, 8, 18), "must reject")))
+                .isInstanceOf(LeaveException.class)
+                .hasMessageContaining("Only pending leave");
+        assertThat(leaveRequests.findById(submitted.id()).orElseThrow().status())
+                .isEqualTo(LeaveStatus.REJECTED);
+        assertThat(leaveDays.findByRequestIdOrderByLeaveDate(submitted.id()))
+                .extracting(day -> day.leaveDate())
+                .containsExactly(LocalDate.of(2026, 8, 17));
+    }
+
+    @Test
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
     void pendingLeaveCanBeEditedAndCancelledBeforeItsFirstCountedStart() {
@@ -364,6 +454,76 @@ class AttendancePersistenceIntegrationTest {
         var cancelled = leaves.cancel(intern, edited.id());
         assertThat(cancelled.status()).isEqualTo(LeaveStatus.CANCELLED);
         assertThat(cancelled.cancelledAt()).isEqualTo(clock.instant());
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
+    void leaveSubmitRetainsInternProfileLockThroughQuotaPersistenceAgainstLifecycleMutation() throws Exception {
+        LocalDate firstLeaveDate = LocalDate.of(2026, 8, 17);
+        LocalDate lastLeaveDate = LocalDate.of(2026, 8, 18);
+        CountDownLatch policyLocked = new CountDownLatch(1);
+        CountDownLatch releasePolicy = new CountDownLatch(1);
+        CountDownLatch workWindowLocked = new CountDownLatch(1);
+        CountDownLatch releaseWorkWindow = new CountDownLatch(1);
+        CountDownLatch lifecycleAttempted = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(3);
+        doAnswer(invocation -> {
+            InternWorkWindow window = (InternWorkWindow) invocation.callRealMethod();
+            workWindowLocked.countDown();
+            awaitLatch(releaseWorkWindow);
+            return window;
+        }).when(accountSpy).lockedInternWorkWindow(internId, firstLeaveDate);
+
+        Future<?> policy = executor.submit(() -> policyLocks.hold(1L, policyLocked, releasePolicy));
+        Future<LeaveRequestView> submission = null;
+        Future<?> lifecycle = null;
+        try {
+            assertThat(policyLocked.await(10, TimeUnit.SECONDS)).isTrue();
+            submission = executor.submit(() -> leaves.submit(
+                    new AttendanceActor(internId, AttendanceRole.INTERN),
+                    new LeaveRequestCommand(firstLeaveDate, lastLeaveDate, "profile lock contention")));
+            boolean observedWorkWindowLock = workWindowLocked.await(10, TimeUnit.SECONDS);
+            if (!observedWorkWindowLock) {
+                releaseWorkWindow.countDown();
+                releasePolicy.countDown();
+            }
+            assertThat(observedWorkWindowLock)
+                    .as("leave submission must acquire the AccountService account/profile lock before quota work")
+                    .isTrue();
+
+            Future<?> lifecycleFuture = executor.submit(
+                    () -> lifecycleMutations.deactivate(internId, adminId, lifecycleAttempted));
+            lifecycle = lifecycleFuture;
+            assertThat(lifecycleAttempted.await(10, TimeUnit.SECONDS)).isTrue();
+            assertThatThrownBy(() -> lifecycleFuture.get(2, TimeUnit.SECONDS))
+                    .isInstanceOf(TimeoutException.class);
+
+            releaseWorkWindow.countDown();
+            assertThatThrownBy(() -> lifecycleFuture.get(2, TimeUnit.SECONDS))
+                    .isInstanceOf(TimeoutException.class);
+
+            releasePolicy.countDown();
+            LeaveRequestView submitted = submission.get(10, TimeUnit.SECONDS);
+            assertThat(submitted.status()).isEqualTo(LeaveStatus.PENDING);
+            assertThat(submitted.allocations()).extracting(LeaveAllocation::leaveDate)
+                    .containsExactly(firstLeaveDate, lastLeaveDate);
+            lifecycle.get(10, TimeUnit.SECONDS);
+            assertThat(accounts.requireIdentityById(internId).status()).isEqualTo(AccountStatus.DEACTIVATED);
+            assertThat(leaveRequests.findById(submitted.id())).isPresent();
+            assertThat(leaveDays.findByRequestIdOrderByLeaveDate(submitted.id())).hasSize(2);
+        } finally {
+            releaseWorkWindow.countDown();
+            releasePolicy.countDown();
+            awaitFuture(policy);
+            if (submission != null) {
+                awaitFuture(submission);
+            }
+            if (lifecycle != null) {
+                awaitFuture(lifecycle);
+            }
+            executor.shutdownNow();
+        }
     }
 
     @Test
@@ -776,6 +936,16 @@ class AttendancePersistenceIntegrationTest {
                 LeaveApplicationService leaves, AttendanceCorrectionApplicationService corrections) {
             return new AmbientMutationInvoker(leaves, corrections);
         }
+
+        @Bean
+        LifecycleMutationInvoker lifecycleMutationInvoker(AccountService accounts) {
+            return new LifecycleMutationInvoker(accounts);
+        }
+
+        @Bean
+        PolicyLockInvoker policyLockInvoker(AttendancePolicyRepository policies) {
+            return new PolicyLockInvoker(policies);
+        }
     }
 
     static class AmbientMutationInvoker {
@@ -797,6 +967,56 @@ class AttendancePersistenceIntegrationTest {
         @Transactional(propagation = Propagation.REQUIRES_NEW)
         public void decideCorrection(AttendanceActor actor, long correctionId, CorrectionDecision decision) {
             corrections.decide(actor, correctionId, decision, "ambient");
+        }
+    }
+
+    static class LifecycleMutationInvoker {
+
+        private final AccountService accounts;
+
+        LifecycleMutationInvoker(AccountService accounts) {
+            this.accounts = accounts;
+        }
+
+        @Transactional(propagation = Propagation.REQUIRES_NEW)
+        public void deactivate(long internId, long adminId, CountDownLatch attempted) {
+            attempted.countDown();
+            accounts.deactivateAccount(internId, adminId);
+        }
+    }
+
+    static class PolicyLockInvoker {
+
+        private final AttendancePolicyRepository policies;
+
+        PolicyLockInvoker(AttendancePolicyRepository policies) {
+            this.policies = policies;
+        }
+
+        @Transactional(propagation = Propagation.REQUIRES_NEW)
+        public void hold(long policyId, CountDownLatch locked, CountDownLatch release) {
+            policies.findForUpdateById(policyId).orElseThrow();
+            locked.countDown();
+            awaitLatch(release);
+        }
+    }
+
+    private static void awaitLatch(CountDownLatch latch) {
+        try {
+            if (!latch.await(60, TimeUnit.SECONDS)) {
+                throw new AssertionError("Timed out waiting for the concurrency barrier");
+            }
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError("Interrupted while waiting for the concurrency barrier", exception);
+        }
+    }
+
+    private static void awaitFuture(Future<?> future) {
+        try {
+            future.get(10, TimeUnit.SECONDS);
+        } catch (Exception exception) {
+            throw new AssertionError("Concurrency worker did not finish cleanly", exception);
         }
     }
 

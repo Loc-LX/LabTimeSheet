@@ -2,6 +2,7 @@ package com.lab.labtimesheet.feature.attendance.service;
 
 import com.lab.labtimesheet.feature.account.model.AccountStatus;
 import com.lab.labtimesheet.feature.account.model.GlobalRole;
+import com.lab.labtimesheet.feature.account.model.dto.InternWorkWindow;
 import com.lab.labtimesheet.feature.account.service.AccountService;
 import com.lab.labtimesheet.feature.attendance.exception.LeaveException;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
@@ -57,6 +58,8 @@ public class LeaveApplicationService {
 
     /**
      * Submits one full-day inclusive request and materializes eligible workdays with policy/quota snapshots.
+     * The account and Intern profile are pessimistically locked through the allocation and quota writes, while the
+     * requested dates are checked against the account service's inclusive lifecycle window.
      *
      * @param actor authenticated Intern owner
      * @param command requested range and reason
@@ -66,8 +69,10 @@ public class LeaveApplicationService {
     public LeaveRequestView submit(AttendanceActor actor, LeaveRequestCommand command) {
         requireIntern(actor);
         Objects.requireNonNull(command, "command");
+        InternWorkWindow window = lockEligibleIntern(
+                actor.userId(), command.startDate(), command.endDate());
         Instant now = clock.instant();
-        List<AllocatedDate> allocations = allocations(actor.userId(), command.startDate(), command.endDate());
+        List<AllocatedDate> allocations = allocations(window, command.startDate(), command.endDate());
         if (allocations.isEmpty()) {
             throw new LeaveException("Leave must contain at least one eligible workday");
         }
@@ -106,7 +111,10 @@ public class LeaveApplicationService {
      * @implNote Authorization, expiry, quota validation, and allocation replacement share one independent
      * {@code REQUIRES_NEW} transaction and row lock. The independent boundary does not join an ambient caller
      * transaction, so a late pending request returns an internal sentinel only after automatic rejection commits;
-     * the public method then reports that editing is closed.
+     * the post-lock server-time expiry check runs before replacement lifecycle/date validation, and the public method
+     * then reports that editing is closed even when the owner has since become ineligible. For a valid replacement,
+     * the Account service's account and Intern-profile locks remain held through frozen allocation and quota
+     * persistence.
      */
     public LeaveRequestView edit(AttendanceActor actor, long requestId, LeaveRequestCommand command) {
         requireIntern(actor);
@@ -122,16 +130,21 @@ public class LeaveApplicationService {
             AttendanceActor actor, long requestId, LeaveRequestCommand command) {
         LeaveRequestEntity request = lockedRequest(requestId);
         requireOwner(request, actor.userId());
+        if (request.status() != LeaveStatus.PENDING) {
+            throw new LeaveException("Only pending leave before its first counted start can be edited");
+        }
+        InternWorkWindow window = lockIntern(actor.userId(), command.startDate());
         Instant now = clock.instant();
         if (request.status() == LeaveStatus.PENDING && !now.isBefore(request.firstCountedStartAt())) {
             request.autoReject(now);
             requests.saveAndFlush(request);
             return new MutationOutcome(null, true);
         }
-        if (request.status() != LeaveStatus.PENDING || !now.isBefore(request.firstCountedStartAt())) {
+        if (!now.isBefore(request.firstCountedStartAt())) {
             throw new LeaveException("Only pending leave before its first counted start can be edited");
         }
-        List<AllocatedDate> allocations = allocations(actor.userId(), command.startDate(), command.endDate());
+        requireEligibleIntern(window, command.startDate(), command.endDate());
+        List<AllocatedDate> allocations = allocations(window, command.startDate(), command.endDate());
         if (allocations.isEmpty()) {
             throw new LeaveException("Leave must contain at least one eligible workday");
         }
@@ -269,9 +282,8 @@ public class LeaveApplicationService {
         return changed;
     }
 
-    private List<AllocatedDate> allocations(long internId, LocalDate start, LocalDate end) {
-        if (!accounts.isEligibleIntern(internId, start)
-                || !accounts.isEligibleIntern(internId, end)) {
+    private List<AllocatedDate> allocations(InternWorkWindow window, LocalDate start, LocalDate end) {
+        if (!window.eligibleOn(start) || !window.eligibleOn(end)) {
             throw new LeaveException("Leave range must lie within the Intern's internship interval");
         }
         AttendancePolicyTimeline timeline = timeline();
@@ -281,7 +293,7 @@ public class LeaveApplicationService {
             AttendancePolicy policy = timeline.resolve(date);
             if (policy.isWorkday(date)
                     && !calendar.isGlobalDayOff(date)
-                    && accounts.isEligibleIntern(internId, date)) {
+                    && window.eligibleOn(date)) {
                 result.add(new AllocatedDate(
                         date,
                         date.withDayOfMonth(1),
@@ -291,6 +303,28 @@ public class LeaveApplicationService {
             date = date.plusDays(1);
         }
         return result;
+    }
+
+    private InternWorkWindow lockEligibleIntern(long internId, LocalDate start, LocalDate end) {
+        InternWorkWindow window = lockIntern(internId, start);
+        requireEligibleIntern(window, start, end);
+        return window;
+    }
+
+    private InternWorkWindow lockIntern(long internId, LocalDate requestedStart) {
+        final InternWorkWindow window;
+        try {
+            window = accounts.lockedInternWorkWindow(internId, requestedStart);
+        } catch (IllegalArgumentException exception) {
+            throw new LeaveException("Leave requires an active Intern within the internship interval", exception);
+        }
+        return window;
+    }
+
+    private void requireEligibleIntern(InternWorkWindow window, LocalDate start, LocalDate end) {
+        if (!window.eligibleOn(start) || !window.eligibleOn(end)) {
+            throw new LeaveException("Leave requires an active Intern within the internship interval");
+        }
     }
 
     private void validateQuota(long internId, List<AllocatedDate> allocations, Long excludeRequestId) {
