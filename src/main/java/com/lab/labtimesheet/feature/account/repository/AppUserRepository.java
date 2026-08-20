@@ -23,6 +23,15 @@ public interface AppUserRepository extends JpaRepository<AppUser, Long> {
     Optional<AppUser> findByNormalizedEmail(@Param("email") String email);
 
     /**
+     * Resolves only the identifier for a canonical email without hydrating the account entity.
+     *
+     * @param email normalized email
+     * @return matching account identifier, if present
+     */
+    @Query("select u.id from AppUser u where lower(trim(u.email)) = :email")
+    Optional<Long> findAccountIdByNormalizedEmail(@Param("email") String email);
+
+    /**
      * Locks an account row for a lifecycle mutation until the current transaction completes.
      *
      * @param id account identifier
