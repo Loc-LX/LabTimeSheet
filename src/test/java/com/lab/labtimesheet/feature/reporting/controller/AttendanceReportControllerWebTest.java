@@ -50,6 +50,7 @@ class AttendanceReportControllerWebTest {
                         0,
                         0,
                         "N/A",
+                        "N/A",
                         List.of(),
                         List.of()));
 
@@ -84,7 +85,8 @@ class AttendanceReportControllerWebTest {
                         2,
                         1,
                         1,
-                        "50.0%",
+                        "50.00%",
+                        "50.00%",
                         List.of(),
                         List.of(new ReportTrendPoint("14/08/2026", "100.0%"),
                                 new ReportTrendPoint("13/08/2026", "0.0%"))));
@@ -96,7 +98,7 @@ class AttendanceReportControllerWebTest {
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
                         .string(org.hamcrest.Matchers.containsString("id=\"attendance-from\"")))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
-                        .string(org.hamcrest.Matchers.containsString("50.0%")))
+                        .string(org.hamcrest.Matchers.containsString("50.00%")))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
                         .string(org.hamcrest.Matchers.containsString("Late, Missing checkout")))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()

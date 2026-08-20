@@ -9,20 +9,73 @@
 <body>
 <main>
     <p class="page-description" th:text="${details.task.description == null || #strings.isEmpty(details.task.description) ? 'No Task description.' : details.task.description}">Task description.</p>
+    <p class="alert alert-error" role="alert" th:if="${taskError}" th:text="${taskError}"></p>
     <section class="panel metric-strip metric-strip-three" aria-label="Task details">
         <div class="metric"><div class="metric-label">Assignee</div><div class="metric-value" th:text="${details.task.assigneeName}">Assignee</div></div>
         <div class="metric"><div class="metric-label">Status</div><div class="metric-value"><span class="badge" th:classappend="${details.task.status.name() == 'BLOCKED' ? ' badge-warning' : details.task.status.name() == 'DONE' ? ' badge-success' : ''}" th:text="${details.task.status}">TODO</span></div></div>
         <div class="metric"><div class="metric-label">Due date</div><div class="metric-value" th:text="${details.task.dueDate == null ? 'No due date' : #temporals.format(details.task.dueDate, 'dd/MM/yyyy')}">No due date</div></div>
     </section>
-    <form class="panel form-panel filter-form" th:if="${details.canChangeStatus}" method="post" th:action="@{/projects/{projectId}/tasks/{taskId}/status(projectId=${projectId},taskId=${details.task.id})}">
-        <div class="field"><label class="field-label" for="status">New status</label><select class="control" id="status" name="status" required><option th:each="status : ${statuses}" th:value="${status}" th:text="${status}" th:selected="${status == details.task.status}">TODO</option></select></div>
-        <span></span><button class="button button-primary" type="submit">Change status</button>
+    <section class="panel form-panel" th:if="${details.canEdit or details.canReassign or details.canDelete}">
+        <header class="panel-header"><h2 class="panel-title">Task controls</h2></header>
+        <form class="form-grid form-panel" th:if="${details.canEdit}" method="post"
+              th:action="@{/projects/{projectId}/tasks/{taskId}/edit(projectId=${projectId},taskId=${details.task.id})}"
+              th:attr="aria-describedby=${taskEditInput != null and taskError != null ? 'task-edit-error' : null}">
+            <h3 class="panel-title">Edit Task</h3>
+            <div class="field"><label class="field-label" for="task-title">Title</label><input class="control" id="task-title" name="title" required maxlength="200" th:value="${taskEditInput != null ? taskEditInput.title : details.task.title}"></div>
+            <div class="field"><label class="field-label" for="task-description">Description</label><textarea class="control" id="task-description" name="description" rows="3" th:text="${taskEditInput != null ? taskEditInput.description : details.task.description}"></textarea></div>
+            <div class="field"><label class="field-label" for="task-due-date">Due date</label><input class="control" id="task-due-date" name="dueDate" type="date" th:value="${taskEditInput != null ? taskEditInput.dueDate : details.task.dueDate}"></div>
+            <p class="field-error" id="task-edit-error" role="alert" th:if="${taskEditInput != null and taskError != null}" th:text="${taskError}">Task edit error</p>
+            <div class="form-actions"><button class="button button-primary" type="submit">Save Task</button></div>
+        </form>
+        <form class="filter-form" th:if="${details.canReassign}" method="post"
+              th:action="@{/projects/{projectId}/tasks/{taskId}/reassign(projectId=${projectId},taskId=${details.task.id})}"
+              th:attr="aria-describedby=${taskReassignInput != null and taskError != null ? 'task-reassign-error' : null}">
+            <div class="field"><label class="field-label" for="task-assignee">Reassign</label><select class="control" id="task-assignee" name="assigneeMembershipId" required><option th:each="assignee : ${assignees}" th:value="${assignee.membershipId}" th:selected="${taskReassignInput != null and taskReassignInput.assigneeMembershipId == assignee.membershipId}" th:text="${assignee.displayName}">Member</option></select></div>
+            <p class="field-error" id="task-reassign-error" role="alert" th:if="${taskReassignInput != null and taskError != null}" th:text="${taskError}">Reassignment error</p><button class="button" type="submit">Reassign</button>
+        </form>
+        <form th:if="${details.canDelete}" method="post" data-confirm="Delete this Task from active views? Its retained history remains visible and this cannot be undone."
+              th:action="@{/projects/{projectId}/tasks/{taskId}/delete(projectId=${projectId},taskId=${details.task.id})}">
+            <button class="button button-danger" type="submit">Delete Task</button>
+        </form>
+    </section>
+    <section class="panel form-panel" aria-labelledby="work-log-heading">
+        <header class="panel-header"><h2 class="panel-title" id="work-log-heading">Work logs</h2></header>
+        <form class="form-grid form-panel" th:if="${details.canLogWork}" method="post"
+              th:action="@{/projects/{projectId}/tasks/{taskId}/work-logs(projectId=${projectId},taskId=${details.task.id})}"
+              th:attr="aria-describedby=${taskWorkLogInput != null and taskError != null ? 'task-work-log-error' : null}">
+            <h3 class="panel-title">Log work</h3>
+            <div class="form-grid form-grid-three">
+                <div class="field"><label class="field-label" for="work-date">Work date</label><input class="control" id="work-date" name="workDate" type="date" required th:value="${taskWorkLogInput == null ? null : taskWorkLogInput.workDate}"></div>
+                <div class="field"><label class="field-label" for="work-minutes">Minutes</label><input class="control" id="work-minutes" name="minutes" type="number" min="1" max="1440" required th:value="${taskWorkLogInput == null ? null : taskWorkLogInput.minutes}"></div>
+                <div class="field"><label class="field-label" for="work-note">Note</label><input class="control" id="work-note" name="note" maxlength="500" th:value="${taskWorkLogInput == null ? null : taskWorkLogInput.note}"></div>
+            </div>
+            <p class="field-error" id="task-work-log-error" role="alert" th:if="${taskWorkLogInput != null and taskError != null}" th:text="${taskError}">Work log error</p>
+            <div class="form-actions"><button class="button button-primary" type="submit">Log work</button></div>
+        </form>
+        <div th:if="${#lists.isEmpty(details.workLogs)}"><th:block th:replace="~{fragments/components :: empty('No work logs', 'Dated Task effort will appear here.')} "></th:block></div>
+        <div class="table-scroll" th:unless="${#lists.isEmpty(details.workLogs)}"><table class="data-table"><caption class="sr-only">Task work logs</caption>
+            <thead><tr><th scope="col">Date</th><th scope="col">Minutes</th><th scope="col">Note</th><th scope="col">Author membership</th><th scope="col">Correction</th></tr></thead>
+            <tbody><tr th:each="log : ${details.workLogs}"><td th:text="${#temporals.format(log.workDate, 'dd/MM/yyyy')}">Date</td><td th:text="${log.minutes}">0</td><td th:text="${log.note ?: '—'}">Note</td><td th:text="${log.membershipId}">0</td><td>
+                <form class="inline-actions" th:if="${details.actorMembershipId != null and log.membershipId == details.actorMembershipId}" method="post"
+                      th:action="@{/projects/{projectId}/tasks/{taskId}/work-logs/{workLogId}(projectId=${projectId},taskId=${details.task.id},workLogId=${log.id})}"
+                      th:attr="aria-describedby=${taskWorkLogCorrectionInput != null and taskWorkLogCorrectionInput.workLogId == log.id and taskError != null ? 'task-work-log-correction-' + log.id + '-error' : null}">
+                    <label class="sr-only" th:for="|log-minutes-${log.id}|">Correct work log minutes</label><input class="control" th:id="|log-minutes-${log.id}|" name="minutes" type="number" min="1" max="1440" required th:value="${taskWorkLogCorrectionInput != null and taskWorkLogCorrectionInput.workLogId == log.id ? taskWorkLogCorrectionInput.minutes : log.minutes}">
+                    <label class="sr-only" th:for="|log-note-${log.id}|">Correct work log note</label><input class="control" th:id="|log-note-${log.id}|" name="note" th:value="${taskWorkLogCorrectionInput != null and taskWorkLogCorrectionInput.workLogId == log.id ? taskWorkLogCorrectionInput.note : log.note}">
+                    <button class="button" type="submit">Correct work log</button>
+                    <span class="field-error" role="alert" th:id="|task-work-log-correction-${log.id}-error|" th:if="${taskWorkLogCorrectionInput != null and taskWorkLogCorrectionInput.workLogId == log.id and taskError != null}" th:text="${taskError}">Correction error</span>
+                </form>
+            </td></tr></tbody>
+        </table></div>
+    </section>
+    <form class="panel form-panel filter-form" th:if="${details.canChangeStatus}" method="post" th:action="@{/projects/{projectId}/tasks/{taskId}/status(projectId=${projectId},taskId=${details.task.id})}" th:attr="aria-describedby=${taskStatusInput != null and taskError != null ? 'task-status-error' : null}">
+        <div class="field"><label class="field-label" for="status">New status</label><select class="control" id="status" name="status" required><option th:each="status : ${statuses}" th:value="${status}" th:text="${status}" th:selected="${taskStatusInput != null ? taskStatusInput.status == status.name() : status == details.task.status}">TODO</option></select></div>
+        <p class="field-error" id="task-status-error" role="alert" th:if="${taskStatusInput != null and taskError != null}" th:text="${taskError}">Status error</p><button class="button button-primary" type="submit">Change status</button>
     </form>
     <section class="panel form-panel" aria-labelledby="comments-heading">
         <header class="panel-header"><h2 class="panel-title" id="comments-heading">Comments</h2></header>
         <div th:if="${#lists.isEmpty(details.comments)}"><th:block th:replace="~{fragments/components :: empty('No comments', 'Task discussion will appear here.')} "></th:block></div>
         <div class="table-scroll" th:unless="${#lists.isEmpty(details.comments)}"><table class="data-table"><caption class="sr-only">Task comments</caption><thead><tr><th scope="col">Comment</th><th scope="col">Created</th></tr></thead><tbody><tr th:each="comment : ${details.comments}"><td th:text="${comment.body}">Comment</td><td th:text="${#temporals.format(comment.createdAt, 'dd/MM/yyyy HH:mm')}">Created</td></tr></tbody></table></div>
-        <form class="form-grid form-panel" th:if="${details.canComment}" method="post" th:action="@{/projects/{projectId}/tasks/{taskId}/comments(projectId=${projectId},taskId=${details.task.id})}"><div class="field"><label class="field-label" for="body">Comment</label><textarea class="control" id="body" name="body" rows="4" required></textarea></div><div class="form-actions"><button class="button button-primary" type="submit">Add comment</button></div></form>
+        <form class="form-grid form-panel" th:if="${details.canComment}" method="post" th:action="@{/projects/{projectId}/tasks/{taskId}/comments(projectId=${projectId},taskId=${details.task.id})}" th:attr="aria-describedby=${taskCommentInput != null and taskError != null ? 'task-comment-error' : null}"><div class="field"><label class="field-label" for="body">Comment</label><textarea class="control" id="body" name="body" rows="4" required th:text="${taskCommentInput == null ? null : taskCommentInput.body}"></textarea></div><p class="field-error" id="task-comment-error" role="alert" th:if="${taskCommentInput != null and taskError != null}" th:text="${taskError}">Comment error</p><div class="form-actions"><button class="button button-primary" type="submit">Add comment</button></div></form>
     </section>
 </main>
 </body>

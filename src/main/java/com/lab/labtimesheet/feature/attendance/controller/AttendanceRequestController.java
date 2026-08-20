@@ -1,0 +1,208 @@
+package com.lab.labtimesheet.feature.attendance.controller;
+
+import com.lab.labtimesheet.feature.attendance.exception.CorrectionException;
+import com.lab.labtimesheet.feature.attendance.exception.LeaveException;
+import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
+import com.lab.labtimesheet.feature.attendance.model.AttendanceRole;
+import com.lab.labtimesheet.feature.attendance.model.dto.CorrectionDecision;
+import com.lab.labtimesheet.feature.attendance.model.dto.CorrectionRequestCommand;
+import com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestCommand;
+import com.lab.labtimesheet.feature.attendance.service.AttendanceCorrectionApplicationService;
+import com.lab.labtimesheet.feature.attendance.service.AttendanceCurrentUserService;
+import com.lab.labtimesheet.feature.attendance.service.LeaveApplicationService;
+import java.security.Principal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.Map;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+
+/**
+ * Exposes discoverable leave and missed-checkout correction pages without duplicating either
+ * service state machine. Every read and mutation delegates the authenticated Attendance actor to
+ * the owning application service, which remains authoritative for role, ownership, deadlines,
+ * locking, and retained history.
+ */
+@Controller
+@RequestMapping("/attendance")
+@RequiredArgsConstructor(access = AccessLevel.PACKAGE)
+public class AttendanceRequestController {
+
+    private final AttendanceCurrentUserService currentUsers;
+    private final LeaveApplicationService leave;
+    private final AttendanceCorrectionApplicationService corrections;
+
+    /** Renders the actor-scoped request queue and Intern submission forms. */
+    @GetMapping("/requests")
+    public String requests(
+            Principal principal,
+            @RequestParam(required = false) Long attendanceRecordId,
+            Model model) {
+        AttendanceActor actor = currentUsers.actor(principal);
+        populate(actor, model);
+        model.addAttribute("attendanceRecordId", attendanceRecordId);
+        return "attendance/requests";
+    }
+
+    /** Renders one authorized leave request with its frozen allocation history. */
+    @GetMapping("/leave/{requestId}")
+    public String leaveRequest(Principal principal, @PathVariable long requestId, Model model) {
+        AttendanceActor actor = currentUsers.actor(principal);
+        populate(actor, model);
+        model.addAttribute("selectedLeave", leave.view(actor, requestId));
+        return "attendance/requests";
+    }
+
+    /** Renders one authorized correction with its raw/effective values and transition events. */
+    @GetMapping("/corrections/{correctionId}")
+    public String correction(Principal principal, @PathVariable long correctionId, Model model) {
+        AttendanceActor actor = currentUsers.actor(principal);
+        populate(actor, model);
+        model.addAttribute("selectedCorrection", corrections.view(actor, correctionId));
+        return "attendance/requests";
+    }
+
+    /** Submits one inclusive full-day leave range for the authenticated Intern. */
+    @PostMapping("/leave")
+    public String submitLeave(
+            Principal principal,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam String reason,
+            RedirectAttributes redirectAttributes) {
+        AttendanceActor actor = currentUsers.actor(principal);
+        try {
+            long id = leave.submit(actor, new LeaveRequestCommand(startDate, endDate, reason)).id();
+            return "redirect:/attendance/leave/" + id;
+        } catch (LeaveException | IllegalArgumentException failure) {
+            redirectAttributes.addFlashAttribute("requestError", failure.getMessage());
+            redirectAttributes.addFlashAttribute("leaveInput", Map.of(
+                    "startDate", startDate.toString(),
+                    "endDate", endDate.toString(),
+                    "reason", reason));
+            return "redirect:/attendance/requests";
+        }
+    }
+
+    /** Revalidates and replaces one still-editable pending leave request. */
+    @PostMapping("/leave/{requestId}/edit")
+    public String editLeave(
+            Principal principal,
+            @PathVariable long requestId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam String reason,
+            RedirectAttributes redirectAttributes) {
+        try {
+            leave.edit(currentUsers.actor(principal), requestId, new LeaveRequestCommand(startDate, endDate, reason));
+            redirectAttributes.addFlashAttribute("message", "Leave request updated");
+        } catch (LeaveException | IllegalArgumentException failure) {
+            redirectAttributes.addFlashAttribute("requestError", failure.getMessage());
+            redirectAttributes.addFlashAttribute("leaveEditInput", Map.of(
+                    "startDate", startDate.toString(),
+                    "endDate", endDate.toString(),
+                    "reason", reason));
+        }
+        return "redirect:/attendance/leave/" + requestId;
+    }
+
+    /** Cancels an authorized leave request while its service deadline remains open. */
+    @PostMapping("/leave/{requestId}/cancel")
+    public String cancelLeave(
+            Principal principal, @PathVariable long requestId, RedirectAttributes redirectAttributes) {
+        try {
+            leave.cancel(currentUsers.actor(principal), requestId);
+            redirectAttributes.addFlashAttribute("message", "Leave request cancelled");
+        } catch (LeaveException failure) {
+            redirectAttributes.addFlashAttribute("requestError", failure.getMessage());
+        }
+        return "redirect:/attendance/leave/" + requestId;
+    }
+
+    /** Applies the Mentor-only approval transition. */
+    @PostMapping("/leave/{requestId}/approve")
+    public String approveLeave(
+            Principal principal, @PathVariable long requestId, RedirectAttributes redirectAttributes) {
+        try {
+            leave.approve(currentUsers.actor(principal), requestId);
+            redirectAttributes.addFlashAttribute("message", "Leave request approved");
+        } catch (LeaveException failure) {
+            redirectAttributes.addFlashAttribute("requestError", failure.getMessage());
+        }
+        return "redirect:/attendance/leave/" + requestId;
+    }
+
+    /** Applies the Mentor-only rejection transition. */
+    @PostMapping("/leave/{requestId}/reject")
+    public String rejectLeave(
+            Principal principal, @PathVariable long requestId, RedirectAttributes redirectAttributes) {
+        try {
+            leave.reject(currentUsers.actor(principal), requestId);
+            redirectAttributes.addFlashAttribute("message", "Leave request rejected");
+        } catch (LeaveException failure) {
+            redirectAttributes.addFlashAttribute("requestError", failure.getMessage());
+        }
+        return "redirect:/attendance/leave/" + requestId;
+    }
+
+    /** Submits one proposed effective checkout without changing the raw attendance row. */
+    @PostMapping("/corrections")
+    public String submitCorrection(
+            Principal principal,
+            @RequestParam long attendanceRecordId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime proposedCheckout,
+            @RequestParam String reason,
+            RedirectAttributes redirectAttributes) {
+        AttendanceActor actor = currentUsers.actor(principal);
+        try {
+            long id = corrections
+                    .submit(actor, attendanceRecordId, new CorrectionRequestCommand(proposedCheckout, reason))
+                    .id();
+            return "redirect:/attendance/corrections/" + id;
+        } catch (CorrectionException | IllegalArgumentException failure) {
+            redirectAttributes.addFlashAttribute("requestError", failure.getMessage());
+            redirectAttributes.addFlashAttribute("correctionInput", Map.of(
+                    "attendanceRecordId", attendanceRecordId,
+                    "proposedCheckout", proposedCheckout.toString(),
+                    "reason", reason));
+            return "redirect:/attendance/requests";
+        }
+    }
+
+    /** Applies one Mentor correction decision and retains the service-generated event. */
+    @PostMapping("/corrections/{correctionId}/decide")
+    public String decideCorrection(
+            Principal principal,
+            @PathVariable long correctionId,
+            @RequestParam CorrectionDecision decision,
+            @RequestParam(required = false) String note,
+            RedirectAttributes redirectAttributes) {
+        try {
+            corrections.decide(currentUsers.actor(principal), correctionId, decision, note);
+            redirectAttributes.addFlashAttribute("message", "Correction decision saved");
+        } catch (CorrectionException | IllegalArgumentException failure) {
+            redirectAttributes.addFlashAttribute("requestError", failure.getMessage());
+            redirectAttributes.addFlashAttribute("correctionDecisionInput", Map.of(
+                    "decision", decision.name(),
+                    "note", note == null ? "" : note));
+        }
+        return "redirect:/attendance/corrections/" + correctionId;
+    }
+
+    private void populate(AttendanceActor actor, Model model) {
+        model.addAttribute("actor", actor);
+        model.addAttribute("intern", actor.role() == AttendanceRole.INTERN);
+        model.addAttribute("mentor", actor.role() == AttendanceRole.MENTOR);
+        model.addAttribute("leaveRequests", leave.list(actor));
+        model.addAttribute("correctionRequests", corrections.list(actor));
+    }
+}

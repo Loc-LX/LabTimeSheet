@@ -16,6 +16,7 @@ import com.lab.labtimesheet.feature.attendance.model.CorrectionStatus;
 import com.lab.labtimesheet.feature.attendance.model.dto.CorrectionDecision;
 import com.lab.labtimesheet.feature.attendance.model.dto.CorrectionEventView;
 import com.lab.labtimesheet.feature.attendance.model.dto.CorrectionRequestCommand;
+import com.lab.labtimesheet.feature.attendance.model.dto.CorrectionSummary;
 import com.lab.labtimesheet.feature.attendance.model.dto.CorrectionView;
 import com.lab.labtimesheet.feature.attendance.model.entity.AttendanceCorrectionEntity;
 import com.lab.labtimesheet.feature.attendance.model.entity.AttendanceCorrectionEventEntity;
@@ -63,6 +64,31 @@ public class AttendanceCorrectionApplicationService {
     private final AccountService accounts;
     private final TransactionTemplate transactions;
     private final NotificationService notifications;
+
+    /**
+     * Lists retained correction requests visible to an owning Intern or active global Mentor.
+     *
+     * <p>The list is informational and may become stale immediately; detail and decision methods
+     * repeat ownership, active-role, deadline, and lock checks before returning or mutating state.</p>
+     *
+     * @param actor authenticated Attendance actor
+     * @return newest-first immutable correction summaries
+     */
+    @Transactional(readOnly = true)
+    public List<CorrectionSummary> list(AttendanceActor actor) {
+        if (actor == null) {
+            throw new AccessDeniedException("An attendance actor is required");
+        }
+        AccountIdentity identity = accounts.requireIdentityById(actor.userId());
+        if (identity.status() != AccountStatus.ACTIVE || !identity.role().name().equals(actor.role().name())) {
+            throw new AccessDeniedException("An active matching account is required");
+        }
+        return switch (actor.role()) {
+            case INTERN -> corrections.findSummariesByInternUserId(actor.userId());
+            case MENTOR -> corrections.findAllSummaries();
+            default -> throw new AccessDeniedException("Correction list is outside the requested scope");
+        };
+    }
 
     /**
      * Submits one correction through the inclusive scheduled-end-plus-24-hour deadline.

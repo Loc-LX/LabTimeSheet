@@ -13,6 +13,7 @@
         <a class="tab" th:href="@{/projects/{id}/members(id=${project.id})}">Members</a>
         <a class="tab" th:href="@{/projects/{id}/leadership(id=${project.id})}" aria-current="page">Leadership</a>
         <a class="tab" th:href="@{/projects/{id}/tasks(id=${project.id})}">Tasks</a>
+        <a class="tab" th:href="@{/projects/{id}/workflows(id=${project.id})}">Workflows &amp; History</a>
     </nav>
     <section class="panel form-panel" th:if="${#lists.isEmpty(leadership)}"><th:block th:replace="~{fragments/components :: empty('No leadership history', 'Leadership terms will appear here.')} "></th:block></section>
     <section class="panel form-panel" th:unless="${#lists.isEmpty(leadership)}">

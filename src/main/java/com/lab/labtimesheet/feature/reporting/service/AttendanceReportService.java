@@ -5,35 +5,43 @@ import com.lab.labtimesheet.feature.account.model.dto.AccountIdentity;
 import com.lab.labtimesheet.feature.account.service.AccountService;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceRole;
-import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceHistoryItem;
+import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceReport;
+import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceReportDay;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceApplicationService;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceCurrentUserService;
+import com.lab.labtimesheet.feature.attendance.service.AttendanceReportQueryService;
 import com.lab.labtimesheet.feature.reporting.model.dto.AttendanceReportRow;
 import com.lab.labtimesheet.feature.reporting.model.dto.AttendanceReportView;
 import com.lab.labtimesheet.feature.reporting.model.dto.ReportTrendPoint;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.security.Principal;
 import java.time.Duration;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Composes the authorized Attendance history boundary into one HTML report dataset.
  *
  * <p>Target selection is never trusted from the browser: the Attendance current-user service
- * resolves the actor, and the Attendance application service rechecks own/detail scope before
- * rows are returned. Reporting calculates only display totals and never reads Attendance tables.</p>
+ * resolves the actor, and the Attendance report query rechecks scope before returning historical
+ * classifications and formulas. Reporting only formats that immutable producer result.</p>
  */
 @Service
 @RequiredArgsConstructor
 public class AttendanceReportService {
 
+    private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("dd/MM/uuuu");
+    private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HH:mm");
+
     private final AttendanceCurrentUserService currentUsers;
     private final AttendanceApplicationService attendance;
+    private final AttendanceReportQueryService reportQueries;
     private final AccountService accounts;
 
     /**
@@ -47,7 +55,6 @@ public class AttendanceReportService {
      * @throws AccessDeniedException when target scope is not valid for the actor
      * @throws IllegalArgumentException when the date range is reversed
      */
-    @Transactional(readOnly = true)
     public AttendanceReportView build(
             Principal principal,
             Long requestedInternId,
@@ -65,31 +72,26 @@ public class AttendanceReportService {
         if (!ownScope && requestedInternId == null) {
             return emptyDetailSelection(from, to, accounts.eligibleInternOptions(to));
         }
-        AccountIdentity target = requireInternTarget(targetId);
-        List<AttendanceHistoryItem> history = attendance.history(actor, targetId, from, to);
-        List<AttendanceReportRow> rows = history.stream().map(AttendanceReportService::row).toList();
-        long compliant = rows.stream().filter(AttendanceReportRow::compliant).count();
-        long recorded = rows.size();
-        List<ReportTrendPoint> trend = history.stream()
-                .map(item -> new ReportTrendPoint(
-                        item.workDateDisplay(),
-                        item.violations().late()
-                                || item.violations().earlyDeparture()
-                                || item.violations().missingCheckout()
-                                ? "0.0%"
-                                : "100.0%"))
+        AttendanceReport report = reportQueries.query(actor, targetId, from, to);
+        AccountIdentity target = requireInternTarget(report.internId());
+        List<AttendanceReportRow> rows = report.days().stream().map(AttendanceReportService::row).toList();
+        List<ReportTrendPoint> trend = report.days().stream()
+                .filter(day -> day.dailyComplianceScore().isPresent())
+                .map(day -> new ReportTrendPoint(DATE.format(day.workDate()),
+                        percentage(day.dailyComplianceScore().orElseThrow())))
                 .toList();
         return new AttendanceReportView(
-                targetId,
+                report.internId(),
                 target.displayName(),
-                from,
-                to,
+                report.from(),
+                report.to(),
                 ownScope,
                 rows,
-                recorded,
-                compliant,
-                recorded - compliant,
-                percentage(compliant, recorded),
+                report.expectedWorkdays(),
+                report.presentWorkdays(),
+                report.expectedWorkdays() - report.presentWorkdays(),
+                report.attendanceRateDisplay(),
+                report.complianceDisplay(),
                 ownScope ? List.of() : accounts.eligibleInternOptions(to),
                 trend);
     }
@@ -112,28 +114,55 @@ public class AttendanceReportService {
         return identity;
     }
 
-    private static AttendanceReportRow row(AttendanceHistoryItem item) {
-        boolean compliant = !item.violations().late()
-                && !item.violations().earlyDeparture()
-                && !item.violations().missingCheckout();
-        String worked = item.checkOutAt() == null
+    private static AttendanceReportRow row(AttendanceReportDay day) {
+        String checkIn = day.checkInAt() == null
                 ? "N/A"
-                : Duration.between(item.checkInAt(), item.checkOutAt()).toMinutes() + " min";
+                : TIME.format(day.checkInAt().atZone(day.policyZoneId()));
+        String checkOut = day.effectiveCheckoutAt() == null
+                ? "N/A"
+                : TIME.format(day.effectiveCheckoutAt().atZone(day.policyZoneId()));
+        String worked = day.checkInAt() == null || day.effectiveCheckoutAt() == null
+                ? "N/A"
+                : Duration.between(day.checkInAt(), day.effectiveCheckoutAt()).toMinutes() + " min";
+        boolean compliant = day.dailyComplianceScore()
+                .map(score -> score.compareTo(BigDecimal.ONE) == 0)
+                .orElse(true);
         return new AttendanceReportRow(
-                item.workDateDisplay(),
-                item.checkInTimeDisplay(),
-                item.checkOutTimeDisplay(),
-                item.scheduledStartDisplay() + "–" + item.scheduledEndDisplay()
-                        + " (" + item.policy().zoneId() + ")",
-                item.resultDisplay(),
+                DATE.format(day.workDate()),
+                checkIn,
+                checkOut,
+                TIME.format(day.scheduledStart()) + "–" + TIME.format(day.scheduledEnd())
+                        + " (" + day.policyZoneId() + ")",
+                result(day),
                 worked,
                 compliant);
     }
 
-    private static String percentage(long numerator, long denominator) {
-        return denominator == 0
-                ? "N/A"
-                : String.format(Locale.ROOT, "%.1f%%", numerator * 100.0 / denominator);
+    private static String result(AttendanceReportDay day) {
+        List<String> violations = new ArrayList<>(3);
+        if (day.late()) {
+            violations.add("Late");
+        }
+        if (day.earlyDeparture()) {
+            violations.add("Early departure");
+        }
+        if (day.missingCheckout()) {
+            violations.add("Missing checkout");
+        }
+        String classification = switch (day.classification()) {
+            case HOLIDAY -> "Holiday";
+            case OFF_DAY -> "Off day";
+            case APPROVED_LEAVE -> "Approved leave";
+            case PRESENT -> "Present";
+            case ABSENT -> "Absent";
+        };
+        return violations.isEmpty() ? classification : classification + " · " + String.join(", ", violations);
+    }
+
+    private static String percentage(BigDecimal score) {
+        return score.multiply(BigDecimal.valueOf(100))
+                .setScale(2, RoundingMode.HALF_UP)
+                .toPlainString() + "%";
     }
 
     private static AttendanceReportView emptyDetailSelection(
@@ -149,6 +178,7 @@ public class AttendanceReportService {
                 0L,
                 0L,
                 0L,
+                "N/A",
                 "N/A",
                 options,
                 List.of());

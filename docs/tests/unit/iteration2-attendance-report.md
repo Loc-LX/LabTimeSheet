@@ -1,35 +1,45 @@
-# Test Evidence: Iteration 2 attendance report aggregation
+# Test Evidence: Attendance report consumes the accepted producer dataset
 
 - **Test type:** Unit
-- **Requirement IDs:** `I2-UI-03`, `RPT-001`, `RPT-002`, `RPT-003`
-- **Scenario IDs:** `AC-RPT-001`, `AC-RPT-002`, `AC-RPT-003`
-- **Test class/method:** `com.lab.labtimesheet.feature.reporting.service.AttendanceReportServiceTest#computesComplianceAndExplicitNaForMissingCheckoutAndEmptyRows`
-- **Implementation commit:** `5308e913dc10248ec4482fa8c85beb3f59934d89`
+- **Requirement IDs:** `I2-UI-03`, `RPT-001`, `RPT-002`, `RPT-003`, `RPT-004`
+- **Scenario IDs:** `AC-ATT-006`, `AC-ATT-007`, `AC-RPT-001`, `AC-RPT-002`
+- **Test class/method:** `AttendanceReportServiceTest#usesAttendanceOwnedClassificationAndExactAggregateFormulas`, `#rejectsInternDetailTargetOutsideOwnAccountBeforeAttendanceRead`, `#rendersMentorTargetPickerBeforeReadingAttendanceRows`
+- **Implementation commit:** `pending local independent review`
 
 ## Protected behavior
 
-Reporting computes compliance totals from the Attendance-owned violation flags, preserves `N/A` when checkout or the selected period has no value, and never permits an Intern to select another Intern's detail scope.
+Reporting delegates classification, expected-day counts, attendance rate, compliance rate, historical-policy scoring,
+and target authorization to `AttendanceReportQueryService`. It formats that immutable Attendance-owned result for
+HTML without re-reading Attendance persistence or recalculating the aggregate formulas. Intern target expansion is
+rejected before the producer query; Mentor/Admin target selection uses the Account-owned eligible-Intern DTO.
 
 ## Test method
 
-The unit test supplies Attendance DTOs through the public service boundary and verifies independently hand-derived counts, percentage, elapsed-time display, and violation labels. A second test verifies the own-scope authorization guard before the Attendance read is invoked.
+The unit test supplies one present day with late and missing-checkout violations and one absent day through the
+accepted producer DTO. It verifies producer aggregate values are preserved, raw missing checkout displays `N/A`,
+classification/violation labels remain distinct, and trend points use the same daily scores. Separate tests assert
+the Intern own-scope guard and the authorized target-picker empty state.
 
 ## Hand-derived expected result
 
-One compliant row and one late/missing-checkout row produce `1` compliant day, `1` violation day, `50.0%`, and `N/A` elapsed time for the incomplete row.
+One present day across two expected days produces `1` present, `1` absent, and `50.00%` attendance. Scores `0.6667`
+and `0` average to `33.335%`, which the producer supplies as `33.34%`; the equivalent trend values are `66.67%`
+and `0.00%`. The present row has no effective checkout, so worked time is `N/A`.
 
 ## RED
 
 **Command**
 
 ```text
-./mvnw '-Dtest=AttendanceReportControllerWebTest' test
+env JAVA_HOME=/opt/homebrew/opt/openjdk@25 PATH=/opt/homebrew/opt/openjdk@25/bin:/usr/bin:/bin ./mvnw '-DargLine=-javaagent:/Users/sechmachine/.m2/repository/net/bytebuddy/byte-buddy-agent/1.18.10/byte-buddy-agent-1.18.10.jar' '-Dtest=AttendanceReportControllerWebTest,AttendanceReportServiceTest' test
 ```
 
 **Observed result**
 
 ```text
-Compilation failed because AttendanceReportController and AttendanceReportService were absent from the baseline.
+Test compilation failed after the accepted Attendance producer merge: the Reporting test still constructed the old
+history-derived view and the production service had no AttendanceReportQueryService dependency or accepted report
+DTO mapping. This was the expected handoff RED, not a fixture or environment failure.
 ```
 
 ## GREEN
@@ -37,13 +47,13 @@ Compilation failed because AttendanceReportController and AttendanceReportServic
 **Command**
 
 ```text
-./mvnw '-Dtest=AttendanceReportControllerWebTest,AttendanceReportServiceTest' test
+env JAVA_HOME=/opt/homebrew/opt/openjdk@25 PATH=/opt/homebrew/opt/openjdk@25/bin:/usr/bin:/bin ./mvnw '-DargLine=-javaagent:/Users/sechmachine/.m2/repository/net/bytebuddy/byte-buddy-agent/1.18.10/byte-buddy-agent-1.18.10.jar' '-Dtest=AttendanceReportControllerWebTest,AttendanceReportServiceTest' test
 ```
 
 **Observed result**
 
 ```text
-`Tests run: 4, Failures: 0, Errors: 0, Skipped: 0`; `BUILD SUCCESS`.
+Java 25.0.4; Tests run: 5, Failures: 0, Errors: 0, Skipped: 0; BUILD SUCCESS.
 ```
 
 ## Affected suite
@@ -51,11 +61,13 @@ Compilation failed because AttendanceReportController and AttendanceReportServic
 **Command and result**
 
 ```text
-./mvnw '-Dtest=*Reporting*Test,*Dashboard*Test,*Template*Test,*Shell*Test,*Accessibility*Test,*UiContractWebTest,*AttendanceReport*Test,*ProjectTaskReport*Test' test
+env JAVA_HOME=/opt/homebrew/opt/openjdk@25 PATH=/opt/homebrew/opt/openjdk@25/bin:/usr/bin:/bin ./mvnw '-DargLine=-javaagent:/Users/sechmachine/.m2/repository/net/bytebuddy/byte-buddy-agent/1.18.10/byte-buddy-agent-1.18.10.jar' '-Dtest=AttendanceControllerTest,AttendanceRequestControllerWebTest,Iteration2ProjectWorkflowWebTest,ProjectControllerTest,AccountTemplateIntegrationTest,AdminSettingsControllerWebTest,AttendanceReportControllerWebTest,AttendanceTemplateIntegrationTest,DashboardControllerWebTest,DashboardTemplateWebTest,Iteration2ComponentsWebTest,Iteration2WorkflowFragmentsWebTest,NotificationControllerWebTest,ProjectTaskFormAccessibilityWebTest,ProjectTaskReportControllerWebTest,SharedErrorTemplateWebTest,Iteration2TaskWorkflowWebTest,TaskControllerTest,UiContractWebTest' test
 
-`Tests run: 60, Failures: 0, Errors: 0, Skipped: 0`; `BUILD SUCCESS` on Java 25 with PostgreSQL 18.4 Testcontainers.
+Java 25.0.4; Tests run: 100, Failures: 0, Errors: 0, Skipped: 0; BUILD SUCCESS.
 ```
 
 ## External-test boundaries
 
-The unit test does not prove PostgreSQL query authorization, browser rendering, date input parsing, or Chart.js enhancement. Those remain covered by the web slice and later integration/browser evidence.
+This unit evidence does not prove PostgreSQL classification/authorization calculations or browser behavior. The
+accepted Attendance producer evidence proves the PostgreSQL formulas; the web and Chart.js evidence protect HTML
+and progressive enhancement. No export format is claimed in Iteration 2.

@@ -281,7 +281,8 @@ class AttendanceLombokBoilerplateTest {
                 component("checkInAt", Instant.class),
                 component("checkOutAt", Instant.class),
                 component("policy", AttendancePolicy.class),
-                component("violations", AttendanceViolations.class));
+                component("violations", AttendanceViolations.class),
+                component("attendanceRecordId", long.class));
         assertRecordComponents(
                 GlobalCalendarEvent.class,
                 component("id", long.class),
@@ -545,6 +546,7 @@ class AttendanceLombokBoilerplateTest {
                         AttendanceActor.class, long.class),
                 method(Modifier.PUBLIC, "view", com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestView.class,
                         AttendanceActor.class, long.class),
+                method(Modifier.PUBLIC, "list", List.class, AttendanceActor.class),
                 method(Modifier.PUBLIC, "expirePending", int.class, int.class));
         assertMethodSurface(
                 AttendanceCorrectionApplicationService.class,
@@ -554,6 +556,7 @@ class AttendanceLombokBoilerplateTest {
                         AttendanceActor.class, long.class, com.lab.labtimesheet.feature.attendance.model.dto.CorrectionDecision.class, String.class),
                 method(Modifier.PUBLIC, "view", com.lab.labtimesheet.feature.attendance.model.dto.CorrectionView.class,
                         AttendanceActor.class, long.class),
+                method(Modifier.PUBLIC, "list", List.class, AttendanceActor.class),
                 method(Modifier.PUBLIC, "prepareHistory", Map.class, List.class),
                 method(Modifier.PUBLIC, "expire", int.class, int.class));
         assertMethodSurface(

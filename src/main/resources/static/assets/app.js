@@ -107,16 +107,64 @@ document.addEventListener('DOMContentLoaded', () => {
     drawer.addEventListener('close', restoreFocus);
   });
 
+  document.querySelectorAll('form[data-confirm], form[data-transfer-confirm]').forEach((form) => {
+    form.addEventListener('submit', (event) => {
+      let message = form.dataset.confirm;
+      if (form.hasAttribute('data-transfer-confirm')) {
+        const tasks = [...form.querySelectorAll('[name="taskIds"]:checked')];
+        const firstTask = form.querySelector('[name="taskIds"]');
+        if (tasks.length === 0) {
+          event.preventDefault();
+          firstTask?.setCustomValidity('Select at least one unfinished Task');
+          firstTask?.reportValidity();
+          return;
+        }
+        firstTask?.setCustomValidity('');
+        const recipient = form.querySelector('[name="recipientMembershipId"]:checked')
+          ?.closest('label')?.querySelector('span')?.textContent.trim();
+        message = `Transfer ${tasks.length} selected Task${tasks.length === 1 ? '' : 's'} to ${recipient}? This batch commits immediately and remains after later cancellation or rejection.`;
+      }
+      if (!window.confirm(message)) event.preventDefault();
+    });
+  });
+
   document.querySelectorAll('[data-report-chart]').forEach((figure) => {
     if (typeof window.Chart !== 'function') return;
     const canvas = figure.querySelector('canvas');
     const rows = [...figure.querySelectorAll('.chart-data tbody tr')];
     const labels = rows.map((row) => row.cells[0].textContent.trim());
     const values = rows.map((row) => Number.parseFloat(row.cells[1].textContent.replace(',', '.')) || 0);
-    new window.Chart(canvas, {
+    const colors = () => {
+      const styles = getComputedStyle(root);
+      return ['--accent', '--muted', '--border'].map((name) => styles.getPropertyValue(name).trim());
+    };
+    const [accent, muted, border] = colors();
+    const chart = new window.Chart(canvas, {
       type: 'line',
-      data: { labels, datasets: [{ data: values, borderColor: getComputedStyle(root).getPropertyValue('--accent').trim(), tension: 0 }] },
-      options: { animation: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+      data: { labels, datasets: [{
+        data: values,
+        borderColor: accent,
+        pointBackgroundColor: accent,
+        tension: 0,
+      }] },
+      options: {
+        animation: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: muted }, grid: { color: border } },
+          y: { beginAtZero: true, ticks: { color: muted }, grid: { color: border } },
+        },
+      }
     });
+    theme?.addEventListener('change', () => requestAnimationFrame(() => {
+      const [nextAccent, nextMuted, nextBorder] = colors();
+      chart.data.datasets[0].borderColor = nextAccent;
+      chart.data.datasets[0].pointBackgroundColor = nextAccent;
+      chart.options.scales.x.ticks.color = nextMuted;
+      chart.options.scales.y.ticks.color = nextMuted;
+      chart.options.scales.x.grid.color = nextBorder;
+      chart.options.scales.y.grid.color = nextBorder;
+      chart.update('none');
+    }));
   });
 });

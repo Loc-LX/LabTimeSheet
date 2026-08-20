@@ -30,11 +30,11 @@
         <div class="field form-actions"><button class="button button-primary" type="submit">Apply filters</button></div>
     </form>
     <p class="field-help" role="status" th:text="${report.ownScope ? 'Own scope · ' + report.targetName : 'Detail scope · ' + report.targetName}">Own scope</p>
-    <section class="panel metric-strip metric-strip-four" aria-label="Attendance report summary">
-        <div class="metric"><div class="metric-label">Recorded days</div><div class="metric-value" th:text="${report.recordedDays}">0</div><div class="metric-detail">Rows in selected period</div></div>
-        <div class="metric"><div class="metric-label">Compliant days</div><div class="metric-value" th:text="${report.compliantDays}">0</div><div class="metric-detail">No recorded violation</div></div>
-        <div class="metric"><div class="metric-label">Violation days</div><div class="metric-value" th:text="${report.violationDays}">0</div><div class="metric-detail">Late, early, or missing checkout</div></div>
-        <div class="metric"><div class="metric-label">Compliance rate</div><div class="metric-value" th:text="${report.complianceRate}">N/A</div><div class="metric-detail">N/A when no rows exist</div></div>
+    <section class="panel metric-strip" aria-label="Attendance report summary">
+        <div class="metric"><div class="metric-label">Expected workdays</div><div class="metric-value" th:text="${report.expectedWorkdays}">0</div><div class="metric-detail">Excludes leave and days off</div></div>
+        <div class="metric"><div class="metric-label">Present workdays</div><div class="metric-value" th:text="${report.presentWorkdays}">0</div><div class="metric-detail" th:text="|${report.absentWorkdays} absent|">0 absent</div></div>
+        <div class="metric"><div class="metric-label">Attendance rate</div><div class="metric-value" th:text="${report.attendanceRate}">N/A</div><div class="metric-detail">Present divided by expected</div></div>
+        <div class="metric"><div class="metric-label">Compliance rate</div><div class="metric-value" th:text="${report.complianceRate}">N/A</div><div class="metric-detail">Historical policy score</div></div>
     </section>
     <th:block th:if="${#lists.size(report.trend) > 1}"
               th:replace="~{fragments/components :: reportChart('attendance-compliance-trend', 'Attendance compliance trend', 'Equivalent daily compliance values for the selected period.', ${report.trend})}"></th:block>

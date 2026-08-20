@@ -42,8 +42,10 @@ class Iteration2WorkflowFragmentsWebTest {
                 .andExpect(content().string(containsString("Exit readiness")))
                 .andExpect(content().string(containsString("2 unfinished Tasks remain")))
                 .andExpect(content().string(containsString("data-drawer-open=\"transfer-drawer\"")))
+                .andExpect(content().string(containsString("data-transfer-confirm")))
                 .andExpect(content().string(containsString("name=\"taskIds\"")))
-                .andExpect(content().string(containsString("type=\"radio\" name=\"recipientId\"")))
+                .andExpect(content().string(containsString("name=\"sourceMembershipId\" value=\"12\"")))
+                .andExpect(content().string(containsString("type=\"radio\" name=\"recipientMembershipId\"")))
                 .andExpect(content().string(containsString("Project History")))
                 .andExpect(content().string(containsString("Completed Task")))
                 .andExpect(content().string(containsString("Admin setting History")))
@@ -60,7 +62,7 @@ class Iteration2WorkflowFragmentsWebTest {
                 .andExpect(content().string(containsString("Exit readiness")))
                 .andExpect(content().string(not(containsString("data-drawer-open=\"transfer-drawer\""))))
                 .andExpect(content().string(not(containsString("name=\"taskIds\""))))
-                .andExpect(content().string(not(containsString("name=\"recipientId\""))));
+                .andExpect(content().string(not(containsString("name=\"recipientMembershipId\""))));
     }
 
     @Controller
@@ -97,7 +99,7 @@ class Iteration2WorkflowFragmentsWebTest {
 
     record TransferTask(long id, String title, String status) {}
 
-    record TransferRecipient(long id, String displayName) {}
+    record TransferRecipient(long membershipId, String displayName) {}
 
     record HistoryEvent(String type, String occurredAt, String actorName,
                         String summary, String attribution) {}

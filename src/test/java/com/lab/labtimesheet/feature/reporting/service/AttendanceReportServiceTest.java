@@ -11,16 +11,21 @@ import com.lab.labtimesheet.feature.account.model.dto.AccountIdentity;
 import com.lab.labtimesheet.feature.account.model.dto.EligibleInternOption;
 import com.lab.labtimesheet.feature.account.service.AccountService;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
-import com.lab.labtimesheet.feature.attendance.model.AttendancePolicyFixtures;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceRole;
-import com.lab.labtimesheet.feature.attendance.model.AttendanceViolations;
-import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceHistoryItem;
+import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceReport;
+import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceReportClassification;
+import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceReportDay;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceApplicationService;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceCurrentUserService;
+import com.lab.labtimesheet.feature.attendance.service.AttendanceReportQueryService;
+import java.math.BigDecimal;
 import java.security.Principal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -29,48 +34,67 @@ class AttendanceReportServiceTest {
 
     private final AttendanceCurrentUserService currentUsers = mock(AttendanceCurrentUserService.class);
     private final AttendanceApplicationService attendance = mock(AttendanceApplicationService.class);
+    private final AttendanceReportQueryService reportQueries = mock(AttendanceReportQueryService.class);
     private final AccountService accounts = mock(AccountService.class);
     private final Principal principal = () -> "intern@example.test";
     private AttendanceReportService reports;
 
     @BeforeEach
     void setUp() {
-        reports = new AttendanceReportService(currentUsers, attendance, accounts);
+        reports = new AttendanceReportService(currentUsers, attendance, reportQueries, accounts);
     }
 
     @Test
-    void computesComplianceAndExplicitNaForMissingCheckoutAndEmptyRows() {
-        given(currentUsers.actor(principal)).willReturn(new AttendanceActor(7L, AttendanceRole.INTERN));
+    void usesAttendanceOwnedClassificationAndExactAggregateFormulas() {
+        AttendanceActor actor = new AttendanceActor(7L, AttendanceRole.INTERN);
+        given(currentUsers.actor(principal)).willReturn(actor);
         given(attendance.currentBusinessDate()).willReturn(LocalDate.of(2026, 8, 31));
         given(accounts.requireIdentityById(7L))
                 .willReturn(identity(7L, "Mai Intern", GlobalRole.INTERN));
-        given(attendance.history(
-                new AttendanceActor(7L, AttendanceRole.INTERN),
+        given(reportQueries.query(
+                actor,
                 7L,
                 LocalDate.of(2026, 8, 1),
                 LocalDate.of(2026, 8, 31)))
-                .willReturn(List.of(
-                        new AttendanceHistoryItem(
-                                LocalDate.of(2026, 8, 14),
-                                Instant.parse("2026-08-14T02:05:00Z"),
-                                Instant.parse("2026-08-14T09:00:00Z"),
-                                AttendancePolicyFixtures.seeded(1L),
-                                new AttendanceViolations(false, false, false)),
-                        new AttendanceHistoryItem(
-                                LocalDate.of(2026, 8, 13),
-                                Instant.parse("2026-08-13T01:30:00Z"),
-                                null,
-                                AttendancePolicyFixtures.seeded(1L),
-                                new AttendanceViolations(true, false, true))));
+                .willReturn(new AttendanceReport(
+                        7L,
+                        LocalDate.of(2026, 8, 1),
+                        LocalDate.of(2026, 8, 31),
+                        List.of(
+                                reportDay(
+                                        LocalDate.of(2026, 8, 13),
+                                        AttendanceReportClassification.PRESENT,
+                                        Instant.parse("2026-08-13T01:30:00Z"),
+                                        null,
+                                        true,
+                                        false,
+                                        true,
+                                        Optional.of(new BigDecimal("0.6667"))),
+                                reportDay(
+                                        LocalDate.of(2026, 8, 14),
+                                        AttendanceReportClassification.ABSENT,
+                                        null,
+                                        null,
+                                        false,
+                                        false,
+                                        false,
+                                        Optional.of(BigDecimal.ZERO))),
+                        1,
+                        2,
+                        Optional.of(new BigDecimal("50.00")),
+                        Optional.of(new BigDecimal("33.34"))));
 
         var view = reports.build(principal, null, null, null);
 
-        assertThat(view.recordedDays()).isEqualTo(2);
-        assertThat(view.compliantDays()).isEqualTo(1);
-        assertThat(view.violationDays()).isEqualTo(1);
-        assertThat(view.complianceRate()).isEqualTo("50.0%");
-        assertThat(view.rows().get(1).workedMinutes()).isEqualTo("N/A");
-        assertThat(view.rows().get(1).result()).isEqualTo("Late, Missing checkout");
+        assertThat(view.expectedWorkdays()).isEqualTo(2);
+        assertThat(view.presentWorkdays()).isEqualTo(1);
+        assertThat(view.absentWorkdays()).isEqualTo(1);
+        assertThat(view.attendanceRate()).isEqualTo("50.00%");
+        assertThat(view.complianceRate()).isEqualTo("33.34%");
+        assertThat(view.rows().getFirst().result()).isEqualTo("Present · Late, Missing checkout");
+        assertThat(view.rows().getFirst().workedMinutes()).isEqualTo("N/A");
+        assertThat(view.trend()).extracting(point -> point.value())
+                .containsExactly("66.67%", "0.00%");
     }
 
     @Test
@@ -108,5 +132,34 @@ class AttendanceReportServiceTest {
     private static AccountIdentity identity(long id, String name, GlobalRole role) {
         return new AccountIdentity(id, name.toLowerCase().replace(' ', '.') + "@example.test", name, role,
                 AccountStatus.ACTIVE);
+    }
+
+    private static AttendanceReportDay reportDay(
+            LocalDate date,
+            AttendanceReportClassification classification,
+            Instant checkIn,
+            Instant checkout,
+            boolean late,
+            boolean early,
+            boolean missing,
+            Optional<BigDecimal> score) {
+        return new AttendanceReportDay(
+                date,
+                classification,
+                1L,
+                LocalDate.of(2026, 1, 1),
+                ZoneId.of("Asia/Ho_Chi_Minh"),
+                LocalTime.of(8, 30),
+                LocalTime.of(15, 30),
+                5,
+                5,
+                new BigDecimal("0.3333"),
+                checkIn,
+                null,
+                checkout,
+                late,
+                early,
+                missing,
+                score);
     }
 }

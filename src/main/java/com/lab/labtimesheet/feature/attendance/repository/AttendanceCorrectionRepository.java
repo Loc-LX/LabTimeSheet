@@ -2,6 +2,7 @@ package com.lab.labtimesheet.feature.attendance.repository;
 
 import com.lab.labtimesheet.feature.attendance.model.entity.AttendanceCorrectionEntity;
 import com.lab.labtimesheet.feature.attendance.model.entity.AttendanceRecordEntity;
+import com.lab.labtimesheet.feature.attendance.model.dto.CorrectionSummary;
 import jakarta.persistence.LockModeType;
 import java.time.Instant;
 import java.util.Collection;
@@ -15,6 +16,36 @@ import org.springframework.data.repository.query.Param;
 
 /** Spring Data persistence boundary for missed-checkout correction state. */
 public interface AttendanceCorrectionRepository extends JpaRepository<AttendanceCorrectionEntity, Long> {
+
+    /**
+     * Lists correction rows visible to one owning Intern without hydrating foreign state.
+     *
+     * @param internUserId owning Intern account
+     * @return newest-first correction summaries
+     */
+    @Query("""
+            select new com.lab.labtimesheet.feature.attendance.model.dto.CorrectionSummary(
+                    correction.id, correction.attendanceRecordId, record.internUserId,
+                    correction.requestedCheckoutAt, correction.reason, correction.status,
+                    correction.submittedAt, correction.decisionDeadline)
+            from AttendanceCorrectionEntity correction, AttendanceRecordEntity record
+            where correction.attendanceRecordId = record.id
+              and record.internUserId = :internUserId
+            order by correction.submittedAt desc, correction.id desc
+            """)
+    List<CorrectionSummary> findSummariesByInternUserId(@Param("internUserId") long internUserId);
+
+    /** @return newest-first correction summaries for an active global Mentor */
+    @Query("""
+            select new com.lab.labtimesheet.feature.attendance.model.dto.CorrectionSummary(
+                    correction.id, correction.attendanceRecordId, record.internUserId,
+                    correction.requestedCheckoutAt, correction.reason, correction.status,
+                    correction.submittedAt, correction.decisionDeadline)
+            from AttendanceCorrectionEntity correction, AttendanceRecordEntity record
+            where correction.attendanceRecordId = record.id
+            order by correction.submittedAt desc, correction.id desc
+            """)
+    List<CorrectionSummary> findAllSummaries();
 
     /** Scalar Intern route used to lock Account rows before locking one correction row. */
     @Query("""

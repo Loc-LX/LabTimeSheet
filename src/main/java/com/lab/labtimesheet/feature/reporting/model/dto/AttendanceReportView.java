@@ -7,8 +7,8 @@ import java.util.List;
 /**
  * Authorized attendance/compliance dataset consumed by the server-rendered report page.
  *
- * <p>The Reporting feature owns only presentation aggregation. Attendance authorization, attached
- * historical policy values, and violation classification remain in the Attendance service.</p>
+ * <p>The Reporting feature owns only presentation formatting. Attendance authorization, attached
+ * historical policy values, classifications, and aggregate formulas remain in Attendance.</p>
  *
  * @param targetInternId authorized target Intern account identifier
  * @param targetName target display name
@@ -16,10 +16,11 @@ import java.util.List;
  * @param to inclusive local-date filter
  * @param ownScope true when the authenticated Intern is viewing only their own rows
  * @param rows render-ready historical attendance rows
- * @param recordedDays number of returned rows
- * @param compliantDays rows with no violation
- * @param violationDays rows with one or more violations
- * @param complianceRate formatted percentage, or {@code N/A} when no rows exist
+ * @param expectedWorkdays expected-day denominator after leave and day-off exclusion
+ * @param presentWorkdays expected days with an attendance row
+ * @param absentWorkdays expected days without an attendance row
+ * @param attendanceRate formatted present/expected percentage, or {@code N/A}
+ * @param complianceRate formatted historical-policy score percentage, or {@code N/A}
  * @param targetOptions authorized target choices for Mentor/Admin detail scope
  * @param trend equivalent data points for the optional chart enhancement
  */
@@ -30,9 +31,10 @@ public record AttendanceReportView(
         LocalDate to,
         boolean ownScope,
         List<AttendanceReportRow> rows,
-        long recordedDays,
-        long compliantDays,
-        long violationDays,
+        long expectedWorkdays,
+        long presentWorkdays,
+        long absentWorkdays,
+        String attendanceRate,
         String complianceRate,
         List<EligibleInternOption> targetOptions,
         List<ReportTrendPoint> trend) {

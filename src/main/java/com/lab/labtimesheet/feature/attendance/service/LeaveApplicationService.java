@@ -13,6 +13,7 @@ import com.lab.labtimesheet.feature.attendance.model.AttendanceRole;
 import com.lab.labtimesheet.feature.attendance.model.LeaveStatus;
 import com.lab.labtimesheet.feature.attendance.model.dto.LeaveAllocation;
 import com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestCommand;
+import com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestSummary;
 import com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestView;
 import com.lab.labtimesheet.feature.attendance.model.entity.AttendancePolicyEntity;
 import com.lab.labtimesheet.feature.attendance.model.entity.LeaveRequestDayEntity;
@@ -69,6 +70,32 @@ public class LeaveApplicationService {
     private final NotificationService notifications;
 
     /**
+     * Lists retained leave requests visible to the authenticated Attendance actor.
+     *
+     * <p>Interns receive only their own rows. Active global Mentors and Admins receive the
+     * decision/read-only queue respectively; every mutation and detail read still repeats its
+     * locked authorization and deadline checks.</p>
+     *
+     * @param actor authenticated Attendance actor
+     * @return newest-first immutable request summaries
+     */
+    @Transactional(readOnly = true)
+    public List<LeaveRequestSummary> list(AttendanceActor actor) {
+        AccountIdentity identity = requireListActor(actor);
+        if (identity.status() != AccountStatus.ACTIVE) {
+            throw new AccessDeniedException("An active account is required");
+        }
+        List<LeaveRequestEntity> visible = actor.role() == AttendanceRole.INTERN
+                ? requests.findByInternUserIdOrderBySubmittedAtDescIdDesc(actor.userId())
+                : requests.findAllByOrderBySubmittedAtDescIdDesc();
+        return visible.stream()
+                .map(request -> new LeaveRequestSummary(
+                        request.id(), request.internUserId(), request.startDate(), request.endDate(),
+                        request.reason(), request.status(), request.submittedAt()))
+                .toList();
+    }
+
+    /**
      * Submits one full-day inclusive request and materializes eligible workdays with policy/quota snapshots.
      * The account and Intern profile are pessimistically locked through the allocation and quota writes, while the
      * requested dates are checked against the account service's inclusive lifecycle window.
@@ -122,6 +149,20 @@ public class LeaveApplicationService {
         } catch (DataIntegrityViolationException conflict) {
             throw new LeaveException("Leave overlaps an existing active request", conflict);
         }
+    }
+
+    private AccountIdentity requireListActor(AttendanceActor actor) {
+        if (actor == null) {
+            throw new AccessDeniedException("An attendance actor is required");
+        }
+        AccountIdentity identity = accounts.requireIdentityById(actor.userId());
+        if (!identity.role().name().equals(actor.role().name())
+                || actor.role() != AttendanceRole.INTERN
+                && actor.role() != AttendanceRole.MENTOR
+                && actor.role() != AttendanceRole.ADMIN) {
+            throw new AccessDeniedException("Leave request list is outside the requested scope");
+        }
+        return identity;
     }
 
     /**

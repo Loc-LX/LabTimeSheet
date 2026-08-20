@@ -2,34 +2,41 @@
 
 - **Test type:** Web
 - **Requirement IDs:** `I2-UI-03`, `RPT-001`, `RPT-002`, `RPT-003`, `RPT-004`
-- **Scenario IDs:** `AC-RPT-001`, `AC-RPT-002`, `AC-RPT-003`
-- **Test class/method:** `com.lab.labtimesheet.feature.reporting.controller.AttendanceReportControllerWebTest#rendersAttendanceReportForAnAuthenticatedIntern`
-- **Implementation commit:** `5308e913dc10248ec4482fa8c85beb3f59934d89`
+- **Scenario IDs:** `AC-ATT-006`, `AC-ATT-007`, `AC-RPT-001`, `AC-RPT-002`, `AC-UI-004`
+- **Test class/method:** `AttendanceReportControllerWebTest#rendersAttendanceReportForAnAuthenticatedIntern`, `#exposesFiltersSummaryNaaAndEquivalentTrendDataInTheRenderedDataset`
+- **Implementation commit:** `pending local independent review`
 
 ## Protected behavior
 
-An authenticated Intern can render the server-side attendance/compliance report route with inclusive date filters. The Reporting controller delegates target authorization and dataset construction to the public Attendance service boundary.
+An authenticated actor can render the authorized Attendance-owned report with inclusive date filters, exact expected,
+present, absent, attendance-rate, and compliance-rate summaries, explicit `N/A`, and an adjacent accessible trend
+table carrying the same values used by optional Chart.js enhancement.
 
 ## Test method
 
-The MVC slice supplies an authenticated Intern and a mocked Reporting dataset service, then verifies the route and view contract. The test does not mock Attendance persistence or bypass authorization because those decisions remain owned by the Attendance service.
+The MVC slice supplies a producer-shaped `AttendanceReportView`, invokes the real controller and Thymeleaf template,
+and verifies the date filters, summary metrics, classification rows, `N/A`, accessible chart label, and equivalent
+trend data. The controller delegates scope and dataset construction to `AttendanceReportService`.
 
 ## Hand-derived expected result
 
-The request preserves `2026-08-01` through `2026-08-31` as inclusive local-date filters and renders `reports/attendance`.
+The selected inclusive range remains `2026-08-01` through `2026-08-31`; the rendered dataset exposes the supplied
+expected/present/absent counts and rates unchanged, and the accessible table remains present if canvas or JavaScript
+is unavailable.
 
 ## RED
 
 **Command**
 
 ```text
-./mvnw '-Dtest=AttendanceReportControllerWebTest' test
+env JAVA_HOME=/opt/homebrew/opt/openjdk@25 PATH=/opt/homebrew/opt/openjdk@25/bin:/usr/bin:/bin ./mvnw '-DargLine=-javaagent:/Users/sechmachine/.m2/repository/net/bytebuddy/byte-buddy-agent/1.18.10/byte-buddy-agent-1.18.10.jar' '-Dtest=AttendanceReportControllerWebTest,AttendanceReportServiceTest' test
 ```
 
 **Observed result**
 
 ```text
-Compilation failed because the Iteration 2 Reporting attendance controller/service contract did not yet exist on the baseline.
+Test compilation failed because the merged producer introduced the richer expected/present/absent and dual-rate
+contract while the Reporting view/template still used recorded/compliant/violation totals.
 ```
 
 ## GREEN
@@ -37,13 +44,13 @@ Compilation failed because the Iteration 2 Reporting attendance controller/servi
 **Command**
 
 ```text
-./mvnw '-Dtest=AttendanceReportControllerWebTest,AttendanceReportServiceTest' test
+env JAVA_HOME=/opt/homebrew/opt/openjdk@25 PATH=/opt/homebrew/opt/openjdk@25/bin:/usr/bin:/bin ./mvnw '-DargLine=-javaagent:/Users/sechmachine/.m2/repository/net/bytebuddy/byte-buddy-agent/1.18.10/byte-buddy-agent-1.18.10.jar' '-Dtest=AttendanceReportControllerWebTest,AttendanceReportServiceTest' test
 ```
 
 **Observed result**
 
 ```text
-`Tests run: 4, Failures: 0, Errors: 0, Skipped: 0`; `BUILD SUCCESS` on Java 25.
+Java 25.0.4; Tests run: 5, Failures: 0, Errors: 0, Skipped: 0; BUILD SUCCESS.
 ```
 
 ## Affected suite
@@ -51,11 +58,11 @@ Compilation failed because the Iteration 2 Reporting attendance controller/servi
 **Command and result**
 
 ```text
-./mvnw '-Dtest=*Reporting*Test,*Dashboard*Test,*Template*Test,*Shell*Test,*Accessibility*Test,*UiContractWebTest,*AttendanceReport*Test,*ProjectTaskReport*Test' test
-
-`Tests run: 60, Failures: 0, Errors: 0, Skipped: 0`; `BUILD SUCCESS` on Java 25 with PostgreSQL 18.4 Testcontainers.
+All 19 `@WebMvcTest` slices were selected explicitly with Java 25.0.4.
+Tests run: 100, Failures: 0, Errors: 0, Skipped: 0; BUILD SUCCESS.
 ```
 
 ## External-test boundaries
 
-This slice does not prove PostgreSQL attendance rows, producer authorization, formula calculations, browser keyboard behavior, or Chart.js runtime enhancement. Those require the affected integration and browser/E2E checks after the producer API is frozen.
+This slice does not prove the producer's PostgreSQL formulas, target authorization, browser focus/contrast, or export
+parity. PostgreSQL producer tests and the local Chart.js contract cover their own boundaries; XLSX/PDF are Iteration 3.

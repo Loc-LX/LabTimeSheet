@@ -14,6 +14,12 @@ import org.springframework.data.repository.query.Param;
 /** Spring Data persistence boundary for full-day leave request state. */
 public interface LeaveRequestRepository extends JpaRepository<LeaveRequestEntity, Long> {
 
+    /** @return one Intern's retained requests, newest first */
+    List<LeaveRequestEntity> findByInternUserIdOrderBySubmittedAtDescIdDesc(long internUserId);
+
+    /** @return retained requests for broad authorized readers, newest first */
+    List<LeaveRequestEntity> findAllByOrderBySubmittedAtDescIdDesc();
+
     /** Scalar owner route used to lock Account rows before locking the leave request row. */
     @Query("select request.internUserId from LeaveRequestEntity request where request.id = :id")
     Optional<Long> findInternUserIdById(@Param("id") long id);

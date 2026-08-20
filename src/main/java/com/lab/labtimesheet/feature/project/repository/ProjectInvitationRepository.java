@@ -135,6 +135,16 @@ public interface ProjectInvitationRepository extends JpaRepository<ProjectInvita
     List<ProjectInvitationEntity> findByProject_IdOrderByCreatedAtAscIdAsc(long projectId);
 
     /**
+     * Lists only actionable invitations addressed to one Intern, newest first.
+     *
+     * @param invitedInternUserId authenticated target Intern
+     * @param status invitation state, normally pending
+     * @return addressed invitation rows in stable newest-first order
+     */
+    List<ProjectInvitationEntity> findByInvitedInternUserIdAndStatusOrderByCreatedAtDescIdDesc(
+            long invitedInternUserId, InvitationStatus status);
+
+    /**
      * Locks all pending invitations for Project completion.
      *
      * @param projectId Project identifier

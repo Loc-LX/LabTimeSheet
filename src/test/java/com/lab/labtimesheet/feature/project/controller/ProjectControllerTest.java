@@ -24,6 +24,7 @@ import com.lab.labtimesheet.feature.account.service.AccountService;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectCreateCommand;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectActorView;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectDetail;
+import com.lab.labtimesheet.feature.project.model.dto.ProjectExitReadinessView;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectSummary;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectLeadershipTermView;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectMemberView;
@@ -356,11 +357,15 @@ class ProjectControllerTest {
                 "Mentor",
                 "Leader",
                 true));
+        when(pages.exitReadiness(10L, 30L)).thenReturn(List.of(
+                new ProjectExitReadinessView(70L, 40L, false, 2L, false)));
 
         mvc.perform(get("/projects/30"))
                 .andExpect(status().isOk())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
-                        .string(containsString(">Activate<")));
+                        .string(containsString(">Activate<")))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(containsString("2 unfinished Tasks remain")));
 
         when(pages.detail(10L, 30L)).thenReturn(new ProjectDetail(
                 30L,

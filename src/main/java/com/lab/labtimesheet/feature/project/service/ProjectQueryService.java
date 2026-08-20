@@ -14,6 +14,7 @@ import com.lab.labtimesheet.feature.project.model.dto.ProjectInvitationHistoryVi
 import com.lab.labtimesheet.feature.project.model.dto.ProjectLeadershipTermView;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectMemberView;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectMembershipIntervalView;
+import com.lab.labtimesheet.feature.project.model.dto.PendingProjectInvitationView;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectSummary;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectTaskContext;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectTaskMemberView;
@@ -165,6 +166,39 @@ public class ProjectQueryService {
             throw new ProjectAccessDeniedException();
         }
         return projects.findMembershipIntervalsByInternUserId(actorUserId);
+    }
+
+    /**
+     * Lists pending invitations addressed to the exact authenticated Intern.
+     *
+     * <p>This route does not require existing Project visibility because an invitee is not yet a
+     * member. Active-Intern authorization occurs before reading addressed rows; response mutations
+     * repeat target, Project, term, eligibility, and pending-state checks under lock.</p>
+     *
+     * @param actorUserId authenticated active Intern account
+     * @return newest-first actionable invitations addressed to that Intern
+     * @throws ProjectAccessDeniedException when the actor is inactive or not an Intern
+     */
+    @Transactional(readOnly = true)
+    public List<PendingProjectInvitationView> pendingInvitations(long actorUserId) {
+        var actor = activeActor(actorUserId);
+        if (!"INTERN".equals(actor.role().name())) {
+            throw new ProjectAccessDeniedException();
+        }
+        return invitations.findByInvitedInternUserIdAndStatusOrderByCreatedAtDescIdDesc(
+                        actorUserId, com.lab.labtimesheet.feature.project.model.InvitationStatus.PENDING)
+                .stream()
+                .map(invitation -> {
+                    var project = projects.findById(invitation.projectId())
+                            .orElseThrow(ProjectAccessDeniedException::new);
+                    return new PendingProjectInvitationView(
+                            invitation.id(),
+                            project.id(),
+                            project.name(),
+                            displayName(invitation.issuingLeadershipTerm().internUserId()),
+                            invitation.createdAt());
+                })
+                .toList();
     }
 
     /**
