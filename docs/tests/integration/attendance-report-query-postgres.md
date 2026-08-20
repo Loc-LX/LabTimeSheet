@@ -4,7 +4,7 @@
 - **Requirement IDs:** `RPT-002`, `RPT-004`, `ATT-013`, `ATT-014`, `ATT-015`, `ATT-016`, `ATT-017`
 - **Scenario IDs:** `I2-UI-ATT-01 report precedence`, `AC-ATT-006`, `AC-ATT-007`, `AC-RPT-002`
 - **Test class/method:** `com.lab.labtimesheet.feature.attendance.service.AttendancePersistenceIntegrationTest#attendanceReportUsesClassificationPrecedenceAndApprovedEffectiveCheckout`; `#attendanceReportMatchesAcAtt006DenominatorAndHistoricalPenalty`; `#attendanceReportUsesExplicitNaForZeroExpectedWorkdays`; `#attendanceReportEnforcesOwnInternScopeAndAllowsActiveMentorAndAdmin`; `#attendanceReportPreservesFourDecimalPenaltyBeforeFinalRounding`; `#attendanceReportNormalizesTargetGuessesAcrossActorScopes`
-- **Implementation commit:** `pending local green milestone`
+- **Implementation commit:** `2fbbf0e84d9a0dab4ebd046e9f99432baa506c53`
 
 ## Protected behavior
 
@@ -184,5 +184,5 @@ This evidence proves the Attendance-owned query/DTO boundary and PostgreSQL pers
 HTML rendering, XLSX/PDF export, browser journeys, or a generic report framework. It deliberately does not claim
 I3 terminal-internship or later historical lifecycle hardening; the query uses the existing AccountService
 date-specific active internship eligibility boundary. It does not invoke HolidayAPI, SMTP, notification persistence,
-or any foreign Account/Reports/UI repository/entity. The report projection is intentionally uncommitted and has no
-new schema, migration, dependency, configuration, or Platform change.
+or any foreign Account/Reports/UI repository/entity. The report projection adds no schema, migration, dependency,
+configuration, or Platform change.
