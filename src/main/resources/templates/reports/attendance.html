@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{fragments/layout :: shell(
+          pageTitle='Attendance report',
+          section='Reports',
+          activeNav='reports',
+          primaryAction=~{::#primary-action},
+          content=~{::main})}">
+<body>
+<a id="primary-action" class="button" th:href="@{/dashboard}">Back to overview</a>
+<main>
+    <p class="page-description">Review classified workdays, attendance rate, and daily compliance for the selected period.</p>
+
+    <form class="panel form-panel filter-form" method="get">
+        <input type="hidden" name="internId" th:value="${targetInternId}" th:unless="${ownReport}">
+        <div class="field"><label class="field-label" for="from">From</label><input class="control" id="from" name="from" type="date" th:value="${from}"></div>
+        <div class="field"><label class="field-label" for="to">To</label><input class="control" id="to" name="to" type="date" th:value="${to}"></div>
+        <button class="button" type="submit">Filter</button>
+    </form>
+
+    <section class="panel">
+        <header class="panel-header"><h2 class="panel-title">Period summary</h2></header>
+        <div class="metrics">
+            <div class="metric"><div class="metric-label">Expected workdays</div><div class="metric-value" th:text="${summary.expectedWorkdays}">0</div></div>
+            <div class="metric"><div class="metric-label">Leave days</div><div class="metric-value" th:text="${summary.leaveDays}">0</div></div>
+            <div class="metric"><div class="metric-label">Present days</div><div class="metric-value" th:text="${summary.presentDays}">0</div></div>
+            <div class="metric"><div class="metric-label">Absent days</div><div class="metric-value" th:text="${summary.absentDays}">0</div></div>
+            <div class="metric"><div class="metric-label">Attendance rate</div><div class="metric-value"><span th:if="${summary.attendanceRate.present}" th:text="${#numbers.formatPercent(summary.attendanceRate.get(), 2, 2)}">0%</span><span th:unless="${summary.attendanceRate.present}">N/A</span></div></div>
+            <div class="metric"><div class="metric-label">Compliance</div><div class="metric-value"><span th:if="${summary.periodCompliance.present}" th:text="${#numbers.formatPercent(summary.periodCompliance.get(), 2, 2)}">0%</span><span th:unless="${summary.periodCompliance.present}">N/A</span></div></div>
+        </div>
+    </section>
+
+    <section class="panel" th:if="${chartJson != null}">
+        <header class="panel-header"><h2 class="panel-title">Daily compliance</h2></header>
+        <div class="chart"><canvas role="img" aria-label="Daily compliance scores" th:attr="data-chart=${chartJson}"></canvas></div>
+    </section>
+
+    <section class="panel" th:if="${#lists.isEmpty(days)}"><th:block th:replace="~{fragments/components :: empty('No classified days in this period', 'Choose another date range.')}"></th:block></section>
+    <div class="panel table-scroll" th:unless="${#lists.isEmpty(days)}"><table class="data-table">
+        <caption>Classified workdays and daily compliance</caption>
+        <thead>
+        <tr>
+            <th scope="col">Date</th>
+            <th scope="col">Kind</th>
+            <th scope="col">Schedule</th>
+            <th scope="col">Violations</th>
+            <th scope="col">Daily score</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="item : ${days}">
+            <td th:text="${#temporals.format(item.date, 'dd/MM/yyyy')}"></td>
+            <td th:text="${item.kind}"></td>
+            <td th:text="|${item.policy.scheduledStart}–${item.policy.scheduledEnd} (${item.policy.zoneId})|"></td>
+            <td><span th:if="${item.violations.late}" class="badge badge-warning">Late</span><span th:if="${item.violations.earlyDeparture}" class="badge badge-warning">Early departure</span><span th:if="${item.violations.missingCheckout}" class="badge badge-warning">Missing checkout</span><span th:if="${!item.violations.late and !item.violations.earlyDeparture and !item.violations.missingCheckout}">None</span></td>
+            <td><span th:if="${item.kind.name() == 'WORKDAY_PRESENT'}" th:text="${#numbers.formatPercent(dailyScores[item.date], 2, 2)}">0%</span><span th:unless="${item.kind.name() == 'WORKDAY_PRESENT'}">—</span></td>
+        </tr>
+        </tbody>
+    </table></div>
+</main>
+</body>
+</html>
