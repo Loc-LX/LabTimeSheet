@@ -14,6 +14,32 @@ import org.springframework.data.repository.query.Param;
 /** Spring Data persistence boundary for full-day leave request state. */
 public interface LeaveRequestRepository extends JpaRepository<LeaveRequestEntity, Long> {
 
+    /** Scalar owner route used to lock Account rows before locking the leave request row. */
+    @Query("select request.internUserId from LeaveRequestEntity request where request.id = :id")
+    Optional<Long> findInternUserIdById(@Param("id") long id);
+
+    /** Bounded scalar scheduler route; no leave entity is hydrated before Account locks are held. */
+    @Query("""
+            select request.id as requestId, request.internUserId as internUserId
+            from LeaveRequestEntity request
+            where request.status = :status
+              and request.firstCountedStartAt <= :boundary
+            order by request.id asc
+            """)
+    List<ExpiredRecipientRoute> findExpiredRecipientRoutes(
+            @Param("status") String status,
+            @Param("boundary") java.time.Instant boundary,
+            Pageable pageable);
+
+    /** Immutable scalar owner route for one bounded leave-expiry candidate. */
+    interface ExpiredRecipientRoute {
+        /** @return leave request identifier */
+        long getRequestId();
+
+        /** @return owning Intern account identifier */
+        long getInternUserId();
+    }
+
     /**
      * Locks one request for an atomic decision, edit, cancellation, or deadline transition.
      *

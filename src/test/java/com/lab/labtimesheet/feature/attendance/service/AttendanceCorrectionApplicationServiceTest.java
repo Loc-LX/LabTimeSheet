@@ -9,6 +9,11 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.lab.labtimesheet.feature.account.service.AccountService;
+import com.lab.labtimesheet.feature.account.model.AccountStatus;
+import com.lab.labtimesheet.feature.account.model.GlobalRole;
+import com.lab.labtimesheet.feature.account.model.dto.AccountIdentity;
+import com.lab.labtimesheet.feature.account.model.dto.LockedAccountMutationEligibility;
+import com.lab.labtimesheet.feature.account.model.InternshipStatus;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceRole;
 import com.lab.labtimesheet.feature.attendance.model.AttendancePolicyFixtures;
@@ -20,6 +25,7 @@ import com.lab.labtimesheet.feature.attendance.model.entity.AttendanceRecordEnti
 import com.lab.labtimesheet.feature.attendance.repository.AttendanceCorrectionEventRepository;
 import com.lab.labtimesheet.feature.attendance.repository.AttendanceCorrectionRepository;
 import com.lab.labtimesheet.feature.attendance.repository.AttendanceRecordRepository;
+import com.lab.labtimesheet.feature.notification.service.NotificationService;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -28,6 +34,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.springframework.data.domain.Pageable;
 import org.junit.jupiter.api.Test;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -42,7 +49,8 @@ class AttendanceCorrectionApplicationServiceTest {
                 mock(AttendanceCorrectionRepository.class),
                 mock(AttendanceCorrectionEventRepository.class),
                 mock(AccountService.class),
-                mock(TransactionTemplate.class));
+                mock(TransactionTemplate.class),
+                mock(NotificationService.class));
 
         assertThatThrownBy(() -> service.submit(
                         new AttendanceActor(42L, AttendanceRole.INTERN),
@@ -60,27 +68,55 @@ class AttendanceCorrectionApplicationServiceTest {
         when(clock.instant()).thenAnswer(invocation -> now.get());
 
         AttendanceCorrectionRepository corrections = mock(AttendanceCorrectionRepository.class);
-        AttendanceCorrectionEntity candidate = mock(AttendanceCorrectionEntity.class);
+        AttendanceRecordRepository records = mock(AttendanceRecordRepository.class);
+        AttendanceCorrectionRepository.ExpiredRecipientRoute candidate =
+                mock(AttendanceCorrectionRepository.ExpiredRecipientRoute.class);
         AttendanceCorrectionEntity locked = mock(AttendanceCorrectionEntity.class);
-        when(candidate.id()).thenReturn(11L);
+        when(candidate.getCorrectionId()).thenReturn(11L);
+        when(candidate.getAttendanceRecordId()).thenReturn(42L);
+        when(candidate.getInternUserId()).thenReturn(42L);
         when(locked.id()).thenReturn(11L);
         when(locked.status()).thenReturn(CorrectionStatus.PENDING);
         when(locked.lockedAt()).thenReturn(null);
         when(locked.decisionDeadline()).thenReturn(afterLock);
-        when(corrections.findExpiredUnlocked(eq(beforeLock), any(Pageable.class)))
+        when(corrections.findExpiredRecipientRoutes(eq(beforeLock), any(Pageable.class)))
                 .thenReturn(List.of(candidate));
         when(corrections.findForUpdateById(11L)).thenAnswer(invocation -> {
             now.set(afterLock);
             return Optional.of(locked);
         });
+        AttendanceRecordEntity attendance = mock(AttendanceRecordEntity.class);
+        when(attendance.toDomain()).thenReturn(new AttendanceRecord(
+                42L,
+                LocalDate.of(2026, 8, 15),
+                AttendancePolicyFixtures.seeded(1L),
+                Instant.parse("2026-08-15T02:00:00Z"),
+                null));
+        when(records.findById(42L)).thenReturn(Optional.of(attendance));
+        AccountService accounts = mock(AccountService.class);
+        AtomicBoolean accountLocked = new AtomicBoolean();
+        when(accounts.lockedAccountMutationEligibility(any())).thenAnswer(invocation -> {
+            accountLocked.set(true);
+            return List.of(new LockedAccountMutationEligibility(
+                    42L,
+                    GlobalRole.INTERN,
+                    AccountStatus.ACTIVE,
+                    java.util.Optional.of(InternshipStatus.ACTIVE)));
+        });
+        when(accounts.requireIdentityById(42L)).thenAnswer(invocation -> {
+            assertThat(accountLocked).as("recipient identity must be read after the Account lock").isTrue();
+            return new AccountIdentity(
+                    42L, "intern@example.test", "Intern", GlobalRole.INTERN, AccountStatus.ACTIVE);
+        });
 
         AttendanceCorrectionApplicationService service = new AttendanceCorrectionApplicationService(
                 clock,
-                mock(AttendanceRecordRepository.class),
+                records,
                 corrections,
                 mock(AttendanceCorrectionEventRepository.class),
-                mock(AccountService.class),
-                mock(TransactionTemplate.class));
+                accounts,
+                mock(TransactionTemplate.class),
+                mock(NotificationService.class));
 
         assertThat(service.expire(1)).isEqualTo(1);
     }
@@ -106,7 +142,8 @@ class AttendanceCorrectionApplicationServiceTest {
                 corrections,
                 mock(AttendanceCorrectionEventRepository.class),
                 mock(AccountService.class),
-                mock(TransactionTemplate.class));
+                mock(TransactionTemplate.class),
+                mock(NotificationService.class));
 
         assertThat(service.prepareHistory(List.of(first, second)))
                 .containsEntry(101L, null)

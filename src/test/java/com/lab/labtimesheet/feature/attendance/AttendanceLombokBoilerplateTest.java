@@ -46,6 +46,7 @@ import com.lab.labtimesheet.feature.attendance.service.AttendancePolicyApplicati
 import com.lab.labtimesheet.feature.attendance.service.LeaveApplicationService;
 import com.lab.labtimesheet.feature.integration.model.dto.HolidayApiPreview;
 import com.lab.labtimesheet.feature.integration.service.HolidayApiConfigurationService;
+import com.lab.labtimesheet.feature.notification.service.NotificationService;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
@@ -123,7 +124,8 @@ class AttendanceLombokBoilerplateTest {
                         LeaveRequestDayRepository.class,
                         AccountService.class,
                         CalendarApplicationService.class,
-                        TransactionTemplate.class));
+                        TransactionTemplate.class,
+                        NotificationService.class));
         assertConstructors(
                 AttendanceCorrectionApplicationService.class,
                 constructor(
@@ -133,7 +135,8 @@ class AttendanceLombokBoilerplateTest {
                         AttendanceCorrectionRepository.class,
                         AttendanceCorrectionEventRepository.class,
                         AccountService.class,
-                        TransactionTemplate.class));
+                        TransactionTemplate.class,
+                        NotificationService.class));
         assertConstructors(
                 AttendanceDeadlineScheduler.class,
                 constructor(

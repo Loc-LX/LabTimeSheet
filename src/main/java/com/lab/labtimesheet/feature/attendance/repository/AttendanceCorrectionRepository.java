@@ -1,6 +1,7 @@
 package com.lab.labtimesheet.feature.attendance.repository;
 
 import com.lab.labtimesheet.feature.attendance.model.entity.AttendanceCorrectionEntity;
+import com.lab.labtimesheet.feature.attendance.model.entity.AttendanceRecordEntity;
 import jakarta.persistence.LockModeType;
 import java.time.Instant;
 import java.util.Collection;
@@ -14,6 +15,41 @@ import org.springframework.data.repository.query.Param;
 
 /** Spring Data persistence boundary for missed-checkout correction state. */
 public interface AttendanceCorrectionRepository extends JpaRepository<AttendanceCorrectionEntity, Long> {
+
+    /** Scalar Intern route used to lock Account rows before locking one correction row. */
+    @Query("""
+            select record.internUserId
+            from AttendanceCorrectionEntity correction, AttendanceRecordEntity record
+            where correction.attendanceRecordId = record.id
+              and correction.id = :id
+            """)
+    Optional<Long> findInternUserIdById(@Param("id") long id);
+
+    /** Bounded scalar scheduler route; no correction entity is hydrated before Account locks are held. */
+    @Query("""
+            select correction.id as correctionId,
+                   correction.attendanceRecordId as attendanceRecordId,
+                   record.internUserId as internUserId
+            from AttendanceCorrectionEntity correction, AttendanceRecordEntity record
+            where correction.attendanceRecordId = record.id
+              and correction.lockedAt is null
+              and correction.decisionDeadline <= :now
+            order by correction.id asc
+            """)
+    List<ExpiredRecipientRoute> findExpiredRecipientRoutes(
+            @Param("now") Instant now, Pageable pageable);
+
+    /** Immutable scalar route for one bounded correction-expiry candidate. */
+    interface ExpiredRecipientRoute {
+        /** @return correction identifier */
+        long getCorrectionId();
+
+        /** @return attached raw attendance identifier */
+        long getAttendanceRecordId();
+
+        /** @return owning Intern account identifier */
+        long getInternUserId();
+    }
 
     /**
      * Finds the sole correction attached to one attendance row.

@@ -2,8 +2,10 @@ package com.lab.labtimesheet.feature.attendance.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.reset;
 
 import com.lab.labtimesheet.feature.account.model.AccountStatus;
 import com.lab.labtimesheet.feature.account.model.GlobalRole;
@@ -48,8 +50,13 @@ import com.lab.labtimesheet.feature.integration.model.dto.HolidayApiPreviewStatu
 import com.lab.labtimesheet.feature.integration.model.dto.SmtpConnection;
 import com.lab.labtimesheet.feature.integration.model.dto.SmtpDraft;
 import com.lab.labtimesheet.feature.integration.service.HolidayApiConfigurationService;
+import com.lab.labtimesheet.feature.integration.service.MailDeliveryService;
 import com.lab.labtimesheet.feature.integration.service.SmtpConfigurationService;
 import com.lab.labtimesheet.feature.integration.service.SmtpProbe;
+import com.lab.labtimesheet.feature.notification.model.NotificationEmailStatus;
+import com.lab.labtimesheet.feature.notification.model.NotificationType;
+import com.lab.labtimesheet.feature.notification.model.entity.NotificationEntity;
+import com.lab.labtimesheet.feature.notification.repository.NotificationRepository;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -60,7 +67,9 @@ import java.time.LocalTime;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -84,6 +93,7 @@ import org.springframework.test.context.transaction.TestTransaction;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 import static com.lab.labtimesheet.feature.attendance.model.entity.LeaveEntityFixtures.allocatedDay;
@@ -122,11 +132,17 @@ class AttendancePersistenceIntegrationTest {
     @Autowired
     private RecordingSmtpProbe mail;
 
+    @MockitoSpyBean
+    private MailDeliveryService mailDelivery;
+
     @Autowired
     private AttendanceRecordRepository records;
 
     @Autowired
     private EntityManager entityManager;
+
+    @Autowired
+    private TransactionTemplate transactions;
 
     @Autowired
     private LeaveApplicationService leaves;
@@ -147,6 +163,9 @@ class AttendancePersistenceIntegrationTest {
     private AttendanceCorrectionEventRepository correctionEvents;
 
     @Autowired
+    private NotificationRepository notificationRows;
+
+    @Autowired
     private AttendancePolicyApplicationService policyApplication;
 
     @Autowired
@@ -164,11 +183,12 @@ class AttendancePersistenceIntegrationTest {
     private long internId;
     private long adminId;
     private long mentorId;
+    private int mentorSequence;
 
     private long createActiveMentor() {
         mail.clear();
         var creation = accounts.create(new CreateAccountCommand(
-                "mentor-" + internId + "@example.test",
+                "mentor-" + internId + "-" + (++mentorSequence) + "@example.test",
                 "Mentor",
                 GlobalRole.MENTOR,
                 null,
@@ -660,6 +680,267 @@ class AttendancePersistenceIntegrationTest {
         assertThat(leaveRequests.findById(afterStart.id()).orElseThrow().status())
                 .isEqualTo(LeaveStatus.APPROVED);
         assertThat(leaveDays.findByRequestIdOrderByLeaveDate(afterStart.id())).hasSize(1);
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
+    void leaveNotificationsUseGlobalMentorsForSubmissionAndInternForDecisionWithoutCancellation() {
+        AttendanceActor intern = new AttendanceActor(internId, AttendanceRole.INTERN);
+        long mentor = createActiveMentor();
+        createActiveMentor();
+        List<Long> activeMentorIds = accounts.activeGlobalMentorIdentities().stream()
+                .map(identity -> identity.id())
+                .toList();
+        assertThat(activeMentorIds).hasSize(2).doesNotHaveDuplicates();
+        doReturn(false).when(mailDelivery).isAvailable();
+
+        var submitted = leaves.submit(intern, new LeaveRequestCommand(
+                LocalDate.of(2026, 8, 17), LocalDate.of(2026, 8, 17), "notification leave"));
+        assertThat(leaveRequests.findById(submitted.id()).orElseThrow().status())
+                .isEqualTo(LeaveStatus.PENDING);
+
+        List<NotificationEntity> submissions = notificationRows.findAll().stream()
+                .filter(row -> row.getNotificationType() == NotificationType.LEAVE_SUBMITTED)
+                .toList();
+        assertThat(submissions)
+                .extracting(NotificationEntity::getRecipientUserId)
+                .containsExactlyInAnyOrderElementsOf(activeMentorIds)
+                .doesNotHaveDuplicates();
+        assertThat(submissions).allSatisfy(row ->
+                assertThat(row.getEmailStatus()).isEqualTo(NotificationEmailStatus.UNAVAILABLE));
+
+        leaves.approve(new AttendanceActor(mentor, AttendanceRole.MENTOR), submitted.id());
+        assertThat(notificationRows.findAll()).filteredOn(row -> row.getNotificationType() == NotificationType.LEAVE_DECIDED)
+                .singleElement()
+                .satisfies(row -> {
+                    assertThat(row.getRecipientUserId()).isEqualTo(internId);
+                    assertThat(row.getBody()).contains("APPROVED");
+                    assertThat(row.getActionUrl()).isEqualTo("/attendance");
+                    assertThat(row.getEmailStatus()).isEqualTo(NotificationEmailStatus.UNAVAILABLE);
+                });
+
+        int notificationsBeforeCancellation = notificationRows.findAll().size();
+        leaves.cancel(intern, submitted.id());
+        assertThat(notificationRows.findAll()).hasSize(notificationsBeforeCancellation);
+
+        var rejected = leaves.submit(intern, new LeaveRequestCommand(
+                LocalDate.of(2026, 8, 18), LocalDate.of(2026, 8, 18), "manual rejection notification"));
+        leaves.reject(new AttendanceActor(mentor, AttendanceRole.MENTOR), rejected.id());
+        assertThat(notificationRows.findAll())
+                .filteredOn(row -> row.getNotificationType() == NotificationType.LEAVE_DECIDED)
+                .filteredOn(row -> row.getBody().contains("REJECTED"))
+                .singleElement()
+                .satisfies(row -> {
+                    assertThat(row.getRecipientUserId()).isEqualTo(internId);
+                    assertThat(row.getActionUrl()).isEqualTo("/attendance");
+                    assertThat(row.getEmailStatus()).isEqualTo(NotificationEmailStatus.UNAVAILABLE);
+                });
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
+    void leaveRequestTimeAutoRejectionPublishesOnceThenSchedulerIsIdempotent() {
+        AttendanceActor intern = new AttendanceActor(internId, AttendanceRole.INTERN);
+        createActiveMentor();
+        doReturn(false).when(mailDelivery).isAvailable();
+        var submitted = leaves.submit(intern, new LeaveRequestCommand(
+                LocalDate.of(2026, 8, 17), LocalDate.of(2026, 8, 17), "auto reject notification"));
+
+        clock.set(submitted.firstCountedStartAt());
+        assertThat(leaves.view(intern, submitted.id()).status()).isEqualTo(LeaveStatus.REJECTED);
+        assertThat(leaves.expirePending(100)).isZero();
+        assertThat(leaves.expirePending(100)).isZero();
+
+        List<NotificationEntity> decisions = notificationRows.findAll().stream()
+                .filter(row -> row.getNotificationType() == NotificationType.LEAVE_DECIDED)
+                .toList();
+        assertThat(decisions).singleElement().satisfies(row -> {
+            assertThat(row.getRecipientUserId()).isEqualTo(internId);
+            assertThat(row.getBody()).contains("AUTO_REJECTED");
+            assertThat(row.getEmailStatus()).isEqualTo(NotificationEmailStatus.UNAVAILABLE);
+        });
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
+    void correctionNotificationsCoverSubmissionDecisionRevertAndRequestTimeAutoRejectionOnce() {
+        long mentor = createActiveMentor();
+        createActiveMentor();
+        List<Long> activeMentorIds = accounts.activeGlobalMentorIdentities().stream()
+                .map(identity -> identity.id())
+                .toList();
+        assertThat(activeMentorIds).hasSize(2).doesNotHaveDuplicates();
+        doReturn(false).when(mailDelivery).isAvailable();
+        AttendanceActor intern = new AttendanceActor(internId, AttendanceRole.INTERN);
+        clock.set(Instant.parse("2026-08-14T02:00:00Z"));
+        attendance.checkIn(internId);
+        long recordId = records.findByInternUserIdAndWorkDate(internId, LocalDate.of(2026, 8, 14))
+                .orElseThrow()
+                .id();
+
+        clock.set(Instant.parse("2026-08-14T09:01:00Z"));
+        var submitted = corrections.submit(
+                intern,
+                recordId,
+                new CorrectionRequestCommand(
+                        java.time.LocalDateTime.of(2026, 8, 14, 14, 0), "notification correction"));
+        assertThat(correctionRequests.findById(submitted.id()).orElseThrow().status())
+                .isEqualTo(CorrectionStatus.PENDING);
+        List<NotificationEntity> submissions = notificationRows.findAll().stream()
+                .filter(row -> row.getNotificationType() == NotificationType.CORRECTION_SUBMITTED)
+                .toList();
+        assertThat(submissions)
+                .extracting(NotificationEntity::getRecipientUserId)
+                .containsExactlyInAnyOrderElementsOf(activeMentorIds)
+                .doesNotHaveDuplicates();
+        assertThat(submissions).allSatisfy(row ->
+                assertThat(row.getEmailStatus()).isEqualTo(NotificationEmailStatus.UNAVAILABLE));
+
+        corrections.decide(
+                new AttendanceActor(mentor, AttendanceRole.MENTOR),
+                submitted.id(),
+                CorrectionDecision.APPROVE,
+                null);
+        corrections.decide(
+                new AttendanceActor(mentor, AttendanceRole.MENTOR),
+                submitted.id(),
+                CorrectionDecision.REOPEN,
+                "reopen for review");
+        clock.set(submitted.decisionDeadline());
+        assertThat(corrections.view(intern, submitted.id()).status()).isEqualTo(CorrectionStatus.REJECTED);
+        assertThat(corrections.expire(100)).isZero();
+        assertThat(corrections.expire(100)).isZero();
+
+        clock.set(Instant.parse("2026-08-17T02:00:00Z"));
+        attendance.checkIn(internId);
+        long rejectedRecordId = records.findByInternUserIdAndWorkDate(internId, LocalDate.of(2026, 8, 17))
+                .orElseThrow()
+                .id();
+        clock.set(Instant.parse("2026-08-17T09:01:00Z"));
+        var rejected = corrections.submit(
+                intern,
+                rejectedRecordId,
+                new CorrectionRequestCommand(
+                        java.time.LocalDateTime.of(2026, 8, 17, 14, 0), "manual rejection notification"));
+        corrections.decide(
+                new AttendanceActor(mentor, AttendanceRole.MENTOR),
+                rejected.id(),
+                CorrectionDecision.REJECT,
+                "manual rejection");
+
+        List<NotificationEntity> decisions = notificationRows.findAll().stream()
+                .filter(row -> row.getNotificationType() == NotificationType.CORRECTION_DECIDED)
+                .toList();
+        assertThat(decisions).hasSize(4);
+        assertThat(decisions).allSatisfy(row -> {
+            assertThat(row.getRecipientUserId()).isEqualTo(internId);
+            assertThat(row.getActionUrl()).isEqualTo("/attendance");
+            assertThat(row.getEmailStatus()).isEqualTo(NotificationEmailStatus.UNAVAILABLE);
+        });
+        assertThat(decisions).extracting(NotificationEntity::getBody)
+                .anySatisfy(body -> assertThat(body).contains("APPROVED"))
+                .anySatisfy(body -> assertThat(body).contains("REVERTED"))
+                .anySatisfy(body -> {
+                    assertThat(body).contains("REJECTED");
+                    assertThat(body).doesNotContain("AUTO_REJECTED");
+                })
+                .anySatisfy(body -> assertThat(body).contains("AUTO_REJECTED"));
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
+    void recipientAccountLocksPrecedeLeaveAndCorrectionRows() throws Exception {
+        long mentor = createActiveMentor();
+        doReturn(false).when(mailDelivery).isAvailable();
+        AttendanceActor intern = new AttendanceActor(internId, AttendanceRole.INTERN);
+        var leave = leaves.submit(intern, new LeaveRequestCommand(
+                LocalDate.of(2026, 8, 17), LocalDate.of(2026, 8, 17), "lock order leave"));
+
+        ExecutorService executor = Executors.newFixedThreadPool(3);
+        try {
+            AtomicInteger calls = new AtomicInteger();
+            CountDownLatch leaveAccountHeld = new CountDownLatch(1);
+            CountDownLatch leaveServiceWaiting = new CountDownLatch(1);
+            CountDownLatch releaseLeaveAccount = new CountDownLatch(1);
+            doAnswer(invocation -> {
+                if (calls.getAndIncrement() == 0) {
+                    Object result = invocation.callRealMethod();
+                    leaveAccountHeld.countDown();
+                    awaitLatch(releaseLeaveAccount);
+                    return result;
+                }
+                leaveServiceWaiting.countDown();
+                return invocation.callRealMethod();
+            }).when(accountSpy).lockedAccountMutationEligibility(any());
+
+            Future<?> holder = executor.submit(() -> transactions.execute(status -> {
+                accountSpy.lockedAccountMutationEligibility(List.of(internId, mentor));
+                return null;
+            }));
+            assertThat(leaveAccountHeld.await(10, TimeUnit.SECONDS)).isTrue();
+            Future<LeaveRequestView> decision = executor.submit(() -> leaves.approve(
+                    new AttendanceActor(mentor, AttendanceRole.MENTOR), leave.id()));
+            assertThat(leaveServiceWaiting.await(10, TimeUnit.SECONDS)).isTrue();
+            Future<Optional<LeaveRequestEntity>> rowProbe = executor.submit(
+                    () -> transactions.execute(status -> leaveRequests.findForUpdateById(leave.id())));
+            Optional<LeaveRequestEntity> probedLeave = rowProbe.get(2, TimeUnit.SECONDS);
+            assertThat(probedLeave).isPresent();
+            assertThat(probedLeave.orElseThrow().status()).isEqualTo(LeaveStatus.PENDING);
+            releaseLeaveAccount.countDown();
+            assertThat(decision.get(10, TimeUnit.SECONDS).status()).isEqualTo(LeaveStatus.APPROVED);
+            holder.get(10, TimeUnit.SECONDS);
+
+            clock.set(Instant.parse("2026-08-14T02:00:00Z"));
+            attendance.checkIn(internId);
+            long recordId = records.findByInternUserIdAndWorkDate(internId, LocalDate.of(2026, 8, 14))
+                    .orElseThrow()
+                    .id();
+            clock.set(Instant.parse("2026-08-14T09:01:00Z"));
+            var correction = corrections.submit(
+                    intern,
+                    recordId,
+                    new CorrectionRequestCommand(
+                            java.time.LocalDateTime.of(2026, 8, 14, 14, 0), "lock order correction"));
+            clock.set(correction.decisionDeadline());
+
+            reset(accountSpy);
+            calls.set(0);
+            CountDownLatch secondAccountHeld = new CountDownLatch(1);
+            CountDownLatch secondServiceWaiting = new CountDownLatch(1);
+            CountDownLatch secondReleaseAccount = new CountDownLatch(1);
+            doAnswer(invocation -> {
+                if (calls.getAndIncrement() == 0) {
+                    Object result = invocation.callRealMethod();
+                    secondAccountHeld.countDown();
+                    awaitLatch(secondReleaseAccount);
+                    return result;
+                }
+                secondServiceWaiting.countDown();
+                return invocation.callRealMethod();
+            }).when(accountSpy).lockedAccountMutationEligibility(any());
+
+            Future<?> secondHolder = executor.submit(() -> transactions.execute(status -> {
+                accountSpy.lockedAccountMutationEligibility(List.of(internId));
+                return null;
+            }));
+            assertThat(secondAccountHeld.await(10, TimeUnit.SECONDS)).isTrue();
+            Future<Integer> expiry = executor.submit(() -> corrections.expire(1));
+            assertThat(secondServiceWaiting.await(10, TimeUnit.SECONDS)).isTrue();
+            Future<Optional<AttendanceCorrectionEntity>> correctionProbe = executor.submit(
+                    () -> transactions.execute(status -> correctionRequests.findForUpdateById(correction.id())));
+            Optional<AttendanceCorrectionEntity> probedCorrection = correctionProbe.get(2, TimeUnit.SECONDS);
+            assertThat(probedCorrection).isPresent();
+            assertThat(probedCorrection.orElseThrow().status()).isEqualTo(CorrectionStatus.PENDING);
+            secondReleaseAccount.countDown();
+            assertThat(expiry.get(10, TimeUnit.SECONDS)).isEqualTo(1);
+            secondHolder.get(10, TimeUnit.SECONDS);
+        } finally {
+            executor.shutdownNow();
+        }
     }
 
     @Test
