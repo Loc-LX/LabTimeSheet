@@ -7,6 +7,7 @@ import com.lab.labtimesheet.feature.attendance.controller.AttendanceController;
 import com.lab.labtimesheet.feature.attendance.controller.CalendarController;
 import com.lab.labtimesheet.feature.attendance.controller.InternCorrectionController;
 import com.lab.labtimesheet.feature.attendance.controller.InternLeaveController;
+import com.lab.labtimesheet.feature.attendance.controller.MentorCorrectionController;
 import com.lab.labtimesheet.feature.attendance.controller.MentorLeaveController;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceDayContext;
@@ -19,6 +20,8 @@ import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceHistoryItem;
 import com.lab.labtimesheet.feature.attendance.model.dto.CorrectionSubmission;
 import com.lab.labtimesheet.feature.attendance.model.dto.CorrectionSubmissionCommand;
 import com.lab.labtimesheet.feature.attendance.model.dto.CorrectionsOverview;
+import com.lab.labtimesheet.feature.attendance.model.dto.CorrectionDecisionCommand;
+import com.lab.labtimesheet.feature.attendance.model.dto.MentorCorrectionDecision;
 import com.lab.labtimesheet.feature.attendance.model.dto.GlobalCalendarEvent;
 import com.lab.labtimesheet.feature.attendance.model.dto.HolidayCandidate;
 import com.lab.labtimesheet.feature.attendance.model.dto.HolidayImportForm;
@@ -48,6 +51,7 @@ import com.lab.labtimesheet.feature.attendance.service.AttendanceCurrentUserServ
 import com.lab.labtimesheet.feature.attendance.service.AttendanceService;
 import com.lab.labtimesheet.feature.attendance.service.CalendarApplicationService;
 import com.lab.labtimesheet.feature.attendance.service.CorrectionService;
+import com.lab.labtimesheet.feature.attendance.service.CorrectionWindowGuard;
 import com.lab.labtimesheet.feature.attendance.service.HolidayApiClient;
 import com.lab.labtimesheet.feature.attendance.service.HolidayImportService;
 import com.lab.labtimesheet.feature.attendance.service.LeaveService;
@@ -105,6 +109,12 @@ class AttendanceLombokBoilerplateTest {
                         AttendanceApplicationService.class,
                         AttendanceCurrentUserService.class));
         assertConstructors(
+                MentorCorrectionController.class,
+                constructor(
+                        PACKAGE_PRIVATE,
+                        CorrectionService.class,
+                        AttendanceCurrentUserService.class));
+        assertConstructors(
                 AttendanceApplicationService.class,
                 constructor(
                         PACKAGE_PRIVATE,
@@ -144,7 +154,8 @@ class AttendanceLombokBoilerplateTest {
                         AccountService.class,
                         AttendanceRecordRepository.class,
                         AttendanceCorrectionRepository.class,
-                        AttendanceCorrectionEventRepository.class));
+                        AttendanceCorrectionEventRepository.class,
+                        CorrectionWindowGuard.class));
         assertConstructors(
                 LeaveService.class,
                 constructor(
@@ -351,6 +362,10 @@ class AttendanceLombokBoilerplateTest {
                 method(Modifier.PUBLIC, "submissionDeadline", Instant.class),
                 method(Modifier.PUBLIC, "decisionDeadline", Instant.class),
                 method(Modifier.PUBLIC, "approve", void.class, long.class, Instant.class, String.class),
+                method(Modifier.PUBLIC, "reject", void.class, long.class, Instant.class, String.class),
+                method(Modifier.PUBLIC, "reopen", void.class),
+                method(Modifier.PUBLIC, "lock", void.class, Instant.class),
+                method(Modifier.PUBLIC, "autoReject", void.class, Instant.class),
                 method(Modifier.PUBLIC, "decidedByMentorUserId", Long.class),
                 method(Modifier.PUBLIC, "decidedAt", Instant.class),
                 method(Modifier.PUBLIC, "decisionNote", String.class),
@@ -556,6 +571,33 @@ class AttendanceLombokBoilerplateTest {
                         String.class,
                         RedirectAttributes.class));
         assertMethodSurface(
+                MentorCorrectionController.class,
+                method(Modifier.PUBLIC, "form", String.class, Principal.class, Model.class),
+                method(
+                        Modifier.PUBLIC,
+                        "approve",
+                        String.class,
+                        Principal.class,
+                        long.class,
+                        String.class,
+                        RedirectAttributes.class),
+                method(
+                        Modifier.PUBLIC,
+                        "reject",
+                        String.class,
+                        Principal.class,
+                        long.class,
+                        String.class,
+                        RedirectAttributes.class),
+                method(
+                        Modifier.PUBLIC,
+                        "revert",
+                        String.class,
+                        Principal.class,
+                        long.class,
+                        String.class,
+                        RedirectAttributes.class));
+        assertMethodSurface(
                 LeaveService.class,
                 method(
                         Modifier.PUBLIC,
@@ -598,7 +640,22 @@ class AttendanceLombokBoilerplateTest {
                         "overview",
                         CorrectionsOverview.class,
                         long.class,
-                        LocalDate.class));
+                        LocalDate.class),
+                method(
+                        Modifier.PUBLIC,
+                        "decide",
+                        MentorCorrectionDecision.class,
+                        long.class,
+                        long.class,
+                        CorrectionDecisionCommand.class),
+                method(
+                        Modifier.PUBLIC,
+                        "revert",
+                        MentorCorrectionDecision.class,
+                        long.class,
+                        long.class,
+                        String.class),
+                method(Modifier.PUBLIC, "decisions", List.class));
         assertMethodSurface(
                 AttendanceApplicationService.class,
                 method(Modifier.PUBLIC, "checkIn", AttendanceRecord.class, long.class),

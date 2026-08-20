@@ -34,4 +34,11 @@ public interface AttendanceCorrectionRepository extends JpaRepository<Attendance
             """)
     List<AttendanceCorrectionEntity> findByInternUserIdOrderByIdDesc(
             @Param("internUserId") long internUserId);
+
+    /**
+     * Loads every correction newest-first for the Mentor decisions page.
+     *
+     * @return all corrections ordered by newest submission
+     */
+    List<AttendanceCorrectionEntity> findAllByOrderByIdDesc();
 }

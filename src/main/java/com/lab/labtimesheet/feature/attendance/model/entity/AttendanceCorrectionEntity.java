@@ -181,6 +181,54 @@ public class AttendanceCorrectionEntity {
     }
 
     /**
+     * Records a rejection by an active Mentor. The service layer owns the decision-window guard; this mutator only
+     * persists the decided state.
+     *
+     * @param mentorUserId deciding Mentor account identifier
+     * @param at server decision instant
+     * @param note optional decision note
+     */
+    public void reject(long mentorUserId, Instant at, String note) {
+        this.status = "REJECTED";
+        this.decidedByMentorUserId = mentorUserId;
+        this.decidedAt = at;
+        this.decisionNote = note;
+    }
+
+    /**
+     * Reverts a decided correction back to PENDING inside the decision window, clearing every decided field so the
+     * record is again open to a fresh Mentor decision.
+     */
+    public void reopen() {
+        this.status = "PENDING";
+        this.decidedByMentorUserId = null;
+        this.decidedAt = null;
+        this.decisionNote = null;
+    }
+
+    /**
+     * Locks the decided outcome after its decision window so no Mentor can ever change it again.
+     *
+     * @param at server lock instant
+     */
+    public void lock(Instant at) {
+        this.lockedAt = at;
+    }
+
+    /**
+     * Auto-rejects a still-pending correction whose decision window passed and locks the outcome in one transition.
+     * The expiry instant is recorded as the decision instant so the database invariants that a decided correction
+     * must carry a decision instant and that locking only applies to decided corrections both hold.
+     *
+     * @param at server transition instant
+     */
+    public void autoReject(Instant at) {
+        this.status = "REJECTED";
+        this.decidedAt = at;
+        this.lockedAt = at;
+    }
+
+    /**
      * Returns the deciding Mentor account identifier once decided.
      *
      * @return deciding Mentor identifier, or {@code null} while pending

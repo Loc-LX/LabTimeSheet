@@ -13,9 +13,11 @@ import com.lab.labtimesheet.feature.attendance.exception.CorrectionRejection;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceRole;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceHistoryItem;
+import com.lab.labtimesheet.feature.attendance.model.dto.CorrectionDecisionCommand;
 import com.lab.labtimesheet.feature.attendance.model.dto.CorrectionSubmission;
 import com.lab.labtimesheet.feature.attendance.model.dto.CorrectionSubmissionCommand;
 import com.lab.labtimesheet.feature.attendance.model.dto.CorrectionsOverview;
+import com.lab.labtimesheet.feature.attendance.model.dto.MentorCorrectionDecision;
 import com.lab.labtimesheet.feature.attendance.model.entity.AttendanceCorrectionEntity;
 import com.lab.labtimesheet.feature.attendance.model.entity.AttendanceCorrectionEventEntity;
 import com.lab.labtimesheet.feature.attendance.model.entity.AttendanceRecordEntity;
@@ -276,6 +278,151 @@ class CorrectionPersistenceIntegrationTest {
         assertThat(overview.corrections().getFirst().reason()).isEqualTo("Second");
         assertThat(overview.corrections().get(1).workDate()).isEqualTo(LocalDate.of(2026, 8, 14));
         assertThat(overview.corrections().get(1).reason()).isEqualTo("Monday");
+    }
+
+    @Test
+    void mentorApprovesPendingCorrectionPersistingStateAndAppendOnlyEvents() {
+        clock.set(Instant.parse("2026-08-14T02:00:00Z"));
+        attendance.checkIn(internId);
+        clock.set(Instant.parse("2026-08-14T09:00:01Z"));
+        CorrectionSubmission submission = corrections.submit(
+                internId, new CorrectionSubmissionCommand(LocalDate.of(2026, 8, 14), LocalTime.of(15, 45), "Forgot"));
+        long mentorId = seedMentor();
+
+        clock.set(Instant.parse("2026-08-15T08:00:00Z"));
+        MentorCorrectionDecision decided = corrections.decide(
+                mentorId, submission.id(), new CorrectionDecisionCommand(true, "Verified in person"));
+
+        assertThat(decided.status()).isEqualTo("APPROVED");
+        assertThat(decided.decidedByMentorUserId()).isEqualTo(mentorId);
+        assertThat(decided.decidedAt()).isEqualTo(Instant.parse("2026-08-15T08:00:00Z"));
+        assertThat(decided.internDisplayName()).isEqualTo("Intern");
+
+        AttendanceCorrectionEntity persisted = correctionRows.findById(submission.id()).orElseThrow();
+        assertThat(persisted.status()).isEqualTo("APPROVED");
+        assertThat(persisted.decidedByMentorUserId()).isEqualTo(mentorId);
+        assertThat(persisted.decidedAt()).isEqualTo(Instant.parse("2026-08-15T08:00:00Z"));
+        assertThat(persisted.decisionNote()).isEqualTo("Verified in person");
+
+        List<AttendanceCorrectionEventEntity> events = correctionEvents
+                .findByCorrectionIdOrderByOccurredAtAscIdAsc(submission.id());
+        assertThat(events).hasSize(2);
+        assertThat(events.getFirst().eventType()).isEqualTo("SUBMITTED");
+        AttendanceCorrectionEventEntity decisionEvent = events.get(1);
+        assertThat(decisionEvent.eventType()).isEqualTo("APPROVED");
+        assertThat(decisionEvent.fromStatus()).isEqualTo("PENDING");
+        assertThat(decisionEvent.toStatus()).isEqualTo("APPROVED");
+        assertThat(decisionEvent.actorUserId()).isEqualTo(mentorId);
+        assertThat(decisionEvent.note()).isEqualTo("Verified in person");
+        assertThat(decisionEvent.occurredAt()).isEqualTo(Instant.parse("2026-08-15T08:00:00Z"));
+
+        AttendanceRecordEntity record = records.findByInternUserIdAndWorkDate(internId, LocalDate.of(2026, 8, 14))
+                .orElseThrow();
+        assertThat(record.checkOutAt()).isNull();
+
+        clock.set(Instant.parse("2026-08-15T12:00:00Z"));
+        AttendanceHistoryItem item = attendance.history(
+                        new AttendanceActor(internId, AttendanceRole.INTERN),
+                        internId,
+                        LocalDate.of(2026, 8, 14),
+                        LocalDate.of(2026, 8, 14))
+                .getFirst();
+        assertThat(item.effectiveCheckOutAt()).isEqualTo(Instant.parse("2026-08-14T08:45:00Z"));
+        assertThat(item.violations().missingCheckout()).isFalse();
+    }
+
+    @Test
+    void mentorRejectsThenRevertsThenApprovesAppendingEveryImmutableEvent() {
+        clock.set(Instant.parse("2026-08-14T02:00:00Z"));
+        attendance.checkIn(internId);
+        clock.set(Instant.parse("2026-08-14T09:00:01Z"));
+        CorrectionSubmission submission = corrections.submit(
+                internId, new CorrectionSubmissionCommand(LocalDate.of(2026, 8, 14), LocalTime.of(15, 45), "Forgot"));
+        long mentorId = seedMentor();
+
+        clock.set(Instant.parse("2026-08-15T08:00:00Z"));
+        corrections.decide(mentorId, submission.id(), new CorrectionDecisionCommand(false, "No evidence"));
+        corrections.revert(mentorId, submission.id(), "Mentor reopened after reviewing the log");
+        corrections.decide(mentorId, submission.id(), new CorrectionDecisionCommand(true, "Evidence confirmed"));
+
+        List<AttendanceCorrectionEventEntity> events = correctionEvents
+                .findByCorrectionIdOrderByOccurredAtAscIdAsc(submission.id());
+        assertThat(events).extracting(AttendanceCorrectionEventEntity::eventType)
+                .containsExactly("SUBMITTED", "REJECTED", "REOPENED", "APPROVED");
+        assertThat(events).extracting(AttendanceCorrectionEventEntity::fromStatus)
+                .containsExactly(null, "PENDING", "REJECTED", "PENDING");
+        assertThat(events).extracting(AttendanceCorrectionEventEntity::toStatus)
+                .containsExactly("PENDING", "REJECTED", "PENDING", "APPROVED");
+
+        AttendanceCorrectionEntity persisted = correctionRows.findById(submission.id()).orElseThrow();
+        assertThat(persisted.status()).isEqualTo("APPROVED");
+        assertThat(persisted.decidedAt()).isEqualTo(Instant.parse("2026-08-15T08:00:00Z"));
+        assertThat(persisted.decisionNote()).isEqualTo("Evidence confirmed");
+    }
+
+    @Test
+    void mentorCannotDecideAfterDecisionWindowPassedWithoutAppendingAnEvent() {
+        clock.set(Instant.parse("2026-08-14T02:00:00Z"));
+        attendance.checkIn(internId);
+        clock.set(Instant.parse("2026-08-14T09:00:01Z"));
+        CorrectionSubmission submission = corrections.submit(
+                internId, new CorrectionSubmissionCommand(LocalDate.of(2026, 8, 14), LocalTime.of(15, 45), "Forgot"));
+        long mentorId = seedMentor();
+
+        clock.set(Instant.parse("2026-08-15T09:00:01.001Z"));
+        assertThatThrownBy(() -> corrections.decide(
+                mentorId, submission.id(), new CorrectionDecisionCommand(true, "Too late")))
+                .isInstanceOfSatisfying(CorrectionException.class,
+                        exception -> assertThat(exception.rejection())
+                                .isEqualTo(CorrectionRejection.DECISION_WINDOW_PASSED));
+
+        List<AttendanceCorrectionEventEntity> events = correctionEvents
+                .findByCorrectionIdOrderByOccurredAtAscIdAsc(submission.id());
+        assertThat(events).hasSize(1);
+        assertThat(events.getFirst().eventType()).isEqualTo("SUBMITTED");
+    }
+
+    @Test
+    void mentorDecisionsListAllCorrectionsNewestFirstWithDerivedFlags() {
+        clock.set(Instant.parse("2026-08-14T02:00:00Z"));
+        attendance.checkIn(internId);
+        clock.set(Instant.parse("2026-08-14T09:00:01Z"));
+        CorrectionSubmission first = corrections.submit(
+                internId, new CorrectionSubmissionCommand(LocalDate.of(2026, 8, 14), LocalTime.of(15, 45), "Monday"));
+        long mentorId = seedMentor();
+
+        clock.set(Instant.parse("2026-08-15T08:00:00Z"));
+        corrections.decide(mentorId, first.id(), new CorrectionDecisionCommand(true, "Confirmed"));
+
+        clock.set(Instant.parse("2026-08-17T02:00:00Z"));
+        attendance.checkIn(internId);
+        clock.set(Instant.parse("2026-08-17T09:00:01Z"));
+        corrections.submit(
+                internId, new CorrectionSubmissionCommand(LocalDate.of(2026, 8, 17), LocalTime.of(15, 45), "Second"));
+
+        List<MentorCorrectionDecision> decisions = corrections.decisions();
+
+        assertThat(decisions).hasSize(2);
+        assertThat(decisions.getFirst().id()).isNotEqualTo(first.id());
+        assertThat(decisions.getFirst().status()).isEqualTo("PENDING");
+        assertThat(decisions.getFirst().internDisplayName()).isEqualTo("Intern");
+        assertThat(decisions.getFirst().approvedCompliant()).isTrue();
+        assertThat(decisions.getFirst().revertable()).isFalse();
+        MentorCorrectionDecision decided = decisions.get(1);
+        assertThat(decided.id()).isEqualTo(first.id());
+        assertThat(decided.status()).isEqualTo("APPROVED");
+        assertThat(decided.approvedCompliant()).isTrue();
+        assertThat(decided.revertable()).isFalse();
+        assertThat(decided.rawCheckoutPresent()).isFalse();
+    }
+
+    private long seedMentor() {
+        mail.clear();
+        var creation = accounts.create(new CreateAccountCommand(
+                "mentor@example.test", "Mentor", GlobalRole.MENTOR, null, null, null), adminId);
+        assertThat(creation.deliverySucceeded()).isTrue();
+        assertThat(accounts.activate(mail.onlyActivationToken(), "new secure mentor password")).isTrue();
+        return creation.userId();
     }
 
     private void assertRejected(CorrectionRejection rejection) {

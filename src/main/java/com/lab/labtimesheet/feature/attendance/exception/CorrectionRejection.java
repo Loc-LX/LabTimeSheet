@@ -22,5 +22,17 @@ public enum CorrectionRejection {
     /** The proposed checkout must be strictly after the raw check-in. */
     PROPOSED_BEFORE_CHECKIN,
     /** The proposed checkout must not be in the future at submission. */
-    PROPOSED_IN_FUTURE
+    PROPOSED_IN_FUTURE,
+    /** No correction exists for the given identifier. */
+    NOT_FOUND,
+    /** The deciding account is not an active Mentor. */
+    INACTIVE_MENTOR,
+    /** The correction is not in a state the operation may transition from. */
+    INVALID_STATE,
+    /** The decision window has passed and no decision may be made or reverted. */
+    DECISION_WINDOW_PASSED,
+    /** The correction outcome is locked and can never be changed again. */
+    LOCKED,
+    /** Another Mentor decided the correction first; reload and re-decide. */
+    CONCURRENT_DECISION
 }

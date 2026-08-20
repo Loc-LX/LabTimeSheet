@@ -47,6 +47,7 @@ class CorrectionServiceTest {
     private final AttendanceRecordRepository records = mock(AttendanceRecordRepository.class);
     private final AttendanceCorrectionRepository corrections = mock(AttendanceCorrectionRepository.class);
     private final AttendanceCorrectionEventRepository events = mock(AttendanceCorrectionEventRepository.class);
+    private final CorrectionWindowGuard windowGuard = mock(CorrectionWindowGuard.class);
 
     private AttendanceRecordEntity record;
     private AttendanceCorrectionEntity saved;
@@ -254,6 +255,7 @@ class CorrectionServiceTest {
                 accounts,
                 records,
                 corrections,
-                events);
+                events,
+                windowGuard);
     }
 }
