@@ -4,7 +4,7 @@
 - **Requirement IDs:** `PRJ-015`, `PRJ-016`, `PRJ-008`–`PRJ-011`, `PRJ-020`–`PRJ-022`, `TSK-004`, `TSK-009`, `TSK-010`, `DB-007`
 - **Scenario IDs:** `AC-PRJ-004`, `AC-PRJ-008`, `AC-PRJ-012`, `AC-TSK-004`, `AC-TSK-011`
 - **Test class/method:** `TaskCreationIntegrationTest#directTransferAllUnfinishedUsesOrderedIdProjectionAndLeavesDoneTasksUntouched`, `#projectProgressAggregateReturnsEmptyDenominatorForNoCurrentTasks`, `#creatorMayEditOnlyWhileStillCurrentAssigneeAndLeaderMayEditAnyUnfinishedTask`, `TaskProjectQueryTest#returnsHandCheckableStatusProgressAndMinutes`
-- **Implementation commit:** `pending`
+- **Implementation commit:** `15920f38ae40e8457dce1eb6e1624483e2d1edf6`
 
 ## Protected behavior
 

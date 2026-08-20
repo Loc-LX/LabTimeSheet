@@ -4,7 +4,7 @@
 - **Requirement IDs:** `PRJ-015`, `PRJ-016`, `TSK-004`, `TSK-010`, `TSK-011`
 - **Scenario IDs:** `AC-PRJ-008`, `AC-TSK-005`, `AC-TSK-011`
 - **Test class/method:** `TaskCreationIntegrationTest#projectProgressAndHistoryReadPersistedWorkAndRetainedDeletedRows`
-- **Implementation commit:** `pending`
+- **Implementation commit:** `15920f38ae40e8457dce1eb6e1624483e2d1edf6`
 
 ## Protected behavior
 

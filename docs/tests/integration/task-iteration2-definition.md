@@ -4,7 +4,7 @@
 - **Requirement IDs:** `TSK-009`, `TSK-010`, `TSK-019`, `PRJ-011`, `DB-007`
 - **Scenario IDs:** `AC-TSK-004`, `AC-TSK-005`, `AC-TSK-011`
 - **Test class/method:** `TaskCreationIntegrationTest#creatorMayEditOnlyWhileStillCurrentAssigneeAndLeaderMayEditAnyUnfinishedTask`, `#softDeleteExcludesTaskFromCurrentViewsButRetainsHistoricalRow`, `#unfinishedReassignmentPreservesCreatorStatusAndCreationAtAndDoneRequiresReopen`
-- **Implementation commit:** `pending`
+- **Implementation commit:** `15920f38ae40e8457dce1eb6e1624483e2d1edf6`
 
 ## Protected behavior
 

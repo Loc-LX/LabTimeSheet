@@ -4,7 +4,7 @@
 - **Requirement IDs:** `TSK-004`, `TSK-009`, `TSK-010`, `TSK-013`, `TSK-016`, `TSK-019`, `PRJ-010`, `PRJ-011`, `DB-007`
 - **Scenario IDs:** `AC-TSK-004`, `AC-TSK-005`, `AC-TSK-007`, `AC-TSK-011`, `AC-PRJ-012`
 - **Test class/method:** `TaskDefinitionRulesTest`, `TaskWorkLogRulesTest`, `TaskTransferServiceTest`
-- **Implementation commit:** `pending`
+- **Implementation commit:** `15920f38ae40e8457dce1eb6e1624483e2d1edf6`
 
 ## Protected behavior
 
