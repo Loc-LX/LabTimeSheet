@@ -16,6 +16,8 @@ import com.lab.labtimesheet.feature.notification.model.NotificationEmailStatus;
 import com.lab.labtimesheet.feature.notification.model.NotificationType;
 import com.lab.labtimesheet.feature.notification.model.dto.NotificationAction;
 import com.lab.labtimesheet.feature.notification.model.dto.NotificationEvent;
+import com.lab.labtimesheet.feature.notification.model.dto.NotificationInbox;
+import com.lab.labtimesheet.feature.notification.model.dto.NotificationInboxItem;
 import com.lab.labtimesheet.feature.notification.model.dto.NotificationRecipient;
 import com.lab.labtimesheet.feature.notification.model.entity.NotificationEntity;
 import com.lab.labtimesheet.feature.notification.repository.NotificationRepository;
@@ -108,6 +110,54 @@ public class NotificationService {
             scheduleDelivery(saved.stream().map(NotificationEntity::getId).toList());
         }
         return saved.size();
+    }
+
+    /**
+     * Reads the authenticated account's notification list and unread count without exposing
+     * notification entities or email-delivery metadata.
+     *
+     * <p>The caller must derive and authorize {@code recipientUserId} from the authenticated
+     * principal before invoking this boundary. This service intentionally does not look up an
+     * Account, and every persistence query remains recipient-scoped. Results are newest-first and
+     * carry no pagination contract for the current V1 inbox.
+     *
+     * @param recipientUserId already-authenticated recipient account identifier
+     * @return immutable newest-first list and unread count for that recipient only
+     */
+    @Transactional(readOnly = true)
+    public NotificationInbox inboxFor(long recipientUserId) {
+        List<NotificationInboxItem> items = notifications
+                .findByRecipientUserIdOrderByCreatedAtDescIdDesc(recipientUserId)
+                .stream()
+                .map(NotificationService::toInboxItem)
+                .toList();
+        return new NotificationInbox(items, notifications.countByRecipientUserIdAndReadAtIsNull(recipientUserId));
+    }
+
+    /**
+     * Marks one notification read only when it belongs to the authenticated recipient.
+     *
+     * <p>Missing and foreign identifiers intentionally produce no error and no mutation, which
+     * prevents this boundary from becoming an identifier-enumeration oracle. Repeating an own
+     * mark-read is idempotent and preserves the original server timestamp.
+     *
+     * @param recipientUserId already-authenticated recipient account identifier
+     * @param notificationId requested notification identifier
+     */
+    @Transactional
+    public void markRead(long recipientUserId, long notificationId) {
+        if (recipientUserId <= 0 || notificationId <= 0) {
+            return;
+        }
+        notifications.findByIdAndRecipientUserId(notificationId, recipientUserId)
+                .ifPresent(notification -> notification.markRead(clock.instant()));
+    }
+
+    private static NotificationInboxItem toInboxItem(NotificationEntity notification) {
+        return new NotificationInboxItem(
+                notification.getId(), notification.getNotificationType(), notification.getTitle(),
+                notification.getBody(), notification.getActionUrl(), notification.getCreatedAt(),
+                notification.getReadAt() != null);
     }
 
     private void validateSelfTaskShape(NotificationEvent event, NotificationAction action) {
