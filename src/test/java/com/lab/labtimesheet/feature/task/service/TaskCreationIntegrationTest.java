@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.lab.labtimesheet.config.TestcontainersConfiguration;
+import com.lab.labtimesheet.feature.project.model.dto.ProjectTaskContext;
+import com.lab.labtimesheet.feature.project.service.ProjectService;
 import com.lab.labtimesheet.feature.task.exception.TaskNotFoundException;
 import com.lab.labtimesheet.feature.task.exception.TaskValidationException;
 import com.lab.labtimesheet.feature.task.model.TaskStatus;
@@ -12,9 +14,15 @@ import com.lab.labtimesheet.feature.task.model.dto.TaskAssigneeChoice;
 import com.lab.labtimesheet.feature.task.model.dto.TaskCommentView;
 import com.lab.labtimesheet.feature.task.model.dto.TaskDetails;
 import com.lab.labtimesheet.feature.task.model.dto.TaskListView;
+import com.lab.labtimesheet.feature.task.model.dto.TaskHistoryView;
+import com.lab.labtimesheet.feature.task.model.dto.TaskProjectProgress;
 import com.lab.labtimesheet.feature.task.model.dto.TaskView;
+import com.lab.labtimesheet.feature.task.model.entity.TaskWorkLog;
+import com.lab.labtimesheet.feature.task.repository.TaskWorkLogRepository;
 import jakarta.persistence.EntityManager;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -48,6 +56,15 @@ class TaskCreationIntegrationTest {
 
     @Autowired
     private TaskDashboardService taskDashboard;
+
+    @Autowired
+    private TaskWorkLogRepository taskWorkLogs;
+
+    @Autowired
+    private ProjectService projectMutations;
+
+    @Autowired
+    private TaskTransferService taskTransfers;
 
     private long projectId;
     private long leaderMembershipId;
@@ -342,6 +359,182 @@ class TaskCreationIntegrationTest {
         softDelete(leaderTask.id());
         assertThat(taskQueries.countCurrentTasksAssignedOutside(projectId, Set.of(memberMembershipId)))
                 .isZero();
+    }
+
+    @Test
+    void creatorMayEditOnlyWhileStillCurrentAssigneeAndLeaderMayEditAnyUnfinishedTask() {
+        TaskView task = createMemberTask("Original");
+        TaskDetails initialDetails = taskService.details("member@example.test", projectId, task.id());
+        assertThat(initialDetails.canEdit()).isTrue();
+        assertThat(initialDetails.canDelete()).isTrue();
+
+        TaskView edited = taskService.edit(
+                "member@example.test", projectId, task.id(), "Updated", "Details", PROJECT_END);
+
+        assertThat(edited.title()).isEqualTo("Updated");
+        assertThat(edited.description()).isEqualTo("Details");
+        assertThat(edited.dueDate()).isEqualTo(PROJECT_END);
+
+        TaskView reassignedAway = taskService.reassign(
+                "leader@example.test", projectId, task.id(), leaderMembershipId);
+        assertThat(reassignedAway.assignerMembershipId()).isEqualTo(leaderMembershipId);
+        assertThat(reassignedAway.assignedAt()).isEqualTo(task.assignedAt());
+        assertThatThrownBy(() -> taskService.edit(
+                        "member@example.test", projectId, task.id(), "Denied", null, null))
+                .isInstanceOf(TaskNotFoundException.class);
+        TaskDetails afterAway = taskService.details("member@example.test", projectId, task.id());
+        assertThat(afterAway.canEdit()).isFalse();
+        assertThat(afterAway.canDelete()).isFalse();
+
+        TaskView reassignedBack = taskService.reassign(
+                "leader@example.test", projectId, task.id(), memberMembershipId);
+        assertThat(reassignedBack.assigneeMembershipId()).isEqualTo(memberMembershipId);
+        assertThat(reassignedBack.assignerMembershipId()).isEqualTo(leaderMembershipId);
+        assertThat(reassignedBack.assignedAt()).isEqualTo(reassignedAway.assignedAt());
+        TaskDetails afterBack = taskService.details("member@example.test", projectId, task.id());
+        assertThat(afterBack.canEdit()).isTrue();
+        assertThat(afterBack.canDelete()).isTrue();
+
+        TaskView editedBack = taskService.edit(
+                "member@example.test", projectId, task.id(), "Creator edit restored", null, null);
+        assertThat(editedBack.title()).isEqualTo("Creator edit restored");
+        taskService.softDelete("member@example.test", projectId, task.id());
+
+        Instant persistedAssignmentAt = jdbc.sql("select assigned_at from tasks where id = :id")
+                .param("id", task.id())
+                .query(Instant.class)
+                .single();
+        TaskHistoryView retained = taskQueries.history(projectId).stream()
+                .filter(history -> history.id() == task.id())
+                .findFirst()
+                .orElseThrow();
+        assertThat(retained.assigneeMembershipId()).isEqualTo(memberMembershipId);
+        assertThat(retained.assignerMembershipId()).isEqualTo(leaderMembershipId);
+        assertThat(retained.assignedAt()).isEqualTo(reassignedBack.assignedAt());
+        assertThat(retained.assignedAt()).isEqualTo(persistedAssignmentAt);
+        assertThat(retained.deletedByMembershipId()).isEqualTo(memberMembershipId);
+    }
+
+    @Test
+    void softDeleteExcludesTaskFromCurrentViewsButRetainsHistoricalRow() {
+        TaskView task = createMemberTask("Retain me");
+
+        taskService.softDelete("member@example.test", projectId, task.id());
+
+        assertThat(taskService.list("member@example.test", projectId).tasks()).isEmpty();
+        assertThat(jdbc.sql("select count(*) from tasks where id = :id and deleted_at is not null")
+                .param("id", task.id()).query(Long.class).single()).isEqualTo(1L);
+        assertThatThrownBy(() -> taskService.details("member@example.test", projectId, task.id()))
+                .isInstanceOf(TaskNotFoundException.class);
+    }
+
+    @Test
+    void unfinishedReassignmentPreservesCreatorStatusAndCreationAtAndDoneRequiresReopen() {
+        TaskView task = createMemberTask("Transfer me");
+        setStatus(task.id(), TaskStatus.IN_PROGRESS);
+        Instant createdAt = task.createdAt();
+
+        TaskView reassigned = taskService.reassign(
+                "leader@example.test", projectId, task.id(), leaderMembershipId);
+
+        assertThat(reassigned.assigneeMembershipId()).isEqualTo(leaderMembershipId);
+        assertThat(reassigned.creatorMembershipId()).isEqualTo(memberMembershipId);
+        assertThat(reassigned.status()).isEqualTo(TaskStatus.IN_PROGRESS);
+        assertThat(reassigned.createdAt()).isEqualTo(createdAt);
+
+        setStatus(task.id(), TaskStatus.DONE);
+        assertThatThrownBy(() -> taskService.reassign(
+                        "leader@example.test", projectId, task.id(), memberMembershipId))
+                .isInstanceOf(TaskValidationException.class);
+    }
+
+    @Test
+    void projectProgressAndHistoryReadPersistedWorkAndRetainedDeletedRows() {
+        TaskView deleted = createMemberTask("Deleted effort");
+        taskService.softDelete("member@example.test", projectId, deleted.id());
+        TaskView done = createMemberTask("Done effort");
+        setStatus(done.id(), TaskStatus.DONE);
+        TaskView retainedCurrent = createMemberTask("Retained current effort");
+        taskService.addComment("member@example.test", projectId, retainedCurrent.id(), "Retained note");
+
+        taskWorkLogs.saveAndFlush(new TaskWorkLog(
+                projectId,
+                deleted.id(),
+                memberMembershipId,
+                LocalDate.of(2026, 8, 20),
+                60,
+                "Deleted effort",
+                Instant.parse("2026-08-20T01:00:00Z")));
+        taskWorkLogs.saveAndFlush(new TaskWorkLog(
+                projectId,
+                retainedCurrent.id(),
+                memberMembershipId,
+                LocalDate.of(2026, 8, 20),
+                120,
+                "Current effort",
+                Instant.parse("2026-08-20T02:00:00Z")));
+
+        TaskProjectProgress progress = taskQueries.projectProgress(projectId);
+        assertThat(progress.todo()).isEqualTo(1L);
+        assertThat(progress.done()).isEqualTo(1L);
+        assertThat(progress.totalTasks()).isEqualTo(2L);
+        assertThat(progress.totalMinutes()).isEqualTo(180L);
+        assertThat(progress.completionPercentage()).hasValue(50.0);
+
+        List<TaskHistoryView> history = taskQueries.history(projectId);
+        assertThat(history).extracting(TaskHistoryView::title)
+                .containsExactly("Deleted effort", "Done effort", "Retained current effort");
+        assertThat(history.get(0).deletedAt()).isNotNull();
+        assertThat(history.get(0).workLogs()).hasSize(1);
+        assertThat(history.get(2).comments()).extracting(TaskCommentView::body)
+                .containsExactly("Retained note");
+    }
+
+    @Test
+    void projectProgressAggregateReturnsEmptyDenominatorForNoCurrentTasks() {
+        TaskProjectProgress progress = taskQueries.projectProgress(projectId);
+
+        assertThat(progress.todo()).isZero();
+        assertThat(progress.inProgress()).isZero();
+        assertThat(progress.blocked()).isZero();
+        assertThat(progress.done()).isZero();
+        assertThat(progress.totalMinutes()).isZero();
+        assertThat(progress.completionPercentage()).isEmpty();
+    }
+
+    @Test
+    void directTransferAllUnfinishedUsesOrderedIdProjectionAndLeavesDoneTasksUntouched() {
+        TaskView first = createMemberTask("First unfinished");
+        TaskView second = createMemberTask("Second unfinished");
+        TaskView done = createMemberTask("Done retained");
+        setStatus(done.id(), TaskStatus.DONE);
+
+        ProjectTaskContext context = projectMutations.taskMutationContext(
+                userId("leader@example.test"), projectId);
+        TaskTransferResult result = taskTransfers.transferAllUnfinished(
+                context, leaderMembershipId, memberMembershipId, leaderMembershipId);
+
+        assertThat(result.transferredTaskCount()).isEqualTo(2L);
+        assertThat(result.recipientMembershipId()).isEqualTo(leaderMembershipId);
+        assertThat(jdbc.sql("""
+                        select count(*) from tasks
+                        where project_id = :projectId
+                          and assignee_membership_id = :leaderMembershipId
+                          and status <> 'DONE' and deleted_at is null
+                        """)
+                .param("projectId", projectId)
+                .param("leaderMembershipId", leaderMembershipId)
+                .query(Long.class)
+                .single()).isEqualTo(2L);
+        assertThat(jdbc.sql("select assignee_membership_id from tasks where id = :id")
+                .param("id", done.id())
+                .query(Long.class)
+                .single()).isEqualTo(memberMembershipId);
+        assertThat(jdbc.sql("select count(*) from tasks where id in (:first, :second)")
+                .param("first", first.id())
+                .param("second", second.id())
+                .query(Long.class)
+                .single()).isEqualTo(2L);
     }
 
     @Test

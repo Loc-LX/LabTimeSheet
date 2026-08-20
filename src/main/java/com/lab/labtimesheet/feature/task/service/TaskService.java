@@ -128,6 +128,101 @@ public class TaskService {
     }
 
     /**
+     * Edits the current definition of an unfinished Task under the Project write lock.
+     *
+     * <p>The current Leader may edit any unfinished Task in the Project. A non-Leader creator may
+     * edit only while that creator is still the current assignee. Stored creator, assignment, and
+     * lifecycle attribution remain unchanged.
+     *
+     * @param actorEmail authenticated account email
+     * @param projectId owning Project identifier
+     * @param taskId Task identifier within that Project
+     * @param title required replacement title
+     * @param description optional replacement description
+     * @param dueDate optional replacement due date
+     * @return updated current Task projection
+     * @throws TaskNotFoundException when the actor or Task is outside the authorized mutation scope
+     * @throws TaskValidationException when title or due date violates a Task rule
+     */
+    @Transactional
+    public TaskView edit(
+            String actorEmail,
+            long projectId,
+            long taskId,
+            String title,
+            String description,
+            LocalDate dueDate) {
+        TaskAccess access = requireMutationAccess(actorEmail, projectId);
+        requireOpenProject(access.project());
+        ProjectTaskMemberView actorMembership = requireActorMembership(
+                access.project(), access.actor().userId());
+        Task task = requireLockedTask(projectId, taskId);
+        requireUnfinished(task);
+        requireDefinitionMutationActor(access.project(), actorMembership, task);
+        validateDueDate(access.project(), dueDate);
+        task.updateDefinition(requireTitle(title), trimToNull(description), dueDate, clock.instant());
+        return view(tasks.saveAndFlush(task), requireAssigneeName(
+                projectMembers(access), task.getAssigneeMembershipId()));
+    }
+
+    /**
+     * Soft-deletes an unfinished Task while retaining the row and deletion attribution.
+     *
+     * @param actorEmail authenticated account email
+     * @param projectId owning Project identifier
+     * @param taskId Task identifier within that Project
+     * @throws TaskNotFoundException when the actor or Task is outside the authorized mutation scope
+     */
+    @Transactional
+    public void softDelete(String actorEmail, long projectId, long taskId) {
+        TaskAccess access = requireMutationAccess(actorEmail, projectId);
+        requireOpenProject(access.project());
+        ProjectTaskMemberView actorMembership = requireActorMembership(
+                access.project(), access.actor().userId());
+        Task task = requireLockedTask(projectId, taskId);
+        requireUnfinished(task);
+        requireDefinitionMutationActor(access.project(), actorMembership, task);
+        task.softDelete(actorMembership.membershipId(), clock.instant());
+        tasks.saveAndFlush(task);
+    }
+
+    /**
+     * Reassigns one unfinished Task to another eligible current Project member.
+     *
+     * <p>Only the current Leader may invoke this operation. The current Task status is retained;
+     * a DONE Task must first be reopened by its current assignee through the fixed status graph.
+     * Assignment actor/time change, while creator, comments, logs, and lifecycle timestamps stay
+     * historical.
+     *
+     * @param actorEmail authenticated current-Leader account email
+     * @param projectId owning Project identifier
+     * @param taskId Task identifier within that Project
+     * @param assigneeMembershipId eligible same-Project recipient membership
+     * @return updated current Task projection
+     * @throws TaskNotFoundException when authorization or recipient scope is invalid
+     * @throws TaskValidationException when the Task is DONE or recipient is unchanged
+     */
+    @Transactional
+    public TaskView reassign(
+            String actorEmail, long projectId, long taskId, long assigneeMembershipId) {
+        TaskAccess access = requireMutationAccess(actorEmail, projectId);
+        requireOpenProject(access.project());
+        ProjectTaskMemberView actorMembership = requireActorMembership(
+                access.project(), access.actor().userId());
+        if (!Objects.equals(access.project().currentLeaderMembershipId(), actorMembership.membershipId())) {
+            throw new TaskNotFoundException();
+        }
+        ProjectTaskMemberView recipient = requireAssigneeMembership(access.project(), assigneeMembershipId);
+        Task task = requireLockedTask(projectId, taskId);
+        requireUnfinished(task);
+        if (task.getAssigneeMembershipId() == recipient.membershipId()) {
+            throw new TaskValidationException("Task is already assigned to that member");
+        }
+        task.reassign(recipient.membershipId(), actorMembership.membershipId(), clock.instant());
+        return view(tasks.saveAndFlush(task), recipient.displayName());
+    }
+
+    /**
      * Appends a comment to a current Task before Project completion.
      *
      * <p>The transaction locks the Project before the Task row. The owning Mentor or any active
@@ -218,7 +313,21 @@ public class TaskService {
                 && persistedTask.getAssigneeMembershipId() == actorMembership.membershipId();
         boolean canComment = !"COMPLETED".equals(access.project().status())
                 && (access.actor().userId() == access.project().mentorUserId() || actorMembership != null);
-        return new TaskDetails(task, taskComments, canChangeStatus, canComment);
+        boolean unfinished = persistedTask.getStatus() != TaskStatus.DONE;
+        boolean currentLeader = actorMembership != null
+                && Objects.equals(access.project().currentLeaderMembershipId(), actorMembership.membershipId());
+        boolean creatorOwnsCurrentAssignment = actorMembership != null
+                && persistedTask.getCreatorMembershipId() == actorMembership.membershipId()
+                && persistedTask.getAssigneeMembershipId() == actorMembership.membershipId();
+        boolean canEdit = isOpen(access.project()) && unfinished && (currentLeader || creatorOwnsCurrentAssignment);
+        boolean canDelete = canEdit;
+        boolean canReassign = isOpen(access.project()) && unfinished && currentLeader;
+        boolean canLogWork = "ACTIVE".equals(access.project().status())
+                && actorMembership != null
+                && persistedTask.getAssigneeMembershipId() == actorMembership.membershipId();
+        return new TaskDetails(
+                task, taskComments, canChangeStatus, canComment,
+                canEdit, canDelete, canReassign, canLogWork);
     }
 
     /**
@@ -313,6 +422,22 @@ public class TaskService {
 
     private static void requireOpenProject(ProjectTaskContext project) {
         if (!isOpen(project)) {
+            throw new TaskNotFoundException();
+        }
+    }
+
+    private static void requireUnfinished(Task task) {
+        if (task.getStatus() == TaskStatus.DONE) {
+            throw new TaskValidationException("Reopen the Task before reassignment or editing");
+        }
+    }
+
+    private static void requireDefinitionMutationActor(
+            ProjectTaskContext project, ProjectTaskMemberView actor, Task task) {
+        boolean currentLeader = Objects.equals(project.currentLeaderMembershipId(), actor.membershipId());
+        boolean creatorOwnsCurrentAssignment = task.getCreatorMembershipId() == actor.membershipId()
+                && task.getAssigneeMembershipId() == actor.membershipId();
+        if (!currentLeader && !creatorOwnsCurrentAssignment) {
             throw new TaskNotFoundException();
         }
     }

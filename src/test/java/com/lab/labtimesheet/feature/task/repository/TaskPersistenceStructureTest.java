@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.lab.labtimesheet.feature.task.model.entity.Task;
 import com.lab.labtimesheet.feature.task.model.entity.TaskComment;
+import com.lab.labtimesheet.feature.task.model.entity.TaskWorkLog;
 import com.lab.labtimesheet.feature.task.service.TaskService;
 import jakarta.persistence.Entity;
 import jakarta.persistence.LockModeType;
@@ -22,8 +23,10 @@ class TaskPersistenceStructureTest {
     void taskPersistenceUsesJpaEntitiesAndSpringDataRepositories() {
         assertThat(Task.class).hasAnnotation(Entity.class);
         assertThat(TaskComment.class).hasAnnotation(Entity.class);
+        assertThat(TaskWorkLog.class).hasAnnotation(Entity.class);
         assertThat(JpaRepository.class).isAssignableFrom(TaskRepository.class);
         assertThat(JpaRepository.class).isAssignableFrom(TaskCommentRepository.class);
+        assertThat(JpaRepository.class).isAssignableFrom(TaskWorkLogRepository.class);
     }
 
     @Test
@@ -41,6 +44,16 @@ class TaskPersistenceStructureTest {
     void taskMutationLookupUsesAPessimisticWriteLock() throws NoSuchMethodException {
         var method = TaskRepository.class.getMethod(
                 "findLockedByIdAndProjectIdAndDeletedAtIsNull", long.class, long.class);
+
+        Lock lock = method.getAnnotation(Lock.class);
+        assertThat(lock).isNotNull();
+        assertThat(lock.value()).isEqualTo(LockModeType.PESSIMISTIC_WRITE);
+    }
+
+    @Test
+    void workLogCorrectionLookupUsesAPessimisticWriteLock() throws NoSuchMethodException {
+        var method = TaskWorkLogRepository.class.getMethod(
+                "findLockedByIdAndProjectId", long.class, long.class);
 
         Lock lock = method.getAnnotation(Lock.class);
         assertThat(lock).isNotNull();
