@@ -1,6 +1,7 @@
 package com.lab.labtimesheet.feature.attendance.model.entity;
 
 import com.lab.labtimesheet.feature.attendance.model.dto.GlobalCalendarEvent;
+import com.lab.labtimesheet.feature.attendance.model.dto.HolidayCandidate;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -9,6 +10,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
+import java.time.Instant;
 import java.time.LocalDate;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
@@ -33,6 +35,21 @@ public class GlobalCalendarEventEntity {
 
     @Column(nullable = false)
     private String source;
+
+    @Column(name = "source_uuid")
+    private String sourceUuid;
+
+    @Column(name = "actual_date")
+    private LocalDate actualDate;
+
+    @Column(name = "observed_date")
+    private LocalDate observedDate;
+
+    @Column(name = "public_holiday")
+    private Boolean publicHoliday;
+
+    @Column(name = "imported_at")
+    private Instant importedAt;
 
     @Column(name = "is_day_off", nullable = false)
     private boolean dayOff;
@@ -64,6 +81,38 @@ public class GlobalCalendarEventEntity {
     }
 
     /**
+     * Creates a HolidayAPI-imported event with full source provenance.
+     * The Admin's explicit day-off choice is stored independently of the source
+     * public-holiday marker, which is preserved but never forces the decision.
+     *
+     * @param date local observed business date of the event
+     * @param name source holiday name
+     * @param candidate interpreted source candidate carrying provenance
+     * @param dayOff authoritative Admin day-off decision
+     * @param importedAt server instant of the import
+     * @param actorUserId Admin who imported the event
+     */
+    public GlobalCalendarEventEntity(
+            LocalDate date,
+            String name,
+            HolidayCandidate candidate,
+            boolean dayOff,
+            Instant importedAt,
+            long actorUserId) {
+        this.calendarDate = date;
+        this.name = name;
+        this.source = "HOLIDAY_API";
+        this.sourceUuid = candidate.uuid();
+        this.actualDate = candidate.actualDate();
+        this.observedDate = candidate.observedDate();
+        this.publicHoliday = candidate.publicHoliday();
+        this.dayOff = dayOff;
+        this.importedAt = importedAt;
+        this.createdByUserId = actorUserId;
+        this.updatedByUserId = actorUserId;
+    }
+
+    /**
      * Applies an authorized future-event edit while preserving creator attribution.
      *
      * @param date replacement local date
@@ -79,12 +128,23 @@ public class GlobalCalendarEventEntity {
     }
 
     /**
-     * Returns a persistence-free event including the optimistic version needed for edits.
+     * Returns a persistence-free event including provenance and the optimistic version.
      *
      * @return calendar event DTO
      */
     public GlobalCalendarEvent toDomain() {
-        return new GlobalCalendarEvent(id, calendarDate, name, dayOff, version);
+        return new GlobalCalendarEvent(
+                id,
+                calendarDate,
+                name,
+                dayOff,
+                version,
+                source,
+                sourceUuid,
+                actualDate,
+                observedDate,
+                publicHoliday,
+                importedAt);
     }
 
     /**
@@ -103,5 +163,29 @@ public class GlobalCalendarEventEntity {
      */
     public long version() {
         return version;
+    }
+
+    String sourceUuid() {
+        return sourceUuid;
+    }
+
+    boolean dayOff() {
+        return dayOff;
+    }
+
+    LocalDate actualDate() {
+        return actualDate;
+    }
+
+    LocalDate observedDate() {
+        return observedDate;
+    }
+
+    Boolean publicHoliday() {
+        return publicHoliday;
+    }
+
+    Instant importedAt() {
+        return importedAt;
     }
 }

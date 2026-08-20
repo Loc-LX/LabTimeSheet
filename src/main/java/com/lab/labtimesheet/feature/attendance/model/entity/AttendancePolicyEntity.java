@@ -58,6 +58,9 @@ public class AttendancePolicyEntity {
     @Column(name = "violation_penalty", nullable = false)
     private BigDecimal violationPenalty;
 
+    @Column(name = "created_by_user_id", updatable = false)
+    private Long createdByUserId;
+
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(
             name = "attendance_policy_workdays",
@@ -67,6 +70,69 @@ public class AttendancePolicyEntity {
 
     @Version
     private long version;
+
+    /**
+     * Creates a new scheduled policy version from the validated immutable domain policy.
+     * The persistent identifier remains database-generated and the optimistic version starts at zero.
+     *
+     * @param policy validated policy values to persist, including configured workdays
+     * @param createdByUserId Admin who scheduled the version
+     */
+    public AttendancePolicyEntity(AttendancePolicy policy, long createdByUserId) {
+        this.effectiveFrom = policy.effectiveFrom();
+        this.timezoneName = policy.zoneId().getId();
+        this.scheduledStart = policy.scheduledStart();
+        this.scheduledEnd = policy.scheduledEnd();
+        this.checkInGraceMinutes = policy.checkInGraceMinutes();
+        this.checkoutGraceMinutes = policy.checkoutGraceMinutes();
+        this.monthlyLeaveQuota = policy.monthlyLeaveQuota();
+        this.violationPenalty = policy.violationPenalty();
+        this.isoWeekdays = toIsoWeekdays(policy.workdays());
+        this.createdByUserId = createdByUserId;
+    }
+
+    /**
+     * Replaces the content of a scheduled-but-not-yet-effective version while preserving its identifier
+     * and advancing the optimistic version on save.
+     *
+     * @param policy replacement validated policy values
+     */
+    public void update(AttendancePolicy policy) {
+        this.effectiveFrom = policy.effectiveFrom();
+        this.timezoneName = policy.zoneId().getId();
+        this.scheduledStart = policy.scheduledStart();
+        this.scheduledEnd = policy.scheduledEnd();
+        this.checkInGraceMinutes = policy.checkInGraceMinutes();
+        this.checkoutGraceMinutes = policy.checkoutGraceMinutes();
+        this.monthlyLeaveQuota = policy.monthlyLeaveQuota();
+        this.violationPenalty = policy.violationPenalty();
+        this.isoWeekdays = toIsoWeekdays(policy.workdays());
+    }
+
+    /**
+     * Returns the first local business date governed by this version.
+     *
+     * @return effective-from local date
+     */
+    public LocalDate effectiveFrom() {
+        return effectiveFrom;
+    }
+
+    private static Set<Short> toIsoWeekdays(Set<DayOfWeek> workdays) {
+        return workdays.stream()
+                .map(DayOfWeek::getValue)
+                .map(Integer::shortValue)
+                .collect(Collectors.toSet());
+    }
+
+    /**
+     * Returns the optimistic version expected by a subsequent replacement.
+     *
+     * @return current version
+     */
+    public long version() {
+        return version;
+    }
 
     /**
      * Converts the persisted version to the immutable policy used for historical boundary calculations.

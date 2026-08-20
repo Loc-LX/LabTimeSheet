@@ -45,4 +45,13 @@ public class LeaveRequestDayId implements Serializable {
     public int hashCode() {
         return Objects.hash(leaveRequestId, leaveDate);
     }
+
+    /**
+     * Returns the exact frozen allocation date.
+     *
+     * @return leave date
+     */
+    public LocalDate leaveDate() {
+        return leaveDate;
+    }
 }
