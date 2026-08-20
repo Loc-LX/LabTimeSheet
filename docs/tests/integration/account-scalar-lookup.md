@@ -4,7 +4,7 @@
 - **Requirement IDs:** `I2-PLAT-03 follow-up`; root-authorized Tasks Account-routing dependency (no additional numbered requirement claimed)
 - **Scenario IDs:** scalar email normalization; no Account entity hydration; routing-only boundary
 - **Test class/method:** `com.lab.labtimesheet.feature.account.service.AccountScalarLookupIntegrationTest#resolvesNormalizedEmailThroughScalarQueryWithoutHydratingAccountEntity`
-- **Implementation commit:** `pending (uncommitted producer patch; base 89b99e3d161a63f5b9f140da7e6d8b89a7ebdbc8)`
+- **Implementation commit:** `b90ede8c59f6df56e807a402edb98e6aff78333e` (parent `89b99e3d161a63f5b9f140da7e6d8b89a7ebdbc8`)
 
 ## Protected behavior
 
