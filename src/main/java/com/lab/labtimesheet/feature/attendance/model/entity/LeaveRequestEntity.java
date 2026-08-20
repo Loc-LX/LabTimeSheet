@@ -221,6 +221,20 @@ public class LeaveRequestEntity {
     }
 
     /**
+     * Auto-rejects a still-pending request whose first counted start has passed. No Mentor decided the outcome, so
+     * the deciding-Mentor field stays {@code null}; the transition records the expiry instant as the decision
+     * instant so the database invariant that a decided request carries a decision instant holds. REJECTED no longer
+     * reserves quota, releasing the frozen days.
+     *
+     * @param at server transition instant
+     */
+    public void autoReject(Instant at) {
+        this.status = "REJECTED";
+        this.decidedAt = at;
+        this.decisionNote = "Pending leave expired at the first counted start";
+    }
+
+    /**
      * Cancels a pending or approved request before the first counted start, releasing its reservation.
      *
      * @param at server cancellation instant

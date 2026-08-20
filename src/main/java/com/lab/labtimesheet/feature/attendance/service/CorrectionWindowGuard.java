@@ -18,7 +18,10 @@ import org.springframework.transaction.annotation.Transactional;
  * transaction then rejects the mutation with {@code DECISION_WINDOW_PASSED} or {@code LOCKED}. A still-pending
  * correction past its inclusive decision deadline is auto-rejected and locked with an immutable AUTO_REJECTED
  * event; an already-decided correction past the deadline is locked with a LOCKED event. Missing, locked, and
- * within-window corrections are left untouched, so repeated scheduler invocations are idempotent.
+ * within-window corrections are left untouched, so repeated scheduler/request invocations are idempotent and
+ * fire at most one notification per actual transition (ERR-004). The {@code AttendanceDeadlineService} bounded
+ * worker calls {@link #expireNow(AttendanceCorrectionEntity)} so scheduler and request-time paths share exactly
+ * the same idempotent transition logic (COR-008).
  */
 @Service
 @RequiredArgsConstructor(access = AccessLevel.PACKAGE)
@@ -27,26 +30,42 @@ public class CorrectionWindowGuard {
     private final Clock clock;
     private final AttendanceCorrectionRepository corrections;
     private final AttendanceCorrectionEventRepository events;
+    private final AttendanceNotificationClient notifications;
 
     /**
      * Applies the decision-window expiry for one correction in an isolated, always-committed transaction.
      *
      * @param correctionId correction identifier
+     * @return {@code true} when a transition was actually applied, {@code false} for a missing/locked/within-window
+     *     correction or a repeated invocation of an already-resolved one
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void expire(long correctionId) {
+    public boolean expire(long correctionId) {
         AttendanceCorrectionEntity correction = corrections.findById(correctionId).orElse(null);
-        if (correction == null || correction.lockedAt() != null) {
-            return;
+        return correction != null && expireNow(correction);
+    }
+
+    /**
+     * Applies the idempotent transition for an already-loaded correction inside the caller's transaction. Reused by
+     * the bounded {@code AttendanceDeadlineService} worker so a late scheduler run and a request-time access follow
+     * the identical deadline evaluation.
+     *
+     * @param correction loaded correction candidate
+     * @return {@code true} when a transition was actually applied
+     */
+    boolean expireNow(AttendanceCorrectionEntity correction) {
+        if (correction.lockedAt() != null) {
+            return false;
         }
         Instant now = clock.instant();
         if (!now.isAfter(correction.decisionDeadline())) {
-            return;
+            return false;
         }
-        if ("PENDING".equals(correction.status())) {
+        boolean autoRejected = "PENDING".equals(correction.status());
+        if (autoRejected) {
             correction.autoReject(now);
             events.save(new AttendanceCorrectionEventEntity(
-                    correctionId,
+                    correction.id(),
                     "AUTO_REJECTED",
                     "PENDING",
                     "REJECTED",
@@ -56,7 +75,7 @@ public class CorrectionWindowGuard {
         } else {
             correction.lock(now);
             events.save(new AttendanceCorrectionEventEntity(
-                    correctionId,
+                    correction.id(),
                     "LOCKED",
                     correction.status(),
                     correction.status(),
@@ -65,5 +84,16 @@ public class CorrectionWindowGuard {
                     now));
         }
         corrections.saveAndFlush(correction);
+        long recipient = correction.attendanceRecord().toDomain().internId();
+        try {
+            if (autoRejected) {
+                notifications.correctionAutoRejected(recipient, correction.id(), now);
+            } else {
+                notifications.correctionLocked(recipient, correction.id(), now);
+            }
+        } catch (RuntimeException exception) {
+            // NOT-002/ERR-005: a notification failure must not roll back the committed transition.
+        }
+        return true;
     }
 }

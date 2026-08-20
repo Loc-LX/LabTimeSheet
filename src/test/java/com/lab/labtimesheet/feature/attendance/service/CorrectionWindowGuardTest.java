@@ -2,13 +2,16 @@ package com.lab.labtimesheet.feature.attendance.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.lab.labtimesheet.feature.attendance.model.AttendanceRecord;
 import com.lab.labtimesheet.feature.attendance.model.entity.AttendanceCorrectionEntity;
 import com.lab.labtimesheet.feature.attendance.model.entity.AttendanceCorrectionEventEntity;
+import com.lab.labtimesheet.feature.attendance.model.entity.AttendanceRecordEntity;
 import com.lab.labtimesheet.feature.attendance.repository.AttendanceCorrectionEventRepository;
 import com.lab.labtimesheet.feature.attendance.repository.AttendanceCorrectionRepository;
 import java.time.Clock;
@@ -22,10 +25,12 @@ import org.mockito.ArgumentCaptor;
 class CorrectionWindowGuardTest {
 
     private static final long CORRECTION_ID = 88L;
+    private static final long INTERN_ID = 7L;
     private static final Instant DECISION_DEADLINE = Instant.parse("2026-08-15T09:00:01Z");
 
     private final AttendanceCorrectionRepository corrections = mock(AttendanceCorrectionRepository.class);
     private final AttendanceCorrectionEventRepository events = mock(AttendanceCorrectionEventRepository.class);
+    private final AttendanceNotificationClient notifications = mock(AttendanceNotificationClient.class);
 
     private AttendanceCorrectionEntity correction;
 
@@ -35,6 +40,11 @@ class CorrectionWindowGuardTest {
         when(correction.id()).thenReturn(CORRECTION_ID);
         when(correction.decisionDeadline()).thenReturn(DECISION_DEADLINE);
         when(correction.lockedAt()).thenReturn(null);
+        AttendanceRecordEntity record = mock(AttendanceRecordEntity.class);
+        AttendanceRecord domain = mock(AttendanceRecord.class);
+        when(domain.internId()).thenReturn(INTERN_ID);
+        when(record.toDomain()).thenReturn(domain);
+        when(correction.attendanceRecord()).thenReturn(record);
         when(corrections.findById(CORRECTION_ID)).thenReturn(Optional.of(correction));
     }
 
@@ -43,7 +53,7 @@ class CorrectionWindowGuardTest {
         Instant now = Instant.parse("2026-08-15T09:00:01.001Z");
         when(correction.status()).thenReturn("PENDING");
 
-        guardAt(now).expire(CORRECTION_ID);
+        assertThat(guardAt(now).expire(CORRECTION_ID)).isTrue();
 
         verify(corrections).saveAndFlush(correction);
         ArgumentCaptor<AttendanceCorrectionEventEntity> eventCaptor =
@@ -56,6 +66,7 @@ class CorrectionWindowGuardTest {
         assertThat(event.actorUserId()).isNull();
         assertThat(event.correctionId()).isEqualTo(CORRECTION_ID);
         assertThat(event.occurredAt()).isEqualTo(now);
+        verify(notifications).correctionAutoRejected(INTERN_ID, CORRECTION_ID, now);
     }
 
     @Test
@@ -63,7 +74,7 @@ class CorrectionWindowGuardTest {
         Instant now = Instant.parse("2026-08-15T09:00:01.001Z");
         when(correction.status()).thenReturn("APPROVED");
 
-        guardAt(now).expire(CORRECTION_ID);
+        assertThat(guardAt(now).expire(CORRECTION_ID)).isTrue();
 
         verify(corrections).saveAndFlush(correction);
         ArgumentCaptor<AttendanceCorrectionEventEntity> eventCaptor =
@@ -76,48 +87,58 @@ class CorrectionWindowGuardTest {
         assertThat(event.actorUserId()).isNull();
         assertThat(event.correctionId()).isEqualTo(CORRECTION_ID);
         assertThat(event.occurredAt()).isEqualTo(now);
+        verify(notifications).correctionLocked(INTERN_ID, CORRECTION_ID, now);
     }
 
     @Test
     void leavesCorrectionUntouchedAtInclusiveDeadline() {
-        guardAt(Instant.parse("2026-08-15T09:00:01Z")).expire(CORRECTION_ID);
+        assertThat(guardAt(Instant.parse("2026-08-15T09:00:01Z")).expire(CORRECTION_ID)).isFalse();
 
         verify(corrections, never()).saveAndFlush(any());
         verify(events, never()).save(any());
+        verify(notifications, never()).correctionAutoRejected(anyLong(), anyLong(), any());
+        verify(notifications, never()).correctionLocked(anyLong(), anyLong(), any());
     }
 
     @Test
     void leavesCorrectionUntouchedInsideWindow() {
-        guardAt(Instant.parse("2026-08-15T08:00:00Z")).expire(CORRECTION_ID);
+        assertThat(guardAt(Instant.parse("2026-08-15T08:00:00Z")).expire(CORRECTION_ID)).isFalse();
 
         verify(corrections, never()).saveAndFlush(any());
         verify(events, never()).save(any());
+        verify(notifications, never()).correctionAutoRejected(anyLong(), anyLong(), any());
+        verify(notifications, never()).correctionLocked(anyLong(), anyLong(), any());
     }
 
     @Test
     void leavesAlreadyLockedCorrectionUntouched() {
         when(correction.lockedAt()).thenReturn(Instant.parse("2026-08-15T09:00:01.001Z"));
 
-        guardAt(Instant.parse("2026-08-15T09:00:01.002Z")).expire(CORRECTION_ID);
+        assertThat(guardAt(Instant.parse("2026-08-15T09:00:01.002Z")).expire(CORRECTION_ID)).isFalse();
 
         verify(corrections, never()).saveAndFlush(any());
         verify(events, never()).save(any());
+        verify(notifications, never()).correctionAutoRejected(anyLong(), anyLong(), any());
+        verify(notifications, never()).correctionLocked(anyLong(), anyLong(), any());
     }
 
     @Test
     void leavesMissingCorrectionUntouched() {
         when(corrections.findById(CORRECTION_ID)).thenReturn(Optional.empty());
 
-        guardAt(Instant.parse("2026-08-15T09:00:01.001Z")).expire(CORRECTION_ID);
+        assertThat(guardAt(Instant.parse("2026-08-15T09:00:01.001Z")).expire(CORRECTION_ID)).isFalse();
 
         verify(corrections, never()).saveAndFlush(any());
         verify(events, never()).save(any());
+        verify(notifications, never()).correctionAutoRejected(anyLong(), anyLong(), any());
+        verify(notifications, never()).correctionLocked(anyLong(), anyLong(), any());
     }
 
     private CorrectionWindowGuard guardAt(Instant now) {
         return new CorrectionWindowGuard(
                 Clock.fixed(now, ZoneOffset.UTC),
                 corrections,
-                events);
+                events,
+                notifications);
     }
 }

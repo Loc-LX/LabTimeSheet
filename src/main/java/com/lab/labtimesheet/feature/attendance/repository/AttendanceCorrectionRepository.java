@@ -1,8 +1,10 @@
 package com.lab.labtimesheet.feature.attendance.repository;
 
 import com.lab.labtimesheet.feature.attendance.model.entity.AttendanceCorrectionEntity;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -41,4 +43,42 @@ public interface AttendanceCorrectionRepository extends JpaRepository<Attendance
      * @return all corrections ordered by newest submission
      */
     List<AttendanceCorrectionEntity> findAllByOrderByIdDesc();
+
+    /**
+     * Loads a bounded batch of unlocked corrections whose decision deadline has passed, oldest-first, for the
+     * scheduler/read-path correction-expiry worker.
+     *
+     * @param boundary server instant; corrections strictly before this instant are candidates
+     * @param pageable batch bound
+     * @return bounded expired unlocked candidates
+     */
+    @Query("""
+            select correction from AttendanceCorrectionEntity correction
+            where correction.lockedAt is null
+              and correction.decisionDeadline < :boundary
+            order by correction.id asc
+            """)
+    List<AttendanceCorrectionEntity> findExpiredByDecisionDeadline(
+            @Param("boundary") Instant boundary, Pageable pageable);
+
+    /**
+     * Loads a bounded batch of one Intern's unlocked corrections whose decision deadline has passed, oldest-first,
+     * so the Intern correction page applies the same deadline guard without touching other Interns.
+     *
+     * @param internUserId owning Intern account identifier
+     * @param boundary server instant; corrections strictly before this instant are candidates
+     * @param pageable batch bound
+     * @return bounded expired unlocked candidates
+     */
+    @Query("""
+            select correction from AttendanceCorrectionEntity correction
+            where correction.attendanceRecord.internUserId = :internUserId
+              and correction.lockedAt is null
+              and correction.decisionDeadline < :boundary
+            order by correction.id asc
+            """)
+    List<AttendanceCorrectionEntity> findExpiredByInternUserId(
+            @Param("internUserId") long internUserId,
+            @Param("boundary") Instant boundary,
+            Pageable pageable);
 }

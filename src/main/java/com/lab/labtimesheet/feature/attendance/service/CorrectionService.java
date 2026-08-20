@@ -39,6 +39,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class CorrectionService {
 
     private static final long TWENTY_FOUR_HOURS = 24L * 60L * 60L;
+    private static final int CORRECTION_BATCH_SIZE = 100;
 
     private final Clock clock;
     private final AccountService accounts;
@@ -46,6 +47,7 @@ public class CorrectionService {
     private final AttendanceCorrectionRepository corrections;
     private final AttendanceCorrectionEventRepository events;
     private final CorrectionWindowGuard windowGuard;
+    private final AttendanceDeadlineService deadlines;
 
     /**
      * Submits a missed-checkout correction for the owning Intern in one transaction. The attendance record must
@@ -123,6 +125,7 @@ public class CorrectionService {
         if (!accounts.isEligibleIntern(internId)) {
             throw new CorrectionException(CorrectionRejection.INACTIVE_INTERN);
         }
+        deadlines.expireCorrectionsForIntern(internId, CORRECTION_BATCH_SIZE);
         return new CorrectionsOverview(
                 month,
                 corrections.findByInternUserIdOrderByIdDesc(internId).stream()
@@ -219,6 +222,7 @@ public class CorrectionService {
      */
     @Transactional(readOnly = true)
     public List<MentorCorrectionDecision> decisions() {
+        deadlines.expireCorrections(CORRECTION_BATCH_SIZE);
         Instant now = clock.instant();
         return corrections.findAllByOrderByIdDesc().stream()
                 .map(correction -> decision(correction.id(), correction, now))

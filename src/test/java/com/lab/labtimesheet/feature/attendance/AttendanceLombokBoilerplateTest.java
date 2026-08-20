@@ -49,6 +49,7 @@ import com.lab.labtimesheet.feature.attendance.repository.LeaveRequestRepository
 import com.lab.labtimesheet.feature.attendance.service.AttendanceApplicationService;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceCurrentUserService;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceService;
+import com.lab.labtimesheet.feature.attendance.service.AttendanceDeadlineService;
 import com.lab.labtimesheet.feature.attendance.service.CalendarApplicationService;
 import com.lab.labtimesheet.feature.attendance.service.CorrectionService;
 import com.lab.labtimesheet.feature.attendance.service.CorrectionWindowGuard;
@@ -155,7 +156,8 @@ class AttendanceLombokBoilerplateTest {
                         AttendanceRecordRepository.class,
                         AttendanceCorrectionRepository.class,
                         AttendanceCorrectionEventRepository.class,
-                        CorrectionWindowGuard.class));
+                        CorrectionWindowGuard.class,
+                        AttendanceDeadlineService.class));
         assertConstructors(
                 LeaveService.class,
                 constructor(
@@ -165,7 +167,8 @@ class AttendanceLombokBoilerplateTest {
                         AttendancePolicyRepository.class,
                         CalendarApplicationService.class,
                         LeaveRequestRepository.class,
-                        LeaveRequestDayRepository.class));
+                        LeaveRequestDayRepository.class,
+                        AttendanceDeadlineService.class));
 
         assertConstructors(
                 AttendancePolicyEntity.class,
@@ -437,7 +440,8 @@ class AttendanceLombokBoilerplateTest {
                 method(Modifier.PUBLIC, "decidedByMentorUserId", Long.class),
                 method(Modifier.PUBLIC, "decidedAt", Instant.class),
                 method(Modifier.PUBLIC, "decisionNote", String.class),
-                method(Modifier.PUBLIC, "cancelledAt", Instant.class));
+                method(Modifier.PUBLIC, "cancelledAt", Instant.class),
+                method(Modifier.PUBLIC, "autoReject", void.class, Instant.class));
     }
 
     @Test

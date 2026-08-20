@@ -1,8 +1,10 @@
 package com.lab.labtimesheet.feature.attendance.repository;
 
 import com.lab.labtimesheet.feature.attendance.model.entity.LeaveRequestEntity;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -48,4 +50,29 @@ public interface LeaveRequestRepository extends JpaRepository<LeaveRequestEntity
      * @return requests ordered by newest submission
      */
     List<LeaveRequestEntity> findAllByOrderByIdDesc();
+
+    /**
+     * Loads a bounded batch of pending requests whose first counted start has passed, oldest-first, for the
+     * scheduler/read-path leave-expiry worker.
+     *
+     * @param status exact current status, always {@code PENDING}
+     * @param boundary server instant; requests at or before this instant are candidates
+     * @param pageable batch bound
+     * @return bounded expired pending candidates
+     */
+    List<LeaveRequestEntity> findByStatusAndFirstCountedStartAtLessThanEqualOrderByIdAsc(
+            String status, Instant boundary, Pageable pageable);
+
+    /**
+     * Loads a bounded batch of one Intern's pending requests whose first counted start has passed, oldest-first, so
+     * the Intern leave page applies the same deadline guard without touching other Interns.
+     *
+     * @param internUserId owning Intern account identifier
+     * @param status exact current status, always {@code PENDING}
+     * @param boundary server instant; requests at or before this instant are candidates
+     * @param pageable batch bound
+     * @return bounded expired pending candidates
+     */
+    List<LeaveRequestEntity> findByInternUserIdAndStatusAndFirstCountedStartAtLessThanEqualOrderByIdAsc(
+            long internUserId, String status, Instant boundary, Pageable pageable);
 }
