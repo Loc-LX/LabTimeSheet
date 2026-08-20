@@ -9,12 +9,15 @@ import com.lab.labtimesheet.feature.project.model.dto.ProjectActorView;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectDashboardSummary;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectLeadershipTermView;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectMemberView;
+import com.lab.labtimesheet.feature.project.model.dto.ProjectMembershipIntervalView;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectSummary;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectTaskContext;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectTaskMemberView;
 import com.lab.labtimesheet.feature.project.model.entity.ProjectEntity;
+import com.lab.labtimesheet.feature.project.repository.ProjectExitRequestRepository;
 import com.lab.labtimesheet.feature.project.repository.ProjectRepository;
 import java.util.List;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,6 +34,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class ProjectQueryService {
 
     private final ProjectRepository projects;
+    private final ProjectExitRequestRepository exitRequests;
     private final AccountService accounts;
 
     /**
@@ -131,6 +135,27 @@ public class ProjectQueryService {
     }
 
     /**
+     * Returns every retained membership interval belonging to the authenticated Intern across
+     * Projects. This is the DTO-only source for cross-Project Task work and history queries.
+     *
+     * <p>Only an active account with the global Intern role may use this boundary. Internship
+     * completion does not erase retained intervals, so this read remains available to an active
+     * completed Intern while mutation eligibility is enforced by the Account boundary.</p>
+     *
+     * @param actorUserId authenticated Intern account identifier
+     * @return immutable interval projections ordered by Project then membership identifier
+     * @throws ProjectAccessDeniedException when the actor is missing, inactive, or not an Intern
+     */
+    @Transactional(readOnly = true)
+    public List<ProjectMembershipIntervalView> membershipIntervals(long actorUserId) {
+        var actor = activeActor(actorUserId);
+        if (!"INTERN".equals(actor.role().name())) {
+            throw new ProjectAccessDeniedException();
+        }
+        return projects.findMembershipIntervalsByInternUserId(actorUserId);
+    }
+
+    /**
      * Returns retained leadership terms for an authorized Project, newest first.
      *
      * @param actorUserId active actor user identifier
@@ -161,10 +186,30 @@ public class ProjectQueryService {
     @Transactional(readOnly = true)
     public ProjectTaskContext taskContext(long actorUserId, long projectId) {
         var project = projects.findById(projectId).orElseThrow(ProjectAccessDeniedException::new);
-        return taskContext(actorUserId, project);
+        requireVisibleProject(actorUserId, project);
+        return taskContext(actorUserId, project,
+                exitRequests.findPendingTargetMembershipIdsByProjectId(projectId));
     }
 
     ProjectTaskContext taskContext(long actorUserId, ProjectEntity project) {
+        return taskContext(actorUserId, project, Set.of());
+    }
+
+    /**
+     * Maps a Project already locked by the mutation owner into the DTO consumed by Task.
+     *
+     * <p>The caller must acquire the Project write lock before reading the pending target IDs and
+     * retain that lock through the outer transaction. This preserves one stable authorization
+     * snapshot while Task locks its own rows; this mapper does not access Project persistence from
+     * the Task feature.
+     *
+     * @param actorUserId authenticated actor
+     * @param project locked Project aggregate
+     * @param pendingExitMembershipIds pending target IDs read after the Project lock
+     * @return immutable DTO-only Task context
+     */
+    ProjectTaskContext taskContext(
+            long actorUserId, ProjectEntity project, Set<Long> pendingExitMembershipIds) {
         requireVisibleProject(actorUserId, project);
         if (project.status() == ProjectStatus.COMPLETED) {
             return new ProjectTaskContext(
@@ -174,14 +219,16 @@ public class ProjectQueryService {
                     project.startDate(),
                     project.endDate(),
                     null,
-                    List.of());
+                    List.of(),
+                    Set.of());
         }
         var activeMembers = project.memberships().stream()
                 .filter(membership -> membership.isCurrent() && isEligibleIntern(membership.internUserId()))
                 .map(membership -> new ProjectTaskMemberView(
                         membership.id(),
                         membership.internUserId(),
-                        displayName(membership.internUserId())))
+                        displayName(membership.internUserId()),
+                        membership.joinedAt()))
                 .toList();
         var currentLeader = project.currentLeader();
         var currentLeaderMembershipId = activeMembers.stream()
@@ -196,7 +243,8 @@ public class ProjectQueryService {
                 project.startDate(),
                 project.endDate(),
                 currentLeaderMembershipId,
-                activeMembers);
+                activeMembers,
+                pendingExitMembershipIds);
     }
 
     /**

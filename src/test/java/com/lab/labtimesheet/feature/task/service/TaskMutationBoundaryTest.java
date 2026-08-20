@@ -62,7 +62,8 @@ class TaskMutationBoundaryTest {
                 LocalDate.of(2026, 8, 1),
                 LocalDate.of(2026, 8, 31),
                 70L,
-                List.of(new ProjectTaskMemberView(70L, 5L, "Member")));
+                List.of(new ProjectTaskMemberView(70L, 5L, "Member", NOW)),
+                java.util.Set.of());
         when(projectQueries.authenticatedActor("member@example.test"))
                 .thenReturn(new ProjectActorView(5L, "INTERN"));
         when(projectMutations.taskMutationContext(5L, 10L)).thenReturn(context);
