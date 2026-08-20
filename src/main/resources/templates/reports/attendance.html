@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{fragments/layout :: shell(
+          pageTitle='Attendance report',
+          section='Reports',
+          activeNav='attendance',
+          primaryAction=~{},
+          content=~{::main})}">
+<body>
+<main>
+    <p class="page-description">Attendance compliance from the attached historical policy and server-time punches.</p>
+    <form class="panel form-grid report-filters" method="get" th:action="@{/reports/attendance}">
+        <div class="field">
+            <label class="field-label" for="attendance-from">From</label>
+            <input class="control" id="attendance-from" name="from" type="date" required th:value="${report.from}">
+        </div>
+        <div class="field">
+            <label class="field-label" for="attendance-to">To</label>
+            <input class="control" id="attendance-to" name="to" type="date" required th:value="${report.to}">
+        </div>
+        <div class="field" th:if="${!report.ownScope}">
+            <label class="field-label" for="attendance-intern">Intern detail</label>
+            <select class="control" id="attendance-intern" name="internId" required>
+                <option value="" disabled>Select an Intern</option>
+                <option th:each="option : ${report.targetOptions}" th:value="${option.userId}"
+                        th:selected="${option.userId == report.targetInternId}"
+                        th:text="|${option.displayName} (${option.studentCode})|">Intern</option>
+            </select>
+        </div>
+        <div class="field form-actions"><button class="button button-primary" type="submit">Apply filters</button></div>
+    </form>
+    <p class="field-help" role="status" th:text="${report.ownScope ? 'Own scope · ' + report.targetName : 'Detail scope · ' + report.targetName}">Own scope</p>
+    <section class="panel metric-strip metric-strip-four" aria-label="Attendance report summary">
+        <div class="metric"><div class="metric-label">Recorded days</div><div class="metric-value" th:text="${report.recordedDays}">0</div><div class="metric-detail">Rows in selected period</div></div>
+        <div class="metric"><div class="metric-label">Compliant days</div><div class="metric-value" th:text="${report.compliantDays}">0</div><div class="metric-detail">No recorded violation</div></div>
+        <div class="metric"><div class="metric-label">Violation days</div><div class="metric-value" th:text="${report.violationDays}">0</div><div class="metric-detail">Late, early, or missing checkout</div></div>
+        <div class="metric"><div class="metric-label">Compliance rate</div><div class="metric-value" th:text="${report.complianceRate}">N/A</div><div class="metric-detail">N/A when no rows exist</div></div>
+    </section>
+    <th:block th:if="${#lists.size(report.trend) > 1}"
+              th:replace="~{fragments/components :: reportChart('attendance-compliance-trend', 'Attendance compliance trend', 'Equivalent daily compliance values for the selected period.', ${report.trend})}"></th:block>
+    <section class="panel" th:if="${#lists.isEmpty(report.rows)}">
+        <th:block th:replace="~{fragments/components :: empty('No attendance records in this period', 'Try a wider date range or choose another authorized Intern.')} "></th:block>
+    </section>
+    <section class="panel" th:unless="${#lists.isEmpty(report.rows)}">
+        <header class="panel-header"><h2 class="panel-title">Attendance detail</h2></header>
+        <div class="table-scroll">
+            <table class="data-table">
+                <caption class="sr-only" th:text="|Attendance detail for ${report.targetName}|">Attendance detail</caption>
+                <thead><tr><th scope="col">Work date</th><th scope="col">Check in</th><th scope="col">Check out</th><th scope="col">Schedule</th><th scope="col">Result</th><th scope="col">Elapsed</th></tr></thead>
+                <tbody>
+                <tr th:each="row : ${report.rows}">
+                    <th scope="row" th:text="${row.workDate}">14/08/2026</th>
+                    <td th:text="${row.checkIn}">09:05</td>
+                    <td th:text="${row.checkOut}">16:00</td>
+                    <td th:text="${row.schedule}">08:30–15:30 (Asia/Ho_Chi_Minh)</td>
+                    <td><span class="badge" th:classappend="${row.compliant ? ' badge-success' : ' badge-warning'}" th:text="${row.result}">On time</span></td>
+                    <td th:text="${row.workedMinutes}">415 min</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+</main>
+</body>
+</html>
