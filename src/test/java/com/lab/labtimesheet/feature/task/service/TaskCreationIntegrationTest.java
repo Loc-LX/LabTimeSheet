@@ -306,8 +306,11 @@ class TaskCreationIntegrationTest {
                     assertThat(details.canChangeStatus()).isTrue();
                     assertThat(details.canComment()).isTrue();
                 });
-        assertThat(taskService.details("leader@example.test", projectId, task.id()).canChangeStatus())
-                .isFalse();
+        assertThat(taskService.details("leader@example.test", projectId, task.id()))
+                .satisfies(details -> {
+                    assertThat(details.canChangeStatus()).isFalse();
+                    assertThat(details.canReassign()).isTrue();
+                });
 
         completeProject();
 

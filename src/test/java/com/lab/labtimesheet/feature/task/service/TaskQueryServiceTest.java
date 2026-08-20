@@ -4,9 +4,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
+import com.lab.labtimesheet.feature.project.service.ProjectQueryService;
+import com.lab.labtimesheet.feature.task.model.TaskStatus;
 import com.lab.labtimesheet.feature.task.repository.TaskRepository;
 import com.lab.labtimesheet.feature.task.model.entity.Task;
 import java.time.Instant;
+import com.lab.labtimesheet.feature.task.repository.TaskWorkLogRepository;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -21,6 +24,12 @@ class TaskQueryServiceTest {
 
     @Mock
     private TaskRepository tasks;
+
+    @Mock
+    private TaskWorkLogRepository workLogs;
+
+    @Mock
+    private ProjectQueryService projects;
 
     @InjectMocks
     private TaskQueryService taskQueries;
@@ -65,5 +74,14 @@ class TaskQueryServiceTest {
         assertThat(task.getAssigneeMembershipId()).isEqualTo(9L);
         assertThat(task.getAssignerMembershipId()).isEqualTo(9L);
         verify(tasks).flush();
+    }
+
+    @Test
+    void reportsCurrentAndDoneCountsForCompletionGate() {
+        given(tasks.countByProjectIdAndDeletedAtIsNull(42L)).willReturn(4L);
+        given(tasks.countByProjectIdAndStatusAndDeletedAtIsNull(42L, TaskStatus.DONE)).willReturn(4L);
+
+        assertThat(taskQueries.countCurrentTasks(42L)).isEqualTo(4L);
+        assertThat(taskQueries.countDoneTasks(42L)).isEqualTo(4L);
     }
 }

@@ -204,6 +204,19 @@ public class ProjectQueryService {
     }
 
     /**
+     * Returns every membership interval identifier of one Intern across all Projects, current and
+     * historical. Consumers use this boundary to aggregate an Intern's own cross-Project daily
+     * totals without importing the membership repository or entity.
+     *
+     * @param internUserId Intern user identifier
+     * @return the Intern's membership interval identifiers
+     */
+    @Transactional(readOnly = true)
+    public List<Long> membershipIdsForIntern(long internUserId) {
+        return projects.findMembershipIdsByInternUserId(internUserId);
+    }
+
+    /**
      * [I1-PRJ-05, I2-PRJ-06] Tính số liệu dashboard theo vai trò từ các quan hệ Project hiện tại và đang hoạt động.
      * Lượt tham gia lịch sử không bao giờ góp vào số liệu hiện tại của Intern hoặc Mentor.
      *

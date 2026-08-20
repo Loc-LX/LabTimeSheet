@@ -4,12 +4,17 @@ import com.lab.labtimesheet.feature.task.exception.TaskValidationException;
 import com.lab.labtimesheet.feature.task.model.TaskProgress;
 import com.lab.labtimesheet.feature.task.model.TaskStatus;
 import com.lab.labtimesheet.feature.task.model.dto.CreateTaskCommand;
+import com.lab.labtimesheet.feature.task.model.dto.EditTaskCommand;
+import com.lab.labtimesheet.feature.task.model.dto.LogWorkCommand;
+import com.lab.labtimesheet.feature.task.model.dto.LogWorkCorrection;
 import com.lab.labtimesheet.feature.task.model.dto.TaskCreateForm;
 import com.lab.labtimesheet.feature.task.model.dto.TaskDetails;
+import com.lab.labtimesheet.feature.task.model.dto.TaskEditForm;
 import com.lab.labtimesheet.feature.task.model.dto.TaskListView;
 import com.lab.labtimesheet.feature.task.model.dto.TaskView;
 import com.lab.labtimesheet.feature.task.service.TaskService;
 import jakarta.validation.Valid;
+import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.Locale;
 import lombok.RequiredArgsConstructor;
@@ -88,13 +93,7 @@ public class TaskController {
             @PathVariable long projectId,
             @PathVariable long taskId,
             Model model) {
-        TaskDetails details = taskService.details(authentication.getName(), projectId, taskId);
-        model.addAttribute("projectId", projectId);
-        model.addAttribute("details", details);
-        model.addAttribute("statuses", Arrays.stream(TaskStatus.values())
-                .filter(details.task().status()::canTransitionTo)
-                .toList());
-        return "tasks/detail";
+        return renderDetails(authentication, projectId, taskId, model, null);
     }
 
     @PostMapping("/projects/{projectId}/tasks/{taskId}/status")
@@ -104,6 +103,17 @@ public class TaskController {
             @PathVariable long taskId,
             @RequestParam TaskStatus status) {
         taskService.changeStatus(authentication.getName(), projectId, taskId, status);
+        return detailsRedirect(projectId, taskId);
+    }
+
+    @PostMapping("/projects/{projectId}/tasks/{taskId}/reassign")
+    String reassign(
+            Authentication authentication,
+            @PathVariable long projectId,
+            @PathVariable long taskId,
+            @RequestParam long assigneeMembershipId) {
+        taskService.reassign(
+                authentication.getName(), projectId, taskId, assigneeMembershipId);
         return detailsRedirect(projectId, taskId);
     }
 
@@ -117,9 +127,138 @@ public class TaskController {
         return detailsRedirect(projectId, taskId);
     }
 
+    @PostMapping("/projects/{projectId}/tasks/{taskId}/work-logs")
+    String logWork(
+            Authentication authentication,
+            @PathVariable long projectId,
+            @PathVariable long taskId,
+            @RequestParam LocalDate workDate,
+            @RequestParam int minutes,
+            @RequestParam(required = false) String note,
+            Model model) {
+        try {
+            taskService.logWork(
+                    authentication.getName(),
+                    projectId,
+                    taskId,
+                    new LogWorkCommand(workDate, minutes, note));
+        } catch (TaskValidationException exception) {
+            model.addAttribute("workLogError", exception.getMessage());
+            return renderDetails(authentication, projectId, taskId, model, "work-log");
+        }
+        return detailsRedirect(projectId, taskId);
+    }
+
+    @PostMapping("/projects/{projectId}/tasks/{taskId}/work-logs/{logId}")
+    String correctWorkLog(
+            Authentication authentication,
+            @PathVariable long projectId,
+            @PathVariable long taskId,
+            @PathVariable long logId,
+            @RequestParam int minutes,
+            @RequestParam(required = false) String note,
+            Model model) {
+        try {
+            taskService.correctWorkLog(
+                    authentication.getName(),
+                    projectId,
+                    taskId,
+                    logId,
+                    new LogWorkCorrection(minutes, note));
+        } catch (TaskValidationException exception) {
+            model.addAttribute("workLogError", exception.getMessage());
+            return renderDetails(authentication, projectId, taskId, model, "work-log");
+        }
+        return detailsRedirect(projectId, taskId);
+    }
+
+    @GetMapping("/projects/{projectId}/tasks/{taskId}/history")
+    String historical(
+            Authentication authentication,
+            @PathVariable long projectId,
+            @PathVariable long taskId,
+            Model model) {
+        TaskDetails details = taskService.historicalDetails(
+                authentication.getName(), projectId, taskId);
+        model.addAttribute("projectId", projectId);
+        model.addAttribute("details", details);
+        return "tasks/detail";
+    }
+
+    @GetMapping("/projects/{projectId}/tasks/{taskId}/edit")
+    String editForm(
+            Authentication authentication,
+            @PathVariable long projectId,
+            @PathVariable long taskId,
+            Model model) {
+        TaskDetails details = taskService.details(authentication.getName(), projectId, taskId);
+        model.addAttribute("projectId", projectId);
+        model.addAttribute("taskForm", new TaskEditForm(
+                details.task().title(), details.task().description(), details.task().dueDate()));
+        model.addAttribute("taskId", taskId);
+        return "tasks/form";
+    }
+
+    @PostMapping("/projects/{projectId}/tasks/{taskId}/edit")
+    String edit(
+            Authentication authentication,
+            @PathVariable long projectId,
+            @PathVariable long taskId,
+            @Valid @ModelAttribute("taskForm") TaskEditForm form,
+            BindingResult bindingResult,
+            Model model) {
+        if (bindingResult.hasErrors()) {
+            model.addAttribute("projectId", projectId);
+            model.addAttribute("taskId", taskId);
+            return "tasks/form";
+        }
+        try {
+            taskService.edit(
+                    authentication.getName(),
+                    new EditTaskCommand(
+                            projectId, taskId, form.title(), form.description(), form.dueDate()));
+        } catch (TaskValidationException exception) {
+            bindingResult.rejectValue("dueDate", "task.dueDate", exception.getMessage());
+            model.addAttribute("projectId", projectId);
+            model.addAttribute("taskId", taskId);
+            return "tasks/form";
+        }
+        return detailsRedirect(projectId, taskId);
+    }
+
+    @PostMapping("/projects/{projectId}/tasks/{taskId}/delete")
+    String delete(
+            Authentication authentication,
+            @PathVariable long projectId,
+            @PathVariable long taskId) {
+        taskService.softDelete(authentication.getName(), projectId, taskId);
+        return "redirect:/projects/%d/tasks/%d/history".formatted(projectId, taskId);
+    }
+
     private void populateForm(String actorEmail, long projectId, Model model) {
         model.addAttribute("projectId", projectId);
         model.addAttribute("assignees", taskService.assignmentChoices(actorEmail, projectId));
+    }
+
+    private String renderDetails(
+            Authentication authentication,
+            long projectId,
+            long taskId,
+            Model model,
+            String focusedForm) {
+        TaskDetails details = taskService.details(authentication.getName(), projectId, taskId);
+        model.addAttribute("projectId", projectId);
+        model.addAttribute("details", details);
+        model.addAttribute("statuses", Arrays.stream(TaskStatus.values())
+                .filter(details.task().status()::canTransitionTo)
+                .toList());
+        if (focusedForm != null) {
+            model.addAttribute("focusedForm", focusedForm);
+        }
+        if (details.canReassign()) {
+            model.addAttribute("assignees", taskService.assignmentChoices(authentication.getName(), projectId));
+        }
+        return "tasks/detail";
     }
 
     private static String detailsRedirect(long projectId, long taskId) {

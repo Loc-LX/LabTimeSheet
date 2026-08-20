@@ -20,11 +20,15 @@ import com.lab.labtimesheet.feature.task.exception.TaskValidationException;
 import com.lab.labtimesheet.feature.task.model.TaskProgress;
 import com.lab.labtimesheet.feature.task.model.TaskStatus;
 import com.lab.labtimesheet.feature.task.model.dto.CreateTaskCommand;
+import com.lab.labtimesheet.feature.task.model.dto.EditTaskCommand;
+import com.lab.labtimesheet.feature.task.model.dto.LogWorkCommand;
+import com.lab.labtimesheet.feature.task.model.dto.LogWorkCorrection;
 import com.lab.labtimesheet.feature.task.model.dto.TaskAssigneeChoice;
 import com.lab.labtimesheet.feature.task.model.dto.TaskCommentView;
 import com.lab.labtimesheet.feature.task.model.dto.TaskDetails;
 import com.lab.labtimesheet.feature.task.model.dto.TaskListView;
 import com.lab.labtimesheet.feature.task.model.dto.TaskView;
+import com.lab.labtimesheet.feature.task.model.dto.WorkLogView;
 import com.lab.labtimesheet.feature.task.service.TaskService;
 import com.lab.labtimesheet.feature.integration.service.SmtpConfigurationService;
 import java.time.Instant;
@@ -196,9 +200,94 @@ class TaskControllerTest {
     }
 
     @Test
+    void reassignmentPostUsesAuthenticatedIdentityAndCsrf() throws Exception {
+        given(taskService.reassign(ACTOR_EMAIL, 10L, 25L, 7L))
+                .willReturn(task(25L));
+
+        mockMvc.perform(post("/projects/10/tasks/25/reassign")
+                        .with(user(ACTOR_EMAIL))
+                        .with(csrf())
+                        .param("assigneeMembershipId", "7"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/projects/10/tasks/25"));
+
+        verify(taskService).reassign(ACTOR_EMAIL, 10L, 25L, 7L);
+    }
+
+    @Test
+    void reassignmentDetailsOfferAssigneeChoicesToLeaderOnly() throws Exception {
+        TaskAssigneeChoice assignee = new TaskAssigneeChoice(7L, "Member Name");
+        given(taskService.details(ACTOR_EMAIL, 10L, 25L))
+                .willReturn(details(TaskStatus.IN_PROGRESS));
+        given(taskService.assignmentChoices(ACTOR_EMAIL, 10L))
+                .willReturn(List.of(assignee));
+
+        mockMvc.perform(get("/projects/10/tasks/25").with(user(ACTOR_EMAIL)))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Reassign")));
+        verify(taskService).assignmentChoices(ACTOR_EMAIL, 10L);
+    }
+
+    @Test
+    void editFormShowsExistingFieldsAndNoAssigneeSelector() throws Exception {
+        given(taskService.details(ACTOR_EMAIL, 10L, 25L))
+                .willReturn(details(true, true));
+
+        mockMvc.perform(get("/projects/10/tasks/25/edit").with(user(ACTOR_EMAIL)))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Save changes")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Draft")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("Select an assignee"))));
+    }
+
+    @Test
+    void editPostUsesAuthenticatedIdentityAndCsrf() throws Exception {
+        given(taskService.edit(org.mockito.ArgumentMatchers.eq(ACTOR_EMAIL), any(EditTaskCommand.class)))
+                .willReturn(task(25L));
+
+        mockMvc.perform(post("/projects/10/tasks/25/edit")
+                        .with(user(ACTOR_EMAIL))
+                        .with(csrf())
+                        .param("title", "Retitled")
+                        .param("dueDate", "2026-08-21"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/projects/10/tasks/25"));
+
+        ArgumentCaptor<EditTaskCommand> command = ArgumentCaptor.forClass(EditTaskCommand.class);
+        verify(taskService).edit(org.mockito.ArgumentMatchers.eq(ACTOR_EMAIL), command.capture());
+        assertThat(command.getValue())
+                .isEqualTo(new EditTaskCommand(10L, 25L, "Retitled", null, LocalDate.of(2026, 8, 21)));
+    }
+
+    @Test
+    void deletePostUsesAuthenticatedIdentityAndCsrfAndRedirectsToHistory() throws Exception {
+        given(taskService.softDelete(ACTOR_EMAIL, 10L, 25L))
+                .willReturn(task(25L));
+
+        mockMvc.perform(post("/projects/10/tasks/25/delete")
+                        .with(user(ACTOR_EMAIL))
+                        .with(csrf()))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/projects/10/tasks/25/history"));
+
+        verify(taskService).softDelete(ACTOR_EMAIL, 10L, 25L);
+    }
+
+    @Test
+    void historicalDetailsRenderDeletedBannerForAuthorizedViewer() throws Exception {
+        given(taskService.historicalDetails(ACTOR_EMAIL, 10L, 25L))
+                .willReturn(new TaskDetails(task(25L), List.of(), List.of(), false, false, false, false, false, false, true, 7L));
+
+        mockMvc.perform(get("/projects/10/tasks/25/history").with(user(ACTOR_EMAIL)))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Historical Task")));
+    }
+
+    @Test
     void taskDetailsHideUnavailableActionsAndShowAssignee() throws Exception {
         given(taskService.details(ACTOR_EMAIL, 10L, 25L))
-                .willReturn(new TaskDetails(task(25L), List.of(), false, false));
+                .willReturn(details(false, false));
 
         mockMvc.perform(get("/projects/10/tasks/25").with(user(ACTOR_EMAIL)))
                 .andExpect(status().isOk())
@@ -206,29 +295,153 @@ class TaskControllerTest {
                 .andExpect(content().string(org.hamcrest.Matchers.not(
                         org.hamcrest.Matchers.containsString("Change status"))))
                 .andExpect(content().string(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("Add comment"))));
+                        org.hamcrest.Matchers.containsString("Add comment"))))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("Log work"))))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("Reassign"))));
     }
 
     @Test
     void taskDetailsRenderAvailableActions() throws Exception {
         given(taskService.details(ACTOR_EMAIL, 10L, 25L))
-                .willReturn(new TaskDetails(task(25L), List.of(), true, true));
+                .willReturn(details(true, true));
 
         mockMvc.perform(get("/projects/10/tasks/25").with(user(ACTOR_EMAIL)))
                 .andExpect(status().isOk())
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Change status")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Add comment")));
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Add comment")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Log work")));
+    }
+
+    @Test
+    void taskDetailsRenderEditAndDeleteBesideTheTaskTitle() throws Exception {
+        given(taskService.details(ACTOR_EMAIL, 10L, 25L))
+                .willReturn(details(TaskStatus.TODO));
+
+        mockMvc.perform(get("/projects/10/tasks/25").with(user(ACTOR_EMAIL)))
+                .andExpect(status().isOk())
+                .andExpect(content().string(
+                        org.hamcrest.Matchers.allOf(
+                                org.hamcrest.Matchers.containsString("primary-action"),
+                                org.hamcrest.Matchers.containsString(">Edit<"),
+                                org.hamcrest.Matchers.containsString(">Delete<"))));
+    }
+
+    @Test
+    void workLogPostsUseAuthenticatedIdentityAndCsrf() throws Exception {
+        given(taskService.logWork(
+                        org.mockito.ArgumentMatchers.eq(ACTOR_EMAIL),
+                        org.mockito.ArgumentMatchers.eq(10L),
+                        org.mockito.ArgumentMatchers.eq(25L),
+                        any(LogWorkCommand.class)))
+                .willReturn(new WorkLogView(
+                        9L, 10L, 25L, 7L, "Member Name", LocalDate.of(2026, 8, 14), 60, null,
+                        Instant.parse("2026-08-14T10:00:00Z"), Instant.parse("2026-08-14T10:00:00Z")));
+
+        mockMvc.perform(post("/projects/10/tasks/25/work-logs")
+                        .with(user(ACTOR_EMAIL))
+                        .with(csrf())
+                        .param("workDate", "2026-08-14")
+                        .param("minutes", "60"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/projects/10/tasks/25"));
+
+        ArgumentCaptor<LogWorkCommand> command = ArgumentCaptor.forClass(LogWorkCommand.class);
+        verify(taskService).logWork(
+                org.mockito.ArgumentMatchers.eq(ACTOR_EMAIL), org.mockito.ArgumentMatchers.eq(10L),
+                org.mockito.ArgumentMatchers.eq(25L), command.capture());
+        assertThat(command.getValue()).isEqualTo(new LogWorkCommand(LocalDate.of(2026, 8, 14), 60, null));
+    }
+
+    @Test
+    void workLogValidationFailureRerendersDetailsWithFriendlyError() throws Exception {
+        given(taskService.logWork(
+                        org.mockito.ArgumentMatchers.eq(ACTOR_EMAIL),
+                        org.mockito.ArgumentMatchers.eq(10L),
+                        org.mockito.ArgumentMatchers.eq(25L),
+                        any(LogWorkCommand.class)))
+                .willThrow(new TaskValidationException("Work date must be within Project dates"));
+        given(taskService.details(ACTOR_EMAIL, 10L, 25L))
+                .willReturn(details(true, true));
+
+        mockMvc.perform(post("/projects/10/tasks/25/work-logs")
+                        .with(user(ACTOR_EMAIL))
+                        .with(csrf())
+                        .param("workDate", "2026-01-01")
+                        .param("minutes", "60"))
+                .andExpect(status().isOk())
+                .andExpect(view().name("tasks/detail"))
+                .andExpect(model().attribute("workLogError", "Work date must be within Project dates"))
+                .andExpect(content().string(
+                        org.hamcrest.Matchers.containsString("Work date must be within Project dates")));
+    }
+
+    @Test
+    void workLogCorrectionPostsUseAuthenticatedIdentityAndCsrf() throws Exception {
+        given(taskService.correctWorkLog(
+                        org.mockito.ArgumentMatchers.eq(ACTOR_EMAIL),
+                        org.mockito.ArgumentMatchers.eq(10L),
+                        org.mockito.ArgumentMatchers.eq(25L),
+                        org.mockito.ArgumentMatchers.eq(9L),
+                        any(LogWorkCorrection.class)))
+                .willReturn(new WorkLogView(
+                        9L, 10L, 25L, 7L, "Member Name", LocalDate.of(2026, 8, 14), 90, "Rework",
+                        Instant.parse("2026-08-14T10:00:00Z"), Instant.parse("2026-08-15T09:00:00Z")));
+
+        mockMvc.perform(post("/projects/10/tasks/25/work-logs/9")
+                        .with(user(ACTOR_EMAIL))
+                        .with(csrf())
+                        .param("minutes", "90")
+                        .param("note", "Rework"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/projects/10/tasks/25"));
+
+        ArgumentCaptor<LogWorkCorrection> correction = ArgumentCaptor.forClass(LogWorkCorrection.class);
+        verify(taskService).correctWorkLog(
+                org.mockito.ArgumentMatchers.eq(ACTOR_EMAIL), org.mockito.ArgumentMatchers.eq(10L),
+                org.mockito.ArgumentMatchers.eq(25L), org.mockito.ArgumentMatchers.eq(9L), correction.capture());
+        assertThat(correction.getValue()).isEqualTo(new LogWorkCorrection(90, "Rework"));
+    }
+
+    @Test
+    void detailRendersWorkLogsAndCorrectionFormOnlyForAuthoringMember() throws Exception {
+        WorkLogView ownLog = new WorkLogView(
+                9L, 10L, 25L, 7L, "Member Name", LocalDate.of(2026, 8, 14), 60, null,
+                Instant.parse("2026-08-14T10:00:00Z"), Instant.parse("2026-08-14T10:00:00Z"));
+        WorkLogView otherLog = new WorkLogView(
+                8L, 10L, 25L, 12L, "Other Member", LocalDate.of(2026, 8, 13), 30, null,
+                Instant.parse("2026-08-13T10:00:00Z"), Instant.parse("2026-08-13T10:00:00Z"));
+        given(taskService.details(ACTOR_EMAIL, 10L, 25L))
+                .willReturn(new TaskDetails(task(25L), List.of(), List.of(otherLog, ownLog), true, true, true, false, true, true, false, 7L));
+
+        mockMvc.perform(get("/projects/10/tasks/25").with(user(ACTOR_EMAIL)))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Correct")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Log by")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Other Member")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("by another member"))))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("14/08/2026")));
     }
 
     @ParameterizedTest(name = "{0} exposes only {1}")
     @MethodSource("allowedStatusChoices")
     void taskDetailsExposeOnlyAllowedStatusTransitions(TaskStatus current, List<TaskStatus> expected) throws Exception {
         given(taskService.details(ACTOR_EMAIL, 10L, 25L))
-                .willReturn(new TaskDetails(task(25L, current), List.of(), true, true));
+                .willReturn(details(current));
 
         mockMvc.perform(get("/projects/10/tasks/25").with(user(ACTOR_EMAIL)))
                 .andExpect(status().isOk())
                 .andExpect(model().attribute("statuses", expected));
+    }
+
+    private static TaskDetails details(boolean canChangeStatus, boolean canComment) {
+        return new TaskDetails(task(25L), List.of(), List.of(), canChangeStatus, canComment, canChangeStatus, false, false, false, false, null);
+    }
+
+    private static TaskDetails details(TaskStatus status) {
+        return new TaskDetails(task(25L, status), List.of(), List.of(), true, true, true, true, true, true, false, 7L);
     }
 
     private static Stream<Arguments> allowedStatusChoices() {
@@ -247,6 +460,6 @@ class TaskControllerTest {
         Instant instant = Instant.parse("2026-08-14T10:00:00Z");
         return new TaskView(
                 id, 10L, 7L, "Member Name", "Draft", "Notes", status,
-                LocalDate.of(2026, 8, 20), 7L, 7L, instant, instant);
+                LocalDate.of(2026, 8, 20), 7L, 7L, instant, instant, null);
     }
 }

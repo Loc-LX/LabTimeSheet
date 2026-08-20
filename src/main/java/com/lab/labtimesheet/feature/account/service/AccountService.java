@@ -164,6 +164,22 @@ public class AccountService {
     }
 
     /**
+     * Locks an Intern profile for daily-work and leave-quota serialization (DB-008).
+     *
+     * <p>The profile row is write-locked in the caller's surrounding transaction until commit or
+     * rollback, so concurrent daily-minute and quota validation reads see and write consistent
+     * totals. The profile must exist; eligibility is not re-evaluated here.
+     *
+     * @param internUserId Intern account whose profile must be serialized
+     * @throws IllegalArgumentException when no Intern profile exists for the account
+     */
+    @Transactional
+    public void lockInternProfileForDailyWork(long internUserId) {
+        internProfiles.findForUpdateByUserId(internUserId)
+                .orElseThrow(() -> new IllegalArgumentException("Intern profile not found"));
+    }
+
+    /**
      * Summarizes current account and internship state for dashboard consumers.
      *
      * @return active account, pending activation, and active internship counts

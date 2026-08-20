@@ -52,6 +52,29 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
     Optional<Task> findByIdAndProjectIdAndDeletedAtIsNull(long id, long projectId);
 
     /**
+     * Finds one Task historically regardless of soft-deletion state.
+     *
+     * <p>The caller applies the historical-inspection authorization (current Leader or self-Task
+     * creator) before exposing the row; soft-deleted Tasks are otherwise hidden.
+     *
+     * @param id Task identifier
+     * @param projectId owning Project identifier
+     * @return matching Task including soft-deleted rows, if present in that aggregate
+     */
+    Optional<Task> findByIdAndProjectId(long id, long projectId);
+
+    /**
+     * Lists Tasks for one Project historically regardless of soft-deletion state.
+     *
+     * <p>The caller applies the historical-inspection authorization before exposing the rows;
+     * soft-deleted Tasks are otherwise excluded from normal lists.
+     *
+     * @param projectId owning Project identifier
+     * @return Tasks including soft-deleted rows in deterministic identifier order
+     */
+    List<Task> findAllByProjectIdOrderById(long projectId);
+
+    /**
      * Locks one current Task for a mutation after the caller has locked its Project.
      *
      * @param id Task identifier
@@ -60,6 +83,31 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
      */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<Task> findLockedByIdAndProjectIdAndDeletedAtIsNull(long id, long projectId);
+
+    /**
+     * Locks every unfinished current Task assigned to one membership within one Project.
+     *
+     * <p>Used by the exit-transfer boundary, which runs inside the Project feature's locked
+     * transaction. {@code DONE} and soft-deleted Tasks are excluded because completed work and
+     * historical rows never move.
+     *
+     * @param projectId owning Project identifier
+     * @param assigneeMembershipId membership whose unfinished Tasks are being transferred
+     * @return locked non-deleted Tasks in TODO, IN_PROGRESS, or BLOCKED state
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select task
+            from Task task
+            where task.projectId = :projectId
+              and task.assigneeMembershipId = :assigneeMembershipId
+              and task.deletedAt is null
+              and task.status <> com.lab.labtimesheet.feature.task.model.TaskStatus.DONE
+            order by task.id
+            """)
+    List<Task> findLockedUnfinishedByProjectIdAndAssigneeMembershipId(
+            @Param("projectId") long projectId,
+            @Param("assigneeMembershipId") long assigneeMembershipId);
 
     /**
      * Lists current Tasks for one Project in deterministic identifier order.
@@ -92,6 +140,30 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
               and task.status <> com.lab.labtimesheet.feature.task.model.TaskStatus.DONE
             """)
     long countUnfinishedByProjectId(@Param("projectId") long projectId);
+
+    /**
+     * Counts current Tasks in one status within one Project.
+     *
+     * @param projectId owning Project identifier
+     * @param status status to count
+     * @return matching non-deleted Task count
+     */
+    long countByProjectIdAndStatusAndDeletedAtIsNull(long projectId, TaskStatus status);
+
+    /**
+     * Groups current Task counts by status for one Project.
+     *
+     * @param projectId owning Project identifier
+     * @return rows of {@code (TaskStatus, long count)} for each non-empty status
+     */
+    @Query("""
+            select task.status, count(task)
+            from Task task
+            where task.projectId = :projectId
+              and task.deletedAt is null
+            group by task.status
+            """)
+    List<Object[]> countByProjectIdGroupedByStatus(@Param("projectId") long projectId);
 
     /**
      * Counts current Tasks in a status across the supplied Projects.
