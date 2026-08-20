@@ -108,4 +108,34 @@ public class InternProfile {
         updatedAt = now;
     }
 
+    /**
+     * Completes an active internship while retaining the profile and account's historical identity.
+     *
+     * @param now server completion timestamp
+     * @throws IllegalStateException when the internship is not active
+     */
+    public void complete(Instant now) {
+        if (internshipStatus != InternshipStatus.ACTIVE) {
+            throw new IllegalStateException("Only an active internship can complete");
+        }
+        internshipStatus = InternshipStatus.COMPLETED;
+        completedAt = now;
+        updatedAt = now;
+    }
+
+    /**
+     * Withdraws a not-started or active internship while retaining its profile for historical attribution.
+     *
+     * @param now server withdrawal timestamp
+     * @throws IllegalStateException when the internship is already terminal
+     */
+    public void withdraw(Instant now) {
+        if (internshipStatus != InternshipStatus.NOT_STARTED && internshipStatus != InternshipStatus.ACTIVE) {
+            throw new IllegalStateException("Only a not-started or active internship can withdraw");
+        }
+        internshipStatus = InternshipStatus.WITHDRAWN;
+        withdrawnAt = now;
+        updatedAt = now;
+    }
+
 }
