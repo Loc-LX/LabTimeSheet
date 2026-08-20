@@ -53,16 +53,29 @@ public record AttendanceRecord(
     }
 
     /**
-     * Classifies violations using the attached policy and an authoritative observation instant.
-     * A missing checkout appears only after the inclusive cutoff and never implies early departure.
+     * Classifies violations using the attached policy and an authoritative observation instant, treating the raw
+     * checkout as the effective checkout.
      *
      * @param observedAt instant at which missing-checkout status is evaluated
      * @return independent violation flags for presentation and reporting
      */
     public AttendanceViolations violations(Instant observedAt) {
+        return violations(observedAt, checkOutAt);
+    }
+
+    /**
+     * Classifies violations using the attached policy, an authoritative observation instant, and the derived
+     * effective checkout. Raw checkout always wins; an approved correction's proposed checkout is used only when
+     * raw checkout is absent, so missing checkout clears and early departure may appear without touching the raw row.
+     *
+     * @param observedAt instant at which missing-checkout status is evaluated
+     * @param effectiveCheckOutAt raw checkout when present, otherwise an approved correction's proposed checkout
+     * @return independent violation flags for presentation and reporting
+     */
+    public AttendanceViolations violations(Instant observedAt, Instant effectiveCheckOutAt) {
         boolean late = checkInAt.isAfter(scheduledStart().plusSeconds(policy.checkInGraceMinutes() * 60L));
-        boolean missingCheckout = checkOutAt == null && observedAt.isAfter(checkoutCutoff());
-        boolean earlyDeparture = checkOutAt != null && checkOutAt.isBefore(scheduledEnd());
+        boolean missingCheckout = effectiveCheckOutAt == null && observedAt.isAfter(checkoutCutoff());
+        boolean earlyDeparture = effectiveCheckOutAt != null && effectiveCheckOutAt.isBefore(scheduledEnd());
         return new AttendanceViolations(late, earlyDeparture, missingCheckout);
     }
 

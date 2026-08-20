@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{fragments/layout :: shell(
+          pageTitle='My corrections',
+          section='Intern',
+          activeNav='corrections',
+          primaryAction=~{},
+          content=~{::main})}">
+<body>
+<main>
+    <p class="page-description">Report a missed checkout; submissions open after the daily cutoff until the next-day deadline.</p>
+    <p class="alert alert-error" th:if="${error}" role="alert" th:text="${error}"></p>
+    <p class="alert" th:if="${message}" role="status" th:text="${message}"></p>
+
+    <section class="panel">
+        <header class="panel-header"><h2 class="panel-title">New correction</h2></header>
+        <form class="form-panel form-grid" method="post" th:action="@{/intern/corrections}">
+            <div class="field"><label class="field-label" for="workDate">Attendance date</label><input class="control" id="workDate" name="workDate" type="date" required></div>
+            <div class="field"><label class="field-label" for="proposedCheckoutTime">Checkout time</label><input class="control" id="proposedCheckoutTime" name="proposedCheckoutTime" type="time" required></div>
+            <div class="field"><label class="field-label" for="reason">Reason</label><input class="control" id="reason" name="reason" type="text" required maxlength="200"></div>
+            <div class="form-actions"><button class="button button-primary" type="submit">Submit correction</button></div>
+        </form>
+    </section>
+
+    <section class="panel">
+        <header class="panel-header"><h2 class="panel-title">Prior corrections</h2></header>
+        <th:block th:if="${#lists.isEmpty(overview.corrections)}"><th:block th:replace="~{fragments/components :: empty('No corrections', 'Submitted corrections will appear here.')} "></th:block></th:block>
+        <div class="table-scroll" th:unless="${#lists.isEmpty(overview.corrections)}">
+            <table class="data-table">
+                <caption class="sr-only">Prior corrections</caption>
+                <thead><tr><th scope="col">Date</th><th scope="col">Checkout time</th><th scope="col">Reason</th><th scope="col">Status</th><th scope="col">Submitted</th></tr></thead>
+                <tbody>
+                <tr th:each="correction : ${overview.corrections}">
+                    <td th:text="${correction.workDateDisplay}">14/08/2026</td>
+                    <td th:text="${correction.proposedCheckoutTimeDisplay}">15:45</td>
+                    <td th:text="${correction.reason}">Reason</td>
+                    <td><span class="badge" th:text="${correction.status}">PENDING</span></td>
+                    <td th:text="${#temporals.format(correction.submittedAt, 'dd/MM/yyyy HH:mm')}">14/08/2026 09:00</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+</main>
+</body>
+</html>

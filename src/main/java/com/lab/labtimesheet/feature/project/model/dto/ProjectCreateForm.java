@@ -9,13 +9,13 @@ import java.time.LocalDate;
 import org.springframework.format.annotation.DateTimeFormat;
 
 /**
- * Validated browser input for planning a Project and appointing its initial Leader.
+ * Dữ liệu biểu mẫu trên trình duyệt đã được kiểm tra để tạo Project và bổ nhiệm Leader ban đầu.
  *
- * @param name required Project name, limited to the persisted column length
- * @param description optional description
- * @param startDate inclusive Project start date
- * @param endDate inclusive Project end date
- * @param initialLeaderUserId positive eligible Intern user identifier
+ * @param name tên Project bắt buộc, giới hạn theo độ dài cột lưu trữ
+ * @param description mô tả tùy chọn
+ * @param startDate ngày bắt đầu Project, được tính cả ngày này
+ * @param endDate ngày kết thúc Project, được tính cả ngày này
+ * @param initialLeaderUserId mã người dùng Intern dương và đủ điều kiện
  */
 public record ProjectCreateForm(
         @NotBlank @Size(max = 160) String name,
@@ -24,15 +24,15 @@ public record ProjectCreateForm(
         @NotNull @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
         @NotNull @Positive Long initialLeaderUserId) {
 
-    /** Creates an empty form for the initial GET request and Thymeleaf binding. */
+    /** Tạo biểu mẫu rỗng cho yêu cầu GET ban đầu và quá trình gắn dữ liệu của Thymeleaf. */
     public ProjectCreateForm() {
         this(null, null, null, null, null);
     }
 
     /**
-     * Validates the date interval only after both required dates have bound successfully.
+     * Kiểm tra khoảng ngày sau khi cả hai ngày bắt buộc đã được gắn dữ liệu thành công.
      *
-     * @return true when either date awaits required-field validation or end is not before start
+     * @return true khi một trong hai ngày còn chờ kiểm tra bắt buộc hoặc ngày kết thúc không trước ngày bắt đầu
      */
     @AssertTrue(message = "End date must not precede start date")
     public boolean isDateRangeValid() {
@@ -40,9 +40,9 @@ public record ProjectCreateForm(
     }
 
     /**
-     * Converts validated browser input to the immutable service command.
+     * Chuyển dữ liệu biểu mẫu đã kiểm tra thành lệnh dịch vụ bất biến.
      *
-     * @return creation command preserving the submitted values
+     * @return lệnh tạo Project giữ nguyên các giá trị đã gửi
      */
     public ProjectCreateCommand toCommand() {
         return new ProjectCreateCommand(name, description, startDate, endDate, initialLeaderUserId);

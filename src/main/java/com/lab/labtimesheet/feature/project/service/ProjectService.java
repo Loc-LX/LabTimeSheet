@@ -20,11 +20,17 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Executes Project aggregate mutations under Spring-managed transactions.
+ * Thực hiện các thay đổi trên aggregate Project trong transaction do Spring quản lý.
  *
- * <p>Existing aggregates are pessimistically locked before mutation-time authorization and
- * lifecycle checks. Account and Task facts arrive through public feature services; Project never
- * imports their repositories or entities.
+ * <p>Aggregate đã tồn tại được khóa bi quan trước khi phân quyền và kiểm tra vòng đời tại thời
+ * điểm thay đổi. Thông tin Account và Task được lấy qua service công khai của feature tương ứng;
+ * Project không import repository hoặc entity của các feature đó.
+ *
+ * <p>Truy vết mã công việc: Iter 1 gồm {@code I1-PRJ-01} đến {@code I1-PRJ-04}; trong đó
+ * {@code I1-PRJ-01} hiện gắn vào path tạo vì chưa có operation chỉnh sửa riêng. Iter 2 đã có
+ * trong service này gồm {@code I2-PRJ-01}, {@code I2-PRJ-02}, {@code I2-PRJ-03} và
+ * {@code I2-PRJ-04}, {@code I2-PRJ-05}. Mã {@code I2-PRJ-06} là luồng đọc lịch sử hoàn tất ở
+ * ProjectQueryService, không gắn nhầm vào operation ghi của service này.
  */
 @Service
 @RequiredArgsConstructor
@@ -37,15 +43,15 @@ public class ProjectService {
     private final Clock clock;
 
     /**
-     * Atomically creates a planned Mentor-owned Project, eligible initial membership, and first
-     * leadership term. {@code saveAndFlush} exposes database invariant violations before commit.
+     * [I1-PRJ-01] Nguyên tử tạo Project Planned thuộc Mentor, lượt tham gia ban đầu đủ điều kiện và nhiệm kỳ
+     * Leader đầu tiên. {@code saveAndFlush} phát hiện lỗi bất biến cơ sở dữ liệu trước khi commit.
      *
-     * @param actorUserId authenticated active Mentor creating and owning the Project
-     * @param command validated creation values
-     * @return generated Project identifier
-     * @throws ProjectAccessDeniedException when the actor is not an active Mentor
-     * @throws com.lab.labtimesheet.feature.project.exception.ProjectRuleViolationException when
-     *         dates, name, or initial-Leader eligibility violate the aggregate rules
+     * @param actorUserId mã Mentor đang hoạt động và đã xác thực, là người tạo và sở hữu Project
+     * @param command các giá trị tạo đã được kiểm tra
+     * @return mã Project được sinh
+     * @throws ProjectAccessDeniedException khi người gọi không phải Mentor đang hoạt động
+     * @throws com.lab.labtimesheet.feature.project.exception.ProjectRuleViolationException khi ngày,
+     *         tên hoặc điều kiện của Leader ban đầu vi phạm quy tắc aggregate
      */
     @Transactional
     public long create(long actorUserId, ProjectCreateCommand command) {
@@ -62,13 +68,13 @@ public class ProjectService {
     }
 
     /**
-     * Adds one eligible Intern as a current member while holding the Project write lock.
-     * The same Intern may belong to other Projects, but duplicate current membership in this
-     * Project is rejected before flush.
+     * Thêm một Intern đủ điều kiện làm thành viên hiện tại trong khi giữ khóa ghi của Project.
+     * Một Intern có thể thuộc Project khác, nhưng lượt tham gia hiện tại bị trùng trong Project này
+     * sẽ bị từ chối trước khi flush.
      *
-     * @param actorUserId authenticated owning Mentor
-     * @param projectId Project to update
-     * @param internUserId Intern selected for direct addition
+     * @param actorUserId mã Mentor sở hữu đã xác thực
+     * @param projectId mã Project cần cập nhật
+     * @param internUserId mã Intern được chọn để thêm trực tiếp
      */
     @Transactional
     public void addMember(long actorUserId, long projectId, long internUserId) {
@@ -76,17 +82,16 @@ public class ProjectService {
     }
 
     /**
-     * Adds a complete selection of eligible nonmembers while holding one Project write lock.
-     * Every identifier is revalidated after owner authorization and before the aggregate changes,
-     * so missing, duplicate, stale, ineligible, or current-member selections leave membership
-     * unchanged.
+     * [I1-PRJ-02] Thêm trọn bộ lựa chọn các Intern đủ điều kiện chưa là thành viên trong khi giữ một khóa ghi
+     * của Project. Mọi mã đều được kiểm tra lại sau khi phân quyền chủ sở hữu và trước khi aggregate
+     * thay đổi, vì vậy lựa chọn thiếu, trùng, cũ, không đủ điều kiện hoặc đã là thành viên sẽ không
+     * làm thay đổi dữ liệu thành viên.
      *
-     * @param actorUserId authenticated owning Mentor
-     * @param projectId Project to update
-     * @param internUserIds distinct eligible Intern account identifiers
-     * @throws com.lab.labtimesheet.feature.project.exception.ProjectRuleViolationException when
-     *         the selection is null, empty, malformed, duplicate, stale, ineligible, or already
-     *         contains a current member
+     * @param actorUserId mã Mentor sở hữu đã xác thực
+     * @param projectId mã Project cần cập nhật
+     * @param internUserIds các mã tài khoản Intern đủ điều kiện và không trùng
+     * @throws com.lab.labtimesheet.feature.project.exception.ProjectRuleViolationException khi lựa
+     *         chọn null, rỗng, sai định dạng, trùng, cũ, không đủ điều kiện hoặc đã có thành viên hiện tại
      */
     @Transactional
     public void addMembers(long actorUserId, long projectId, List<Long> internUserIds) {
@@ -112,36 +117,131 @@ public class ProjectService {
     }
 
     /**
-     * Replaces the current Leader with an eligible current member in one transaction.
-     * The closed term is flushed before its replacement so PostgreSQL's immediate exclusion rule
-     * observes exactly one current term; Task assignments are not changed.
+     * [I1-PRJ-03, I2-PRJ-01, I2-PRJ-02] Thay Leader hiện tại chỉ khi nhiệm kỳ được gửi lên vẫn là nhiệm kỳ hiện tại.
      *
-     * @param actorUserId authenticated owning Mentor
-     * @param projectId Project whose Leader changes
-     * @param internUserId active same-Project replacement Intern
+     * <p>Khóa ghi của Project tuần tự hóa các lần bàn giao cạnh tranh. Kiểm tra token nhiệm kỳ sẽ
+     * từ chối form được gửi sau khi một lần bàn giao khác đã commit; việc đóng/mở hai khoảng thời
+     * gian vẫn nằm trong một transaction nguyên tử. Phân công Task, người tạo và người thực hiện
+     * phân công được giữ nguyên; Leader cũ chỉ mất quyền quản lý Task khi nhiệm kỳ kết thúc.
+     *
+     * @param actorUserId mã Mentor sở hữu đã xác thực
+     * @param projectId mã Project cần thay Leader
+     * @param expectedLeadershipTermId mã nhiệm kỳ hiện tại, không null, được hiển thị cùng biểu mẫu
+     * @param internUserId mã Intern thay thế đủ điều kiện trong cùng Project
      */
     @Transactional
-    public void changeLeader(long actorUserId, long projectId, long internUserId) {
+    public void changeLeader(
+            long actorUserId, long projectId, Long expectedLeadershipTermId, long internUserId) {
+        if (expectedLeadershipTermId == null || expectedLeadershipTermId <= 0) {
+            throw new ProjectRuleViolationException("Leadership term is invalid; refresh the Project and try again");
+        }
         var project = lockedProject(projectId);
         project.authorizeOwner(actorUserId);
-        var change = project.prepareLeaderChange(actorUserId, eligibleIntern(internUserId), clock.instant());
+        var change = project.prepareLeaderChange(
+                actorUserId,
+                expectedLeadershipTermId,
+                eligibleIntern(internUserId),
+                clock.instant());
 
-        // PostgreSQL rejects overlapping terms immediately. Flush the old term's
-        // end before inserting its replacement; the transaction remains atomic.
+        // PostgreSQL kiểm tra ngay việc chồng lấn nhiệm kỳ. Flush thời điểm kết thúc nhiệm kỳ cũ
+        // trước khi thêm nhiệm kỳ thay thế; I2-PRJ-02: không có thao tác cập nhật bảng tasks.
+        // Toàn bộ bàn giao vẫn nguyên tử trong transaction.
         projects.flush();
         project.completeLeaderChange(actorUserId, change);
         projects.flush();
     }
 
     /**
-     * Locks the Project and re-evaluates visibility, lifecycle, current leadership, and active
-     * eligible memberships for a Task mutation. When called inside {@code TaskService}'s
-     * transaction, the pessimistic lock remains held through the outer commit or rollback.
+     * [I2-PRJ-03] Thay Leader và đóng membership Leader cũ chỉ sau khi replacement đã được kiểm
+     * tra. Transaction giữ khóa Project, flush term cũ trước khi mở term mới để PostgreSQL kiểm tra
+     * khoảng thời gian không chồng lấn; membership cũ chỉ được đóng ở bước cuối.
      *
-     * @param actorUserId authenticated Task actor
-     * @param projectId owning Project identifier
-     * @return DTO-only locked mutation context
-     * @throws ProjectAccessDeniedException for missing or unauthorized Projects
+     * <p>[I2-PRJ-04] Nếu Leader cũ còn Task chưa hoàn thành, các Task đó được chuyển sang
+     * replacement trước khi membership cũ đóng. Task DONE và creator attribution không bị sửa.
+     *
+     * @param actorUserId mã Mentor sở hữu đã xác thực
+     * @param projectId mã Project cần thay Leader và đóng membership cũ
+     * @param expectedLeadershipTermId mã nhiệm kỳ hiện tại từ form, dùng chống form cũ
+     * @param replacementUserId mã Intern đang là member hiện tại được chọn làm replacement
+     */
+    @Transactional
+    public void removeLeader(
+            long actorUserId, long projectId, Long expectedLeadershipTermId, long replacementUserId) {
+        if (expectedLeadershipTermId == null || expectedLeadershipTermId <= 0) {
+            throw new ProjectRuleViolationException("Leadership term is invalid; refresh the Project and try again");
+        }
+        var project = lockedProject(projectId);
+        var removal = project.prepareLeaderRemoval(
+                actorUserId,
+                expectedLeadershipTermId,
+                eligibleIntern(replacementUserId),
+                clock.instant());
+
+        // I2-PRJ-04: chuyển Task chưa hoàn thành trước khi đóng membership Leader cũ. Nếu boundary
+        // Task lỗi, transaction rollback nên cả term và membership vẫn giữ nguyên trong DB.
+        taskQueries.transferUnfinishedTasks(
+                project.id(),
+                removal.departing().id(),
+                removal.replacement().id(),
+                removal.effectiveAt());
+        // I2-PRJ-03: replacement được chuẩn bị trước, term cũ được flush trước khi mở term mới.
+        projects.flush();
+        project.completeLeaderRemoval(actorUserId, removal);
+        projects.flush();
+    }
+
+    /**
+     * [I2-PRJ-04] Mentor loại một member thường sau khi chuyển các Task chưa hoàn thành sang Leader
+     * hiện tại. Membership chỉ được đóng ở bước cuối của transaction; lỗi transfer sẽ rollback mọi
+     * thay đổi trước đó.
+     *
+     * @param actorUserId mã Mentor sở hữu đã xác thực
+     * @param projectId mã Project cần cập nhật
+     * @param internUserId mã Intern đang là member hiện tại cần loại
+     */
+    @Transactional
+    public void removeMember(long actorUserId, long projectId, long internUserId) {
+        var project = lockedProject(projectId);
+        var removal = project.prepareMemberRemoval(actorUserId, internUserId, clock.instant());
+
+        // I2-PRJ-04: transfer phải hoàn tất trước khi interval membership bị đóng.
+        taskQueries.transferUnfinishedTasks(
+                project.id(),
+                removal.departing().id(),
+                removal.transferTarget().id(),
+                removal.effectiveAt());
+        project.completeMemberRemoval(actorUserId, removal);
+        projects.flush();
+    }
+
+    /**
+     * [I2-PRJ-05] Hoàn tất Project thuộc Mentor khi mọi Task chưa xóa đã DONE.
+     *
+     * <p>Project được khóa trước khi đếm Task và aggregate tự đóng nhiệm kỳ Leader cuối cùng
+     * cùng tất cả membership hiện tại. Flush buộc các điều kiện interval và completed_at của DB
+     * được kiểm tra trước khi transaction kết thúc.
+     *
+     * @param actorUserId mã Mentor sở hữu đã xác thực
+     * @param projectId mã Project cần hoàn tất
+     */
+    @Transactional
+    public void complete(long actorUserId, long projectId) {
+        var project = lockedProject(projectId);
+        project.authorizeOwner(actorUserId);
+        boolean everyNonDeletedTaskIsDone = taskQueries.countUnfinishedTasks(projectId) == 0;
+        project.complete(actorUserId, everyNonDeletedTaskIsDone, clock.instant());
+        projects.flush();
+    }
+
+    /**
+     * Khóa Project và đánh giá lại quyền xem, vòng đời, Leader hiện tại cùng các lượt tham gia đủ
+     * điều kiện cho thao tác Task. Khi được gọi trong transaction của {@code TaskService}, khóa bi quan
+     * vẫn được giữ đến commit hoặc rollback của transaction bên ngoài.
+     *
+     * @param actorUserId mã người thực hiện Task đã xác thực
+     * @param projectId mã Project sở hữu
+     * @return context thay đổi đã khóa, chỉ gồm DTO
+     * @throws ProjectAccessDeniedException khi Project không tồn tại hoặc người gọi không được phép
      */
     @Transactional
     public ProjectTaskContext taskMutationContext(long actorUserId, long projectId) {
@@ -149,12 +249,12 @@ public class ProjectService {
     }
 
     /**
-     * Activates a planned Project while holding its write lock. Current Account eligibility and
-     * Task-assignee validity are checked inside the same transaction; any failure leaves the
-     * Project planned and preserves Tasks and interval history.
+     * [I1-PRJ-04] Kích hoạt Project Planned trong khi giữ khóa ghi. Điều kiện Account hiện tại và tính hợp lệ
+     * của người được giao Task được kiểm tra trong cùng transaction; lỗi ở bất kỳ bước nào giữ
+     * Project ở Planned và bảo toàn Task cùng lịch sử khoảng thời gian.
      *
-     * @param actorUserId authenticated owning Mentor
-     * @param projectId planned Project to activate
+     * @param actorUserId mã Mentor sở hữu đã xác thực
+     * @param projectId mã Project Planned cần kích hoạt
      */
     @Transactional
     public void activate(long actorUserId, long projectId) {
@@ -177,14 +277,17 @@ public class ProjectService {
         projects.flush();
     }
 
+    /** Tải Project bằng khóa ghi; mã không tồn tại được trả về cùng lỗi với mã không được phép. */
     private ProjectEntity lockedProject(long projectId) {
         return projects.findLockedById(projectId).orElseThrow(ProjectAccessDeniedException::new);
     }
 
+    /** Lấy thông tin đủ điều kiện hiện tại của Intern từ Account service tại ngày của server. */
     private ProjectInternEligibility eligibleIntern(long userId) {
         return new ProjectInternEligibility(userId, accounts.isEligibleIntern(userId, LocalDate.now(clock)));
     }
 
+    /** Bảo đảm mã người gọi thuộc Mentor đang hoạt động trước khi tạo Project. */
     private void requireActiveMentor(long userId) {
         try {
             var identity = accounts.requireIdentityById(userId);

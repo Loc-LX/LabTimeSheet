@@ -13,6 +13,7 @@
 </div>
 <main>
     <div class="alert alert-error" role="alert" th:if="${details.deleted}"><strong>Historical Task.</strong> This Task was soft-deleted and is no longer part of progress or normal lists.</div>
+    <th:block th:replace="~{fragments/components :: projectTabs(${projectId}, 'tasks')}"></th:block>
     <p class="page-description" th:text="${details.task.description == null || #strings.isEmpty(details.task.description) ? 'No Task description.' : details.task.description}">Task description.</p>
     <section class="panel metric-strip metric-strip-three" aria-label="Task details">
         <div class="metric"><div class="metric-label">Assignee</div><div class="metric-value" th:text="${details.task.assigneeName}">Assignee</div></div>

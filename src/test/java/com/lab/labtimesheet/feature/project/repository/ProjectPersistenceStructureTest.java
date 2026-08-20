@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.jdbc.core.JdbcOperations;
 
+/** [I1-PRJ-01, I1-PRJ-02, I1-PRJ-03, I1-PRJ-04, I1-PRJ-05] Kiểm tra lớp persistence của Project. */
 class ProjectPersistenceStructureTest {
 
     @Test

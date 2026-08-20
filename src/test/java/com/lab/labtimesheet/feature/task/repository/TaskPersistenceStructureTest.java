@@ -50,6 +50,25 @@ class TaskPersistenceStructureTest {
         assertThat(lock.value()).isEqualTo(LockModeType.PESSIMISTIC_WRITE);
     }
 
+    /** [I2-PRJ-04] Luồng transfer phải khóa các Task chưa hoàn thành trước khi đổi assignee. */
+    @Test
+    void unfinishedTransferLookupUsesAPessimisticWriteLock() throws NoSuchMethodException {
+        var method = TaskRepository.class.getMethod(
+                "findLockedUnfinishedByProjectIdAndAssigneeMembershipId", long.class, long.class);
+
+        Lock lock = method.getAnnotation(Lock.class);
+        assertThat(lock).isNotNull();
+        assertThat(lock.value()).isEqualTo(LockModeType.PESSIMISTIC_WRITE);
+    }
+
+    /** [I2-PRJ-05] Repository phải có truy vấn đếm Task chưa DONE cho guard hoàn tất Project. */
+    @Test
+    void unfinishedTaskCountLookupIsPresent() throws NoSuchMethodException {
+        var method = TaskRepository.class.getMethod("countUnfinishedByProjectId", long.class);
+
+        assertThat(method).isNotNull();
+    }
+
     @Test
     void workLogCorrectionLookupUsesAPessimisticWriteLock() throws NoSuchMethodException {
         var method = TaskWorkLogRepository.class.getMethod(

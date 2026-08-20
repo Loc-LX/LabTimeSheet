@@ -3,13 +3,13 @@ package com.lab.labtimesheet.feature.project.model.dto;
 import java.time.LocalDate;
 
 /**
- * Service command for atomically planning a Project with its initial Leader.
+ * Lệnh dịch vụ dùng để tạo Project ở trạng thái Planned cùng Leader ban đầu trong một lần nguyên tử.
  *
- * @param name required Project name
- * @param description optional Project description
- * @param startDate inclusive Project start date
- * @param endDate inclusive Project end date, not before {@code startDate}
- * @param initialLeaderUserId eligible Intern appointed as the first Leader
+ * @param name tên Project bắt buộc
+ * @param description mô tả Project tùy chọn
+ * @param startDate ngày bắt đầu Project, được tính cả ngày này
+ * @param endDate ngày kết thúc Project, không được trước {@code startDate}
+ * @param initialLeaderUserId mã Intern đủ điều kiện được bổ nhiệm làm Leader đầu tiên
  */
 public record ProjectCreateCommand(
         String name,

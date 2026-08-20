@@ -219,6 +219,34 @@ public class AccountService {
     }
 
     /**
+     * Locks an Intern's profile row for the duration of the surrounding transaction and returns its inclusive
+     * internship dates. The pessimistic write lock serializes quota-reserving consumers against concurrent
+     * overbooking, so they must re-read reservations only after this lock is held (DB-008).
+     *
+     * @param userId owning Intern account identifier
+     * @return inclusive internship date window of the active profile
+     * @throws IllegalArgumentException when the profile is missing or its internship is not active
+     */
+    @Transactional
+    public InternshipWindow lockActiveInternship(long userId) {
+        InternProfile profile = internProfiles.findForUpdateByUserId(userId)
+                .orElseThrow(() -> new IllegalArgumentException("Intern profile not found"));
+        if (profile.getInternshipStatus() != InternshipStatus.ACTIVE) {
+            throw new IllegalArgumentException("An active internship is required");
+        }
+        return new InternshipWindow(profile.getInternshipStartDate(), profile.getInternshipEndDate());
+    }
+
+    /**
+     * Inclusive internship eligibility window for a locked active Intern profile.
+     *
+     * @param start inclusive first eligibility date
+     * @param end inclusive last eligibility date
+     */
+    public record InternshipWindow(LocalDate start, LocalDate end) {
+    }
+
+    /**
      * Checks whether the account and its internship are both currently active.
      *
      * @param userId account identifier
@@ -315,6 +343,23 @@ public class AccountService {
         AppUser user = users.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("Admin not found"));
         return requireActiveAdmin(user);
+    }
+
+    /**
+     * Requires the identified account to be an active Mentor.
+     *
+     * @param userId account identifier
+     * @return the same identifier after authorization
+     * @throws IllegalArgumentException when the account is missing or not an active Mentor
+     */
+    @Transactional(readOnly = true)
+    public long requireActiveMentorId(long userId) {
+        AppUser user = users.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("Mentor not found"));
+        if (user.getGlobalRole() != GlobalRole.MENTOR || user.getAccountStatus() != AccountStatus.ACTIVE) {
+            throw new IllegalArgumentException("An active Mentor is required");
+        }
+        return user.getId();
     }
 
     private static long requireActiveAdmin(AppUser user) {

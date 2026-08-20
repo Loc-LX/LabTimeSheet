@@ -5,7 +5,9 @@ import com.lab.labtimesheet.feature.account.service.AccountService;
 import com.lab.labtimesheet.feature.project.exception.ProjectAccessDeniedException;
 import com.lab.labtimesheet.feature.project.exception.ProjectRuleViolationException;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectCreateForm;
+import com.lab.labtimesheet.feature.project.model.dto.ProjectLeadershipTermView;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectMemberForm;
+import com.lab.labtimesheet.feature.project.model.dto.ProjectMemberView;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectMembersForm;
 import com.lab.labtimesheet.feature.project.service.ProjectQueryService;
 import com.lab.labtimesheet.feature.project.service.ProjectService;
@@ -13,6 +15,7 @@ import jakarta.validation.Valid;
 import java.security.Principal;
 import java.time.Clock;
 import java.time.LocalDate;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -27,12 +30,17 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 
 /**
- * Serves authenticated, server-rendered Project pages and binds Project mutation forms.
+ * Phục vụ các trang Project hiển thị phía máy chủ cho người dùng đã xác thực và gắn dữ liệu vào biểu
+ * mẫu thay đổi Project.
  *
- * <p>Project services remain the authority for ownership, membership, lifecycle, and
- * transactional validation. Known rule failures are returned to the originating safe view,
- * while authorization failures are left to {@code ProjectControllerAdvice} so identifiers are
- * not disclosed.
+ * <p>Service Project vẫn là nơi quyết định về sở hữu, thành viên, vòng đời và kiểm tra trong
+ * transaction. Lỗi nghiệp vụ đã biết được trả về view an toàn ban đầu, còn lỗi phân quyền được
+ * chuyển cho {@code ProjectControllerAdvice} để không tiết lộ mã tài nguyên.
+ *
+ * <p>Truy vết mã UI Project: {@code I1-PRJ-01} tạo Project, {@code I1-PRJ-02} thêm member,
+ * {@code I1-PRJ-03} đổi Leader, {@code I1-PRJ-04} kích hoạt, {@code I1-PRJ-05} hiển thị các
+ * trang Project; {@code I2-PRJ-01}–{@code I2-PRJ-05} và {@code I2-PRJ-06}
+ * giữ lịch sử, handoff/xóa Leader an toàn và đọc lịch sử hoàn tất.
  */
 @Controller
 @RequestMapping("/projects")
@@ -45,12 +53,12 @@ public class ProjectController {
     private final Clock clock;
 
     /**
-     * Lists only Projects visible to the authenticated actor and exposes Project creation only
-     * to Mentors.
+     * [I1-PRJ-01, I1-PRJ-05, I2-PRJ-06] Chỉ liệt kê Project mà người thực hiện đã xác thực được xem và chỉ hiển thị chức năng tạo
+     * Project cho Mentor.
      *
-     * @param principal authenticated user
-     * @param model response model
-     * @return the Project list view
+     * @param principal người dùng đã xác thực
+     * @param model model của phản hồi
+     * @return view danh sách Project
      */
     @GetMapping
     public String list(Principal principal, Model model) {
@@ -61,12 +69,12 @@ public class ProjectController {
     }
 
     /**
-     * Opens the creation form for an authenticated Mentor.
+     * [I1-PRJ-01, I1-PRJ-05] Mở biểu mẫu tạo Project cho Mentor đã xác thực.
      *
-     * @param principal authenticated user
-     * @param model response model
-     * @return the Project creation view
-     * @throws ProjectAccessDeniedException when the actor is not an active Mentor
+     * @param principal người dùng đã xác thực
+     * @param model model của phản hồi
+     * @return view tạo Project
+     * @throws ProjectAccessDeniedException khi người thực hiện không phải Mentor đang hoạt động
      */
     @GetMapping("/new")
     public String createForm(Principal principal, Model model) {
@@ -79,13 +87,13 @@ public class ProjectController {
     }
 
     /**
-     * Creates a Project or re-renders the form with retained safe input when validation fails.
+     * [I1-PRJ-01, I1-PRJ-05] Tạo Project hoặc hiển thị lại biểu mẫu với dữ liệu an toàn đã nhập khi kiểm tra thất bại.
      *
-     * @param principal authenticated user
-     * @param projectForm validated browser input
-     * @param bindingResult binding and domain validation results
-     * @param model response model used when validation fails
-     * @return a redirect to the created Project, or the creation form on validation failure
+     * @param principal người dùng đã xác thực
+     * @param projectForm dữ liệu biểu mẫu trên trình duyệt sau khi gắn dữ liệu
+     * @param bindingResult kết quả gắn dữ liệu và kiểm tra nghiệp vụ
+     * @param model model của phản hồi khi kiểm tra thất bại
+     * @return redirect tới Project vừa tạo hoặc view biểu mẫu khi kiểm tra thất bại
      */
     @PostMapping
     public String create(
@@ -113,12 +121,12 @@ public class ProjectController {
     }
 
     /**
-     * Renders an authorized Project detail without disclosing guessed identifiers.
+     * [I1-PRJ-05, I2-PRJ-06] Hiển thị chi tiết Project đã phân quyền mà không tiết lộ mã được đoán ngẫu nhiên.
      *
-     * @param principal authenticated user
-     * @param projectId requested Project identifier
-     * @param model response model
-     * @return the Project detail view
+     * @param principal người dùng đã xác thực
+     * @param projectId mã Project được yêu cầu
+     * @param model model của phản hồi
+     * @return view chi tiết Project
      */
     @GetMapping("/{projectId}")
     public String detail(Principal principal, @PathVariable long projectId, Model model) {
@@ -127,12 +135,12 @@ public class ProjectController {
     }
 
     /**
-     * Activates a planned Project or re-renders its detail with a safe lifecycle error.
+     * [I1-PRJ-04, I1-PRJ-05] Kích hoạt Project Planned hoặc hiển thị lại chi tiết với lỗi vòng đời an toàn.
      *
-     * @param principal authenticated user
-     * @param projectId Project to activate
-     * @param model response model used when activation is rejected
-     * @return a detail redirect after success, or the detail view after a rule failure
+     * @param principal người dùng đã xác thực
+     * @param projectId mã Project cần kích hoạt
+     * @param model model của phản hồi khi kích hoạt bị từ chối
+     * @return redirect về chi tiết khi thành công hoặc view chi tiết khi vi phạm quy tắc
      */
     @PostMapping("/{projectId}/activate")
     public String activate(Principal principal, @PathVariable long projectId, Model model) {
@@ -148,12 +156,13 @@ public class ProjectController {
     }
 
     /**
-     * Renders authorized current and historical membership intervals.
+     * [I1-PRJ-02, I1-PRJ-05, I2-PRJ-06] Hiển thị các membership đang hoạt động; lịch sử được mở
+     * qua nút History ở trang riêng.
      *
-     * @param principal authenticated user
-     * @param projectId requested Project identifier
-     * @param model response model
-     * @return the membership history view
+     * @param principal người dùng đã xác thực
+     * @param projectId mã Project được yêu cầu
+     * @param model model của phản hồi
+     * @return view danh sách thành viên hiện tại
      */
     @GetMapping("/{projectId}/members")
     public String members(Principal principal, @PathVariable long projectId, Model model) {
@@ -163,16 +172,30 @@ public class ProjectController {
         return "projects/members";
     }
 
+    /** [I2-PRJ-06] Hiển thị read-only toàn bộ lịch sử vào/ra của membership Project. */
+    @GetMapping("/{projectId}/members/history")
+    public String memberHistory(Principal principal, @PathVariable long projectId, Model model) {
+        long actorId = actorId(principal);
+        model.addAttribute("project", pages.detail(actorId, projectId));
+        // Lịch sử riêng được hiển thị từ mới đến cũ; danh sách active không dùng thứ tự này.
+        model.addAttribute("members", pages.members(actorId, projectId).stream()
+                .sorted(Comparator.comparing(ProjectMemberView::joinedAt)
+                        .reversed()
+                        .thenComparing(ProjectMemberView::membershipId, Comparator.reverseOrder()))
+                .toList());
+        return "projects/members-history";
+    }
+
     /**
-     * Adds all selected eligible Interns atomically or re-renders membership history with every
-     * still-eligible selection retained and a count of unavailable choices.
+     * [I1-PRJ-02, I1-PRJ-05] Nguyên tử thêm toàn bộ Intern đủ điều kiện đã chọn hoặc hiển thị lại lịch sử thành viên với
+     * các lựa chọn vẫn còn đủ điều kiện và số lựa chọn không còn khả dụng.
      *
-     * @param principal authenticated user
-     * @param projectId owning Project identifier
-     * @param membersForm validated Intern selection
-     * @param bindingResult binding and domain validation results
-     * @param model response model used on failure
-     * @return a membership redirect after success, or the membership view on validation failure
+     * @param principal người dùng đã xác thực
+     * @param projectId mã Project sở hữu
+     * @param membersForm lựa chọn Intern sau khi gắn dữ liệu và kiểm tra
+     * @param bindingResult kết quả gắn dữ liệu và kiểm tra nghiệp vụ
+     * @param model model của phản hồi khi thất bại
+     * @return redirect về thành viên khi thành công hoặc view thành viên khi kiểm tra thất bại
      */
     @PostMapping("/{projectId}/members")
     public String addMembers(
@@ -207,31 +230,98 @@ public class ProjectController {
     }
 
     /**
-     * Renders the authorized leadership-term history and an owner-only mutation form while the
-     * Project is mutable.
+     * [I2-PRJ-04] Chuyển Task chưa hoàn thành sang Leader hiện tại rồi đóng membership member
+     * thường; khi lỗi thì nạp lại trang cùng thông báo và không tự ý đổi dữ liệu biểu mẫu thêm member.
      *
-     * @param principal authenticated user
-     * @param projectId requested Project identifier
-     * @param model response model
-     * @return the leadership history view
+     * @param principal Mentor đang đăng nhập
+     * @param projectId mã Project
+     * @param internUserId mã Intern hiện tại cần loại
+     * @param model model dùng khi hiển thị lỗi nghiệp vụ
+     * @return redirect về lịch sử member khi thành công hoặc view member khi thất bại
+     */
+    @PostMapping("/{projectId}/members/{internUserId}/remove")
+    public String removeMember(
+            Principal principal,
+            @PathVariable long projectId,
+            @PathVariable long internUserId,
+            Model model) {
+        long actorId = actorId(principal);
+        try {
+            projects.removeMember(actorId, projectId, internUserId);
+            return "redirect:/projects/" + projectId + "/members";
+        } catch (ProjectRuleViolationException exception) {
+            populateMembersModel(actorId, projectId, model);
+            model.addAttribute("projectMembersForm", new ProjectMembersForm());
+            model.addAttribute("memberRemovalError", exception.getMessage());
+            return "projects/members";
+        }
+    }
+
+    /**
+     * [I2-PRJ-05] Hoàn tất Project sau khi service đã kiểm tra toàn bộ Task và đóng các interval.
+     * Lỗi nghiệp vụ được hiển thị lại ở trang chi tiết, còn quyền sở hữu vẫn được kiểm tra trong
+     * ProjectService.
+     *
+     * @param principal Mentor đang đăng nhập
+     * @param projectId mã Project cần hoàn tất
+     * @param model model hiển thị lỗi
+     * @return redirect về chi tiết hoặc view chi tiết khi bị từ chối
+     */
+    @PostMapping("/{projectId}/complete")
+    public String complete(Principal principal, @PathVariable long projectId, Model model) {
+        long actorId = actorId(principal);
+        try {
+            projects.complete(actorId, projectId);
+            return "redirect:/projects/" + projectId;
+        } catch (ProjectRuleViolationException exception) {
+            model.addAttribute("project", pages.detail(actorId, projectId));
+            model.addAttribute("projectError", exception.getMessage());
+            return "projects/detail";
+        }
+    }
+
+    /**
+     * [I1-PRJ-03, I1-PRJ-05, I2-PRJ-01, I2-PRJ-06] Hiển thị Leader hiện tại và biểu mẫu thay đổi
+     * Leader chỉ dành cho Mentor sở hữu khi Project còn cho phép thay đổi. Lịch sử nhiệm kỳ được
+     * mở qua nút History ở trang riêng.
+     *
+     * @param principal người dùng đã xác thực
+     * @param projectId mã Project được yêu cầu
+     * @param model model dùng để hiển thị phản hồi
+     * @return view Leader hiện tại
      */
     @GetMapping("/{projectId}/leadership")
     public String leadership(Principal principal, @PathVariable long projectId, Model model) {
         long actorId = actorId(principal);
-        populateLeadershipModel(actorId, projectId, model);
-        model.addAttribute("projectMemberForm", new ProjectMemberForm(null));
+        var currentTermId = populateLeadershipModel(actorId, projectId, model);
+        model.addAttribute("projectMemberForm", new ProjectMemberForm(null, currentTermId));
         return "projects/leadership";
     }
 
+    /** [I2-PRJ-06] Hiển thị read-only toàn bộ lịch sử các nhiệm kỳ Leader của Project. */
+    @GetMapping("/{projectId}/leadership/history")
+    public String leadershipHistory(Principal principal, @PathVariable long projectId, Model model) {
+        long actorId = actorId(principal);
+        model.addAttribute("project", pages.detail(actorId, projectId));
+        // Bảo đảm bản ghi mới nhất đứng trước ngay tại trang History, độc lập với dữ liệu từ service.
+        model.addAttribute("leadership", pages.leadership(actorId, projectId).stream()
+                .sorted(Comparator.comparing(ProjectLeadershipTermView::startedAt)
+                        .reversed()
+                        .thenComparing(ProjectLeadershipTermView::id, Comparator.reverseOrder()))
+                .toList());
+        return "projects/leadership-history";
+    }
+
     /**
-     * Appoints an eligible current member or re-renders leadership history with retained input.
+     * [I1-PRJ-03, I1-PRJ-05, I2-PRJ-01, I2-PRJ-02] Bổ nhiệm một thành viên hiện tại đủ điều kiện làm Leader mới; nếu thất bại thì hiển thị lại
+     * lịch sử Leader cùng dữ liệu người dùng đã nhập.
      *
-     * @param principal authenticated user
-     * @param projectId owning Project identifier
-     * @param memberForm validated replacement Leader selection
-     * @param bindingResult binding and domain validation results
-     * @param model response model used on failure
-     * @return a leadership redirect after success, or the leadership view on validation failure
+     * @param principal người dùng đã xác thực
+     * @param projectId mã Project sở hữu
+     * @param memberForm lựa chọn Leader thay thế sau khi gắn dữ liệu và kiểm tra
+     * @param bindingResult kết quả gắn dữ liệu và kiểm tra nghiệp vụ
+     * @param model model dùng khi xử lý thất bại
+     * @return redirect về lịch sử Leader khi thành công, hoặc view lịch sử khi kiểm tra thất bại
      */
     @PostMapping("/{projectId}/leadership")
     public String changeLeader(
@@ -243,7 +333,11 @@ public class ProjectController {
         long actorId = actorId(principal);
         if (!bindingResult.hasErrors()) {
             try {
-                projects.changeLeader(actorId, projectId, memberForm.internUserId());
+                projects.changeLeader(
+                        actorId,
+                        projectId,
+                        memberForm.expectedLeadershipTermId(),
+                        memberForm.internUserId());
                 return "redirect:/projects/" + projectId + "/leadership";
             } catch (ProjectRuleViolationException exception) {
                 bindingResult.rejectValue("internUserId", "project.leader.ineligible", exception.getMessage());
@@ -253,9 +347,47 @@ public class ProjectController {
         return "projects/leadership";
     }
 
+    /**
+     * [I2-PRJ-03] Thay Leader trước rồi đóng membership Leader cũ trong một transaction; chỉ
+     * Mentor sở hữu mới đi qua được phân quyền ở ProjectService.
+     *
+     * @param principal người dùng đã xác thực
+     * @param projectId mã Project cần thay Leader và xóa membership cũ
+     * @param memberForm replacement cùng token nhiệm kỳ hiện tại
+     * @param bindingResult lỗi binding/validation của form
+     * @param model model dùng khi hiển thị lại form lỗi
+     * @return redirect sau khi thành công hoặc leadership view khi thất bại
+     */
+    @PostMapping("/{projectId}/leadership/remove")
+    public String removeLeader(
+            Principal principal,
+            @PathVariable long projectId,
+            @Valid @ModelAttribute("projectMemberForm") ProjectMemberForm memberForm,
+            BindingResult bindingResult,
+            Model model) {
+        long actorId = actorId(principal);
+        if (!bindingResult.hasErrors()) {
+            try {
+                projects.removeLeader(
+                        actorId,
+                        projectId,
+                        memberForm.expectedLeadershipTermId(),
+                        memberForm.internUserId());
+                return "redirect:/projects/" + projectId + "/leadership";
+            } catch (ProjectRuleViolationException exception) {
+                bindingResult.rejectValue("internUserId", "project.leader.removal", exception.getMessage());
+            }
+        }
+        populateLeadershipModel(actorId, projectId, model);
+        return "projects/leadership";
+    }
+
+    /** Nạp chi tiết, membership hiện tại và danh sách Intern còn có thể thêm vào model. */
     private List<EligibleInternOption> populateMembersModel(long actorId, long projectId, Model model) {
         var project = pages.detail(actorId, projectId);
-        var members = pages.members(actorId, projectId);
+        var members = pages.members(actorId, projectId).stream()
+                .filter(member -> member.leftAt() == null)
+                .toList();
         model.addAttribute("project", project);
         model.addAttribute("members", members);
         if (project.canManage()) {
@@ -272,10 +404,17 @@ public class ProjectController {
         return List.of();
     }
 
-    private void populateLeadershipModel(long actorId, long projectId, Model model) {
+    /**
+     * Nạp Leader hiện tại và trả về mã nhiệm kỳ dùng làm token chống ghi đè từ form cũ. Project đã
+     * hoàn tất cố ý không trả token vì không hiển thị biểu mẫu thay đổi.
+     */
+    private Long populateLeadershipModel(long actorId, long projectId, Model model) {
         var project = pages.detail(actorId, projectId);
+        var leadership = pages.leadership(actorId, projectId).stream()
+                .filter(term -> term.endedAt() == null)
+                .toList();
         model.addAttribute("project", project);
-        model.addAttribute("leadership", pages.leadership(actorId, projectId));
+        model.addAttribute("leadership", leadership);
         if (project.canManage()) {
             Set<Long> replacementIds = pages.members(actorId, projectId).stream()
                     .filter(member -> member.leftAt() == null && !member.currentLeader())
@@ -285,12 +424,19 @@ public class ProjectController {
                     .filter(option -> replacementIds.contains(option.userId()))
                     .toList());
         }
+        return leadership.stream()
+                .filter(term -> term.endedAt() == null)
+                .map(term -> term.id())
+                .findFirst()
+                .orElse(null);
     }
 
+    /** Lấy danh sách Intern hiện đủ điều kiện tại ngày hiện tại của server. */
     private List<EligibleInternOption> eligibleInternOptions() {
         return accounts.eligibleInternOptions(LocalDate.now(clock));
     }
 
+    /** Đổi danh tính đăng nhập trong yêu cầu thành mã Account dùng ở service Project. */
     private long actorId(Principal principal) {
         return pages.authenticatedUserId(principal.getName());
     }

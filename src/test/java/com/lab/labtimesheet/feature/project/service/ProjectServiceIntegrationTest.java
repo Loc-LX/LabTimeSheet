@@ -15,6 +15,11 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import org.junit.jupiter.api.Test;
@@ -23,6 +28,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Import(TestcontainersConfiguration.class)
@@ -45,6 +51,7 @@ class ProjectServiceIntegrationTest {
     @PersistenceContext
     private EntityManager entityManager;
 
+    /** [I1-PRJ-01] Tạo Project nguyên tử cùng membership và Leader đầu tiên. */
     @Test
     void createsProjectMembershipAndLeadershipInOneTransaction() {
         long mentorId = user("mentor-create@example.test", "MENTOR");
@@ -81,6 +88,7 @@ class ProjectServiceIntegrationTest {
         assertEquals(0, count("select count(*) from projects where name = 'Denied'"));
     }
 
+    /** [I1-PRJ-02] Thêm member và từ chối membership hiện tại bị trùng. */
     @Test
     void ownerAddsEligibleMemberAndDuplicateCurrentMembershipIsRejected() {
         long mentorId = user("mentor-add@example.test", "MENTOR");
@@ -106,6 +114,7 @@ class ProjectServiceIntegrationTest {
                         user("other-mentor@example.test", "MENTOR"), projectId, Long.MAX_VALUE));
     }
 
+    /** [I1-PRJ-02] Thêm nhiều member trong cùng transaction có khóa Project. */
     @Test
     void ownerAddsSeveralEligibleMembersInOneLockedTransaction() {
         long mentorId = user("mentor-batch-add@example.test", "MENTOR");
@@ -122,6 +131,7 @@ class ProjectServiceIntegrationTest {
                 """, projectId));
     }
 
+    /** [I1-PRJ-02] Lựa chọn member lỗi không được tạo dữ liệu một phần. */
     @Test
     void memberBatchRejectsMissingDuplicateCurrentAndStaleSelectionsWithoutPartialMutation() {
         long mentorId = user("mentor-batch-guard@example.test", "MENTOR");
@@ -153,6 +163,10 @@ class ProjectServiceIntegrationTest {
                 """, projectId, eligibleId, staleId));
     }
 
+    /**
+     * [I1-PRJ-03, I2-PRJ-01, I2-PRJ-02] Đổi Leader chỉ đổi nhiệm kỳ; membership cũ và toàn bộ thông tin phân công Task
+     * phải được giữ nguyên để Leader cũ tiếp tục làm việc trên Task đã giao cho mình.
+     */
     @Test
     void leaderChangeClosesOneTermAndDoesNotMoveTaskAssignments() {
         long mentorId = user("mentor-leader@example.test", "MENTOR");
@@ -167,14 +181,305 @@ class ProjectServiceIntegrationTest {
                     created_by_membership_id, assigned_by_membership_id)
                 values (?, ?, 'Keep assignee', ?, ?)
                 """, projectId, firstMembershipId, firstMembershipId, firstMembershipId);
+        var taskBeforeChange = taskAssignment(projectId);
 
-        projectService.changeLeader(mentorId, projectId, nextLeaderId);
+        long expectedTermId = number("""
+                select id from project_leadership_terms
+                where project_id = ? and ended_at is null
+                """, projectId);
+        projectService.changeLeader(mentorId, projectId, expectedTermId, nextLeaderId);
 
         assertEquals(1, count("select count(*) from project_leadership_terms where project_id = ? and ended_at is null", projectId));
         assertEquals(1, count("select count(*) from project_leadership_terms where project_id = ? and ended_at is not null", projectId));
-        assertEquals(firstMembershipId, number("select assignee_membership_id from tasks where project_id = ?", projectId));
+        assertEquals(nextLeaderId, number("""
+                select membership.intern_user_id
+                from project_leadership_terms leadership
+                join project_memberships membership on membership.id = leadership.membership_id
+                where leadership.project_id = ? and leadership.ended_at is null
+                """, projectId));
+        assertEquals(1, count("""
+                select count(*) from project_memberships
+                where project_id = ? and intern_user_id = ? and left_at is null
+                """, projectId, firstLeaderId));
+        assertEquals(taskBeforeChange, taskAssignment(projectId));
     }
 
+    /**
+     * [I2-PRJ-03] Mentor phải bổ nhiệm replacement trước khi đóng membership Leader cũ; lịch sử
+     * nhiệm kỳ và nguồn gốc Mentor được giữ nguyên.
+     */
+    @Test
+    void ownerRemovesCurrentLeaderOnlyAfterSelectingAReplacement() {
+        long mentorId = user("mentor-remove-leader@example.test", "MENTOR");
+        long firstLeaderId = intern("remove-leader-one@example.test", "I007");
+        long replacementId = intern("remove-leader-two@example.test", "I008");
+        long projectId = createProject(mentorId, firstLeaderId, "Remove leader");
+        projectService.addMember(mentorId, projectId, replacementId);
+        long firstMembershipId = membershipId(projectId, firstLeaderId);
+        long termId = number("""
+                select id from project_leadership_terms
+                where project_id = ? and ended_at is null
+                """, projectId);
+
+        projectService.removeLeader(mentorId, projectId, termId, replacementId);
+
+        assertEquals(replacementId, number("""
+                select membership.intern_user_id
+                from project_leadership_terms leadership
+                join project_memberships membership on membership.id = leadership.membership_id
+                where leadership.project_id = ? and leadership.ended_at is null
+                """, projectId));
+        assertEquals(1, count("select count(*) from project_leadership_terms where project_id = ? and ended_at is null", projectId));
+        assertEquals(2, count("select count(*) from project_leadership_terms where project_id = ?", projectId));
+        assertEquals(1, count("""
+                select count(*) from project_memberships
+                where id = ? and project_id = ? and intern_user_id = ? and left_at is not null
+                  and removed_by_mentor_user_id = ?
+                """, firstMembershipId, projectId, firstLeaderId, mentorId));
+        assertEquals(1, count("""
+                select count(*) from project_memberships
+                where project_id = ? and intern_user_id = ? and left_at is null
+                """, projectId, replacementId));
+    }
+
+    /**
+     * [I2-PRJ-04] Member thường rời Project sau khi Task chưa DONE chuyển sang Leader; Task DONE
+     * vẫn giữ assignee và creator/assigner attribution cũ.
+     */
+    @Test
+    void memberRemovalTransfersOnlyUnfinishedTasksBeforeClosingMembership() {
+        long mentorId = user("mentor-remove-member@example.test", "MENTOR");
+        long leaderId = intern("remove-member-leader@example.test", "I011");
+        long memberId = intern("remove-member-target@example.test", "I012");
+        long projectId = createProject(mentorId, leaderId, "Remove member transfer");
+        projectService.addMember(mentorId, projectId, memberId);
+        long leaderMembershipId = membershipId(projectId, leaderId);
+        long memberMembershipId = membershipId(projectId, memberId);
+
+        jdbc.update("""
+                insert into tasks (
+                    project_id, assignee_membership_id, title,
+                    created_by_membership_id, assigned_by_membership_id)
+                values (?, ?, 'Move unfinished', ?, ?),
+                       (?, ?, 'Keep completed', ?, ?)
+                """,
+                projectId, memberMembershipId, memberMembershipId, memberMembershipId,
+                projectId, memberMembershipId, memberMembershipId, memberMembershipId);
+        jdbc.update("""
+                update tasks
+                set status = 'DONE'
+                where project_id = ? and title = 'Keep completed'
+                """, projectId);
+
+        projectService.removeMember(mentorId, projectId, memberId);
+
+        assertEquals(leaderMembershipId, number("""
+                select assignee_membership_id from tasks
+                where project_id = ? and title = 'Move unfinished'
+                """, projectId));
+        assertEquals(leaderMembershipId, number("""
+                select assigned_by_membership_id from tasks
+                where project_id = ? and title = 'Move unfinished'
+                """, projectId));
+        assertEquals(memberMembershipId, number("""
+                select created_by_membership_id from tasks
+                where project_id = ? and title = 'Move unfinished'
+                """, projectId));
+        assertEquals(memberMembershipId, number("""
+                select assignee_membership_id from tasks
+                where project_id = ? and title = 'Keep completed'
+                """, projectId));
+        assertEquals(1, count("""
+                select count(*) from project_memberships
+                where project_id = ? and intern_user_id = ? and left_at is not null
+                """, projectId, memberId));
+        assertEquals(1, count("""
+                select count(*) from project_memberships
+                where project_id = ? and intern_user_id = ? and left_at is null
+                """, projectId, leaderId));
+    }
+
+    /** [I2-PRJ-04] Leader rời Project cũng chuyển Task chưa hoàn thành sang replacement trước khi đóng membership. */
+    @Test
+    void leaderRemovalTransfersOnlyUnfinishedTasksToTheReplacement() {
+        long mentorId = user("mentor-remove-leader-task@example.test", "MENTOR");
+        long leaderId = intern("remove-leader-task-one@example.test", "I013");
+        long replacementId = intern("remove-leader-task-two@example.test", "I014");
+        long projectId = createProject(mentorId, leaderId, "Remove leader task transfer");
+        projectService.addMember(mentorId, projectId, replacementId);
+        long leaderMembershipId = membershipId(projectId, leaderId);
+        long replacementMembershipId = membershipId(projectId, replacementId);
+        jdbc.update("""
+                insert into tasks (
+                    project_id, assignee_membership_id, title,
+                    created_by_membership_id, assigned_by_membership_id)
+                values (?, ?, 'Move leader unfinished', ?, ?),
+                       (?, ?, 'Keep leader completed', ?, ?)
+                """,
+                projectId, leaderMembershipId, leaderMembershipId, leaderMembershipId,
+                projectId, leaderMembershipId, leaderMembershipId, leaderMembershipId);
+        jdbc.update("""
+                update tasks
+                set status = 'DONE'
+                where project_id = ? and title = 'Keep leader completed'
+                """, projectId);
+        long termId = number("""
+                select id from project_leadership_terms
+                where project_id = ? and ended_at is null
+                """, projectId);
+
+        projectService.removeLeader(mentorId, projectId, termId, replacementId);
+
+        assertEquals(replacementMembershipId, number("""
+                select assignee_membership_id from tasks
+                where project_id = ? and title = 'Move leader unfinished'
+                """, projectId));
+        assertEquals(leaderMembershipId, number("""
+                select assignee_membership_id from tasks
+                where project_id = ? and title = 'Keep leader completed'
+                """, projectId));
+        assertEquals(1, count("""
+                select count(*) from project_memberships
+                where project_id = ? and intern_user_id = ? and left_at is not null
+                """, projectId, leaderId));
+    }
+
+    /** [I2-PRJ-03] Replacement không hợp lệ hoặc Mentor không sở hữu thì không được đổi dữ liệu. */
+    @Test
+    void leaderRemovalRejectsInvalidReplacementAndUnauthorizedMentorWithoutMutation() {
+        long mentorId = user("mentor-remove-guard@example.test", "MENTOR");
+        long otherMentorId = user("other-remove-guard@example.test", "MENTOR");
+        long firstLeaderId = intern("remove-guard-one@example.test", "I009");
+        long replacementId = intern("remove-guard-two@example.test", "I010");
+        long projectId = createProject(mentorId, firstLeaderId, "Remove leader guard");
+        long termId = number("""
+                select id from project_leadership_terms
+                where project_id = ? and ended_at is null
+                """, projectId);
+
+        assertThrows(ProjectRuleViolationException.class,
+                () -> projectService.removeLeader(mentorId, projectId, termId, replacementId));
+        assertThrows(ProjectAccessDeniedException.class,
+                () -> projectService.removeLeader(otherMentorId, projectId, termId, firstLeaderId));
+        assertEquals(firstLeaderId, number("""
+                select membership.intern_user_id
+                from project_leadership_terms leadership
+                join project_memberships membership on membership.id = leadership.membership_id
+                where leadership.project_id = ? and leadership.ended_at is null
+                """, projectId));
+        assertEquals(1, count("select count(*) from project_memberships where project_id = ? and left_at is null", projectId));
+        assertEquals(1, count("select count(*) from project_leadership_terms where project_id = ?", projectId));
+    }
+
+    /** [I2-PRJ-01] Form cũ không được ghi đè nhiệm kỳ hiện tại đã thay đổi. */
+    @Test
+    void staleLeaderChangeCannotReplaceTheCurrentTermAfterAnotherChangeCommits() {
+        long mentorId = user("mentor-stale-leader@example.test", "MENTOR");
+        long firstLeaderId = intern("stale-leader-one@example.test", "I901");
+        long nextLeaderId = intern("stale-leader-two@example.test", "I902");
+        long projectId = createProject(mentorId, firstLeaderId, "Stale leadership");
+        projectService.addMember(mentorId, projectId, nextLeaderId);
+
+        long termLoadedByTheFirstForm = number("""
+                select id from project_leadership_terms
+                where project_id = ? and ended_at is null
+                """, projectId);
+
+        projectService.changeLeader(mentorId, projectId, termLoadedByTheFirstForm, nextLeaderId);
+
+        assertThrows(ProjectRuleViolationException.class, () -> projectService.changeLeader(
+                mentorId, projectId, termLoadedByTheFirstForm, firstLeaderId));
+        assertEquals(nextLeaderId, number("""
+                select membership.intern_user_id
+                from project_leadership_terms leadership
+                join project_memberships membership on membership.id = leadership.membership_id
+                where leadership.project_id = ? and leadership.ended_at is null
+                """, projectId));
+        assertEquals(1, count("select count(*) from project_leadership_terms where project_id = ? and ended_at is null", projectId));
+        assertEquals(2, count("select count(*) from project_leadership_terms where project_id = ?", projectId));
+    }
+
+    /** [I2-PRJ-01] Hai handoff cạnh tranh cùng token chỉ có một request thắng. */
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void concurrentLeaderChangesWithTheSameTermAllowOneWinner() throws Exception {
+        long mentorId = user("mentor-concurrent-leader@example.test", "MENTOR");
+        long firstLeaderId = intern("concurrent-leader-one@example.test", "I903");
+        long firstReplacementId = intern("concurrent-leader-two@example.test", "I904");
+        long secondReplacementId = intern("concurrent-leader-three@example.test", "I905");
+        long projectId = createProject(mentorId, firstLeaderId, "Concurrent leadership");
+        projectService.addMembers(mentorId, projectId, List.of(firstReplacementId, secondReplacementId));
+        long termId = number("""
+                select id from project_leadership_terms
+                where project_id = ? and ended_at is null
+                """, projectId);
+
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        var ready = new CountDownLatch(2);
+        var start = new CountDownLatch(1);
+        try {
+            var first = executor.submit(() -> changeLeaderAfterStart(
+                    ready, start, mentorId, projectId, termId, firstReplacementId));
+            var second = executor.submit(() -> changeLeaderAfterStart(
+                    ready, start, mentorId, projectId, termId, secondReplacementId));
+            assertTrue(ready.await(5, TimeUnit.SECONDS));
+            start.countDown();
+
+            int successes = 0;
+            int staleFailures = 0;
+            for (var result : List.of(first, second)) {
+                try {
+                    result.get();
+                    successes++;
+                } catch (ExecutionException exception) {
+                    assertTrue(exception.getCause() instanceof ProjectRuleViolationException);
+                    staleFailures++;
+                }
+            }
+            assertEquals(1, successes);
+            assertEquals(1, staleFailures);
+            assertEquals(1, count(
+                    "select count(*) from project_leadership_terms where project_id = ? and ended_at is null",
+                    projectId));
+            assertEquals(2, count(
+                    "select count(*) from project_leadership_terms where project_id = ?", projectId));
+        } finally {
+            executor.shutdownNow();
+            deleteConcurrentLeadershipFixture(
+                    projectId, mentorId, firstLeaderId, firstReplacementId, secondReplacementId);
+        }
+    }
+
+    private Void changeLeaderAfterStart(
+            CountDownLatch ready,
+            CountDownLatch start,
+            long mentorId,
+            long projectId,
+            long expectedTermId,
+            long replacementId) throws InterruptedException {
+        ready.countDown();
+        start.await();
+        projectService.changeLeader(mentorId, projectId, expectedTermId, replacementId);
+        return null;
+    }
+
+    /** Xóa fixture đã commit vì test concurrency này chủ động tắt rollback. */
+    private void deleteConcurrentLeadershipFixture(
+            long projectId,
+            long mentorId,
+            long firstLeaderId,
+            long firstReplacementId,
+            long secondReplacementId) {
+        jdbc.update("delete from project_leadership_terms where project_id = ?", projectId);
+        jdbc.update("delete from project_memberships where project_id = ?", projectId);
+        jdbc.update("delete from projects where id = ?", projectId);
+        jdbc.update("delete from intern_profiles where user_id in (?, ?, ?, ?)",
+                firstLeaderId, firstReplacementId, secondReplacementId, mentorId);
+        jdbc.update("delete from app_users where id in (?, ?, ?, ?)",
+                mentorId, firstLeaderId, firstReplacementId, secondReplacementId);
+    }
+
+    /** [I1-PRJ-05, I2-PRJ-06] Query Project kiểm tra quyền sở hữu, membership và ID đoán ngẫu nhiên. */
     @Test
     void listAndDetailQueriesEnforceRoleOwnershipAndMembershipWithoutIdDisclosure() {
         long adminId = user("admin-view@example.test", "ADMIN");
@@ -228,6 +533,7 @@ class ProjectServiceIntegrationTest {
         assertEquals(1, projectPages.dashboardSummary(mentorId).distinctActiveMemberCount());
     }
 
+    /** [I2-PRJ-06] Thành viên cũ vẫn đọc được Project đã hoàn tất ở chế độ lịch sử. */
     @Test
     void completedProjectQueriesReturnHistoricalMembersWithoutRequiringACurrentLeader() {
         long adminId = user("admin-history@example.test", "ADMIN");
@@ -277,6 +583,58 @@ class ProjectServiceIntegrationTest {
         assertTrue(members.stream().noneMatch(member -> member.currentLeader()));
     }
 
+    /** [I2-PRJ-06] Project đã hoàn tất chỉ cho đọc lịch sử, kể cả khi gọi thẳng các operation ghi. */
+    @Test
+    void completedProjectRejectsDirectProjectMutationsWithoutChangingHistory() {
+        long mentorId = user("mentor-read-only@example.test", "MENTOR");
+        long leaderId = intern("leader-read-only@example.test", "I027");
+        long memberId = intern("member-read-only@example.test", "I028");
+        long replacementId = intern("replacement-read-only@example.test", "I029");
+        long lateMemberId = intern("late-read-only@example.test", "I030");
+        long projectId = createProject(mentorId, leaderId, "Read-only history");
+        projectService.addMember(mentorId, projectId, memberId);
+        projectService.addMember(mentorId, projectId, replacementId);
+        long currentTermId = number("""
+                select id from project_leadership_terms
+                where project_id = ? and ended_at is null
+                """, projectId);
+        var completedAt = dbTime(NOW.plusSeconds(60));
+        jdbc.update("""
+                update project_leadership_terms
+                set ended_at = ?, ended_by_mentor_user_id = ?
+                where project_id = ? and ended_at is null
+                """, completedAt, mentorId, projectId);
+        jdbc.update("""
+                update project_memberships
+                set left_at = ?, removed_by_mentor_user_id = ?, updated_at = ?
+                where project_id = ? and left_at is null
+                """, completedAt, mentorId, completedAt, projectId);
+        jdbc.update("""
+                update projects
+                set status = 'COMPLETED', activated_at = ?, completed_at = ?, updated_at = ?
+                where id = ?
+                """, dbTime(NOW.plusSeconds(30)), completedAt, completedAt, projectId);
+        entityManager.clear();
+
+        // I2-PRJ-06: ẩn form trên UI không đủ; aggregate phải tự chặn request giả mạo.
+        assertThrows(ProjectRuleViolationException.class,
+                () -> projectService.addMember(mentorId, projectId, lateMemberId));
+        assertThrows(ProjectRuleViolationException.class,
+                () -> projectService.changeLeader(mentorId, projectId, currentTermId, replacementId));
+        assertThrows(ProjectRuleViolationException.class,
+                () -> projectService.removeLeader(mentorId, projectId, currentTermId, replacementId));
+        assertThrows(ProjectRuleViolationException.class,
+                () -> projectService.removeMember(mentorId, projectId, memberId));
+        assertThrows(ProjectRuleViolationException.class,
+                () -> projectService.complete(mentorId, projectId));
+
+        assertEquals("COMPLETED", text("select status from projects where id = ?", projectId));
+        assertEquals(3, count("select count(*) from project_memberships where project_id = ?", projectId));
+        assertEquals(0, count("select count(*) from project_memberships where project_id = ? and left_at is null", projectId));
+        assertEquals(0, count("select count(*) from project_leadership_terms where project_id = ? and ended_at is null", projectId));
+    }
+
+    /** [I1-PRJ-04] Kích hoạt Project khi các guard member, Leader và Task assignee hợp lệ. */
     @Test
     void ownerActivatesAPlannedProjectWhenCurrentMemberAndTaskAssigneeGuardsPass() {
         long mentorId = user("mentor-activate@example.test", "MENTOR");
@@ -289,6 +647,71 @@ class ProjectServiceIntegrationTest {
         assertEquals(1, count("select count(*) from projects where id = ? and activated_at is not null", projectId));
     }
 
+    /** [I2-PRJ-05] Task chưa DONE chặn hoàn tất và không đóng các interval hiện tại. */
+    @Test
+    void completionRejectsAnUnfinishedTaskWithoutClosingCurrentIntervals() {
+        long mentorId = user("mentor-complete-guard@example.test", "MENTOR");
+        long leaderId = intern("leader-complete-guard@example.test", "I023");
+        long projectId = createProject(mentorId, leaderId, "Completion guard");
+        projectService.activate(mentorId, projectId);
+        long currentMembershipId = membershipId(projectId, leaderId);
+        jdbc.update("""
+                insert into tasks (
+                    project_id, assignee_membership_id, title,
+                    created_by_membership_id, assigned_by_membership_id)
+                values (?, ?, 'Still open', ?, ?)
+                """, projectId, currentMembershipId, currentMembershipId, currentMembershipId);
+        entityManager.clear();
+
+        assertThrows(ProjectRuleViolationException.class,
+                () -> projectService.complete(mentorId, projectId));
+
+        assertEquals("ACTIVE", text("select status from projects where id = ?", projectId));
+        assertEquals(1, count("select count(*) from project_memberships where project_id = ? and left_at is null", projectId));
+        assertEquals(1, count("select count(*) from project_leadership_terms where project_id = ? and ended_at is null", projectId));
+        assertEquals(0, count("select count(*) from projects where id = ? and completed_at is not null", projectId));
+    }
+
+    /** [I2-PRJ-05] Khi mọi Task hiện tại DONE, Project terminal hóa và đóng interval nhưng giữ lịch sử Task. */
+    @Test
+    void completionClosesCurrentIntervalsAndMakesProjectReadOnly() {
+        long mentorId = user("mentor-complete@example.test", "MENTOR");
+        long leaderId = intern("leader-complete@example.test", "I024");
+        long memberId = intern("member-complete@example.test", "I025");
+        long projectId = createProject(mentorId, leaderId, "Completion");
+        projectService.addMember(mentorId, projectId, memberId);
+        projectService.activate(mentorId, projectId);
+        long leaderMembershipId = membershipId(projectId, leaderId);
+        long memberMembershipId = membershipId(projectId, memberId);
+        var taskTime = dbTime(NOW.plusSeconds(45));
+        jdbc.update("""
+                insert into tasks (
+                    project_id, assignee_membership_id, title, status,
+                    created_by_membership_id, assigned_by_membership_id)
+                values (?, ?, 'Done work', 'DONE', ?, ?),
+                       (?, ?, 'Deleted open history', 'TODO', ?, ?)
+                """, projectId, leaderMembershipId, leaderMembershipId, leaderMembershipId,
+                projectId, memberMembershipId, memberMembershipId, memberMembershipId);
+        jdbc.update("""
+                update tasks
+                set deleted_at = ?, deleted_by_membership_id = ?, updated_at = ?
+                where project_id = ? and title = 'Deleted open history'
+                """, taskTime, leaderMembershipId, taskTime, projectId);
+        entityManager.clear();
+
+        projectService.complete(mentorId, projectId);
+
+        assertEquals("COMPLETED", text("select status from projects where id = ?", projectId));
+        assertEquals(1, count("select count(*) from projects where id = ? and completed_at is not null", projectId));
+        assertEquals(0, count("select count(*) from project_memberships where project_id = ? and left_at is null", projectId));
+        assertEquals(0, count("select count(*) from project_leadership_terms where project_id = ? and ended_at is null", projectId));
+        assertEquals(1, count("select count(*) from tasks where project_id = ? and status = 'DONE' and deleted_at is null", projectId));
+        assertEquals(1, count("select count(*) from tasks where project_id = ? and deleted_at is not null", projectId));
+        assertThrows(ProjectRuleViolationException.class,
+                () -> projectService.addMember(mentorId, projectId, intern("late-member@example.test", "I026")));
+    }
+
+    /** [I1-PRJ-04] Guard assignee không hợp lệ giữ Project ở Planned và không mất Task. */
     @Test
     void activationRejectsATaskAssignedToAFormerMemberWithoutPartialMutation() {
         long mentorId = user("mentor-guard@example.test", "MENTOR");
@@ -366,6 +789,29 @@ class ProjectServiceIntegrationTest {
     private String text(String sql, Object... arguments) {
         return jdbc.queryForObject(sql, String.class, arguments);
     }
+
+    /** Đọc các cột assignment để chứng minh I2-PRJ-02 không phát sinh chuyển Task ngầm. */
+    private TaskAssignmentSnapshot taskAssignment(long projectId) {
+        return jdbc.queryForObject("""
+                select assignee_membership_id, created_by_membership_id,
+                       assigned_by_membership_id, status, title
+                from tasks
+                where project_id = ?
+                """, (resultSet, rowNumber) -> new TaskAssignmentSnapshot(
+                resultSet.getLong("assignee_membership_id"),
+                resultSet.getLong("created_by_membership_id"),
+                resultSet.getLong("assigned_by_membership_id"),
+                resultSet.getString("status"),
+                resultSet.getString("title")), projectId);
+    }
+
+    /** Snapshot tối thiểu của Task dùng riêng để kiểm thử bàn giao Leader. */
+    private record TaskAssignmentSnapshot(
+            long assigneeMembershipId,
+            long creatorMembershipId,
+            long assignerMembershipId,
+            String status,
+            String title) {}
 
     private OffsetDateTime dbTime(Instant instant) {
         return instant.atOffset(ZoneOffset.UTC);

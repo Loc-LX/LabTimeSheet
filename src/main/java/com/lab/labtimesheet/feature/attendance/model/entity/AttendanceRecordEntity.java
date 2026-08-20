@@ -79,6 +79,36 @@ public class AttendanceRecordEntity {
     }
 
     /**
+     * Returns the persisted identifier assigned by the database.
+     *
+     * @return attendance record identifier
+     */
+    public long id() {
+        if (id == null) {
+            throw new IllegalStateException("Attendance record has not been persisted");
+        }
+        return id;
+    }
+
+    /**
+     * Returns the immutable raw server check-in instant.
+     *
+     * @return raw check-in instant
+     */
+    public Instant checkInAt() {
+        return checkInAt;
+    }
+
+    /**
+     * Returns the immutable raw server checkout instant, or {@code null} while open or corrected.
+     *
+     * @return raw checkout instant, or {@code null}
+     */
+    public Instant checkOutAt() {
+        return checkOutAt;
+    }
+
+    /**
      * Stores the first accepted raw checkout; callers must enforce cutoff and single-write rules transactionally.
      *
      * @param checkOutAt accepted server checkout instant

@@ -9,6 +9,7 @@
 <body>
 <a id="primary-action" class="button button-primary" th:if="${taskList.canCreate}" th:href="@{/projects/{projectId}/tasks/new(projectId=${projectId})}">Create Task</a>
 <main>
+    <th:block th:replace="~{fragments/components :: projectTabs(${projectId}, 'tasks')}"></th:block>
     <p class="page-description">Current non-deleted Tasks and Project completion progress.</p>
     <section class="panel metric-strip" aria-label="Task progress">
         <div class="metric"><div class="metric-label">Progress</div><div class="metric-value" th:text="${progressLabel}">N/A</div></div>

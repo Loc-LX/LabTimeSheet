@@ -4,6 +4,8 @@ import com.lab.labtimesheet.feature.project.exception.ProjectAccessDeniedExcepti
 import com.lab.labtimesheet.feature.project.exception.ProjectRuleViolationException;
 import com.lab.labtimesheet.feature.project.model.ProjectInternEligibility;
 import com.lab.labtimesheet.feature.project.model.ProjectLeaderChange;
+import com.lab.labtimesheet.feature.project.model.ProjectMemberRemoval;
+import com.lab.labtimesheet.feature.project.model.ProjectLeaderRemoval;
 import com.lab.labtimesheet.feature.project.model.ProjectStatus;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -26,11 +28,16 @@ import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 /**
- * JPA aggregate root for Project lifecycle, membership intervals, and leadership intervals.
+ * Aggregate root JPA quản lý vòng đời Project, các khoảng thời gian thành viên và nhiệm kỳ Leader.
  *
- * <p>A planned or active Project owns exactly one current Leader membership. Completion is
- * terminal and closes current intervals; history is retained rather than reassigned or deleted.
- * Mutation methods enforce aggregate rules independently of browser control visibility.
+ * <p>Project ở trạng thái Planned hoặc Active luôn có đúng một lượt tham gia Leader hiện tại.
+ * Trạng thái Completed là kết thúc; các khoảng thời gian hiện tại được đóng và lịch sử được giữ
+ * lại thay vì gán lại hoặc xóa. Các phương thức thay đổi tự kiểm tra quy tắc aggregate, độc lập với
+ * việc nút điều khiển có được hiển thị trên trình duyệt hay không.
+ *
+ * <p>Truy vết mã công việc: {@code I1-PRJ-01} tạo Project, {@code I1-PRJ-02} quản lý membership,
+ * {@code I1-PRJ-03} quản lý Leader, {@code I1-PRJ-04} kích hoạt Project, và
+ * {@code I2-PRJ-01}–{@code I2-PRJ-05} bảo toàn lịch sử, thay Leader, chuyển Task và hoàn tất an toàn.
  */
 @Entity
 @Table(name = "projects")
@@ -69,6 +76,9 @@ public class ProjectEntity {
     @Column(name = "activated_at")
     private Instant activatedAt;
 
+    @Column(name = "completed_at")
+    private Instant completedAt;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -78,6 +88,7 @@ public class ProjectEntity {
     @Version
     private long version;
 
+    /** Khởi tạo aggregate với các thông tin bất biến ban đầu của Project. */
     private ProjectEntity(
             long mentorUserId,
             String name,
@@ -95,17 +106,17 @@ public class ProjectEntity {
     }
 
     /**
-     * Plans a Project with one eligible initial Leader membership and its first leadership term.
-     * The returned aggregate is never empty or leaderless.
+     * [I1-PRJ-01, I1-PRJ-03] Tạo Project ở trạng thái Planned với một lượt tham gia Leader ban đầu đủ điều kiện và nhiệm
+     * kỳ Leader đầu tiên. Aggregate trả về không bao giờ rỗng hoặc không có Leader.
      *
-     * @param mentorUserId active Mentor who owns the Project
-     * @param name required Project name
-     * @param description optional description
-     * @param startDate inclusive start date
-     * @param endDate inclusive end date, not before {@code startDate}
-     * @param initialLeader eligible Intern appointed as first Leader
-     * @param at server mutation instant used for all initial records
-     * @return new unsaved planned aggregate
+     * @param mentorUserId Mentor đang hoạt động sở hữu Project
+     * @param name tên Project bắt buộc
+     * @param description mô tả tùy chọn
+     * @param startDate ngày bắt đầu, được tính cả ngày này
+     * @param endDate ngày kết thúc, không được trước {@code startDate}
+     * @param initialLeader Intern đủ điều kiện được bổ nhiệm làm Leader đầu tiên
+     * @param at thời điểm thay đổi do server cấp, dùng cho mọi bản ghi ban đầu
+     * @return aggregate Planned mới, chưa lưu
      */
     public static ProjectEntity plan(
             long mentorUserId,
@@ -140,12 +151,13 @@ public class ProjectEntity {
     }
 
     /**
-     * Adds a distinct eligible current member to a mutable Project after owner authorization.
+     * [I1-PRJ-02] Thêm một thành viên hiện tại đủ điều kiện và không trùng vào Project còn thay đổi được sau
+     * khi đã xác thực Mentor sở hữu.
      *
-     * @param actorMentorUserId authenticated owning Mentor
-     * @param intern current Account/internship eligibility fact
-     * @param at server join instant
-     * @return newly created membership interval
+     * @param actorMentorUserId mã Mentor sở hữu đã xác thực
+     * @param intern thông tin đủ điều kiện Account/thực tập hiện tại
+     * @param at thời điểm tham gia do server cấp
+     * @return khoảng thời gian tham gia vừa tạo
      */
     public ProjectMembershipEntity addMember(
             long actorMentorUserId, ProjectInternEligibility intern, Instant at) {
@@ -160,22 +172,40 @@ public class ProjectEntity {
     }
 
     /**
-     * Closes the current leadership term and prepares an eligible active-member replacement.
-     * Callers must flush the closed interval before opening the replacement term.
+     * [I1-PRJ-03, I2-PRJ-01, I2-PRJ-02] Đóng nhiệm kỳ Leader hiện tại và chuẩn bị thành viên hiện tại đủ điều kiện làm
+     * Leader thay thế chỉ khi bên gọi vẫn đang giữ đúng nhiệm kỳ đã đọc. Bên gọi phải flush khoảng
+     * thời gian đã đóng trước khi mở nhiệm kỳ thay thế.
      *
-     * @param actorMentorUserId authenticated owning Mentor
-     * @param intern eligible replacement Intern
-     * @param at server effective instant
-     * @return replacement membership and adjacent-term effective instant
+     * <p>Token nhiệm kỳ là cơ chế chống ghi đè từ biểu mẫu Leader. Service khóa Project trước khi
+     * gọi hàm này; nếu nhiệm kỳ đã đổi thì có nghĩa một lần bàn giao khác đã commit sau khi biểu
+     * mẫu được hiển thị và yêu cầu hiện tại không được ghi đè lên kết quả đó. Việc đổi Leader chỉ
+     * đóng/mở nhiệm kỳ; khoảng thời gian thành viên cũ và các khóa phân công Task không bị chạm tới.
+     *
+     * @param actorMentorUserId mã Mentor sở hữu đã xác thực
+     * @param expectedCurrentLeadershipTermId mã nhiệm kỳ bên gọi đã đọc, hoặc null với aggregate
+     *        tạm thời chưa được cơ sở dữ liệu cấp mã
+     * @param intern Intern thay thế đủ điều kiện
+     * @param at thời điểm hiệu lực do server quyết định
+     * @return lượt tham gia thay thế và thời điểm hiệu lực liền kề của hai nhiệm kỳ
+     * @throws ProjectRuleViolationException khi yêu cầu đã cũ hoặc vi phạm nghiệp vụ Project
      */
     public ProjectLeaderChange prepareLeaderChange(
-            long actorMentorUserId, ProjectInternEligibility intern, Instant at) {
+            long actorMentorUserId,
+            Long expectedCurrentLeadershipTermId,
+            ProjectInternEligibility intern,
+            Instant at) {
         requireOwner(actorMentorUserId);
         requireMutable();
         requireEligible(intern);
         Objects.requireNonNull(at, "at");
-        var replacement = currentMembership(intern.userId());
         var current = currentLeadershipTerm();
+        // I2-PRJ-02: Leader cũ phải còn là thành viên hiện tại để vẫn giữ quyền assignee của Task.
+        currentMembership(current.internUserId());
+        var replacement = currentMembership(intern.userId());
+        if (expectedCurrentLeadershipTermId != null
+                && !Objects.equals(current.id(), expectedCurrentLeadershipTermId)) {
+            throw new ProjectRuleViolationException("Leadership changed; refresh the Project and try again");
+        }
         if (current.internUserId() == intern.userId()) {
             throw new ProjectRuleViolationException("Selected Intern is already the current Leader");
         }
@@ -186,14 +216,18 @@ public class ProjectEntity {
     }
 
     /**
-     * Opens the replacement term after the former current term has been closed and flushed.
+     * [I1-PRJ-03, I2-PRJ-01, I2-PRJ-02] Mở nhiệm kỳ Leader thay thế sau khi nhiệm kỳ hiện tại trước đó đã được đóng và
+     * flush; không đóng membership cũ và không cập nhật các dòng Task.
      *
-     * @param actorMentorUserId authenticated owning Mentor
-     * @param change prepared replacement from this transaction
+     * @param actorMentorUserId mã Mentor sở hữu đã xác thực
+     * @param change thông tin Leader thay thế đã chuẩn bị trong transaction này
      */
     public void completeLeaderChange(long actorMentorUserId, ProjectLeaderChange change) {
         requireOwner(actorMentorUserId);
         Objects.requireNonNull(change, "change");
+        if (!change.replacement().isCurrent()) {
+            throw new ProjectRuleViolationException("Replacement Leader must be a current Project member");
+        }
         if (leadershipTerms.stream().anyMatch(ProjectLeadershipTermEntity::isCurrent)) {
             throw new ProjectRuleViolationException("Current Leader must be closed before replacement");
         }
@@ -202,13 +236,183 @@ public class ProjectEntity {
     }
 
     /**
-     * Moves a planned Project to active after current member, Leader, and Task-assignee guards
-     * pass. The transition is one-way and records the server activation instant.
+     * [I2-PRJ-03] Kiểm tra replacement trước khi kết thúc nhiệm kỳ Leader hiện tại cho luồng rời
+     * Project. Membership Leader cũ vẫn còn mở ở bước này để service có thể flush nhiệm kỳ cũ,
+     * mở nhiệm kỳ mới rồi mới đóng membership cũ.
      *
-     * @param actorMentorUserId authenticated owning Mentor
-     * @param activeInternUserIds currently eligible member user identifiers
-     * @param allTaskAssigneesAreCurrent true when every non-deleted Task points to a current membership
-     * @param at server activation instant
+     * @param actorMentorUserId Mentor sở hữu đã xác thực
+     * @param expectedCurrentLeadershipTermId mã nhiệm kỳ hiện tại từ form
+     * @param replacementIntern Intern được chọn làm replacement và phải là member hiện tại
+     * @param at thời điểm thay đổi do server cấp
+     * @return dữ liệu cần cho transaction replacement-first
+     */
+    public ProjectLeaderRemoval prepareLeaderRemoval(
+            long actorMentorUserId,
+            Long expectedCurrentLeadershipTermId,
+            ProjectInternEligibility replacementIntern,
+            Instant at) {
+        requireOwner(actorMentorUserId);
+        requireMutable();
+        requireEligible(replacementIntern);
+        Objects.requireNonNull(at, "at");
+
+        var current = currentLeadershipTerm();
+        var departing = currentMembership(current.internUserId());
+        var replacement = currentMembership(replacementIntern.userId());
+        if (expectedCurrentLeadershipTermId != null
+                && !Objects.equals(current.id(), expectedCurrentLeadershipTermId)) {
+            throw new ProjectRuleViolationException("Leadership changed; refresh the Project and try again");
+        }
+        if (departing == replacement || departing.internUserId() == replacement.internUserId()) {
+            throw new ProjectRuleViolationException("Replacement Leader must differ from the current Leader");
+        }
+
+        // I2-PRJ-03: mọi kiểm tra replacement phải xong trước khi đóng nhiệm kỳ cũ.
+        var effectiveAt = current.end(at, actorMentorUserId);
+        updatedAt = effectiveAt;
+        return new ProjectLeaderRemoval(departing, replacement, effectiveAt);
+    }
+
+    /**
+     * [I2-PRJ-03] Mở nhiệm kỳ replacement trước, sau đó mới đóng membership Leader cũ. Hai thay
+     * đổi cùng nằm trong transaction của service nên Project không commit trạng thái không có Leader.
+     *
+     * @param actorMentorUserId Mentor sở hữu đã xác thực
+     * @param removal dữ liệu đã được chuẩn bị và đã đóng nhiệm kỳ cũ
+     */
+    public void completeLeaderRemoval(long actorMentorUserId, ProjectLeaderRemoval removal) {
+        requireOwner(actorMentorUserId);
+        requireMutable();
+        Objects.requireNonNull(removal, "removal");
+        if (!removal.departing().isCurrent()) {
+            throw new ProjectRuleViolationException("Departing Leader must still be a current member");
+        }
+        if (!removal.replacement().isCurrent()) {
+            throw new ProjectRuleViolationException("Replacement Leader must be a current Project member");
+        }
+        if (removal.departing() == removal.replacement()
+                || removal.departing().internUserId() == removal.replacement().internUserId()) {
+            throw new ProjectRuleViolationException("Replacement Leader must differ from the current Leader");
+        }
+        if (leadershipTerms.stream().anyMatch(ProjectLeadershipTermEntity::isCurrent)) {
+            throw new ProjectRuleViolationException("Current Leader must be closed before replacement");
+        }
+
+        leadershipTerms.add(new ProjectLeadershipTermEntity(
+                this, removal.replacement(), removal.effectiveAt(), actorMentorUserId));
+        // I2-PRJ-03: chỉ đóng membership sau khi replacement term đã được tạo.
+        removal.departing().close(removal.effectiveAt(), actorMentorUserId);
+        updatedAt = removal.effectiveAt();
+    }
+
+    /**
+     * [I2-PRJ-04] Kiểm tra member thường cần rời Project trước khi Task được chuyển sang Leader.
+     *
+     * <p>Không thay đổi aggregate ở bước chuẩn bị. Vì vậy nếu boundary Task báo lỗi, membership
+     * vẫn còn nguyên và transaction có thể rollback mà không để lại trạng thái dở dang.
+     *
+     * @param actorMentorUserId Mentor sở hữu đã xác thực
+     * @param internUserId Intern hiện tại cần loại khỏi Project
+     * @param at thời điểm đóng membership do server cấp
+     * @return dữ liệu member và Leader nhận Task cho bước hoàn tất
+     */
+    public ProjectMemberRemoval prepareMemberRemoval(
+            long actorMentorUserId, long internUserId, Instant at) {
+        requireOwner(actorMentorUserId);
+        requireMutable();
+        if (internUserId <= 0) {
+            throw new ProjectRuleViolationException("Member selection is invalid");
+        }
+        Objects.requireNonNull(at, "at");
+
+        var departing = currentMember(internUserId);
+        var leader = currentLeader();
+        if (departing == leader || departing.internUserId() == leader.internUserId()) {
+            throw new ProjectRuleViolationException(
+                    "Current Leader must be replaced before membership removal");
+        }
+        return new ProjectMemberRemoval(departing, leader, at);
+    }
+
+    /**
+     * [I2-PRJ-04] Đóng membership sau khi boundary Task đã chuyển xong mọi Task chưa hoàn thành.
+     *
+     * @param actorMentorUserId Mentor sở hữu thực hiện thao tác
+     * @param removal dữ liệu đã được kiểm tra ở bước chuẩn bị
+     */
+    public void completeMemberRemoval(long actorMentorUserId, ProjectMemberRemoval removal) {
+        requireOwner(actorMentorUserId);
+        requireMutable();
+        Objects.requireNonNull(removal, "removal");
+        if (!removal.departing().isCurrent()) {
+            throw new ProjectRuleViolationException("Member must still be current");
+        }
+        if (!removal.transferTarget().isCurrent()) {
+            throw new ProjectRuleViolationException("Current Leader must still be a Project member");
+        }
+        if (removal.departing() == removal.transferTarget()
+                || removal.departing().internUserId() == removal.transferTarget().internUserId()) {
+            throw new ProjectRuleViolationException(
+                    "Current Leader must be replaced before membership removal");
+        }
+        removal.departing().close(removal.effectiveAt(), actorMentorUserId);
+        updatedAt = removal.effectiveAt();
+    }
+
+    /**
+     * [I2-PRJ-05] Hoàn tất Project đang Active chỉ khi toàn bộ Task chưa xóa đã ở trạng thái DONE.
+     *
+     * <p>Phương thức đóng nhiệm kỳ Leader cuối và mọi membership hiện tại tại cùng một mốc thời
+     * gian, rồi chuyển aggregate sang COMPLETED. Sau bước này các operation thay đổi khác bị
+     * {@link #requireMutable()} từ chối; các dòng lịch sử vẫn được giữ nguyên.
+     *
+     * @param actorMentorUserId Mentor sở hữu thực hiện hoàn tất
+     * @param everyNonDeletedTaskIsDone kết quả kiểm tra Task từ boundary Task trong transaction
+     * @param at thời điểm hoàn tất do server cấp
+     */
+    public void complete(
+            long actorMentorUserId, boolean everyNonDeletedTaskIsDone, Instant at) {
+        requireOwner(actorMentorUserId);
+        requireMutable();
+        Objects.requireNonNull(at, "at");
+        if (status != ProjectStatus.ACTIVE) {
+            throw new ProjectRuleViolationException("Only an active Project can be completed");
+        }
+        if (!everyNonDeletedTaskIsDone) {
+            throw new ProjectRuleViolationException("Every non-deleted Task must be DONE");
+        }
+        if (activatedAt == null || at.isBefore(activatedAt)) {
+            throw new ProjectRuleViolationException("Project completion must follow activation");
+        }
+
+        var currentTerm = currentLeadershipTerm();
+        // I2-PRJ-05: nhiệm kỳ cuối phải vẫn trỏ tới một membership hiện tại trước khi đóng.
+        currentMembership(currentTerm.internUserId());
+        var currentMemberships = memberships.stream()
+                .filter(ProjectMembershipEntity::isCurrent)
+                .toList();
+        if (currentMemberships.isEmpty()
+                || currentMemberships.stream().anyMatch(membership -> at.isBefore(membership.joinedAt()))) {
+            throw new ProjectRuleViolationException("Project has an invalid current membership interval");
+        }
+
+        // I2-PRJ-05: đóng term cuối trước, dùng đúng thời điểm hiệu lực cho toàn bộ membership.
+        var effectiveAt = currentTerm.end(at, actorMentorUserId);
+        currentMemberships.forEach(membership -> membership.close(effectiveAt, actorMentorUserId));
+        status = ProjectStatus.COMPLETED;
+        completedAt = effectiveAt;
+        updatedAt = effectiveAt;
+    }
+
+    /**
+     * [I1-PRJ-04] Chuyển Project Planned sang Active sau khi vượt qua các kiểm tra về thành viên hiện tại,
+     * Leader và người được giao Task. Chuyển trạng thái chỉ đi một chiều và lưu thời điểm kích hoạt
+     * do server cấp.
+     *
+     * @param actorMentorUserId mã Mentor sở hữu đã xác thực
+     * @param activeInternUserIds mã người dùng của các thành viên hiện tại đủ điều kiện
+     * @param allTaskAssigneesAreCurrent true khi mọi Task chưa xóa đều trỏ tới lượt tham gia hiện tại
+     * @param at thời điểm kích hoạt do server cấp
      */
     public void activate(
             long actorMentorUserId,
@@ -237,110 +441,119 @@ public class ProjectEntity {
     }
 
     /**
-     * Returns the persistence identity.
+     * Trả về định danh lưu trữ.
      *
-     * @return persisted identifier, or null before insertion
+     * @return mã đã lưu, hoặc null trước khi insert
      */
     public Long id() {
         return id;
     }
 
     /**
-     * Returns immutable Project ownership.
+     * Trả về thông tin sở hữu Project bất biến.
      *
-     * @return owning Mentor user identifier
+     * @return mã người dùng Mentor sở hữu
      */
     public long mentorUserId() {
         return mentorUserId;
     }
 
     /**
-     * Returns the display name.
+     * Trả về tên hiển thị.
      *
-     * @return normalized Project name
+     * @return tên Project đã chuẩn hóa
      */
     public String name() {
         return name;
     }
 
     /**
-     * Returns optional descriptive copy.
+     * Trả về bản sao mô tả tùy chọn.
      *
-     * @return normalized optional description, or null when absent
+     * @return mô tả tùy chọn đã chuẩn hóa, hoặc null khi không có
      */
     public String description() {
         return description;
     }
 
     /**
-     * Returns the lower business-date boundary.
+     * Trả về mốc ngày nghiệp vụ thấp hơn.
      *
-     * @return inclusive Project start date
+     * @return ngày bắt đầu Project, được tính cả ngày này
      */
     public LocalDate startDate() {
         return startDate;
     }
 
     /**
-     * Returns the upper business-date boundary.
+     * Trả về mốc ngày nghiệp vụ cao hơn.
      *
-     * @return inclusive Project end date
+     * @return ngày kết thúc Project, được tính cả ngày này
      */
     public LocalDate endDate() {
         return endDate;
     }
 
     /**
-     * Returns the current lifecycle state.
+     * Trả về trạng thái vòng đời hiện tại.
      *
-     * @return current aggregate lifecycle status
+     * @return trạng thái vòng đời của aggregate
      */
     public ProjectStatus status() {
         return status;
     }
 
     /**
-     * Returns when execution began.
+     * Trả về thời điểm bắt đầu thực thi.
      *
-     * @return server activation instant, or null while planned
+     * @return thời điểm kích hoạt do server cấp, hoặc null khi còn Planned
      */
     public Instant activatedAt() {
         return activatedAt;
     }
 
     /**
-     * Returns a defensive snapshot of current and historical membership intervals.
+     * Trả về thời điểm Project được chuyển sang trạng thái kết thúc.
      *
-     * @return unmodifiable membership snapshot
+     * @return thời điểm hoàn tất, hoặc null khi Project chưa hoàn tất
+     */
+    public Instant completedAt() {
+        return completedAt;
+    }
+
+    /**
+     * Trả về bản chụp an toàn của các khoảng thời gian thành viên hiện tại và lịch sử.
+     *
+     * @return bản chụp thành viên không thể sửa
      */
     public List<ProjectMembershipEntity> memberships() {
         return List.copyOf(memberships);
     }
 
     /**
-     * Returns a defensive snapshot of current and historical leadership intervals.
+     * Trả về bản chụp an toàn của các khoảng thời gian nhiệm kỳ Leader hiện tại và lịch sử.
      *
-     * @return unmodifiable leadership-term snapshot
+     * @return bản chụp nhiệm kỳ Leader không thể sửa
      */
     public List<ProjectLeadershipTermEntity> leadershipTerms() {
         return List.copyOf(leadershipTerms);
     }
 
     /**
-     * Enforces owning-Mentor authority without revealing details to non-owners.
+     * Bắt buộc quyền của Mentor sở hữu mà không tiết lộ chi tiết Project cho người không sở hữu.
      *
-     * @param actorMentorUserId authenticated Mentor identifier
-     * @throws ProjectAccessDeniedException when the actor does not own this Project
+     * @param actorMentorUserId mã Mentor đã xác thực
+     * @throws ProjectAccessDeniedException khi người gọi không sở hữu Project này
      */
     public void authorizeOwner(long actorMentorUserId) {
         requireOwner(actorMentorUserId);
     }
 
     /**
-     * Checks only open membership intervals.
+     * Chỉ kiểm tra các khoảng thời gian thành viên đang mở.
      *
-     * @param internUserId Intern account identifier
-     * @return true when the Intern currently belongs to this Project
+     * @param internUserId mã tài khoản Intern
+     * @return true khi Intern hiện đang thuộc Project này
      */
     public boolean hasCurrentMember(long internUserId) {
         return memberships.stream()
@@ -348,27 +561,27 @@ public class ProjectEntity {
     }
 
     /**
-     * Checks current and closed membership intervals for completed-history authorization.
+     * Kiểm tra cả khoảng thời gian hiện tại và đã đóng để phân quyền xem lịch sử Project hoàn tất.
      *
-     * @param internUserId Intern account identifier
-     * @return true when the Intern has ever belonged to this Project
+     * @param internUserId mã tài khoản Intern
+     * @return true khi Intern từng thuộc Project này
      */
     public boolean hasEverHadMember(long internUserId) {
         return memberships.stream().anyMatch(membership -> membership.internUserId() == internUserId);
     }
 
     /**
-     * Resolves the active membership referenced by the one current leadership term.
-     * Completed Projects deliberately have no current Leader and callers must not use this method
-     * for completed-history rendering.
+     * Tìm lượt tham gia hiện tại được nhiệm kỳ Leader hiện tại duy nhất tham chiếu. Project đã
+     * hoàn tất cố ý không có Leader hiện tại; không dùng phương thức này để hiển thị lịch sử đã hoàn tất.
      *
-     * @return current Leader membership
-     * @throws ProjectRuleViolationException when the open-Project Leader invariant is absent
+     * @return lượt tham gia của Leader hiện tại
+     * @throws ProjectRuleViolationException khi bất biến Leader hiện tại của Project bị thiếu
      */
     public ProjectMembershipEntity currentLeader() {
         return currentMembership(currentLeadershipTerm().internUserId());
     }
 
+    /** Thêm lượt tham gia mới từ thông tin Intern đã đủ điều kiện và cập nhật thời điểm Project. */
     private ProjectMembershipEntity addEligibleMember(
             ProjectInternEligibility intern, long addedByUserId, Instant at) {
         var membership = new ProjectMembershipEntity(this, intern.userId(), at, addedByUserId);
@@ -377,33 +590,53 @@ public class ProjectEntity {
         return membership;
     }
 
+    /** Tìm lượt tham gia hiện tại của Leader hoặc báo lỗi nếu Leader không còn là thành viên. */
     private ProjectMembershipEntity currentMembership(long internUserId) {
+        return findCurrentMembership(internUserId, "Leader must be a current same-Project member");
+    }
+
+    /** Tìm lượt tham gia hiện tại của member thường cho luồng đóng membership. */
+    private ProjectMembershipEntity currentMember(long internUserId) {
+        return findCurrentMembership(internUserId, "Intern must be a current same-Project member");
+    }
+
+    /** Tìm membership hiện tại theo Intern và dùng thông báo đúng ngữ cảnh nghiệp vụ. */
+    private ProjectMembershipEntity findCurrentMembership(long internUserId, String message) {
         return memberships.stream()
                 .filter(membership -> membership.internUserId() == internUserId && membership.isCurrent())
                 .findFirst()
-                .orElseThrow(() -> new ProjectRuleViolationException(
-                        "Leader must be a current same-Project member"));
+                .orElseThrow(() -> new ProjectRuleViolationException(message));
     }
 
+    /** Bảo đảm aggregate có đúng một nhiệm kỳ Leader hiện tại và trả về nhiệm kỳ đó. */
     private ProjectLeadershipTermEntity currentLeadershipTerm() {
-        return leadershipTerms.stream()
+        var currentTerms = leadershipTerms.stream()
                 .filter(ProjectLeadershipTermEntity::isCurrent)
-                .findFirst()
-                .orElseThrow(() -> new ProjectRuleViolationException("Project has no current Leader"));
+                .toList();
+        if (currentTerms.isEmpty()) {
+            throw new ProjectRuleViolationException("Project has no current Leader");
+        }
+        if (currentTerms.size() > 1) {
+            throw new ProjectRuleViolationException("Project has multiple current Leaders");
+        }
+        return currentTerms.getFirst();
     }
 
+    /** Kiểm tra người gọi có phải Mentor sở hữu Project hay không. */
     private void requireOwner(long actorMentorUserId) {
         if (mentorUserId != actorMentorUserId) {
             throw new ProjectAccessDeniedException();
         }
     }
 
+    /** Từ chối mọi thay đổi khi Project đã ở trạng thái kết thúc chỉ đọc. */
     private void requireMutable() {
         if (status == ProjectStatus.COMPLETED) {
             throw new ProjectRuleViolationException("Completed Projects are read-only");
         }
     }
 
+    /** Bảo đảm thông tin Intern tồn tại và đang đủ điều kiện tham gia Project. */
     private static void requireEligible(ProjectInternEligibility intern) {
         Objects.requireNonNull(intern, "intern");
         if (!intern.isEligible()) {
@@ -411,6 +644,7 @@ public class ProjectEntity {
         }
     }
 
+    /** Kiểm tra chuỗi bắt buộc và trả về giá trị đã loại bỏ khoảng trắng đầu/cuối. */
     private static String requireText(String value, String message) {
         if (value == null || value.trim().isEmpty()) {
             throw new ProjectRuleViolationException(message);
@@ -418,6 +652,7 @@ public class ProjectEntity {
         return value.trim();
     }
 
+    /** Chuẩn hóa mô tả tùy chọn; chuỗi rỗng được lưu thành null. */
     private static String normalizeOptionalText(String value) {
         return value == null || value.trim().isEmpty() ? null : value.trim();
     }
