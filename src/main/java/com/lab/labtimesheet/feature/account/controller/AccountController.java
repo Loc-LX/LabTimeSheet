@@ -16,6 +16,7 @@ import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 
 /**
  * Handles Admin account creation and single-use account activation browser flows. Known database uniqueness
@@ -44,13 +45,32 @@ class AccountController {
             var result = accounts.create(form.toCommand(), accounts.requireActiveAdminId(principal.getName()));
             return result.deliverySucceeded()
                     ? "redirect:/admin/accounts/new?created"
-                    : "redirect:/admin/accounts/new?deliveryFailed";
+                    : "redirect:/admin/accounts/new?deliveryFailed&accountId=" + result.userId();
         } catch (DataIntegrityViolationException duplicate) {
             rejectUniquenessViolation(bindingResult, duplicate);
             return "accounts/new";
         } catch (IllegalArgumentException | IllegalStateException exception) {
             bindingResult.reject("account.invalid", exception.getMessage());
             return "accounts/new";
+        }
+    }
+
+    /**
+     * Reissues one activation link for the pending account named by the failed-delivery page.
+     *
+     * @param targetUserId pending account identifier from the server-rendered form
+     * @param principal authenticated Admin principal
+     * @return a generic success or failure status for the account page
+     */
+    @PostMapping("/admin/accounts/{targetUserId}/resend-activation")
+    String resendActivation(@PathVariable long targetUserId, Principal principal) {
+        try {
+            var result = accounts.resendActivation(targetUserId, accounts.requireActiveAdminId(principal.getName()));
+            return result.deliverySucceeded()
+                    ? "redirect:/admin/accounts/new?activationResent"
+                    : "redirect:/admin/accounts/new?deliveryFailed&accountId=" + targetUserId;
+        } catch (IllegalArgumentException | IllegalStateException exception) {
+            return "redirect:/admin/accounts/new?deliveryFailed&accountId=" + targetUserId;
         }
     }
 
