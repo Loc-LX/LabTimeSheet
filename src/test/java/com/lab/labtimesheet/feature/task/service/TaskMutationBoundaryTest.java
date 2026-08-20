@@ -10,10 +10,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.lab.labtimesheet.feature.account.model.AccountStatus;
+import com.lab.labtimesheet.feature.account.model.GlobalRole;
 import com.lab.labtimesheet.feature.account.model.InternshipStatus;
+import com.lab.labtimesheet.feature.account.model.dto.AccountIdentity;
 import com.lab.labtimesheet.feature.account.model.dto.InternWorkWindow;
 import com.lab.labtimesheet.feature.account.service.AccountService;
 import com.lab.labtimesheet.feature.attendance.service.CalendarApplicationService;
+import com.lab.labtimesheet.feature.notification.service.NotificationService;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectActorView;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectMembershipIntervalView;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectMemberView;
@@ -57,6 +60,7 @@ class TaskMutationBoundaryTest {
     @Mock private ProjectService projectMutations;
     @Mock private CalendarApplicationService calendar;
     @Mock private AccountService accounts;
+    @Mock private NotificationService notifications;
 
     private TaskService service;
     private ProjectTaskContext context;
@@ -71,7 +75,8 @@ class TaskMutationBoundaryTest {
                 projectMutations,
                 calendar,
                 Clock.fixed(NOW, ZoneOffset.UTC),
-                accounts);
+                accounts,
+                notifications);
         context = new ProjectTaskContext(
                 10L,
                 3L,
@@ -82,6 +87,8 @@ class TaskMutationBoundaryTest {
                 List.of(new ProjectTaskMemberView(70L, 5L, "Member", JOINED)),
                 java.util.Set.of());
         when(accounts.requireAccountIdByEmail("member@example.test")).thenReturn(5L);
+        lenient().when(accounts.requireIdentityById(5L)).thenReturn(new AccountIdentity(
+                5L, "member@example.test", "Member", GlobalRole.INTERN, AccountStatus.ACTIVE));
         lenient().when(projectMutations.taskMutationContext(5L, 10L)).thenReturn(context);
     }
 
@@ -212,6 +219,7 @@ class TaskMutationBoundaryTest {
     @Test
     void commentLocksProjectThenTaskBeforeWriting() {
         Task task = mock(Task.class);
+        when(task.getAssigneeMembershipId()).thenReturn(70L);
         TaskComment saved = mock(TaskComment.class);
         when(tasks.findLockedByIdAndProjectIdAndDeletedAtIsNull(25L, 10L))
                 .thenReturn(Optional.of(task));
@@ -229,6 +237,7 @@ class TaskMutationBoundaryTest {
         order.verify(projectMutations).taskMutationContext(5L, 10L);
         order.verify(tasks).findLockedByIdAndProjectIdAndDeletedAtIsNull(25L, 10L);
         order.verify(comments).saveAndFlush(any(TaskComment.class));
+        verify(projectQueries, never()).members(5L, 10L);
     }
 
     @Test

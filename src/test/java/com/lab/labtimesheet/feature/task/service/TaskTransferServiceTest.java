@@ -3,9 +3,15 @@ package com.lab.labtimesheet.feature.task.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.lab.labtimesheet.feature.account.model.AccountStatus;
+import com.lab.labtimesheet.feature.account.model.GlobalRole;
+import com.lab.labtimesheet.feature.account.model.dto.AccountIdentity;
+import com.lab.labtimesheet.feature.account.service.AccountService;
+import com.lab.labtimesheet.feature.notification.service.NotificationService;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectTaskContext;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectTaskMemberView;
 import com.lab.labtimesheet.feature.task.exception.TaskValidationException;
@@ -19,6 +25,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -32,6 +39,22 @@ class TaskTransferServiceTest {
     @Mock
     private TaskRepository tasks;
 
+    @Mock
+    private AccountService accounts;
+
+    @Mock
+    private NotificationService notifications;
+
+    @BeforeEach
+    void setUp() {
+        lenient().when(accounts.requireIdentityById(5L))
+                .thenReturn(identity(5L, "leader@example.test", "Leader"));
+        lenient().when(accounts.requireIdentityById(6L))
+                .thenReturn(identity(6L, "target@example.test", "Target"));
+        lenient().when(accounts.requireIdentityById(7L))
+                .thenReturn(identity(7L, "recipient@example.test", "Recipient"));
+    }
+
     @Test
     void batchTransfersOnlySelectedUnfinishedTasksAndReturnsCount() {
         Task first = task(11L);
@@ -39,7 +62,7 @@ class TaskTransferServiceTest {
         when(tasks.findLockedByIdAndProjectIdAndDeletedAtIsNull(11L, 10L)).thenReturn(Optional.of(first));
         when(tasks.findLockedByIdAndProjectIdAndDeletedAtIsNull(12L, 10L)).thenReturn(Optional.of(second));
         when(tasks.saveAllAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
-        TaskTransferService service = new TaskTransferService(tasks, Clock.fixed(NOW, ZoneOffset.UTC));
+        TaskTransferService service = service();
 
         TaskTransferResult result = service.transferBatch(
                 context(), 70L, 71L, Set.of(12L, 11L), 72L);
@@ -55,7 +78,7 @@ class TaskTransferServiceTest {
         when(tasks.findLockedByIdAndProjectIdAndDeletedAtIsNull(11L, 10L))
                 .thenReturn(Optional.of(sourceTask));
         when(tasks.saveAllAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
-        TaskTransferService service = new TaskTransferService(tasks, Clock.fixed(NOW, ZoneOffset.UTC));
+        TaskTransferService service = service();
 
         TaskTransferResult result = service.transferBatch(
                 context(Set.of(71L)), 70L, 71L, Set.of(11L), 72L);
@@ -68,7 +91,7 @@ class TaskTransferServiceTest {
 
     @Test
     void rejectsSameSourceAndRecipientBeforeLoadingTasks() {
-        TaskTransferService service = new TaskTransferService(tasks, Clock.fixed(NOW, ZoneOffset.UTC));
+        TaskTransferService service = service();
 
         assertThatThrownBy(() -> service.transferBatch(
                         context(), 70L, 71L, Set.of(11L), 71L))
@@ -85,7 +108,7 @@ class TaskTransferServiceTest {
         when(done.getStatus()).thenReturn(TaskStatus.DONE);
         when(tasks.findLockedByIdAndProjectIdAndDeletedAtIsNull(11L, 10L)).thenReturn(Optional.of(first));
         when(tasks.findLockedByIdAndProjectIdAndDeletedAtIsNull(12L, 10L)).thenReturn(Optional.of(done));
-        TaskTransferService service = new TaskTransferService(tasks, Clock.fixed(NOW, ZoneOffset.UTC));
+        TaskTransferService service = service();
 
         assertThatThrownBy(() -> service.transferBatch(
                         context(), 70L, 71L, Set.of(11L, 12L), 72L))
@@ -97,7 +120,7 @@ class TaskTransferServiceTest {
 
     @Test
     void rejectsPendingExitRecipientWhileAllowingExistingSourceContext() {
-        TaskTransferService service = new TaskTransferService(tasks, Clock.fixed(NOW, ZoneOffset.UTC));
+        TaskTransferService service = service();
 
         assertThatThrownBy(() -> service.transferBatch(
                         context(Set.of(72L)), 70L, 71L, Set.of(11L), 72L))
@@ -128,8 +151,17 @@ class TaskTransferServiceTest {
 
     private static Task task(long id) {
         Task task = org.mockito.Mockito.mock(Task.class);
+        lenient().when(task.getId()).thenReturn(id);
         when(task.getAssigneeMembershipId()).thenReturn(71L);
         when(task.getStatus()).thenReturn(TaskStatus.IN_PROGRESS);
         return task;
+    }
+
+    private TaskTransferService service() {
+        return new TaskTransferService(tasks, Clock.fixed(NOW, ZoneOffset.UTC), accounts, notifications);
+    }
+
+    private static AccountIdentity identity(long id, String email, String displayName) {
+        return new AccountIdentity(id, email, displayName, GlobalRole.INTERN, AccountStatus.ACTIVE);
     }
 }

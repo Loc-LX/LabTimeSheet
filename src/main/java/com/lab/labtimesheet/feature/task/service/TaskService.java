@@ -1,8 +1,14 @@
 package com.lab.labtimesheet.feature.task.service;
 
+import com.lab.labtimesheet.feature.account.model.dto.AccountIdentity;
 import com.lab.labtimesheet.feature.account.model.dto.InternWorkWindow;
 import com.lab.labtimesheet.feature.account.service.AccountService;
 import com.lab.labtimesheet.feature.attendance.service.CalendarApplicationService;
+import com.lab.labtimesheet.feature.notification.model.NotificationType;
+import com.lab.labtimesheet.feature.notification.model.dto.NotificationAction;
+import com.lab.labtimesheet.feature.notification.model.dto.NotificationEvent;
+import com.lab.labtimesheet.feature.notification.model.dto.NotificationRecipient;
+import com.lab.labtimesheet.feature.notification.service.NotificationService;
 import com.lab.labtimesheet.feature.project.exception.ProjectAccessDeniedException;
 import com.lab.labtimesheet.feature.project.exception.ProjectRuleViolationException;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectActorView;
@@ -32,6 +38,8 @@ import com.lab.labtimesheet.feature.task.repository.TaskRepository;
 import com.lab.labtimesheet.feature.task.repository.TaskWorkLogRepository;
 import java.time.Clock;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -63,6 +71,7 @@ public class TaskService {
     private final CalendarApplicationService calendar;
     private final Clock clock;
     private final AccountService accounts;
+    private final NotificationService notifications;
 
     /**
      * Creates a TODO Task in a PLANNED or ACTIVE Project.
@@ -71,7 +80,9 @@ public class TaskService {
      * choose any active same-Project member; another active member may choose only themselves.
      * Creator, assigner, and assignment time are stored from authenticated current context. An
      * optional due date must be within Project dates and not a current global day off. A membership
-     * with a pending exit remains visible for existing rights but cannot receive a new Task.
+     * with a pending exit remains visible for existing rights but cannot receive a new Task. A
+     * non-self assignment publishes a designated in-app and ordinary-email notification to the
+     * new assignee; a validated self-Task invokes the notification boundary with its silence marker.
      *
      * @param actorEmail authenticated account email
      * @param command requested Project, membership, and Task fields
@@ -102,7 +113,18 @@ public class TaskService {
                 command.dueDate(),
                 actorMembership.membershipId(),
                 clock.instant());
-        return view(tasks.saveAndFlush(task), assignee.displayName());
+        TaskView result = view(tasks.saveAndFlush(task), assignee.displayName());
+        publish(
+                new NotificationEvent(
+                        NotificationType.TASK_ASSIGNED,
+                        actorMembership.membershipId() == assignee.membershipId() ? "SELF_TASK" : "ASSIGNED",
+                        "Task assigned",
+                        "A Task was assigned to you."),
+                new NotificationAction(taskAction(command.projectId(), result.id()),
+                        actorMembership.membershipId() == assignee.membershipId()),
+                notificationRecipients(access.project(), actorMembership.userId(),
+                        List.of(assignee.membershipId())));
+        return result;
     }
 
     /**
@@ -110,7 +132,8 @@ public class TaskService {
      *
      * <p>The transaction locks the Project before the Task row and permits only the current
      * assignee membership to mutate status. Neither leadership nor a global role substitutes for
-     * assignment authority.
+     * assignment authority. A successful change publishes an in-app-only event to the current
+     * Leader, excluding the actor.
      *
      * @param actorEmail authenticated account email
      * @param projectId owning Project identifier
@@ -128,6 +151,11 @@ public class TaskService {
         }
         ProjectTaskMemberView actorMembership = requireActorMembership(
                 access.project(), access.actor().userId());
+        List<NotificationRecipient> leaderRecipients = notificationRecipients(
+                access.project(), actorMembership.userId(),
+                access.project().currentLeaderMembershipId() == null
+                        ? List.of()
+                        : List.of(access.project().currentLeaderMembershipId()));
         Task task = requireLockedTask(projectId, taskId);
         if (task.getAssigneeMembershipId() != actorMembership.membershipId()) {
             throw new TaskNotFoundException();
@@ -136,7 +164,16 @@ public class TaskService {
             throw new TaskValidationException("Task status transition is not allowed");
         }
         task.changeStatus(target, clock.instant());
-        return view(tasks.saveAndFlush(task), actorMembership.displayName());
+        TaskView result = view(tasks.saveAndFlush(task), actorMembership.displayName());
+        publish(
+                new NotificationEvent(
+                        NotificationType.TASK_STATUS_CHANGED,
+                        "STATUS_CHANGED",
+                        "Task status changed",
+                        "A Task status changed to " + target.name() + "."),
+                new NotificationAction(taskAction(projectId, task.getId()), false),
+                leaderRecipients);
+        return result;
     }
 
     /**
@@ -204,7 +241,8 @@ public class TaskService {
      * <p>Only the current Leader may invoke this operation. The current Task status is retained;
      * a DONE Task must first be reopened by its current assignee through the fixed status graph.
      * Assignment actor/time change, while creator, comments, logs, and lifecycle timestamps stay
-     * historical.
+     * historical. A successful reassignment publishes one designated in-app and ordinary-email
+     * event to the previous and new assignees, deduplicated by the notification boundary.
      *
      * @param actorEmail authenticated current-Leader account email
      * @param projectId owning Project identifier
@@ -227,11 +265,24 @@ public class TaskService {
         ProjectTaskMemberView recipient = requireAssigneeMembership(access.project(), assigneeMembershipId);
         Task task = requireLockedTask(projectId, taskId);
         requireUnfinished(task);
+        long previousAssigneeMembershipId = task.getAssigneeMembershipId();
         if (task.getAssigneeMembershipId() == recipient.membershipId()) {
             throw new TaskValidationException("Task is already assigned to that member");
         }
+        List<NotificationRecipient> assigneeRecipients = notificationRecipients(
+                access.project(), null,
+                List.of(previousAssigneeMembershipId, recipient.membershipId()));
         task.reassign(recipient.membershipId(), actorMembership.membershipId(), clock.instant());
-        return view(tasks.saveAndFlush(task), recipient.displayName());
+        TaskView result = view(tasks.saveAndFlush(task), recipient.displayName());
+        publish(
+                new NotificationEvent(
+                        NotificationType.TASK_REASSIGNED,
+                        "REASSIGNED",
+                        "Task reassigned",
+                        "A Task assignment changed."),
+                new NotificationAction(taskAction(projectId, task.getId()), false),
+                assigneeRecipients);
+        return result;
     }
 
     /**
@@ -239,7 +290,11 @@ public class TaskService {
      *
      * <p>The transaction locks the Project before the Task row. The owning Mentor or any active
      * member may comment; the persisted author is the authenticated user so later membership or
-     * leadership changes do not alter history.
+     * leadership changes do not alter history. A successful comment publishes an in-app-only
+     * event to the current assignee and current Leader, excluding the author and deduplicating
+     * when those roles resolve to the same account. A DONE Task may retain a non-actionable
+     * historical or ineligible assignee; absence from the already locked active-member context
+     * omits that recipient and action link without changing comment authorization or mutation.
      *
      * @param actorEmail authenticated account email
      * @param projectId owning Project identifier
@@ -262,11 +317,26 @@ public class TaskService {
         if (!owningMentor && !activeMember) {
             throw new TaskNotFoundException();
         }
-        requireLockedTask(projectId, taskId);
+        Task task = requireLockedTask(projectId, taskId);
+        List<Long> commentMembershipIds = new ArrayList<>(List.of(task.getAssigneeMembershipId()));
+        if (access.project().currentLeaderMembershipId() != null) {
+            commentMembershipIds.add(access.project().currentLeaderMembershipId());
+        }
+        List<NotificationRecipient> commentRecipients = commentNotificationRecipients(
+                access.project(), access.actor().userId(), commentMembershipIds);
 
         TaskComment comment = new TaskComment(
                 taskId, access.actor().userId(), normalizedBody, clock.instant());
-        return view(comments.saveAndFlush(comment));
+        TaskCommentView result = view(comments.saveAndFlush(comment));
+        publish(
+                new NotificationEvent(
+                        NotificationType.TASK_COMMENTED,
+                        "COMMENTED",
+                        "Task commented",
+                        "A Task received a new comment."),
+                new NotificationAction(taskAction(projectId, taskId), false),
+                commentRecipients);
+        return result;
     }
 
     /**
@@ -729,6 +799,77 @@ public class TaskService {
                 task.getAssignerMembershipId(),
                 task.getAssignedAt(),
                 task.getCreatedAt());
+    }
+
+    private void publish(
+            NotificationEvent event,
+            NotificationAction action,
+            List<NotificationRecipient> recipients) {
+        notifications.publish(event, action, recipients);
+    }
+
+    private List<NotificationRecipient> notificationRecipients(
+            ProjectTaskContext project,
+            Long excludedUserId,
+            List<Long> membershipIds) {
+        return collectNotificationRecipients(project, excludedUserId, membershipIds, false);
+    }
+
+    private List<NotificationRecipient> commentNotificationRecipients(
+            ProjectTaskContext project,
+            Long excludedUserId,
+            List<Long> membershipIds) {
+        return collectNotificationRecipients(project, excludedUserId, membershipIds, true);
+    }
+
+    private List<NotificationRecipient> collectNotificationRecipients(
+            ProjectTaskContext project,
+            Long excludedUserId,
+            List<Long> membershipIds,
+            boolean omitMissingMembers) {
+        Map<Long, NotificationRecipient> recipients = new LinkedHashMap<>();
+        membershipIds.stream()
+                .filter(Objects::nonNull)
+                .map(membershipId -> activeMember(project, membershipId, omitMissingMembers))
+                .filter(Objects::nonNull)
+                .filter(member -> excludedUserId == null || member.userId() != excludedUserId)
+                .forEach(member -> recipients.computeIfAbsent(
+                        member.userId(), ignored -> notificationRecipient(member.userId())));
+        return List.copyOf(recipients.values());
+    }
+
+    private ProjectTaskMemberView activeMember(
+            ProjectTaskContext project,
+            long membershipId,
+            boolean omitMissingMember) {
+        return project.activeMembers().stream()
+                .filter(member -> member.membershipId() == membershipId)
+                .findFirst()
+                .orElseGet(() -> {
+                    if (omitMissingMember) {
+                        return null;
+                    }
+                    throw new TaskNotFoundException();
+                });
+    }
+
+    private NotificationRecipient notificationRecipient(long userId) {
+        try {
+            AccountIdentity identity = accounts.requireIdentityById(userId);
+            if (identity == null) {
+                throw new TaskNotFoundException();
+            }
+            return new NotificationRecipient(identity.id(), identity.email());
+        } catch (IllegalArgumentException exception) {
+            throw new TaskNotFoundException();
+        }
+    }
+
+    private static String taskAction(long projectId, Long taskId) {
+        if (taskId == null || taskId <= 0) {
+            throw new TaskNotFoundException();
+        }
+        return "/projects/%d/tasks/%d".formatted(projectId, taskId);
     }
 
     private static TaskCommentView view(TaskComment comment) {

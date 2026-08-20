@@ -459,6 +459,19 @@ public class AccountService {
     }
 
     /**
+     * Lists every active global Mentor as immutable non-secret identities for cross-feature decision queues.
+     * The repository performs one scalar constructor projection ordered by account ID; this boundary does not load
+     * Account entities or acquire lifecycle locks, so consumers must perform their own authorization and locking
+     * before mutating a request.
+     *
+     * @return active global Mentor identities in ascending account-ID order
+     */
+    @Transactional(readOnly = true)
+    public List<AccountIdentity> activeGlobalMentorIdentities() {
+        return users.findActiveMentorIdentities();
+    }
+
+    /**
      * Resolves only an Account identifier for an authenticated principal's email as a routing operation.
      * This method deliberately performs no lifecycle authorization, entity hydration, or row lock. Consumers must
      * pass the identifier to a subsequent Account-owned operation that acquires the required lifecycle locks and

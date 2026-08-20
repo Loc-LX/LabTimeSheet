@@ -1,7 +1,14 @@
 package com.lab.labtimesheet.feature.task.service;
 
+import com.lab.labtimesheet.feature.account.model.dto.AccountIdentity;
+import com.lab.labtimesheet.feature.account.service.AccountService;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectTaskContext;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectTaskMemberView;
+import com.lab.labtimesheet.feature.notification.model.NotificationType;
+import com.lab.labtimesheet.feature.notification.model.dto.NotificationAction;
+import com.lab.labtimesheet.feature.notification.model.dto.NotificationEvent;
+import com.lab.labtimesheet.feature.notification.model.dto.NotificationRecipient;
+import com.lab.labtimesheet.feature.notification.service.NotificationService;
 import com.lab.labtimesheet.feature.task.exception.TaskNotFoundException;
 import com.lab.labtimesheet.feature.task.exception.TaskValidationException;
 import com.lab.labtimesheet.feature.task.model.TaskStatus;
@@ -34,13 +41,17 @@ public class TaskTransferService {
 
     private final TaskRepository tasks;
     private final Clock clock;
+    private final AccountService accounts;
+    private final NotificationService notifications;
 
     /**
      * Transfers a selected batch from one source membership to one eligible recipient.
      *
      * <p>Every selected row must still be unfinished and assigned to the source. A pending-exit
      * source remains eligible for redistribution, but a pending-exit recipient is rejected. Any
-     * stale or unauthorized row aborts the transaction before a mutation is flushed.
+     * stale or unauthorized row aborts the transaction before a mutation is flushed. Each changed
+     * Task then publishes one designated in-app and ordinary-email event to its previous and new
+     * assignee while the same transaction remains active.
      *
      * @param project locked Project task context supplied by the Project service
      * @param actorMembershipId current Leader membership performing the batch
@@ -60,9 +71,11 @@ public class TaskTransferService {
             long recipientMembershipId) {
         requireOpenProject(project);
         requireLeader(project, actorMembershipId);
-        requireSource(project, sourceMembershipId);
+        ProjectTaskMemberView source = requireSource(project, sourceMembershipId);
         ProjectTaskMemberView recipient = requireRecipient(project, recipientMembershipId);
         requireDifferentMemberships(sourceMembershipId, recipient.membershipId());
+        List<NotificationRecipient> notificationRecipients = List.of(
+                notificationRecipient(source), notificationRecipient(recipient));
         if (taskIds == null || taskIds.isEmpty() || taskIds.stream().anyMatch(Objects::isNull)) {
             throw new TaskValidationException("Select at least one unfinished Task");
         }
@@ -83,6 +96,14 @@ public class TaskTransferService {
         Instant assignedAt = clock.instant();
         selected.forEach(task -> task.reassign(recipient.membershipId(), actorMembershipId, assignedAt));
         tasks.saveAllAndFlush(selected);
+        selected.forEach(task -> notifications.publish(
+                new NotificationEvent(
+                        NotificationType.TASK_REASSIGNED,
+                        "REASSIGNED",
+                        "Task reassigned",
+                        "A Task assignment changed."),
+                new NotificationAction(taskAction(project.projectId(), task.getId()), false),
+                notificationRecipients));
         return new TaskTransferResult(selected.size(), recipient.membershipId());
     }
 
@@ -146,10 +167,11 @@ public class TaskTransferService {
         }
     }
 
-    private static void requireSource(ProjectTaskContext project, long sourceMembershipId) {
-        if (project.activeMembers().stream().noneMatch(member -> member.membershipId() == sourceMembershipId)) {
-            throw new TaskNotFoundException();
-        }
+    private static ProjectTaskMemberView requireSource(ProjectTaskContext project, long sourceMembershipId) {
+        return project.activeMembers().stream()
+                .filter(member -> member.membershipId() == sourceMembershipId)
+                .findFirst()
+                .orElseThrow(TaskNotFoundException::new);
     }
 
     private static ProjectTaskMemberView requireRecipient(
@@ -167,5 +189,24 @@ public class TaskTransferService {
         if (sourceMembershipId == recipientMembershipId) {
             throw new TaskValidationException("Transfer recipient must differ from the source member");
         }
+    }
+
+    private NotificationRecipient notificationRecipient(ProjectTaskMemberView member) {
+        try {
+            AccountIdentity identity = accounts.requireIdentityById(member.userId());
+            if (identity == null) {
+                throw new TaskNotFoundException();
+            }
+            return new NotificationRecipient(identity.id(), identity.email());
+        } catch (IllegalArgumentException exception) {
+            throw new TaskNotFoundException();
+        }
+    }
+
+    private static String taskAction(long projectId, Long taskId) {
+        if (taskId == null || taskId <= 0) {
+            throw new TaskNotFoundException();
+        }
+        return "/projects/%d/tasks/%d".formatted(projectId, taskId);
     }
 }

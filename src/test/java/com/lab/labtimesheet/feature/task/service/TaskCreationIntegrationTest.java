@@ -108,6 +108,21 @@ class TaskCreationIntegrationTest {
                         new CreateTaskCommand(projectId, leaderMembershipId, "Forbidden", null, null)))
                 .isInstanceOf(TaskNotFoundException.class);
         assertThat(taskCount()).isEqualTo(1);
+        assertThat(notificationCount()).isZero();
+    }
+
+    @Test
+    void leaderAssignmentNotifiesOnlyNewAssigneeWithUnavailableEmail() {
+        TaskView task = taskService.create(
+                "leader@example.test",
+                new CreateTaskCommand(projectId, memberMembershipId, "Notify assignee", null, null));
+
+        assertThat(task.assigneeMembershipId()).isEqualTo(memberMembershipId);
+        assertThat(notificationRecipientIds()).containsExactly(userId("member@example.test"));
+        assertThat(notificationTypes()).containsExactly("TASK_ASSIGNED");
+        assertThat(notificationEmailStatuses()).containsExactly("UNAVAILABLE");
+        assertThat(notificationActionUrls()).containsExactly(
+                "/projects/%d/tasks/%d".formatted(projectId, task.id()));
     }
 
     @Test
@@ -189,6 +204,11 @@ class TaskCreationIntegrationTest {
         assertThatThrownBy(() -> taskService.changeStatus(
                         "member@example.test", projectId, task.id(), TaskStatus.TODO))
                 .isInstanceOf(TaskValidationException.class);
+        assertThat(notificationRecipientIds()).containsExactly(userId("leader@example.test"));
+        assertThat(notificationTypes()).containsExactly("TASK_STATUS_CHANGED");
+        assertThat(notificationEmailStatuses()).containsExactly("NOT_REQUIRED");
+        assertThat(notificationActionUrls()).containsExactly(
+                "/projects/%d/tasks/%d".formatted(projectId, task.id()));
     }
 
     @Test
@@ -203,6 +223,11 @@ class TaskCreationIntegrationTest {
         TaskCommentView mentorComment = taskService.addComment(
                 "mentor@example.test", projectId, task.id(), "Mentor note");
 
+        TaskView leaderTask = taskService.create(
+                "leader@example.test",
+                new CreateTaskCommand(projectId, leaderMembershipId, "Leader task", null, null));
+        taskService.addComment("member@example.test", projectId, leaderTask.id(), "Member on leader task");
+
         assertThat(memberComment.body()).isEqualTo("First note");
         assertThat(mentorComment.authorUserId()).isEqualTo(userId("mentor@example.test"));
         assertThatThrownBy(() -> taskService.addComment(
@@ -216,7 +241,39 @@ class TaskCreationIntegrationTest {
         assertThatThrownBy(() -> taskService.addComment(
                         "mentor@example.test", projectId, task.id(), "Too late"))
                 .isInstanceOf(TaskNotFoundException.class);
-        assertThat(commentCount()).isEqualTo(2);
+        assertThat(commentCount()).isEqualTo(3);
+        assertThat(notificationRecipientIds()).containsExactly(
+                userId("leader@example.test"),
+                userId("member@example.test"),
+                userId("leader@example.test"),
+                userId("leader@example.test"));
+        assertThat(notificationTypes()).containsExactly(
+                "TASK_COMMENTED", "TASK_COMMENTED", "TASK_COMMENTED", "TASK_COMMENTED");
+        assertThat(notificationEmailStatuses()).containsExactly(
+                "NOT_REQUIRED", "NOT_REQUIRED", "NOT_REQUIRED", "NOT_REQUIRED");
+        assertThat(notificationActionUrls()).containsExactly(
+                "/projects/%d/tasks/%d".formatted(projectId, task.id()),
+                "/projects/%d/tasks/%d".formatted(projectId, task.id()),
+                "/projects/%d/tasks/%d".formatted(projectId, task.id()),
+                "/projects/%d/tasks/%d".formatted(projectId, leaderTask.id()));
+    }
+
+    @Test
+    void authorizedMentorCanCommentOnDoneTaskRetainingClosedAssigneeHistory() {
+        TaskView task = createMemberTask("Closed assignee history");
+        setStatus(task.id(), TaskStatus.DONE);
+        closeMembership(memberMembershipId);
+
+        TaskCommentView comment = taskService.addComment(
+                "mentor@example.test", projectId, task.id(), "Mentor note after removal");
+
+        assertThat(comment.body()).isEqualTo("Mentor note after removal");
+        assertThat(commentCount()).isEqualTo(1);
+        assertThat(notificationRecipientIds()).containsExactly(userId("leader@example.test"));
+        assertThat(notificationTypes()).containsExactly("TASK_COMMENTED");
+        assertThat(notificationEmailStatuses()).containsExactly("NOT_REQUIRED");
+        assertThat(notificationActionUrls()).containsExactly(
+                "/projects/%d/tasks/%d".formatted(projectId, task.id()));
     }
 
     @Test
@@ -416,6 +473,21 @@ class TaskCreationIntegrationTest {
     }
 
     @Test
+    void reassignmentNotifiesPreviousAndNewAssigneeExactlyOnce() {
+        TaskView task = createMemberTask("Reassignment notice");
+
+        taskService.reassign("leader@example.test", projectId, task.id(), leaderMembershipId);
+
+        assertThat(notificationRecipientIds()).containsExactly(
+                userId("member@example.test"), userId("leader@example.test"));
+        assertThat(notificationTypes()).containsExactly("TASK_REASSIGNED", "TASK_REASSIGNED");
+        assertThat(notificationEmailStatuses()).containsExactly("UNAVAILABLE", "UNAVAILABLE");
+        assertThat(notificationActionUrls()).containsExactly(
+                "/projects/%d/tasks/%d".formatted(projectId, task.id()),
+                "/projects/%d/tasks/%d".formatted(projectId, task.id()));
+    }
+
+    @Test
     void softDeleteExcludesTaskFromCurrentViewsButRetainsHistoricalRow() {
         TaskView task = createMemberTask("Retain me");
 
@@ -535,6 +607,18 @@ class TaskCreationIntegrationTest {
                 .param("second", second.id())
                 .query(Long.class)
                 .single()).isEqualTo(2L);
+        assertThat(notificationRecipientIds()).containsExactly(
+                userId("member@example.test"), userId("leader@example.test"),
+                userId("member@example.test"), userId("leader@example.test"));
+        assertThat(notificationTypes()).containsExactly(
+                "TASK_REASSIGNED", "TASK_REASSIGNED", "TASK_REASSIGNED", "TASK_REASSIGNED");
+        assertThat(notificationEmailStatuses()).containsExactly(
+                "UNAVAILABLE", "UNAVAILABLE", "UNAVAILABLE", "UNAVAILABLE");
+        assertThat(notificationActionUrls()).containsExactly(
+                "/projects/%d/tasks/%d".formatted(projectId, first.id()),
+                "/projects/%d/tasks/%d".formatted(projectId, first.id()),
+                "/projects/%d/tasks/%d".formatted(projectId, second.id()),
+                "/projects/%d/tasks/%d".formatted(projectId, second.id()));
     }
 
     @Test
@@ -639,6 +723,34 @@ class TaskCreationIntegrationTest {
 
     private long taskCount() {
         return jdbc.sql("select count(*) from tasks").query(Long.class).single();
+    }
+
+    private long notificationCount() {
+        return jdbc.sql("select count(*) from notifications").query(Long.class).single();
+    }
+
+    private List<Long> notificationRecipientIds() {
+        return jdbc.sql("select recipient_user_id from notifications order by id")
+                .query(Long.class)
+                .list();
+    }
+
+    private List<String> notificationTypes() {
+        return jdbc.sql("select notification_type from notifications order by id")
+                .query(String.class)
+                .list();
+    }
+
+    private List<String> notificationEmailStatuses() {
+        return jdbc.sql("select email_status from notifications order by id")
+                .query(String.class)
+                .list();
+    }
+
+    private List<String> notificationActionUrls() {
+        return jdbc.sql("select action_url from notifications order by id")
+                .query(String.class)
+                .list();
     }
 
     private long commentCount() {
