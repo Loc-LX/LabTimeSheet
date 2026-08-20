@@ -200,6 +200,19 @@ public class ProjectQueryService {
     }
 
     /**
+     * Returns every membership interval identifier of one Intern across all Projects, current and
+     * historical. Consumers use this boundary to aggregate an Intern's own cross-Project daily
+     * totals without importing the membership repository or entity.
+     *
+     * @param internUserId Intern user identifier
+     * @return the Intern's membership interval identifiers
+     */
+    @Transactional(readOnly = true)
+    public List<Long> membershipIdsForIntern(long internUserId) {
+        return projects.findMembershipIdsByInternUserId(internUserId);
+    }
+
+    /**
      * Computes role-scoped dashboard counts from current active Project relationships.
      * Historical memberships never contribute to current Intern or Mentor metrics.
      *

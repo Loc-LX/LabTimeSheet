@@ -126,4 +126,66 @@ public class Task {
         updatedAt = now;
     }
 
+    /**
+     * Reassigns an unfinished Task to another active same-Project membership.
+     *
+     * <p>Only the current assignee, creator attribution, status, comments, and work logs are
+     * retained; the assignee, assignment actor, and assignment instant describe the new current
+     * assignment. A {@code DONE} Task must be reopened before reassignment.
+     *
+     * @param newAssigneeMembershipId active same-Project replacement membership
+     * @param assignerMembershipId authenticated reassigning Leader membership
+     * @param now server-controlled reassignment instant
+     */
+    public void reassign(long newAssigneeMembershipId, long assignerMembershipId, Instant now) {
+        if (status == TaskStatus.DONE) {
+            throw new IllegalArgumentException("A DONE Task must be reopened before reassignment");
+        }
+        this.assigneeMembershipId = newAssigneeMembershipId;
+        this.assignerMembershipId = assignerMembershipId;
+        this.assignedAt = now;
+        this.updatedAt = now;
+    }
+
+    /**
+     * Applies an authorized definition edit to title, description, and optional due date.
+     *
+     * <p>Creator, assigner, assignment time, assignee, status, comments, and work logs are
+     * untouched; only definition fields and the update timestamp advance. The caller enforces
+     * Leader or creator definition authority before invoking.
+     *
+     * @param title normalized required title
+     * @param description optional normalized description
+     * @param dueDate optional validated business due date
+     * @param now server-controlled edit instant
+     */
+    public void edit(String title, String description, LocalDate dueDate, Instant now) {
+        this.title = title;
+        this.description = description;
+        this.dueDate = dueDate;
+        this.updatedAt = now;
+    }
+
+    /**
+     * Marks an unfinished Task soft-deleted with the authenticated definition actor.
+     *
+     * <p>The row is retained historically and excluded from progress and normal lists; creator
+     * attribution, comments, and work logs remain. A {@code DONE} Task must be reopened before
+     * deletion.
+     *
+     * @param deletedByMembershipId authenticated deleting membership identifier
+     * @param now server-controlled deletion instant
+     */
+    public void softDelete(long deletedByMembershipId, Instant now) {
+        if (status == TaskStatus.DONE) {
+            throw new IllegalArgumentException("A DONE Task must be reopened before deletion");
+        }
+        if (this.deletedAt != null) {
+            throw new IllegalArgumentException("Task is already deleted");
+        }
+        this.deletedAt = now;
+        this.deletedByMembershipId = deletedByMembershipId;
+        this.updatedAt = now;
+    }
+
 }

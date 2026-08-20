@@ -19,6 +19,7 @@ import java.time.LocalDate;
  * @param assignerMembershipId membership identifier responsible for the current assignment
  * @param assignedAt instant the current assignment was established
  * @param createdAt immutable Task creation instant
+ * @param deletedAt soft-deletion instant, or null when the Task is current
  */
 public record TaskView(
         long id,
@@ -32,4 +33,5 @@ public record TaskView(
         long creatorMembershipId,
         long assignerMembershipId,
         Instant assignedAt,
-        Instant createdAt) {}
+        Instant createdAt,
+        Instant deletedAt) {}

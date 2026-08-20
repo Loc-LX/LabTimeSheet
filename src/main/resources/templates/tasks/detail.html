@@ -4,10 +4,15 @@
           pageTitle=${details.task.title},
           section='Projects',
           activeNav='projects',
-          primaryAction=~{},
+          primaryAction=~{::#primary-action},
           content=~{::main})}">
 <body>
+<div id="primary-action" class="inline-actions" th:if="${details.canEdit or details.canDelete}">
+    <a class="button" th:if="${details.canEdit}" th:href="@{/projects/{projectId}/tasks/{taskId}/edit(projectId=${projectId},taskId=${details.task.id})}">Edit</a>
+    <form th:if="${details.canDelete}" method="post" th:action="@{/projects/{projectId}/tasks/{taskId}/delete(projectId=${projectId},taskId=${details.task.id})}" onsubmit="return confirm('Delete this Task? Its history is retained but it leaves progress and normal lists.');"><button class="button button-danger" type="submit">Delete</button></form>
+</div>
 <main>
+    <div class="alert alert-error" role="alert" th:if="${details.deleted}"><strong>Historical Task.</strong> This Task was soft-deleted and is no longer part of progress or normal lists.</div>
     <p class="page-description" th:text="${details.task.description == null || #strings.isEmpty(details.task.description) ? 'No Task description.' : details.task.description}">Task description.</p>
     <section class="panel metric-strip metric-strip-three" aria-label="Task details">
         <div class="metric"><div class="metric-label">Assignee</div><div class="metric-value" th:text="${details.task.assigneeName}">Assignee</div></div>
@@ -18,6 +23,17 @@
         <div class="field"><label class="field-label" for="status">New status</label><select class="control" id="status" name="status" required><option th:each="status : ${statuses}" th:value="${status}" th:text="${status}" th:selected="${status == details.task.status}">TODO</option></select></div>
         <span></span><button class="button button-primary" type="submit">Change status</button>
     </form>
+    <form class="panel form-panel filter-form" th:if="${details.canReassign}" method="post" th:action="@{/projects/{projectId}/tasks/{taskId}/reassign(projectId=${projectId},taskId=${details.task.id})}">
+        <div class="field"><label class="field-label" for="assigneeMembershipId">New assignee</label><select class="control" id="assigneeMembershipId" name="assigneeMembershipId" required><option th:each="choice : ${assignees}" th:value="${choice.membershipId}" th:text="${choice.displayName}" th:selected="${choice.membershipId == details.task.assigneeMembershipId}">Assignee</option></select></div>
+        <span></span><button class="button button-primary" type="submit">Reassign</button>
+    </form>
+    <section class="panel form-panel" aria-labelledby="work-logs-heading">
+        <header class="panel-header"><h2 class="panel-title" id="work-logs-heading">Work logs</h2></header>
+        <div class="alert alert-error" role="alert" th:if="${workLogError != null}" th:text="${workLogError}">Work log error.</div>
+        <div th:if="${#lists.isEmpty(details.workLogs)}"><th:block th:replace="~{fragments/components :: empty('No work logged', 'Dated effort for this Task will appear here.')} "></th:block></div>
+        <div class="table-scroll" th:unless="${#lists.isEmpty(details.workLogs)}"><table class="data-table"><caption class="sr-only">Task work logs</caption><thead><tr><th scope="col">Work date</th><th scope="col">Member</th><th scope="col">Minutes</th><th scope="col">Note</th><th scope="col">Last corrected</th><th scope="col" th:if="${details.actorMembershipId != null}"><span class="sr-only">Actions</span></th></tr></thead><tbody><tr th:each="log : ${details.workLogs}"><td th:text="${#temporals.format(log.workDate, 'dd/MM/yyyy')}">Work date</td><td th:text="${log.memberName}">Member</td><td th:text="${log.minutes}">Minutes</td><td th:text="${log.note == null || #strings.isEmpty(log.note) ? 'No note' : log.note}">Note</td><td th:text="${#temporals.format(log.updatedAt, 'dd/MM/yyyy HH:mm')}">Corrected</td><td th:if="${details.actorMembershipId != null}"><span th:if="${log.membershipId == details.actorMembershipId}"><form class="form-grid form-panel" method="post" th:action="@{/projects/{projectId}/tasks/{taskId}/work-logs/{logId}(projectId=${projectId},taskId=${details.task.id},logId=${log.id})}"><div class="field"><label class="field-label" for="minutes-${log.id}" th:text="'Correct minutes for ' + ${#temporals.format(log.workDate, 'dd/MM/yyyy')}">Minutes</label><input class="control" id="minutes-${log.id}" name="minutes" type="number" min="1" max="1440" th:value="${log.minutes}" required></div><div class="field"><label class="field-label" for="note-${log.id}">Note</label><input class="control" id="note-${log.id}" name="note" type="text" th:value="${log.note}"></div><div class="form-actions"><button class="button button-primary" type="submit">Correct</button></div></form></span><span th:unless="${log.membershipId == details.actorMembershipId}">Log by <strong th:text="${log.memberName}">Member</strong></span></td></tr></tbody></table></div>
+        <form class="form-grid form-panel" th:if="${details.canLogWork}" method="post" th:action="@{/projects/{projectId}/tasks/{taskId}/work-logs(projectId=${projectId},taskId=${details.task.id})}"><div class="field"><label class="field-label" for="workDate">Work date</label><input class="control" id="workDate" name="workDate" type="date" required></div><div class="field"><label class="field-label" for="minutes">Minutes</label><input class="control" id="minutes" name="minutes" type="number" min="1" max="1440" required></div><div class="field"><label class="field-label" for="note">Note</label><input class="control" id="note" name="note" type="text"></div><div class="form-actions"><button class="button button-primary" type="submit">Log work</button></div></form>
+    </section>
     <section class="panel form-panel" aria-labelledby="comments-heading">
         <header class="panel-header"><h2 class="panel-title" id="comments-heading">Comments</h2></header>
         <div th:if="${#lists.isEmpty(details.comments)}"><th:block th:replace="~{fragments/components :: empty('No comments', 'Task discussion will appear here.')} "></th:block></div>

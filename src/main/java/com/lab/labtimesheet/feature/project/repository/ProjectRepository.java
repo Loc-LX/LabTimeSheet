@@ -58,4 +58,19 @@ public interface ProjectRepository extends JpaRepository<ProjectEntity, Long> {
             order by project.updatedAt desc, project.id desc
             """)
     List<ProjectEntity> findVisibleToIntern(@Param("internUserId") long internUserId);
+
+    /**
+     * Lists every membership interval identifier of one Intern across all Projects, current and
+     * historical. Consumers use this to aggregate the Intern's own cross-Project daily totals
+     * without mapping the membership table again.
+     *
+     * @param internUserId Intern user identifier
+     * @return the Intern's membership interval identifiers
+     */
+    @Query("""
+            select membership.id from ProjectEntity project
+            join project.memberships membership
+            where membership.internUserId = :internUserId
+            """)
+    List<Long> findMembershipIdsByInternUserId(@Param("internUserId") long internUserId);
 }
