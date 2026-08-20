@@ -4,14 +4,17 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.lab.labtimesheet.feature.account.service.AccountService;
 import com.lab.labtimesheet.feature.attendance.exception.AttendanceException;
 import com.lab.labtimesheet.feature.attendance.exception.AttendanceRejection;
+import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
 import com.lab.labtimesheet.feature.attendance.model.AttendancePolicy;
 import com.lab.labtimesheet.feature.attendance.model.AttendancePolicyFixtures;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceRecord;
+import com.lab.labtimesheet.feature.attendance.model.AttendanceRole;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceCurrentState;
 import com.lab.labtimesheet.feature.attendance.model.entity.AttendancePolicyEntity;
 import com.lab.labtimesheet.feature.attendance.model.entity.AttendanceRecordEntity;
@@ -22,12 +25,14 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
+import org.springframework.transaction.support.TransactionTemplate;
 
 class AttendanceApplicationServiceTest {
 
@@ -38,6 +43,7 @@ class AttendanceApplicationServiceTest {
     private final AttendancePolicyRepository policies = mock(AttendancePolicyRepository.class);
     private final AttendanceRecordRepository records = mock(AttendanceRecordRepository.class);
     private final AccountService accounts = mock(AccountService.class);
+    private final AttendanceCorrectionApplicationService corrections = mock(AttendanceCorrectionApplicationService.class);
     private AttendanceApplicationService attendance;
 
     @BeforeEach
@@ -53,7 +59,8 @@ class AttendanceApplicationServiceTest {
                 mock(AttendanceQueryRepository.class),
                 accounts,
                 mock(CalendarApplicationService.class),
-                new AttendanceService());
+                new AttendanceService(),
+                corrections);
     }
 
     @Test
@@ -114,6 +121,26 @@ class AttendanceApplicationServiceTest {
                 .isInstanceOfSatisfying(AttendanceException.class,
                         exception -> assertThat(exception.rejection())
                                 .isEqualTo(AttendanceRejection.ALREADY_CHECKED_OUT));
+    }
+
+    @Test
+    void historyUsesOneBulkCorrectionGuardForLoadedRows() {
+        AttendanceRecordEntity first = entityFor(null);
+        AttendanceRecordEntity second = entityFor(null);
+        when(first.id()).thenReturn(101L);
+        when(second.id()).thenReturn(102L);
+        when(records.findByInternUserIdAndWorkDateBetweenOrderByWorkDateDesc(
+                        INTERN_ID, WORK_DATE, WORK_DATE))
+                .thenReturn(List.of(first, second));
+        HashMap<Long, Instant> effectiveCheckouts = new HashMap<>();
+        effectiveCheckouts.put(101L, null);
+        effectiveCheckouts.put(102L, null);
+        when(corrections.prepareHistory(List.of(first, second))).thenReturn(effectiveCheckouts);
+
+        attendance.history(
+                new AttendanceActor(INTERN_ID, AttendanceRole.INTERN), INTERN_ID, WORK_DATE, WORK_DATE);
+
+        verify(corrections).prepareHistory(List.of(first, second));
     }
 
     private static AttendanceRecordEntity entityFor(Instant checkOutAt) {

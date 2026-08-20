@@ -38,7 +38,15 @@ public class LeaveRequestDayEntity {
     @Column(name = "monthly_quota_snapshot", nullable = false)
     private int monthlyQuotaSnapshot;
 
-    LeaveRequestDayEntity(
+    /**
+     * Creates an immutable frozen allocation after the parent request has been persisted.
+     *
+     * @param request persisted leave request
+     * @param leaveDate exact requested local date
+     * @param policy attached historical policy version
+     * @param monthlyQuotaSnapshot quota captured for the request month
+     */
+    public LeaveRequestDayEntity(
             LeaveRequestEntity request,
             LocalDate leaveDate,
             AttendancePolicyEntity policy,
@@ -48,5 +56,41 @@ public class LeaveRequestDayEntity {
         this.policy = policy;
         this.quotaMonth = leaveDate.withDayOfMonth(1);
         this.monthlyQuotaSnapshot = monthlyQuotaSnapshot;
+    }
+
+    /**
+     * Returns the exact frozen leave date.
+     *
+     * @return allocated local workday
+     */
+    public LocalDate leaveDate() {
+        return id.leaveDate();
+    }
+
+    /**
+     * Returns the frozen quota month.
+     *
+     * @return first local date of the quota month
+     */
+    public LocalDate quotaMonth() {
+        return quotaMonth;
+    }
+
+    /**
+     * Returns the frozen monthly quota snapshot.
+     *
+     * @return quota value captured at allocation time
+     */
+    public int monthlyQuotaSnapshot() {
+        return monthlyQuotaSnapshot;
+    }
+
+    /**
+     * Returns the attached historical policy version identifier.
+     *
+     * @return policy version identifier
+     */
+    public long policyVersionId() {
+        return policy.toDomain().id();
     }
 }
