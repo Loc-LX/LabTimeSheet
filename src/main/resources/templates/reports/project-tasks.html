@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{fragments/layout :: shell(
+          pageTitle='Project and Task report',
+          section='Reports',
+          activeNav='project-reports',
+          primaryAction=~{},
+          content=~{::main})}">
+<body>
+<main>
+    <p class="page-description">Current readable Tasks grouped by the authorized Project scope and their retained attribution.</p>
+    <form class="panel form-grid report-filters" method="get" th:action="@{/reports/project-tasks}">
+        <div class="field">
+            <label class="field-label" for="task-report-project">Project</label>
+            <select class="control" id="task-report-project" name="projectId">
+                <option value="">Select a Project</option>
+                <option th:each="project : ${report.projectOptions}" th:value="${project.id}"
+                        th:selected="${report.filter.projectId != null and report.filter.projectId == project.id}"
+                        th:text="${project.name}">Project</option>
+            </select>
+        </div>
+        <div class="field" th:if="${report.filter.projectId != null}">
+            <label class="field-label" for="task-report-member">Member</label>
+            <select class="control" id="task-report-member" name="memberMembershipId">
+                <option value="">All current members</option>
+                <option th:each="member : ${report.memberOptions}" th:value="${member.membershipId}"
+                        th:selected="${report.filter.memberMembershipId != null and report.filter.memberMembershipId == member.membershipId}"
+                        th:text="${member.displayName}">Member</option>
+            </select>
+        </div>
+        <div class="field">
+            <label class="field-label" for="task-report-status">Status</label>
+            <select class="control" id="task-report-status" name="status">
+                <option value="">All statuses</option>
+                <option th:each="candidate : ${statuses}" th:value="${candidate}"
+                        th:selected="${report.filter.status == candidate}" th:text="${candidate}">TODO</option>
+            </select>
+        </div>
+        <div class="field">
+            <label class="field-label" for="task-report-due-from">Due from</label>
+            <input class="control" id="task-report-due-from" name="dueFrom" type="date" th:value="${report.filter.dueFrom}">
+        </div>
+        <div class="field">
+            <label class="field-label" for="task-report-due-to">Due to</label>
+            <input class="control" id="task-report-due-to" name="dueTo" type="date" th:value="${report.filter.dueTo}">
+        </div>
+        <div class="field form-actions"><button class="button button-primary" type="submit">Apply filters</button></div>
+    </form>
+    <section class="panel metric-strip metric-strip-three" aria-label="Project and Task report summary">
+        <div class="metric"><div class="metric-label">Tasks</div><div class="metric-value" th:text="${report.totalTasks}">0</div><div class="metric-detail">Current readable Tasks</div></div>
+        <div class="metric"><div class="metric-label">Done</div><div class="metric-value" th:text="${report.doneTasks}">0</div><div class="metric-detail">Filtered DONE status</div></div>
+        <div class="metric"><div class="metric-label">Completion</div><div class="metric-value" th:text="${report.completionRate}">N/A</div><div class="metric-detail">N/A when no Tasks match</div></div>
+    </section>
+    <section class="panel" th:if="${#lists.isEmpty(report.rows)}">
+        <th:block th:replace="~{fragments/components :: empty(${report.filter.projectId == null ? 'Select a Project' : 'No Tasks match these filters'}, ${report.filter.projectId == null ? 'Choose an authorized Project to inspect its current Task dataset.' : 'Try a wider due-date range or another status/member filter.'})} "></th:block>
+    </section>
+    <section class="panel" th:unless="${#lists.isEmpty(report.rows)}">
+        <header class="panel-header"><h2 class="panel-title">Task detail</h2></header>
+        <div class="table-scroll">
+            <table class="data-table">
+                <caption class="sr-only">Current Project Task report</caption>
+                <thead><tr><th scope="col">Project</th><th scope="col">Task</th><th scope="col">Assignee</th><th scope="col">Status</th><th scope="col">Due</th><th scope="col">Created</th><th scope="col">Attribution</th></tr></thead>
+                <tbody>
+                <tr th:each="row : ${report.rows}">
+                    <td th:text="${row.projectName}">Project</td>
+                    <th scope="row" th:text="${row.title}">Task</th>
+                    <td th:text="${row.assigneeName}">Intern</td>
+                    <td><span class="badge" th:classappend="${row.status.name() == 'DONE' ? ' badge-success' : row.status.name() == 'BLOCKED' ? ' badge-warning' : ''}" th:attr="aria-label=${'Status: ' + row.status}" th:text="${row.status}">TODO</span></td>
+                    <td th:text="${row.dueDate == null ? 'N/A' : #temporals.format(row.dueDate, 'dd/MM/yyyy')}">N/A</td>
+                    <td th:text="${#temporals.format(row.createdAt, 'dd/MM/yyyy HH:mm')}">Created</td>
+                    <td th:text="|Created by membership ${row.creatorMembershipId}; assigned by membership ${row.assignerMembershipId}|">Attribution</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+</main>
+</body>
+</html>

@@ -4,7 +4,7 @@
 - **Requirement IDs:** `I2-UI-03`, `RPT-001`, `RPT-002`, `RPT-003`, `RPT-004`
 - **Scenario IDs:** `AC-RPT-001`, `AC-RPT-002`, `AC-RPT-003`
 - **Test class/method:** `com.lab.labtimesheet.feature.reporting.controller.AttendanceReportControllerWebTest#rendersAttendanceReportForAnAuthenticatedIntern`
-- **Implementation commit:** pending local commit
+- **Implementation commit:** `5308e913dc10248ec4482fa8c85beb3f59934d89`
 
 ## Protected behavior
 
@@ -37,7 +37,7 @@ Compilation failed because the Iteration 2 Reporting attendance controller/servi
 **Command**
 
 ```text
-./mvnw '-Dtest=AttendanceReportControllerWebTest' test
+./mvnw '-Dtest=AttendanceReportControllerWebTest,AttendanceReportServiceTest' test
 ```
 
 **Observed result**
@@ -51,9 +51,9 @@ Compilation failed because the Iteration 2 Reporting attendance controller/servi
 **Command and result**
 
 ```text
-./mvnw '-Dtest=*Reporting*Test,*Dashboard*Test,*Template*Test,*Shell*Test,*Accessibility*Test,*UiContractWebTest,*AttendanceReport*Test' test
+./mvnw '-Dtest=*Reporting*Test,*Dashboard*Test,*Template*Test,*Shell*Test,*Accessibility*Test,*UiContractWebTest,*AttendanceReport*Test,*ProjectTaskReport*Test' test
 
-`Tests run: 56, Failures: 0, Errors: 0, Skipped: 0`; `BUILD SUCCESS` on Java 25 with PostgreSQL 18.4 Testcontainers.
+`Tests run: 60, Failures: 0, Errors: 0, Skipped: 0`; `BUILD SUCCESS` on Java 25 with PostgreSQL 18.4 Testcontainers.
 ```
 
 ## External-test boundaries
