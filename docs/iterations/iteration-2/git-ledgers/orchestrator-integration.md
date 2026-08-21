@@ -32,6 +32,15 @@
 
 The prior disposable PostgreSQL 18.4 and Mailpit 1.27.4 runtime was stopped and removed; ports `55441`, `1026`, `8026`, and `18082` were clear. No push, merge request, deployment, force operation, history rewrite, or merge to `main` occurred through the pre-publication candidate. The only network Git action was the initial read-only fetch.
 
+## Local main integration
+
+- A fresh `git fetch origin` left `origin/main` at exact verified base `58a087b118cc955748d7df1aa47d2bbc3ca0371b`.
+- Independently approved candidate `f334f13594de49f4b34318d8a3e8bc0556a8063d` merged normally with `--no-ff` into local `main` at `c4f039663f86370b865df036e1756338529e47c9`.
+- Merge parents are exact base `58a087b118cc955748d7df1aa47d2bbc3ca0371b` and exact candidate `f334f13594de49f4b34318d8a3e8bc0556a8063d`; all reviewed producer/implementation heads remain ancestors.
+- The root index is clean. Protected `.DS_Store` remained 10,244 bytes with SHA-256 `bf6f1f27ea596b8a0dfd8795ccc9ba41629abb79e75b536d2964146e8815aee8` and unchanged mtime.
+- No push, merge request, deployment, force operation, rebase/squash, history rewrite, branch deletion, or worktree cleanup occurred.
+- Final merged-main verification is pending in the companion merge-readiness evidence.
+
 ## What the team should do next
 
-Review the exact ledger-publication head, fetch and verify upstream `main` still equals the approved base, merge that immutable candidate normally into local `main`, record the merge SHA and final gate, and stop without pushing.
+Complete and pin the exact local merged-main gate, independently review the evidence-only result, and stop without pushing. Keep all five persistent branches/worktrees for the next iteration.
