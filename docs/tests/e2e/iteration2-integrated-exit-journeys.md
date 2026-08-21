@@ -65,13 +65,23 @@ companion RED/GREEN evidence files; this E2E record is the final composed-system
 **Command**
 
 ```text
-docker run --name labtimesheet-i2-exit-pg ... postgres:18.4
-docker run --name labtimesheet-i2-exit-mailpit ... axllent/mailpit
+docker run --rm -d --name labtimesheet-i2-exit-pg \
+  -e POSTGRES_DB=labtimesheet_i2_exit \
+  -e POSTGRES_USER=lab_i2_exit \
+  -e POSTGRES_PASSWORD=<local-test-password> \
+  -p 127.0.0.1:55441:5432 \
+  postgres:18.4
+
+docker run --rm -d --name labtimesheet-i2-exit-mailpit \
+  -p 127.0.0.1:1026:1025 \
+  -p 127.0.0.1:8026:8025 \
+  axllent/mailpit:v1.27.4 --smtp-disable-rdns
+
 JAVA_HOME=/opt/homebrew/opt/openjdk@25 \
 SPRING_PROFILES_ACTIVE=dev \
 LAB_DB_URL=jdbc:postgresql://127.0.0.1:55441/labtimesheet_i2_exit \
-LAB_DB_USERNAME=<local-test-user> \
-LAB_DB_PASSWORD=<local-test-placeholder> \
+LAB_DB_USERNAME=lab_i2_exit \
+LAB_DB_PASSWORD=<local-test-password> \
 LAB_SMTP_HOST=127.0.0.1 LAB_SMTP_PORT=1026 LAB_SERVER_PORT=18082 \
 LAB_FORWARD_HEADERS_STRATEGY=none LAB_PUBLIC_ORIGIN=http://127.0.0.1:18082 \
 LAB_SECURITY_MASTER_KEY=<local-test-placeholder> \
@@ -125,7 +135,17 @@ JAVA_HOME=/opt/homebrew/opt/openjdk@25 \
 DOCKER_HOST=unix:///Users/sechmachine/.orbstack/run/docker.sock \
 ./mvnw -DargLine=-javaagent:/Users/sechmachine/.m2/repository/net/bytebuddy/byte-buddy-agent/1.18.10/byte-buddy-agent-1.18.10.jar test
 
-PostgreSQL 18.4 where applicable; Tests run: 444, Failures: 0, Errors: 0, Skipped: 0; BUILD SUCCESS.
+PostgreSQL 18.4 where applicable; Tests run: 444, Failures: 0, Errors: 0, Skipped: 0; BUILD SUCCESS in 04:33.
+
+JAVA_HOME=/opt/homebrew/opt/openjdk@25 \
+DOCKER_HOST=unix:///Users/sechmachine/.orbstack/run/docker.sock \
+./mvnw \
+  -DargLine=-javaagent:/Users/sechmachine/.m2/repository/net/bytebuddy/byte-buddy-agent/1.18.10/byte-buddy-agent-1.18.10.jar \
+  -Dtest=LayerStructureTest,PlatformFoundationTest,AttendanceLayerStructureTest,ReportingArchitectureTest,ProjectPersistenceStructureTest,TaskPersistenceStructureTest \
+  test
+
+PostgreSQL 18.4; Tests run: 13, Failures: 0, Errors: 0, Skipped: 0; BUILD SUCCESS.
+Flyway replayed schema version 1; PlatformFoundationTest verified 23 application tables and 56 foreign keys.
 
 npm run build && npm run test:ui
 Node 24/npm 11; frontend build succeeded; UI tests 7/7 passed.
@@ -135,6 +155,27 @@ BUILD SUCCESS.
 
 JAVA_HOME=/opt/homebrew/opt/openjdk@25 ./mvnw -DskipTests -Ddoclint=all javadoc:javadoc
 BUILD SUCCESS with 100 warnings and no errors.
+
+cd /Users/sechmachine/Documents/WebProjects/labtimesheet
+/opt/homebrew/opt/node@24/bin/node -e 'const fs=require("node:fs"); const checks=[["authoritative","labtimesheet-docs-hub/requirements-specification.md",/^\| ([A-Z]{2,4}-\d{3}) \|/gm],["explained","labtimesheet-docs-hub/explained/requirements-specification.md",/^\| ([A-Z]{2,4}-\d{3}) \|/gm],["simple","labtimesheet-docs-hub/explained/requirements-specification-simple.md",/^- \*\*([A-Z]{2,4}-\d{3}):\*\*/gm],["generated SRS","labtimesheet-docs-hub/software-requirements-specification.md",/^\| ([A-Z]{2,4}-\d{3}) \|/gm]]; for (const [name,file,pattern] of checks) { const ids=[...fs.readFileSync(file,"utf8").matchAll(pattern)].map(match=>match[1]); if (ids.length !== 260 || new Set(ids).size !== 260) throw new Error(name+": "+ids.length+" rows, "+new Set(ids).size+" unique"); console.log(name+": "+ids.length+" rows, "+new Set(ids).size+" unique IDs"); } const srs=fs.readFileSync("labtimesheet-docs-hub/software-requirements-specification.md","utf8"); const useCases=(srs.match(/^### 5\.\d+ UC-\d{2} —/gm)||[]).length; if (useCases !== 14) throw new Error("SRS use cases: "+useCases); console.log("generated SRS: "+useCases+" use cases");'
+
+authoritative: 260 rows, 260 unique IDs
+explained: 260 rows, 260 unique IDs
+simple: 260 rows, 260 unique IDs
+generated SRS: 260 rows, 260 unique IDs
+generated SRS: 14 use cases
+
+cd /private/tmp/labtimesheet-iteration2/reports-ui
+awk '/^\| I2-/ && /DONE/{done++} END{print "Iteration 2 DONE rows:", done+0; exit(done==30?0:1)}' .agents/PROJECT_PLAN.md
+Iteration 2 DONE rows: 30
+
+git status --short
+git diff --check
+git diff --cached --check
+git show --check --oneline HEAD
+
+Final checkpoint worktree and index were clean; the status and both diff checks produced no output, and the commit
+check reported no whitespace errors.
 ```
 
 ## External-test boundaries
