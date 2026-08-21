@@ -182,4 +182,4 @@ Ctrl-C produced graceful Tomcat, JPA, and Hikari shutdown. `rtk docker stop labt
 
 ## Final workspace boundary
 
-The index remained clean throughout verification. macOS later updated the already-uncommitted root `.DS_Store` and `docs/.DS_Store`; immediately before this evidence update they were 10,244 bytes/SHA-256 `89f273327946f1a0035ae24b2f67ad1642fc81b706f2a153d98b8b282d598069` and 6,148 bytes/SHA-256 `0184fce87d9491b8d655bfcad34657c033b07bfe6c67c758c8d1f02a6b8e0175`. Both remain unstaged and deliberately untouched. No branch/worktree was deleted and no push or other remote mutation occurred.
+The index remained clean throughout verification. The already-uncommitted root `.DS_Store` and `docs/.DS_Store` later changed during exit verification; immediately before this evidence update they were 10,244 bytes/SHA-256 `89f273327946f1a0035ae24b2f67ad1642fc81b706f2a153d98b8b282d598069` and 6,148 bytes/SHA-256 `0184fce87d9491b8d655bfcad34657c033b07bfe6c67c758c8d1f02a6b8e0175`. Both remain unstaged and deliberately untouched. No branch/worktree was deleted and no push or other remote mutation occurred.
