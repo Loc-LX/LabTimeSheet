@@ -11,7 +11,7 @@ import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import org.springframework.stereotype.Component;
 
-/** Encrypts SMTP credentials with AES-256-GCM using a fresh nonce per stored revision. */
+/** Encrypts integration credentials, including SMTP and HolidayAPI secrets, with AES-256-GCM using a fresh nonce per stored revision. */
 @Component
 public class SecretCipher {
     private static final int NONCE_BYTES = 12;

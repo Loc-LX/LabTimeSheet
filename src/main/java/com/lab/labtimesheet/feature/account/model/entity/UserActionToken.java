@@ -59,12 +59,8 @@ public class UserActionToken {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
-    private UserActionToken(long userId, byte[] tokenHash, Instant expiresAt, long issuedByUserId, Instant now) {
-        this(userId, TokenPurpose.ACTIVATION, tokenHash, expiresAt, issuedByUserId, now);
-    }
-
     private UserActionToken(long userId, TokenPurpose purpose, byte[] tokenHash, Instant expiresAt,
-            long issuedByUserId, Instant now) {
+            Long issuedByUserId, Instant now) {
         this.userId = userId;
         this.purpose = purpose;
         this.tokenHash = Arrays.copyOf(tokenHash, tokenHash.length);
@@ -85,23 +81,12 @@ public class UserActionToken {
      */
     public static UserActionToken activation(
             long userId, byte[] tokenHash, Instant expiresAt, long issuedByUserId, Instant now) {
-        return new UserActionToken(userId, tokenHash, expiresAt, issuedByUserId, now);
+        return new UserActionToken(userId, TokenPurpose.ACTIVATION, tokenHash, expiresAt, issuedByUserId, now);
     }
 
-    /**
-     * Creates an unused password-reset token record from a cryptographic hash. Only the hash is stored; the raw
-     * bearer token never enters the database.
-     *
-     * @param userId account requesting the reset
-     * @param tokenHash 32-byte SHA-256 hash of the raw bearer token
-     * @param expiresAt exclusive expiry instant
-     * @param issuedByUserId Admin issuing the token
-     * @param now server creation timestamp
-     * @return new password-reset token entity
-     */
-    public static UserActionToken passwordReset(
-            long userId, byte[] tokenHash, Instant expiresAt, long issuedByUserId, Instant now) {
-        return new UserActionToken(userId, TokenPurpose.PASSWORD_RESET, tokenHash, expiresAt, issuedByUserId, now);
+    /** Creates a user-initiated password reset token from a SHA-256 hash. */
+    public static UserActionToken passwordReset(long userId, byte[] tokenHash, Instant expiresAt, Instant now) {
+        return new UserActionToken(userId, TokenPurpose.PASSWORD_RESET, tokenHash, expiresAt, null, now);
     }
 
     /**
@@ -122,7 +107,7 @@ public class UserActionToken {
      */
     public void markUsed(Instant now) {
         if (!isUsableAt(now)) {
-            throw new IllegalStateException("Token is not usable");
+            throw new IllegalStateException("Activation token is not usable");
         }
         usedAt = now;
     }

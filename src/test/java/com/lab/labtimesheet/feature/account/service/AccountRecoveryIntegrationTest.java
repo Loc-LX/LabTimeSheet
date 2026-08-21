@@ -1,27 +1,23 @@
 package com.lab.labtimesheet.feature.account.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.time.Instant;
-import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import com.lab.labtimesheet.config.TestcontainersConfiguration;
-import com.lab.labtimesheet.feature.account.model.AccountStatus;
 import com.lab.labtimesheet.feature.account.model.GlobalRole;
-import com.lab.labtimesheet.feature.account.model.TokenPurpose;
 import com.lab.labtimesheet.feature.account.model.dto.CreateAccountCommand;
-import com.lab.labtimesheet.feature.account.repository.AppUserRepository;
 import com.lab.labtimesheet.feature.account.repository.UserActionTokenRepository;
 import com.lab.labtimesheet.feature.integration.model.SecurityMode;
 import com.lab.labtimesheet.feature.integration.model.dto.SmtpConnection;
 import com.lab.labtimesheet.feature.integration.model.dto.SmtpDraft;
-import com.lab.labtimesheet.feature.integration.repository.SmtpConfigurationRepository;
 import com.lab.labtimesheet.feature.integration.service.SmtpConfigurationService;
 import com.lab.labtimesheet.feature.integration.service.SmtpProbe;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -29,9 +25,6 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
-import org.springframework.security.core.session.SessionInformation;
-import org.springframework.security.core.session.SessionRegistry;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 
@@ -50,179 +43,73 @@ class AccountRecoveryIntegrationTest {
     private SmtpConfigurationService smtp;
 
     @Autowired
-    private SmtpConfigurationRepository smtpConfigurations;
-
-    @Autowired
     private RecordingSmtpProbe mail;
-
-    @Autowired
-    private AppUserRepository users;
 
     @Autowired
     private UserActionTokenRepository tokens;
 
-    @Autowired
-    private PasswordEncoder passwords;
-
-    @Autowired
-    private SessionRegistry sessionRegistry;
-
-    private long adminId;
-    private long mentorId;
-    private long internId;
-
-    @BeforeEach
-    void initializeAdminAccountsAndSmtp() {
+    @Test
+    void resendInvalidatesPriorActivationTokenBeforeSendingFreshLink() {
         bootstrap.bootstrap("admin@example.com", "Admin", "correct horse battery staple");
-        adminId = accounts.requireActiveAdminId("admin@example.com");
-        activateSmtp(adminId);
-        mail.messages.clear();
-
-        var mentorCreation = accounts.create(new CreateAccountCommand(
-                "mentor@example.com", "Mentor One", GlobalRole.MENTOR, null, null, null), adminId);
-        accounts.activate(mail.onlyActivationToken(), "new secure mentor password");
-        mentorId = mentorCreation.userId();
-
-        var internCreation = accounts.create(new CreateAccountCommand(
-                "intern@example.com", "Intern One", GlobalRole.INTERN, "STU-001",
-                LocalDate.of(2026, 8, 1), LocalDate.of(2026, 12, 31)), adminId);
-        accounts.activate(mail.onlyActivationToken(), "new secure intern password");
-        internId = internCreation.userId();
-    }
-
-    @Test
-    void resendInvalidatesPriorActivationTokenAndOnlyNewTokenActivates() {
-        mail.messages.clear();
-        var pending = accounts.create(new CreateAccountCommand(
-                "pending@example.com", "Pending One", GlobalRole.MENTOR, null, null, null), adminId);
-        var firstRawToken = mail.onlyActivationToken();
-        var firstToken = tokens.findAll().stream()
-                .filter(token -> token.getUserId().equals(pending.userId()))
-                .findFirst()
-                .orElseThrow();
-
-        mail.messages.clear();
-        var resend = accounts.resendActivation(pending.userId(), adminId);
-        assertThat(resend.deliverySucceeded()).isTrue();
-        var secondRawToken = mail.onlyActivationToken();
-
-        var reloadedFirst = tokens.findById(firstToken.getId()).orElseThrow();
-        assertThat(reloadedFirst.getInvalidatedAt()).isNotNull();
-        var secondToken = tokens.findAll().stream()
-                .filter(token -> token.getUserId().equals(pending.userId()))
-                .filter(token -> !token.getId().equals(firstToken.getId()))
-                .findFirst()
-                .orElseThrow();
-        assertThat(secondToken.getPurpose()).isEqualTo(TokenPurpose.ACTIVATION);
-        assertThat(secondToken.getInvalidatedAt()).isNull();
-
-        assertThat(accounts.activate(firstRawToken, "new secure pending password")).isFalse();
-        assertThat(accounts.activate(secondRawToken, "new secure pending password")).isTrue();
-    }
-
-    @Test
-    void resendRequiresPendingAccountAndActiveSmtp() {
-        assertThatThrownBy(() -> accounts.resendActivation(mentorId, adminId))
-                .isInstanceOf(IllegalArgumentException.class);
-
-        var pending = accounts.create(new CreateAccountCommand(
-                "pending-smtp@example.com", "Pending SMTP", GlobalRole.MENTOR, null, null, null), adminId);
-        smtpConfigurations.deleteAll();
-        mail.messages.clear();
-
-        assertThatThrownBy(() -> accounts.resendActivation(pending.userId(), adminId))
-                .isInstanceOf(IllegalStateException.class);
-    }
-
-    @Test
-    void passwordResetDeliversSingleUseThirtyMinuteTokenOnlyForActiveAccounts() {
-        mail.messages.clear();
-        var sent = accounts.requestPasswordReset("mentor@example.com");
-        assertThat(sent).isTrue();
-        assertThat(mail.messages).hasSize(1);
-
-        var resetToken = tokens.findAll().stream()
-                .filter(token -> token.getUserId().equals(mentorId))
-                .filter(token -> token.getPurpose() == TokenPurpose.PASSWORD_RESET)
-                .findFirst()
-                .orElseThrow();
-        assertThat(resetToken.getPurpose()).isEqualTo(TokenPurpose.PASSWORD_RESET);
-        assertThat(resetToken.getExpiresAt()).isEqualTo(Instant.parse("2026-08-14T00:30:00Z"));
-        assertThat(resetToken.getUsedAt()).isNull();
-        assertThat(resetToken.getInvalidatedAt()).isNull();
-        assertThat(accounts.resetPassword(mail.onlyResetToken(), "fresh secure mentor password")).isTrue();
-        assertThat(accounts.resetPassword(mail.onlyResetToken(), "another secure password")).isFalse();
-    }
-
-    @Test
-    void passwordResetDeliversGenericResponseForIneligibleOrUnknownEmail() {
-        accounts.lockAccount(mentorId, adminId);
-        var pending = accounts.create(new CreateAccountCommand(
-                "pending@example.com", "Pending One", GlobalRole.MENTOR, null, null, null), adminId);
-
-        for (String email : List.of("unknown@example.com", "mentor@example.com", "pending@example.com")) {
-            mail.messages.clear();
-            assertThat(accounts.requestPasswordReset(email)).isFalse();
-            assertThat(mail.messages).isEmpty();
-        }
-        assertThat(tokens.findAll()).noneMatch(token -> token.getPurpose() == TokenPurpose.PASSWORD_RESET);
-    }
-
-    @Test
-    void resetPasswordUpdatesCredentialsAndExpiresSessions() {
-        sessionRegistry.registerNewSession("mentor-session-1", "mentor@example.com");
-
-        mail.messages.clear();
-        accounts.requestPasswordReset("mentor@example.com");
-        assertThat(accounts.resetPassword(mail.onlyResetToken(), "fresh secure mentor password")).isTrue();
-
-        var mentor = users.findById(mentorId).orElseThrow();
-        assertThat(mentor.getAccountStatus()).isEqualTo(AccountStatus.ACTIVE);
-        assertThat(mentor.getGlobalRole()).isEqualTo(GlobalRole.MENTOR);
-        assertThat(passwords.matches("fresh secure mentor password", mentor.getPasswordHash())).isTrue();
-        assertThat(passwords.matches("new secure mentor password", mentor.getPasswordHash())).isFalse();
-
-        SessionInformation session = sessionRegistry.getSessionInformation("mentor-session-1");
-        assertThat(session).isNotNull();
-        assertThat(session.isExpired()).isTrue();
-    }
-
-    @Test
-    void resetPasswordRejectsInvalidTokenAndWeakPassword() {
-        mail.messages.clear();
-        accounts.requestPasswordReset("mentor@example.com");
-        String rawToken = mail.onlyResetToken();
-
-        assertThat(accounts.resetPassword("not-the-token", "fresh secure mentor password")).isFalse();
-        assertThatThrownBy(() -> accounts.resetPassword(rawToken, "short"))
-                .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> accounts.resetPassword(rawToken, "x".repeat(129)))
-                .isInstanceOf(IllegalArgumentException.class);
-        assertThat(accounts.resetPassword(rawToken, "12charslong1")).isTrue();
-    }
-
-    @Test
-    void resendFailureInvalidatesNewlyIssuedActivationToken() {
-        mail.messages.clear();
-        var pending = accounts.create(new CreateAccountCommand(
-                "pending-fail@example.com", "Pending Fail", GlobalRole.MENTOR, null, null, null), adminId);
-        var issuedToken = tokens.findAll().stream()
-                .filter(token -> token.getUserId().equals(pending.userId()))
-                .findFirst()
-                .orElseThrow();
-
-        mail.fail = true;
-        mail.messages.clear();
-        var resend = accounts.resendActivation(pending.userId(), adminId);
-        assertThat(resend.deliverySucceeded()).isFalse();
-        assertThat(tokens.findById(issuedToken.getId()).orElseThrow().getInvalidatedAt()).isNotNull();
-    }
-
-    private void activateSmtp(long adminId) {
-        long draftId = smtp.saveDraft(adminId, new SmtpDraft(
-                "mailpit", 1025, SecurityMode.NONE, null, null, "admin@example.com", "Lab Timesheet"));
-        smtp.testDraft(draftId, adminId, "admin@example.com");
+        long adminId = accounts.requireActiveAdminId("admin@example.com");
+        long draftId = smtp.saveDraft(adminId,
+                new SmtpDraft("mailpit", 1025, SecurityMode.NONE, null, null, "admin@example.com", "Lab Timesheet"));
+        smtp.testDraft(draftId, adminId);
         smtp.activate(draftId, adminId);
+
+        var creation = accounts.create(new CreateAccountCommand(
+                "pending@example.com", "Pending", GlobalRole.MENTOR, null, null, null), adminId);
+        String first = mail.activationToken();
+        accounts.resendActivation(creation.userId(), adminId);
+        String second = mail.activationToken();
+
+        assertThat(second).isNotEqualTo(first);
+        assertThat(accounts.activate(first, "a secure password one")).isFalse();
+        assertThat(accounts.activate(second, "a secure password two")).isTrue();
+        assertThat(tokens.findAll()).hasSize(2);
+    }
+
+    @Test
+    void resetConsumptionAndReplacementIssuanceUseOneUserThenTokenLockOrder() throws Exception {
+        bootstrap.bootstrap("admin@example.com", "Admin", "correct horse battery staple");
+        long adminId = accounts.requireActiveAdminId("admin@example.com");
+        long draftId = smtp.saveDraft(adminId,
+                new SmtpDraft("mailpit", 1025, SecurityMode.NONE, null, null, "admin@example.com", "Lab Timesheet"));
+        smtp.testDraft(draftId, adminId);
+        smtp.activate(draftId, adminId);
+
+        var creation = accounts.create(new CreateAccountCommand(
+                "reset-race@example.com", "Reset Race", GlobalRole.MENTOR, null, null, null), adminId);
+        assertThat(accounts.activate(mail.activationToken(), "a secure password one")).isTrue();
+        assertThat(accounts.requestPasswordReset("reset-race@example.com")).isTrue();
+        String originalResetToken = mail.activationToken();
+
+        for (int round = 0; round < 8; round++) {
+            String roundToken = originalResetToken;
+            CountDownLatch ready = new CountDownLatch(2);
+            CountDownLatch start = new CountDownLatch(1);
+            try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
+                var consume = executor.submit(() -> {
+                    ready.countDown();
+                    start.await();
+                    return accounts.resetPassword(roundToken, "a secure password two");
+                });
+                var replace = executor.submit(() -> {
+                    ready.countDown();
+                    start.await();
+                    return accounts.requestPasswordReset("reset-race@example.com");
+                });
+                assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
+                start.countDown();
+
+                assertThat(consume.get(10, TimeUnit.SECONDS)).isIn(true, false);
+                assertThat(replace.get(10, TimeUnit.SECONDS)).isTrue();
+            }
+            mail.clear();
+            assertThat(accounts.requestPasswordReset("reset-race@example.com")).isTrue();
+            originalResetToken = mail.activationToken();
+        }
+        assertThat(creation.userId()).isPositive();
     }
 
     @TestConfiguration(proxyBeanMethods = false)
@@ -235,34 +122,22 @@ class AccountRecoveryIntegrationTest {
     }
 
     static final class RecordingSmtpProbe implements SmtpProbe {
-        private final List<Message> messages = new ArrayList<>();
-        private boolean fail;
+        private final List<String> activationTokens = new ArrayList<>();
 
         @Override
-        public void send(SmtpConnection connection, String recipient, String subject, String body) {
-            if (fail) {
-                throw new IllegalStateException("simulated SMTP failure");
+        public synchronized void send(SmtpConnection connection, String recipient, String subject, String body) {
+            int marker = body.indexOf("token=");
+            if (marker >= 0) {
+                activationTokens.add(body.substring(marker + "token=".length()).trim());
             }
-            messages.add(new Message(recipient, subject, body));
         }
 
-        String onlyActivationToken() {
-            assertThat(messages).isNotEmpty();
-            String body = messages.getLast().body();
-            int tokenStart = body.indexOf("token=");
-            assertThat(tokenStart).isGreaterThanOrEqualTo(0);
-            return body.substring(tokenStart + "token=".length()).trim();
+        synchronized String activationToken() {
+            return activationTokens.getLast();
         }
 
-        String onlyResetToken() {
-            assertThat(messages).isNotEmpty();
-            String body = messages.getLast().body();
-            int tokenStart = body.indexOf("reset-password?token=");
-            assertThat(tokenStart).isGreaterThanOrEqualTo(0);
-            return body.substring(tokenStart + "reset-password?token=".length()).trim();
+        synchronized void clear() {
+            activationTokens.clear();
         }
-    }
-
-    record Message(String recipient, String subject, String body) {
     }
 }

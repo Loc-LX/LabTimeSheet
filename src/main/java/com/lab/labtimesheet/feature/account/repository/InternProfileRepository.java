@@ -2,6 +2,7 @@ package com.lab.labtimesheet.feature.account.repository;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 import com.lab.labtimesheet.feature.account.model.AccountStatus;
 import com.lab.labtimesheet.feature.account.model.GlobalRole;
@@ -55,21 +56,31 @@ public interface InternProfileRepository extends JpaRepository<InternProfile, Lo
     long countByInternshipStatus(InternshipStatus status);
 
     /**
-     * Lists profile owners whose not-started internship has reached its inclusive start date.
+     * Finds account identifiers whose active account and not-started profile are within the supplied inclusive
+     * internship window. The service locks each account and profile in a stable order before changing any state.
      *
-     * @param status lifecycle state to scan
-     * @param businessDate Vietnam business date
-     * @return due account identifiers
+     * @param globalRole required immutable Intern role
+     * @param accountStatus required active account state
+     * @param internshipStatus required not-started profile state
+     * @param businessDate inclusive internship-window date
+     * @return due account identifiers, possibly empty
      */
     @Query("""
             select p.userId
-            from InternProfile p
-            where p.internshipStatus = :status
+            from InternProfile p, AppUser u
+            where u.id = p.userId
+              and u.globalRole = :globalRole
+              and u.accountStatus = :accountStatus
+              and p.internshipStatus = :internshipStatus
               and p.internshipStartDate <= :businessDate
+              and p.internshipEndDate >= :businessDate
             order by p.userId
             """)
-    List<Long> findUserIdsDueForStart(
-            @Param("status") InternshipStatus status, @Param("businessDate") LocalDate businessDate);
+    List<Long> findDueUserIds(
+            @Param("globalRole") GlobalRole globalRole,
+            @Param("accountStatus") AccountStatus accountStatus,
+            @Param("internshipStatus") InternshipStatus internshipStatus,
+            @Param("businessDate") LocalDate businessDate);
 
     /**
      * Locks an Intern profile for lifecycle mutation until the current transaction completes.
@@ -79,5 +90,5 @@ public interface InternProfileRepository extends JpaRepository<InternProfile, Lo
      */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select p from InternProfile p where p.userId = :userId")
-    java.util.Optional<InternProfile> findForUpdateByUserId(@Param("userId") Long userId);
+    Optional<InternProfile> findForUpdateByUserId(@Param("userId") Long userId);
 }

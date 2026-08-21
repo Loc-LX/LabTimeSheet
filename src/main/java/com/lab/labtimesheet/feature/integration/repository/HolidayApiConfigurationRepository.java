@@ -1,9 +1,11 @@
 package com.lab.labtimesheet.feature.integration.repository;
 
+import java.util.List;
+import java.util.Optional;
+
 import com.lab.labtimesheet.feature.integration.model.HolidayApiStatus;
 import com.lab.labtimesheet.feature.integration.model.entity.HolidayApiConfiguration;
 import jakarta.persistence.LockModeType;
-import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 
@@ -15,7 +17,13 @@ public interface HolidayApiConfigurationRepository extends JpaRepository<Holiday
     /** Returns whether a revision exists in a lifecycle state. */
     boolean existsByStatus(HolidayApiStatus status);
 
-    /** Locks the identified draft/active revision for atomic lifecycle mutation. */
+    /** Returns retained revisions newest first for the non-secret History projection. */
+    List<HolidayApiConfiguration> findAllByOrderByCreatedAtDescIdDesc();
+
+    /** Returns all revisions currently in the requested lifecycle state. */
+    List<HolidayApiConfiguration> findAllByStatus(HolidayApiStatus status);
+
+    /** Locks a draft for atomic replacement of the active revision. */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<HolidayApiConfiguration> findWithLockByIdAndStatus(Long id, HolidayApiStatus status);
 }

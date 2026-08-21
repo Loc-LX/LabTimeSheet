@@ -1,55 +1,59 @@
-# Test Evidence: internship lifecycle activation and terminal guards
+# Test Evidence: internship scheduled start and terminal lifecycle
 
 - **Test type:** Integration
-- **Requirement IDs:** `I2-PLAT-03`
-- **Test classes:** `com.lab.labtimesheet.feature.account.service.InternshipLifecycleIntegrationTest`, `com.lab.labtimesheet.feature.account.service.AccountActivationIntegrationTest`
-- **Implementation commit:** pending
+- **Requirement IDs:** `ACC-020`–`ACC-025`
+- **Scenario IDs:** `AC-ACC-010`
+- **Test class/method:** `com.lab.labtimesheet.feature.account.service.InternshipLifecycleIntegrationTest#scheduledStartIsIdempotentAndTerminalActionsApplyGuardsAndPreserveCompletedAuthentication`
+- **Implementation commit:** pending local milestone
 
 ## Protected behavior
 
-Due active Internships start through the same guarded transition whether reached by an eligibility request or the
-Vietnam-zone scheduler. Completion and withdrawal re-check current Project leadership and unfinished Tasks using
-service/DTO boundaries, preserve completed history, and expire registered sessions on withdrawal.
+Scheduled and request-time internship activation share the same date/state guard. Admin terminal actions preserve completed authentication while withdrawing immediately deactivates the account; both terminal actions require producer-owned facts that no current leadership or unfinished Task remains.
+
+## Test method
+
+The test uses PostgreSQL 18.4 Testcontainers and the real SMTP-gated account path to create three Interns. It invokes the scheduled guard twice, checks idempotence, exercises both terminal guard failures, completes one Intern, and withdraws another while inspecting only Account-owned repositories.
+
+## Hand-derived expected result
+
+The due profile transitions once from `NOT_STARTED` to `ACTIVE`; a second scheduler invocation changes nothing. Completion produces `COMPLETED` plus an `ACTIVE` account. Withdrawal produces `WITHDRAWN` plus `DEACTIVATED`, retaining the profile row.
 
 ## RED
 
-The lifecycle and cross-feature guard tests initially failed to compile because the completion/withdrawal domain
-methods, Project guard contract, Task count boundary, and lifecycle services did not yet exist. The separate
-HolidayAPI RED run is recorded in `holiday-api.md`.
-
-## GREEN
-
-**Focused commands**
+**Command**
 
 ```text
-.\mvnw.cmd '-Duser.timezone=Asia/Ho_Chi_Minh' '-Dtest=InternProfileTest,ProjectInternshipGuardServiceTest,TaskQueryServiceTest,InternshipTerminalGuardTest,InternshipLifecycleServiceTest' test
-.\mvnw.cmd '-Duser.timezone=Asia/Ho_Chi_Minh' '-Dtest=InternshipLifecycleIntegrationTest,AccountActivationIntegrationTest' test
+JAVA_HOME=/opt/homebrew/opt/openjdk@25 PATH=/opt/homebrew/opt/node@24/bin:$JAVA_HOME/bin:$PATH DOCKER_HOST=unix:///Users/sechmachine/.orbstack/run/docker.sock ./mvnw '-Dtest=InternshipLifecycleIntegrationTest#scheduledStartIsIdempotentAndTerminalActionsApplyGuardsAndPreserveCompletedAuthentication' test
 ```
 
 **Observed result**
 
+Test compilation failed as expected because `InternshipLifecycleGuard` was absent (the first missing public lifecycle contract type). This is the missing Platform lifecycle boundary, not a fixture or environment failure; the compiler stops before reporting the dependent AccountService methods.
+
+## GREEN
+
+**Command**
+
 ```text
-Lifecycle unit coverage: 14 tests passed.
-InternshipLifecycleIntegrationTest: 5 tests passed.
-AccountActivationIntegrationTest: 2 tests passed.
-BUILD SUCCESS
+JAVA_HOME=/opt/homebrew/opt/openjdk@25 PATH=/opt/homebrew/opt/node@24/bin:$JAVA_HOME/bin:$PATH DOCKER_HOST=unix:///Users/sechmachine/.orbstack/run/docker.sock ./mvnw -Dtest=InternshipLifecycleIntegrationTest#scheduledStartIsIdempotentAndTerminalActionsApplyGuardsAndPreserveCompletedAuthentication test
 ```
 
-The test clock and Maven JVM use `Asia/Ho_Chi_Minh`; this avoids the repository's Windows/JVM legacy
-`Asia/Saigon` mismatch and matches the application's business-timezone contract.
+**Observed result**
 
-## Covered scenarios
+`BUILD SUCCESS`; PostgreSQL 18.4 Testcontainers started and `Tests run: 1, Failures: 0, Errors: 0, Skipped: 0`.
 
-- Inclusive start-date activation and rejection before the start date.
-- Request-time activation before eligibility evaluation and hourly Vietnam-zone scheduler activation.
-- `ACTIVE -> COMPLETED` with authentication retained and mutation eligibility removed.
-- `NOT_STARTED/ACTIVE -> WITHDRAWN` with authentication disabled and registered sessions expired.
-- Completion blocked by current Project leadership.
-- Withdrawal blocked by an unfinished, non-deleted Task across retained membership history.
-- Account code depends on Project/Task services only through DTO/service boundaries; no Project/Task repository or
-  entity imports are present in the Account feature.
+## Affected suite
+
+**Command and result**
+
+```text
+JAVA_HOME=/opt/homebrew/opt/openjdk@25 PATH=/opt/homebrew/opt/node@24/bin:$JAVA_HOME/bin:$PATH DOCKER_HOST=unix:///Users/sechmachine/.orbstack/run/docker.sock ./mvnw '-Dtest=AccountActivationIntegrationTest,AccountLifecycleIntegrationTest,AccountRecoveryIntegrationTest,AccountRecoveryLockOrderIntegrationTest,EligibleInternOptionIntegrationTest,InternMutationEligibilityIntegrationTest,InternWorkWindowIntegrationTest,InternshipLifecycleIntegrationTest,PasswordRecoveryWebIntegrationTest,ActivationResendWebIntegrationTest,AccountSessionInvalidationWebIntegrationTest,AccountWebIntegrationTest,PasswordResetIntegrationTest' test
+```
+
+**Observed result**
+
+`BUILD SUCCESS`; 34 tests passed across the account-focused affected suite on PostgreSQL 18.4 Testcontainers.
 
 ## External-test boundaries
 
-The scheduler is a timeliness mechanism; request-time activation is the correctness mechanism. The tests do not claim
-that a scheduler tick is instantaneous, and they do not change attendance calendar interpretation or Task state rules.
+The test supplies only an immutable guard DTO; it does not query Project memberships or Tasks. Project and Task owners must calculate those facts under their own locks and call this Account boundary in the same transaction. Read-only completed authorization across every mutation controller is covered by the integrated authorization suite.

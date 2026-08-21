@@ -1,7 +1,10 @@
 package com.lab.labtimesheet.feature.integration.model.entity;
 
+import java.time.Instant;
+
 import com.lab.labtimesheet.feature.integration.model.HolidayApiStatus;
 import com.lab.labtimesheet.feature.integration.model.dto.EncryptedSecret;
+import com.lab.labtimesheet.feature.integration.model.dto.HolidayApiDraft;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -11,22 +14,22 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
-import java.time.Instant;
-import java.util.Objects;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
 
 /**
- * Retained HolidayAPI credential revision with AES-GCM material only and no cleartext key field.
- * Draft edits clear the successful-test marker; only a tested draft may activate.
+ * Versioned encrypted HolidayAPI credential fixed to country VN.
+ * Draft edits clear test status; only a tested draft can activate and an old active revision is retained retired.
  */
 @Entity
 @Table(name = "holiday_api_configurations")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class HolidayApiConfiguration {
+    /** The only country supported by this product integration. */
+    public static final String COUNTRY_CODE = "VN";
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -38,8 +41,8 @@ public class HolidayApiConfiguration {
     @Getter
     private HolidayApiStatus status;
 
+    @Column(name = "country_code", nullable = false, columnDefinition = "char(2)")
     @JdbcTypeCode(SqlTypes.CHAR)
-    @Column(name = "country_code", nullable = false, length = 2)
     @Getter
     private String countryCode;
 
@@ -58,6 +61,7 @@ public class HolidayApiConfiguration {
     private Instant testedAt;
 
     @Column(name = "tested_by_user_id")
+    @Getter
     private Long testedByUserId;
 
     @Column(name = "activated_at")
@@ -65,6 +69,7 @@ public class HolidayApiConfiguration {
     private Instant activatedAt;
 
     @Column(name = "activated_by_user_id")
+    @Getter
     private Long activatedByUserId;
 
     @Column(name = "retired_at")
@@ -72,44 +77,57 @@ public class HolidayApiConfiguration {
     private Instant retiredAt;
 
     @Column(name = "retired_by_user_id")
+    @Getter
     private Long retiredByUserId;
 
     @Column(name = "created_by_user_id", nullable = false)
+    @Getter
     private Long createdByUserId;
 
     @Column(name = "created_at", nullable = false)
+    @Getter
     private Instant createdAt;
 
     @Column(name = "updated_at", nullable = false)
+    @Getter
     private Instant updatedAt;
 
     @Version
     private long version;
 
     /**
-     * Creates a fixed-Vietnam encrypted draft revision.
+     * Creates a VN draft with encrypted request-local key material.
      *
-     * @param apiKey encrypted API key material
+     * @param draft validated request-local key
+     * @param apiKey encrypted key envelope
      * @param adminId active Admin creating the revision
-     * @param now server timestamp
-     * @return new draft revision
+     * @param now server creation timestamp
+     * @return new editable draft
      */
-    public static HolidayApiConfiguration draft(EncryptedSecret apiKey, long adminId, Instant now) {
-        var configuration = new HolidayApiConfiguration();
+    public static HolidayApiConfiguration draft(HolidayApiDraft draft, EncryptedSecret apiKey,
+            long adminId, Instant now) {
+        HolidayApiConfiguration configuration = new HolidayApiConfiguration();
         configuration.status = HolidayApiStatus.DRAFT;
-        configuration.countryCode = "VN";
+        configuration.countryCode = COUNTRY_CODE;
         configuration.createdByUserId = adminId;
         configuration.createdAt = now;
-        configuration.updateDraft(apiKey, now);
+        configuration.updateDraft(draft, apiKey, now);
         return configuration;
     }
 
-    /** Replaces the encrypted key and clears any previous test marker. */
-    public void updateDraft(EncryptedSecret apiKey, Instant now) {
+    /**
+     * Replaces an editable key and clears any previous successful-test marker.
+     *
+     * @param draft validated request-local key
+     * @param apiKey encrypted key envelope
+     * @param now server update timestamp
+     * @throws IllegalStateException when this revision is no longer a draft
+     */
+    public void updateDraft(HolidayApiDraft draft, EncryptedSecret apiKey, Instant now) {
         if (status != HolidayApiStatus.DRAFT) {
             throw new IllegalStateException("Only a HolidayAPI draft can be edited");
         }
-        Objects.requireNonNull(apiKey, "apiKey");
+        countryCode = COUNTRY_CODE;
         apiKeyCiphertext = apiKey.ciphertext();
         apiKeyNonce = apiKey.nonce();
         secretKeyVersion = apiKey.keyVersion();
@@ -118,7 +136,13 @@ public class HolidayApiConfiguration {
         updatedAt = now;
     }
 
-    /** Records a successful provider test for this draft. */
+    /**
+     * Records a successful external probe after the adapter returns successfully.
+     *
+     * @param adminId active Admin who performed the test
+     * @param now server success timestamp
+     * @throws IllegalStateException when this revision is no longer a draft
+     */
     public void markTested(long adminId, Instant now) {
         if (status != HolidayApiStatus.DRAFT) {
             throw new IllegalStateException("HolidayAPI draft is no longer available");
@@ -128,7 +152,13 @@ public class HolidayApiConfiguration {
         updatedAt = now;
     }
 
-    /** Promotes a tested draft to the active revision. */
+    /**
+     * Promotes a successfully tested draft to active.
+     *
+     * @param adminId active Admin authorizing activation
+     * @param now server activation timestamp
+     * @throws IllegalStateException when the draft has not passed a test
+     */
     public void activate(long adminId, Instant now) {
         if (status != HolidayApiStatus.DRAFT || testedAt == null) {
             throw new IllegalStateException("HolidayAPI draft must pass a test before activation");
@@ -139,10 +169,16 @@ public class HolidayApiConfiguration {
         updatedAt = now;
     }
 
-    /** Retains but disables a replaced active revision. */
+    /**
+     * Retains but disables a replaced active revision.
+     *
+     * @param adminId active Admin activating its successor
+     * @param now server retirement timestamp
+     * @throws IllegalStateException when this revision is not active
+     */
     public void retire(long adminId, Instant now) {
         if (status != HolidayApiStatus.ACTIVE) {
-            throw new IllegalStateException("Only active HolidayAPI can be retired");
+            throw new IllegalStateException("Only active HolidayAPI configuration can be retired");
         }
         status = HolidayApiStatus.RETIRED;
         retiredAt = now;

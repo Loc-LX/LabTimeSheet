@@ -1,42 +1,41 @@
 package com.lab.labtimesheet.feature.notification.model;
 
 /**
- * Stable notification types enforced by the baseline notification schema.
+ * Stored notification families permitted by the V1 schema.
  *
- * <p>The type also records whether the originating event is allowed to request
- * ordinary email. Task comments and status changes are intentionally in-app only.
+ * <p>Leave and correction decisions use the scalar transition in the event DTO to retain
+ * {@code REVERTED} and {@code AUTO_REJECTED} outcomes without allocating a schema event type that
+ * the reviewed migration does not contain.
  */
 public enum NotificationType {
-    LEAVE_SUBMITTED,
-    LEAVE_DECIDED,
-    CORRECTION_SUBMITTED,
-    CORRECTION_DECIDED,
-    MEMBERSHIP_CHANGED,
-    LEADERSHIP_CHANGED,
-    PROJECT_INVITATION_CREATED,
-    PROJECT_INVITATION_RESOLVED,
-    MEMBERSHIP_EXIT_REQUESTED,
-    MEMBERSHIP_EXIT_RESOLVED,
-    TASK_ASSIGNED,
-    TASK_REASSIGNED,
-    TASK_STATUS_CHANGED,
-    TASK_COMMENTED,
-    SYSTEM;
+    LEAVE_SUBMITTED(true),
+    LEAVE_DECIDED(true),
+    CORRECTION_SUBMITTED(true),
+    CORRECTION_DECIDED(true),
+    MEMBERSHIP_CHANGED(true),
+    LEADERSHIP_CHANGED(true),
+    PROJECT_INVITATION_CREATED(true),
+    PROJECT_INVITATION_RESOLVED(true),
+    MEMBERSHIP_EXIT_REQUESTED(true),
+    MEMBERSHIP_EXIT_RESOLVED(true),
+    TASK_ASSIGNED(true),
+    TASK_REASSIGNED(true),
+    TASK_STATUS_CHANGED(false),
+    TASK_COMMENTED(false),
+    SYSTEM(false);
+
+    private final boolean emailDesignated;
+
+    NotificationType(boolean emailDesignated) {
+        this.emailDesignated = emailDesignated;
+    }
 
     /**
-     * Reports whether this event may carry an ordinary email delivery request.
+     * Indicates whether the requirement designates this event family for ordinary email.
      *
-     * @return {@code true} for events designated for ordinary email
+     * @return {@code true} for events that may request an ordinary-email attempt
      */
-    public boolean supportsOrdinaryEmail() {
-        return switch (this) {
-            case LEAVE_SUBMITTED, LEAVE_DECIDED,
-                    CORRECTION_SUBMITTED, CORRECTION_DECIDED,
-                    MEMBERSHIP_CHANGED, LEADERSHIP_CHANGED,
-                    PROJECT_INVITATION_CREATED, PROJECT_INVITATION_RESOLVED,
-                    MEMBERSHIP_EXIT_REQUESTED, MEMBERSHIP_EXIT_RESOLVED,
-                    TASK_ASSIGNED, TASK_REASSIGNED -> true;
-            case TASK_STATUS_CHANGED, TASK_COMMENTED, SYSTEM -> false;
-        };
+    public boolean emailDesignated() {
+        return emailDesignated;
     }
 }

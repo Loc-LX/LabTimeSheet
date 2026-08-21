@@ -77,27 +77,35 @@ public class SmtpConfiguration {
     private Instant testedAt;
 
     @Column(name = "tested_by_user_id")
+    @Getter
     private Long testedByUserId;
 
     @Column(name = "activated_at")
+    @Getter
     private Instant activatedAt;
 
     @Column(name = "activated_by_user_id")
+    @Getter
     private Long activatedByUserId;
 
     @Column(name = "retired_at")
+    @Getter
     private Instant retiredAt;
 
     @Column(name = "retired_by_user_id")
+    @Getter
     private Long retiredByUserId;
 
     @Column(name = "created_by_user_id", nullable = false)
+    @Getter
     private Long createdByUserId;
 
     @Column(name = "created_at", nullable = false)
+    @Getter
     private Instant createdAt;
 
     @Column(name = "updated_at", nullable = false)
+    @Getter
     private Instant updatedAt;
 
     @Version

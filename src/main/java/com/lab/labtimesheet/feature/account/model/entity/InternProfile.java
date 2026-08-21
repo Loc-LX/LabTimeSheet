@@ -28,7 +28,6 @@ public class InternProfile {
     private Long userId;
 
     @Column(name = "student_code", nullable = false, length = 64)
-    @Getter
     private String studentCode;
 
     @Column(length = 120)
@@ -66,7 +65,6 @@ public class InternProfile {
     private Instant updatedAt;
 
     @Version
-    @Getter
     private long version;
 
     private InternProfile(
@@ -111,7 +109,7 @@ public class InternProfile {
     }
 
     /**
-     * Completes an active internship and retains the completion timestamp for history.
+     * Completes an active internship while retaining the profile and account's historical identity.
      *
      * @param now server completion timestamp
      * @throws IllegalStateException when the internship is not active
@@ -126,7 +124,7 @@ public class InternProfile {
     }
 
     /**
-     * Withdraws an internship that has not started or is currently active.
+     * Withdraws a not-started or active internship while retaining its profile for historical attribution.
      *
      * @param now server withdrawal timestamp
      * @throws IllegalStateException when the internship is already terminal
@@ -138,24 +136,6 @@ public class InternProfile {
         internshipStatus = InternshipStatus.WITHDRAWN;
         withdrawnAt = now;
         updatedAt = now;
-    }
-
-    /**
-     * Replaces the Intern profile details after an authorized Admin edit. Dates are expected to
-     * form an inclusive range and the student code a normalized value, both validated by the caller.
-     * The lifecycle state and timestamps are untouched.
-     *
-     * @param studentCode replacement student code
-     * @param internshipStartDate replacement inclusive start date
-     * @param internshipEndDate replacement inclusive end date
-     * @param now server edit timestamp
-     */
-    public void updateFields(
-            String studentCode, LocalDate internshipStartDate, LocalDate internshipEndDate, Instant now) {
-        this.studentCode = studentCode;
-        this.internshipStartDate = internshipStartDate;
-        this.internshipEndDate = internshipEndDate;
-        this.updatedAt = now;
     }
 
 }

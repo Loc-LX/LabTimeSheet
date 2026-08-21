@@ -6,37 +6,40 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 import com.lab.labtimesheet.feature.account.model.AccountStatus;
 import com.lab.labtimesheet.feature.account.model.GlobalRole;
 import com.lab.labtimesheet.feature.account.model.InternshipStatus;
 import com.lab.labtimesheet.feature.account.model.TokenPurpose;
-import com.lab.labtimesheet.feature.account.model.dto.AccountAdminDetail;
-import com.lab.labtimesheet.feature.account.model.dto.AccountAdminListItem;
 import com.lab.labtimesheet.feature.account.model.dto.AccountCreation;
 import com.lab.labtimesheet.feature.account.model.dto.AccountIdentity;
 import com.lab.labtimesheet.feature.account.model.dto.AccountSummary;
 import com.lab.labtimesheet.feature.account.model.dto.CreateAccountCommand;
 import com.lab.labtimesheet.feature.account.model.dto.EligibleInternOption;
-import com.lab.labtimesheet.feature.account.model.entity.AccountAdminEditEvent;
-import com.lab.labtimesheet.feature.account.model.entity.AccountAdminEditField;
+import com.lab.labtimesheet.feature.account.model.dto.InternshipLifecycleGuard;
+import com.lab.labtimesheet.feature.account.model.dto.LockedAccountMutationEligibility;
+import com.lab.labtimesheet.feature.account.model.dto.InternWorkWindow;
 import com.lab.labtimesheet.feature.account.model.entity.AppUser;
 import com.lab.labtimesheet.feature.account.model.entity.InternProfile;
 import com.lab.labtimesheet.feature.account.model.entity.UserActionToken;
-import com.lab.labtimesheet.feature.account.repository.AccountAdminEditEventRepository;
 import com.lab.labtimesheet.feature.account.repository.AppUserRepository;
 import com.lab.labtimesheet.feature.account.repository.InternProfileRepository;
 import com.lab.labtimesheet.feature.account.repository.UserActionTokenRepository;
 import com.lab.labtimesheet.feature.integration.service.MailDeliveryService;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.core.session.SessionInformation;
 import org.springframework.security.core.session.SessionRegistry;
 import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -48,43 +51,36 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Service
 public class AccountService {
     private static final Duration ACTIVATION_LIFETIME = Duration.ofHours(24);
-    private static final Duration RESET_LIFETIME = Duration.ofMinutes(30);
     private static final SecureRandom TOKEN_RANDOM = new SecureRandom();
 
     private final AppUserRepository users;
     private final InternProfileRepository internProfiles;
     private final UserActionTokenRepository tokens;
-    private final AccountAdminEditEventRepository editEvents;
     private final MailDeliveryService mailDelivery;
     private final PasswordEncoder passwords;
     private final Clock clock;
     private final TransactionTemplate transactions;
-    private final SessionRegistry sessionRegistry;
-    private final InternshipLifecycleService internshipLifecycle;
+    private final SessionRegistry sessions;
     private final String publicOrigin;
 
     AccountService(
             AppUserRepository users,
             InternProfileRepository internProfiles,
             UserActionTokenRepository tokens,
-            AccountAdminEditEventRepository editEvents,
             MailDeliveryService mailDelivery,
             PasswordEncoder passwords,
             Clock clock,
             TransactionTemplate transactions,
-            SessionRegistry sessionRegistry,
-            InternshipLifecycleService internshipLifecycle,
+            SessionRegistry sessions,
             @Value("${lab.public-origin}") String publicOrigin) {
         this.users = users;
         this.internProfiles = internProfiles;
         this.tokens = tokens;
-        this.editEvents = editEvents;
         this.mailDelivery = mailDelivery;
         this.passwords = passwords;
         this.clock = clock;
         this.transactions = transactions;
-        this.sessionRegistry = sessionRegistry;
-        this.internshipLifecycle = internshipLifecycle;
+        this.sessions = sessions;
         this.publicOrigin = normalizeOrigin(publicOrigin);
     }
 
@@ -125,6 +121,35 @@ public class AccountService {
     }
 
     /**
+     * Replaces a pending account's unused activation token and attempts immediate delivery. A delivery failure
+     * invalidates the newly issued token while retaining the pending account for an explicit later retry.
+     *
+     * @param userId pending account identifier
+     * @param adminId active Admin requesting the resend
+     * @return identifier and delivery outcome
+     */
+    public AccountCreation resendActivation(long userId, long adminId) {
+        if (!mailDelivery.isAvailable()) {
+            throw new IllegalStateException("Active SMTP configuration is required for activation resend");
+        }
+        String rawToken = newRawToken();
+        PendingActivation pending = transactions.execute(status -> issueActivation(userId, adminId, sha256(rawToken)));
+        if (pending == null) {
+            throw new IllegalStateException("Activation resend did not complete");
+        }
+        try {
+            mailDelivery.send(
+                    pending.email(),
+                    "Activate your Lab Timesheet account",
+                    "Activate your account using this single-use link:\n" + activationLink(rawToken));
+            return new AccountCreation(userId, true);
+        } catch (RuntimeException deliveryFailure) {
+            invalidateTokenAfterDeliveryFailure(pending.tokenId());
+            return new AccountCreation(userId, false);
+        }
+    }
+
+    /**
      * Consumes a valid, unexpired activation bearer token once and assigns the first encoded password.
      * The token and user rows are locked in the surrounding transaction.
      *
@@ -139,15 +164,21 @@ public class AccountService {
             return false;
         }
 
-        UserActionToken token = tokens.findForUpdateByHashAndPurpose(sha256(rawToken), TokenPurpose.ACTIVATION)
+        byte[] tokenHash = sha256(rawToken);
+        UserActionToken candidate = tokens.findByHashAndPurpose(tokenHash, TokenPurpose.ACTIVATION)
                 .orElse(null);
-        var now = clock.instant();
-        if (token == null || !token.isUsableAt(now)) {
+        if (candidate == null) {
             return false;
         }
 
-        AppUser user = users.findForUpdateById(token.getUserId()).orElse(null);
+        AppUser user = users.findForUpdateById(candidate.getUserId()).orElse(null);
         if (user == null || user.getAccountStatus() != AccountStatus.PENDING_ACTIVATION) {
+            return false;
+        }
+        UserActionToken token = tokens.findForUpdateByHashAndPurpose(tokenHash, TokenPurpose.ACTIVATION)
+                .orElse(null);
+        var now = clock.instant();
+        if (token == null || !user.getId().equals(token.getUserId()) || !token.isUsableAt(now)) {
             return false;
         }
         user.activate(passwords.encode(password), now);
@@ -156,106 +187,48 @@ public class AccountService {
     }
 
     /**
-     * Reissues a pending account's activation email, invalidating the prior live token so only the newest link can
-     * activate the account. The invalidation and issuance share one transaction, and a delivery failure invalidates
-     * the fresh token without affecting the pending account row.
+     * Requests an enumeration-safe password reset. No token is created for unknown or ineligible accounts, and
+     * SMTP absence fails closed before token issuance.
      *
-     * @param userId pending account being resent
-     * @param adminId active Admin authorizing the resend
-     * @return account identifier and whether the replacement email was accepted by the configured SMTP boundary
-     * @throws IllegalArgumentException when the account is not pending or the Admin is not active
-     * @throws IllegalStateException when no active SMTP configuration exists or the workflow cannot complete
-     */
-    public AccountCreation resendActivation(long userId, long adminId) {
-        long verifiedAdminId = requireActiveAdminId(adminId);
-        AppUser user = users.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("Account not found"));
-        if (user.getAccountStatus() != AccountStatus.PENDING_ACTIVATION) {
-            throw new IllegalArgumentException("Activation can be resent only for a pending account");
-        }
-        if (!mailDelivery.isAvailable()) {
-            throw new IllegalStateException("Active SMTP configuration is required to resend activation");
-        }
-
-        String rawToken = newRawToken();
-        byte[] tokenHash = sha256(rawToken);
-        PendingActivation pending = transactions.execute(status -> {
-            var now = clock.instant();
-            tokens.invalidateLive(userId, TokenPurpose.ACTIVATION, now);
-            UserActionToken token = tokens.save(UserActionToken.activation(
-                    userId, tokenHash, now.plus(ACTIVATION_LIFETIME), verifiedAdminId, now));
-            return new PendingActivation(userId, token.getId());
-        });
-        if (pending == null) {
-            throw new IllegalStateException("Activation resend did not complete");
-        }
-
-        try {
-            mailDelivery.send(
-                    user.getEmail(),
-                    "Activate your Lab Timesheet account",
-                    "Activate your account using this single-use link:\n" + activationLink(rawToken));
-            return new AccountCreation(pending.userId(), true);
-        } catch (RuntimeException deliveryFailure) {
-            transactions.executeWithoutResult(status -> tokens.findForUpdateById(pending.tokenId())
-                    .orElseThrow(() -> new IllegalStateException("Activation token is missing"))
-                    .invalidate(clock.instant()));
-            return new AccountCreation(pending.userId(), false);
-        }
-    }
-
-    /**
-     * Requests a password-reset link for an active account. Unknown, pending, and locked accounts receive the same
-     * generic no-op so an unauthenticated caller cannot enumerate accounts; no token row is written and no message
-     * is sent for them. A live reset token is invalidated before its replacement is issued, and a delivery failure
-     * invalidates the fresh token.
-     *
-     * @param email account email as supplied by the user
-     * @return {@code true} when a reset link was accepted by the configured SMTP boundary
+     * @param email submitted login email
+     * @return {@code false} only when SMTP is inactive; callers must use the same generic response either way
      */
     public boolean requestPasswordReset(String email) {
         if (!mailDelivery.isAvailable()) {
             return false;
         }
-        AppUser user = users.findByNormalizedEmail(BootstrapService.normalizeEmail(email)).orElse(null);
-        if (user == null || user.getAccountStatus() != AccountStatus.ACTIVE) {
-            return false;
+        String normalized = BootstrapService.normalizeEmail(email);
+        AppUser user = users.findByNormalizedEmail(normalized).orElse(null);
+        if (user == null || user.getAccountStatus() == AccountStatus.PENDING_ACTIVATION
+                || user.getAccountStatus() == AccountStatus.DEACTIVATED) {
+            return true;
         }
-
         String rawToken = newRawToken();
-        byte[] tokenHash = sha256(rawToken);
-        var issued = transactions.execute(status -> {
-            var now = clock.instant();
-            tokens.invalidateLive(user.getId(), TokenPurpose.PASSWORD_RESET, now);
-            UserActionToken token = tokens.save(UserActionToken.passwordReset(
-                    user.getId(), tokenHash, now.plus(RESET_LIFETIME), user.getId(), now));
-            return token.getId();
-        });
-        if (issued == null) {
-            throw new IllegalStateException("Password reset request did not complete");
+        PendingReset pending = transactions.execute(status -> issuePasswordReset(user.getId(), sha256(rawToken)));
+        if (pending == null) {
+            return true;
         }
-
         try {
             mailDelivery.send(
-                    user.getEmail(),
+                    pending.email(),
                     "Reset your Lab Timesheet password",
                     "Reset your password using this single-use link:\n" + resetLink(rawToken));
-            return true;
         } catch (RuntimeException deliveryFailure) {
-            transactions.executeWithoutResult(status -> tokens.findForUpdateById(issued)
-                    .orElseThrow(() -> new IllegalStateException("Password reset token is missing"))
-                    .invalidate(clock.instant()));
-            return false;
+            invalidateTokenAfterDeliveryFailure(pending.tokenId());
         }
+        return true;
     }
 
     /**
-     * Consumes a valid, unexpired password-reset bearer token once, replaces the active account's credentials, and
-     * expires the account's existing authenticated sessions.
+     * Consumes one unexpired reset token, replaces the password, and expires existing sessions.
      *
-     * @param rawToken raw token received from the reset link
-     * @param password new password, containing 12 through 128 characters
-     * @return {@code true} when the reset completed; {@code false} for an invalid, expired, used, or stale token
+     * <p>The account row is locked before the token row so issuance and consumption share one PostgreSQL lock
+     * order. The hash and usability checks are repeated after the token lock, making replacement and single-use
+     * outcomes deterministic under concurrent requests.</p>
+     *
+     * @param rawToken opaque bearer value received from the reset link; it is never persisted
+     * @param password replacement password containing 12 through 128 characters
+     * @return {@code true} only when this request consumed the currently usable token
      */
     @Transactional
     public boolean resetPassword(String rawToken, String password) {
@@ -263,39 +236,77 @@ public class AccountService {
         if (rawToken == null || rawToken.isBlank()) {
             return false;
         }
-
-        UserActionToken token = tokens.findForUpdateByHashAndPurpose(sha256(rawToken), TokenPurpose.PASSWORD_RESET)
+        byte[] tokenHash = sha256(rawToken);
+        UserActionToken candidate = tokens.findByHashAndPurpose(tokenHash, TokenPurpose.PASSWORD_RESET)
                 .orElse(null);
-        var now = clock.instant();
-        if (token == null || !token.isUsableAt(now)) {
+        if (candidate == null) {
             return false;
         }
-
-        AppUser user = users.findForUpdateById(token.getUserId()).orElse(null);
-        if (user == null || user.getAccountStatus() != AccountStatus.ACTIVE) {
+        AppUser user = users.findForUpdateById(candidate.getUserId()).orElse(null);
+        if (user == null || user.getAccountStatus() == AccountStatus.PENDING_ACTIVATION
+                || user.getAccountStatus() == AccountStatus.DEACTIVATED) {
             return false;
         }
-        user.resetPassword(passwords.encode(password), now);
+        UserActionToken token = tokens.findForUpdateByHashAndPurpose(tokenHash, TokenPurpose.PASSWORD_RESET)
+                .orElse(null);
+        Instant now = clock.instant();
+        if (token == null || !user.getId().equals(token.getUserId()) || !token.isUsableAt(now)) {
+            return false;
+        }
+        user.changePassword(passwords.encode(password), now);
         token.markUsed(now);
-        expireSessions(user.getEmail());
+        invalidateSessions(user);
         return true;
     }
 
     /**
-     * Reports whether a supplied raw reset token still maps to a live, unexpired password-reset token without
-     * consuming it, so the reset form can render a direct error instead of waiting for submission.
+     * Locks an active account under Admin authorization and expires all registered sessions.
      *
-     * @param rawToken raw token received from the reset link
-     * @return {@code true} when the token is present and currently usable
+     * @param targetUserId account to lock
+     * @param adminId active Admin performing the mutation
+     * @throws IllegalArgumentException when the actor or target account is missing or the actor is not an active Admin
+     * @throws IllegalStateException when the target account is not active
      */
-    @Transactional(readOnly = true)
-    public boolean isResetTokenUsable(String rawToken) {
-        if (rawToken == null || rawToken.isBlank()) {
-            return false;
-        }
-        UserActionToken token = tokens.findByHashAndPurpose(sha256(rawToken), TokenPurpose.PASSWORD_RESET)
-                .orElse(null);
-        return token != null && token.isUsableAt(clock.instant());
+    @Transactional
+    public void lockAccount(long targetUserId, long adminId) {
+        requireActiveAdminId(adminId);
+        AppUser target = users.findForUpdateById(targetUserId)
+                .orElseThrow(() -> new IllegalArgumentException("Account not found"));
+        target.lock(clock.instant());
+        invalidateSessions(target);
+    }
+
+    /**
+     * Unlocks a manually locked account while retaining its role and password.
+     *
+     * @param targetUserId account to unlock
+     * @param adminId active Admin performing the mutation
+     * @throws IllegalArgumentException when the actor or target account is missing or the actor is not an active Admin
+     * @throws IllegalStateException when the target account is not manually locked
+     */
+    @Transactional
+    public void unlockAccount(long targetUserId, long adminId) {
+        requireActiveAdminId(adminId);
+        AppUser target = users.findForUpdateById(targetUserId)
+                .orElseThrow(() -> new IllegalArgumentException("Account not found"));
+        target.unlock(clock.instant());
+    }
+
+    /**
+     * Deactivates an account under Admin authorization and expires all registered sessions.
+     *
+     * @param targetUserId account to deactivate
+     * @param adminId active Admin performing the mutation
+     * @throws IllegalArgumentException when the actor or target account is missing or the actor is not an active Admin
+     * @throws IllegalStateException when the target account cannot be deactivated from its current state
+     */
+    @Transactional
+    public void deactivateAccount(long targetUserId, long adminId) {
+        requireActiveAdminId(adminId);
+        AppUser target = users.findForUpdateById(targetUserId)
+                .orElseThrow(() -> new IllegalArgumentException("Account not found"));
+        target.deactivate(clock.instant());
+        invalidateSessions(target);
     }
 
     /**
@@ -308,27 +319,104 @@ public class AccountService {
      */
     @Transactional
     public void activateInternship(long internUserId, long adminId) {
-        internshipLifecycle.activateInternship(internUserId, adminId);
+        AppUser admin = users.findById(adminId)
+                .orElseThrow(() -> new IllegalArgumentException("Admin not found"));
+        requireActiveAdmin(admin);
+
+        AppUser intern = users.findForUpdateById(internUserId)
+                .orElseThrow(() -> new IllegalArgumentException("Intern not found"));
+        if (intern.getGlobalRole() != GlobalRole.INTERN || intern.getAccountStatus() != AccountStatus.ACTIVE) {
+            throw new IllegalArgumentException("An active Intern account is required");
+        }
+        InternProfile profile = internProfiles.findForUpdateByUserId(internUserId)
+                .orElseThrow(() -> new IllegalArgumentException("Intern profile not found"));
+        if (businessDate().isBefore(profile.getInternshipStartDate())) {
+            throw new IllegalStateException("Internship cannot activate before its start date");
+        }
+        profile.activate(clock.instant());
     }
 
     /**
-     * Completes an active Intern internship after Project and Task terminal guards pass.
+     * Activates every due active Intern exactly once using a post-lock server timestamp.
      *
-     * @param internUserId Intern account identifier
-     * @param adminId active Admin authorizing the transition
+     * <p>Candidate selection is intentionally non-locking and may use a stale selection date; each candidate is then
+     * rechecked while locking its account before its profile. Only after both locks are held does this method read one
+     * {@link Instant}, derive the current server business date, and apply the inclusive start/end guard. This stable
+     * order makes repeated scheduler runs and request-time activation safe when they race, and prevents a lock wait
+     * from activating a profile after its configured window has closed.</p>
+     *
+     * @return number of profiles transitioned from {@code NOT_STARTED} to {@code ACTIVE}
      */
-    public void completeInternship(long internUserId, long adminId) {
-        internshipLifecycle.completeInternship(internUserId, adminId);
+    @Transactional
+    public int activateDueInternships() {
+        LocalDate selectionDate = businessDate();
+        int activated = 0;
+        for (Long userId : internProfiles.findDueUserIds(
+                GlobalRole.INTERN, AccountStatus.ACTIVE, InternshipStatus.NOT_STARTED, selectionDate)) {
+            AppUser intern = users.findForUpdateById(userId).orElse(null);
+            if (intern == null || intern.getGlobalRole() != GlobalRole.INTERN
+                    || intern.getAccountStatus() != AccountStatus.ACTIVE) {
+                continue;
+            }
+            InternProfile profile = internProfiles.findForUpdateByUserId(userId).orElse(null);
+            if (profile == null) {
+                continue;
+            }
+            Instant now = clock.instant();
+            LocalDate currentDate = now.atZone(clock.getZone()).toLocalDate();
+            if (profile.getInternshipStatus() == InternshipStatus.NOT_STARTED
+                    && !currentDate.isBefore(profile.getInternshipStartDate())
+                    && !currentDate.isAfter(profile.getInternshipEndDate())) {
+                profile.activate(now);
+                activated++;
+            }
+        }
+        return activated;
     }
 
     /**
-     * Withdraws a not-started or active Intern internship after Project and Task terminal guards pass.
+     * Completes an Intern after Project and Task producers confirm terminal readiness.
      *
      * @param internUserId Intern account identifier
-     * @param adminId active Admin authorizing the transition
+     * @param adminId active Admin performing the action
+     * @param guard producer-owned current-Leader and unfinished-Task facts
+     * @throws IllegalArgumentException when the account, role, or guard is invalid
+     * @throws IllegalStateException when readiness or the account/profile state rejects completion
      */
-    public void withdrawInternship(long internUserId, long adminId) {
-        internshipLifecycle.withdrawInternship(internUserId, adminId);
+    @Transactional
+    public void completeInternship(long internUserId, long adminId, InternshipLifecycleGuard guard) {
+        requireTerminalGuard(guard);
+        requireActiveAdminId(adminId);
+        AppUser intern = lockInternAccount(internUserId);
+        if (intern.getAccountStatus() != AccountStatus.ACTIVE) {
+            throw new IllegalStateException("Only an active Intern account can complete");
+        }
+        InternProfile profile = lockInternProfile(internUserId);
+        profile.complete(clock.instant());
+    }
+
+    /**
+     * Withdraws an Intern after Project and Task producers confirm terminal readiness and expires all sessions.
+     *
+     * @param internUserId Intern account identifier
+     * @param adminId active Admin performing the action
+     * @param guard producer-owned current-Leader and unfinished-Task facts
+     * @throws IllegalArgumentException when the account, role, or guard is invalid
+     * @throws IllegalStateException when readiness or the account/profile state rejects withdrawal
+     */
+    @Transactional
+    public void withdrawInternship(long internUserId, long adminId, InternshipLifecycleGuard guard) {
+        requireTerminalGuard(guard);
+        requireActiveAdminId(adminId);
+        AppUser intern = lockInternAccount(internUserId);
+        if (intern.getAccountStatus() == AccountStatus.PENDING_ACTIVATION
+                || intern.getAccountStatus() == AccountStatus.DEACTIVATED) {
+            throw new IllegalStateException("Only an activated Intern account can withdraw");
+        }
+        InternProfile profile = lockInternProfile(internUserId);
+        profile.withdraw(clock.instant());
+        intern.deactivate(clock.instant());
+        invalidateSessions(intern);
     }
 
     /**
@@ -342,202 +430,6 @@ public class AccountService {
                 users.countByAccountStatus(AccountStatus.ACTIVE),
                 users.countByAccountStatus(AccountStatus.PENDING_ACTIVATION),
                 internProfiles.countByInternshipStatus(InternshipStatus.ACTIVE));
-    }
-
-    /**
-     * Lists the non-secret Admin account rows, optionally restricted to one immutable role.
-     *
-     * @param role role filter, or {@code null} to include every account
-     * @return deterministic listing rows without secret data
-     */
-    @Transactional(readOnly = true)
-    public List<AccountAdminListItem> listAccounts(GlobalRole role) {
-        return users.findAdminListItems(role);
-    }
-
-    /**
-     * Resolves the non-secret Admin account-detail projection, including lifecycle timestamps and
-     * the owning internship when the account role is Intern.
-     *
-     * @param userId account identifier
-     * @return complete non-secret detail projection
-     * @throws IllegalArgumentException when the account does not exist
-     */
-    @Transactional(readOnly = true)
-    public AccountAdminDetail requireAccountDetail(long userId) {
-        AppUser user = users.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("Account not found"));
-        String createdByEmail = user.getCreatedBy() == null ? null : user.getCreatedBy().getEmail();
-        InternProfile profile = internProfiles.findById(userId).orElse(null);
-        return new AccountAdminDetail(
-                user.getId(),
-                user.getEmail(),
-                user.getDisplayName(),
-                user.getGlobalRole(),
-                user.getAccountStatus(),
-                user.getActivatedAt(),
-                user.getLockedAt(),
-                user.getDeactivatedAt(),
-                user.getLastLoginAt(),
-                createdByEmail,
-                profile == null ? null : profile.getStudentCode(),
-                profile == null ? null : profile.getInternshipStartDate(),
-                profile == null ? null : profile.getInternshipEndDate(),
-                profile == null ? null : profile.getInternshipStatus(),
-                user.getVersion(),
-                profile == null ? null : profile.getVersion());
-    }
-
-    /**
-     * Applies an Admin-authorized edit to the account's identity and, for Intern accounts, its profile
-     * fields. The immutable role cannot change, duplicates are rejected by the database unique indexes,
-     * and one append-only audit row is written per changed field naming the authorizing Admin. When the
-     * optimistic-lock versions rendered to the edit form are stale, the whole edit is rejected before any
-     * field or audit row changes, so a concurrent Admin edit cannot be silently overwritten.
-     *
-     * @param userId account being edited
-     * @param adminId active Admin authorizing the edit
-     * @param expectedUserVersion optimistic-lock version of the account rendered to the edit form
-     * @param expectedProfileVersion optimistic-lock version of the Intern profile, {@code null} for non-Intern
-     * @param email replacement email, normalized before comparison
-     * @param displayName replacement display name
-     * @param studentCode replacement Intern student code, required only for Intern accounts
-     * @param internshipStart replacement inclusive Intern start date, required only for Intern accounts
-     * @param internshipEnd replacement inclusive Intern end date, required only for Intern accounts
-     * @return refreshed detail with advanced optimistic-lock versions
-     * @throws IllegalArgumentException when the account is missing, the authorizer is not an active Admin,
-     *         Intern fields are supplied for a non-Intern account, or Intern details are incomplete or invalid
-     * @throws IllegalStateException when the supplied versions are stale
-     */
-    @Transactional
-    public AccountAdminDetail updateAccountAdminFields(
-            long userId, long adminId, long expectedUserVersion, Long expectedProfileVersion,
-            String email, String displayName, String studentCode,
-            LocalDate internshipStart, LocalDate internshipEnd) {
-        AppUser admin = users.findById(adminId)
-                .orElseThrow(() -> new IllegalArgumentException("Admin not found"));
-        requireActiveAdmin(admin);
-
-        AppUser user = users.findForUpdateById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("Account not found"));
-        if (user.getVersion() != expectedUserVersion) {
-            throw new IllegalStateException("Account was changed by another request");
-        }
-
-        String normalizedEmail = BootstrapService.normalizeEmail(email);
-        String normalizedDisplayName = requireText(displayName, "Display name");
-        var now = clock.instant();
-        var changes = new ArrayList<AccountAdminEditEvent>();
-
-        if (!user.getEmail().equals(normalizedEmail)) {
-            changes.add(AccountAdminEditEvent.of(user.getId(), admin.getId(), AccountAdminEditField.EMAIL,
-                    user.getEmail(), normalizedEmail, now));
-            user.changeEmail(normalizedEmail, now);
-        }
-        if (!user.getDisplayName().equals(normalizedDisplayName)) {
-            changes.add(AccountAdminEditEvent.of(user.getId(), admin.getId(), AccountAdminEditField.DISPLAY_NAME,
-                    user.getDisplayName(), normalizedDisplayName, now));
-            user.changeDisplayName(normalizedDisplayName, now);
-        }
-
-        if (user.getGlobalRole() == GlobalRole.INTERN) {
-            String normalizedCode = requireText(studentCode, "Student code");
-            if (internshipStart == null || internshipEnd == null || internshipEnd.isBefore(internshipStart)) {
-                throw new IllegalArgumentException("A valid internship date range is required");
-            }
-            if (expectedProfileVersion == null) {
-                throw new IllegalArgumentException("Internship profile version is required");
-            }
-            InternProfile profile = internProfiles.findForUpdateByUserId(user.getId())
-                    .orElseThrow(() -> new IllegalArgumentException("Intern profile not found"));
-            if (profile.getVersion() != expectedProfileVersion) {
-                throw new IllegalStateException("Account was changed by another request");
-            }
-            boolean codeChanged = !profile.getStudentCode().equals(normalizedCode);
-            boolean startChanged = !profile.getInternshipStartDate().equals(internshipStart);
-            boolean endChanged = !profile.getInternshipEndDate().equals(internshipEnd);
-            if (codeChanged) {
-                changes.add(AccountAdminEditEvent.of(user.getId(), admin.getId(), AccountAdminEditField.STUDENT_CODE,
-                        profile.getStudentCode(), normalizedCode, now));
-            }
-            if (startChanged) {
-                changes.add(AccountAdminEditEvent.of(user.getId(), admin.getId(),
-                        AccountAdminEditField.INTERNSHIP_START,
-                        profile.getInternshipStartDate().toString(), internshipStart.toString(), now));
-            }
-            if (endChanged) {
-                changes.add(AccountAdminEditEvent.of(user.getId(), admin.getId(), AccountAdminEditField.INTERNSHIP_END,
-                        profile.getInternshipEndDate().toString(), internshipEnd.toString(), now));
-            }
-            if (codeChanged || startChanged || endChanged) {
-                profile.updateFields(normalizedCode, internshipStart, internshipEnd, now);
-            }
-        } else if (expectedProfileVersion != null || studentCode != null || internshipStart != null
-                || internshipEnd != null) {
-            throw new IllegalArgumentException("Internship fields are allowed only for Intern accounts");
-        }
-
-        if (!changes.isEmpty()) {
-            editEvents.saveAll(changes);
-        }
-        return requireAccountDetail(user.getId());
-    }
-
-    /**
-     * Locks an active account and expires its existing authenticated sessions per ACC-018.
-     *
-     * @param userId account to lock
-     * @param adminId active Admin authorizing the transition
-     * @throws IllegalArgumentException when the account is missing or not active
-     */
-    @Transactional
-    public void lockAccount(long userId, long adminId) {
-        requireActiveAdmin(users.findById(adminId)
-                .orElseThrow(() -> new IllegalArgumentException("Admin not found")));
-        AppUser user = requireMutable(userId);
-        if (user.getAccountStatus() != AccountStatus.ACTIVE) {
-            throw new IllegalArgumentException("Only an active account can be locked");
-        }
-        user.lock(clock.instant());
-        expireSessions(user.getEmail());
-    }
-
-    /**
-     * Unlocks a locked account, preserving its role and credentials per ACC-015.
-     *
-     * @param userId account to unlock
-     * @param adminId active Admin authorizing the transition
-     * @throws IllegalArgumentException when the account is missing or not locked
-     */
-    @Transactional
-    public void unlockAccount(long userId, long adminId) {
-        requireActiveAdmin(users.findById(adminId)
-                .orElseThrow(() -> new IllegalArgumentException("Admin not found")));
-        AppUser user = requireMutable(userId);
-        if (user.getAccountStatus() != AccountStatus.LOCKED) {
-            throw new IllegalArgumentException("Only a locked account can be unlocked");
-        }
-        user.unlock(clock.instant());
-    }
-
-    /**
-     * Deactivates an active account and expires its existing authenticated sessions per ACC-018.
-     * Historical attribution remains visible through the identity and detail projections.
-     *
-     * @param userId account to deactivate
-     * @param adminId active Admin authorizing the transition
-     * @throws IllegalArgumentException when the account is missing or not active
-     */
-    @Transactional
-    public void deactivateAccount(long userId, long adminId) {
-        requireActiveAdmin(users.findById(adminId)
-                .orElseThrow(() -> new IllegalArgumentException("Admin not found")));
-        AppUser user = requireMutable(userId);
-        if (user.getAccountStatus() != AccountStatus.ACTIVE) {
-            throw new IllegalArgumentException("Only an active account can be deactivated");
-        }
-        user.deactivate(clock.instant());
-        expireSessions(user.getEmail());
     }
 
     /**
@@ -567,6 +459,35 @@ public class AccountService {
     }
 
     /**
+     * Lists every active global Mentor as immutable non-secret identities for cross-feature decision queues.
+     * The repository performs one scalar constructor projection ordered by account ID; this boundary does not load
+     * Account entities or acquire lifecycle locks, so consumers must perform their own authorization and locking
+     * before mutating a request.
+     *
+     * @return active global Mentor identities in ascending account-ID order
+     */
+    @Transactional(readOnly = true)
+    public List<AccountIdentity> activeGlobalMentorIdentities() {
+        return users.findActiveMentorIdentities();
+    }
+
+    /**
+     * Resolves only an Account identifier for an authenticated principal's email as a routing operation.
+     * This method deliberately performs no lifecycle authorization, entity hydration, or row lock. Consumers must
+     * pass the identifier to a subsequent Account-owned operation that acquires the required lifecycle locks and
+     * authorizes the requested mutation inside its surrounding transaction.
+     *
+     * @param email authenticated principal email, normalized by trimming and lower-casing
+     * @return matching Account identifier
+     * @throws IllegalArgumentException when the email is blank or no account matches it
+     */
+    @Transactional(readOnly = true)
+    public long requireAccountIdByEmail(String email) {
+        return users.findAccountIdByNormalizedEmail(BootstrapService.normalizeEmail(email))
+                .orElseThrow(() -> new IllegalArgumentException("Account not found"));
+    }
+
+    /**
      * Checks whether the account and its internship are both currently active.
      *
      * @param userId account identifier
@@ -574,7 +495,6 @@ public class AccountService {
      */
     @Transactional(readOnly = true)
     public boolean isEligibleIntern(long userId) {
-        internshipLifecycle.ensureStartedIfDue(userId);
         return users.findById(userId)
                 .filter(user -> user.getGlobalRole() == GlobalRole.INTERN)
                 .filter(user -> user.getAccountStatus() == AccountStatus.ACTIVE)
@@ -596,7 +516,6 @@ public class AccountService {
         if (workDate == null) {
             throw new IllegalArgumentException("Work date is required");
         }
-        internshipLifecycle.ensureStartedIfDue(userId);
         return users.findById(userId)
                 .filter(user -> user.getGlobalRole() == GlobalRole.INTERN)
                 .filter(user -> user.getAccountStatus() == AccountStatus.ACTIVE)
@@ -604,6 +523,123 @@ public class AccountService {
                         .existsByUserIdAndInternshipStatusAndInternshipStartDateLessThanEqualAndInternshipEndDateGreaterThanEqual(
                                 user.getId(), InternshipStatus.ACTIVE, workDate, workDate))
                 .isPresent();
+    }
+
+    /**
+     * Locks the account and Intern profile, then exposes their non-persistence work-window snapshot.
+     *
+     * <p>The pessimistic locks remain held until the surrounding transaction ends. A consumer that performs an
+     * attendance or Task mutation in its own transaction should call this method inside that transaction; callers
+     * that only need a read decision may use the existing non-locking eligibility methods.</p>
+     *
+     * @param userId Intern account identifier
+     * @param businessDate requested work/allocation date to evaluate in the returned DTO; it does not control
+     *        request-time lifecycle activation
+     * @return immutable state and inclusive date-window snapshot
+     * @throws IllegalArgumentException when the account is missing, not an Intern, has no profile, or the date is
+     *         null
+     */
+    @Transactional
+    public InternWorkWindow lockedInternWorkWindow(long userId, LocalDate businessDate) {
+        if (userId <= 0) {
+            throw new IllegalArgumentException("Intern user ID must be positive");
+        }
+        if (businessDate == null) {
+            throw new IllegalArgumentException("Business date is required");
+        }
+        AppUser user = users.findForUpdateById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("Intern account not found"));
+        if (user.getGlobalRole() != GlobalRole.INTERN) {
+            throw new IllegalArgumentException("An Intern account is required");
+        }
+        InternProfile profile = internProfiles.findForUpdateByUserId(userId)
+                .orElseThrow(() -> new IllegalArgumentException("Intern profile not found"));
+        Instant now = clock.instant();
+        LocalDate currentDate = now.atZone(clock.getZone()).toLocalDate();
+        if (user.getAccountStatus() == AccountStatus.ACTIVE
+                && profile.getInternshipStatus() == InternshipStatus.NOT_STARTED
+                && !currentDate.isBefore(profile.getInternshipStartDate())
+                && !currentDate.isAfter(profile.getInternshipEndDate())) {
+            profile.activate(now);
+        }
+        return new InternWorkWindow(
+                userId,
+                businessDate,
+                profile.getInternshipStartDate(),
+                profile.getInternshipEndDate(),
+                user.getAccountStatus(),
+                profile.getInternshipStatus());
+    }
+
+    /**
+     * Locks all accounts participating in one Project mutation in ascending account-ID order, then locks each
+     * requested Intern profile in that same order. Due NOT_STARTED profiles are activated only after all requested
+     * rows are locked, using one server timestamp and its server-local date; requested Project dates never drive
+     * this guard.
+     *
+     * <p>The returned list is ordered by the same IDs regardless of input order, and duplicate IDs are collapsed.
+     * Account rows are all locked before any profile row. Because the method joins an existing transaction when
+     * called by Project, those pessimistic locks remain held through the caller's invitation or membership-exit
+     * authorization and mutation. Non-Intern actor accounts have an empty profile status; completed, withdrawn,
+     * pending, or locked Interns are returned as explicit ineligible facts so the consumer can enforce role-specific
+     * rules without importing Account persistence.</p>
+     *
+     * @param userIds account IDs participating in one mutation decision, including the actor and affected Interns
+     * @return immutable ascending snapshots with account/profile locks retained by the surrounding transaction
+     * @throws IllegalArgumentException when the collection or an ID is malformed, an account or Intern profile is
+     *         missing
+     */
+    @Transactional
+    public List<LockedAccountMutationEligibility> lockedAccountMutationEligibility(Collection<Long> userIds) {
+        if (userIds == null) {
+            throw new IllegalArgumentException("Account IDs are required");
+        }
+        List<Long> orderedIds = userIds.stream()
+                .map(id -> {
+                    if (id == null || id <= 0) {
+                        throw new IllegalArgumentException("Account IDs must be positive");
+                    }
+                    return id;
+                })
+                .distinct()
+                .sorted()
+                .toList();
+        Map<Long, AppUser> lockedUsers = new LinkedHashMap<>(orderedIds.size());
+        for (Long userId : orderedIds) {
+            AppUser user = users.findForUpdateById(userId)
+                    .orElseThrow(() -> new IllegalArgumentException("Account not found"));
+            lockedUsers.put(userId, user);
+        }
+        Map<Long, InternProfile> lockedProfiles = new LinkedHashMap<>();
+        for (Long userId : orderedIds) {
+            AppUser user = lockedUsers.get(userId);
+            if (user.getGlobalRole() == GlobalRole.INTERN) {
+                lockedProfiles.put(userId, internProfiles.findForUpdateByUserId(userId)
+                        .orElseThrow(() -> new IllegalArgumentException("Intern profile not found")));
+            }
+        }
+        Instant now = clock.instant();
+        LocalDate currentDate = now.atZone(clock.getZone()).toLocalDate();
+        for (Map.Entry<Long, InternProfile> entry : lockedProfiles.entrySet()) {
+            AppUser user = lockedUsers.get(entry.getKey());
+            InternProfile profile = entry.getValue();
+            if (user.getAccountStatus() == AccountStatus.ACTIVE
+                    && profile.getInternshipStatus() == InternshipStatus.NOT_STARTED
+                    && !currentDate.isBefore(profile.getInternshipStartDate())
+                    && !currentDate.isAfter(profile.getInternshipEndDate())) {
+                profile.activate(now);
+            }
+        }
+        List<LockedAccountMutationEligibility> snapshots = new ArrayList<>(orderedIds.size());
+        for (Long userId : orderedIds) {
+            AppUser user = lockedUsers.get(userId);
+            var internshipStatus = user.getGlobalRole() == GlobalRole.INTERN
+                    ? Optional.of(lockedProfiles.get(userId).getInternshipStatus())
+                    : Optional.<InternshipStatus>empty();
+            snapshots.add(new LockedAccountMutationEligibility(
+                    user.getId(), user.getGlobalRole(), user.getAccountStatus(), internshipStatus));
+        }
+        return List.copyOf(snapshots);
     }
 
     /**
@@ -674,28 +710,101 @@ public class AccountService {
         return user.getId();
     }
 
-    private AppUser requireMutable(long userId) {
-        return users.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("Account not found"));
+    private AppUser lockInternAccount(long internUserId) {
+        AppUser intern = users.findForUpdateById(internUserId)
+                .orElseThrow(() -> new IllegalArgumentException("Intern account not found"));
+        if (intern.getGlobalRole() != GlobalRole.INTERN) {
+            throw new IllegalArgumentException("An Intern account is required");
+        }
+        return intern;
     }
 
-    /**
-     * Expires every registered Spring Security session whose principal matches the account email,
-     * so a locked or deactivated account cannot keep using existing authenticated sessions.
-     *
-     * @param email normalized account email used as the authentication principal name
-     */
-    private void expireSessions(String email) {
-        for (Object principal : sessionRegistry.getAllPrincipals()) {
-            String principalName = principal instanceof UserDetails details
-                    ? details.getUsername()
-                    : String.valueOf(principal);
-            if (email.equalsIgnoreCase(principalName)) {
-                for (SessionInformation information : sessionRegistry.getAllSessions(principal, false)) {
-                    information.expireNow();
-                }
+    private InternProfile lockInternProfile(long internUserId) {
+        return internProfiles.findForUpdateByUserId(internUserId)
+                .orElseThrow(() -> new IllegalArgumentException("Intern profile not found"));
+    }
+
+    private static void requireTerminalGuard(InternshipLifecycleGuard guard) {
+        if (guard == null) {
+            throw new IllegalArgumentException("Internship lifecycle guard is required");
+        }
+        if (guard.currentLeader()) {
+            throw new IllegalStateException("Intern is still a current Leader");
+        }
+        if (guard.unfinishedTaskCount() > 0) {
+            throw new IllegalStateException("Intern still owns unfinished Tasks");
+        }
+    }
+
+    private LocalDate businessDate() {
+        return clock.instant().atZone(clock.getZone()).toLocalDate();
+    }
+
+    private PendingReset issuePasswordReset(long userId, byte[] tokenHash) {
+        AppUser user = users.findForUpdateById(userId).orElse(null);
+        if (user == null || user.getAccountStatus() == AccountStatus.PENDING_ACTIVATION
+                || user.getAccountStatus() == AccountStatus.DEACTIVATED) {
+            return null;
+        }
+        Instant now = clock.instant();
+        for (UserActionToken previous : tokens.findByUserIdAndPurposeOrderByCreatedAtDesc(
+                userId, TokenPurpose.PASSWORD_RESET)) {
+            if (previous.getUsedAt() == null && previous.getInvalidatedAt() == null) {
+                previous.invalidate(now);
             }
         }
+        tokens.flush();
+        UserActionToken token = tokens.save(UserActionToken.passwordReset(
+                userId, tokenHash, now.plus(Duration.ofMinutes(30)), now));
+        return new PendingReset(userId, user.getEmail(), token.getId());
+    }
+
+    private PendingActivation issueActivation(long userId, long adminId, byte[] tokenHash) {
+        AppUser user = users.findForUpdateById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("Account not found"));
+        if (user.getAccountStatus() != AccountStatus.PENDING_ACTIVATION) {
+            throw new IllegalStateException("Only a pending account can receive activation");
+        }
+        AppUser admin = users.findForUpdateById(adminId)
+                .orElseThrow(() -> new IllegalArgumentException("Admin not found"));
+        requireActiveAdmin(admin);
+        Instant now = clock.instant();
+        for (UserActionToken previous : tokens.findByUserIdAndPurposeOrderByCreatedAtDesc(
+                userId, TokenPurpose.ACTIVATION)) {
+            if (previous.getUsedAt() == null && previous.getInvalidatedAt() == null) {
+                previous.invalidate(now);
+            }
+        }
+        tokens.flush();
+        UserActionToken token = tokens.save(UserActionToken.activation(
+                userId, tokenHash, now.plus(Duration.ofHours(24)), adminId, now));
+        return new PendingActivation(userId, user.getEmail(), token.getId());
+    }
+
+    private void invalidateTokenAfterDeliveryFailure(long tokenId) {
+        transactions.executeWithoutResult(status -> tokens.findForUpdateById(tokenId)
+                .ifPresent(token -> {
+                    if (token.getUsedAt() == null && token.getInvalidatedAt() == null) {
+                        token.invalidate(clock.instant());
+                    }
+                }));
+    }
+
+    private String resetLink(String rawToken) {
+        return publicOrigin + "/reset-password?token=" + rawToken;
+    }
+
+    private void invalidateSessions(AppUser user) {
+        sessions.getAllPrincipals().stream()
+                .filter(principal -> principalMatches(principal, user.getEmail()))
+                .flatMap(principal -> sessions.getAllSessions(principal, false).stream())
+                .forEach(SessionInformation::expireNow);
+    }
+
+    private static boolean principalMatches(Object principal, String email) {
+        return principal instanceof UserDetails details
+                ? email.equals(details.getUsername())
+                : email.equals(principal);
     }
 
     private static AccountIdentity identity(AppUser user) {
@@ -717,15 +826,11 @@ public class AccountService {
         }
         UserActionToken token = tokens.save(UserActionToken.activation(
                 user.getId(), tokenHash, now.plus(ACTIVATION_LIFETIME), admin.getId(), now));
-        return new PendingActivation(user.getId(), token.getId());
+        return new PendingActivation(user.getId(), user.getEmail(), token.getId());
     }
 
     private String activationLink(String rawToken) {
         return publicOrigin + "/activate?token=" + rawToken;
-    }
-
-    private String resetLink(String rawToken) {
-        return publicOrigin + "/reset-password?token=" + rawToken;
     }
 
     private static ValidatedAccount validate(CreateAccountCommand command) {
@@ -791,6 +896,9 @@ public class AccountService {
             LocalDate internshipEnd) {
     }
 
-    private record PendingActivation(long userId, long tokenId) {
+    private record PendingActivation(long userId, String email, long tokenId) {
+    }
+
+    private record PendingReset(long userId, String email, long tokenId) {
     }
 }

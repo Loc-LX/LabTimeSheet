@@ -3,46 +3,43 @@ package com.lab.labtimesheet.feature.notification.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.time.Clock;
-import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
 
 import com.lab.labtimesheet.config.TestcontainersConfiguration;
 import com.lab.labtimesheet.feature.account.model.GlobalRole;
-import com.lab.labtimesheet.feature.account.model.entity.AppUser;
-import com.lab.labtimesheet.feature.account.repository.AppUserRepository;
+import com.lab.labtimesheet.feature.account.model.dto.CreateAccountCommand;
 import com.lab.labtimesheet.feature.account.service.AccountService;
 import com.lab.labtimesheet.feature.account.service.BootstrapService;
 import com.lab.labtimesheet.feature.integration.model.SecurityMode;
 import com.lab.labtimesheet.feature.integration.model.dto.SmtpConnection;
 import com.lab.labtimesheet.feature.integration.model.dto.SmtpDraft;
-import com.lab.labtimesheet.feature.integration.service.SmtpConfigurationService;
 import com.lab.labtimesheet.feature.integration.service.SmtpProbe;
-import com.lab.labtimesheet.feature.notification.model.EmailDeliveryStatus;
+import com.lab.labtimesheet.feature.integration.service.SmtpConfigurationService;
 import com.lab.labtimesheet.feature.notification.model.NotificationType;
-import com.lab.labtimesheet.feature.notification.model.dto.NotificationCommand;
-import com.lab.labtimesheet.feature.notification.model.entity.Notification;
-import com.lab.labtimesheet.feature.notification.repository.NotificationRepository;
-import org.junit.jupiter.api.BeforeEach;
+import com.lab.labtimesheet.feature.notification.model.dto.NotificationAction;
+import com.lab.labtimesheet.feature.notification.model.dto.NotificationEvent;
+import com.lab.labtimesheet.feature.notification.model.dto.NotificationRecipient;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.context.annotation.Primary;
+import org.springframework.transaction.IllegalTransactionStateException;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.transaction.support.TransactionTemplate;
 
-@Import({TestcontainersConfiguration.class, NotificationServiceIntegrationTest.ProbeConfiguration.class})
+/** PostgreSQL proof for the Platform-owned notification persistence and delivery boundary. */
+@Import({TestcontainersConfiguration.class, NotificationServiceIntegrationTest.MailProbeConfiguration.class})
 @SpringBootTest
 @ActiveProfiles("test")
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 class NotificationServiceIntegrationTest {
-    private static final Instant INSTANT = Instant.parse("2026-08-14T00:00:00Z");
-
     @Autowired
     private BootstrapService bootstrap;
 
@@ -50,192 +47,363 @@ class NotificationServiceIntegrationTest {
     private AccountService accounts;
 
     @Autowired
-    private AppUserRepository users;
+    private SmtpConfigurationService smtp;
 
     @Autowired
     private NotificationService notifications;
 
     @Autowired
-    private NotificationRepository repository;
+    private JdbcTemplate jdbc;
 
     @Autowired
-    private SmtpConfigurationService smtp;
+    private PlatformTransactionManager transactionManager;
 
     @Autowired
-    private RecordingProbe smtpProbe;
+    private RecordingSmtpProbe mail;
 
-    @Autowired
-    private TransactionTemplate transactions;
+    @Test
+    void unavailableDeliveryPersistsOneDeduplicatedRowAndNeverReplays() {
+        bootstrap.bootstrap("notification-admin@example.com", "Admin", "correct horse battery staple");
+        long adminId = accounts.requireActiveAdminId("notification-admin@example.com");
 
-    @Autowired
-    private Clock clock;
+        publish(
+                new NotificationEvent(
+                        NotificationType.PROJECT_INVITATION_CREATED, "CREATED", "Project invitation", "Review invite"),
+                new NotificationAction("/projects/7/invitation", false),
+                List.of(
+                        new NotificationRecipient(adminId, "notification-admin@example.com"),
+                        new NotificationRecipient(adminId, "notification-admin@example.com")));
 
-    private long mentorId;
-    private long internId;
+        assertThat(countFor(adminId)).isEqualTo(1);
+        assertThat(statusFor(adminId)).isEqualTo("UNAVAILABLE");
+        assertThat(mail.calls).isZero();
 
-    @BeforeEach
-    void setUp() {
-        bootstrap.bootstrap("admin@example.com", "Admin", "correct horse battery staple");
-        mentorId = createRecipient("mentor@example.com", "Mentor", GlobalRole.MENTOR);
-        internId = createRecipient("intern@example.com", "Intern", GlobalRole.INTERN);
+        activateSmtp(adminId);
+        mail.reset();
+        assertThat(countFor(adminId)).isEqualTo(1);
+        assertThat(mail.calls).isZero();
     }
 
     @Test
-    void deduplicatesRecipientsAndPersistsProjectWorkflowTypesWithoutSmtp() {
-        List<NotificationType> types = List.of(
-                NotificationType.PROJECT_INVITATION_CREATED,
-                NotificationType.PROJECT_INVITATION_RESOLVED,
-                NotificationType.MEMBERSHIP_EXIT_REQUESTED,
-                NotificationType.MEMBERSHIP_EXIT_RESOLVED);
-        List<Long> ids = new ArrayList<>();
+    void transientFailureLeavesDomainCommittedAndRetainsPendingRetryState() {
+        bootstrap.bootstrap("notification-failure@example.com", "Admin", "correct horse battery staple");
+        long adminId = accounts.requireActiveAdminId("notification-failure@example.com");
+        activateSmtp(adminId);
+        mail.reset();
+        mail.fail = true;
 
-        for (NotificationType type : types) {
-            ids.addAll(notifications.publish(NotificationCommand.inAppWithEmail(
-                    List.of(mentorId, internId, mentorId, internId),
-                    type,
-                    "Project workflow update",
-                    "A Project workflow event requires your attention.",
-                    "/projects/7",
-                    "Project workflow update",
-                    "A Project workflow event requires your attention.")));
+        publish(
+                new NotificationEvent(
+                        NotificationType.LEAVE_DECIDED, "REVERTED", "Leave updated", "The leave decision changed"),
+                new NotificationAction("/attendance/leave", false),
+                List.of(new NotificationRecipient(adminId, "notification-failure@example.com")));
+
+        assertThat(countFor(adminId)).isEqualTo(1);
+        assertThat(statusFor(adminId)).isEqualTo("PENDING");
+        assertThat(attemptsFor(adminId)).isEqualTo(1);
+        assertThat(nextAttemptFor(adminId)).isNotNull();
+        assertThat(mail.calls).isEqualTo(1);
+        assertThat(mail.lastTransactionActive).isFalse();
+    }
+
+    @Test
+    void callerCommitPersistsDomainAndNotificationBeforeAfterCommitDelivery() {
+        bootstrap.bootstrap("notification-success@example.com", "Admin", "correct horse battery staple");
+        long adminId = accounts.requireActiveAdminId("notification-success@example.com");
+        activateSmtp(adminId);
+        mail.reset();
+
+        new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+            jdbc.update("update app_users set display_name = ? where id = ?", "Committed marker", adminId);
+            notifications.publish(
+                    new NotificationEvent(
+                            NotificationType.PROJECT_INVITATION_RESOLVED,
+                            "ACCEPTED",
+                            "Invitation resolved",
+                            "The invitation was accepted"),
+                    new NotificationAction("/projects/7/invitation", false),
+                    List.of(new NotificationRecipient(adminId, "notification-success@example.com")));
+        });
+
+        assertThat(jdbc.queryForObject(
+                "select display_name from app_users where id = ?", String.class, adminId))
+                .isEqualTo("Committed marker");
+        assertThat(countFor(adminId)).isEqualTo(1);
+        assertThat(statusFor(adminId)).isEqualTo("SENT");
+        assertThat(mail.calls).isEqualTo(1);
+        assertThat(mail.lastTransactionActive).isFalse();
+    }
+
+    @Test
+    void oneRecipientFailureDoesNotStarveLaterRecipients() {
+        bootstrap.bootstrap("notification-first@example.com", "Admin", "correct horse battery staple");
+        long adminId = accounts.requireActiveAdminId("notification-first@example.com");
+        activateSmtp(adminId);
+        long secondId = accounts.create(new CreateAccountCommand(
+                "notification-second@example.com", "Second recipient", GlobalRole.MENTOR, null, null, null), adminId)
+                .userId();
+        mail.reset();
+        mail.failRecipient = "notification-first@example.com";
+
+        publish(
+                new NotificationEvent(
+                        NotificationType.MEMBERSHIP_EXIT_RESOLVED,
+                        "APPROVED",
+                        "Membership exit resolved",
+                        "The membership exit was approved"),
+                new NotificationAction("/projects/7/members", false),
+                List.of(
+                        new NotificationRecipient(adminId, "notification-first@example.com"),
+                        new NotificationRecipient(secondId, "notification-second@example.com")));
+
+        assertThat(countFor(adminId)).isEqualTo(1);
+        assertThat(countFor(secondId)).isEqualTo(1);
+        assertThat(statusFor(adminId)).isEqualTo("PENDING");
+        assertThat(statusFor(secondId)).isEqualTo("SENT");
+        assertThat(mail.calls).isEqualTo(2);
+        assertThat(mail.recipients).containsExactly(
+                "notification-first@example.com", "notification-second@example.com");
+    }
+
+    @Test
+    void projectExitLeaveAndCorrectionFamiliesRetainRequiredTransitions() {
+        bootstrap.bootstrap("notification-families@example.com", "Admin", "correct horse battery staple");
+        long adminId = accounts.requireActiveAdminId("notification-families@example.com");
+        List<NotificationEvent> events = List.of(
+                new NotificationEvent(
+                        NotificationType.PROJECT_INVITATION_CREATED, "CREATED", "Invitation created", "Invite created"),
+                new NotificationEvent(
+                        NotificationType.PROJECT_INVITATION_RESOLVED, "ACCEPTED", "Invitation resolved", "Invite accepted"),
+                new NotificationEvent(
+                        NotificationType.MEMBERSHIP_EXIT_REQUESTED, "REQUESTED", "Exit requested", "Exit requested"),
+                new NotificationEvent(
+                        NotificationType.MEMBERSHIP_EXIT_RESOLVED, "APPROVED", "Exit resolved", "Exit approved"),
+                new NotificationEvent(
+                        NotificationType.LEAVE_SUBMITTED, "SUBMITTED", "Leave submitted", "Leave submitted"),
+                new NotificationEvent(
+                        NotificationType.LEAVE_DECIDED, "REVERTED", "Leave reverted", "Leave reverted"),
+                new NotificationEvent(
+                        NotificationType.LEAVE_DECIDED, "AUTO_REJECTED", "Leave auto-rejected", "Leave auto-rejected"),
+                new NotificationEvent(
+                        NotificationType.CORRECTION_SUBMITTED, "SUBMITTED", "Correction submitted", "Correction submitted"),
+                new NotificationEvent(
+                        NotificationType.CORRECTION_DECIDED, "REVERTED", "Correction reverted", "Correction reverted"),
+                new NotificationEvent(
+                        NotificationType.CORRECTION_DECIDED,
+                        "AUTO_REJECTED",
+                        "Correction auto-rejected",
+                        "Correction auto-rejected"));
+
+        for (NotificationEvent event : events) {
+            publish(
+                    event,
+                    new NotificationAction("/attendance/requests", false),
+                    List.of(new NotificationRecipient(adminId, "notification-families@example.com")));
         }
 
-        List<Notification> saved = repository.findAllById(ids);
-        assertThat(ids).hasSize(8);
-        assertThat(saved).hasSize(8);
-        assertThat(saved).extracting(Notification::getRecipientUserId)
-                .containsExactlyInAnyOrderElementsOf(List.of(
-                        mentorId, internId, mentorId, internId,
-                        mentorId, internId, mentorId, internId));
-        assertThat(saved).extracting(Notification::getNotificationType)
-                .containsExactlyInAnyOrderElementsOf(List.of(
-                        types.get(0), types.get(0), types.get(1), types.get(1),
-                        types.get(2), types.get(2), types.get(3), types.get(3)));
-        assertThat(saved).extracting(Notification::getEmailStatus)
-                .containsOnly(EmailDeliveryStatus.UNAVAILABLE);
-        assertThat(smtpProbe.messages).isEmpty();
+        assertThat(countFor(adminId)).isEqualTo(events.size());
+        assertThat(jdbc.queryForList(
+                "select notification_type from notifications where recipient_user_id = ? order by id",
+                String.class, adminId)).containsExactly(
+                        "PROJECT_INVITATION_CREATED", "PROJECT_INVITATION_RESOLVED",
+                        "MEMBERSHIP_EXIT_REQUESTED", "MEMBERSHIP_EXIT_RESOLVED",
+                        "LEAVE_SUBMITTED", "LEAVE_DECIDED", "LEAVE_DECIDED",
+                        "CORRECTION_SUBMITTED", "CORRECTION_DECIDED", "CORRECTION_DECIDED");
+        assertThat(jdbc.queryForList(
+                "select body from notifications where recipient_user_id = ? order by id", String.class, adminId))
+                .allMatch(body -> body.contains("Transition:"));
+        assertThat(jdbc.queryForObject(
+                "select count(*) from notifications where recipient_user_id = ? and email_status = 'UNAVAILABLE'",
+                Integer.class, adminId)).isEqualTo(events.size());
+        assertThat(mail.calls).isZero();
     }
 
     @Test
-    void emptyRecipientSetDoesNotCreateSelfTaskNotification() {
-        List<Long> ids = notifications.publish(NotificationCommand.inApp(
-                List.of(),
-                NotificationType.TASK_STATUS_CHANGED,
-                "Task updated",
-                "Your self-Task changed.",
-                "/tasks/9"));
+    void inAppOnlyAndSelfTaskActionsDoNotRequestOrdinaryEmail() {
+        bootstrap.bootstrap("notification-in-app@example.com", "Admin", "correct horse battery staple");
+        long adminId = accounts.requireActiveAdminId("notification-in-app@example.com");
 
-        assertThat(ids).isEmpty();
-        assertThat(repository.count()).isZero();
-        assertThat(smtpProbe.messages).isEmpty();
+        publish(
+                new NotificationEvent(
+                        NotificationType.TASK_COMMENTED, "COMMENTED", "Task comment", "A Task was commented"),
+                new NotificationAction("/tasks/7", false),
+                List.of(new NotificationRecipient(adminId, "notification-in-app@example.com")));
+        publish(
+                new NotificationEvent(
+                        NotificationType.TASK_ASSIGNED, "SELF_TASK", "Task created", "Your self-assigned Task"),
+                new NotificationAction("/tasks/8", true),
+                List.of(new NotificationRecipient(adminId, "notification-in-app@example.com")));
+
+        assertThat(countFor(adminId)).isEqualTo(1);
+        assertThat(statusFor(adminId)).isEqualTo("NOT_REQUIRED");
     }
 
     @Test
-    void smtpSuccessIsRecordedAfterCommittedNotification() {
-        activateTestSmtp();
+    void publicationRequiresCallerTransactionAndRollsBackWithDomainMarker() {
+        bootstrap.bootstrap("notification-transaction@example.com", "Admin", "correct horse battery staple");
+        long adminId = accounts.requireActiveAdminId("notification-transaction@example.com");
+        activateSmtp(adminId);
+        mail.reset();
 
-        List<Long> ids = notifications.publish(NotificationCommand.inAppWithEmail(
-                List.of(mentorId),
-                NotificationType.MEMBERSHIP_EXIT_RESOLVED,
-                "Membership exit resolved",
-                "The membership exit was approved.",
-                "/projects/7/membership-exits",
-                "Membership exit resolved",
-                "The membership exit was approved."));
+        assertThatThrownBy(() -> notifications.publish(
+                new NotificationEvent(
+                        NotificationType.PROJECT_INVITATION_CREATED,
+                        "CREATED",
+                        "Project invitation",
+                        "Review invite"),
+                new NotificationAction("/projects/7/invitation", false),
+                List.of(new NotificationRecipient(adminId, "notification-transaction@example.com"))))
+                .isInstanceOf(IllegalTransactionStateException.class);
+        assertThat(countFor(adminId)).isZero();
+        assertThat(mail.calls).isZero();
 
-        Notification saved = repository.findById(ids.getFirst()).orElseThrow();
-        assertThat(saved.getEmailStatus()).isEqualTo(EmailDeliveryStatus.SENT);
-        assertThat(saved.getEmailAttempts()).isEqualTo(1);
-        assertThat(saved.getEmailSentAt()).isEqualTo(INSTANT);
-        assertThat(saved.getEmailNextAttemptAt()).isNull();
-        assertThat(smtpProbe.messages).singleElement().satisfies(message -> {
-            assertThat(message.recipient()).isEqualTo("mentor@example.com");
-            assertThat(message.subject()).isEqualTo("Membership exit resolved");
-            assertThat(message.body()).isEqualTo("The membership exit was approved.");
-        });
+        String originalDisplayName = jdbc.queryForObject(
+                "select display_name from app_users where id = ?", String.class, adminId);
+        assertThatThrownBy(() -> new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+            jdbc.update("update app_users set display_name = ? where id = ?", "Rolled back", adminId);
+            notifications.publish(
+                    new NotificationEvent(
+                            NotificationType.PROJECT_INVITATION_CREATED,
+                            "CREATED",
+                            "Project invitation",
+                            "Review invite"),
+                    new NotificationAction("/projects/7/invitation", false),
+                    List.of(new NotificationRecipient(adminId, "notification-transaction@example.com")));
+            throw new IllegalStateException("rollback domain marker");
+        })).isInstanceOf(IllegalStateException.class);
+        assertThat(jdbc.queryForObject(
+                "select display_name from app_users where id = ?", String.class, adminId))
+                .isEqualTo(originalDisplayName);
+        assertThat(countFor(adminId)).isZero();
+        assertThat(mail.calls).isZero();
     }
 
     @Test
-    void smtpFailureLeavesCommittedNotificationPendingWithoutLeakingProviderDiagnostic() {
-        activateTestSmtp();
-        smtpProbe.failureMessage = "provider secret diagnostic";
+    void designatedEmailCannotBeSuppressedAndSelfTaskMarkerHasExactTaskShape() {
+        bootstrap.bootstrap("notification-designation@example.com", "Admin", "correct horse battery staple");
+        long adminId = accounts.requireActiveAdminId("notification-designation@example.com");
+        activateSmtp(adminId);
+        mail.reset();
 
-        List<Long> ids = notifications.publish(NotificationCommand.inAppWithEmail(
-                List.of(mentorId),
-                NotificationType.MEMBERSHIP_EXIT_REQUESTED,
-                "Membership exit requested",
-                "A member requested to leave.",
-                "/projects/7/membership-exits",
-                "Membership exit requested",
-                "A member requested to leave."));
+        publish(
+                new NotificationEvent(
+                        NotificationType.PROJECT_INVITATION_CREATED,
+                        "CREATED",
+                        "Project invitation",
+                        "Review invite"),
+                new NotificationAction("/projects/7/invitation", false),
+                List.of(new NotificationRecipient(adminId, "notification-designation@example.com")));
+        assertThat(statusFor(adminId)).isEqualTo("SENT");
+        assertThat(mail.calls).isEqualTo(1);
 
-        Notification saved = repository.findById(ids.getFirst()).orElseThrow();
-        assertThat(saved.getEmailStatus()).isEqualTo(EmailDeliveryStatus.PENDING);
-        assertThat(saved.getEmailAttempts()).isEqualTo(1);
-        assertThat(saved.getEmailNextAttemptAt()).isEqualTo(INSTANT.plusSeconds(60));
-        assertThat(saved.getEmailLastError()).doesNotContain("provider secret diagnostic");
+        publish(
+                new NotificationEvent(NotificationType.TASK_COMMENTED, "COMMENTED", "Task comment", "Comment"),
+                new NotificationAction("/tasks/7", false),
+                List.of(new NotificationRecipient(adminId, "notification-designation@example.com")));
+        assertThat(countFor(adminId)).isEqualTo(2);
+        assertThat(statusFor(adminId)).isEqualTo("NOT_REQUIRED");
+        assertThat(mail.calls).isEqualTo(1);
+
+        publish(
+                new NotificationEvent(
+                        NotificationType.TASK_ASSIGNED,
+                        "SELF_ASSIGNED",
+                        "Task created",
+                        "Your self-assigned Task"),
+                new NotificationAction("/tasks/8", true),
+                List.of(new NotificationRecipient(adminId, "notification-designation@example.com")));
+        assertThat(countFor(adminId)).isEqualTo(2);
+        assertThat(mail.calls).isEqualTo(1);
+
+        assertThatThrownBy(() -> publish(
+                new NotificationEvent(NotificationType.TASK_COMMENTED, "SELF_ASSIGNED", "Task", "Task"),
+                new NotificationAction("/tasks/9", true),
+                List.of(new NotificationRecipient(adminId, "notification-designation@example.com"))))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> publish(
+                new NotificationEvent(
+                        NotificationType.PROJECT_INVITATION_CREATED, "SELF_ASSIGNED", "Invite", "Invite"),
+                new NotificationAction("/projects/9", true),
+                List.of(new NotificationRecipient(adminId, "notification-designation@example.com"))))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> publish(
+                new NotificationEvent(NotificationType.TASK_ASSIGNED, "ASSIGNED", "Task", "Task"),
+                new NotificationAction("/tasks/10", true),
+                List.of(new NotificationRecipient(adminId, "notification-designation@example.com"))))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
-    @Test
-    void rolledBackDomainTransactionDoesNotSendEmailOrLeaveNotification() {
-        activateTestSmtp();
-
-        assertThatThrownBy(() -> transactions.executeWithoutResult(status -> {
-            notifications.publish(NotificationCommand.inAppWithEmail(
-                    List.of(mentorId),
-                    NotificationType.PROJECT_INVITATION_RESOLVED,
-                    "Invitation resolved",
-                    "The invitation was accepted.",
-                    "/projects/7/invitations",
-                    "Invitation resolved",
-                    "The invitation was accepted."));
-            throw new IllegalStateException("rollback domain action");
-        })).isInstanceOf(IllegalStateException.class)
-                .hasMessage("rollback domain action");
-
-        assertThat(repository.count()).isZero();
-        assertThat(smtpProbe.messages).isEmpty();
+    private int publish(
+            NotificationEvent event, NotificationAction action, List<NotificationRecipient> recipients) {
+        Integer result = new TransactionTemplate(transactionManager)
+                .execute(status -> notifications.publish(event, action, recipients));
+        return result == null ? 0 : result;
     }
 
-    private long createRecipient(String email, String displayName, GlobalRole role) {
-        AppUser admin = users.findByNormalizedEmail("admin@example.com").orElseThrow();
-        AppUser recipient = AppUser.pending(email, displayName, role, admin, clock.instant());
-        recipient.activate("{noop}test-password", clock.instant());
-        return users.saveAndFlush(recipient).getId();
-    }
-
-    private void activateTestSmtp() {
-        long adminId = accounts.requireActiveAdminId("admin@example.com");
-        long draftId = smtp.saveDraft(adminId, new SmtpDraft(
-                "mailpit", 1025, SecurityMode.NONE, "smtp-user", "smtp-password",
-                "notifications@example.com", "Lab Timesheet"));
-        smtp.testDraft(draftId, adminId, "admin@example.com");
+    private void activateSmtp(long adminId) {
+        long draftId = smtp.saveDraft(adminId,
+                new SmtpDraft("mailpit", 1025, SecurityMode.NONE, null, null,
+                        "notification-admin@example.com", "Lab Timesheet"));
+        smtp.testDraft(draftId, adminId);
         smtp.activate(draftId, adminId);
-        smtpProbe.messages.clear();
+    }
+
+    private int countFor(long recipientId) {
+        return jdbc.queryForObject(
+                "select count(*) from notifications where recipient_user_id = ?", Integer.class, recipientId);
+    }
+
+    private String statusFor(long recipientId) {
+        return jdbc.queryForObject(
+                "select email_status from notifications where recipient_user_id = ? order by id desc limit 1",
+                String.class, recipientId);
+    }
+
+    private int attemptsFor(long recipientId) {
+        return jdbc.queryForObject(
+                "select email_attempts from notifications where recipient_user_id = ? order by id desc limit 1",
+                Integer.class, recipientId);
+    }
+
+    private Object nextAttemptFor(long recipientId) {
+        return jdbc.queryForObject(
+                "select email_next_attempt_at from notifications where recipient_user_id = ? order by id desc limit 1",
+                Object.class, recipientId);
     }
 
     @TestConfiguration(proxyBeanMethods = false)
-    static class ProbeConfiguration {
+    static class MailProbeConfiguration {
         @Bean
         @Primary
-        RecordingProbe recordingProbe() {
-            return new RecordingProbe();
+        RecordingSmtpProbe recordingSmtpProbe() {
+            return new RecordingSmtpProbe();
         }
     }
 
-    static final class RecordingProbe implements SmtpProbe {
-        private final List<Message> messages = new ArrayList<>();
-        private String failureMessage;
+    static final class RecordingSmtpProbe implements SmtpProbe {
+        private volatile boolean fail;
+        private volatile String failRecipient;
+        private volatile int calls;
+        private volatile boolean lastTransactionActive;
+        private final java.util.concurrent.CopyOnWriteArrayList<String> recipients =
+                new java.util.concurrent.CopyOnWriteArrayList<>();
 
         @Override
         public void send(SmtpConnection connection, String recipient, String subject, String body) {
-            if (failureMessage != null) {
-                throw new IllegalStateException(failureMessage);
+            calls++;
+            recipients.add(recipient);
+            lastTransactionActive = TransactionSynchronizationManager.isActualTransactionActive();
+            if (fail || recipient.equals(failRecipient)) {
+                throw new IllegalStateException("simulated SMTP failure");
             }
-            messages.add(new Message(recipient, subject, body));
         }
-    }
 
-    private record Message(String recipient, String subject, String body) {
+        void reset() {
+            calls = 0;
+            fail = false;
+            failRecipient = null;
+            lastTransactionActive = false;
+            recipients.clear();
+        }
     }
 }

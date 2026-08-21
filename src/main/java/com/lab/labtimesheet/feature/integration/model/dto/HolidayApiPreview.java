@@ -1,13 +1,27 @@
 package com.lab.labtimesheet.feature.integration.model.dto;
 
+import java.time.Instant;
 import java.util.List;
+import java.util.Objects;
 
-/** Explicit Vietnam HolidayAPI preview data; it is never used by local reads implicitly. */
-public record HolidayApiPreview(int year, String countryCode, List<HolidayApiCandidate> holidays) {
+/**
+ * Immutable result of an optional HolidayAPI operation. Failure results contain no provider body or credential.
+ *
+ * @param status actionable operation outcome
+ * @param candidates safe provider candidates, empty for failure outcomes
+ * @param message fixed operator guidance without external diagnostics
+ * @param retrievedAt server instant at which a successful provider response was received, or {@code null} when
+ * the provider was not contacted or did not return usable candidates
+ */
+public record HolidayApiPreview(
+        HolidayApiPreviewStatus status,
+        List<HolidayApiCandidate> candidates,
+        String message,
+        Instant retrievedAt) {
+    /** Normalizes the list boundary so callers cannot mutate the result. */
     public HolidayApiPreview {
-        if (!"VN".equals(countryCode)) {
-            throw new IllegalArgumentException("HolidayAPI country is fixed to VN");
-        }
-        holidays = List.copyOf(holidays);
+        status = Objects.requireNonNull(status, "status");
+        candidates = List.copyOf(candidates == null ? List.of() : candidates);
+        message = message == null ? "" : message;
     }
 }

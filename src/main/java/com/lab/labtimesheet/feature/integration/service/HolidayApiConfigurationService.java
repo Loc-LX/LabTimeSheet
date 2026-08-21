@@ -1,93 +1,95 @@
 package com.lab.labtimesheet.feature.integration.service;
 
+import java.time.Clock;
+import java.util.List;
+
 import com.lab.labtimesheet.feature.account.service.AccountService;
-import com.lab.labtimesheet.feature.integration.model.HolidayApiFailureKind;
 import com.lab.labtimesheet.feature.integration.model.HolidayApiStatus;
 import com.lab.labtimesheet.feature.integration.model.dto.EncryptedSecret;
 import com.lab.labtimesheet.feature.integration.model.dto.HolidayApiDraft;
-import com.lab.labtimesheet.feature.integration.model.dto.HolidayApiResult;
+import com.lab.labtimesheet.feature.integration.model.dto.HolidayApiPreview;
+import com.lab.labtimesheet.feature.integration.model.dto.HolidayApiPreviewStatus;
+import com.lab.labtimesheet.feature.integration.model.dto.HolidayApiRevisionHistory;
 import com.lab.labtimesheet.feature.integration.model.dto.HolidayApiSetupStatus;
 import com.lab.labtimesheet.feature.integration.model.entity.HolidayApiConfiguration;
 import com.lab.labtimesheet.feature.integration.repository.HolidayApiConfigurationRepository;
-import java.time.Clock;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Owns encrypted HolidayAPI draft/test/activate/retire revisions and the active DTO-only client.
- * Provider calls happen only from explicit test/preview methods; local calendar reads do not use this service.
+ * Owns encrypted HolidayAPI revision lifecycle and the optional VN preview boundary.
+ * Attendance and calendar consumers receive candidates only through the immutable preview DTO and never trigger
+ * provider calls from local reads or reports.
  */
 @Service
 @RequiredArgsConstructor(access = AccessLevel.PACKAGE)
-public class HolidayApiConfigurationService implements HolidayApiClient {
+public class HolidayApiConfigurationService {
+    private static final String ABSENT_KEY_MESSAGE = "HolidayAPI is not configured; local calendar remains usable.";
+    private static final String SUCCESS_MESSAGE = "HolidayAPI preview loaded.";
 
     private final HolidayApiConfigurationRepository configurations;
     private final AccountService accounts;
     private final SecretCipher secrets;
-    private final HolidayApiProbe probe;
+    private final HolidayApiHttpClient client;
     private final Clock clock;
 
     /**
-     * Creates or replaces the single editable encrypted draft.
+     * Creates or replaces the sole editable VN draft after Admin authorization.
+     * The request-local key is encrypted before persistence and prior test status is cleared.
      *
      * @param adminId active Admin saving the draft
-     * @param draft request-local API key
+     * @param draft request-local provider key
      * @return persisted draft identifier
      */
     @Transactional
     public long saveDraft(long adminId, HolidayApiDraft draft) {
         long verifiedAdminId = accounts.requireActiveAdminId(adminId);
-        validate(draft);
-        EncryptedSecret encrypted = secrets.encrypt(draft.apiKey());
+        EncryptedSecret apiKey = secrets.encrypt(draft.apiKey());
         var now = clock.instant();
         HolidayApiConfiguration configuration = configurations.findByStatus(HolidayApiStatus.DRAFT)
                 .map(existing -> {
-                    existing.updateDraft(encrypted, now);
+                    existing.updateDraft(draft, apiKey, now);
                     return existing;
                 })
-                .orElseGet(() -> HolidayApiConfiguration.draft(encrypted, verifiedAdminId, now));
+                .orElseGet(() -> HolidayApiConfiguration.draft(draft, apiKey, verifiedAdminId, now));
         return configurations.save(configuration).getId();
     }
 
     /**
-     * Explicitly tests a draft and marks it tested only when the provider result is successful.
+     * Tests a draft against the provider and records success only after a valid response.
+     * Failure returns an actionable status and leaves the draft untested.
      *
-     * @param draftId draft revision identifier
+     * @param draftId draft revision to test
      * @param adminId active Admin performing the test
-     * @param year requested preview/test year
-     * @return safe provider result
+     * @param year requested preview year
+     * @return safe success candidates or actionable failure status
      */
-    public HolidayApiResult testDraft(long draftId, long adminId, int year) {
-        validateYear(year);
+    public HolidayApiPreview testDraft(long draftId, long adminId, int year) {
+        long verifiedAdminId = accounts.requireActiveAdminId(adminId);
         HolidayApiConfiguration draft = configurations.findById(draftId)
                 .filter(configuration -> configuration.getStatus() == HolidayApiStatus.DRAFT)
-                .orElseThrow(() -> new IllegalStateException("HolidayAPI draft is not available"));
-        long verifiedAdminId = accounts.requireActiveAdminId(adminId);
-        HolidayApiResult result = probe.preview(
-                secrets.decrypt(draft.getApiKeyCiphertext(), draft.getApiKeyNonce()), year);
-        if (result != null && result.successful()) {
+                .orElseThrow(() -> new IllegalStateException("HolidayAPI configuration is not available"));
+        HolidayApiPreview result = safeFetch(draft, year);
+        if (result.status() == HolidayApiPreviewStatus.SUCCESS) {
             draft.markTested(verifiedAdminId, clock.instant());
             configurations.save(draft);
         }
-        return result == null
-                ? HolidayApiResult.failure(HolidayApiFailureKind.UNAVAILABLE)
-                : result;
+        return result;
     }
 
     /**
-     * Activates a tested draft and retires the previous active revision atomically.
+     * Activates a previously tested VN draft and retires the previous active revision atomically.
      *
-     * @param draftId tested draft identifier
+     * @param draftId tested draft revision
      * @param adminId active Admin authorizing activation
      */
     @Transactional
     public void activate(long draftId, long adminId) {
-        HolidayApiConfiguration draft = configurations.findWithLockByIdAndStatus(
-                        draftId, HolidayApiStatus.DRAFT)
-                .orElseThrow(() -> new IllegalStateException("HolidayAPI draft must pass a test before activation"));
         long verifiedAdminId = accounts.requireActiveAdminId(adminId);
+        HolidayApiConfiguration draft = configurations.findWithLockByIdAndStatus(draftId, HolidayApiStatus.DRAFT)
+                .orElseThrow(() -> new IllegalStateException("HolidayAPI draft must pass a test before activation"));
         var now = clock.instant();
         configurations.findByStatus(HolidayApiStatus.ACTIVE)
                 .ifPresent(active -> {
@@ -98,50 +100,88 @@ public class HolidayApiConfigurationService implements HolidayApiClient {
     }
 
     /**
-     * Returns non-secret state for the setup page.
+     * Requests an optional provider preview through the active encrypted VN key.
+     * The caller must be an Admin-authorized preview action; local calendar reads never call this method.
      *
-     * @return safe active/draft/test metadata with fixed Vietnam country
+     * @param adminId active Admin authorizing the preview
+     * @param year requested four-digit calendar year
+     * @return immutable candidates or a secret-free actionable status
      */
-    @Transactional(readOnly = true)
-    public HolidayApiSetupStatus setupStatus() {
-        boolean active = configurations.existsByStatus(HolidayApiStatus.ACTIVE);
-        return configurations.findByStatus(HolidayApiStatus.DRAFT)
-                .map(draft -> new HolidayApiSetupStatus(
-                        active, draft.getId(), draft.getTestedAt() != null, draft.getCountryCode()))
-                .orElseGet(() -> new HolidayApiSetupStatus(active, null, false, "VN"));
+    public HolidayApiPreview preview(long adminId, int year) {
+        accounts.requireActiveAdminId(adminId);
+        HolidayApiConfiguration active = configurations.findByStatus(HolidayApiStatus.ACTIVE).orElse(null);
+        if (active == null) {
+            return new HolidayApiPreview(HolidayApiPreviewStatus.ABSENT_KEY, List.of(), ABSENT_KEY_MESSAGE, null);
+        }
+        return safeFetch(active, year);
     }
 
     /**
-     * Makes an explicit preview call through the active encrypted revision.
+     * Returns the non-secret setup state used by the Admin configuration page.
      *
-     * @param year requested year
-     * @return preview or typed not-configured/provider failure
+     * @param adminId active Admin requesting setup state
+     * @return active flag, draft id, test state, and fixed country code
      */
-    @Override
     @Transactional(readOnly = true)
-    public HolidayApiResult preview(int year) {
-        validateYear(year);
-        HolidayApiConfiguration active = configurations.findByStatus(HolidayApiStatus.ACTIVE).orElse(null);
-        if (active == null) {
-            return HolidayApiResult.failure(HolidayApiFailureKind.NOT_CONFIGURED);
-        }
-        HolidayApiResult result = probe.preview(
-                secrets.decrypt(active.getApiKeyCiphertext(), active.getApiKeyNonce()), year);
-        return result == null
-                ? HolidayApiResult.failure(HolidayApiFailureKind.UNAVAILABLE)
-                : result;
+    public HolidayApiSetupStatus setupStatus(long adminId) {
+        accounts.requireActiveAdminId(adminId);
+        boolean active = configurations.existsByStatus(HolidayApiStatus.ACTIVE);
+        return configurations.findByStatus(HolidayApiStatus.DRAFT)
+                .map(draft -> new HolidayApiSetupStatus(active, draft.getId(), draft.getTestedAt() != null,
+                        HolidayApiConfiguration.COUNTRY_CODE))
+                .orElseGet(() -> new HolidayApiSetupStatus(active, null, false,
+                        HolidayApiConfiguration.COUNTRY_CODE));
     }
 
-    private static void validate(HolidayApiDraft draft) {
-        if (draft == null || draft.apiKey() == null || draft.apiKey().isBlank()
-                || draft.apiKey().length() > 1024) {
-            throw new IllegalArgumentException("A valid HolidayAPI key is required");
+    /**
+     * Returns retained lifecycle metadata newest first without exposing API-key material.
+     *
+     * @param adminId active Admin requesting History
+     * @return immutable non-secret History rows
+     */
+    @Transactional(readOnly = true)
+    public List<HolidayApiRevisionHistory> history(long adminId) {
+        accounts.requireActiveAdminId(adminId);
+        return configurations.findAllByOrderByCreatedAtDescIdDesc().stream()
+                .map(configuration -> new HolidayApiRevisionHistory(
+                        configuration.getId(), configuration.getStatus(), configuration.getCountryCode(),
+                        configuration.getTestedAt(), configuration.getTestedByUserId(),
+                        configuration.getActivatedAt(), configuration.getActivatedByUserId(),
+                        configuration.getRetiredAt(), configuration.getRetiredByUserId(),
+                        configuration.getCreatedByUserId(), configuration.getCreatedAt(),
+                        configuration.getUpdatedAt()))
+                .toList();
+    }
+
+    private HolidayApiPreview fetch(String apiKey, int year) {
+        if (year < 1 || year > 9999) {
+            throw new IllegalArgumentException("HolidayAPI year must be between 1 and 9999");
+        }
+        try {
+            return new HolidayApiPreview(HolidayApiPreviewStatus.SUCCESS,
+                    client.fetch(apiKey, HolidayApiConfiguration.COUNTRY_CODE, year), SUCCESS_MESSAGE, clock.instant());
+        } catch (HolidayApiClientException failure) {
+            return new HolidayApiPreview(failure.status(), List.of(), failure.getMessage(), null);
         }
     }
 
-    private static void validateYear(int year) {
-        if (year < 2000 || year > 2100) {
-            throw new IllegalArgumentException("HolidayAPI year must be between 2000 and 2100");
+    private HolidayApiPreview safeFetch(HolidayApiConfiguration configuration, int year) {
+        try {
+            return fetch(decrypt(configuration), year);
+        } catch (HolidayApiClientException failure) {
+            return new HolidayApiPreview(failure.status(), List.of(), failure.getMessage(), null);
         }
+    }
+
+    private String decrypt(HolidayApiConfiguration configuration) {
+        try {
+            return secrets.decrypt(configuration.getApiKeyCiphertext(), configuration.getApiKeyNonce());
+        } catch (IllegalStateException failure) {
+            throw throwUnavailable();
+        }
+    }
+
+    private HolidayApiClientException throwUnavailable() {
+        return HolidayApiClientException.unavailable();
     }
 }

@@ -67,13 +67,8 @@ public class AppUser {
     @Getter
     private Instant deactivatedAt;
 
-    @Column(name = "last_login_at")
-    @Getter
-    private Instant lastLoginAt;
-
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by_user_id")
-    @Getter
     private AppUser createdBy;
 
     @Column(name = "created_at", nullable = false)
@@ -83,7 +78,6 @@ public class AppUser {
     private Instant updatedAt;
 
     @Version
-    @Getter
     private long version;
 
     private AppUser(String email, String displayName, String passwordHash, GlobalRole globalRole,
@@ -146,10 +140,10 @@ public class AppUser {
     }
 
     /**
-     * Locks an active account, recording when the explicit Admin action occurred.
+     * Locks an active account while retaining its role, password, and attribution.
      *
-     * @param now server lock timestamp
-     * @throws IllegalStateException when the account is not active
+     * @param now server timestamp recorded for the lock and update
+     * @throws IllegalStateException when this account is not active
      */
     public void lock(Instant now) {
         if (accountStatus != AccountStatus.ACTIVE) {
@@ -161,10 +155,10 @@ public class AppUser {
     }
 
     /**
-     * Unlocks a locked account without changing its role or recreating its credentials.
+     * Unlocks a manually locked account without recreating credentials.
      *
-     * @param now server unlock timestamp
-     * @throws IllegalStateException when the account is not locked
+     * @param now server timestamp recorded for the unlock and update
+     * @throws IllegalStateException when this account is not manually locked
      */
     public void unlock(Instant now) {
         if (accountStatus != AccountStatus.LOCKED) {
@@ -176,57 +170,34 @@ public class AppUser {
     }
 
     /**
-     * Replaces the stored password hash of an active account after a verified password-reset token is consumed,
-     * leaving role, status, and sign-in history untouched.
+     * Deactivates a credential-bearing account and retains its historical identity.
      *
-     * @param encodedPassword password-encoder output, never cleartext
-     * @param now server reset timestamp
-     * @throws IllegalStateException when the account is not active
-     */
-    public void resetPassword(String encodedPassword, Instant now) {
-        if (accountStatus != AccountStatus.ACTIVE) {
-            throw new IllegalStateException("Only an active account can reset its password");
-        }
-        passwordHash = encodedPassword;
-        updatedAt = now;
-    }
-
-    /**
-     * Deactivates an active account, recording when the explicit Admin action occurred.
-     *
-     * @param now server deactivation timestamp
-     * @throws IllegalStateException when the account is not active
+     * @param now server timestamp recorded for deactivation and update
+     * @throws IllegalStateException when the account is pending activation or already deactivated
      */
     public void deactivate(Instant now) {
-        if (accountStatus != AccountStatus.ACTIVE) {
-            throw new IllegalStateException("Only an active account can be deactivated");
+        if (accountStatus == AccountStatus.PENDING_ACTIVATION || accountStatus == AccountStatus.DEACTIVATED) {
+            throw new IllegalStateException("Account cannot be deactivated in this state");
         }
         accountStatus = AccountStatus.DEACTIVATED;
+        lockedAt = null;
         deactivatedAt = now;
         updatedAt = now;
     }
 
     /**
-     * Replaces the normalized email of the account after an authorized Admin edit. The immutable
-     * role and lifecycle state are untouched; the database unique index guards against duplicates.
+     * Replaces the encoded password for an account with existing credentials.
      *
-     * @param email normalized replacement email
-     * @param now server edit timestamp
+     * @param encodedPassword password-encoder output, never cleartext
+     * @param now server timestamp recorded for the update
+     * @throws IllegalStateException when the account is pending activation or deactivated
      */
-    public void changeEmail(String email, Instant now) {
-        this.email = email;
-        this.updatedAt = now;
-    }
-
-    /**
-     * Replaces the user-facing name after an authorized Admin edit.
-     *
-     * @param displayName trimmed replacement display name
-     * @param now server edit timestamp
-     */
-    public void changeDisplayName(String displayName, Instant now) {
-        this.displayName = displayName;
-        this.updatedAt = now;
+    public void changePassword(String encodedPassword, Instant now) {
+        if (accountStatus == AccountStatus.PENDING_ACTIVATION || accountStatus == AccountStatus.DEACTIVATED) {
+            throw new IllegalStateException("Account cannot change its password in this state");
+        }
+        passwordHash = encodedPassword;
+        updatedAt = now;
     }
 
 }

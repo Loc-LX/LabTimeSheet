@@ -1,6 +1,6 @@
 package com.lab.labtimesheet.feature.integration.model;
 
-/** Lifecycle state of one retained encrypted HolidayAPI credential revision. */
+/** Lifecycle states retained for encrypted HolidayAPI key revisions. */
 public enum HolidayApiStatus {
     DRAFT,
     ACTIVE,
