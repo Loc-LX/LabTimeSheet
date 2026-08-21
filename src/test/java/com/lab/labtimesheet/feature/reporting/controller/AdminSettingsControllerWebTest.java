@@ -11,6 +11,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.flash;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.lab.labtimesheet.feature.account.service.AccountService;
@@ -45,6 +46,7 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TimeZone;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -91,15 +93,22 @@ class AdminSettingsControllerWebTest {
                 1L, HolidayApiStatus.ACTIVE, "VN", now, 1L, now, 1L,
                 null, null, 1L, now, now)));
 
-        mvc.perform(get("/admin/settings").with(user("admin@example.test").roles("ADMIN")))
-                .andExpect(status().isOk())
-                .andExpect(content().string(containsString("Policy History")))
-                .andExpect(content().string(containsString("Calendar History")))
-                .andExpect(content().string(containsString("SMTP History")))
-                .andExpect(content().string(containsString("HolidayAPI History")))
-                .andExpect(content().string(containsString("01/08/2026")))
-                .andExpect(content().string(containsString("02/09/2026")))
-                .andExpect(content().string(not(containsString("super-secret"))));
+        TimeZone previousZone = TimeZone.getDefault();
+        TimeZone.setDefault(TimeZone.getTimeZone("UTC"));
+        try {
+            mvc.perform(get("/admin/settings").with(user("admin@example.test").roles("ADMIN")))
+                    .andExpect(status().isOk())
+                    .andExpect(content().string(containsString("Policy History")))
+                    .andExpect(content().string(containsString("Calendar History")))
+                    .andExpect(content().string(containsString("SMTP History")))
+                    .andExpect(content().string(containsString("HolidayAPI History")))
+                    .andExpect(content().string(containsString("01/08/2026")))
+                    .andExpect(content().string(containsString("02/09/2026")))
+                    .andExpect(content().string(containsString("21/08/2026 07:00")))
+                    .andExpect(content().string(not(containsString("super-secret"))));
+        } finally {
+            TimeZone.setDefault(previousZone);
+        }
 
         when(currentUsers.actor(org.mockito.ArgumentMatchers.any()))
                 .thenReturn(new AttendanceActor(2L, AttendanceRole.MENTOR));
@@ -177,6 +186,42 @@ class AdminSettingsControllerWebTest {
                 .andExpect(status().is3xxRedirection());
 
         verifyNoInteractions(policies, calendar);
+    }
+
+    @Test
+    void malformedPolicyValuesRetainRawSafeInputInsteadOfReturningBadRequest() throws Exception {
+        when(currentUsers.actor(org.mockito.ArgumentMatchers.any())).thenReturn(adminActor());
+
+        mvc.perform(post("/admin/settings/policy")
+                        .with(user("admin@example.test").roles("ADMIN"))
+                        .with(csrf())
+                        .param("effectiveFrom", "not-a-date")
+                        .param("zoneId", "Asia/Ho_Chi_Minh")
+                        .param("scheduledStart", "not-a-time")
+                        .param("scheduledEnd", "17:00")
+                        .param("checkInGraceMinutes", "many")
+                        .param("checkoutGraceMinutes", "15")
+                        .param("monthlyLeaveQuota", "2")
+                        .param("violationPenalty", "not-a-decimal")
+                        .param("workdays", "MONDAY"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/admin/settings#policy-history"))
+                .andExpect(flash().attribute("settingsError", "Enter valid attendance policy values."))
+                .andExpect(flash().attribute("policyInput", org.hamcrest.Matchers.hasEntry(
+                        "effectiveFrom", "not-a-date")))
+                .andExpect(flash().attribute("policyInput", org.hamcrest.Matchers.hasEntry(
+                        "checkInGraceMinutes", "many")));
+    }
+
+    @Test
+    void malformedCalendarYearReturnsSafeValidationRedirect() throws Exception {
+        mvc.perform(post("/admin/settings/calendar/preview")
+                        .with(user("admin@example.test").roles("ADMIN"))
+                        .with(csrf())
+                        .param("year", "not-a-year"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/admin/settings#calendar-history"))
+                .andExpect(flash().attribute("settingsError", "Enter a valid calendar year."));
     }
 
     @Test

@@ -1,6 +1,8 @@
 package com.lab.labtimesheet.feature.project.service;
 
+import com.lab.labtimesheet.feature.account.model.GlobalRole;
 import com.lab.labtimesheet.feature.account.model.dto.AccountIdentity;
+import com.lab.labtimesheet.feature.account.model.dto.InternshipLifecycleGuard;
 import com.lab.labtimesheet.feature.account.service.AccountService;
 import com.lab.labtimesheet.feature.project.exception.ProjectAccessDeniedException;
 import com.lab.labtimesheet.feature.project.model.ProjectStatus;
@@ -428,6 +430,46 @@ public class ProjectQueryService {
                         .count()
                 : 0L;
         return new ProjectDashboardSummary(activeProjects.size(), distinctActiveMembers);
+    }
+
+    /**
+     * Previews the Project and Task readiness facts for an Admin-managed Intern terminal action.
+     *
+     * <p>This read snapshot drives explanatory UI only. {@link ProjectService} recomputes the same facts while
+     * retaining Account/profile and Project locks before completing or withdrawing the Intern.</p>
+     *
+     * @param adminUserId active Admin requesting the preview
+     * @param internUserId Intern account being inspected
+     * @return current-Leader and unfinished-Task facts across current Project memberships
+     * @throws ProjectAccessDeniedException when the actor or target shape is unavailable
+     */
+    @Transactional(readOnly = true)
+    public InternshipLifecycleGuard internshipLifecycleGuard(long adminUserId, long internUserId) {
+        if (activeActor(adminUserId).role() != GlobalRole.ADMIN) {
+            throw new ProjectAccessDeniedException();
+        }
+        AccountIdentity intern;
+        try {
+            intern = accounts.requireIdentityById(internUserId);
+        } catch (IllegalArgumentException failure) {
+            throw new ProjectAccessDeniedException();
+        }
+        if (intern.role() != GlobalRole.INTERN) {
+            throw new ProjectAccessDeniedException();
+        }
+        var currentMemberships = projects.findMembershipIntervalsByInternUserId(internUserId).stream()
+                .filter(interval -> interval.leftAt() == null)
+                .toList();
+        boolean currentLeader = currentMemberships.stream().anyMatch(interval -> {
+            var route = projects.findMutationRouteById(interval.projectId())
+                    .orElseThrow(ProjectAccessDeniedException::new);
+            return route.currentLeaderUserId() != null && route.currentLeaderUserId() == internUserId;
+        });
+        long unfinishedTaskCount = currentMemberships.stream()
+                .mapToLong(interval -> taskTransfers.unfinishedCount(
+                        interval.projectId(), interval.membershipId()))
+                .sum();
+        return new InternshipLifecycleGuard(currentLeader, unfinishedTaskCount);
     }
 
     private ProjectEntity visibleProject(long actorUserId, long projectId) {

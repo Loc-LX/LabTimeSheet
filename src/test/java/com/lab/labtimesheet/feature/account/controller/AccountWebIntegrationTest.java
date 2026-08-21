@@ -131,6 +131,8 @@ class AccountWebIntegrationTest {
 
         mockMvc.perform(get("/admin/accounts/new").session((org.springframework.mock.web.MockHttpSession) session))
                 .andExpect(status().isForbidden());
+        mockMvc.perform(get("/admin/accounts").session((org.springframework.mock.web.MockHttpSession) session))
+                .andExpect(status().isForbidden());
         mockMvc.perform(post("/logout")
                         .session((org.springframework.mock.web.MockHttpSession) session)
                         .with(csrf()))
@@ -235,6 +237,38 @@ class AccountWebIntegrationTest {
                 .andExpect(authenticated().withRoles("ADMIN"));
         assertThat(accounts.requireIdentityByEmail("admin@example.com").status()).isEqualTo(AccountStatus.ACTIVE);
         assertThat(accounts.requireIdentityByEmail("admin@example.com").role()).isEqualTo(GlobalRole.ADMIN);
+    }
+
+    @Test
+    void adminListsAndOpensInternLifecycleAdministrationWithoutDisclosingGuessedIds() throws Exception {
+        long adminId = accounts.requireActiveAdminId("admin@example.com");
+        var creation = accounts.create(new com.lab.labtimesheet.feature.account.model.dto.CreateAccountCommand(
+                "managed-intern@example.com",
+                "Managed Intern",
+                GlobalRole.INTERN,
+                "STU-MANAGED",
+                java.time.LocalDate.of(2026, 8, 1),
+                java.time.LocalDate.of(2026, 12, 31)), adminId);
+        assertThat(accounts.activate(
+                mail.activationTokenFor("managed-intern@example.com"),
+                "managed intern password")).isTrue();
+        accounts.activateInternship(creation.userId(), adminId);
+
+        mockMvc.perform(get("/admin/accounts").with(user("admin@example.com").roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("managed-intern@example.com")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("STU-MANAGED")));
+        mockMvc.perform(get("/admin/accounts/{id}", creation.userId())
+                        .with(user("admin@example.com").roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Ready for terminal action")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Complete internship")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Withdraw internship")));
+        mockMvc.perform(get("/admin/accounts/{id}", Long.MAX_VALUE)
+                        .with(user("admin@example.com").roles("ADMIN")))
+                .andExpect(status().isNotFound())
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("Account not found"))));
     }
 
     @TestConfiguration(proxyBeanMethods = false)

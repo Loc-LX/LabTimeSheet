@@ -42,6 +42,7 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TimeZone;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -133,17 +134,23 @@ class Iteration2ProjectWorkflowWebTest {
                 new EligibleInternOption(23L, "Invitee", "SV-023",
                         LocalDate.of(2026, 1, 1), LocalDate.of(2026, 12, 31))));
 
-        mvc.perform(get("/projects/30/workflows").with(user("leader@example.test").roles("INTERN")))
-                .andExpect(status().isOk())
-                .andExpect(content().string(containsString("Exit readiness")))
-                .andExpect(content().string(containsString("2 unfinished Tasks remain")))
-                .andExpect(content().string(containsString("Transfer unfinished Tasks")))
-                .andExpect(content().string(containsString("Invite an Intern")))
-                .andExpect(content().string(containsString("Project History")))
-                .andExpect(content().string(containsString("20/08/2026")))
-                .andExpect(content().string(containsString("Completed Task")))
-                .andExpect(content().string(containsString("Retained comment")))
-                .andExpect(content().string(containsString("Retained work")));
+        TimeZone previousZone = TimeZone.getDefault();
+        TimeZone.setDefault(TimeZone.getTimeZone("UTC"));
+        try {
+            mvc.perform(get("/projects/30/workflows").with(user("leader@example.test").roles("INTERN")))
+                    .andExpect(status().isOk())
+                    .andExpect(content().string(containsString("Exit readiness")))
+                    .andExpect(content().string(containsString("2 unfinished Tasks remain")))
+                    .andExpect(content().string(containsString("Transfer unfinished Tasks")))
+                    .andExpect(content().string(containsString("Invite an Intern")))
+                    .andExpect(content().string(containsString("Project History")))
+                    .andExpect(content().string(containsString("20/08/2026 07:00")))
+                    .andExpect(content().string(containsString("Completed Task")))
+                    .andExpect(content().string(containsString("Retained comment")))
+                    .andExpect(content().string(containsString("Retained work")));
+        } finally {
+            TimeZone.setDefault(previousZone);
+        }
 
         mvc.perform(post("/projects/30/exits/70/transfer")
                         .with(user("leader@example.test").roles("INTERN"))

@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.flash;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrlPattern;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -44,6 +45,7 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TimeZone;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -163,6 +165,59 @@ class AttendanceRequestControllerWebTest {
     }
 
     @Test
+    void malformedLeaveDatesRetainRawSafeInputInsteadOfReturningBadRequest() throws Exception {
+        when(currentUsers.actor(org.mockito.ArgumentMatchers.any()))
+                .thenReturn(new AttendanceActor(7L, AttendanceRole.INTERN));
+
+        mvc.perform(post("/attendance/leave")
+                        .with(user("intern@example.test").roles("INTERN")).with(csrf())
+                        .param("startDate", "not-a-date")
+                        .param("endDate", "2026-09-02")
+                        .param("reason", "Retained reason"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/attendance/requests"))
+                .andExpect(flash().attribute("requestError", "Enter valid leave dates."))
+                .andExpect(flash().attribute("leaveInput", Map.of(
+                        "startDate", "not-a-date",
+                        "endDate", "2026-09-02",
+                        "reason", "Retained reason")));
+    }
+
+    @Test
+    void malformedCorrectionFieldsRetainRawSafeInputInsteadOfReturningBadRequest() throws Exception {
+        when(currentUsers.actor(org.mockito.ArgumentMatchers.any()))
+                .thenReturn(new AttendanceActor(7L, AttendanceRole.INTERN));
+
+        mvc.perform(post("/attendance/corrections")
+                        .with(user("intern@example.test").roles("INTERN")).with(csrf())
+                        .param("attendanceRecordId", "not-an-id")
+                        .param("proposedCheckout", "not-a-date-time")
+                        .param("reason", "Retained reason"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/attendance/requests"))
+                .andExpect(flash().attribute(
+                        "requestError", "Enter a valid attendance record and proposed checkout."))
+                .andExpect(flash().attribute("correctionInput", Map.of(
+                        "attendanceRecordId", "not-an-id",
+                        "proposedCheckout", "not-a-date-time",
+                        "reason", "Retained reason")));
+    }
+
+    @Test
+    void malformedCorrectionDecisionRetainsRawSafeInputInsteadOfReturningBadRequest() throws Exception {
+        mvc.perform(post("/attendance/corrections/11/decide")
+                        .with(user("mentor@example.test").roles("MENTOR")).with(csrf())
+                        .param("decision", "NOT_A_DECISION")
+                        .param("note", "Retained note"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/attendance/corrections/11"))
+                .andExpect(flash().attribute("requestError", "Choose a valid correction decision."))
+                .andExpect(flash().attribute("correctionDecisionInput", Map.of(
+                        "decision", "NOT_A_DECISION",
+                        "note", "Retained note")));
+    }
+
+    @Test
     void retainedLeaveAllocationsAndCorrectionEventsRenderWithoutExposingRawMutationState() throws Exception {
         AttendanceActor intern = new AttendanceActor(7L, AttendanceRole.INTERN);
         when(currentUsers.actor(org.mockito.ArgumentMatchers.any())).thenReturn(intern);
@@ -213,5 +268,45 @@ class AttendanceRequestControllerWebTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Reopen")))
                 .andExpect(content().string(org.hamcrest.Matchers.not(containsString("value=\"APPROVE\""))));
+    }
+
+    @Test
+    void correctionInstantsRenderInTheAttachedHistoricalPolicyZone() throws Exception {
+        TimeZone previousZone = TimeZone.getDefault();
+        TimeZone.setDefault(TimeZone.getTimeZone("UTC"));
+        try {
+            AttendanceActor mentor = new AttendanceActor(2L, AttendanceRole.MENTOR);
+            when(currentUsers.actor(org.mockito.ArgumentMatchers.any())).thenReturn(mentor);
+            when(leave.list(mentor)).thenReturn(List.of());
+            when(corrections.list(mentor)).thenReturn(List.of());
+            AttendancePolicy policy = new AttendancePolicy(
+                    1L, LocalDate.of(2026, 1, 1), ZoneId.of("Asia/Ho_Chi_Minh"),
+                    LocalTime.of(8, 0), LocalTime.of(17, 0), 15, 15, 3,
+                    BigDecimal.valueOf(0.1), Set.of(DayOfWeek.MONDAY));
+            when(corrections.view(mentor, 11L)).thenReturn(new CorrectionView(
+                    11L, 55L, 7L,
+                    Instant.parse("2026-08-20T18:00:00Z"),
+                    LocalDateTime.of(2026, 8, 21, 1, 15),
+                    Instant.parse("2026-08-20T18:30:00Z"),
+                    "Missed", CorrectionStatus.APPROVED,
+                    Instant.parse("2026-08-20T17:00:00Z"),
+                    Instant.parse("2026-08-21T17:00:00Z"),
+                    Instant.parse("2026-08-21T17:00:00Z"), null, policy,
+                    new AttendanceViolations(false, false, false),
+                    List.of(new CorrectionEventView(
+                            1L, CorrectionEventType.APPROVED, CorrectionStatus.PENDING,
+                            CorrectionStatus.APPROVED, 2L, "Approved",
+                            Instant.parse("2026-08-20T19:00:00Z")))));
+
+            mvc.perform(get("/attendance/corrections/11")
+                            .with(user("mentor@example.test").roles("MENTOR")))
+                    .andExpect(status().isOk())
+                    .andExpect(content().string(containsString("21/08/2026 01:00")))
+                    .andExpect(content().string(containsString("21/08/2026 01:30")))
+                    .andExpect(content().string(containsString("21/08/2026 02:00")))
+                    .andExpect(content().string(containsString("Asia/Ho_Chi_Minh")));
+        } finally {
+            TimeZone.setDefault(previousZone);
+        }
     }
 }

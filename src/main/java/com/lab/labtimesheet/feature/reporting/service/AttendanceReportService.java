@@ -118,7 +118,10 @@ public class AttendanceReportService {
         String checkIn = day.checkInAt() == null
                 ? "N/A"
                 : TIME.format(day.checkInAt().atZone(day.policyZoneId()));
-        String checkOut = day.effectiveCheckoutAt() == null
+        String rawCheckout = day.rawCheckoutAt() == null
+                ? "N/A"
+                : TIME.format(day.rawCheckoutAt().atZone(day.policyZoneId()));
+        String effectiveCheckout = day.effectiveCheckoutAt() == null
                 ? "N/A"
                 : TIME.format(day.effectiveCheckoutAt().atZone(day.policyZoneId()));
         String worked = day.checkInAt() == null || day.effectiveCheckoutAt() == null
@@ -130,7 +133,8 @@ public class AttendanceReportService {
         return new AttendanceReportRow(
                 DATE.format(day.workDate()),
                 checkIn,
-                checkOut,
+                rawCheckout,
+                effectiveCheckout,
                 TIME.format(day.scheduledStart()) + "–" + TIME.format(day.scheduledEnd())
                         + " (" + day.policyZoneId() + ")",
                 result(day),

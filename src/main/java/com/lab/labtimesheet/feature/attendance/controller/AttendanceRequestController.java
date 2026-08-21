@@ -13,10 +13,10 @@ import com.lab.labtimesheet.feature.attendance.service.LeaveApplicationService;
 import java.security.Principal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeParseException;
 import java.util.Map;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
-import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -75,19 +75,23 @@ public class AttendanceRequestController {
     @PostMapping("/leave")
     public String submitLeave(
             Principal principal,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam String startDate,
+            @RequestParam String endDate,
             @RequestParam String reason,
             RedirectAttributes redirectAttributes) {
         AttendanceActor actor = currentUsers.actor(principal);
         try {
-            long id = leave.submit(actor, new LeaveRequestCommand(startDate, endDate, reason)).id();
+            long id = leave.submit(actor, new LeaveRequestCommand(
+                            requiredDate(startDate, "Enter valid leave dates."),
+                            requiredDate(endDate, "Enter valid leave dates."),
+                            reason))
+                    .id();
             return "redirect:/attendance/leave/" + id;
         } catch (LeaveException | IllegalArgumentException failure) {
             redirectAttributes.addFlashAttribute("requestError", failure.getMessage());
             redirectAttributes.addFlashAttribute("leaveInput", Map.of(
-                    "startDate", startDate.toString(),
-                    "endDate", endDate.toString(),
+                    "startDate", startDate,
+                    "endDate", endDate,
                     "reason", reason));
             return "redirect:/attendance/requests";
         }
@@ -98,18 +102,21 @@ public class AttendanceRequestController {
     public String editLeave(
             Principal principal,
             @PathVariable long requestId,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam String startDate,
+            @RequestParam String endDate,
             @RequestParam String reason,
             RedirectAttributes redirectAttributes) {
         try {
-            leave.edit(currentUsers.actor(principal), requestId, new LeaveRequestCommand(startDate, endDate, reason));
+            leave.edit(currentUsers.actor(principal), requestId, new LeaveRequestCommand(
+                    requiredDate(startDate, "Enter valid leave dates."),
+                    requiredDate(endDate, "Enter valid leave dates."),
+                    reason));
             redirectAttributes.addFlashAttribute("message", "Leave request updated");
         } catch (LeaveException | IllegalArgumentException failure) {
             redirectAttributes.addFlashAttribute("requestError", failure.getMessage());
             redirectAttributes.addFlashAttribute("leaveEditInput", Map.of(
-                    "startDate", startDate.toString(),
-                    "endDate", endDate.toString(),
+                    "startDate", startDate,
+                    "endDate", endDate,
                     "reason", reason));
         }
         return "redirect:/attendance/leave/" + requestId;
@@ -158,21 +165,30 @@ public class AttendanceRequestController {
     @PostMapping("/corrections")
     public String submitCorrection(
             Principal principal,
-            @RequestParam long attendanceRecordId,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime proposedCheckout,
+            @RequestParam String attendanceRecordId,
+            @RequestParam String proposedCheckout,
             @RequestParam String reason,
             RedirectAttributes redirectAttributes) {
         AttendanceActor actor = currentUsers.actor(principal);
         try {
             long id = corrections
-                    .submit(actor, attendanceRecordId, new CorrectionRequestCommand(proposedCheckout, reason))
+                    .submit(
+                            actor,
+                            requiredLong(
+                                    attendanceRecordId,
+                                    "Enter a valid attendance record and proposed checkout."),
+                            new CorrectionRequestCommand(
+                                    requiredDateTime(
+                                            proposedCheckout,
+                                            "Enter a valid attendance record and proposed checkout."),
+                                    reason))
                     .id();
             return "redirect:/attendance/corrections/" + id;
         } catch (CorrectionException | IllegalArgumentException failure) {
             redirectAttributes.addFlashAttribute("requestError", failure.getMessage());
             redirectAttributes.addFlashAttribute("correctionInput", Map.of(
                     "attendanceRecordId", attendanceRecordId,
-                    "proposedCheckout", proposedCheckout.toString(),
+                    "proposedCheckout", proposedCheckout,
                     "reason", reason));
             return "redirect:/attendance/requests";
         }
@@ -183,16 +199,20 @@ public class AttendanceRequestController {
     public String decideCorrection(
             Principal principal,
             @PathVariable long correctionId,
-            @RequestParam CorrectionDecision decision,
+            @RequestParam String decision,
             @RequestParam(required = false) String note,
             RedirectAttributes redirectAttributes) {
         try {
-            corrections.decide(currentUsers.actor(principal), correctionId, decision, note);
+            corrections.decide(
+                    currentUsers.actor(principal),
+                    correctionId,
+                    requiredDecision(decision),
+                    note);
             redirectAttributes.addFlashAttribute("message", "Correction decision saved");
         } catch (CorrectionException | IllegalArgumentException failure) {
             redirectAttributes.addFlashAttribute("requestError", failure.getMessage());
             redirectAttributes.addFlashAttribute("correctionDecisionInput", Map.of(
-                    "decision", decision.name(),
+                    "decision", decision,
                     "note", note == null ? "" : note));
         }
         return "redirect:/attendance/corrections/" + correctionId;
@@ -204,5 +224,37 @@ public class AttendanceRequestController {
         model.addAttribute("mentor", actor.role() == AttendanceRole.MENTOR);
         model.addAttribute("leaveRequests", leave.list(actor));
         model.addAttribute("correctionRequests", corrections.list(actor));
+    }
+
+    private static LocalDate requiredDate(String value, String errorMessage) {
+        try {
+            return LocalDate.parse(value.strip());
+        } catch (DateTimeParseException failure) {
+            throw new IllegalArgumentException(errorMessage, failure);
+        }
+    }
+
+    private static LocalDateTime requiredDateTime(String value, String errorMessage) {
+        try {
+            return LocalDateTime.parse(value.strip());
+        } catch (DateTimeParseException failure) {
+            throw new IllegalArgumentException(errorMessage, failure);
+        }
+    }
+
+    private static long requiredLong(String value, String errorMessage) {
+        try {
+            return Long.parseLong(value.strip());
+        } catch (NumberFormatException failure) {
+            throw new IllegalArgumentException(errorMessage, failure);
+        }
+    }
+
+    private static CorrectionDecision requiredDecision(String value) {
+        try {
+            return CorrectionDecision.valueOf(value.strip());
+        } catch (IllegalArgumentException failure) {
+            throw new IllegalArgumentException("Choose a valid correction decision.", failure);
+        }
     }
 }

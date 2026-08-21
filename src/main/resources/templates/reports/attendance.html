@@ -46,12 +46,13 @@
         <div class="table-scroll">
             <table class="data-table">
                 <caption class="sr-only" th:text="|Attendance detail for ${report.targetName}|">Attendance detail</caption>
-                <thead><tr><th scope="col">Work date</th><th scope="col">Check in</th><th scope="col">Check out</th><th scope="col">Schedule</th><th scope="col">Result</th><th scope="col">Elapsed</th></tr></thead>
+                <thead><tr><th scope="col">Work date</th><th scope="col">Check in</th><th scope="col">Raw checkout</th><th scope="col">Effective checkout</th><th scope="col">Schedule</th><th scope="col">Result</th><th scope="col">Elapsed</th></tr></thead>
                 <tbody>
                 <tr th:each="row : ${report.rows}">
                     <th scope="row" th:text="${row.workDate}">14/08/2026</th>
                     <td th:text="${row.checkIn}">09:05</td>
-                    <td th:text="${row.checkOut}">16:00</td>
+                    <td th:text="${row.rawCheckout}">16:00</td>
+                    <td th:text="${row.effectiveCheckout}">16:00</td>
                     <td th:text="${row.schedule}">08:30–15:30 (Asia/Ho_Chi_Minh)</td>
                     <td><span class="badge" th:classappend="${row.compliant ? ' badge-success' : ' badge-warning'}" th:text="${row.result}">On time</span></td>
                     <td th:text="${row.workedMinutes}">415 min</td>

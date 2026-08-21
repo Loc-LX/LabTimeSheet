@@ -13,6 +13,7 @@ import jakarta.validation.Valid;
 import java.util.Arrays;
 import java.util.Locale;
 import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
@@ -24,7 +25,6 @@ import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 /**
@@ -111,16 +111,22 @@ public class TaskController {
             @PathVariable long taskId,
             @RequestParam String title,
             @RequestParam(required = false) String description,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dueDate,
+            @RequestParam(required = false) String dueDate,
             RedirectAttributes redirectAttributes) {
         try {
-            taskService.edit(authentication.getName(), projectId, taskId, title, description, dueDate);
+            taskService.edit(
+                    authentication.getName(),
+                    projectId,
+                    taskId,
+                    title,
+                    description,
+                    optionalDate(dueDate, "Enter a valid due date."));
         } catch (TaskValidationException exception) {
             redirectAttributes.addFlashAttribute("taskError", exception.getMessage());
             redirectAttributes.addFlashAttribute("taskEditInput", Map.of(
                     "title", title,
                     "description", description == null ? "" : description,
-                    "dueDate", dueDate == null ? "" : dueDate.toString()));
+                    "dueDate", dueDate == null ? "" : dueDate));
         }
         return detailsRedirect(projectId, taskId);
     }
@@ -145,10 +151,14 @@ public class TaskController {
             Authentication authentication,
             @PathVariable long projectId,
             @PathVariable long taskId,
-            @RequestParam long assigneeMembershipId,
+            @RequestParam String assigneeMembershipId,
             RedirectAttributes redirectAttributes) {
         try {
-            taskService.reassign(authentication.getName(), projectId, taskId, assigneeMembershipId);
+            taskService.reassign(
+                    authentication.getName(),
+                    projectId,
+                    taskId,
+                    requiredLong(assigneeMembershipId, "Choose a valid assignee."));
         } catch (TaskValidationException exception) {
             redirectAttributes.addFlashAttribute("taskError", exception.getMessage());
             redirectAttributes.addFlashAttribute("taskReassignInput", Map.of(
@@ -162,16 +172,22 @@ public class TaskController {
             Authentication authentication,
             @PathVariable long projectId,
             @PathVariable long taskId,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate workDate,
-            @RequestParam int minutes,
+            @RequestParam String workDate,
+            @RequestParam String minutes,
             @RequestParam(required = false) String note,
             RedirectAttributes redirectAttributes) {
         try {
-            taskService.addWorkLog(authentication.getName(), projectId, taskId, workDate, minutes, note);
+            taskService.addWorkLog(
+                    authentication.getName(),
+                    projectId,
+                    taskId,
+                    requiredDate(workDate, "Enter a valid work date and minutes."),
+                    requiredInt(minutes, "Enter a valid work date and minutes."),
+                    note);
         } catch (TaskValidationException exception) {
             redirectAttributes.addFlashAttribute("taskError", exception.getMessage());
             redirectAttributes.addFlashAttribute("taskWorkLogInput", Map.of(
-                    "workDate", workDate.toString(),
+                    "workDate", workDate,
                     "minutes", minutes,
                     "note", note == null ? "" : note));
         }
@@ -184,11 +200,16 @@ public class TaskController {
             @PathVariable long projectId,
             @PathVariable long taskId,
             @PathVariable long workLogId,
-            @RequestParam int minutes,
+            @RequestParam String minutes,
             @RequestParam(required = false) String note,
             RedirectAttributes redirectAttributes) {
         try {
-            taskService.correctWorkLog(authentication.getName(), projectId, workLogId, minutes, note);
+            taskService.correctWorkLog(
+                    authentication.getName(),
+                    projectId,
+                    workLogId,
+                    requiredInt(minutes, "Enter valid corrected minutes."),
+                    note);
         } catch (TaskValidationException exception) {
             redirectAttributes.addFlashAttribute("taskError", exception.getMessage());
             redirectAttributes.addFlashAttribute("taskWorkLogCorrectionInput", Map.of(
@@ -204,13 +225,17 @@ public class TaskController {
             Authentication authentication,
             @PathVariable long projectId,
             @PathVariable long taskId,
-            @RequestParam TaskStatus status,
+            @RequestParam String status,
             RedirectAttributes redirectAttributes) {
         try {
-            taskService.changeStatus(authentication.getName(), projectId, taskId, status);
+            taskService.changeStatus(
+                    authentication.getName(),
+                    projectId,
+                    taskId,
+                    requiredStatus(status));
         } catch (TaskValidationException exception) {
             redirectAttributes.addFlashAttribute("taskError", exception.getMessage());
-            redirectAttributes.addFlashAttribute("taskStatusInput", Map.of("status", status.name()));
+            redirectAttributes.addFlashAttribute("taskStatusInput", Map.of("status", status));
         }
         return detailsRedirect(projectId, taskId);
     }
@@ -238,6 +263,42 @@ public class TaskController {
 
     private static String detailsRedirect(long projectId, long taskId) {
         return "redirect:/projects/%d/tasks/%d".formatted(projectId, taskId);
+    }
+
+    private static LocalDate optionalDate(String value, String errorMessage) {
+        return value == null || value.isBlank() ? null : requiredDate(value, errorMessage);
+    }
+
+    private static LocalDate requiredDate(String value, String errorMessage) {
+        try {
+            return LocalDate.parse(value.strip());
+        } catch (DateTimeParseException exception) {
+            throw new TaskValidationException(errorMessage);
+        }
+    }
+
+    private static int requiredInt(String value, String errorMessage) {
+        try {
+            return Integer.parseInt(value.strip());
+        } catch (NumberFormatException exception) {
+            throw new TaskValidationException(errorMessage);
+        }
+    }
+
+    private static long requiredLong(String value, String errorMessage) {
+        try {
+            return Long.parseLong(value.strip());
+        } catch (NumberFormatException exception) {
+            throw new TaskValidationException(errorMessage);
+        }
+    }
+
+    private static TaskStatus requiredStatus(String value) {
+        try {
+            return TaskStatus.valueOf(value.strip());
+        } catch (IllegalArgumentException exception) {
+            throw new TaskValidationException("Choose a valid Task status.");
+        }
     }
 
     private static String progressLabel(TaskProgress progress) {

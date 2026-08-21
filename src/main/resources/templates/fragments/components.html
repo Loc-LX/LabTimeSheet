@@ -37,7 +37,7 @@
                 <a th:if="${item.actionUrl != null}" th:href="${item.actionUrl}" th:text="${item.title}">Notification</a>
                 <span th:unless="${item.actionUrl != null}" th:text="${item.title}">Notification</span>
                 <p th:text="${item.body}">Notification details</p>
-                <time th:datetime="${item.createdAt}" th:text="${#temporals.format(item.createdAt, 'dd/MM/yyyy HH:mm')}">21/08/2026 00:00</time>
+                <time th:datetime="${item.createdAt}" th:text="${#temporals.format(item.createdAt.atZone(T(java.time.ZoneId).of('Asia/Ho_Chi_Minh')), 'dd/MM/yyyy HH:mm')}">21/08/2026 00:00</time>
             </div>
             <form th:if="${!item.read}" method="post"
                   th:action="@{/notifications/{notificationId}/read(notificationId=${item.id})}">

@@ -3,26 +3,26 @@
 - **Test type:** Web
 - **Requirement IDs:** `I2-UI-03`, `RPT-001`, `RPT-002`, `RPT-003`, `RPT-004`
 - **Scenario IDs:** `AC-ATT-006`, `AC-ATT-007`, `AC-RPT-001`, `AC-RPT-002`, `AC-UI-004`
-- **Test class/method:** `AttendanceReportControllerWebTest#rendersAttendanceReportForAnAuthenticatedIntern`, `#exposesFiltersSummaryNaaAndEquivalentTrendDataInTheRenderedDataset`
+- **Test class/method:** `AttendanceReportServiceTest#preservesDistinctRawAndEffectiveCheckoutDisplays`, `AttendanceReportControllerWebTest#rendersAttendanceReportForAnAuthenticatedIntern`, `#exposesFiltersSummaryNaaAndEquivalentTrendDataInTheRenderedDataset`
 - **Implementation commit:** `pending local independent review`
 
 ## Protected behavior
 
-An authenticated actor can render the authorized Attendance-owned report with inclusive date filters, exact expected,
-present, absent, attendance-rate, and compliance-rate summaries, explicit `N/A`, and an adjacent accessible trend
-table carrying the same values used by optional Chart.js enhancement.
+An authenticated actor can render the authorized Attendance-owned report with inclusive date filters, separate raw
+and effective checkout truth, exact expected/present/absent and rate summaries, explicit `N/A`, and an adjacent
+accessible trend table carrying the same values used by optional Chart.js enhancement.
 
 ## Test method
 
-The MVC slice supplies a producer-shaped `AttendanceReportView`, invokes the real controller and Thymeleaf template,
-and verifies the date filters, summary metrics, classification rows, `N/A`, accessible chart label, and equivalent
-trend data. The controller delegates scope and dataset construction to `AttendanceReportService`.
+The service test supplies a producer day whose persisted raw checkout and correction-effective checkout differ and
+asserts each independent policy-zone display. The MVC slice then invokes the real controller and Thymeleaf template
+and verifies both checkout columns, date filters, summary metrics, `N/A`, chart label, and equivalent trend data.
 
 ## Hand-derived expected result
 
-The selected inclusive range remains `2026-08-01` through `2026-08-31`; the rendered dataset exposes the supplied
-expected/present/absent counts and rates unchanged, and the accessible table remains present if canvas or JavaScript
-is unavailable.
+The selected inclusive range remains `2026-08-01` through `2026-08-31`. A raw `08:00Z` and effective `09:00Z` in
+Asia/Ho_Chi_Minh render independently as `15:00` and `16:00`; a missing raw value stays `N/A` even when an approved
+effective value exists. The accessible table remains present if canvas or JavaScript is unavailable.
 
 ## RED
 
@@ -37,6 +37,9 @@ env JAVA_HOME=/opt/homebrew/opt/openjdk@25 PATH=/opt/homebrew/opt/openjdk@25/bin
 ```text
 Test compilation failed because the merged producer introduced the richer expected/present/absent and dual-rate
 contract while the Reporting view/template still used recorded/compliant/violation totals.
+
+The final-review regression then failed compilation because `AttendanceReportRow` had no `rawCheckout()` or
+`effectiveCheckout()` components; Reporting collapsed both producer Instants into one checkout column.
 ```
 
 ## GREEN
@@ -50,7 +53,8 @@ env JAVA_HOME=/opt/homebrew/opt/openjdk@25 PATH=/opt/homebrew/opt/openjdk@25/bin
 **Observed result**
 
 ```text
-Java 25.0.4; Tests run: 5, Failures: 0, Errors: 0, Skipped: 0; BUILD SUCCESS.
+Java 25.0.4; Tests run: 6, Failures: 0, Errors: 0, Skipped: 0; BUILD SUCCESS. The rendered table contains distinct
+`Raw checkout` and `Effective checkout` columns with independent `N/A` handling.
 ```
 
 ## Affected suite
@@ -58,8 +62,7 @@ Java 25.0.4; Tests run: 5, Failures: 0, Errors: 0, Skipped: 0; BUILD SUCCESS.
 **Command and result**
 
 ```text
-All 19 `@WebMvcTest` slices were selected explicitly with Java 25.0.4.
-Tests run: 100, Failures: 0, Errors: 0, Skipped: 0; BUILD SUCCESS.
+The complete Java 25/PostgreSQL 18.4 candidate suite passed 441/441 in 04:45. Node UI contracts passed 7/7.
 ```
 
 ## External-test boundaries

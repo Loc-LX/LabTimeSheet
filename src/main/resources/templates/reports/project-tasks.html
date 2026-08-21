@@ -92,7 +92,7 @@
                     <td><span class="badge" th:classappend="${row.status.name() == 'DONE' ? ' badge-success' : row.status.name() == 'BLOCKED' ? ' badge-warning' : ''}" th:attr="aria-label=${'Status: ' + row.status}" th:text="${row.status}">TODO</span></td>
                     <td th:text="${row.dueDate == null ? 'N/A' : #temporals.format(row.dueDate, 'dd/MM/yyyy')}">N/A</td>
                     <td th:text="${row.loggedMinutes}">0</td>
-                    <td th:text="${#temporals.format(row.createdAt, 'dd/MM/yyyy HH:mm')}">Created</td>
+                    <td th:text="${#temporals.format(row.createdAt.atZone(T(java.time.ZoneId).of('Asia/Ho_Chi_Minh')), 'dd/MM/yyyy HH:mm')}">Created</td>
                     <td th:text="|Created by membership ${row.creatorMembershipId}; assigned by membership ${row.assignerMembershipId}|">Attribution</td>
                 </tr>
                 </tbody>

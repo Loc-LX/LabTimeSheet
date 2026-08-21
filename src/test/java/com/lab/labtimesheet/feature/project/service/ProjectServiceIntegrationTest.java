@@ -290,6 +290,69 @@ class ProjectServiceIntegrationTest {
     }
 
     @Test
+    void adminTerminalReadinessComposesCurrentLeadershipAndUnfinishedTasksBeforeCompletion() {
+        long adminId = user("admin-terminal@example.test", "ADMIN");
+        long mentorId = user("mentor-terminal@example.test", "MENTOR");
+        long departingId = intern("departing-terminal@example.test", "I023");
+        long replacementId = intern("replacement-terminal@example.test", "I024");
+        long projectId = createProject(mentorId, departingId, "Terminal readiness");
+        projectService.addMember(mentorId, projectId, replacementId);
+        long departingMembershipId = membershipId(projectId, departingId);
+        jdbc.update("""
+                insert into tasks (
+                    project_id, assignee_membership_id, title,
+                    created_by_membership_id, assigned_by_membership_id)
+                values (?, ?, 'Transfer before completion', ?, ?)
+                """, projectId, departingMembershipId, departingMembershipId, departingMembershipId);
+
+        var blocked = projectPages.internshipLifecycleGuard(adminId, departingId);
+        assertTrue(blocked.currentLeader());
+        assertEquals(1, blocked.unfinishedTaskCount());
+
+        projectService.changeLeader(mentorId, projectId, replacementId);
+        var taskBlocked = projectPages.internshipLifecycleGuard(adminId, departingId);
+        assertFalse(taskBlocked.currentLeader());
+        assertEquals(1, taskBlocked.unfinishedTaskCount());
+
+        jdbc.update("update tasks set status = 'DONE', updated_at = ? where project_id = ?",
+                dbTime(NOW.plusSeconds(90)), projectId);
+        entityManager.clear();
+        var ready = projectPages.internshipLifecycleGuard(adminId, departingId);
+        assertFalse(ready.currentLeader());
+        assertEquals(0, ready.unfinishedTaskCount());
+
+        projectService.completeInternship(adminId, departingId);
+        entityManager.flush();
+
+        assertEquals("COMPLETED", text(
+                "select internship_status from intern_profiles where user_id = ?", departingId));
+        assertEquals("ACTIVE", text("select account_status from app_users where id = ?", departingId));
+    }
+
+    @Test
+    void terminalCompletionRecomputesAndRejectsLockedLeaderTaskFacts() {
+        long adminId = user("admin-terminal-blocked@example.test", "ADMIN");
+        long mentorId = user("mentor-terminal-blocked@example.test", "MENTOR");
+        long leaderId = intern("leader-terminal-blocked@example.test", "I025");
+        long projectId = createProject(mentorId, leaderId, "Blocked terminal readiness");
+        long membershipId = membershipId(projectId, leaderId);
+        jdbc.update("""
+                insert into tasks (
+                    project_id, assignee_membership_id, title,
+                    created_by_membership_id, assigned_by_membership_id)
+                values (?, ?, 'Still unfinished', ?, ?)
+                """, projectId, membershipId, membershipId, membershipId);
+
+        var failure = assertThrows(
+                IllegalStateException.class,
+                () -> projectService.completeInternship(adminId, leaderId));
+
+        assertEquals("Intern is still a current Leader", failure.getMessage());
+        assertEquals("ACTIVE", text(
+                "select internship_status from intern_profiles where user_id = ?", leaderId));
+    }
+
+    @Test
     void activationRejectsATaskAssignedToAFormerMemberWithoutPartialMutation() {
         long mentorId = user("mentor-guard@example.test", "MENTOR");
         long leaderId = intern("leader-guard@example.test", "I015");

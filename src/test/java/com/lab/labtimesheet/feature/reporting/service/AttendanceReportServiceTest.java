@@ -98,6 +98,54 @@ class AttendanceReportServiceTest {
     }
 
     @Test
+    void preservesDistinctRawAndEffectiveCheckoutDisplays() {
+        AttendanceActor actor = new AttendanceActor(7L, AttendanceRole.INTERN);
+        given(currentUsers.actor(principal)).willReturn(actor);
+        given(accounts.requireIdentityById(7L))
+                .willReturn(identity(7L, "Mai Intern", GlobalRole.INTERN));
+        given(reportQueries.query(
+                actor,
+                7L,
+                LocalDate.of(2026, 8, 20),
+                LocalDate.of(2026, 8, 20)))
+                .willReturn(new AttendanceReport(
+                        7L,
+                        LocalDate.of(2026, 8, 20),
+                        LocalDate.of(2026, 8, 20),
+                        List.of(new AttendanceReportDay(
+                                LocalDate.of(2026, 8, 20),
+                                AttendanceReportClassification.PRESENT,
+                                1L,
+                                LocalDate.of(2026, 1, 1),
+                                ZoneId.of("Asia/Ho_Chi_Minh"),
+                                LocalTime.of(8, 30),
+                                LocalTime.of(15, 30),
+                                5,
+                                5,
+                                new BigDecimal("0.3333"),
+                                Instant.parse("2026-08-20T01:30:00Z"),
+                                Instant.parse("2026-08-20T08:00:00Z"),
+                                Instant.parse("2026-08-20T09:30:00Z"),
+                                false,
+                                false,
+                                false,
+                                Optional.of(BigDecimal.ONE))),
+                        1,
+                        1,
+                        Optional.of(BigDecimal.ONE),
+                        Optional.of(BigDecimal.ONE)));
+
+        var row = reports.build(
+                principal,
+                null,
+                LocalDate.of(2026, 8, 20),
+                LocalDate.of(2026, 8, 20)).rows().getFirst();
+
+        assertThat(row.rawCheckout()).isEqualTo("15:00");
+        assertThat(row.effectiveCheckout()).isEqualTo("16:30");
+    }
+
+    @Test
     void rejectsInternDetailTargetOutsideOwnAccountBeforeAttendanceRead() {
         given(currentUsers.actor(principal)).willReturn(new AttendanceActor(7L, AttendanceRole.INTERN));
 

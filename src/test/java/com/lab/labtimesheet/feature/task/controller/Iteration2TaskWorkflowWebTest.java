@@ -116,6 +116,31 @@ class Iteration2TaskWorkflowWebTest {
                 .andExpect(content().string(containsString("id=\"task-edit-error\"")));
     }
 
+    @Test
+    void malformedTaskWorkLogRetainsRawSafeInputInsteadOfReturningBadRequest() throws Exception {
+        mvc.perform(post("/projects/10/tasks/25/work-logs").with(user(EMAIL)).with(csrf())
+                        .param("workDate", "not-a-date")
+                        .param("minutes", "many")
+                        .param("note", "Retained note"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/projects/10/tasks/25"))
+                .andExpect(flash().attribute("taskError", "Enter a valid work date and minutes."))
+                .andExpect(flash().attribute("taskWorkLogInput", Map.of(
+                        "workDate", "not-a-date",
+                        "minutes", "many",
+                        "note", "Retained note")));
+    }
+
+    @Test
+    void malformedTaskStatusRetainsRawSafeInputInsteadOfReturningBadRequest() throws Exception {
+        mvc.perform(post("/projects/10/tasks/25/status").with(user(EMAIL)).with(csrf())
+                        .param("status", "NOT_A_STATUS"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/projects/10/tasks/25"))
+                .andExpect(flash().attribute("taskError", "Choose a valid Task status."))
+                .andExpect(flash().attribute("taskStatusInput", Map.of("status", "NOT_A_STATUS")));
+    }
+
     private static TaskView task() {
         Instant now = Instant.parse("2026-08-20T10:00:00Z");
         return new TaskView(25L, 10L, 7L, "Member", "Draft", "Notes", TaskStatus.TODO,

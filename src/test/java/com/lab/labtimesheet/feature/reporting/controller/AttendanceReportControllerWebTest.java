@@ -77,10 +77,10 @@ class AttendanceReportControllerWebTest {
                         true,
                         List.of(
                                 new AttendanceReportRow(
-                                        "14/08/2026", "09:05", "16:00", "08:30–15:30 (Asia/Ho_Chi_Minh)",
+                                        "14/08/2026", "09:05", "15:55", "16:00", "08:30–15:30 (Asia/Ho_Chi_Minh)",
                                         "On time", "415 min", true),
                                 new AttendanceReportRow(
-                                        "13/08/2026", "08:30", "Missing", "08:30–15:30 (Asia/Ho_Chi_Minh)",
+                                        "13/08/2026", "08:30", "N/A", "N/A", "08:30–15:30 (Asia/Ho_Chi_Minh)",
                                         "Late, Missing checkout", "N/A", false)),
                         2,
                         1,
