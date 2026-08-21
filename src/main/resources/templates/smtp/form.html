@@ -82,6 +82,7 @@
       <input type="hidden" name="draftId" th:value="${smtpStatus.draftId}">
       <button class="button button-primary" type="submit">Activate SMTP</button>
     </form>
+    <a class="button" th:href="@{/admin/holiday-api}">Configure HolidayAPI</a>
     <a class="button" th:if="${param.onboarding}" th:href="@{/admin/smtp/defer}">Defer SMTP</a>
   </div>
 </main>

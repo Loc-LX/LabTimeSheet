@@ -5,6 +5,7 @@ import java.util.TimeZone;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 import com.lab.labtimesheet.config.SecurityProperties;
 
@@ -16,6 +17,7 @@ import com.lab.labtimesheet.config.SecurityProperties;
  */
 @SpringBootApplication
 @EnableConfigurationProperties(SecurityProperties.class)
+@EnableScheduling
 public class LabtimesheetApplication {
     private static final String LEGACY_VIETNAM_TIME_ZONE = "Asia/Saigon";
     private static final String BUSINESS_TIME_ZONE = "Asia/Ho_Chi_Minh";

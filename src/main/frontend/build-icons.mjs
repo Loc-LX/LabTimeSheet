@@ -5,7 +5,7 @@ const names = [
   'bell', 'calendar-days', 'check-circle-2', 'chevron-left', 'chevron-right',
   'circle-user-round', 'clock', 'folder-kanban', 'folder-open', 'inbox',
   'layout-dashboard', 'list-check', 'log-out', 'monitor', 'moon', 'panel-left',
-  'settings', 'sun', 'triangle-alert', 'users', 'x'
+  'pencil', 'settings', 'sun', 'triangle-alert', 'users', 'x'
 ];
 const output = resolve('src/main/resources/static/assets/icons.svg');
 const symbols = await Promise.all(names.map(async (name) => {

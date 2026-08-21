@@ -163,6 +163,17 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
             List<Long> projectIds, List<Long> assigneeMembershipIds);
 
     /**
+     * Counts non-deleted Tasks assigned through the supplied membership identifiers whose status
+     * is not the supplied terminal status.
+     *
+     * @param assigneeMembershipIds retained Project membership identifiers
+     * @param terminalStatus status excluded from the unfinished count
+     * @return unfinished current Task count
+     */
+    long countByAssigneeMembershipIdInAndStatusNotAndDeletedAtIsNull(
+            Set<Long> assigneeMembershipIds, TaskStatus terminalStatus);
+
+    /**
      * Loads the highest-priority current assignments within authorized Project/membership pairs.
      *
      * <p>Ordering is due date ascending, null due dates last, then Task identifier ascending. The

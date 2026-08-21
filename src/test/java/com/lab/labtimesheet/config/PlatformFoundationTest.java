@@ -44,8 +44,8 @@ class PlatformFoundationTest {
                 where n.nspname = 'public' and c.contype = 'f'
                 """, Integer.class);
 
-        assertThat(tables).isEqualTo(23);
-        assertThat(foreignKeys).isEqualTo(56);
+        assertThat(tables).isEqualTo(24);
+        assertThat(foreignKeys).isEqualTo(58);
         assertThat(jdbc.queryForObject(
                 "select checkout_grace_minutes from attendance_policy_versions where effective_from = date '1970-01-01'",
                 Integer.class)).isEqualTo(30);
