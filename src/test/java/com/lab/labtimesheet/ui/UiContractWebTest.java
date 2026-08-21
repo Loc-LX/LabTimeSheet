@@ -100,6 +100,26 @@ class UiContractWebTest {
     }
 
     @Test
+    void generatedLucideSymbolsRetainCurrentColorStrokePresentation() throws Exception {
+        String icons = new ClassPathResource("static/assets/icons.svg")
+                .getContentAsString(StandardCharsets.UTF_8);
+        Matcher symbols = Pattern.compile("<symbol\\b([^>]*)>").matcher(icons);
+        int symbolCount = 0;
+
+        while (symbols.find()) {
+            String attributes = symbols.group(1);
+            assertTrue(attributes.contains("fill=\"none\""), () -> "Missing fill on " + attributes);
+            assertTrue(attributes.contains("stroke=\"currentColor\""), () -> "Missing stroke on " + attributes);
+            assertTrue(attributes.contains("stroke-width=\"2\""), () -> "Missing stroke width on " + attributes);
+            assertTrue(attributes.contains("stroke-linecap=\"round\""), () -> "Missing stroke linecap on " + attributes);
+            assertTrue(attributes.contains("stroke-linejoin=\"round\""), () -> "Missing stroke linejoin on " + attributes);
+            symbolCount++;
+        }
+
+        assertTrue(symbolCount > 0, "The generated sprite must contain symbols");
+    }
+
+    @Test
     @WithMockUser(username = "admin@example.test", roles = "ADMIN")
     void collapsedSidebarExposesStateAndKeyboardVisibleControlNames() throws Exception {
         String html = mvc.perform(get("/ui-contract"))
