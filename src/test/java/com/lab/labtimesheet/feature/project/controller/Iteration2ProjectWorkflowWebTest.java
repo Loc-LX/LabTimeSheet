@@ -1,6 +1,7 @@
 package com.lab.labtimesheet.feature.project.controller;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.matchesPattern;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -125,14 +126,18 @@ class Iteration2ProjectWorkflowWebTest {
                         70L, 41L, 40L, ProjectExitRequestType.LEADER_REMOVAL, "Capacity",
                         ProjectExitRequestStatus.PENDING, null, null, null, now, now)),
                 List.of(new TaskHistoryView(
-                        101L, 30L, 41L, "Completed Task", "Retained", TaskStatus.DONE,
+                        103L, 30L, 41L, "Completed Task", "Retained", TaskStatus.DONE,
                         LocalDate.of(2026, 8, 20), 40L, 40L, now, now, now, null, null,
-                        List.of(new TaskCommentView(1L, 101L, 20L, "Retained comment", now)),
+                        List.of(new TaskCommentView(1L, 103L, 20L, "Retained comment", now)),
                         List.of(new TaskWorkLogView(
-                                1L, 30L, 101L, 41L, LocalDate.of(2026, 8, 20), 60,
-                                "Retained work", now, now))))));
+                                1L, 30L, 103L, 41L, LocalDate.of(2026, 8, 20), 60,
+                                "Retained work", now, now))),
+                        unfinishedTask(101L, "Transfer one", now),
+                        unfinishedTask(102L, "Transfer two", now))));
         when(accounts.eligibleInternOptions(LocalDate.of(2026, 8, 21))).thenReturn(List.of(
                 new EligibleInternOption(23L, "Invitee", "SV-023",
+                        LocalDate.of(2026, 1, 1), LocalDate.of(2026, 12, 31)),
+                new EligibleInternOption(24L, "Retained invitee", "SV-024",
                         LocalDate.of(2026, 1, 1), LocalDate.of(2026, 12, 31))));
 
         TimeZone previousZone = TimeZone.getDefault();
@@ -164,26 +169,76 @@ class Iteration2ProjectWorkflowWebTest {
 
         verify(projects).transferTasks(20L, 30L, 41L, Set.of(101L, 102L), 42L);
 
-        when(projects.requestMemberRemoval(20L, 30L, 41L, "Retain this reason"))
-                .thenThrow(new ProjectRuleViolationException("A pending request already exists"));
+        when(projects.issueInvitation(20L, 30L, 24L))
+                .thenThrow(new ProjectRuleViolationException("Invitation state changed"));
+        Map<String, Object> retainedInvitation = Map.of(
+                "kind", "invitation",
+                "invitedInternUserId", "24");
+        mvc.perform(post("/projects/30/invitations")
+                        .with(user("leader@example.test").roles("INTERN")).with(csrf())
+                        .param("invitedInternUserId", "24"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(flash().attribute("projectInput", retainedInvitation));
+
+        mvc.perform(get("/projects/30/workflows")
+                        .with(user("leader@example.test").roles("INTERN"))
+                        .flashAttr("projectError", "Invitation state changed")
+                        .flashAttr("projectInput", retainedInvitation))
+                .andExpect(status().isOk())
+                .andExpect(content().string(matchesPattern(
+                        "(?s).*<option[^>]*value=\"24\"[^>]*selected=\"selected\"[^>]*>.*")));
+
+        when(projects.requestMemberRemoval(20L, 30L, 42L, "Retain this reason"))
+                .thenThrow(new ProjectRuleViolationException("Project state changed"));
         Map<String, Object> retainedRemoval = Map.of(
                 "kind", "removal",
-                "targetMembershipId", "41",
+                "targetMembershipId", "42",
                 "reason", "Retain this reason");
         mvc.perform(post("/projects/30/exits/removal")
                         .with(user("leader@example.test").roles("INTERN")).with(csrf())
-                        .param("targetMembershipId", "41")
+                        .param("targetMembershipId", "42")
                         .param("reason", "Retain this reason"))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(flash().attribute("projectInput", retainedRemoval));
 
         mvc.perform(get("/projects/30/workflows")
                         .with(user("leader@example.test").roles("INTERN"))
-                        .flashAttr("projectError", "A pending request already exists")
+                        .flashAttr("projectError", "Project state changed")
                         .flashAttr("projectInput", retainedRemoval))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("value=\"Retain this reason\"")))
+                .andExpect(content().string(matchesPattern(
+                        "(?s).*<option[^>]*value=\"42\"[^>]*selected=\"selected\"[^>]*>.*")))
                 .andExpect(content().string(containsString("id=\"removal-form-error\"")));
+
+        when(projects.transferTasks(20L, 30L, 41L, Set.of(101L, 102L), 42L))
+                .thenThrow(new ProjectRuleViolationException("Transfer state changed"));
+        Map<String, Object> retainedTransfer = Map.of(
+                "kind", "transfer",
+                "requestId", 70L,
+                "sourceMembershipId", "41",
+                "taskIds", Set.of("101", "102"),
+                "recipientMembershipId", "42");
+        mvc.perform(post("/projects/30/exits/70/transfer")
+                        .with(user("leader@example.test").roles("INTERN")).with(csrf())
+                        .param("sourceMembershipId", "41")
+                        .param("taskIds", "101", "102")
+                        .param("recipientMembershipId", "42"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(flash().attribute("projectInput", retainedTransfer));
+
+        mvc.perform(get("/projects/30/workflows")
+                        .with(user("leader@example.test").roles("INTERN"))
+                        .flashAttr("projectError", "Transfer state changed")
+                        .flashAttr("projectInput", retainedTransfer))
+                .andExpect(status().isOk())
+                .andExpect(content().string(matchesPattern(
+                        "(?s).*<input[^>]*name=\"taskIds\"[^>]*value=\"101\"[^>]*checked=\"checked\"[^>]*>.*")))
+                .andExpect(content().string(matchesPattern(
+                        "(?s).*<input[^>]*name=\"taskIds\"[^>]*value=\"102\"[^>]*checked=\"checked\"[^>]*>.*")))
+                .andExpect(content().string(matchesPattern(
+                        "(?s).*<input[^>]*name=\"recipientMembershipId\"[^>]*value=\"42\"[^>]*checked=\"checked\"[^>]*>.*")))
+                .andExpect(content().string(containsString("aria-describedby=\"transfer-70-form-error\"")));
     }
 
     @Test
@@ -252,5 +307,12 @@ class Iteration2ProjectWorkflowWebTest {
     private static ProjectHistoryView emptyHistory(long projectId) {
         return new ProjectHistoryView(
                 projectId, List.of(), List.of(), List.of(), List.of(), List.of());
+    }
+
+    private static TaskHistoryView unfinishedTask(long id, String title, Instant now) {
+        return new TaskHistoryView(
+                id, 30L, 41L, title, "Retained", TaskStatus.IN_PROGRESS,
+                LocalDate.of(2026, 8, 21), 40L, 40L, now, now, now, null, null,
+                List.of(), List.of());
     }
 }

@@ -21,13 +21,13 @@
             <button class="icon-button" type="button" data-drawer-close aria-label="Close transfer drawer" title="Close transfer drawer">×</button>
         </header>
         <form class="drawer-body" method="post" th:action="${action}" data-transfer-confirm
-              th:attr="aria-describedby=${projectInput != null and projectInput.kind == 'transfer' and projectInput.sourceMembershipId == sourceMembershipId and projectError != null ? id + '-form-error' : null}">
+              th:attr="aria-describedby=${projectInput != null and projectInput.kind == 'transfer' and projectInput.sourceMembershipId == sourceMembershipId.toString() and projectError != null ? id + '-form-error' : null}">
             <input type="hidden" name="sourceMembershipId" th:value="${sourceMembershipId}">
             <fieldset class="form-section">
                 <legend>Unfinished Tasks</legend>
                 <p class="field-help" th:id="${id + '-tasks-help'}">Only TODO, IN_PROGRESS, and BLOCKED Tasks can be transferred.</p>
                 <label class="checkbox" th:each="task : ${unfinishedTasks}">
-                    <input type="checkbox" name="taskIds" th:value="${task.id}" th:checked="${projectInput != null and projectInput.kind == 'transfer' and projectInput.sourceMembershipId == sourceMembershipId and projectInput.taskIds.contains(task.id)}" th:attr="aria-describedby=${id + '-tasks-help'}">
+                    <input type="checkbox" name="taskIds" th:value="${task.id}" th:checked="${projectInput != null and projectInput.kind == 'transfer' and projectInput.sourceMembershipId == sourceMembershipId.toString() and projectInput.taskIds.contains(task.id.toString())}" th:attr="aria-describedby=${id + '-tasks-help'}">
                     <span th:text="|${task.title} · ${task.status}|">Task · IN_PROGRESS</span>
                 </label>
                 <p class="field-help" th:if="${#lists.isEmpty(unfinishedTasks)}">No unfinished Tasks are available.</p>
@@ -36,12 +36,12 @@
                 <legend>One recipient</legend>
                 <p class="field-help" th:id="${id + '-recipient-help'}">Choose one eligible active current member.</p>
                 <label class="checkbox" th:each="recipient : ${recipients}">
-                    <input type="radio" name="recipientMembershipId" required th:value="${recipient.membershipId}" th:checked="${projectInput != null and projectInput.kind == 'transfer' and projectInput.sourceMembershipId == sourceMembershipId and projectInput.recipientMembershipId == recipient.membershipId}" th:attr="aria-describedby=${id + '-recipient-help'}">
+                    <input type="radio" name="recipientMembershipId" required th:value="${recipient.membershipId}" th:checked="${projectInput != null and projectInput.kind == 'transfer' and projectInput.sourceMembershipId == sourceMembershipId.toString() and projectInput.recipientMembershipId == recipient.membershipId.toString()}" th:attr="aria-describedby=${id + '-recipient-help'}">
                     <span th:text="${recipient.displayName}">Recipient</span>
                 </label>
                 <p class="field-help" th:if="${#lists.isEmpty(recipients)}">No eligible recipients are available.</p>
             </fieldset>
-            <p class="field-error" th:id="${id + '-form-error'}" role="alert" th:if="${projectInput != null and projectInput.kind == 'transfer' and projectInput.sourceMembershipId == sourceMembershipId and projectError != null}" th:text="${projectError}">Transfer error</p>
+            <p class="field-error" th:id="${id + '-form-error'}" role="alert" th:if="${projectInput != null and projectInput.kind == 'transfer' and projectInput.sourceMembershipId == sourceMembershipId.toString() and projectError != null}" th:text="${projectError}">Transfer error</p>
             <div class="form-actions">
                 <button class="button" type="button" data-drawer-close>Cancel</button>
                 <button class="button button-primary" type="submit">Transfer selected Tasks</button>

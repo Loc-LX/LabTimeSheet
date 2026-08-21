@@ -4,7 +4,7 @@
 - **Requirement IDs:** `I2-UI-02`, `ACC-014`–`ACC-025`, `AUTH-001`–`AUTH-002`, `UI-013`–`UI-014`, `UI-016`, `I2-ATT-01`–`I2-ATT-06`, `I2-PRJ-01`–`I2-PRJ-06`, `I2-TSK-01`, `I2-TSK-03`, `I2-TSK-04`
 - **Scenario IDs:** `AC-ACC-009`, `AC-ACC-010`, `AC-AUTH-001`, `AC-ATT-001`, `AC-CAL-002`, `AC-CAL-004`, `AC-COR-001`, `AC-COR-003`, `AC-LEV-003`–`AC-LEV-005`, `AC-PRJ-010`–`AC-PRJ-013`, `AC-TSK-004`, `AC-TSK-005`, `AC-TSK-007`, `AC-UI-005`
 - **Test class/method:** `AccountAdministrationControllerWebTest` (3 methods), `AccountWebIntegrationTest#adminListsAndOpensInternLifecycleAdministrationWithoutDisclosingGuessedIds`, `AccountSessionInvalidationWebIntegrationTest#adminLockUnlockAndDeactivateRoutesEnforceLoginStateAndExpireSessions`, `AttendanceRequestControllerWebTest` (8 methods), `CalendarControllerWebTest` (2 methods), `AdminSettingsControllerWebTest` (7 methods), `Iteration2ProjectWorkflowWebTest` (4 methods), `Iteration2TaskWorkflowWebTest` (4 methods), `Iteration2WorkflowFragmentsWebTest` (2 methods)
-- **Implementation commit:** `8c3582f9f1f7a362b7a0a044594302e92ddbc868`
+- **Implementation commit:** pending retained-selection repair (prior repair `8c3582f9f1f7a362b7a0a044594302e92ddbc868`)
 
 ## Protected behavior
 
@@ -93,6 +93,17 @@ Tests run: 6, Failures: 2, Errors: 1. Malformed Project removal and Calendar dat
 and a Calendar service conflict escaped the retained-input redirect boundary.
 ```
 
+The same-reviewer pass then found that the raw Project values reached the flash map but numeric template comparisons
+still discarded invitation, removal, and transfer selections. The production-shaped retry assertion reproduced it:
+
+```text
+JAVA_HOME=/opt/homebrew/opt/openjdk@25 ./mvnw -DargLine=-javaagent:/Users/sechmachine/.m2/repository/net/bytebuddy/byte-buddy-agent/1.18.10/byte-buddy-agent-1.18.10.jar '-Dtest=Iteration2ProjectWorkflowWebTest' test
+
+Tests run: 4, Failures: 1, Errors: 0, Skipped: 0; BUILD FAILURE. After a producer rejection, the first rendered-state
+assertion found the retained invitee option without `selected`; the same raw/numeric mismatch also covered removal,
+transfer source/error association, Task checkboxes, and recipient radio selection.
+```
+
 ## GREEN
 
 **Command**
@@ -107,7 +118,9 @@ JAVA_HOME=/opt/homebrew/opt/openjdk@25 ./mvnw -DargLine=-javaagent:/Users/sechma
 Java 25.0.4; Tests run: 34, Failures: 0, Errors: 0, Skipped: 0; BUILD SUCCESS. Safe non-secret
 input is retained with inline errors across Account, Attendance, Calendar, Project, and Task workflows; explicit zones
 are rendered; Admin account controls use Account/Project owners; and terminal actions carry consequence confirmations.
-HolidayAPI secrets are deliberately never retained.
+HolidayAPI secrets are deliberately never retained. The Project retry rendering asserts the rejected invitation and
+removal options are selected, both requested transfer Tasks and the one recipient are checked, and the transfer error
+remains associated with its form.
 
 JAVA_HOME=/opt/homebrew/opt/openjdk@25 ./mvnw -DskipTests -Ddoclint=all javadoc:javadoc
 BUILD SUCCESS with 100 pre-existing warnings and no errors after replacing the unsupported block tags with standard
