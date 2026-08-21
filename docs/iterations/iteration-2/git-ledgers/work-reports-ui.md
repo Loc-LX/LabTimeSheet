@@ -61,4 +61,4 @@ All recorded Iteration 2 work remained local. No push, merge request, deployment
 
 ## What the team should do next
 
-Keep the consumer branch/worktree for Iteration 3 handoff. Complete and pin the local merged-main verification, then stop; do not push without separate authorization.
+Keep the consumer branch/worktree for Iteration 3 handoff. Local merged-main verification is complete; stop without pushing unless separately authorized.
