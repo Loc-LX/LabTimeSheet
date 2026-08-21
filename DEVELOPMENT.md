@@ -4,8 +4,9 @@ This guide explains how to prepare and run Lab Timesheet on a developer
 computer. The application runs from Java. PostgreSQL and Mailpit run in Docker
 containers.
 
-Application containerization and Docker Compose are planned for a later
-iteration, so they are not required for Iteration 1 development.
+The root Dockerfile and Compose file are production-only. They are not part of
+the development loop. Development still runs Java from the IDE or Maven while
+PostgreSQL and Mailpit run as separate local containers.
 
 ## 1. Install the required tools
 
@@ -69,6 +70,8 @@ current `main` on `work/fix/<feature>/<what-fix>`. Keep it separate from the
 five persistent `work/<feature>` branches. Do not use
 `work/<feature>/fix/<what-fix>` because the persistent `work/<feature>` ref
 already occupies that Git ref prefix.
+
+Every targeted repair starts from the taskmaster-verified latest `main`, uses TDD RED → GREEN, adds Javadoc during implementation, records companion evidence, undergoes independent review, and uses a normal, non-force merge only when separately authorized.
 
 ## 3. Start the development containers
 
@@ -249,3 +252,7 @@ npm run build
 
 For test setup, commands, TDD, and test evidence rules, read
 [TESTING.md](TESTING.md).
+
+For production image and Compose operation, read [DEPLOYMENT.md](DEPLOYMENT.md).
+Do not use the production Compose file as a replacement for this development
+setup.

@@ -107,6 +107,53 @@ class ProjectServiceIntegrationTest {
     }
 
     @Test
+    void ownerAddsSeveralEligibleMembersInOneLockedTransaction() {
+        long mentorId = user("mentor-batch-add@example.test", "MENTOR");
+        long leaderId = intern("leader-batch-add@example.test", "I017");
+        long firstMemberId = intern("first-batch-add@example.test", "I018");
+        long secondMemberId = intern("second-batch-add@example.test", "I019");
+        long projectId = createProject(mentorId, leaderId, "Batch membership");
+
+        projectService.addMembers(mentorId, projectId, List.of(firstMemberId, secondMemberId));
+
+        assertEquals(3, count("""
+                select count(*) from project_memberships
+                where project_id = ? and left_at is null
+                """, projectId));
+    }
+
+    @Test
+    void memberBatchRejectsMissingDuplicateCurrentAndStaleSelectionsWithoutPartialMutation() {
+        long mentorId = user("mentor-batch-guard@example.test", "MENTOR");
+        long leaderId = intern("leader-batch-guard@example.test", "I020");
+        long eligibleId = intern("eligible-batch-guard@example.test", "I021");
+        long staleId = intern("stale-batch-guard@example.test", "I022");
+        long projectId = createProject(mentorId, leaderId, "Batch guard");
+        jdbc.update("update intern_profiles set internship_end_date = date '2026-08-13' where user_id = ?", staleId);
+        entityManager.clear();
+
+        assertThrows(ProjectRuleViolationException.class,
+                () -> projectService.addMembers(mentorId, projectId, null));
+        assertThrows(ProjectRuleViolationException.class,
+                () -> projectService.addMembers(mentorId, projectId, List.of()));
+        assertThrows(ProjectRuleViolationException.class,
+                () -> projectService.addMembers(mentorId, projectId, List.of(eligibleId, eligibleId)));
+        assertThrows(ProjectRuleViolationException.class,
+                () -> projectService.addMembers(mentorId, projectId, List.of(Long.MAX_VALUE)));
+        assertThrows(ProjectRuleViolationException.class,
+                () -> projectService.addMembers(mentorId, projectId, List.of(mentorId)));
+        assertThrows(ProjectRuleViolationException.class,
+                () -> projectService.addMembers(mentorId, projectId, List.of(leaderId)));
+        assertThrows(ProjectRuleViolationException.class,
+                () -> projectService.addMembers(mentorId, projectId, List.of(eligibleId, staleId)));
+
+        assertEquals(0, count("""
+                select count(*) from project_memberships
+                where project_id = ? and intern_user_id in (?, ?) and left_at is null
+                """, projectId, eligibleId, staleId));
+    }
+
+    @Test
     void leaderChangeClosesOneTermAndDoesNotMoveTaskAssignments() {
         long mentorId = user("mentor-leader@example.test", "MENTOR");
         long firstLeaderId = intern("leader-one@example.test", "I005");
@@ -240,6 +287,69 @@ class ProjectServiceIntegrationTest {
 
         assertEquals("ACTIVE", text("select status from projects where id = ?", projectId));
         assertEquals(1, count("select count(*) from projects where id = ? and activated_at is not null", projectId));
+    }
+
+    @Test
+    void adminTerminalReadinessComposesCurrentLeadershipAndUnfinishedTasksBeforeCompletion() {
+        long adminId = user("admin-terminal@example.test", "ADMIN");
+        long mentorId = user("mentor-terminal@example.test", "MENTOR");
+        long departingId = intern("departing-terminal@example.test", "I023");
+        long replacementId = intern("replacement-terminal@example.test", "I024");
+        long projectId = createProject(mentorId, departingId, "Terminal readiness");
+        projectService.addMember(mentorId, projectId, replacementId);
+        long departingMembershipId = membershipId(projectId, departingId);
+        jdbc.update("""
+                insert into tasks (
+                    project_id, assignee_membership_id, title,
+                    created_by_membership_id, assigned_by_membership_id)
+                values (?, ?, 'Transfer before completion', ?, ?)
+                """, projectId, departingMembershipId, departingMembershipId, departingMembershipId);
+
+        var blocked = projectPages.internshipLifecycleGuard(adminId, departingId);
+        assertTrue(blocked.currentLeader());
+        assertEquals(1, blocked.unfinishedTaskCount());
+
+        projectService.changeLeader(mentorId, projectId, replacementId);
+        var taskBlocked = projectPages.internshipLifecycleGuard(adminId, departingId);
+        assertFalse(taskBlocked.currentLeader());
+        assertEquals(1, taskBlocked.unfinishedTaskCount());
+
+        jdbc.update("update tasks set status = 'DONE', updated_at = ? where project_id = ?",
+                dbTime(NOW.plusSeconds(90)), projectId);
+        entityManager.clear();
+        var ready = projectPages.internshipLifecycleGuard(adminId, departingId);
+        assertFalse(ready.currentLeader());
+        assertEquals(0, ready.unfinishedTaskCount());
+
+        projectService.completeInternship(adminId, departingId);
+        entityManager.flush();
+
+        assertEquals("COMPLETED", text(
+                "select internship_status from intern_profiles where user_id = ?", departingId));
+        assertEquals("ACTIVE", text("select account_status from app_users where id = ?", departingId));
+    }
+
+    @Test
+    void terminalCompletionRecomputesAndRejectsLockedLeaderTaskFacts() {
+        long adminId = user("admin-terminal-blocked@example.test", "ADMIN");
+        long mentorId = user("mentor-terminal-blocked@example.test", "MENTOR");
+        long leaderId = intern("leader-terminal-blocked@example.test", "I025");
+        long projectId = createProject(mentorId, leaderId, "Blocked terminal readiness");
+        long membershipId = membershipId(projectId, leaderId);
+        jdbc.update("""
+                insert into tasks (
+                    project_id, assignee_membership_id, title,
+                    created_by_membership_id, assigned_by_membership_id)
+                values (?, ?, 'Still unfinished', ?, ?)
+                """, projectId, membershipId, membershipId, membershipId);
+
+        var failure = assertThrows(
+                IllegalStateException.class,
+                () -> projectService.completeInternship(adminId, leaderId));
+
+        assertEquals("Intern is still a current Leader", failure.getMessage());
+        assertEquals("ACTIVE", text(
+                "select internship_status from intern_profiles where user_id = ?", leaderId));
     }
 
     @Test

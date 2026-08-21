@@ -7,11 +7,17 @@
           primaryAction=~{::#primary-action},
           content=~{::main})}">
 <body>
-<a id="primary-action" class="button" th:href="@{/dashboard}">Back to overview</a>
+<a id="primary-action" class="button" th:href="@{/admin/accounts}">Back to accounts</a>
 <main>
   <p class="page-description">Create a role-specific account and send its one-time activation link.</p>
   <p class="alert" th:if="${param.created}" role="status">Account created and activation email sent.</p>
+  <p class="alert" th:if="${param.activationResent}" role="status">A new activation email was sent.</p>
   <p class="alert alert-error" th:if="${param.deliveryFailed}" role="alert">Account created, but activation delivery failed.</p>
+  <form class="panel form-panel" th:if="${param.deliveryFailed != null and param.accountId != null}" method="post"
+        th:action="@{/admin/accounts/{id}/resend-activation(id=${param.accountId[0]})}">
+    <p class="field-help">The pending account is retained. Retry delivery when SMTP is available.</p>
+    <button class="button button-primary" type="submit">Resend activation</button>
+  </form>
   <form class="panel form-panel form-grid" method="post" th:action="@{/admin/accounts}" th:object="${accountForm}">
     <div class="alert alert-error" th:if="${#fields.hasAnyErrors()}" role="alert">
       <strong>Please correct the highlighted fields.</strong>
@@ -46,7 +52,7 @@
       </div>
       <p class="field-error" id="account-intern-details-error" th:if="${#fields.hasErrors('internDetailsValid')}" th:errors="*{internDetailsValid}" role="alert"></p>
     </fieldset>
-    <div class="form-actions"><a class="button" th:href="@{/dashboard}">Cancel</a><button class="button button-primary" type="submit">Create account</button></div>
+    <div class="form-actions"><a class="button" th:href="@{/admin/accounts}">Cancel</a><button class="button button-primary" type="submit">Create account</button></div>
   </form>
 </main>
 </body>

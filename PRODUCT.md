@@ -17,10 +17,10 @@ web
 
 ## Users
 
-- **Admins** operate accounts, internship lifecycles, attendance policy, the global calendar, SMTP, HolidayAPI, and system configuration. They inspect Project and attendance progress but do not perform Mentor or Project Leader work.
-- **Mentors** own Projects, directly manage membership and leadership, decide membership exits, monitor Project and Intern progress, comment on Tasks, inspect attendance, and decide leave and missed-checkout corrections.
-- **Interns** check in and out, request leave and missed-checkout corrections, respond to their own Project invitations, request/cancel their own Project exit, participate in multiple Projects, create self-assigned Tasks, perform assigned Tasks, comment, update their own assigned Task status, and record Task work.
-- A **Project Leader** is an Intern with a current leadership term for one Project. It is contextual authority, never a global account role. The Leader may invite eligible Interns, request a member's removal, and manage Task definitions/assignment inside that Project.
+- **Admins** operate accounts, internship lifecycles, attendance policy, the global calendar, SMTP, HolidayAPI, and system configuration. They inspect all Project and attendance progress/history read-only but do not perform Mentor or Project Leader work.
+- **Mentors** own Projects, directly manage membership and leadership, decide membership exits, monitor Project and Intern progress/history, comment on Tasks, inspect attendance, and decide leave and missed-checkout corrections.
+- **Interns** check in and out, request leave and missed-checkout corrections, respond to their own Project invitations, request/cancel their own Project exit, participate in multiple Projects, create self-assigned Tasks when eligible, perform assigned Tasks, comment, update their own assigned Task status, record Task work, and inspect authorized Project history.
+- A **Project Leader** is an Intern with a current leadership term for one Project. It is contextual authority, never a global account role. The Leader may invite eligible Interns, request a member's removal, manage Task definitions/assignment, and redistribute unfinished Tasks away from a pending exit target in confirmed batches.
 - The product is reviewed and maintained by a university project team and its instructor or appointed maintainer.
 
 ## Product Purpose
@@ -46,13 +46,13 @@ The product joins attendance oversight and Project delivery without pretending t
 ## Capabilities and Constraints
 
 - Global account roles are exactly `ADMIN`, `MENTOR`, and `INTERN`, and are immutable after account creation.
-- Project membership is many-to-many and interval-based. The owning Mentor may add/remove directly and makes every exit decision; the current Leader may invite; only the intended authenticated Intern may accept/decline; members may request but cannot unilaterally leave.
+- Project membership is many-to-many and interval-based. The owning Mentor may add/remove directly and makes every exit decision; the current Leader may invite; only the intended authenticated Intern may accept/decline; members may request but cannot unilaterally leave. Pending exit keeps existing rights but blocks new/self-assignment to the target; the Leader redistributes unfinished Tasks before approval, while direct Mentor removal retains its atomic automatic-transfer shortcut.
 - Every `PLANNED` or `ACTIVE` Project has exactly one current Intern Leader. Any active member may create a Task assigned only to themselves; only the current Leader may create for another member or reassign broader Task work.
 - Each Task has one current assignee. Only that assignee changes its status and records work.
 - Attendance uses server-time check-in and checkout. Effective-dated policy stores separate check-in and checkout grace periods, both defaulting to 30 minutes; with the default 15:30 end, normal checkout closes immediately after the inclusive 16:00:00 cutoff. Task work is a separate dated-minute record and never proves attendance.
 - Leave is full-day. Only frozen eligible workdays consume quota, and pending or approved requests reserve it.
 - Corrections apply only to missing checkout after the attendance row's historical checkout cutoff. Submission remains open through scheduled end plus 24 hours, and the Mentor then receives a separate 24-hour decision window.
-- Global attendance policy is effective-dated; historical attendance and leave allocations must not drift after later policy or calendar changes.
+- Global attendance policy is effective-dated; historical attendance and leave allocations must not drift after later policy or calendar changes. Admin-only setting History tabs and authorized Project History read the retained domain rows already present; they never expose secrets or invent previous-assignee/status/edit timelines that are not stored.
 - SMTP and HolidayAPI secrets are Admin-managed and encrypted with a deployment-provided master key. Email-dependent account actions fail closed when SMTP is unavailable; other domain actions retain in-app delivery.
 - HTML, Excel, and PDF reports must agree on the same hand-checkable totals and render undefined denominators as `N/A`.
 - The product language is English in v1. Displayed business dates use `dd/MM/yyyy` and times use 24-hour local time.
@@ -75,10 +75,11 @@ The product joins attendance oversight and Project delivery without pretending t
 ## Product Principles
 
 1. **Authorization follows stored context.** Global role alone is insufficient; ownership, membership, leadership, assignment, lifecycle, and record scope determine access.
-2. **History does not move.** Later policy, calendar, membership, invitation, exit decision, leadership, assignment, or assignee changes must not silently rewrite past results, Task creator attribution, or provenance.
+2. **History does not move or pretend.** Later policy, calendar, membership, invitation, exit decision, leadership, assignment, or assignee changes must not silently rewrite past results, completed-Task assignee names, creator attribution, or provenance. History views expose only retained domain facts and non-secret metadata; they do not fabricate event timelines the schema never stored.
 3. **Attendance and Project work stay distinct.** The product may report them together, but one never derives or proves the other.
 4. **Deadlines are enforced at every path.** Scheduled workers improve timeliness, while request-time guards preserve correctness when scheduling is late.
 5. **Prefer explicit, reviewable operations.** Feature-owned controller/service/repository flows, constrained state transitions, focused integrations, and shared report datasets serve clarity over speculative machinery.
+6. **Fixes preserve branch ownership.** A targeted repair uses a clean `work/fix/<feature>/<what-fix>` branch from verified `main`, not `work/<feature>/fix/<what-fix>`; persistent `work/<feature>` refs already occupy that Git ref prefix.
 
 ## Accessibility & Inclusion
 

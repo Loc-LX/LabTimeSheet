@@ -1,0 +1,16 @@
+.git
+.gitea
+.idea
+.agents
+.superpowers
+.env
+.env.*
+!.env.compose.example
+labtimesheet-docs-hub
+node_modules
+target
+docs
+src/test
+*.log
+*.7z
+.DS_Store

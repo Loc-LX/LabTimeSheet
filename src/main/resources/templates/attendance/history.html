@@ -44,7 +44,9 @@
             <td th:text="${item.checkOutTimeDisplay}"></td>
             <td th:text="|${item.scheduledStartDisplay}–${item.scheduledEndDisplay} (${item.policy.zoneId})|"></td>
             <td th:text="|${item.policy.checkInGraceMinutes} min / ${item.policy.checkoutGraceMinutes} min|"></td>
-            <td th:text="${item.resultDisplay}"></td>
+            <td><span th:text="${item.resultDisplay}"></span>
+                <a class="button" th:if="${ownHistory and item.checkOutAt == null and item.attendanceRecordId > 0}"
+                   th:href="@{/attendance/requests(attendanceRecordId=${item.attendanceRecordId})}">Request correction</a></td>
         </tr>
         </tbody>
     </table></div>

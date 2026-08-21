@@ -59,9 +59,10 @@ public class UserActionToken {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
-    private UserActionToken(long userId, byte[] tokenHash, Instant expiresAt, long issuedByUserId, Instant now) {
+    private UserActionToken(long userId, TokenPurpose purpose, byte[] tokenHash, Instant expiresAt,
+            Long issuedByUserId, Instant now) {
         this.userId = userId;
-        this.purpose = TokenPurpose.ACTIVATION;
+        this.purpose = purpose;
         this.tokenHash = Arrays.copyOf(tokenHash, tokenHash.length);
         this.expiresAt = expiresAt;
         this.issuedByUserId = issuedByUserId;
@@ -80,7 +81,12 @@ public class UserActionToken {
      */
     public static UserActionToken activation(
             long userId, byte[] tokenHash, Instant expiresAt, long issuedByUserId, Instant now) {
-        return new UserActionToken(userId, tokenHash, expiresAt, issuedByUserId, now);
+        return new UserActionToken(userId, TokenPurpose.ACTIVATION, tokenHash, expiresAt, issuedByUserId, now);
+    }
+
+    /** Creates a user-initiated password reset token from a SHA-256 hash. */
+    public static UserActionToken passwordReset(long userId, byte[] tokenHash, Instant expiresAt, Instant now) {
+        return new UserActionToken(userId, TokenPurpose.PASSWORD_RESET, tokenHash, expiresAt, null, now);
     }
 
     /**

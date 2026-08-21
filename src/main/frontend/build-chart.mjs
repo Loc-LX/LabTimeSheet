@@ -1,6 +1,7 @@
-import { copyFile, mkdir } from 'node:fs/promises';
-import { dirname, resolve } from 'node:path';
+import { copyFile, mkdir } from "node:fs/promises";
 
-const output = resolve('src/main/resources/static/assets/chart.umd.js');
-await mkdir(dirname(output), { recursive: true });
-await copyFile(resolve('node_modules/chart.js/dist/chart.umd.js'), output);
+await mkdir("src/main/resources/static/assets", { recursive: true });
+await copyFile(
+  "node_modules/chart.js/dist/chart.umd.min.js",
+  "src/main/resources/static/assets/chart.umd.min.js",
+);

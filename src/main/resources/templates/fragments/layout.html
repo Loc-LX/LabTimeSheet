@@ -8,6 +8,7 @@
     <link rel="icon" th:href="@{/assets/icons.svg}" type="image/svg+xml">
     <script th:src="@{/assets/theme.js}"></script>
     <link rel="stylesheet" th:href="@{/assets/app.css}">
+    <script defer th:src="@{/assets/chart.umd.min.js}"></script>
     <script defer th:src="@{/assets/app.js}"></script>
 </head>
 <body>
@@ -22,11 +23,17 @@
             <ul class="nav-list">
                 <li><a class="nav-link" th:href="@{/dashboard}" data-tooltip="Overview" th:attr="aria-current=${activeNav == 'dashboard'} ? 'page' : null">
                     <svg class="nav-icon" aria-hidden="true"><use th:href="@{/assets/icons.svg#layout-dashboard}"></use></svg><span class="sidebar-label">Overview</span></a></li>
-                <li sec:authorize="hasRole('ADMIN')"><a class="nav-link" th:href="@{/admin/accounts/new}" data-tooltip="Accounts" th:attr="aria-current=${activeNav == 'accounts'} ? 'page' : null"><svg class="nav-icon" aria-hidden="true"><use th:href="@{/assets/icons.svg#users}"></use></svg><span class="sidebar-label">Accounts</span></a></li>
+                <li sec:authorize="hasRole('ADMIN')"><a class="nav-link" th:href="@{/admin/accounts}" data-tooltip="Accounts" th:attr="aria-current=${activeNav == 'accounts'} ? 'page' : null"><svg class="nav-icon" aria-hidden="true"><use th:href="@{/assets/icons.svg#users}"></use></svg><span class="sidebar-label">Accounts</span></a></li>
+                <li sec:authorize="hasRole('ADMIN')"><a class="nav-link" th:href="@{/admin/smtp}" data-tooltip="SMTP settings" th:attr="aria-current=${activeNav == 'smtp'} ? 'page' : null"><svg class="nav-icon" aria-hidden="true"><use th:href="@{/assets/icons.svg#settings}"></use></svg><span class="sidebar-label">SMTP settings</span></a></li>
+                <li sec:authorize="hasRole('ADMIN')"><a class="nav-link" th:href="@{/admin/settings}" data-tooltip="Attendance settings" th:attr="aria-current=${activeNav == 'settings'} ? 'page' : null"><svg class="nav-icon" aria-hidden="true"><use th:href="@{/assets/icons.svg#settings}"></use></svg><span class="sidebar-label">Attendance settings</span></a></li>
                 <li sec:authorize="hasRole('ADMIN')"><a class="nav-link" th:href="@{/attendance/calendar}" data-tooltip="Global calendar" th:attr="aria-current=${activeNav == 'calendar'} ? 'page' : null"><svg class="nav-icon" aria-hidden="true"><use th:href="@{/assets/icons.svg#calendar-days}"></use></svg><span class="sidebar-label">Global calendar</span></a></li>
                 <li sec:authorize="hasRole('MENTOR')"><a class="nav-link" th:href="@{/projects}" data-tooltip="Owned Projects" th:attr="aria-current=${activeNav == 'projects'} ? 'page' : null"><svg class="nav-icon" aria-hidden="true"><use th:href="@{/assets/icons.svg#folder-kanban}"></use></svg><span class="sidebar-label">Owned Projects</span></a></li>
                 <li sec:authorize="hasRole('INTERN')"><a class="nav-link" th:href="@{/attendance}" data-tooltip="My attendance" th:attr="aria-current=${activeNav == 'attendance'} ? 'page' : null"><svg class="nav-icon" aria-hidden="true"><use th:href="@{/assets/icons.svg#clock}"></use></svg><span class="sidebar-label">My attendance</span></a></li>
+                <li sec:authorize="hasAnyRole('INTERN','MENTOR')"><a class="nav-link" th:href="@{/attendance/requests}" data-tooltip="Attendance requests" th:attr="aria-current=${activeNav == 'attendance-requests'} ? 'page' : null"><svg class="nav-icon" aria-hidden="true"><use th:href="@{/assets/icons.svg#list-check}"></use></svg><span class="sidebar-label">Attendance requests</span></a></li>
                 <li sec:authorize="hasRole('INTERN')"><a class="nav-link" th:href="@{/projects}" data-tooltip="My Projects" th:attr="aria-current=${activeNav == 'projects'} ? 'page' : null"><svg class="nav-icon" aria-hidden="true"><use th:href="@{/assets/icons.svg#folder-kanban}"></use></svg><span class="sidebar-label">My Projects</span></a></li>
+                <li sec:authorize="hasRole('INTERN')"><a class="nav-link" th:href="@{/projects/invitations}" data-tooltip="Project invitations" th:attr="aria-current=${activeNav == 'project-invitations'} ? 'page' : null"><svg class="nav-icon" aria-hidden="true"><use th:href="@{/assets/icons.svg#inbox}"></use></svg><span class="sidebar-label">Project invitations</span></a></li>
+                <li sec:authorize="hasAnyRole('ADMIN','MENTOR','INTERN')"><a class="nav-link" th:href="@{/reports/attendance}" data-tooltip="Attendance reports" th:attr="aria-current=${activeNav == 'attendance'} ? 'page' : null"><svg class="nav-icon" aria-hidden="true"><use th:href="@{/assets/icons.svg#list-check}"></use></svg><span class="sidebar-label">Attendance reports</span></a></li>
+                <li sec:authorize="hasAnyRole('ADMIN','MENTOR','INTERN')"><a class="nav-link" th:href="@{/reports/project-tasks}" data-tooltip="Project and Task reports" th:attr="aria-current=${activeNav == 'project-reports'} ? 'page' : null"><svg class="nav-icon" aria-hidden="true"><use th:href="@{/assets/icons.svg#list-check}"></use></svg><span class="sidebar-label">Project and Task reports</span></a></li>
             </ul>
         </nav>
         <div class="sidebar-footer">
@@ -46,6 +53,16 @@
         <header class="app-header">
             <button class="icon-button" type="button" data-sidebar-toggle aria-expanded="true" aria-label="Toggle sidebar" title="Toggle sidebar"><svg class="nav-icon" aria-hidden="true"><use th:href="@{/assets/icons.svg#panel-left}"></use></svg></button>
             <div class="header-title"><span class="breadcrumb" th:text="${section}">Section</span> / <span th:text="${pageTitle}">Page</span></div>
+            <nav class="header-actions" aria-label="Header actions" sec:authorize="isAuthenticated()">
+                <a class="icon-button notification-trigger" th:href="@{/notifications}"
+                   th:attr="aria-label=${notifications != null ? 'Notifications, ' + notifications.unreadCount + ' unread' : 'Notifications'}"
+                   title="Notifications">
+                    <svg class="nav-icon" aria-hidden="true"><use th:href="@{/assets/icons.svg#bell}"></use></svg>
+                    <span class="notification-count" aria-hidden="true"
+                          th:if="${notifications != null and notifications.unreadCount > 0}"
+                          th:text="${notifications.unreadCount}">0</span>
+                </a>
+            </nav>
         </header>
         <div class="page">
             <div class="page-heading">

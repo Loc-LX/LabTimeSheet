@@ -41,7 +41,7 @@ class AccountTemplateIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("class=\"app-shell\"")))
                 .andExpect(content().string(containsString("action=\"/admin/accounts\"")))
-                .andExpect(content().string(containsString("href=\"/admin/accounts/new\"")))
+                .andExpect(content().string(containsString("href=\"/admin/accounts\"")))
                 .andExpect(content().string(containsString("src=\"/assets/theme.js\"")));
     }
 

@@ -12,6 +12,7 @@ import com.lab.labtimesheet.feature.integration.model.SecurityMode;
 import com.lab.labtimesheet.feature.integration.model.SmtpStatus;
 import com.lab.labtimesheet.feature.integration.model.dto.SmtpConnection;
 import com.lab.labtimesheet.feature.integration.model.dto.SmtpDraft;
+import com.lab.labtimesheet.feature.integration.model.dto.SmtpRevisionHistory;
 import com.lab.labtimesheet.feature.integration.repository.SmtpConfigurationRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -44,28 +45,53 @@ class SmtpIntegrationTest {
 
     @Test
     void failedSmtpTestNeverActivatesDraftAndSecretsRemainEncrypted() {
+        assertThatThrownBy(() -> smtpService.history(404L))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Admin not found");
+        assertThatThrownBy(() -> smtpService.testDraft(404L, 404L))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Admin not found");
+        assertThatThrownBy(() -> smtpService.activate(404L, 404L))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Admin not found");
         bootstrapService.bootstrap("admin@example.com", "Admin", "correct horse battery staple");
         long adminId = accountService.requireActiveAdminId("admin@example.com");
         long draftId = smtpService.saveDraft(adminId, new SmtpDraft(
                 "mailpit", 1025, SecurityMode.NONE, "smtp-user", "smtp-password", "admin@example.com", "Lab"));
-
         var savedDraft = configurations.findById(draftId).orElseThrow();
         byte[] ciphertext = savedDraft.getPasswordCiphertext();
         assertThat(new String(ciphertext, StandardCharsets.ISO_8859_1)).doesNotContain("smtp-password");
         assertThat(savedDraft.getPasswordNonce()).hasSize(12);
         assertThat(savedDraft.getSecretKeyVersion()).isEqualTo(1);
         smtpProbe.fail = true;
-        assertThatThrownBy(() -> smtpService.testDraft(draftId, adminId, "admin@example.com"))
+        assertThatThrownBy(() -> smtpService.testDraft(draftId, adminId))
                 .isInstanceOf(IllegalStateException.class);
         assertThat(configurations.findById(draftId).orElseThrow().getStatus()).isEqualTo(SmtpStatus.DRAFT);
         assertThat(configurations.findById(draftId).orElseThrow().getTestedAt()).isNull();
         assertThatThrownBy(() -> smtpService.activate(draftId, adminId)).isInstanceOf(IllegalStateException.class);
 
         smtpProbe.fail = false;
-        smtpService.testDraft(draftId, adminId, "admin@example.com");
+        smtpService.testDraft(draftId, adminId);
+        assertThat(smtpProbe.recipient).isEqualTo("admin@example.com");
         smtpService.activate(draftId, adminId);
 
         assertThat(configurations.findById(draftId).orElseThrow().getStatus()).isEqualTo(SmtpStatus.ACTIVE);
+
+        long replacementId = smtpService.saveDraft(adminId, new SmtpDraft(
+                "mailpit", 1025, SecurityMode.NONE, "smtp-user", "replacement-password", "admin@example.com", "Lab"));
+        assertThat(configurations.findById(draftId).orElseThrow().getStatus()).isEqualTo(SmtpStatus.ACTIVE);
+        assertThat(smtpService.setupStatus(adminId).draftId()).isEqualTo(replacementId);
+        smtpService.testDraft(replacementId, adminId);
+        smtpService.activate(replacementId, adminId);
+
+        assertThat(configurations.findById(draftId).orElseThrow().getStatus()).isEqualTo(SmtpStatus.RETIRED);
+        assertThat(configurations.findById(replacementId).orElseThrow().getStatus()).isEqualTo(SmtpStatus.ACTIVE);
+        assertThat(configurations.findAllByStatus(SmtpStatus.ACTIVE)).hasSize(1);
+        assertThat(smtpService.history(adminId))
+                .extracting(SmtpRevisionHistory::status)
+                .containsExactly(SmtpStatus.ACTIVE, SmtpStatus.RETIRED);
+        assertThat(smtpService.history(adminId).toString())
+                .doesNotContain("smtp-password", "replacement-password", "ciphertext", "nonce");
     }
 
     @TestConfiguration(proxyBeanMethods = false)
@@ -79,10 +105,12 @@ class SmtpIntegrationTest {
 
     static final class RecordingSmtpProbe implements SmtpProbe {
         private boolean fail;
+        private String recipient;
 
         @Override
         public void send(SmtpConnection connection, String recipient, String subject,
                 String body) {
+            this.recipient = recipient;
             if (fail) {
                 throw new IllegalStateException("simulated SMTP failure");
             }

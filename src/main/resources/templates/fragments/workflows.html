@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<body>
+<section th:fragment="exitReadiness(readiness)" class="panel form-panel" th:if="${readiness != null}" aria-labelledby="exit-readiness-title">
+    <header class="panel-header"><h2 class="panel-title" id="exit-readiness-title">Exit readiness</h2></header>
+    <p class="field-help" th:if="${readiness.replacementRequired}">Appoint a replacement Leader before transferring unfinished Tasks.</p>
+    <p class="field-help" th:if="${!readiness.replacementRequired and readiness.unfinishedTaskCount > 0}"
+       th:text="|${readiness.unfinishedTaskCount} unfinished Tasks remain before Mentor decision.|">Unfinished Tasks remain.</p>
+    <p class="field-help" th:if="${!readiness.replacementRequired and readiness.unfinishedTaskCount == 0 and readiness.readyForMentorDecision}">Ready for Mentor decision.</p>
+    <p class="field-help" th:if="${!readiness.replacementRequired and readiness.unfinishedTaskCount == 0 and !readiness.readyForMentorDecision}">No unfinished Tasks remain.</p>
+</section>
+<th:block th:fragment="transferDrawer(id, canOpen, action, sourceMembershipId, unfinishedTasks, recipients)" th:if="${canOpen}">
+    <button class="button button-primary" type="button" th:attr="data-drawer-open=${id},aria-controls=${id}">Transfer unfinished Tasks</button>
+    <dialog class="drawer" data-drawer th:id="${id}"
+            th:attr="aria-labelledby=${id + '-title'},aria-describedby=${id + '-description'}">
+        <header class="drawer-header">
+            <div>
+                <h2 class="panel-title" th:id="${id + '-title'}">Transfer unfinished Tasks</h2>
+                <p class="field-help" th:id="${id + '-description'}">Select one or more unfinished Tasks and exactly one eligible current member.</p>
+            </div>
+            <button class="icon-button" type="button" data-drawer-close aria-label="Close transfer drawer" title="Close transfer drawer">×</button>
+        </header>
+        <form class="drawer-body" method="post" th:action="${action}" data-transfer-confirm
+              th:attr="aria-describedby=${projectInput != null and projectInput.kind == 'transfer' and projectInput.sourceMembershipId == sourceMembershipId.toString() and projectError != null ? id + '-form-error' : null}">
+            <input type="hidden" name="sourceMembershipId" th:value="${sourceMembershipId}">
+            <fieldset class="form-section">
+                <legend>Unfinished Tasks</legend>
+                <p class="field-help" th:id="${id + '-tasks-help'}">Only TODO, IN_PROGRESS, and BLOCKED Tasks can be transferred.</p>
+                <label class="checkbox" th:each="task : ${unfinishedTasks}">
+                    <input type="checkbox" name="taskIds" th:value="${task.id}" th:checked="${projectInput != null and projectInput.kind == 'transfer' and projectInput.sourceMembershipId == sourceMembershipId.toString() and projectInput.taskIds.contains(task.id.toString())}" th:attr="aria-describedby=${id + '-tasks-help'}">
+                    <span th:text="|${task.title} · ${task.status}|">Task · IN_PROGRESS</span>
+                </label>
+                <p class="field-help" th:if="${#lists.isEmpty(unfinishedTasks)}">No unfinished Tasks are available.</p>
+            </fieldset>
+            <fieldset class="form-section">
+                <legend>One recipient</legend>
+                <p class="field-help" th:id="${id + '-recipient-help'}">Choose one eligible active current member.</p>
+                <label class="checkbox" th:each="recipient : ${recipients}">
+                    <input type="radio" name="recipientMembershipId" required th:value="${recipient.membershipId}" th:checked="${projectInput != null and projectInput.kind == 'transfer' and projectInput.sourceMembershipId == sourceMembershipId.toString() and projectInput.recipientMembershipId == recipient.membershipId.toString()}" th:attr="aria-describedby=${id + '-recipient-help'}">
+                    <span th:text="${recipient.displayName}">Recipient</span>
+                </label>
+                <p class="field-help" th:if="${#lists.isEmpty(recipients)}">No eligible recipients are available.</p>
+            </fieldset>
+            <p class="field-error" th:id="${id + '-form-error'}" role="alert" th:if="${projectInput != null and projectInput.kind == 'transfer' and projectInput.sourceMembershipId == sourceMembershipId.toString() and projectError != null}" th:text="${projectError}">Transfer error</p>
+            <div class="form-actions">
+                <button class="button" type="button" data-drawer-close>Cancel</button>
+                <button class="button button-primary" type="submit">Transfer selected Tasks</button>
+            </div>
+        </form>
+    </dialog>
+</th:block>
+<section th:fragment="projectHistory(events)" class="panel form-panel" th:if="${events != null}" aria-labelledby="project-history-title">
+    <header class="panel-header"><h2 class="panel-title" id="project-history-title">Project History</h2></header>
+    <div th:if="${#lists.isEmpty(events)}"><th:block th:replace="~{fragments/components :: empty('No Project History', 'Retained Project records will appear here.')} "></th:block></div>
+    <div class="table-scroll" th:unless="${#lists.isEmpty(events)}">
+        <table class="data-table">
+            <caption class="sr-only">Project History</caption>
+            <thead><tr><th scope="col">Record</th><th scope="col">When</th><th scope="col">Actor</th><th scope="col">Details</th><th scope="col">Attribution</th></tr></thead>
+            <tbody><tr th:each="event : ${events}">
+                <th scope="row" th:text="${event.type}">Record</th>
+                <td th:text="${event.occurredAt}">When</td>
+                <td th:text="${event.actorName}">Actor</td>
+                <td th:text="${event.summary}">Details</td>
+                <td th:text="${event.attribution}">Attribution</td>
+            </tr></tbody>
+        </table>
+    </div>
+</section>
+<section th:fragment="adminHistory(title, entries)" class="panel form-panel" sec:authorize="hasRole('ADMIN')" th:if="${entries != null}" aria-labelledby="admin-history-title">
+    <header class="panel-header"><h2 class="panel-title" id="admin-history-title" th:text="${title}">Admin setting History</h2></header>
+    <p class="field-help">Secret values are never displayed.</p>
+    <div th:if="${#lists.isEmpty(entries)}"><th:block th:replace="~{fragments/components :: empty('No setting History', 'Recorded non-secret changes will appear here.')} "></th:block></div>
+    <div class="table-scroll" th:unless="${#lists.isEmpty(entries)}">
+        <table class="data-table">
+            <caption class="sr-only" th:text="${title}">Admin setting History</caption>
+            <thead><tr><th scope="col">Setting</th><th scope="col">Displayed value</th><th scope="col">Changed</th><th scope="col">By</th></tr></thead>
+            <tbody><tr th:each="entry : ${entries}">
+                <th scope="row" th:text="${entry.label}">Setting</th>
+                <td th:text="${entry.value}">Value</td>
+                <td th:text="${entry.changedAt}">When</td>
+                <td th:text="${entry.changedBy}">By</td>
+            </tr></tbody>
+        </table>
+    </div>
+</section>
+</body>
+</html>
