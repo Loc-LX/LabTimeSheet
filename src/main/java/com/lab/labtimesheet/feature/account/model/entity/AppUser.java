@@ -59,6 +59,14 @@ public class AppUser {
     @Getter
     private Instant activatedAt;
 
+    @Column(name = "locked_at")
+    @Getter
+    private Instant lockedAt;
+
+    @Column(name = "deactivated_at")
+    @Getter
+    private Instant deactivatedAt;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by_user_id")
     private AppUser createdBy;
@@ -128,6 +136,67 @@ public class AppUser {
         passwordHash = encodedPassword;
         accountStatus = AccountStatus.ACTIVE;
         activatedAt = now;
+        updatedAt = now;
+    }
+
+    /**
+     * Locks an active account while retaining its role, password, and attribution.
+     *
+     * @param now server timestamp recorded for the lock and update
+     * @throws IllegalStateException when this account is not active
+     */
+    public void lock(Instant now) {
+        if (accountStatus != AccountStatus.ACTIVE) {
+            throw new IllegalStateException("Only an active account can be locked");
+        }
+        accountStatus = AccountStatus.LOCKED;
+        lockedAt = now;
+        updatedAt = now;
+    }
+
+    /**
+     * Unlocks a manually locked account without recreating credentials.
+     *
+     * @param now server timestamp recorded for the unlock and update
+     * @throws IllegalStateException when this account is not manually locked
+     */
+    public void unlock(Instant now) {
+        if (accountStatus != AccountStatus.LOCKED) {
+            throw new IllegalStateException("Only a locked account can be unlocked");
+        }
+        accountStatus = AccountStatus.ACTIVE;
+        lockedAt = null;
+        updatedAt = now;
+    }
+
+    /**
+     * Deactivates a credential-bearing account and retains its historical identity.
+     *
+     * @param now server timestamp recorded for deactivation and update
+     * @throws IllegalStateException when the account is pending activation or already deactivated
+     */
+    public void deactivate(Instant now) {
+        if (accountStatus == AccountStatus.PENDING_ACTIVATION || accountStatus == AccountStatus.DEACTIVATED) {
+            throw new IllegalStateException("Account cannot be deactivated in this state");
+        }
+        accountStatus = AccountStatus.DEACTIVATED;
+        lockedAt = null;
+        deactivatedAt = now;
+        updatedAt = now;
+    }
+
+    /**
+     * Replaces the encoded password for an account with existing credentials.
+     *
+     * @param encodedPassword password-encoder output, never cleartext
+     * @param now server timestamp recorded for the update
+     * @throws IllegalStateException when the account is pending activation or deactivated
+     */
+    public void changePassword(String encodedPassword, Instant now) {
+        if (accountStatus == AccountStatus.PENDING_ACTIVATION || accountStatus == AccountStatus.DEACTIVATED) {
+            throw new IllegalStateException("Account cannot change its password in this state");
+        }
+        passwordHash = encodedPassword;
         updatedAt = now;
     }
 

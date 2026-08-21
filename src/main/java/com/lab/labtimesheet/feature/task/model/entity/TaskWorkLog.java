@@ -14,12 +14,11 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
- * Persisted dated effort logged against one current Task by its then-current assignee.
+ * Persisted dated Task effort independent from attendance punches.
  *
- * <p>The logging membership is retained so reassignment never moves historical attribution. Minutes
- * are validated to the 1 through 1440 range and notes are normalized non-blank text. The JPA version
- * detects conflicting corrections, and the optimistic total-budget check in the owning service guards
- * the combined 1440-minute daily limit.
+ * <p>The membership identifier is the immutable historical author. Corrections update only the
+ * minutes, note, and update timestamp; the work date, Task, Project, author, and creation instant
+ * never move.
  */
 @Entity
 @Table(name = "task_work_logs")
@@ -60,15 +59,16 @@ public class TaskWorkLog {
     private long version;
 
     /**
-     * Creates a dated effort entry from service-validated values.
+     * Creates a dated work log from server-authorized values.
      *
      * @param projectId owning Project identifier
      * @param taskId owning Task identifier
-     * @param membershipId logging membership identifier, which stays stable across reassignment
-     * @param workDate validated local effort date
-     * @param minutes validated minutes from 1 through 1440
-     * @param note optional normalized non-blank note
+     * @param membershipId historical author membership identifier
+     * @param workDate local business date of the effort
+     * @param minutes effort in the inclusive range 1 through 1440
+     * @param note optional non-blank note, normalized by trimming
      * @param now server-controlled creation instant
+     * @throws IllegalArgumentException when date, minutes, or note is invalid
      */
     public TaskWorkLog(
             long projectId,
@@ -81,24 +81,48 @@ public class TaskWorkLog {
         this.projectId = projectId;
         this.taskId = taskId;
         this.membershipId = membershipId;
-        this.workDate = workDate;
-        this.minutes = minutes;
-        this.note = note;
+        this.workDate = requireDate(workDate);
+        this.minutes = requireMinutes(minutes);
+        this.note = normalizeNote(note);
         this.createdAt = now;
         this.updatedAt = now;
     }
 
     /**
-     * Applies an author-only correction to effort and note and advances the update timestamp.
+     * Corrects author-owned effort while retaining the original historical identity.
      *
-     * @param minutes corrected minutes from 1 through 1440
-     * @param note optional normalized non-blank note
+     * @param minutes replacement effort in the inclusive range 1 through 1440
+     * @param note replacement optional normalized note
      * @param now server-controlled correction instant
+     * @throws IllegalArgumentException when minutes or note is invalid
      */
     public void correct(int minutes, String note, Instant now) {
-        this.minutes = minutes;
-        this.note = note;
+        this.minutes = requireMinutes(minutes);
+        this.note = normalizeNote(note);
         this.updatedAt = now;
     }
 
+    private static LocalDate requireDate(LocalDate value) {
+        if (value == null) {
+            throw new IllegalArgumentException("Work date is required");
+        }
+        return value;
+    }
+
+    private static int requireMinutes(int value) {
+        if (value < 1 || value > 1440) {
+            throw new IllegalArgumentException("Work minutes must be between 1 and 1440");
+        }
+        return value;
+    }
+
+    private static String normalizeNote(String value) {
+        if (value == null) {
+            return null;
+        }
+        if (value.isBlank()) {
+            throw new IllegalArgumentException("Work-log note cannot be blank");
+        }
+        return value.trim();
+    }
 }

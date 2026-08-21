@@ -1,93 +1,106 @@
 package com.lab.labtimesheet.feature.task.repository;
 
+import com.lab.labtimesheet.feature.task.model.dto.TaskMemberWorkView;
+import com.lab.labtimesheet.feature.task.model.dto.TaskWorkLogCandidate;
 import com.lab.labtimesheet.feature.task.model.entity.TaskWorkLog;
 import jakarta.persistence.LockModeType;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-/** JPA persistence boundary for dated Task work logs and their author corrections. */
+/** JPA persistence boundary for dated Task work logs and corrections. */
 public interface TaskWorkLogRepository extends JpaRepository<TaskWorkLog, Long> {
 
     /**
-     * Loads one work log within its owning Task under a pessimistic write lock. The caller's
-     * transaction retains the lock through commit or rollback, serializing concurrent corrections.
+     * Locks one retained work log inside its Project/Task scope for author correction.
      *
-     * @param id work log identifier
-     * @param taskId owning Task identifier
+     * @param id work-log identifier
      * @param projectId owning Project identifier
-     * @return the locked log, or empty when identifiers do not match a log
+     * @return locked matching work log, if present
      */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("""
-            select log from TaskWorkLog log
-            where log.id = :id and log.taskId = :taskId and log.projectId = :projectId
-            """)
-    Optional<TaskWorkLog> findLockedByIdAndTaskIdAndProjectId(
-            @Param("id") long id, @Param("taskId") long taskId, @Param("projectId") long projectId);
+    Optional<TaskWorkLog> findLockedByIdAndProjectId(long id, long projectId);
 
     /**
-     * Lists a Task's effort history deterministically for authorized detail views.
+     * Lists one Task's retained work history in date and identifier order.
      *
      * @param taskId owning Task identifier
      * @param projectId owning Project identifier
-     * @return logs ordered by work date then identifier
+     * @return retained logs
      */
     List<TaskWorkLog> findAllByTaskIdAndProjectIdOrderByWorkDateAscIdAsc(long taskId, long projectId);
 
     /**
-     * Sums one Intern's logged minutes across all of their memberships on a single work date.
-     * The membership identifiers come from the Project feature boundary, so the result spans
-     * every Project without this feature querying foreign tables.
+     * Reads a narrow Project-scoped work-log projection without taking a row lock.
      *
-     * @param membershipIds every membership interval of the Intern
-     * @param workDate shared local business date
-     * @return combined minutes, or zero when no log exists for the date
+     * <p>Correction uses this immutable, non-managed projection only to discover the date needed
+     * before acquiring the Account profile lock. It then loads the entity for the first time with
+     * {@link #findLockedByIdAndProjectId(long, long)} and re-checks every projection field before
+     * authorizing or changing the row.</p>
+     *
+     * @param id work-log identifier
+     * @param projectId owning Project identifier
+     * @return immutable candidate projection when it belongs to the Project
      */
     @Query("""
-            select coalesce(sum(log.minutes), 0)
+            select new com.lab.labtimesheet.feature.task.model.dto.TaskWorkLogCandidate(
+                log.id, log.projectId, log.taskId, log.membershipId, log.workDate)
             from TaskWorkLog log
-            where log.membershipId in :membershipIds and log.workDate = :workDate
+            where log.id = :id
+              and log.projectId = :projectId
             """)
-    int sumMinutesByMembershipIdsAndWorkDate(
-            @Param("membershipIds") java.util.Collection<Long> membershipIds, @Param("workDate") LocalDate workDate);
+    Optional<TaskWorkLogCandidate> findCandidateByIdAndProjectId(
+            @Param("id") long id,
+            @Param("projectId") long projectId);
 
     /**
-     * Sums all logged minutes across one Project.
+     * Sums one Intern's dated effort across authoritative retained membership intervals.
      *
-     * <p>Consumed by the Project feature's progress/report boundaries. The result is the total
-     * effort ever logged in the Project regardless of later Task soft-deletion, because work logs
-     * are permanent history.
+     * <p>The Task service derives the complete interval identifier set through the Project DTO boundary
+     * while holding the mutation locks; this repository query only executes the aggregate over that
+     * reviewed set and never resolves Project or Account persistence.</p>
      *
-     * @param projectId owning Project identifier
-     * @return total minutes, or zero when nothing was logged
+     * @param membershipIds current and historical membership identifiers authorized by Project for the Intern/date
+     * @param workDate local business date whose combined effort is read
+     * @return combined minutes, or zero when no supplied membership has a log on the date
      */
     @Query("""
             select coalesce(sum(log.minutes), 0)
             from TaskWorkLog log
-            where log.projectId = :projectId
+            where log.membershipId in :membershipIds
+              and log.workDate = :workDate
             """)
+    long sumMinutesByMembershipIdsAndWorkDate(
+            @Param("membershipIds") Set<Long> membershipIds,
+            @Param("workDate") LocalDate workDate);
+
+    /**
+     * Sums all dated work in one Project, treating an empty set as zero.
+     *
+     * @param projectId owning Project identifier
+     * @return total logged minutes
+     */
+    @Query("select coalesce(sum(log.minutes), 0) from TaskWorkLog log where log.projectId = :projectId")
     long sumMinutesByProjectId(@Param("projectId") long projectId);
 
     /**
-     * Sums logged minutes per membership within one Project.
-     *
-     * <p>Consumed by the Project feature's per-member hour boundary. Membership attribution is
-     * retained even when the Task was later reassigned, and work logs are permanent history.
+     * Returns hand-checkable per-membership effort totals for one Project.
      *
      * @param projectId owning Project identifier
-     * @return rows of {@code (membershipId, long minutes)} ordered by membership identifier
+     * @return stable membership-order totals
      */
     @Query("""
-            select log.membershipId, coalesce(sum(log.minutes), 0)
+            select new com.lab.labtimesheet.feature.task.model.dto.TaskMemberWorkView(
+                log.membershipId, sum(log.minutes))
             from TaskWorkLog log
             where log.projectId = :projectId
             group by log.membershipId
             order by log.membershipId
             """)
-    List<Object[]> sumMinutesByProjectIdGroupedByMembership(@Param("projectId") long projectId);
+    List<TaskMemberWorkView> sumMinutesByProjectGroupedByMembership(@Param("projectId") long projectId);
 }

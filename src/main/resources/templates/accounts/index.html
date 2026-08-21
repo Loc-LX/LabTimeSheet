@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{fragments/layout :: shell(
+          pageTitle=${selectedAccount == null ? 'Accounts' : 'Account details'},
+          section='Admin',
+          activeNav='accounts',
+          primaryAction=~{::#primary-action},
+          content=~{::main})}">
+<body>
+<a id="primary-action" class="button button-primary"
+   th:href="${selectedAccount == null ? '/admin/accounts/new' : '/admin/accounts'}"
+   th:text="${selectedAccount == null ? 'Create account' : 'Back to accounts'}">Create account</a>
+<main>
+  <p class="alert" role="status" th:if="${message}" th:text="${message}">Saved</p>
+  <p class="alert alert-error" role="alert" th:if="${accountError}" th:text="${accountError}">Error</p>
+
+  <section th:if="${selectedAccount == null}">
+    <p class="page-description">Inspect account state and open lifecycle controls without exposing credentials.</p>
+    <div class="table-scroll panel" th:unless="${#lists.isEmpty(accounts)}">
+      <table class="data-table">
+        <caption class="sr-only">Accounts</caption>
+        <thead><tr><th scope="col">Name</th><th scope="col">Email</th><th scope="col">Role</th><th scope="col">Account state</th><th scope="col">Intern profile</th><th scope="col">Action</th></tr></thead>
+        <tbody>
+        <tr th:each="account : ${accounts}">
+          <td th:text="${account.displayName}">Name</td>
+          <td th:text="${account.email}">email@example.test</td>
+          <td th:text="${account.role}">INTERN</td>
+          <td th:text="${account.accountStatus}">ACTIVE</td>
+          <td th:text="${account.role.name() == 'INTERN' ? account.studentCode + ' · ' + account.internshipStatus : 'N/A'}">STU-001 · ACTIVE</td>
+          <td><a class="button" th:href="@{/admin/accounts/{id}(id=${account.id})}">View</a></td>
+        </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="empty-state" th:if="${#lists.isEmpty(accounts)}">No accounts are available.</p>
+  </section>
+
+  <div th:if="${selectedAccount != null}">
+    <section class="panel">
+      <h2 th:text="${selectedAccount.displayName}">Account</h2>
+      <dl class="detail-list">
+        <div><dt>Email</dt><dd th:text="${selectedAccount.email}">email@example.test</dd></div>
+        <div><dt>Immutable role</dt><dd th:text="${selectedAccount.role}">INTERN</dd></div>
+        <div><dt>Account state</dt><dd th:text="${selectedAccount.accountStatus}">ACTIVE</dd></div>
+      </dl>
+      <div class="inline-actions">
+        <form method="post" th:if="${selectedAccount.accountStatus.name() == 'ACTIVE'}"
+              th:action="@{/admin/accounts/{id}/lock(id=${selectedAccount.id})}">
+          <button class="button" type="submit">Lock account</button>
+        </form>
+        <form method="post" th:if="${selectedAccount.accountStatus.name() == 'LOCKED'}"
+              th:action="@{/admin/accounts/{id}/unlock(id=${selectedAccount.id})}">
+          <button class="button" type="submit">Unlock account</button>
+        </form>
+        <form method="post" th:if="${selectedAccount.accountStatus.name() == 'PENDING_ACTIVATION'}"
+              th:action="@{/admin/accounts/{id}/resend-activation(id=${selectedAccount.id})}">
+          <button class="button" type="submit">Resend activation</button>
+        </form>
+        <form method="post"
+              th:if="${selectedAccount.accountStatus.name() == 'ACTIVE' or selectedAccount.accountStatus.name() == 'LOCKED'}"
+              th:action="@{/admin/accounts/{id}/deactivate(id=${selectedAccount.id})}"
+              data-confirm="Deactivate this account? The user will lose authentication access immediately and existing sessions will expire. Historical attribution remains.">
+          <button class="button button-danger" type="submit">Deactivate account</button>
+        </form>
+      </div>
+    </section>
+
+    <section class="panel" th:if="${selectedAccount.role.name() == 'INTERN'}">
+      <h2>Internship lifecycle</h2>
+      <dl class="detail-list">
+        <div><dt>Student code</dt><dd th:text="${selectedAccount.studentCode}">STU-001</dd></div>
+        <div><dt>Inclusive dates</dt><dd th:text="|${#temporals.format(selectedAccount.internshipStartDate, 'dd/MM/yyyy')}–${#temporals.format(selectedAccount.internshipEndDate, 'dd/MM/yyyy')}|">Dates</dd></div>
+        <div><dt>Internship state</dt><dd th:text="${selectedAccount.internshipStatus}">ACTIVE</dd></div>
+        <div><dt>Current Leader</dt><dd th:text="${readiness.currentLeader ? 'Yes' : 'No'}">No</dd></div>
+        <div><dt>Unfinished Tasks</dt><dd th:text="${readiness.unfinishedTaskCount}">0</dd></div>
+      </dl>
+      <p class="alert" role="status" th:if="${readiness.readyForTerminalAction}">Ready for terminal action</p>
+      <p class="alert alert-warning" role="alert" th:unless="${readiness.readyForTerminalAction}">
+        Transfer leadership and reassign every unfinished Task before completing or withdrawing this Intern.
+      </p>
+      <div class="inline-actions">
+        <form method="post" th:action="@{/admin/accounts/{id}/complete-internship(id=${selectedAccount.id})}"
+              data-confirm="Complete this internship? The Intern becomes read-only immediately. Existing history remains.">
+          <button class="button button-primary" type="submit"
+                  th:disabled="${!readiness.readyForTerminalAction or selectedAccount.accountStatus.name() != 'ACTIVE' or selectedAccount.internshipStatus.name() != 'ACTIVE'}">Complete internship</button>
+        </form>
+        <form method="post" th:action="@{/admin/accounts/{id}/withdraw-internship(id=${selectedAccount.id})}"
+              data-confirm="Withdraw this internship? The Intern loses authentication access immediately. Existing history remains.">
+          <button class="button button-danger" type="submit"
+                  th:disabled="${!readiness.readyForTerminalAction or (selectedAccount.accountStatus.name() != 'ACTIVE' and selectedAccount.accountStatus.name() != 'LOCKED') or (selectedAccount.internshipStatus.name() != 'NOT_STARTED' and selectedAccount.internshipStatus.name() != 'ACTIVE')}">Withdraw internship</button>
+        </form>
+      </div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

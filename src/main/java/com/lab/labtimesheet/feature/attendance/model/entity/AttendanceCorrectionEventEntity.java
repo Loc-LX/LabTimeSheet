@@ -1,5 +1,8 @@
 package com.lab.labtimesheet.feature.attendance.model.entity;
 
+import com.lab.labtimesheet.feature.attendance.model.CorrectionEventType;
+import com.lab.labtimesheet.feature.attendance.model.CorrectionStatus;
+import com.lab.labtimesheet.feature.attendance.model.dto.CorrectionEventView;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -10,9 +13,7 @@ import java.time.Instant;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
-/**
- * JPA persistence model for one immutable correction transition in the append-only decision history.
- */
+/** Append-only JPA mapping for one correction transition event. */
 @Entity
 @Table(name = "attendance_correction_events")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -37,100 +38,53 @@ public class AttendanceCorrectionEventEntity {
     @Column(name = "actor_user_id")
     private Long actorUserId;
 
-    @Column(name = "note")
+    @Column
     private String note;
 
     @Column(name = "occurred_at", nullable = false)
     private Instant occurredAt;
 
     /**
-     * Creates one immutable correction transition.
+     * Creates one immutable transition event.
      *
-     * @param correctionId owning correction identifier
-     * @param eventType SUBMITTED, APPROVED, REJECTED, REOPENED, AUTO_REJECTED, or LOCKED
-     * @param fromStatus previous state, or {@code null} for submission
-     * @param toStatus resulting state
-     * @param actorUserId acting Intern or Mentor account identifier, or {@code null} for a scheduler
-     * @param note optional transition note
-     * @param occurredAt server transition instant
+     * @param correctionId attached correction identifier
+     * @param eventType transition kind
+     * @param fromStatus previous correction state, or {@code null} for submission
+     * @param toStatus resulting correction state
+     * @param actorUserId Mentor actor, or {@code null} for scheduler transitions
+     * @param note optional safe decision or expiry note
+     * @param occurredAt server timestamp
      */
     public AttendanceCorrectionEventEntity(
             long correctionId,
-            String eventType,
-            String fromStatus,
-            String toStatus,
+            CorrectionEventType eventType,
+            CorrectionStatus fromStatus,
+            CorrectionStatus toStatus,
             Long actorUserId,
             String note,
             Instant occurredAt) {
         this.correctionId = correctionId;
-        this.eventType = eventType;
-        this.fromStatus = fromStatus;
-        this.toStatus = toStatus;
+        this.eventType = eventType.name();
+        this.fromStatus = fromStatus == null ? null : fromStatus.name();
+        this.toStatus = toStatus.name();
         this.actorUserId = actorUserId;
         this.note = note;
         this.occurredAt = occurredAt;
     }
 
     /**
-     * Returns the owning correction identifier.
+     * Converts this append-only row into its non-secret DTO.
      *
-     * @return correction identifier
+     * @return immutable transition projection
      */
-    public long correctionId() {
-        return correctionId;
-    }
-
-    /**
-     * Returns the transition type.
-     *
-     * @return event type
-     */
-    public String eventType() {
-        return eventType;
-    }
-
-    /**
-     * Returns the previous state before this transition.
-     *
-     * @return previous state, or {@code null} for submission
-     */
-    public String fromStatus() {
-        return fromStatus;
-    }
-
-    /**
-     * Returns the resulting state.
-     *
-     * @return resulting state
-     */
-    public String toStatus() {
-        return toStatus;
-    }
-
-    /**
-     * Returns the acting Intern or Mentor account identifier.
-     *
-     * @return actor identifier, or {@code null} for a scheduler
-     */
-    public Long actorUserId() {
-        return actorUserId;
-    }
-
-    /**
-     * Returns the optional transition note.
-     *
-     * @return transition note, or {@code null}
-     */
-    public String note() {
-        return note;
-    }
-
-    /**
-     * Returns the server transition instant.
-     *
-     * @return occurred-at instant
-     */
-    public Instant occurredAt() {
-        return occurredAt;
+    public CorrectionEventView toView() {
+        return new CorrectionEventView(
+                id,
+                CorrectionEventType.valueOf(eventType),
+                fromStatus == null ? null : CorrectionStatus.valueOf(fromStatus),
+                CorrectionStatus.valueOf(toStatus),
+                actorUserId,
+                note,
+                occurredAt);
     }
 }

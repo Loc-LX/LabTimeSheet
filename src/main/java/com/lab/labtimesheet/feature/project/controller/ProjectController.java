@@ -5,19 +5,21 @@ import com.lab.labtimesheet.feature.account.service.AccountService;
 import com.lab.labtimesheet.feature.project.exception.ProjectAccessDeniedException;
 import com.lab.labtimesheet.feature.project.exception.ProjectRuleViolationException;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectCreateForm;
-import com.lab.labtimesheet.feature.project.model.dto.ProjectLeadershipTermView;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectMemberForm;
-import com.lab.labtimesheet.feature.project.model.dto.ProjectMemberView;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectMembersForm;
+import com.lab.labtimesheet.feature.project.model.dto.ProjectExitWorkflowView;
+import com.lab.labtimesheet.feature.project.model.InvitationResponse;
+import com.lab.labtimesheet.feature.task.model.TaskStatus;
 import com.lab.labtimesheet.feature.project.service.ProjectQueryService;
 import com.lab.labtimesheet.feature.project.service.ProjectService;
 import jakarta.validation.Valid;
 import java.security.Principal;
 import java.time.Clock;
 import java.time.LocalDate;
-import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Controller;
@@ -28,19 +30,16 @@ import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 /**
- * Phục vụ các trang Project hiển thị phía máy chủ cho người dùng đã xác thực và gắn dữ liệu vào biểu
- * mẫu thay đổi Project.
+ * Serves authenticated, server-rendered Project pages and binds Project mutation forms.
  *
- * <p>Service Project vẫn là nơi quyết định về sở hữu, thành viên, vòng đời và kiểm tra trong
- * transaction. Lỗi nghiệp vụ đã biết được trả về view an toàn ban đầu, còn lỗi phân quyền được
- * chuyển cho {@code ProjectControllerAdvice} để không tiết lộ mã tài nguyên.
- *
- * <p>Truy vết mã UI Project: {@code I1-PRJ-01} tạo Project, {@code I1-PRJ-02} thêm member,
- * {@code I1-PRJ-03} đổi Leader, {@code I1-PRJ-04} kích hoạt, {@code I1-PRJ-05} hiển thị các
- * trang Project; {@code I2-PRJ-01}–{@code I2-PRJ-05} và {@code I2-PRJ-06}
- * giữ lịch sử, handoff/xóa Leader an toàn và đọc lịch sử hoàn tất.
+ * <p>Project services remain the authority for ownership, membership, lifecycle, and
+ * transactional validation. Known rule failures are returned to the originating safe view,
+ * while authorization failures are left to {@code ProjectControllerAdvice} so identifiers are
+ * not disclosed.
  */
 @Controller
 @RequestMapping("/projects")
@@ -53,12 +52,12 @@ public class ProjectController {
     private final Clock clock;
 
     /**
-     * [I1-PRJ-01, I1-PRJ-05, I2-PRJ-06] Chỉ liệt kê Project mà người thực hiện đã xác thực được xem và chỉ hiển thị chức năng tạo
-     * Project cho Mentor.
+     * Lists only Projects visible to the authenticated actor and exposes Project creation only
+     * to Mentors.
      *
-     * @param principal người dùng đã xác thực
-     * @param model model của phản hồi
-     * @return view danh sách Project
+     * @param principal authenticated user
+     * @param model response model
+     * @return the Project list view
      */
     @GetMapping
     public String list(Principal principal, Model model) {
@@ -69,12 +68,12 @@ public class ProjectController {
     }
 
     /**
-     * [I1-PRJ-01, I1-PRJ-05] Mở biểu mẫu tạo Project cho Mentor đã xác thực.
+     * Opens the creation form for an authenticated Mentor.
      *
-     * @param principal người dùng đã xác thực
-     * @param model model của phản hồi
-     * @return view tạo Project
-     * @throws ProjectAccessDeniedException khi người thực hiện không phải Mentor đang hoạt động
+     * @param principal authenticated user
+     * @param model response model
+     * @return the Project creation view
+     * @throws ProjectAccessDeniedException when the actor is not an active Mentor
      */
     @GetMapping("/new")
     public String createForm(Principal principal, Model model) {
@@ -87,13 +86,13 @@ public class ProjectController {
     }
 
     /**
-     * [I1-PRJ-01, I1-PRJ-05] Tạo Project hoặc hiển thị lại biểu mẫu với dữ liệu an toàn đã nhập khi kiểm tra thất bại.
+     * Creates a Project or re-renders the form with retained safe input when validation fails.
      *
-     * @param principal người dùng đã xác thực
-     * @param projectForm dữ liệu biểu mẫu trên trình duyệt sau khi gắn dữ liệu
-     * @param bindingResult kết quả gắn dữ liệu và kiểm tra nghiệp vụ
-     * @param model model của phản hồi khi kiểm tra thất bại
-     * @return redirect tới Project vừa tạo hoặc view biểu mẫu khi kiểm tra thất bại
+     * @param principal authenticated user
+     * @param projectForm validated browser input
+     * @param bindingResult binding and domain validation results
+     * @param model response model used when validation fails
+     * @return a redirect to the created Project, or the creation form on validation failure
      */
     @PostMapping
     public String create(
@@ -121,26 +120,239 @@ public class ProjectController {
     }
 
     /**
-     * [I1-PRJ-05, I2-PRJ-06] Hiển thị chi tiết Project đã phân quyền mà không tiết lộ mã được đoán ngẫu nhiên.
+     * Renders an authorized Project detail without disclosing guessed identifiers.
      *
-     * @param principal người dùng đã xác thực
-     * @param projectId mã Project được yêu cầu
-     * @param model model của phản hồi
-     * @return view chi tiết Project
+     * @param principal authenticated user
+     * @param projectId requested Project identifier
+     * @param model response model
+     * @return the Project detail view
      */
     @GetMapping("/{projectId}")
     public String detail(Principal principal, @PathVariable long projectId, Model model) {
-        model.addAttribute("project", pages.detail(actorId(principal), projectId));
+        long actorId = actorId(principal);
+        model.addAttribute("project", pages.detail(actorId, projectId));
+        model.addAttribute("exitReadiness", pages.exitReadiness(actorId, projectId));
         return "projects/detail";
     }
 
     /**
-     * [I1-PRJ-04, I1-PRJ-05] Kích hoạt Project Planned hoặc hiển thị lại chi tiết với lỗi vòng đời an toàn.
+     * Lists only pending invitations addressed to the authenticated Intern.
      *
-     * @param principal người dùng đã xác thực
-     * @param projectId mã Project cần kích hoạt
-     * @param model model của phản hồi khi kích hoạt bị từ chối
-     * @return redirect về chi tiết khi thành công hoặc view chi tiết khi vi phạm quy tắc
+     * @param principal authenticated invitee
+     * @param model response model
+     * @return invitation inbox view
+     */
+    @GetMapping("/invitations")
+    public String invitations(Principal principal, Model model) {
+        var actor = pages.authenticatedActor(principal.getName());
+        model.addAttribute("invitations", pages.pendingInvitations(actor.userId()));
+        return "projects/invitations";
+    }
+
+    /**
+     * Routes a notification action to the authenticated invitation inbox; the POST response
+     * boundary remains the only state-changing path.
+     *
+     * @return invitee inbox redirect
+     */
+    @GetMapping("/{projectId}/invitations/{invitationId}")
+    public String invitationAction() {
+        return "redirect:/projects/invitations";
+    }
+
+    /** Applies an accept/decline response through the invitation's locked producer boundary. */
+    @PostMapping("/invitations/{invitationId}/respond")
+    public String respondToInvitation(
+            Principal principal,
+            @PathVariable long invitationId,
+            @RequestParam(defaultValue = "") String response,
+            RedirectAttributes redirectAttributes) {
+        return invitationMutation(redirectAttributes, () -> {
+            projects.respondToInvitation(
+                    actorId(principal),
+                    invitationId,
+                    requiredInvitationResponse(response));
+            return null;
+        });
+    }
+
+    /**
+     * Renders production-bound invitation, exit, transfer, decision, completion, and retained
+     * Project History controls for the exact authorized viewer.
+     */
+    @GetMapping("/{projectId}/workflows")
+    public String workflows(Principal principal, @PathVariable long projectId, Model model) {
+        populateWorkflowModel(principal, projectId, model);
+        return "projects/workflows";
+    }
+
+    @PostMapping("/{projectId}/invitations")
+    String issueInvitation(
+            Principal principal,
+            @PathVariable long projectId,
+            @RequestParam(defaultValue = "") String invitedInternUserId,
+            RedirectAttributes redirectAttributes) {
+        return workflowMutation(projectId, redirectAttributes, Map.of(
+                "kind", "invitation",
+                "invitedInternUserId", invitedInternUserId), () -> {
+            projects.issueInvitation(
+                    actorId(principal),
+                    projectId,
+                    requiredLong(invitedInternUserId, "Choose a valid Intern."));
+            return null;
+        });
+    }
+
+    @PostMapping("/{projectId}/invitations/{invitationId}/revoke")
+    String revokeInvitation(
+            Principal principal,
+            @PathVariable long projectId,
+            @PathVariable long invitationId,
+            RedirectAttributes redirectAttributes) {
+        return workflowMutation(projectId, redirectAttributes, () -> {
+            projects.revokeInvitation(actorId(principal), invitationId);
+            return null;
+        });
+    }
+
+    @PostMapping("/{projectId}/exits/removal")
+    String requestRemoval(
+            Principal principal,
+            @PathVariable long projectId,
+            @RequestParam(defaultValue = "") String targetMembershipId,
+            @RequestParam(defaultValue = "") String reason,
+            RedirectAttributes redirectAttributes) {
+        return workflowMutation(projectId, redirectAttributes, Map.of(
+                "kind", "removal",
+                "targetMembershipId", targetMembershipId,
+                "reason", reason), () -> {
+            projects.requestMemberRemoval(
+                    actorId(principal),
+                    projectId,
+                    requiredLong(targetMembershipId, "Choose a valid membership."),
+                    reason);
+            return null;
+        });
+    }
+
+    @PostMapping("/{projectId}/exits/leave")
+    String requestOwnLeave(
+            Principal principal,
+            @PathVariable long projectId,
+            @RequestParam(defaultValue = "") String reason,
+            RedirectAttributes redirectAttributes) {
+        return workflowMutation(projectId, redirectAttributes, Map.of(
+                "kind", "leave",
+                "reason", reason), () -> {
+            projects.requestOwnLeave(actorId(principal), projectId, reason);
+            return null;
+        });
+    }
+
+    @PostMapping("/{projectId}/exits/{requestId}/cancel")
+    String cancelExit(
+            Principal principal,
+            @PathVariable long projectId,
+            @PathVariable long requestId,
+            RedirectAttributes redirectAttributes) {
+        return workflowMutation(projectId, redirectAttributes, () -> {
+            projects.cancelExit(actorId(principal), requestId);
+            return null;
+        });
+    }
+
+    @PostMapping("/{projectId}/exits/{requestId}/transfer")
+    String transferExitTasks(
+            Principal principal,
+            @PathVariable long projectId,
+            @PathVariable long requestId,
+            @RequestParam(defaultValue = "") String sourceMembershipId,
+            @RequestParam(required = false) Set<String> taskIds,
+            @RequestParam(defaultValue = "") String recipientMembershipId,
+            RedirectAttributes redirectAttributes) {
+        return workflowMutation(projectId, redirectAttributes, Map.of(
+                "kind", "transfer",
+                "requestId", requestId,
+                "sourceMembershipId", sourceMembershipId,
+                "taskIds", taskIds == null ? Set.of() : Set.copyOf(taskIds),
+                "recipientMembershipId", recipientMembershipId), () -> projects.transferTasks(
+                actorId(principal),
+                projectId,
+                requiredLong(sourceMembershipId, "Choose a valid source membership."),
+                requiredLongSet(taskIds, "Choose at least one valid Task."),
+                requiredLong(recipientMembershipId, "Choose a valid recipient membership.")));
+    }
+
+    @PostMapping("/{projectId}/exits/{requestId}/approve")
+    String approveExit(
+            Principal principal,
+            @PathVariable long projectId,
+            @PathVariable long requestId,
+            @RequestParam(required = false) String note,
+            RedirectAttributes redirectAttributes) {
+        return workflowMutation(projectId, redirectAttributes, Map.of(
+                "kind", "approve",
+                "requestId", requestId,
+                "note", note == null ? "" : note), () -> {
+            projects.approveExit(actorId(principal), requestId, note);
+            return null;
+        });
+    }
+
+    @PostMapping("/{projectId}/exits/{requestId}/reject")
+    String rejectExit(
+            Principal principal,
+            @PathVariable long projectId,
+            @PathVariable long requestId,
+            @RequestParam(required = false) String note,
+            RedirectAttributes redirectAttributes) {
+        return workflowMutation(projectId, redirectAttributes, Map.of(
+                "kind", "reject",
+                "requestId", requestId,
+                "note", note == null ? "" : note), () -> {
+            projects.rejectExit(actorId(principal), requestId, note);
+            return null;
+        });
+    }
+
+    @PostMapping("/{projectId}/members/{membershipId}/remove")
+    String directRemove(
+            Principal principal,
+            @PathVariable long projectId,
+            @PathVariable long membershipId,
+            @RequestParam(defaultValue = "") String replacementLeaderUserId,
+            RedirectAttributes redirectAttributes) {
+        return workflowMutation(projectId, redirectAttributes, Map.of(
+                "kind", "direct-removal",
+                "membershipId", membershipId,
+                "replacementLeaderUserId", replacementLeaderUserId), () -> {
+            projects.directRemoveMember(
+                    actorId(principal),
+                    projectId,
+                    membershipId,
+                    optionalLong(replacementLeaderUserId, "Choose a valid replacement Leader."));
+            return null;
+        });
+    }
+
+    @PostMapping("/{projectId}/complete")
+    String complete(
+            Principal principal,
+            @PathVariable long projectId,
+            RedirectAttributes redirectAttributes) {
+        return workflowMutation(projectId, redirectAttributes, () -> {
+            projects.complete(actorId(principal), projectId);
+            return null;
+        });
+    }
+
+    /**
+     * Activates a planned Project or re-renders its detail with a safe lifecycle error.
+     *
+     * @param principal authenticated user
+     * @param projectId Project to activate
+     * @param model response model used when activation is rejected
+     * @return a detail redirect after success, or the detail view after a rule failure
      */
     @PostMapping("/{projectId}/activate")
     public String activate(Principal principal, @PathVariable long projectId, Model model) {
@@ -156,13 +368,12 @@ public class ProjectController {
     }
 
     /**
-     * [I1-PRJ-02, I1-PRJ-05, I2-PRJ-06] Hiển thị các membership đang hoạt động; lịch sử được mở
-     * qua nút History ở trang riêng.
+     * Renders authorized current and historical membership intervals.
      *
-     * @param principal người dùng đã xác thực
-     * @param projectId mã Project được yêu cầu
-     * @param model model của phản hồi
-     * @return view danh sách thành viên hiện tại
+     * @param principal authenticated user
+     * @param projectId requested Project identifier
+     * @param model response model
+     * @return the membership history view
      */
     @GetMapping("/{projectId}/members")
     public String members(Principal principal, @PathVariable long projectId, Model model) {
@@ -172,30 +383,16 @@ public class ProjectController {
         return "projects/members";
     }
 
-    /** [I2-PRJ-06] Hiển thị read-only toàn bộ lịch sử vào/ra của membership Project. */
-    @GetMapping("/{projectId}/members/history")
-    public String memberHistory(Principal principal, @PathVariable long projectId, Model model) {
-        long actorId = actorId(principal);
-        model.addAttribute("project", pages.detail(actorId, projectId));
-        // Lịch sử riêng được hiển thị từ mới đến cũ; danh sách active không dùng thứ tự này.
-        model.addAttribute("members", pages.members(actorId, projectId).stream()
-                .sorted(Comparator.comparing(ProjectMemberView::joinedAt)
-                        .reversed()
-                        .thenComparing(ProjectMemberView::membershipId, Comparator.reverseOrder()))
-                .toList());
-        return "projects/members-history";
-    }
-
     /**
-     * [I1-PRJ-02, I1-PRJ-05] Nguyên tử thêm toàn bộ Intern đủ điều kiện đã chọn hoặc hiển thị lại lịch sử thành viên với
-     * các lựa chọn vẫn còn đủ điều kiện và số lựa chọn không còn khả dụng.
+     * Adds all selected eligible Interns atomically or re-renders membership history with every
+     * still-eligible selection retained and a count of unavailable choices.
      *
-     * @param principal người dùng đã xác thực
-     * @param projectId mã Project sở hữu
-     * @param membersForm lựa chọn Intern sau khi gắn dữ liệu và kiểm tra
-     * @param bindingResult kết quả gắn dữ liệu và kiểm tra nghiệp vụ
-     * @param model model của phản hồi khi thất bại
-     * @return redirect về thành viên khi thành công hoặc view thành viên khi kiểm tra thất bại
+     * @param principal authenticated user
+     * @param projectId owning Project identifier
+     * @param membersForm validated Intern selection
+     * @param bindingResult binding and domain validation results
+     * @param model response model used on failure
+     * @return a membership redirect after success, or the membership view on validation failure
      */
     @PostMapping("/{projectId}/members")
     public String addMembers(
@@ -230,98 +427,31 @@ public class ProjectController {
     }
 
     /**
-     * [I2-PRJ-04] Chuyển Task chưa hoàn thành sang Leader hiện tại rồi đóng membership member
-     * thường; khi lỗi thì nạp lại trang cùng thông báo và không tự ý đổi dữ liệu biểu mẫu thêm member.
+     * Renders the authorized leadership-term history and an owner-only mutation form while the
+     * Project is mutable.
      *
-     * @param principal Mentor đang đăng nhập
-     * @param projectId mã Project
-     * @param internUserId mã Intern hiện tại cần loại
-     * @param model model dùng khi hiển thị lỗi nghiệp vụ
-     * @return redirect về lịch sử member khi thành công hoặc view member khi thất bại
-     */
-    @PostMapping("/{projectId}/members/{internUserId}/remove")
-    public String removeMember(
-            Principal principal,
-            @PathVariable long projectId,
-            @PathVariable long internUserId,
-            Model model) {
-        long actorId = actorId(principal);
-        try {
-            projects.removeMember(actorId, projectId, internUserId);
-            return "redirect:/projects/" + projectId + "/members";
-        } catch (ProjectRuleViolationException exception) {
-            populateMembersModel(actorId, projectId, model);
-            model.addAttribute("projectMembersForm", new ProjectMembersForm());
-            model.addAttribute("memberRemovalError", exception.getMessage());
-            return "projects/members";
-        }
-    }
-
-    /**
-     * [I2-PRJ-05] Hoàn tất Project sau khi service đã kiểm tra toàn bộ Task và đóng các interval.
-     * Lỗi nghiệp vụ được hiển thị lại ở trang chi tiết, còn quyền sở hữu vẫn được kiểm tra trong
-     * ProjectService.
-     *
-     * @param principal Mentor đang đăng nhập
-     * @param projectId mã Project cần hoàn tất
-     * @param model model hiển thị lỗi
-     * @return redirect về chi tiết hoặc view chi tiết khi bị từ chối
-     */
-    @PostMapping("/{projectId}/complete")
-    public String complete(Principal principal, @PathVariable long projectId, Model model) {
-        long actorId = actorId(principal);
-        try {
-            projects.complete(actorId, projectId);
-            return "redirect:/projects/" + projectId;
-        } catch (ProjectRuleViolationException exception) {
-            model.addAttribute("project", pages.detail(actorId, projectId));
-            model.addAttribute("projectError", exception.getMessage());
-            return "projects/detail";
-        }
-    }
-
-    /**
-     * [I1-PRJ-03, I1-PRJ-05, I2-PRJ-01, I2-PRJ-06] Hiển thị Leader hiện tại và biểu mẫu thay đổi
-     * Leader chỉ dành cho Mentor sở hữu khi Project còn cho phép thay đổi. Lịch sử nhiệm kỳ được
-     * mở qua nút History ở trang riêng.
-     *
-     * @param principal người dùng đã xác thực
-     * @param projectId mã Project được yêu cầu
-     * @param model model dùng để hiển thị phản hồi
-     * @return view Leader hiện tại
+     * @param principal authenticated user
+     * @param projectId requested Project identifier
+     * @param model response model
+     * @return the leadership history view
      */
     @GetMapping("/{projectId}/leadership")
     public String leadership(Principal principal, @PathVariable long projectId, Model model) {
         long actorId = actorId(principal);
-        var currentTermId = populateLeadershipModel(actorId, projectId, model);
-        model.addAttribute("projectMemberForm", new ProjectMemberForm(null, currentTermId));
+        populateLeadershipModel(actorId, projectId, model);
+        model.addAttribute("projectMemberForm", new ProjectMemberForm(null));
         return "projects/leadership";
     }
 
-    /** [I2-PRJ-06] Hiển thị read-only toàn bộ lịch sử các nhiệm kỳ Leader của Project. */
-    @GetMapping("/{projectId}/leadership/history")
-    public String leadershipHistory(Principal principal, @PathVariable long projectId, Model model) {
-        long actorId = actorId(principal);
-        model.addAttribute("project", pages.detail(actorId, projectId));
-        // Bảo đảm bản ghi mới nhất đứng trước ngay tại trang History, độc lập với dữ liệu từ service.
-        model.addAttribute("leadership", pages.leadership(actorId, projectId).stream()
-                .sorted(Comparator.comparing(ProjectLeadershipTermView::startedAt)
-                        .reversed()
-                        .thenComparing(ProjectLeadershipTermView::id, Comparator.reverseOrder()))
-                .toList());
-        return "projects/leadership-history";
-    }
-
     /**
-     * [I1-PRJ-03, I1-PRJ-05, I2-PRJ-01, I2-PRJ-02] Bổ nhiệm một thành viên hiện tại đủ điều kiện làm Leader mới; nếu thất bại thì hiển thị lại
-     * lịch sử Leader cùng dữ liệu người dùng đã nhập.
+     * Appoints an eligible current member or re-renders leadership history with retained input.
      *
-     * @param principal người dùng đã xác thực
-     * @param projectId mã Project sở hữu
-     * @param memberForm lựa chọn Leader thay thế sau khi gắn dữ liệu và kiểm tra
-     * @param bindingResult kết quả gắn dữ liệu và kiểm tra nghiệp vụ
-     * @param model model dùng khi xử lý thất bại
-     * @return redirect về lịch sử Leader khi thành công, hoặc view lịch sử khi kiểm tra thất bại
+     * @param principal authenticated user
+     * @param projectId owning Project identifier
+     * @param memberForm validated replacement Leader selection
+     * @param bindingResult binding and domain validation results
+     * @param model response model used on failure
+     * @return a leadership redirect after success, or the leadership view on validation failure
      */
     @PostMapping("/{projectId}/leadership")
     public String changeLeader(
@@ -333,11 +463,7 @@ public class ProjectController {
         long actorId = actorId(principal);
         if (!bindingResult.hasErrors()) {
             try {
-                projects.changeLeader(
-                        actorId,
-                        projectId,
-                        memberForm.expectedLeadershipTermId(),
-                        memberForm.internUserId());
+                projects.changeLeader(actorId, projectId, memberForm.internUserId());
                 return "redirect:/projects/" + projectId + "/leadership";
             } catch (ProjectRuleViolationException exception) {
                 bindingResult.rejectValue("internUserId", "project.leader.ineligible", exception.getMessage());
@@ -347,47 +473,9 @@ public class ProjectController {
         return "projects/leadership";
     }
 
-    /**
-     * [I2-PRJ-03] Thay Leader trước rồi đóng membership Leader cũ trong một transaction; chỉ
-     * Mentor sở hữu mới đi qua được phân quyền ở ProjectService.
-     *
-     * @param principal người dùng đã xác thực
-     * @param projectId mã Project cần thay Leader và xóa membership cũ
-     * @param memberForm replacement cùng token nhiệm kỳ hiện tại
-     * @param bindingResult lỗi binding/validation của form
-     * @param model model dùng khi hiển thị lại form lỗi
-     * @return redirect sau khi thành công hoặc leadership view khi thất bại
-     */
-    @PostMapping("/{projectId}/leadership/remove")
-    public String removeLeader(
-            Principal principal,
-            @PathVariable long projectId,
-            @Valid @ModelAttribute("projectMemberForm") ProjectMemberForm memberForm,
-            BindingResult bindingResult,
-            Model model) {
-        long actorId = actorId(principal);
-        if (!bindingResult.hasErrors()) {
-            try {
-                projects.removeLeader(
-                        actorId,
-                        projectId,
-                        memberForm.expectedLeadershipTermId(),
-                        memberForm.internUserId());
-                return "redirect:/projects/" + projectId + "/leadership";
-            } catch (ProjectRuleViolationException exception) {
-                bindingResult.rejectValue("internUserId", "project.leader.removal", exception.getMessage());
-            }
-        }
-        populateLeadershipModel(actorId, projectId, model);
-        return "projects/leadership";
-    }
-
-    /** Nạp chi tiết, membership hiện tại và danh sách Intern còn có thể thêm vào model. */
     private List<EligibleInternOption> populateMembersModel(long actorId, long projectId, Model model) {
         var project = pages.detail(actorId, projectId);
-        var members = pages.members(actorId, projectId).stream()
-                .filter(member -> member.leftAt() == null)
-                .toList();
+        var members = pages.members(actorId, projectId);
         model.addAttribute("project", project);
         model.addAttribute("members", members);
         if (project.canManage()) {
@@ -404,17 +492,10 @@ public class ProjectController {
         return List.of();
     }
 
-    /**
-     * Nạp Leader hiện tại và trả về mã nhiệm kỳ dùng làm token chống ghi đè từ form cũ. Project đã
-     * hoàn tất cố ý không trả token vì không hiển thị biểu mẫu thay đổi.
-     */
-    private Long populateLeadershipModel(long actorId, long projectId, Model model) {
+    private void populateLeadershipModel(long actorId, long projectId, Model model) {
         var project = pages.detail(actorId, projectId);
-        var leadership = pages.leadership(actorId, projectId).stream()
-                .filter(term -> term.endedAt() == null)
-                .toList();
         model.addAttribute("project", project);
-        model.addAttribute("leadership", leadership);
+        model.addAttribute("leadership", pages.leadership(actorId, projectId));
         if (project.canManage()) {
             Set<Long> replacementIds = pages.members(actorId, projectId).stream()
                     .filter(member -> member.leftAt() == null && !member.currentLeader())
@@ -424,19 +505,155 @@ public class ProjectController {
                     .filter(option -> replacementIds.contains(option.userId()))
                     .toList());
         }
-        return leadership.stream()
+    }
+
+    private void populateWorkflowModel(Principal principal, long projectId, Model model) {
+        var actor = pages.authenticatedActor(principal.getName());
+        var project = pages.detail(actor.userId(), projectId);
+        var members = pages.members(actor.userId(), projectId);
+        var readiness = pages.exitReadiness(actor.userId(), projectId);
+        var history = pages.history(actor.userId(), projectId);
+        Map<Long, String> memberNames = members.stream().collect(Collectors.toUnmodifiableMap(
+                member -> member.membershipId(),
+                member -> member.displayName()));
+        boolean currentLeader = members.stream().anyMatch(member -> member.currentLeader()
+                && member.internUserId() == actor.userId());
+        Set<Long> pendingTargets = readiness.stream()
+                .map(item -> item.targetMembershipId())
+                .collect(Collectors.toUnmodifiableSet());
+        var currentMembers = members.stream().filter(member -> member.leftAt() == null).toList();
+        var exitWorkflows = readiness.stream()
+                .map(item -> new ProjectExitWorkflowView(
+                        item.requestId(),
+                        item.targetMembershipId(),
+                        memberNames.getOrDefault(item.targetMembershipId(), "Membership " + item.targetMembershipId()),
+                        item.targetIsCurrentLeader(),
+                        item.unfinishedTaskCount(),
+                        item.readyForApproval(),
+                        currentLeader && !item.targetIsCurrentLeader() && item.unfinishedTaskCount() > 0))
+                .toList();
+        var unfinishedTasksByMembership = history.tasks().stream()
+                .filter(task -> task.deletedAt() == null && task.status() != TaskStatus.DONE)
+                .collect(Collectors.groupingBy(task -> task.assigneeMembershipId()));
+        var currentMemberIds = currentMembers.stream()
+                .map(member -> member.internUserId())
+                .collect(Collectors.toUnmodifiableSet());
+        var invitationOptions = currentLeader
+                ? eligibleInternOptions().stream()
+                        .filter(option -> !currentMemberIds.contains(option.userId()))
+                        .toList()
+                : List.<EligibleInternOption>of();
+        var actorMembership = currentMembers.stream()
+                .filter(member -> member.internUserId() == actor.userId())
+                .findFirst()
+                .orElse(null);
+        Long currentLeadershipTermId = history.leadership().stream()
                 .filter(term -> term.endedAt() == null)
                 .map(term -> term.id())
                 .findFirst()
                 .orElse(null);
+        var revocableInvitations = history.invitations().stream()
+                .filter(invitation -> invitation.status().name().equals("PENDING"))
+                .filter(invitation -> project.canManage()
+                        || currentLeader && currentLeadershipTermId != null
+                                && invitation.issuingLeadershipTermId() == currentLeadershipTermId)
+                .toList();
+        Set<Long> cancellableExitIds = actorMembership == null
+                ? Set.of()
+                : history.exitRequests().stream()
+                        .filter(request -> request.status().name().equals("PENDING")
+                                && request.requesterMembershipId() == actorMembership.membershipId())
+                        .map(request -> request.id())
+                        .collect(Collectors.toUnmodifiableSet());
+
+        model.addAttribute("project", project);
+        model.addAttribute("actor", actor);
+        model.addAttribute("members", members);
+        model.addAttribute("currentMembers", currentMembers);
+        model.addAttribute("currentLeader", currentLeader);
+        model.addAttribute("actorMembership", actorMembership);
+        model.addAttribute("exitWorkflows", exitWorkflows);
+        model.addAttribute("pendingTargetMembershipIds", pendingTargets);
+        model.addAttribute("unfinishedTasksByMembership", unfinishedTasksByMembership);
+        model.addAttribute("transferRecipients", currentMembers.stream()
+                .filter(member -> !pendingTargets.contains(member.membershipId()))
+                .toList());
+        model.addAttribute("invitationOptions", invitationOptions);
+        model.addAttribute("revocableInvitations", revocableInvitations);
+        model.addAttribute("cancellableExitIds", cancellableExitIds);
+        model.addAttribute("projectHistory", history);
     }
 
-    /** Lấy danh sách Intern hiện đủ điều kiện tại ngày hiện tại của server. */
+    private String workflowMutation(
+            long projectId, RedirectAttributes redirectAttributes, Supplier<?> mutation) {
+        return workflowMutation(projectId, redirectAttributes, Map.of(), mutation);
+    }
+
+    private String workflowMutation(
+            long projectId,
+            RedirectAttributes redirectAttributes,
+            Map<String, ?> safeInput,
+            Supplier<?> mutation) {
+        try {
+            mutation.get();
+            redirectAttributes.addFlashAttribute("message", "Project workflow updated");
+        } catch (ProjectRuleViolationException exception) {
+            redirectAttributes.addFlashAttribute("projectError", exception.getMessage());
+            if (!safeInput.isEmpty()) {
+                redirectAttributes.addFlashAttribute("projectInput", safeInput);
+            }
+        }
+        return "redirect:/projects/" + projectId + "/workflows";
+    }
+
+    private String invitationMutation(RedirectAttributes redirectAttributes, Supplier<?> mutation) {
+        try {
+            mutation.get();
+            redirectAttributes.addFlashAttribute("message", "Invitation response saved");
+        } catch (ProjectRuleViolationException exception) {
+            redirectAttributes.addFlashAttribute("projectError", exception.getMessage());
+        }
+        return "redirect:/projects/invitations";
+    }
+
+    private static InvitationResponse requiredInvitationResponse(String value) {
+        try {
+            return InvitationResponse.valueOf(value.strip());
+        } catch (IllegalArgumentException exception) {
+            throw new ProjectRuleViolationException("Choose a valid invitation response.");
+        }
+    }
+
+    private static long requiredLong(String value, String errorMessage) {
+        try {
+            return Long.parseLong(value.strip());
+        } catch (NumberFormatException exception) {
+            throw new ProjectRuleViolationException(errorMessage);
+        }
+    }
+
+    private static Long optionalLong(String value, String errorMessage) {
+        return value == null || value.isBlank() ? null : requiredLong(value, errorMessage);
+    }
+
+    private static Set<Long> requiredLongSet(Set<String> values, String errorMessage) {
+        if (values == null || values.isEmpty()) {
+            throw new ProjectRuleViolationException(errorMessage);
+        }
+        try {
+            return values.stream()
+                    .map(String::strip)
+                    .map(Long::valueOf)
+                    .collect(Collectors.toUnmodifiableSet());
+        } catch (NumberFormatException exception) {
+            throw new ProjectRuleViolationException(errorMessage);
+        }
+    }
+
     private List<EligibleInternOption> eligibleInternOptions() {
         return accounts.eligibleInternOptions(LocalDate.now(clock));
     }
 
-    /** Đổi danh tính đăng nhập trong yêu cầu thành mã Account dùng ở service Project. */
     private long actorId(Principal principal) {
         return pages.authenticatedUserId(principal.getName());
     }

@@ -1,6 +1,7 @@
 package com.lab.labtimesheet.feature.task.repository;
 
 import com.lab.labtimesheet.feature.task.model.TaskStatus;
+import com.lab.labtimesheet.feature.task.model.dto.TaskProjectProgress;
 import com.lab.labtimesheet.feature.task.model.entity.Task;
 import jakarta.persistence.LockModeType;
 import java.util.List;
@@ -13,34 +14,12 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 /**
- * JPA persistence, khóa ghi và truy vấn hiện tại cho các dòng Task.
+ * JPA persistence and current-read queries for Task rows.
  *
  * <p>Normal reads consistently exclude soft-deleted rows. Mutation callers acquire the owning
  * Project lock before requesting the Task row lock so aggregate and Task lock order remains stable.
  */
 public interface TaskRepository extends JpaRepository<Task, Long> {
-
-    /**
-     * [I2-PRJ-04] Khóa các Task chưa DONE của một membership trước khi luồng rời Project chuyển
-     * chúng sang Leader hiện tại.
-     *
-     * @param projectId Project sở hữu Task
-     * @param assigneeMembershipId membership sắp đóng
-     * @return Task hiện tại chưa DONE theo thứ tự ổn định
-     */
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("""
-            select task
-            from Task task
-            where task.projectId = :projectId
-              and task.assigneeMembershipId = :assigneeMembershipId
-              and task.status <> com.lab.labtimesheet.feature.task.model.TaskStatus.DONE
-              and task.deletedAt is null
-            order by task.id
-            """)
-    List<Task> findLockedUnfinishedByProjectIdAndAssigneeMembershipId(
-            @Param("projectId") long projectId,
-            @Param("assigneeMembershipId") long assigneeMembershipId);
 
     /**
      * Finds a current Task only when its identifier belongs to the supplied Project.
@@ -52,29 +31,6 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
     Optional<Task> findByIdAndProjectIdAndDeletedAtIsNull(long id, long projectId);
 
     /**
-     * Finds one Task historically regardless of soft-deletion state.
-     *
-     * <p>The caller applies the historical-inspection authorization (current Leader or self-Task
-     * creator) before exposing the row; soft-deleted Tasks are otherwise hidden.
-     *
-     * @param id Task identifier
-     * @param projectId owning Project identifier
-     * @return matching Task including soft-deleted rows, if present in that aggregate
-     */
-    Optional<Task> findByIdAndProjectId(long id, long projectId);
-
-    /**
-     * Lists Tasks for one Project historically regardless of soft-deletion state.
-     *
-     * <p>The caller applies the historical-inspection authorization before exposing the rows;
-     * soft-deleted Tasks are otherwise excluded from normal lists.
-     *
-     * @param projectId owning Project identifier
-     * @return Tasks including soft-deleted rows in deterministic identifier order
-     */
-    List<Task> findAllByProjectIdOrderById(long projectId);
-
-    /**
      * Locks one current Task for a mutation after the caller has locked its Project.
      *
      * @param id Task identifier
@@ -83,31 +39,6 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
      */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<Task> findLockedByIdAndProjectIdAndDeletedAtIsNull(long id, long projectId);
-
-    /**
-     * Locks every unfinished current Task assigned to one membership within one Project.
-     *
-     * <p>Used by the exit-transfer boundary, which runs inside the Project feature's locked
-     * transaction. {@code DONE} and soft-deleted Tasks are excluded because completed work and
-     * historical rows never move.
-     *
-     * @param projectId owning Project identifier
-     * @param assigneeMembershipId membership whose unfinished Tasks are being transferred
-     * @return locked non-deleted Tasks in TODO, IN_PROGRESS, or BLOCKED state
-     */
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("""
-            select task
-            from Task task
-            where task.projectId = :projectId
-              and task.assigneeMembershipId = :assigneeMembershipId
-              and task.deletedAt is null
-              and task.status <> com.lab.labtimesheet.feature.task.model.TaskStatus.DONE
-            order by task.id
-            """)
-    List<Task> findLockedUnfinishedByProjectIdAndAssigneeMembershipId(
-            @Param("projectId") long projectId,
-            @Param("assigneeMembershipId") long assigneeMembershipId);
 
     /**
      * Lists current Tasks for one Project in deterministic identifier order.
@@ -126,44 +57,79 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
     long countByProjectIdAndDeletedAtIsNull(long projectId);
 
     /**
-     * [I2-PRJ-05] Đếm Task hiện tại chưa hoàn thành để quyết định Project có thể chuyển sang
-     * trạng thái terminal hay chưa.
+     * Reads status counts and retained work minutes from one aggregate query.
      *
-     * @param projectId Project sở hữu Task
-     * @return số Task chưa xóa có trạng thái khác DONE
+     * <p>The aggregate produces one row even when a Project has no current Tasks. The correlated
+     * work-log sum is evaluated within the same database snapshot as the Task counts, avoiding
+     * mixed READ COMMITTED observations during concurrent status or log changes.
+     *
+     * @param projectId owning Project identifier
+     * @param todo TODO status value
+     * @param inProgress IN_PROGRESS status value
+     * @param blocked BLOCKED status value
+     * @param done DONE status value
+     * @return current non-deleted counts and retained total minutes
      */
     @Query("""
-            select count(task)
+            select new com.lab.labtimesheet.feature.task.model.dto.TaskProjectProgress(
+                coalesce(sum(case when task.status = :todo then 1 else 0 end), 0),
+                coalesce(sum(case when task.status = :inProgress then 1 else 0 end), 0),
+                coalesce(sum(case when task.status = :blocked then 1 else 0 end), 0),
+                coalesce(sum(case when task.status = :done then 1 else 0 end), 0),
+                coalesce((select sum(log.minutes)
+                          from TaskWorkLog log
+                          where log.projectId = :projectId), 0))
             from Task task
             where task.projectId = :projectId
               and task.deletedAt is null
-              and task.status <> com.lab.labtimesheet.feature.task.model.TaskStatus.DONE
             """)
-    long countUnfinishedByProjectId(@Param("projectId") long projectId);
+    TaskProjectProgress projectProgress(
+            @Param("projectId") long projectId,
+            @Param("todo") TaskStatus todo,
+            @Param("inProgress") TaskStatus inProgress,
+            @Param("blocked") TaskStatus blocked,
+            @Param("done") TaskStatus done);
 
     /**
-     * Counts current Tasks in one status within one Project.
+     * Counts unfinished current Tasks assigned to one membership.
      *
      * @param projectId owning Project identifier
-     * @param status status to count
+     * @param assigneeMembershipId current assignee membership identifier
+     * @param statuses unfinished status set
      * @return matching non-deleted Task count
      */
-    long countByProjectIdAndStatusAndDeletedAtIsNull(long projectId, TaskStatus status);
+    long countByProjectIdAndAssigneeMembershipIdAndStatusInAndDeletedAtIsNull(
+            long projectId, long assigneeMembershipId, Set<TaskStatus> statuses);
 
     /**
-     * Groups current Task counts by status for one Project.
+     * Lists unfinished current Task IDs in stable order for a guarded all-or-nothing transfer.
      *
      * @param projectId owning Project identifier
-     * @return rows of {@code (TaskStatus, long count)} for each non-empty status
+     * @param assigneeMembershipId source assignee membership identifier
+     * @param statuses unfinished status set
+     * @return matching non-deleted Task identifiers ordered ascending
      */
     @Query("""
-            select task.status, count(task)
+            select task.id
             from Task task
             where task.projectId = :projectId
+              and task.assigneeMembershipId = :assigneeMembershipId
+              and task.status in :statuses
               and task.deletedAt is null
-            group by task.status
+            order by task.id
             """)
-    List<Object[]> countByProjectIdGroupedByStatus(@Param("projectId") long projectId);
+    List<Long> findIdsByProjectIdAndAssigneeMembershipIdAndStatusInAndDeletedAtIsNullOrderById(
+            @Param("projectId") long projectId,
+            @Param("assigneeMembershipId") long assigneeMembershipId,
+            @Param("statuses") Set<TaskStatus> statuses);
+
+    /**
+     * Lists all retained Task rows, including soft-deleted history, by stable identifier order.
+     *
+     * @param projectId owning Project identifier
+     * @return retained Task rows
+     */
+    List<Task> findAllByProjectIdOrderById(long projectId);
 
     /**
      * Counts current Tasks in a status across the supplied Projects.

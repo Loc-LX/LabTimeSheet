@@ -4,285 +4,375 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.lab.labtimesheet.config.TestcontainersConfiguration;
+import com.lab.labtimesheet.feature.account.service.AccountService;
 import com.lab.labtimesheet.feature.task.exception.TaskNotFoundException;
 import com.lab.labtimesheet.feature.task.exception.TaskValidationException;
 import com.lab.labtimesheet.feature.task.model.dto.CreateTaskCommand;
-import com.lab.labtimesheet.feature.task.model.dto.LogWorkCommand;
-import com.lab.labtimesheet.feature.task.model.dto.LogWorkCorrection;
 import com.lab.labtimesheet.feature.task.model.dto.TaskView;
-import com.lab.labtimesheet.feature.task.model.dto.WorkLogView;
+import com.lab.labtimesheet.feature.task.model.dto.TaskWorkLogView;
+import com.lab.labtimesheet.feature.task.model.entity.TaskWorkLog;
+import com.lab.labtimesheet.feature.task.repository.TaskWorkLogRepository;
+import com.lab.labtimesheet.feature.project.service.ProjectService;
 import java.time.LocalDate;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicLong;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
-import jakarta.persistence.EntityManager;
-
+/**
+ * PostgreSQL behavior proof for Task work-log authorization, date boundaries, daily limits, and
+ * account-lock serialization.
+ *
+ * <p>Fixtures use two Projects for one Intern so production can derive the authoritative
+ * cross-Project retained membership intervals through the Project DTO boundary without importing
+ * Project persistence into Task code. Direct fixture IDs are used only when asserting persisted
+ * totals.</p>
+ */
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest
 @ActiveProfiles("test")
-@Transactional
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class TaskWorkLogIntegrationTest {
 
-    private static final LocalDate PROJECT_START = LocalDate.of(2026, 8, 1);
-    private static final LocalDate PROJECT_END = LocalDate.of(2026, 8, 31);
     private static final LocalDate WORK_DATE = LocalDate.of(2026, 8, 14);
+    private static final AtomicLong SEQUENCE = new AtomicLong();
 
     @Autowired
     private JdbcClient jdbc;
 
     @Autowired
-    private EntityManager entityManager;
-
-    @Autowired
     private TaskService taskService;
 
-    private long projectId;
-    private long leaderMembershipId;
-    private long memberMembershipId;
-    private long memberUserId;
+    @Autowired
+    private AccountService accounts;
+
+    @Autowired
+    private ProjectService projectMutations;
+
+    @Autowired
+    private TaskWorkLogRepository workLogs;
+
+    @Autowired
+    private TransactionTemplate transactions;
+
+    private Fixture fixture;
 
     @BeforeEach
-    void setUpProject() {
-        long mentorId = insertUser("mentor@example.test", "MENTOR");
-        long leaderId = insertIntern("leader@example.test");
-        long memberId = insertIntern("member@example.test");
-        memberUserId = memberId;
-        projectId = insertProject(mentorId, "ACTIVE");
-        leaderMembershipId = insertMembership(projectId, leaderId, mentorId);
-        memberMembershipId = insertMembership(projectId, memberId, mentorId);
+    void setUpFixture() {
+        String suffix = Long.toString(SEQUENCE.incrementAndGet());
+        long mentorId = insertUser("worklog-mentor-" + suffix + "@example.test", "MENTOR");
+        long internId = insertIntern("worklog-intern-" + suffix + "@example.test");
+        String otherEmail = "worklog-other-" + suffix + "@example.test";
+        long otherInternId = insertIntern(otherEmail);
+        long firstProjectId = insertProject(mentorId, "ACTIVE", suffix + "-one");
+        long secondProjectId = insertProject(mentorId, "ACTIVE", suffix + "-two");
+        long firstMembershipId = insertMembership(firstProjectId, internId, mentorId);
+        long secondMembershipId = insertMembership(secondProjectId, internId, mentorId);
+        long otherMembershipId = insertMembership(firstProjectId, otherInternId, mentorId);
+        insertLeaderTerm(firstProjectId, firstMembershipId, mentorId);
+        insertLeaderTerm(secondProjectId, secondMembershipId, mentorId);
+        String email = "worklog-intern-" + suffix + "@example.test";
+        long firstTaskId = insertTask(firstProjectId, firstMembershipId, firstMembershipId, "First task");
+        long secondTaskId = insertTask(secondProjectId, secondMembershipId, secondMembershipId, "Second task");
+        fixture = new Fixture(
+                email,
+                internId,
+                firstProjectId,
+                secondProjectId,
+                firstMembershipId,
+                secondMembershipId,
+                firstTaskId,
+                secondTaskId,
+                otherEmail,
+                otherMembershipId);
+    }
+
+    @Test
+    void workLogRejectsDateOutsideInternshipAndCombinedDailyLimit() {
+        assertThatThrownBy(() -> taskService.addWorkLog(
+                        fixture.email(), fixture.firstProjectId(), fixture.firstTaskId(),
+                        LocalDate.of(2027, 1, 1), 60, "Outside"))
+                .isInstanceOf(TaskValidationException.class);
+
+        TaskWorkLogView first = taskService.addWorkLog(
+                fixture.email(), fixture.firstProjectId(), fixture.firstTaskId(),
+                WORK_DATE, 900, "First");
+        TaskWorkLogView second = taskService.addWorkLog(
+                fixture.email(), fixture.secondProjectId(), fixture.secondTaskId(),
+                WORK_DATE, 540, "Second");
+
+        assertThat(first.minutes()).isEqualTo(900);
+        assertThat(second.minutes()).isEqualTo(540);
+        assertThat(workLogs.sumMinutesByMembershipIdsAndWorkDate(
+                java.util.Set.of(fixture.firstMembershipId(), fixture.secondMembershipId()), WORK_DATE))
+                .isEqualTo(1440L);
+        assertThatThrownBy(() -> taskService.addWorkLog(
+                fixture.email(), fixture.firstProjectId(), fixture.firstTaskId(),
+                        WORK_DATE, 1, "Overflow"))
+                .isInstanceOf(TaskValidationException.class);
+    }
+
+    @Test
+    void workLogRejectsFutureProjectAndMembershipBoundaries() {
+        assertThatThrownBy(() -> taskService.addWorkLog(
+                        fixture.email(), fixture.firstProjectId(), fixture.firstTaskId(),
+                        LocalDate.of(2026, 8, 15), 60, "Future"))
+                .isInstanceOf(TaskValidationException.class);
+        assertThatThrownBy(() -> taskService.addWorkLog(
+                        fixture.email(), fixture.firstProjectId(), fixture.firstTaskId(),
+                        LocalDate.of(2026, 7, 31), 60, "Before Project"))
+                .isInstanceOf(TaskValidationException.class);
+        assertThatThrownBy(() -> taskService.addWorkLog(
+                        fixture.email(), fixture.firstProjectId(), fixture.firstTaskId(),
+                        LocalDate.of(2026, 9, 1), 60, "After Project"))
+                .isInstanceOf(TaskValidationException.class);
+
         jdbc.sql("""
-                        insert into project_leadership_terms
-                            (project_id, membership_id, appointed_by_mentor_user_id)
-                        values (:projectId, :membershipId, :mentorId)
+                        update project_memberships
+                        set joined_at = timestamp with time zone '2026-08-10 00:00:00+07'
+                        where id = :membershipId
                         """)
-                .param("projectId", projectId)
-                .param("membershipId", leaderMembershipId)
-                .param("mentorId", mentorId)
+                .param("membershipId", fixture.firstMembershipId())
                 .update();
+        assertThatThrownBy(() -> taskService.addWorkLog(
+                        fixture.email(), fixture.firstProjectId(), fixture.firstTaskId(),
+                        LocalDate.of(2026, 8, 9), 60, "Before membership"))
+                .isInstanceOf(TaskValidationException.class);
     }
 
     @Test
-    void currentAssigneeLogsWorkWithinProjectAndMembershipDates() {
-        TaskView task = createMemberTask("Run experiment");
-
-        WorkLogView log = taskService.logWork(
-                "member@example.test",
-                projectId,
-                task.id(),
-                new LogWorkCommand(WORK_DATE, 90, "  Prepared samples  "));
-
-        assertThat(log.membershipId()).isEqualTo(memberMembershipId);
-        assertThat(log.workDate()).isEqualTo(WORK_DATE);
-        assertThat(log.minutes()).isEqualTo(90);
-        assertThat(log.note()).isEqualTo("Prepared samples");
-        assertThat(workLogCount()).isEqualTo(1);
-    }
-
-    @Test
-    void onlyCurrentAssigneeLogsWorkAndFormerMemberIsRejected() {
-        TaskView task = createMemberTask("Private effort");
-
-        assertThatThrownBy(() -> taskService.logWork(
-                        "leader@example.test", projectId, task.id(),
-                        new LogWorkCommand(WORK_DATE, 30, null)))
-                .isInstanceOf(TaskNotFoundException.class);
-
-        closeMembership(memberMembershipId);
-        assertThatThrownBy(() -> taskService.logWork(
-                        "member@example.test", projectId, task.id(),
-                        new LogWorkCommand(WORK_DATE, 30, null)))
-                .isInstanceOf(TaskNotFoundException.class);
-        assertThat(workLogCount()).isZero();
-    }
-
-    @Test
-    void workDateRejectedOutsideProjectDatesBeforeMembershipOrInFuture() {
-        TaskView task = createMemberTask("Boundary effort");
-
-        assertThatThrownBy(() -> taskService.logWork(
-                        "member@example.test", projectId, task.id(),
-                        new LogWorkCommand(LocalDate.of(2026, 7, 31), 30, null)))
-                .isInstanceOf(TaskValidationException.class);
-        assertThatThrownBy(() -> taskService.logWork(
-                        "member@example.test", projectId, task.id(),
-                        new LogWorkCommand(LocalDate.of(2026, 9, 1), 30, null)))
-                .isInstanceOf(TaskValidationException.class);
-        assertThatThrownBy(() -> taskService.logWork(
-                        "member@example.test", projectId, task.id(),
-                        new LogWorkCommand(LocalDate.of(2026, 8, 15), 30, null)))
-                .isInstanceOf(TaskValidationException.class);
-        assertThatThrownBy(() -> taskService.logWork(
-                        "member@example.test", projectId, task.id(),
-                        new LogWorkCommand(null, 30, null)))
-                .isInstanceOf(TaskValidationException.class);
-        assertThat(workLogCount()).isZero();
-    }
-
-    @Test
-    void rejectsInvalidMinutesAndBlankNoteWithoutWriting() {
-        TaskView task = createMemberTask("Invalid effort");
-
-        assertThatThrownBy(() -> taskService.logWork(
-                        "member@example.test", projectId, task.id(),
-                        new LogWorkCommand(WORK_DATE, 0, null)))
-                .isInstanceOf(TaskValidationException.class);
-        assertThatThrownBy(() -> taskService.logWork(
-                        "member@example.test", projectId, task.id(),
-                        new LogWorkCommand(WORK_DATE, 1441, null)))
-                .isInstanceOf(TaskValidationException.class);
-        assertThatThrownBy(() -> taskService.logWork(
-                        "member@example.test", projectId, task.id(),
-                        new LogWorkCommand(WORK_DATE, 30, "   ")))
-                .isInstanceOf(TaskValidationException.class);
-        assertThat(workLogCount()).isZero();
-    }
-
-    @Test
-    void globalDayOffDoesNotBlockWorkLogsAndCreatesNoAttendance() {
-        long mentorId = userId("mentor@example.test");
+    void workLogRejectsDateAfterRetainedMembershipClosure() {
         jdbc.sql("""
-                        insert into global_calendar_events
-                            (calendar_date, name, source, is_day_off, created_by_user_id, updated_by_user_id)
-                        values (:date, 'National day', 'CUSTOM', true, :userId, :userId)
+                        update project_memberships
+                        set left_at = timestamp with time zone '2026-08-13 12:00:00+07',
+                            removed_by_mentor_user_id = (
+                                select mentor_user_id from projects where id = :projectId)
+                        where id = :membershipId
                         """)
-                .param("date", WORK_DATE)
-                .param("userId", mentorId)
+                .param("projectId", fixture.firstProjectId())
+                .param("membershipId", fixture.firstMembershipId())
                 .update();
-        TaskView task = createMemberTask("Day off effort");
 
-        WorkLogView log = taskService.logWork(
-                "member@example.test", projectId, task.id(),
-                new LogWorkCommand(WORK_DATE, 60, null));
-
-        assertThat(log.minutes()).isEqualTo(60);
-        assertThat(attendanceCount(memberUserId, WORK_DATE)).isZero();
+        assertThatThrownBy(() -> taskService.addWorkLog(
+                        fixture.email(), fixture.firstProjectId(), fixture.firstTaskId(),
+                        WORK_DATE, 60, "After leave"))
+                .isInstanceOf(TaskNotFoundException.class);
     }
 
     @Test
-    void authorCorrectsOwnLogAfterTaskReassignment() {
-        TaskView task = createMemberTask("Historical effort");
-        WorkLogView original = taskService.logWork(
-                "member@example.test", projectId, task.id(),
-                new LogWorkCommand(WORK_DATE, 45, null));
-        long mentorId = userId("mentor@example.test");
-        reassign(task, leaderMembershipId, mentorId);
+    void retainedMembershipClosureDateRemainsInclusiveForCombinedTotal() {
+        taskService.addWorkLog(
+                fixture.email(), fixture.firstProjectId(), fixture.firstTaskId(),
+                WORK_DATE, 60, "Before leave");
 
-        WorkLogView corrected = taskService.correctWorkLog(
-                "member@example.test", projectId, task.id(), original.id(),
-                new LogWorkCorrection(120, "Actual total"));
+        jdbc.sql("""
+                        update project_memberships
+                        set left_at = timestamp with time zone '2026-08-14 12:00:00+07',
+                            removed_by_mentor_user_id = (
+                                select mentor_user_id from projects where id = :projectId)
+                        where id = :membershipId
+                        """)
+                .param("projectId", fixture.firstProjectId())
+                .param("membershipId", fixture.firstMembershipId())
+                .update();
 
-        assertThat(corrected.minutes()).isEqualTo(120);
-        assertThat(corrected.note()).isEqualTo("Actual total");
-        assertThat(corrected.membershipId()).isEqualTo(memberMembershipId);
+        TaskWorkLogView second = taskService.addWorkLog(
+                fixture.email(), fixture.secondProjectId(), fixture.secondTaskId(),
+                WORK_DATE, 1380, "Closure date");
+
+        assertThat(second.minutes()).isEqualTo(1380);
+        assertThat(workLogs.sumMinutesByMembershipIdsAndWorkDate(
+                java.util.Set.of(fixture.firstMembershipId(), fixture.secondMembershipId()), WORK_DATE))
+                .isEqualTo(1440L);
+        assertThatThrownBy(() -> taskService.addWorkLog(
+                        fixture.email(), fixture.secondProjectId(), fixture.secondTaskId(),
+                        WORK_DATE, 1, "Overflow after closure date"))
+                .isInstanceOf(TaskValidationException.class);
     }
 
     @Test
-    void nonAuthorCannotCorrectAnotherMembersLog() {
-        TaskView task = createMemberTask("Shared effort");
-        WorkLogView original = taskService.logWork(
-                "member@example.test", projectId, task.id(),
-                new LogWorkCommand(WORK_DATE, 45, null));
-        TaskView leaderTask = taskService.create(
-                "leader@example.test",
-                new CreateTaskCommand(projectId, leaderMembershipId, "Leader effort", null, null));
-        taskService.logWork(
-                "leader@example.test", projectId, leaderTask.id(),
-                new LogWorkCommand(WORK_DATE, 30, null));
+    void authorCorrectionRetainsStoredIdentityAndRejectsAnotherMember() {
+        TaskWorkLogView original = taskService.addWorkLog(
+                fixture.email(), fixture.firstProjectId(), fixture.firstTaskId(),
+                WORK_DATE, 900, "Original");
 
+        TaskView reassigned = taskService.reassign(
+                fixture.email(), fixture.firstProjectId(), fixture.firstTaskId(), fixture.otherMembershipId());
+        assertThat(reassigned.assigneeMembershipId()).isEqualTo(fixture.otherMembershipId());
+
+        TaskWorkLogView corrected = taskService.correctWorkLog(
+                fixture.email(), fixture.firstProjectId(), original.id(),
+                600, "Corrected");
+
+        assertThat(corrected.id()).isEqualTo(original.id());
+        assertThat(corrected.membershipId()).isEqualTo(fixture.firstMembershipId());
+        assertThat(corrected.workDate()).isEqualTo(WORK_DATE);
+        assertThat(corrected.createdAt()).isEqualTo(original.createdAt());
+        assertThat(corrected.minutes()).isEqualTo(600);
+        assertThat(corrected.note()).isEqualTo("Corrected");
         assertThatThrownBy(() -> taskService.correctWorkLog(
-                        "leader@example.test", projectId, task.id(), original.id(),
-                        new LogWorkCorrection(100, null)))
+                        fixture.otherEmail(), fixture.firstProjectId(), original.id(),
+                        600, "Forbidden"))
                 .isInstanceOf(TaskNotFoundException.class);
-        assertThat(workLogMinutes(original.id())).isEqualTo(45);
     }
 
     @Test
-    void dailyTotalCountsAllProjectsAndRejectsOverAllocation() {
-        long mentorId = userId("mentor@example.test");
-        long leaderId = userId("leader@example.test");
-        long secondProjectId = insertProject(mentorId, "ACTIVE");
-        long secondMembershipId = insertMembership(secondProjectId, memberUserId, mentorId);
-        long secondLeaderMembershipId = insertMembership(secondProjectId, leaderId, mentorId);
-        jdbc.sql("""
-                        insert into project_leadership_terms
-                            (project_id, membership_id, appointed_by_mentor_user_id)
-                        values (:projectId, :membershipId, :mentorId)
-                        """)
-                .param("projectId", secondProjectId)
-                .param("membershipId", secondLeaderMembershipId)
-                .param("mentorId", mentorId)
+    void workLogRejectsInactiveAndTerminalInternLifecycle() {
+        jdbc.sql("update app_users set account_status = 'LOCKED', locked_at = current_timestamp where id = :id")
+                .param("id", fixture.internId())
                 .update();
-        TaskView projectOneTask = createMemberTask("Project one effort");
-        TaskView projectTwoTask = taskService.create(
-                "member@example.test",
-                new CreateTaskCommand(secondProjectId, secondMembershipId, "Project two effort", null, null));
+        assertThatThrownBy(() -> taskService.addWorkLog(
+                fixture.email(), fixture.firstProjectId(), fixture.firstTaskId(),
+                        WORK_DATE, 60, "Locked"))
+                .isInstanceOf(com.lab.labtimesheet.feature.task.exception.TaskNotFoundException.class);
 
-        taskService.logWork(
-                "member@example.test", projectId, projectOneTask.id(),
-                new LogWorkCommand(WORK_DATE, 1400, null));
-
-        assertThatThrownBy(() -> taskService.logWork(
-                        "member@example.test", secondProjectId, projectTwoTask.id(),
-                        new LogWorkCommand(WORK_DATE, 41, null)))
-                .isInstanceOf(TaskValidationException.class)
-                .hasMessageContaining("1440");
-
-        WorkLogView remaining = taskService.logWork(
-                "member@example.test", secondProjectId, projectTwoTask.id(),
-                new LogWorkCommand(WORK_DATE, 40, null));
-
-        assertThat(remaining.minutes()).isEqualTo(40);
-        assertThat(totalMinutesFor(memberUserId, WORK_DATE)).isEqualTo(1440);
+        jdbc.sql("update app_users set account_status = 'ACTIVE', locked_at = null where id = :id")
+                .param("id", fixture.internId())
+                .update();
+        jdbc.sql("""
+                        update intern_profiles
+                        set internship_status = 'COMPLETED', completed_at = current_timestamp
+                        where user_id = :id
+                        """)
+                .param("id", fixture.internId())
+                .update();
+        assertThatThrownBy(() -> taskService.addWorkLog(
+                fixture.email(), fixture.firstProjectId(), fixture.firstTaskId(),
+                        WORK_DATE, 60, "Terminal"))
+                .isInstanceOf(TaskValidationException.class);
     }
 
     @Test
-    void correctionCannotRaiseCombinedDailyTotalAboveFourteenForty() {
-        TaskView task = createMemberTask("Correction effort");
-        WorkLogView original = taskService.logWork(
-                "member@example.test", projectId, task.id(),
-                new LogWorkCommand(WORK_DATE, 700, null));
-        taskService.logWork(
-                "member@example.test", projectId, task.id(),
-                new LogWorkCommand(WORK_DATE, 700, null));
+    void profileLockBlocksWorkLogUntilOuterTransactionCommits() throws Exception {
+        CountDownLatch lockHeld = new CountDownLatch(1);
+        CountDownLatch releaseLock = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<?> outer = executor.submit(() -> transactions.executeWithoutResult(status -> {
+                accounts.lockedInternWorkWindow(fixture.internId(), WORK_DATE);
+                lockHeld.countDown();
+                await(releaseLock);
+            }));
+            assertThat(lockHeld.await(5, TimeUnit.SECONDS)).isTrue();
 
-        assertThatThrownBy(() -> taskService.correctWorkLog(
-                        "member@example.test", projectId, task.id(), original.id(),
-                        new LogWorkCorrection(750, null)))
-                .isInstanceOf(TaskValidationException.class)
-                .hasMessageContaining("1440");
+            Future<TaskWorkLogView> worker = executor.submit(() -> taskService.addWorkLog(
+                    fixture.email(), fixture.firstProjectId(), fixture.firstTaskId(),
+                    WORK_DATE, 60, "After lock"));
+            assertThatThrownBy(() -> worker.get(250, TimeUnit.MILLISECONDS))
+                    .isInstanceOf(TimeoutException.class);
 
-        WorkLogView corrected = taskService.correctWorkLog(
-                "member@example.test", projectId, task.id(), original.id(),
-                new LogWorkCorrection(740, null));
-
-        assertThat(corrected.minutes()).isEqualTo(740);
-        assertThat(totalMinutesFor(memberUserId, WORK_DATE)).isEqualTo(1440);
+            releaseLock.countDown();
+            outer.get(10, TimeUnit.SECONDS);
+            assertThat(worker.get(10, TimeUnit.SECONDS).minutes()).isEqualTo(60);
+        } finally {
+            releaseLock.countDown();
+            executor.shutdownNow();
+            assertThat(executor.awaitTermination(10, TimeUnit.SECONDS)).isTrue();
+        }
     }
 
-    private TaskView createMemberTask(String title) {
-        return taskService.create(
-                "member@example.test",
-                new CreateTaskCommand(projectId, memberMembershipId, title, null, null));
+    @Test
+    void accountFirstProjectMutationDoesNotDeadlockWithWorkLog() throws Exception {
+        CountDownLatch accountLockHeld = new CountDownLatch(1);
+        CountDownLatch allowProjectLock = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<?> accountFirst = executor.submit(() -> transactions.executeWithoutResult(status -> {
+                accounts.lockedInternWorkWindow(fixture.internId(), WORK_DATE);
+                accountLockHeld.countDown();
+                await(allowProjectLock);
+                projectMutations.taskMutationContext(fixture.internId(), fixture.firstProjectId());
+            }));
+            assertThat(accountLockHeld.await(5, TimeUnit.SECONDS)).isTrue();
+
+            Future<TaskWorkLogView> worker = executor.submit(() -> taskService.addWorkLog(
+                    fixture.email(), fixture.firstProjectId(), fixture.firstTaskId(),
+                    WORK_DATE, 60, "Inverse order"));
+            assertThatThrownBy(() -> worker.get(250, TimeUnit.MILLISECONDS))
+                    .isInstanceOf(TimeoutException.class);
+
+            allowProjectLock.countDown();
+            accountFirst.get(10, TimeUnit.SECONDS);
+            assertThat(worker.get(10, TimeUnit.SECONDS).minutes()).isEqualTo(60);
+        } finally {
+            allowProjectLock.countDown();
+            executor.shutdownNow();
+            assertThat(executor.awaitTermination(10, TimeUnit.SECONDS)).isTrue();
+        }
     }
 
-    private void reassign(TaskView task, long newAssigneeMembershipId, long mentorId) {
-        jdbc.sql("""
-                        update tasks
-                        set assignee_membership_id = :assignee,
-                            assigned_by_membership_id = :assigner,
-                            assigned_at = current_timestamp
-                        where id = :id
-                        """)
-                .param("assignee", newAssigneeMembershipId)
-                .param("assigner", leaderMembershipId)
-                .param("id", task.id())
-                .update();
+    @Test
+    void concurrentProjectsRejectOneOfExactly1441AttemptedMinutes() throws Exception {
+        CountDownLatch start = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<Throwable> first = submitAllocation(
+                    executor, start, fixture.firstProjectId(), fixture.firstTaskId(), 900);
+            Future<Throwable> second = submitAllocation(
+                    executor, start, fixture.secondProjectId(), fixture.secondTaskId(), 541);
+            start.countDown();
+
+            Throwable firstFailure = first.get(10, TimeUnit.SECONDS);
+            Throwable secondFailure = second.get(10, TimeUnit.SECONDS);
+            List<Throwable> failures = java.util.stream.Stream.of(firstFailure, secondFailure)
+                    .filter(java.util.Objects::nonNull)
+                    .toList();
+
+            assertThat(failures).hasSize(1);
+            assertThat(failures.get(0)).isInstanceOf(TaskValidationException.class);
+            assertThat(workLogs.sumMinutesByMembershipIdsAndWorkDate(
+                    java.util.Set.of(fixture.firstMembershipId(), fixture.secondMembershipId()), WORK_DATE))
+                    .isIn(900L, 541L);
+        } finally {
+            executor.shutdownNow();
+            assertThat(executor.awaitTermination(10, TimeUnit.SECONDS)).isTrue();
+        }
+    }
+
+    private Future<Throwable> submitAllocation(
+            ExecutorService executor, CountDownLatch start, long projectId, long taskId, int minutes) {
+        return executor.submit(() -> {
+            start.await(5, TimeUnit.SECONDS);
+            try {
+                transactions.execute(status -> {
+                    taskService.addWorkLog(
+                            fixture.email(), projectId, taskId, WORK_DATE, minutes,
+                            "Concurrent");
+                    return null;
+                });
+                return null;
+            } catch (Throwable failure) {
+                return unwrap(failure);
+            }
+        });
+    }
+
+    private static Throwable unwrap(Throwable failure) {
+        return failure.getCause() == null ? failure : failure.getCause();
+    }
+
+    private static void await(CountDownLatch latch) {
+        try {
+            if (!latch.await(10, TimeUnit.SECONDS)) {
+                throw new IllegalStateException("Timed out waiting for test lock release");
+            }
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while waiting for test lock release", exception);
+        }
     }
 
     private long insertUser(String email, String role) {
@@ -308,95 +398,80 @@ class TaskWorkLogIntegrationTest {
                                 'ACTIVE', current_timestamp)
                         """)
                 .param("userId", userId)
-                .param("studentCode", "S" + userId)
+                .param("studentCode", "WORK-" + userId)
                 .update();
         return userId;
     }
 
-    private long insertProject(long mentorId, String status) {
+    private long insertProject(long mentorId, String status, String name) {
         return jdbc.sql("""
                         insert into projects
                             (mentor_user_id, name, status, start_date, end_date, activated_at)
-                        values (:mentorId, 'Project', :status, :startDate, :endDate,
-                                case when :status = 'ACTIVE' then current_timestamp else null end)
+                        values (:mentorId, :name, :status, date '2026-08-01', date '2026-08-31',
+                                current_timestamp)
                         returning id
                         """)
                 .param("mentorId", mentorId)
+                .param("name", "Worklog " + name)
                 .param("status", status)
-                .param("startDate", PROJECT_START)
-                .param("endDate", PROJECT_END)
                 .query(Long.class)
                 .single();
     }
 
-    private long insertMembership(long targetProjectId, long internId, long mentorId) {
+    private long insertMembership(long projectId, long internId, long mentorId) {
         return jdbc.sql("""
-                        insert into project_memberships (project_id, intern_user_id, added_by_user_id, joined_at)
-                        values (:projectId, :internId, :mentorId, date '2026-08-01')
+                        insert into project_memberships
+                            (project_id, intern_user_id, added_by_user_id, joined_at)
+                        values (:projectId, :internId, :mentorId,
+                                timestamp with time zone '2026-08-01 00:00:00+07')
                         returning id
                         """)
-                .param("projectId", targetProjectId)
+                .param("projectId", projectId)
                 .param("internId", internId)
                 .param("mentorId", mentorId)
                 .query(Long.class)
                 .single();
     }
 
-    private void closeMembership(long membershipId) {
+    private void insertLeaderTerm(long projectId, long membershipId, long mentorId) {
         jdbc.sql("""
-                        update project_memberships
-                        set left_at = joined_at + interval '1 day', removed_by_mentor_user_id = :mentorId
-                        where id = :id
+                        insert into project_leadership_terms
+                            (project_id, membership_id, appointed_by_mentor_user_id)
+                        values (:projectId, :membershipId, :mentorId)
                         """)
-                .param("mentorId", userId("mentor@example.test"))
-                .param("id", membershipId)
+                .param("projectId", projectId)
+                .param("membershipId", membershipId)
+                .param("mentorId", mentorId)
                 .update();
-        entityManager.clear();
     }
 
-    private long userId(String email) {
-        return jdbc.sql("select id from app_users where email = :email")
-                .param("email", email)
-                .query(Long.class)
-                .single();
-    }
-
-    private long workLogCount() {
-        return jdbc.sql("select count(*) from task_work_logs").query(Long.class).single();
-    }
-
-    private long workLogMinutes(long logId) {
-        return jdbc.sql("select minutes from task_work_logs where id = :id")
-                .param("id", logId)
-                .query(Long.class)
-                .single();
-    }
-
-    private long attendanceCount(long internUserId, LocalDate workDate) {
+    private long insertTask(long projectId, long membershipId, long assignedBy, String title) {
         return jdbc.sql("""
-                        select count(*)
-                        from attendance_records
-                        where intern_user_id = :internUserId
-                          and work_date = :workDate
+                        insert into tasks
+                            (project_id, assignee_membership_id, title, created_by_membership_id,
+                             assigned_by_membership_id, assigned_at, status, created_at, updated_at)
+                        values (:projectId, :membershipId, :title, :membershipId,
+                                :assignedBy, current_timestamp, 'IN_PROGRESS', current_timestamp, current_timestamp)
+                        returning id
                         """)
-                .param("internUserId", internUserId)
-                .param("workDate", workDate)
+                .param("projectId", projectId)
+                .param("membershipId", membershipId)
+                .param("title", title)
+                .param("assignedBy", assignedBy)
                 .query(Long.class)
                 .single();
     }
 
-    private long totalMinutesFor(long internUserId, LocalDate workDate) {
-        return jdbc.sql("""
-                        select coalesce(sum(log.minutes), 0)
-                        from task_work_logs log
-                        join project_memberships membership
-                          on membership.id = log.membership_id
-                        where membership.intern_user_id = :internUserId
-                          and log.work_date = :workDate
-                        """)
-                .param("internUserId", internUserId)
-                .param("workDate", workDate)
-                .query(Long.class)
-                .single();
+    private record Fixture(
+            String email,
+            long internId,
+            long firstProjectId,
+            long secondProjectId,
+            long firstMembershipId,
+            long secondMembershipId,
+            long firstTaskId,
+            long secondTaskId,
+            String otherEmail,
+            long otherMembershipId) {
     }
 }

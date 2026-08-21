@@ -2,17 +2,20 @@ package com.lab.labtimesheet.feature.project.model.dto;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Set;
 
 /**
- * Context Project chỉ gồm DTO về phân quyền và vòng đời, được feature Task sử dụng.
+ * DTO-only Project authorization and lifecycle context consumed by the Task feature.
  *
- * @param projectId mã Project
- * @param mentorUserId mã người dùng Mentor sở hữu
- * @param status trạng thái vòng đời
- * @param startDate ngày bắt đầu Project, được tính cả ngày này
- * @param endDate ngày kết thúc Project, được tính cả ngày này
- * @param currentLeaderMembershipId mã lượt tham gia của Leader hiện tại, hoặc null sau khi hoàn tất
- * @param activeMembers các lượt tham gia hiện tại đủ điều kiện, rỗng sau khi hoàn tất
+ * @param projectId Project identifier
+ * @param mentorUserId owning Mentor user identifier
+ * @param status lifecycle status
+ * @param startDate inclusive Project start date
+ * @param endDate inclusive Project end date
+ * @param currentLeaderMembershipId current Leader membership, or null after completion
+ * @param activeMembers eligible current memberships, empty after completion
+ * @param pendingExitMembershipIds current membership identifiers with a pending exit request;
+ *        existing Task rights remain active, but new/self-assignment must exclude them
  */
 public record ProjectTaskContext(
         long projectId,
@@ -21,20 +24,24 @@ public record ProjectTaskContext(
         LocalDate startDate,
         LocalDate endDate,
         Long currentLeaderMembershipId,
-        List<ProjectTaskMemberView> activeMembers) {
-
+        List<ProjectTaskMemberView> activeMembers,
+        Set<Long> pendingExitMembershipIds) {
     /**
-     * Sao chép an toàn danh sách thành viên để bên dùng không thể thay đổi thông tin phân quyền sau khi đã đọc.
+     * Defensively snapshots member context so consumers cannot change authorization facts after
+     * they were read.
      *
-     * @param projectId mã Project
-     * @param mentorUserId mã người dùng Mentor sở hữu
-     * @param status trạng thái vòng đời
-     * @param startDate ngày bắt đầu Project, được tính cả ngày này
-     * @param endDate ngày kết thúc Project, được tính cả ngày này
-     * @param currentLeaderMembershipId mã lượt tham gia của Leader hiện tại, hoặc null sau khi hoàn tất
-     * @param activeMembers các lượt tham gia hiện tại đủ điều kiện, được sao chép và không bao giờ null
+     * @param projectId Project identifier
+     * @param mentorUserId owning Mentor user identifier
+     * @param status lifecycle status
+     * @param startDate inclusive Project start date
+     * @param endDate inclusive Project end date
+     * @param currentLeaderMembershipId current Leader membership, or null after completion
+     * @param activeMembers eligible current memberships, copied and never null
+     * @param pendingExitMembershipIds membership identifiers with pending exit requests, copied
+     *        and never null
      */
     public ProjectTaskContext {
         activeMembers = List.copyOf(activeMembers);
+        pendingExitMembershipIds = Set.copyOf(pendingExitMembershipIds);
     }
 }

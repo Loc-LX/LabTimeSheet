@@ -3,7 +3,12 @@ package com.lab.labtimesheet.feature.attendance.repository;
 import com.lab.labtimesheet.feature.attendance.model.entity.GlobalCalendarEventEntity;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 /**
  * Spring Data access to locally authoritative global calendar events.
@@ -19,15 +24,6 @@ public interface GlobalCalendarEventRepository extends JpaRepository<GlobalCalen
     boolean existsByCalendarDateAndDayOffTrue(LocalDate date);
 
     /**
-     * Reports whether a HolidayAPI source UUID is already stored locally.
-     *
-     * @param source event origin ({@code CUSTOM} or {@code HOLIDAY_API})
-     * @param sourceUuid source-side identifier
-     * @return {@code true} when an identical import already exists
-     */
-    boolean existsBySourceAndSourceUuid(String source, String sourceUuid);
-
-    /**
      * Lists events across an inclusive local-date range in deterministic order.
      *
      * @param from inclusive first date
@@ -36,4 +32,25 @@ public interface GlobalCalendarEventRepository extends JpaRepository<GlobalCalen
      */
     List<GlobalCalendarEventEntity> findByCalendarDateBetweenOrderByCalendarDateAscIdAsc(
             LocalDate from, LocalDate to);
+
+    /**
+     * Finds an imported event by its immutable upstream provenance key.
+     *
+     * @param source local source discriminator
+     * @param sourceUuid upstream stable identifier
+     * @return matching local event, when imported
+     */
+    Optional<GlobalCalendarEventEntity> findBySourceAndSourceUuid(String source, String sourceUuid);
+
+    /**
+     * Locks one imported provenance row while an Admin import decides whether it is already present.
+     *
+     * @param source local source discriminator
+     * @param sourceUuid canonical upstream identifier
+     * @return locked matching row, when already imported
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select event from GlobalCalendarEventEntity event where event.source = :source and event.sourceUuid = :sourceUuid")
+    Optional<GlobalCalendarEventEntity> findForUpdateBySourceAndSourceUuid(
+            @Param("source") String source, @Param("sourceUuid") String sourceUuid);
 }

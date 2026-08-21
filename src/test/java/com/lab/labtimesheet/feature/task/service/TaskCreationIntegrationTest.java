@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.lab.labtimesheet.config.TestcontainersConfiguration;
+import com.lab.labtimesheet.feature.project.model.dto.ProjectTaskContext;
+import com.lab.labtimesheet.feature.project.service.ProjectService;
 import com.lab.labtimesheet.feature.task.exception.TaskNotFoundException;
 import com.lab.labtimesheet.feature.task.exception.TaskValidationException;
 import com.lab.labtimesheet.feature.task.model.TaskStatus;
@@ -12,9 +14,15 @@ import com.lab.labtimesheet.feature.task.model.dto.TaskAssigneeChoice;
 import com.lab.labtimesheet.feature.task.model.dto.TaskCommentView;
 import com.lab.labtimesheet.feature.task.model.dto.TaskDetails;
 import com.lab.labtimesheet.feature.task.model.dto.TaskListView;
+import com.lab.labtimesheet.feature.task.model.dto.TaskHistoryView;
+import com.lab.labtimesheet.feature.task.model.dto.TaskProjectProgress;
 import com.lab.labtimesheet.feature.task.model.dto.TaskView;
+import com.lab.labtimesheet.feature.task.model.entity.TaskWorkLog;
+import com.lab.labtimesheet.feature.task.repository.TaskWorkLogRepository;
 import jakarta.persistence.EntityManager;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -48,6 +56,15 @@ class TaskCreationIntegrationTest {
 
     @Autowired
     private TaskDashboardService taskDashboard;
+
+    @Autowired
+    private TaskWorkLogRepository taskWorkLogs;
+
+    @Autowired
+    private ProjectService projectMutations;
+
+    @Autowired
+    private TaskTransferService taskTransfers;
 
     private long projectId;
     private long leaderMembershipId;
@@ -91,6 +108,21 @@ class TaskCreationIntegrationTest {
                         new CreateTaskCommand(projectId, leaderMembershipId, "Forbidden", null, null)))
                 .isInstanceOf(TaskNotFoundException.class);
         assertThat(taskCount()).isEqualTo(1);
+        assertThat(notificationCount()).isZero();
+    }
+
+    @Test
+    void leaderAssignmentNotifiesOnlyNewAssigneeWithUnavailableEmail() {
+        TaskView task = taskService.create(
+                "leader@example.test",
+                new CreateTaskCommand(projectId, memberMembershipId, "Notify assignee", null, null));
+
+        assertThat(task.assigneeMembershipId()).isEqualTo(memberMembershipId);
+        assertThat(notificationRecipientIds()).containsExactly(userId("member@example.test"));
+        assertThat(notificationTypes()).containsExactly("TASK_ASSIGNED");
+        assertThat(notificationEmailStatuses()).containsExactly("UNAVAILABLE");
+        assertThat(notificationActionUrls()).containsExactly(
+                "/projects/%d/tasks/%d".formatted(projectId, task.id()));
     }
 
     @Test
@@ -172,6 +204,11 @@ class TaskCreationIntegrationTest {
         assertThatThrownBy(() -> taskService.changeStatus(
                         "member@example.test", projectId, task.id(), TaskStatus.TODO))
                 .isInstanceOf(TaskValidationException.class);
+        assertThat(notificationRecipientIds()).containsExactly(userId("leader@example.test"));
+        assertThat(notificationTypes()).containsExactly("TASK_STATUS_CHANGED");
+        assertThat(notificationEmailStatuses()).containsExactly("NOT_REQUIRED");
+        assertThat(notificationActionUrls()).containsExactly(
+                "/projects/%d/tasks/%d".formatted(projectId, task.id()));
     }
 
     @Test
@@ -186,6 +223,11 @@ class TaskCreationIntegrationTest {
         TaskCommentView mentorComment = taskService.addComment(
                 "mentor@example.test", projectId, task.id(), "Mentor note");
 
+        TaskView leaderTask = taskService.create(
+                "leader@example.test",
+                new CreateTaskCommand(projectId, leaderMembershipId, "Leader task", null, null));
+        taskService.addComment("member@example.test", projectId, leaderTask.id(), "Member on leader task");
+
         assertThat(memberComment.body()).isEqualTo("First note");
         assertThat(mentorComment.authorUserId()).isEqualTo(userId("mentor@example.test"));
         assertThatThrownBy(() -> taskService.addComment(
@@ -199,7 +241,39 @@ class TaskCreationIntegrationTest {
         assertThatThrownBy(() -> taskService.addComment(
                         "mentor@example.test", projectId, task.id(), "Too late"))
                 .isInstanceOf(TaskNotFoundException.class);
-        assertThat(commentCount()).isEqualTo(2);
+        assertThat(commentCount()).isEqualTo(3);
+        assertThat(notificationRecipientIds()).containsExactly(
+                userId("leader@example.test"),
+                userId("member@example.test"),
+                userId("leader@example.test"),
+                userId("leader@example.test"));
+        assertThat(notificationTypes()).containsExactly(
+                "TASK_COMMENTED", "TASK_COMMENTED", "TASK_COMMENTED", "TASK_COMMENTED");
+        assertThat(notificationEmailStatuses()).containsExactly(
+                "NOT_REQUIRED", "NOT_REQUIRED", "NOT_REQUIRED", "NOT_REQUIRED");
+        assertThat(notificationActionUrls()).containsExactly(
+                "/projects/%d/tasks/%d".formatted(projectId, task.id()),
+                "/projects/%d/tasks/%d".formatted(projectId, task.id()),
+                "/projects/%d/tasks/%d".formatted(projectId, task.id()),
+                "/projects/%d/tasks/%d".formatted(projectId, leaderTask.id()));
+    }
+
+    @Test
+    void authorizedMentorCanCommentOnDoneTaskRetainingClosedAssigneeHistory() {
+        TaskView task = createMemberTask("Closed assignee history");
+        setStatus(task.id(), TaskStatus.DONE);
+        closeMembership(memberMembershipId);
+
+        TaskCommentView comment = taskService.addComment(
+                "mentor@example.test", projectId, task.id(), "Mentor note after removal");
+
+        assertThat(comment.body()).isEqualTo("Mentor note after removal");
+        assertThat(commentCount()).isEqualTo(1);
+        assertThat(notificationRecipientIds()).containsExactly(userId("leader@example.test"));
+        assertThat(notificationTypes()).containsExactly("TASK_COMMENTED");
+        assertThat(notificationEmailStatuses()).containsExactly("NOT_REQUIRED");
+        assertThat(notificationActionUrls()).containsExactly(
+                "/projects/%d/tasks/%d".formatted(projectId, task.id()));
     }
 
     @Test
@@ -306,11 +380,8 @@ class TaskCreationIntegrationTest {
                     assertThat(details.canChangeStatus()).isTrue();
                     assertThat(details.canComment()).isTrue();
                 });
-        assertThat(taskService.details("leader@example.test", projectId, task.id()))
-                .satisfies(details -> {
-                    assertThat(details.canChangeStatus()).isFalse();
-                    assertThat(details.canReassign()).isTrue();
-                });
+        assertThat(taskService.details("leader@example.test", projectId, task.id()).canChangeStatus())
+                .isFalse();
 
         completeProject();
 
@@ -320,32 +391,6 @@ class TaskCreationIntegrationTest {
                     assertThat(details.canChangeStatus()).isFalse();
                     assertThat(details.canComment()).isFalse();
                 });
-    }
-
-    /** [I2-PRJ-06] Thành viên cũ đọc được Task đã lưu nhưng không thể ghi thêm sau khi Project hoàn tất. */
-    @Test
-    void completedProjectHistoryRejectsFormerMemberTaskMutations() {
-        TaskView task = createMemberTask("Read-only Task");
-        completeProject();
-
-        // I2-PRJ-06: các endpoint ghi phải bị chặn ở service, không phụ thuộc việc UI có ẩn form hay không.
-        assertThatThrownBy(() -> taskService.create(
-                        "member@example.test",
-                        new CreateTaskCommand(projectId, memberMembershipId, "Rejected", null, null)))
-                .isInstanceOf(TaskNotFoundException.class);
-        assertThatThrownBy(() -> taskService.changeStatus(
-                        "member@example.test", projectId, task.id(), TaskStatus.IN_PROGRESS))
-                .isInstanceOf(TaskNotFoundException.class);
-        assertThatThrownBy(() -> taskService.addComment(
-                        "member@example.test", projectId, task.id(), "Rejected comment"))
-                .isInstanceOf(TaskNotFoundException.class);
-
-        assertThat(taskCount()).isEqualTo(1);
-        assertThat(commentCount()).isZero();
-        assertThat(jdbc.sql("select status from tasks where id = :id")
-                .param("id", task.id())
-                .query(String.class)
-                .single()).isEqualTo(TaskStatus.DONE.name());
     }
 
     @Test
@@ -371,6 +416,209 @@ class TaskCreationIntegrationTest {
         softDelete(leaderTask.id());
         assertThat(taskQueries.countCurrentTasksAssignedOutside(projectId, Set.of(memberMembershipId)))
                 .isZero();
+    }
+
+    @Test
+    void creatorMayEditOnlyWhileStillCurrentAssigneeAndLeaderMayEditAnyUnfinishedTask() {
+        TaskView task = createMemberTask("Original");
+        TaskDetails initialDetails = taskService.details("member@example.test", projectId, task.id());
+        assertThat(initialDetails.canEdit()).isTrue();
+        assertThat(initialDetails.canDelete()).isTrue();
+
+        TaskView edited = taskService.edit(
+                "member@example.test", projectId, task.id(), "Updated", "Details", PROJECT_END);
+
+        assertThat(edited.title()).isEqualTo("Updated");
+        assertThat(edited.description()).isEqualTo("Details");
+        assertThat(edited.dueDate()).isEqualTo(PROJECT_END);
+
+        TaskView reassignedAway = taskService.reassign(
+                "leader@example.test", projectId, task.id(), leaderMembershipId);
+        assertThat(reassignedAway.assignerMembershipId()).isEqualTo(leaderMembershipId);
+        assertThat(reassignedAway.assignedAt()).isEqualTo(task.assignedAt());
+        assertThatThrownBy(() -> taskService.edit(
+                        "member@example.test", projectId, task.id(), "Denied", null, null))
+                .isInstanceOf(TaskNotFoundException.class);
+        TaskDetails afterAway = taskService.details("member@example.test", projectId, task.id());
+        assertThat(afterAway.canEdit()).isFalse();
+        assertThat(afterAway.canDelete()).isFalse();
+
+        TaskView reassignedBack = taskService.reassign(
+                "leader@example.test", projectId, task.id(), memberMembershipId);
+        assertThat(reassignedBack.assigneeMembershipId()).isEqualTo(memberMembershipId);
+        assertThat(reassignedBack.assignerMembershipId()).isEqualTo(leaderMembershipId);
+        assertThat(reassignedBack.assignedAt()).isEqualTo(reassignedAway.assignedAt());
+        TaskDetails afterBack = taskService.details("member@example.test", projectId, task.id());
+        assertThat(afterBack.canEdit()).isTrue();
+        assertThat(afterBack.canDelete()).isTrue();
+
+        TaskView editedBack = taskService.edit(
+                "member@example.test", projectId, task.id(), "Creator edit restored", null, null);
+        assertThat(editedBack.title()).isEqualTo("Creator edit restored");
+        taskService.softDelete("member@example.test", projectId, task.id());
+
+        Instant persistedAssignmentAt = jdbc.sql("select assigned_at from tasks where id = :id")
+                .param("id", task.id())
+                .query(Instant.class)
+                .single();
+        TaskHistoryView retained = taskQueries.history(projectId).stream()
+                .filter(history -> history.id() == task.id())
+                .findFirst()
+                .orElseThrow();
+        assertThat(retained.assigneeMembershipId()).isEqualTo(memberMembershipId);
+        assertThat(retained.assignerMembershipId()).isEqualTo(leaderMembershipId);
+        assertThat(retained.assignedAt()).isEqualTo(reassignedBack.assignedAt());
+        assertThat(retained.assignedAt()).isEqualTo(persistedAssignmentAt);
+        assertThat(retained.deletedByMembershipId()).isEqualTo(memberMembershipId);
+    }
+
+    @Test
+    void reassignmentNotifiesPreviousAndNewAssigneeExactlyOnce() {
+        TaskView task = createMemberTask("Reassignment notice");
+
+        taskService.reassign("leader@example.test", projectId, task.id(), leaderMembershipId);
+
+        assertThat(notificationRecipientIds()).containsExactly(
+                userId("member@example.test"), userId("leader@example.test"));
+        assertThat(notificationTypes()).containsExactly("TASK_REASSIGNED", "TASK_REASSIGNED");
+        assertThat(notificationEmailStatuses()).containsExactly("UNAVAILABLE", "UNAVAILABLE");
+        assertThat(notificationActionUrls()).containsExactly(
+                "/projects/%d/tasks/%d".formatted(projectId, task.id()),
+                "/projects/%d/tasks/%d".formatted(projectId, task.id()));
+    }
+
+    @Test
+    void softDeleteExcludesTaskFromCurrentViewsButRetainsHistoricalRow() {
+        TaskView task = createMemberTask("Retain me");
+
+        taskService.softDelete("member@example.test", projectId, task.id());
+
+        assertThat(taskService.list("member@example.test", projectId).tasks()).isEmpty();
+        assertThat(jdbc.sql("select count(*) from tasks where id = :id and deleted_at is not null")
+                .param("id", task.id()).query(Long.class).single()).isEqualTo(1L);
+        assertThatThrownBy(() -> taskService.details("member@example.test", projectId, task.id()))
+                .isInstanceOf(TaskNotFoundException.class);
+    }
+
+    @Test
+    void unfinishedReassignmentPreservesCreatorStatusAndCreationAtAndDoneRequiresReopen() {
+        TaskView task = createMemberTask("Transfer me");
+        setStatus(task.id(), TaskStatus.IN_PROGRESS);
+        Instant createdAt = task.createdAt();
+
+        TaskView reassigned = taskService.reassign(
+                "leader@example.test", projectId, task.id(), leaderMembershipId);
+
+        assertThat(reassigned.assigneeMembershipId()).isEqualTo(leaderMembershipId);
+        assertThat(reassigned.creatorMembershipId()).isEqualTo(memberMembershipId);
+        assertThat(reassigned.status()).isEqualTo(TaskStatus.IN_PROGRESS);
+        assertThat(reassigned.createdAt()).isEqualTo(createdAt);
+
+        setStatus(task.id(), TaskStatus.DONE);
+        assertThatThrownBy(() -> taskService.reassign(
+                        "leader@example.test", projectId, task.id(), memberMembershipId))
+                .isInstanceOf(TaskValidationException.class);
+    }
+
+    @Test
+    void projectProgressAndHistoryReadPersistedWorkAndRetainedDeletedRows() {
+        TaskView deleted = createMemberTask("Deleted effort");
+        taskService.softDelete("member@example.test", projectId, deleted.id());
+        TaskView done = createMemberTask("Done effort");
+        setStatus(done.id(), TaskStatus.DONE);
+        TaskView retainedCurrent = createMemberTask("Retained current effort");
+        taskService.addComment("member@example.test", projectId, retainedCurrent.id(), "Retained note");
+
+        taskWorkLogs.saveAndFlush(new TaskWorkLog(
+                projectId,
+                deleted.id(),
+                memberMembershipId,
+                LocalDate.of(2026, 8, 20),
+                60,
+                "Deleted effort",
+                Instant.parse("2026-08-20T01:00:00Z")));
+        taskWorkLogs.saveAndFlush(new TaskWorkLog(
+                projectId,
+                retainedCurrent.id(),
+                memberMembershipId,
+                LocalDate.of(2026, 8, 20),
+                120,
+                "Current effort",
+                Instant.parse("2026-08-20T02:00:00Z")));
+
+        TaskProjectProgress progress = taskQueries.projectProgress(projectId);
+        assertThat(progress.todo()).isEqualTo(1L);
+        assertThat(progress.done()).isEqualTo(1L);
+        assertThat(progress.totalTasks()).isEqualTo(2L);
+        assertThat(progress.totalMinutes()).isEqualTo(180L);
+        assertThat(progress.completionPercentage()).hasValue(50.0);
+
+        List<TaskHistoryView> history = taskQueries.history(projectId);
+        assertThat(history).extracting(TaskHistoryView::title)
+                .containsExactly("Deleted effort", "Done effort", "Retained current effort");
+        assertThat(history.get(0).deletedAt()).isNotNull();
+        assertThat(history.get(0).workLogs()).hasSize(1);
+        assertThat(history.get(2).comments()).extracting(TaskCommentView::body)
+                .containsExactly("Retained note");
+    }
+
+    @Test
+    void projectProgressAggregateReturnsEmptyDenominatorForNoCurrentTasks() {
+        TaskProjectProgress progress = taskQueries.projectProgress(projectId);
+
+        assertThat(progress.todo()).isZero();
+        assertThat(progress.inProgress()).isZero();
+        assertThat(progress.blocked()).isZero();
+        assertThat(progress.done()).isZero();
+        assertThat(progress.totalMinutes()).isZero();
+        assertThat(progress.completionPercentage()).isEmpty();
+    }
+
+    @Test
+    void directTransferAllUnfinishedUsesOrderedIdProjectionAndLeavesDoneTasksUntouched() {
+        TaskView first = createMemberTask("First unfinished");
+        TaskView second = createMemberTask("Second unfinished");
+        TaskView done = createMemberTask("Done retained");
+        setStatus(done.id(), TaskStatus.DONE);
+
+        ProjectTaskContext context = projectMutations.taskMutationContext(
+                userId("leader@example.test"), projectId);
+        TaskTransferResult result = taskTransfers.transferAllUnfinished(
+                context, leaderMembershipId, memberMembershipId, leaderMembershipId);
+
+        assertThat(result.transferredTaskCount()).isEqualTo(2L);
+        assertThat(result.recipientMembershipId()).isEqualTo(leaderMembershipId);
+        assertThat(jdbc.sql("""
+                        select count(*) from tasks
+                        where project_id = :projectId
+                          and assignee_membership_id = :leaderMembershipId
+                          and status <> 'DONE' and deleted_at is null
+                        """)
+                .param("projectId", projectId)
+                .param("leaderMembershipId", leaderMembershipId)
+                .query(Long.class)
+                .single()).isEqualTo(2L);
+        assertThat(jdbc.sql("select assignee_membership_id from tasks where id = :id")
+                .param("id", done.id())
+                .query(Long.class)
+                .single()).isEqualTo(memberMembershipId);
+        assertThat(jdbc.sql("select count(*) from tasks where id in (:first, :second)")
+                .param("first", first.id())
+                .param("second", second.id())
+                .query(Long.class)
+                .single()).isEqualTo(2L);
+        assertThat(notificationRecipientIds()).containsExactly(
+                userId("member@example.test"), userId("leader@example.test"),
+                userId("member@example.test"), userId("leader@example.test"));
+        assertThat(notificationTypes()).containsExactly(
+                "TASK_REASSIGNED", "TASK_REASSIGNED", "TASK_REASSIGNED", "TASK_REASSIGNED");
+        assertThat(notificationEmailStatuses()).containsExactly(
+                "UNAVAILABLE", "UNAVAILABLE", "UNAVAILABLE", "UNAVAILABLE");
+        assertThat(notificationActionUrls()).containsExactly(
+                "/projects/%d/tasks/%d".formatted(projectId, first.id()),
+                "/projects/%d/tasks/%d".formatted(projectId, first.id()),
+                "/projects/%d/tasks/%d".formatted(projectId, second.id()),
+                "/projects/%d/tasks/%d".formatted(projectId, second.id()));
     }
 
     @Test
@@ -475,6 +723,34 @@ class TaskCreationIntegrationTest {
 
     private long taskCount() {
         return jdbc.sql("select count(*) from tasks").query(Long.class).single();
+    }
+
+    private long notificationCount() {
+        return jdbc.sql("select count(*) from notifications").query(Long.class).single();
+    }
+
+    private List<Long> notificationRecipientIds() {
+        return jdbc.sql("select recipient_user_id from notifications order by id")
+                .query(Long.class)
+                .list();
+    }
+
+    private List<String> notificationTypes() {
+        return jdbc.sql("select notification_type from notifications order by id")
+                .query(String.class)
+                .list();
+    }
+
+    private List<String> notificationEmailStatuses() {
+        return jdbc.sql("select email_status from notifications order by id")
+                .query(String.class)
+                .list();
+    }
+
+    private List<String> notificationActionUrls() {
+        return jdbc.sql("select action_url from notifications order by id")
+                .query(String.class)
+                .list();
     }
 
     private long commentCount() {

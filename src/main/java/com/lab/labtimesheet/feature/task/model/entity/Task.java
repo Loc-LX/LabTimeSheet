@@ -17,11 +17,11 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
- * Dòng Task được lưu với đúng một người được giao hiện tại trong cùng Project.
+ * Persisted Task aggregate row with one current same-Project assignee.
  *
- * <p>Thông tin người tạo không bao giờ đổi. Người thực hiện và thời điểm phân công mô tả lần phân
- * công hiện tại; xóa là xóa mềm để giữ lịch sử và version JPA phát hiện cập nhật cạnh tranh. Task
- * mới luôn bắt đầu ở TODO; trạng thái phải đi theo đồ thị cố định của {@link TaskStatus}.
+ * <p>Creator attribution never changes. Assignment actor/time describe the current assignment,
+ * deletion is soft and historical, and the JPA version detects conflicting updates. Newly created
+ * Tasks always begin in TODO; status changes must follow the fixed {@link TaskStatus} graph.
  */
 @Entity
 @Table(name = "tasks")
@@ -65,14 +65,14 @@ public class Task {
     private Instant deletedAt;
 
     @Column(name = "deleted_by_membership_id")
-    @Getter(AccessLevel.NONE)
+    @Getter
     private Long deletedByMembershipId;
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
     @Column(name = "updated_at", nullable = false)
-    @Getter(AccessLevel.NONE)
+    @Getter
     private Instant updatedAt;
 
     @Version
@@ -80,15 +80,15 @@ public class Task {
     private long version;
 
     /**
-     * Tạo Task TODO và ghi membership tạo Task đồng thời là người phân công ban đầu.
+     * Creates a TODO Task and records the creating membership as both creator and assigner.
      *
-     * @param projectId mã Project sở hữu Task
-     * @param assigneeMembershipId membership hiện tại nhận Task trong cùng Project
-     * @param title tiêu đề bắt buộc đã chuẩn hóa
-     * @param description mô tả tùy chọn đã chuẩn hóa
-     * @param dueDate ngày đến hạn tùy chọn đã được kiểm tra
-     * @param actorMembershipId membership của người tạo Task
-     * @param now thời điểm tạo và phân công do server cấp
+     * @param projectId owning Project identifier
+     * @param assigneeMembershipId active membership identifier in the same Project
+     * @param title normalized required title
+     * @param description optional normalized description
+     * @param dueDate optional validated business due date
+     * @param actorMembershipId authenticated creating membership identifier
+     * @param now server-controlled creation and assignment instant
      */
     public Task(
             long projectId,
@@ -112,34 +112,6 @@ public class Task {
     }
 
     /**
-     * [I2-PRJ-04] Chuyển một Task chưa hoàn thành sang membership hiện tại khác.
-     *
-     * <p>Không sửa membership tạo Task, trạng thái, bình luận hay work log. Vì luồng hỗ trợ này
-     * không có một Mentor membership riêng, membership nhận Task được ghi là actor của lần phân
-     * công mới để các khóa ngoại cùng Project vẫn hợp lệ.
-     *
-     * @param targetMembershipId membership hiện tại nhận Task
-     * @param assignmentActorMembershipId membership được ghi là người thực hiện lần phân công mới
-     * @param now thời điểm phân công do server cấp
-     */
-    public void transferUnfinishedTo(
-            long targetMembershipId, long assignmentActorMembershipId, Instant now) {
-        if (deletedAt != null || status == TaskStatus.DONE) {
-            throw new IllegalArgumentException("Only a current unfinished Task can be transferred");
-        }
-        if (targetMembershipId <= 0
-                || assignmentActorMembershipId <= 0
-                || now == null
-                || targetMembershipId == assigneeMembershipId) {
-            throw new IllegalArgumentException("Task transfer target is invalid");
-        }
-        assigneeMembershipId = targetMembershipId;
-        assignerMembershipId = assignmentActorMembershipId;
-        assignedAt = now;
-        updatedAt = now;
-    }
-
-    /**
      * Applies one permitted fixed-graph status transition and advances the update timestamp.
      *
      * @param target next Task status
@@ -155,39 +127,14 @@ public class Task {
     }
 
     /**
-     * Reassigns an unfinished Task to another active same-Project membership.
-     *
-     * <p>Only the current assignee, creator attribution, status, comments, and work logs are
-     * retained; the assignee, assignment actor, and assignment instant describe the new current
-     * assignment. A {@code DONE} Task must be reopened before reassignment.
-     *
-     * @param newAssigneeMembershipId active same-Project replacement membership
-     * @param assignerMembershipId authenticated reassigning Leader membership
-     * @param now server-controlled reassignment instant
-     */
-    public void reassign(long newAssigneeMembershipId, long assignerMembershipId, Instant now) {
-        if (status == TaskStatus.DONE) {
-            throw new IllegalArgumentException("A DONE Task must be reopened before reassignment");
-        }
-        this.assigneeMembershipId = newAssigneeMembershipId;
-        this.assignerMembershipId = assignerMembershipId;
-        this.assignedAt = now;
-        this.updatedAt = now;
-    }
-
-    /**
-     * Applies an authorized definition edit to title, description, and optional due date.
-     *
-     * <p>Creator, assigner, assignment time, assignee, status, comments, and work logs are
-     * untouched; only definition fields and the update timestamp advance. The caller enforces
-     * Leader or creator definition authority before invoking.
+     * Replaces editable Task definition fields without changing attribution or lifecycle facts.
      *
      * @param title normalized required title
      * @param description optional normalized description
      * @param dueDate optional validated business due date
      * @param now server-controlled edit instant
      */
-    public void edit(String title, String description, LocalDate dueDate, Instant now) {
+    public void updateDefinition(String title, String description, LocalDate dueDate, Instant now) {
         this.title = title;
         this.description = description;
         this.dueDate = dueDate;
@@ -195,25 +142,43 @@ public class Task {
     }
 
     /**
-     * Marks an unfinished Task soft-deleted with the authenticated definition actor.
+     * Changes the current assignee while retaining creator, status, comments, logs, and creation
+     * lifecycle attribution.
      *
-     * <p>The row is retained historically and excluded from progress and normal lists; creator
-     * attribution, comments, and work logs remain. A {@code DONE} Task must be reopened before
-     * deletion.
-     *
-     * @param deletedByMembershipId authenticated deleting membership identifier
-     * @param now server-controlled deletion instant
+     * @param assigneeMembershipId eligible same-Project recipient membership
+     * @param assignerMembershipId authenticated Leader or guarded Project-operation actor
+     * @param now server-controlled assignment instant
      */
-    public void softDelete(long deletedByMembershipId, Instant now) {
-        if (status == TaskStatus.DONE) {
-            throw new IllegalArgumentException("A DONE Task must be reopened before deletion");
-        }
-        if (this.deletedAt != null) {
-            throw new IllegalArgumentException("Task is already deleted");
-        }
-        this.deletedAt = now;
-        this.deletedByMembershipId = deletedByMembershipId;
+    public void reassign(long assigneeMembershipId, long assignerMembershipId, Instant now) {
+        this.assigneeMembershipId = assigneeMembershipId;
+        this.assignerMembershipId = assignerMembershipId;
+        this.assignedAt = now;
         this.updatedAt = now;
+    }
+
+    /**
+     * Marks an unfinished Task deleted while retaining the row and all historical attribution.
+     *
+     * @param deleterMembershipId authenticated same-Project membership performing the deletion
+     * @param now server-controlled deletion instant
+     * @throws IllegalStateException when this Task is already deleted
+     */
+    public void softDelete(long deleterMembershipId, Instant now) {
+        if (deletedAt != null) {
+            throw new IllegalStateException("Task is already deleted");
+        }
+        deletedAt = now;
+        deletedByMembershipId = deleterMembershipId;
+        updatedAt = now;
+    }
+
+    /**
+     * Indicates whether this row is excluded from current Task lists and progress.
+     *
+     * @return true after soft deletion
+     */
+    public boolean isDeleted() {
+        return deletedAt != null;
     }
 
 }

@@ -1,6 +1,5 @@
 package com.lab.labtimesheet.feature.project.model.entity;
 
-import com.lab.labtimesheet.feature.project.exception.ProjectRuleViolationException;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -16,10 +15,10 @@ import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 /**
- * [I1-PRJ-02, I2-PRJ-02, I2-PRJ-03, I2-PRJ-06] Khoảng thời gian thành viên JPA liên kết một Intern với một Project.
+ * JPA membership interval linking one Intern to one Project.
  *
- * <p>Khi rời Project, khoảng thời gian được đóng; dòng dữ liệu và nguồn gốc vẫn được giữ lại cho
- * lịch sử Project và Task đã hoàn tất. Thành viên hiện tại được biểu diễn bằng {@code leftAt} null.
+ * <p>Leaving closes the interval; the row and its provenance remain for completed Project and
+ * Task history. Current membership is represented by a null {@code leftAt}.
  */
 @Entity
 @Table(name = "project_memberships")
@@ -55,7 +54,6 @@ public class ProjectMembershipEntity {
     @Version
     private long version;
 
-    /** Tạo khoảng thời gian tham gia mới và lưu thông tin người thêm thành viên. */
     ProjectMembershipEntity(ProjectEntity project, long internUserId, Instant joinedAt, long addedByUserId) {
         this.project = project;
         this.internUserId = internUserId;
@@ -65,78 +63,85 @@ public class ProjectMembershipEntity {
     }
 
     /**
-     * Trả về định danh khoảng thời gian được Project và Task sử dụng.
+     * Returns the interval identity used by Project and Task relationships.
      *
-     * @return mã lượt tham gia đã lưu, hoặc null trước khi insert
+     * @return persisted membership identifier, or null before insertion
      */
     public Long id() {
         return id;
     }
 
     /**
-     * Trả về Intern tham gia.
+     * Returns the participating Intern.
      *
-     * @return mã tài khoản Intern tham gia
+     * @return participating Intern account identifier
      */
     public long internUserId() {
         return internUserId;
     }
 
     /**
-     * Trả về thời điểm quyền thành viên bắt đầu.
+     * Returns when membership authority began.
      *
-     * @return thời điểm bắt đầu tham gia, được tính cả thời điểm này
+     * @return inclusive membership start instant
      */
     public Instant joinedAt() {
         return joinedAt;
     }
 
     /**
-     * Trả về nguồn gốc tạo lượt tham gia.
+     * Returns membership provenance.
      *
-     * @return mã tài khoản trực tiếp tạo khoảng thời gian này
+     * @return account identifier that directly created this interval
      */
     public long addedByUserId() {
         return addedByUserId;
     }
 
     /**
-     * Trả về thời điểm quyền thành viên kết thúc.
+     * Returns when membership authority ended.
      *
-     * @return thời điểm kết thúc khoảng thời gian, hoặc null khi thành viên còn hiện tại
+     * @return interval end instant, or null while membership is current
      */
     public Instant leftAt() {
         return leftAt;
     }
 
     /**
-     * Cho biết Intern hiện còn thuộc Project hay không.
+     * Returns the Mentor that closed this retained membership interval.
      *
-     * @return true khi khoảng thời gian tham gia chưa có thời điểm kết thúc
+     * @return closing owning-Mentor identifier, or null while membership remains current
+     */
+    public Long removedByMentorUserId() {
+        return removedByMentorUserId;
+    }
+
+    /**
+     * Indicates whether the Intern currently belongs to the Project.
+     *
+     * @return true while the membership interval has no end instant
      */
     public boolean isCurrent() {
         return leftAt == null;
     }
 
     /**
-     * [I2-PRJ-03, I2-PRJ-05] Đóng membership sau khi replacement Leader hoặc hoàn tất Project đã
-     * được chuẩn bị và ghi nhận Mentor thực hiện. Không xóa dòng lịch sử và không đụng vào các
-     * Task đang tham chiếu membership này.
+     * Closes this interval while retaining its assignment and history identity.
      *
-     * @param at thời điểm rời Project do server cấp
-     * @param mentorUserId Mentor sở hữu thực hiện thao tác
+     * @param at server closure instant; equality with join time is advanced by one microsecond
+     * @param mentorUserId owning Mentor performing the closure
+     * @throws IllegalStateException when the interval is already closed
+     * @throws IllegalArgumentException when the closure actor or instant is invalid
      */
-    void close(Instant at, long mentorUserId) {
-        if (!isCurrent() || at == null || at.isBefore(joinedAt) || mentorUserId <= 0) {
-            throw new ProjectRuleViolationException("Membership can only be closed at a valid time");
+    public void close(Instant at, long mentorUserId) {
+        if (!isCurrent()) {
+            throw new IllegalStateException("Membership is already closed");
         }
-        leftAt = at.equals(joinedAt) ? joinedAt.plusNanos(1_000) : at;
+        if (at == null || mentorUserId <= 0) {
+            throw new IllegalArgumentException("Membership closure is incomplete");
+        }
+        leftAt = at.isAfter(joinedAt) ? at : joinedAt.plusNanos(1_000);
         removedByMentorUserId = mentorUserId;
         updatedAt = leftAt;
-    }
-
-    /** Trả về Mentor đã đóng membership, hoặc null khi membership còn hiện tại. */
-    public Long removedByMentorUserId() {
-        return removedByMentorUserId;
     }
 }
