@@ -37,7 +37,7 @@ The prior disposable PostgreSQL 18.4 and Mailpit 1.27.4 runtime was stopped and 
 - A fresh `git fetch origin` left `origin/main` at exact verified base `58a087b118cc955748d7df1aa47d2bbc3ca0371b`.
 - Independently approved candidate `f334f13594de49f4b34318d8a3e8bc0556a8063d` merged normally with `--no-ff` into local `main` at `c4f039663f86370b865df036e1756338529e47c9`.
 - Merge parents are exact base `58a087b118cc955748d7df1aa47d2bbc3ca0371b` and exact candidate `f334f13594de49f4b34318d8a3e8bc0556a8063d`; all reviewed producer/implementation heads remain ancestors.
-- The root index is clean. At merge time the protected `.DS_Store` remained 10,244 bytes with SHA-256 `bf6f1f27ea596b8a0dfd8795ccc9ba41629abb79e75b536d2964146e8815aee8`; macOS later updated the unstaged root and `docs/.DS_Store` files during exit verification, and neither was staged or restored.
+- The root index is clean. At merge time the protected `.DS_Store` remained 10,244 bytes with SHA-256 `bf6f1f27ea596b8a0dfd8795ccc9ba41629abb79e75b536d2964146e8815aee8`; the already-uncommitted root `.DS_Store` and `docs/.DS_Store` later changed during exit verification, and neither was staged or restored.
 - No push, merge request, deployment, force operation, rebase/squash, history rewrite, branch deletion, or worktree cleanup occurred.
 - Exact merged-main tree `600e5fda478f1893d386f32fbf7db3ba19228cff` passed PostgreSQL 18.4 Java 444/444, architecture/Flyway 13/13, Node 24 build/UI 7/7, compile/doclint, 260-ID/14-use-case parity, 30/30 Iteration 2 tracker parity, and real-process aggregate/liveness/readiness checks. The disposable runtime shut down cleanly and was removed.
 
