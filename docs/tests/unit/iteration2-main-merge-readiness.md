@@ -5,6 +5,7 @@
 - **Scenario IDs:** `N/A — local integration governance contract`
 - **Test class/method:** `Shell merge-readiness contract`
 - **Implementation commit:** `fdb4871894fa37af5c5eec863c4ccb4d67c99c8a`
+- **Merged-main verification tree:** `600e5fda478f1893d386f32fbf7db3ba19228cff`
 
 ## Protected behavior
 
@@ -93,9 +94,9 @@ The shell contract proves only tracked artifact presence and current handoff tex
 - **Reviewed candidate:** `f334f13594de49f4b34318d8a3e8bc0556a8063d` (`APPROVE`, 0 Critical/Important)
 - **Normal local merge:** `c4f039663f86370b865df036e1756338529e47c9`
 - **Merge parents:** `58a087b118cc955748d7df1aa47d2bbc3ca0371b`, `f334f13594de49f4b34318d8a3e8bc0556a8063d`
-- **Protected root file:** `.DS_Store` SHA-256 `bf6f1f27ea596b8a0dfd8795ccc9ba41629abb79e75b536d2964146e8815aee8`, 10,244 bytes, unchanged
+- **Protected root file at merge:** `.DS_Store` SHA-256 `bf6f1f27ea596b8a0dfd8795ccc9ba41629abb79e75b536d2964146e8815aee8`, 10,244 bytes; the merge left it unchanged and unstaged
 - **Remote mutation:** none; no push
-- **Exact merged-main gate:** pending
+- **Exact merged-main gate:** passed at `600e5fda478f1893d386f32fbf7db3ba19228cff`
 
 **Post-merge documentation command**
 
@@ -113,3 +114,72 @@ exit "$failed"'
 ```text
 Exit 0 with no output. The tracked plan and ledgers identify the exact local merge and preserve the no-push boundary.
 ```
+
+## Exact merged-main exit gate
+
+All commands below ran from exact local `main` tree `600e5fda478f1893d386f32fbf7db3ba19228cff`, whose parent is merge commit `c4f039663f86370b865df036e1756338529e47c9`.
+
+**Java/PostgreSQL suite**
+
+```text
+rtk proxy env JAVA_HOME=/opt/homebrew/opt/openjdk@25 DOCKER_HOST=unix:///Users/sechmachine/.orbstack/run/docker.sock ./mvnw -DargLine=-javaagent:/Users/sechmachine/.m2/repository/net/bytebuddy/byte-buddy-agent/1.18.10/byte-buddy-agent-1.18.10.jar test
+PostgreSQL 18.4; Tests run: 444, Failures: 0, Errors: 0, Skipped: 0; BUILD SUCCESS in 04:55.
+
+rtk proxy env JAVA_HOME=/opt/homebrew/opt/openjdk@25 DOCKER_HOST=unix:///Users/sechmachine/.orbstack/run/docker.sock ./mvnw -DargLine=-javaagent:/Users/sechmachine/.m2/repository/net/bytebuddy/byte-buddy-agent/1.18.10/byte-buddy-agent-1.18.10.jar -Dtest=LayerStructureTest,PlatformFoundationTest,AttendanceLayerStructureTest,ReportingArchitectureTest,ProjectPersistenceStructureTest,TaskPersistenceStructureTest test
+PostgreSQL 18.4; Tests run: 13, Failures: 0, Errors: 0, Skipped: 0; BUILD SUCCESS. The schema contract remains 23 application tables and 56 foreign keys.
+```
+
+**Frontend, compile, and Javadoc**
+
+```text
+rtk proxy env PATH=/opt/homebrew/opt/node@24/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin npm ci
+36 packages installed; exit 0.
+
+rtk proxy env PATH=/opt/homebrew/opt/node@24/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin npm run build
+Tailwind CSS 4.3.3, local Lucide, and pinned Chart.js assets built; exit 0.
+
+rtk proxy env PATH=/opt/homebrew/opt/node@24/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin npm run test:ui
+Tests run: 7, Passed: 7, Failed: 0.
+
+rtk proxy env JAVA_HOME=/opt/homebrew/opt/openjdk@25 ./mvnw -DskipTests compile
+BUILD SUCCESS.
+
+rtk proxy env JAVA_HOME=/opt/homebrew/opt/openjdk@25 ./mvnw -DskipTests -Ddoclint=all javadoc:javadoc
+BUILD SUCCESS.
+```
+
+The first root `rtk npm run build` attempt used the pre-merge `node_modules` under the shell's Node 26 and failed because merged Chart.js was absent. The pinned Node 24 `npm ci` refreshed only ignored dependencies; the rerun above passed without source or lockfile changes.
+
+**Catalogue and tracker parity**
+
+```text
+Pinned Node 24 catalogue script: authoritative 260/260 unique; explained 260/260 unique; simple 260/260 unique; generated SRS 260/260 unique; SRS use cases 14; exit 0.
+
+rtk proxy awk '/^\| I2-/ && /DONE/{done++} END{print "Iteration 2 DONE rows:", done+0; exit(done==30?0:1)}' .agents/PROJECT_PLAN.md
+Iteration 2 DONE rows: 30; exit 0.
+```
+
+**Real-process smoke**
+
+```text
+rtk docker run --rm -d --name labtimesheet-i2-merge-main-postgres -e POSTGRES_DB=labtimesheet_merge_main -e POSTGRES_USER=labtimesheet -e POSTGRES_PASSWORD=merge-only-password -p 55443:5432 --health-cmd 'pg_isready -U labtimesheet -d labtimesheet_merge_main' --health-interval 1s --health-timeout 5s --health-retries 30 postgres:18.4
+Container became healthy.
+
+rtk proxy env JAVA_HOME=/opt/homebrew/opt/openjdk@25 SPRING_PROFILES_ACTIVE=dev LAB_SERVER_PORT=18084 LAB_FORWARD_HEADERS_STRATEGY=NONE LAB_DB_URL=jdbc:postgresql://127.0.0.1:55443/labtimesheet_merge_main LAB_DB_USERNAME=labtimesheet LAB_DB_PASSWORD=merge-only-password LAB_SMTP_HOST=127.0.0.1 LAB_SMTP_PORT=1025 LAB_SECURITY_MASTER_KEY=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA= LAB_PUBLIC_ORIGIN=http://127.0.0.1:18084 ./mvnw spring-boot:run
+Java 25 started on port 18084; Flyway migrated an empty PostgreSQL 18.4 database to version 1.
+
+rtk proxy curl --fail --silent --show-error http://127.0.0.1:18084/actuator/health
+{"groups":["liveness","readiness"],"status":"UP"}
+
+rtk proxy curl --fail --silent --show-error http://127.0.0.1:18084/actuator/health/liveness
+{"status":"UP"}
+
+rtk proxy curl --fail --silent --show-error http://127.0.0.1:18084/actuator/health/readiness
+{"status":"UP"}
+```
+
+Ctrl-C produced graceful Tomcat, JPA, and Hikari shutdown. `rtk docker stop labtimesheet-i2-merge-main-postgres` stopped and auto-removed the exact container; ports 55443 and 18084 were clear.
+
+## Final workspace boundary
+
+The index remained clean throughout verification. macOS later updated the already-uncommitted root `.DS_Store` and `docs/.DS_Store`; immediately before this evidence update they were 10,244 bytes/SHA-256 `89f273327946f1a0035ae24b2f67ad1642fc81b706f2a153d98b8b282d598069` and 6,148 bytes/SHA-256 `0184fce87d9491b8d655bfcad34657c033b07bfe6c67c758c8d1f02a6b8e0175`. Both remain unstaged and deliberately untouched. No branch/worktree was deleted and no push or other remote mutation occurred.
