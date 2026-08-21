@@ -86,3 +86,30 @@ Real-process smoke: a disposable `postgres:18.4` container on `127.0.0.1:55442` 
 ## External-test boundaries
 
 The shell contract proves only tracked artifact presence and current handoff text. Producer ancestry, code behavior, PostgreSQL/Flyway behavior, browser workflows, remote movement, and the final merged-`main` SHA require their separate Git and exit-gate checks.
+
+## Local main integration
+
+- **Fresh fetched base:** `origin/main` = `58a087b118cc955748d7df1aa47d2bbc3ca0371b`
+- **Reviewed candidate:** `f334f13594de49f4b34318d8a3e8bc0556a8063d` (`APPROVE`, 0 Critical/Important)
+- **Normal local merge:** `c4f039663f86370b865df036e1756338529e47c9`
+- **Merge parents:** `58a087b118cc955748d7df1aa47d2bbc3ca0371b`, `f334f13594de49f4b34318d8a3e8bc0556a8063d`
+- **Protected root file:** `.DS_Store` SHA-256 `bf6f1f27ea596b8a0dfd8795ccc9ba41629abb79e75b536d2964146e8815aee8`, 10,244 bytes, unchanged
+- **Remote mutation:** none; no push
+- **Exact merged-main gate:** pending
+
+**Post-merge documentation command**
+
+```text
+rtk proxy sh -c 'failed=0
+for file in docs/iterations/iteration-2/git-ledgers/work-platform.md docs/iterations/iteration-2/git-ledgers/work-tasks.md docs/iterations/iteration-2/git-ledgers/work-projects.md docs/iterations/iteration-2/git-ledgers/work-attendance.md docs/iterations/iteration-2/git-ledgers/work-reports-ui.md docs/iterations/iteration-2/git-ledgers/orchestrator-integration.md; do [ -f "$file" ] || failed=1; done
+rg -q "^\\| 2 .*DONE.*c4f039663f86370b865df036e1756338529e47c9" .agents/PROJECT_PLAN.md || failed=1
+rg -q "c4f039663f86370b865df036e1756338529e47c9" docs/iterations/iteration-2/git-ledgers/orchestrator-integration.md || failed=1
+rg -q "No push|no push" docs/iterations/iteration-2/git-ledgers/orchestrator-integration.md || failed=1
+exit "$failed"'
+```
+
+**Observed result**
+
+```text
+Exit 0 with no output. The tracked plan and ledgers identify the exact local merge and preserve the no-push boundary.
+```

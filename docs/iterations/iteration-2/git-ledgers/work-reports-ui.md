@@ -61,4 +61,4 @@ All recorded Iteration 2 work remained local. No push, merge request, deployment
 
 ## What the team should do next
 
-Review the exact ledger-publication head, fetch and verify upstream `main`, merge that immutable candidate normally into local `main`, then run the complete merged-main gate. Do not push without separate authorization.
+Keep the consumer branch/worktree for Iteration 3 handoff. Complete and pin the local merged-main verification, then stop; do not push without separate authorization.
