@@ -4,7 +4,7 @@
 - **Requirement IDs:** `I2-UI-03`, `RPT-001`, `RPT-002`, `RPT-003`, `RPT-004`
 - **Scenario IDs:** `AC-ATT-006`, `AC-ATT-007`, `AC-RPT-001`, `AC-RPT-002`, `AC-UI-004`
 - **Test class/method:** `AttendanceReportServiceTest#preservesDistinctRawAndEffectiveCheckoutDisplays`, `AttendanceReportControllerWebTest#rendersAttendanceReportForAnAuthenticatedIntern`, `#exposesFiltersSummaryNaaAndEquivalentTrendDataInTheRenderedDataset`
-- **Implementation commit:** `pending local independent review`
+- **Implementation commit:** `5c6e0c67cd7be7bfb914e81743538e7f7d9ae47d`
 
 ## Protected behavior
 

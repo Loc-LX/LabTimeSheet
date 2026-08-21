@@ -4,7 +4,7 @@
 - **Requirement IDs:** `I2-UI-02`, `ACC-014`–`ACC-025`, `AUTH-001`–`AUTH-002`, `UI-013`–`UI-014`, `UI-016`, `I2-ATT-01`–`I2-ATT-06`, `I2-PRJ-01`–`I2-PRJ-06`, `I2-TSK-01`, `I2-TSK-03`, `I2-TSK-04`
 - **Scenario IDs:** `AC-ACC-009`, `AC-ACC-010`, `AC-AUTH-001`, `AC-ATT-001`, `AC-CAL-002`, `AC-CAL-004`, `AC-COR-001`, `AC-COR-003`, `AC-LEV-003`–`AC-LEV-005`, `AC-PRJ-010`–`AC-PRJ-013`, `AC-TSK-004`, `AC-TSK-005`, `AC-TSK-007`, `AC-UI-005`
 - **Test class/method:** `AccountAdministrationControllerWebTest` (3 methods), `AccountWebIntegrationTest#adminListsAndOpensInternLifecycleAdministrationWithoutDisclosingGuessedIds`, `AccountSessionInvalidationWebIntegrationTest#adminLockUnlockAndDeactivateRoutesEnforceLoginStateAndExpireSessions`, `AttendanceRequestControllerWebTest` (8 methods), `AdminSettingsControllerWebTest` (7 methods), `Iteration2ProjectWorkflowWebTest` (3 methods), `Iteration2TaskWorkflowWebTest` (4 methods), `Iteration2WorkflowFragmentsWebTest` (2 methods)
-- **Implementation commit:** `pending local independent review`
+- **Implementation commit:** `5c6e0c67cd7be7bfb914e81743538e7f7d9ae47d`
 
 ## Protected behavior
 

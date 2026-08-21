@@ -4,7 +4,7 @@
 - **Requirement IDs:** `ACC-020`–`ACC-025`
 - **Scenario IDs:** `AC-ACC-010`
 - **Test class/method:** `InternshipLifecycleIntegrationTest#scheduledStartIsIdempotentAndTerminalActionsApplyGuardsAndPreserveCompletedAuthentication`, `ProjectServiceIntegrationTest#adminTerminalReadinessComposesCurrentLeadershipAndUnfinishedTasksBeforeCompletion`, `#terminalCompletionRecomputesAndRejectsLockedLeaderTaskFacts`, `AccountSessionInvalidationWebIntegrationTest#adminLockUnlockAndDeactivateRoutesEnforceLoginStateAndExpireSessions`
-- **Implementation commit:** pending local milestone
+- **Implementation commit:** `5c6e0c67cd7be7bfb914e81743538e7f7d9ae47d`
 
 ## Protected behavior
 
