@@ -11,12 +11,13 @@
 <main>
     <p class="page-description">Maintain the global events and day-off rules applied to attendance.</p>
     <p class="alert" th:if="${message}" role="status" th:text="${message}"></p>
+    <p class="alert alert-error" th:if="${calendarError}" role="alert" th:text="${calendarError}"></p>
 
     <form class="panel form-panel form-grid" method="post" th:action="@{/attendance/calendar}">
         <div class="form-grid form-grid-three">
-            <div class="field"><label class="field-label" for="date">Date</label><input class="control" id="date" name="date" type="date" required th:min="${today}"></div>
-            <div class="field"><label class="field-label" for="name">Name</label><input class="control" id="name" name="name" type="text" maxlength="200" required></div>
-            <label class="checkbox"><input name="dayOff" type="checkbox" value="true"> <span>Day off</span></label>
+            <div class="field"><label class="field-label" for="date">Date</label><input class="control" id="date" name="date" type="date" required th:min="${today}" th:value="${calendarInput == null ? null : calendarInput.date}"></div>
+            <div class="field"><label class="field-label" for="name">Name</label><input class="control" id="name" name="name" type="text" maxlength="200" required th:value="${calendarInput == null ? null : calendarInput.name}"></div>
+            <label class="checkbox"><input name="dayOff" type="checkbox" value="true" th:checked="${calendarInput != null and calendarInput.dayOff == 'true'}"> <span>Day off</span></label>
         </div>
         <div class="form-actions"><button class="button button-primary" type="submit">Add event</button></div>
     </form>
@@ -27,9 +28,9 @@
         <thead><tr><th scope="col">Date</th><th scope="col">Name</th><th scope="col">Day off</th><th scope="col">Save</th></tr></thead>
         <tbody>
         <tr th:each="event : ${events}">
-            <td><input class="control" name="date" type="date" required th:min="${today}" th:value="${event.date}" th:attr="form=|event-${event.id}|" aria-label="Event date"></td>
-            <td><input class="control" name="name" type="text" maxlength="200" required th:value="${event.name}" th:attr="form=|event-${event.id}|" aria-label="Event name"></td>
-            <td><input name="dayOff" type="checkbox" value="true" th:checked="${event.dayOff}" th:attr="form=|event-${event.id}|" aria-label="Day off"></td>
+            <td><input class="control" name="date" type="date" required th:min="${today}" th:value="${calendarEditInput != null and calendarEditInput.eventId == event.id ? calendarEditInput.date : event.date}" th:attr="form=|event-${event.id}|" aria-label="Event date"></td>
+            <td><input class="control" name="name" type="text" maxlength="200" required th:value="${calendarEditInput != null and calendarEditInput.eventId == event.id ? calendarEditInput.name : event.name}" th:attr="form=|event-${event.id}|" aria-label="Event name"></td>
+            <td><input name="dayOff" type="checkbox" value="true" th:checked="${calendarEditInput != null and calendarEditInput.eventId == event.id ? calendarEditInput.dayOff == 'true' : event.dayOff}" th:attr="form=|event-${event.id}|" aria-label="Day off"></td>
             <td>
                 <form method="post" th:id="|event-${event.id}|" th:action="@{/attendance/calendar/{id}(id=${event.id})}">
                     <input name="version" type="hidden" th:value="${event.version}">

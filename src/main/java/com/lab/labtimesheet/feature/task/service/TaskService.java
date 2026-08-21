@@ -497,6 +497,11 @@ public class TaskService {
                 .stream()
                 .map(TaskService::view)
                 .toList();
+        List<TaskWorkLogView> taskWorkLogs = workLogs
+                .findAllByTaskIdAndProjectIdOrderByWorkDateAscIdAsc(taskId, projectId)
+                .stream()
+                .map(TaskService::view)
+                .toList();
         boolean canChangeStatus = "ACTIVE".equals(access.project().status())
                 && actorMembership != null
                 && persistedTask.getAssigneeMembershipId() == actorMembership.membershipId();
@@ -515,7 +520,9 @@ public class TaskService {
                 && actorMembership != null
                 && persistedTask.getAssigneeMembershipId() == actorMembership.membershipId();
         return new TaskDetails(
-                task, taskComments, canChangeStatus, canComment,
+                task, taskComments, taskWorkLogs,
+                actorMembership == null ? null : actorMembership.membershipId(),
+                canChangeStatus, canComment,
                 canEdit, canDelete, canReassign, canLogWork);
     }
 

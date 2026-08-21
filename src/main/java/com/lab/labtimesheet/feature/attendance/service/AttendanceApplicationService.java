@@ -19,6 +19,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -43,6 +44,7 @@ public class AttendanceApplicationService {
     private final AccountService accounts;
     private final CalendarApplicationService calendar;
     private final AttendanceService attendance;
+    private final AttendanceCorrectionApplicationService corrections;
 
     /**
      * Records the sole server-time check-in for the effective policy-local date.
@@ -126,7 +128,8 @@ public class AttendanceApplicationService {
 
     /**
      * Returns inclusive historical rows newest-first, allowing Interns only their own history while Mentor and Admin
-     * actors may inspect another Intern. DTOs retain raw instants and provide attached-policy local display values.
+     * actors may inspect another Intern. Approved correction proposals are reported as effective checkout values and
+     * violations are recomputed from them; the attached raw attendance row is never mutated.
      *
      * @param actor authenticated Attendance authorization context
      * @param internId target Intern account identifier
@@ -134,7 +137,7 @@ public class AttendanceApplicationService {
      * @param to inclusive last local date
      * @return immutable presentation/reporting history items
      */
-    @Transactional(readOnly = true)
+    @Transactional
     public List<AttendanceHistoryItem> history(
             AttendanceActor actor, long internId, LocalDate from, LocalDate to) {
         if (actor.role() == AttendanceRole.INTERN && actor.userId() != internId) {
@@ -143,15 +146,22 @@ public class AttendanceApplicationService {
         if (from.isAfter(to)) {
             throw new IllegalArgumentException("from must not be after to");
         }
-        return recordEntities.findByInternUserIdAndWorkDateBetweenOrderByWorkDateDesc(internId, from, to)
+        List<AttendanceRecordEntity> recordRows = recordEntities
+                .findByInternUserIdAndWorkDateBetweenOrderByWorkDateDesc(internId, from, to);
+        Map<Long, Instant> effectiveCheckouts = corrections.prepareHistory(recordRows);
+        return recordRows
                 .stream()
-                .map(AttendanceRecordEntity::toDomain)
-                .map(record -> new AttendanceHistoryItem(
-                        record.workDate(),
-                        record.checkInAt(),
-                        record.checkOutAt(),
-                        record.policy(),
-                        record.violations(clock.instant())))
+                .map(entity -> {
+                    AttendanceRecord record = entity.toDomain();
+                    Instant effectiveCheckout = effectiveCheckouts.get(entity.id());
+                    return new AttendanceHistoryItem(
+                            record.workDate(),
+                            record.checkInAt(),
+                            effectiveCheckout,
+                            record.policy(),
+                            record.violations(clock.instant(), effectiveCheckout),
+                            entity.id());
+                })
                 .toList();
     }
 

@@ -7,6 +7,8 @@ import java.util.List;
  *
  * @param task visible non-deleted Task
  * @param comments append-only comment history in creation order
+ * @param workLogs retained dated effort rows in ascending work-date order
+ * @param actorMembershipId active viewer membership used only to expose author-owned corrections
  * @param canChangeStatus true only for the current assignee of an ACTIVE Project
  * @param canComment true only for an eligible active member or owning Mentor before completion
  * @param canEdit true for the current Leader or self-created current-assignee unfinished Task
@@ -17,6 +19,8 @@ import java.util.List;
 public record TaskDetails(
         TaskView task,
         List<TaskCommentView> comments,
+        List<TaskWorkLogView> workLogs,
+        Long actorMembershipId,
         boolean canChangeStatus,
         boolean canComment,
         boolean canEdit,
@@ -37,11 +41,12 @@ public record TaskDetails(
             List<TaskCommentView> comments,
             boolean canChangeStatus,
             boolean canComment) {
-        this(task, comments, canChangeStatus, canComment, false, false, false, false);
+        this(task, comments, List.of(), null, canChangeStatus, canComment, false, false, false, false);
     }
 
     /** Copies the comment list so historical output cannot be modified by a view consumer. */
     public TaskDetails {
         comments = List.copyOf(comments);
+        workLogs = List.copyOf(workLogs);
     }
 }

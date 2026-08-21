@@ -65,6 +65,12 @@ class ProjectInvitationExitIntegrationTest {
 
         assertEquals("PENDING", text("select status from project_invitations where id = ?", invitationId));
         assertEquals(
+                List.of(invitationId),
+                projectPages.pendingInvitations(inviteeId).stream()
+                        .map(invitation -> invitation.invitationId())
+                        .toList());
+        assertTrue(projectPages.pendingInvitations(unrelatedId).isEmpty());
+        assertEquals(
                 List.of(inviteeId),
                 notificationRecipients(
                         "PROJECT_INVITATION_CREATED", "/projects/" + projectId + "/invitations/" + invitationId));
@@ -79,6 +85,7 @@ class ProjectInvitationExitIntegrationTest {
 
         projects.addMember(mentorId, projectId, inviteeId);
 
+        assertTrue(projectPages.pendingInvitations(inviteeId).isEmpty());
         assertEquals(
                 List.of(inviteeId),
                 notificationRecipients(

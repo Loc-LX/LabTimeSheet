@@ -30,4 +30,16 @@ public interface AttendanceRecordRepository extends JpaRepository<AttendanceReco
      */
     List<AttendanceRecordEntity> findByInternUserIdAndWorkDateBetweenOrderByWorkDateDesc(
             long internUserId, LocalDate from, LocalDate to);
+
+    /**
+     * Loads an Intern's inclusive report rows oldest-first so daily classification and aggregate formulas are
+     * deterministic without changing the existing newest-first history contract.
+     *
+     * @param internUserId target Intern account identifier
+     * @param from inclusive first local date
+     * @param to inclusive last local date
+     * @return matching raw attendance rows in ascending work-date order
+     */
+    List<AttendanceRecordEntity> findByInternUserIdAndWorkDateBetweenOrderByWorkDateAsc(
+            long internUserId, LocalDate from, LocalDate to);
 }

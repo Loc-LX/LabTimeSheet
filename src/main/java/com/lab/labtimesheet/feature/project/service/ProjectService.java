@@ -2,6 +2,7 @@ package com.lab.labtimesheet.feature.project.service;
 
 import com.lab.labtimesheet.feature.account.model.AccountStatus;
 import com.lab.labtimesheet.feature.account.model.GlobalRole;
+import com.lab.labtimesheet.feature.account.model.dto.InternshipLifecycleGuard;
 import com.lab.labtimesheet.feature.account.model.dto.LockedAccountMutationEligibility;
 import com.lab.labtimesheet.feature.account.service.AccountService;
 import com.lab.labtimesheet.feature.project.exception.ProjectAccessDeniedException;
@@ -865,6 +866,45 @@ public class ProjectService {
     }
 
     /**
+     * Completes an Intern after recomputing Project leadership and Task ownership under the shared lock order.
+     *
+     * <p>The active Admin and target Account/profile rows are locked first. Every current Project is then locked in
+     * ascending identifier order before unfinished Tasks are counted. Because all Project and Task mutations use the
+     * same Account-before-Project order, the guard remains stable until the Account-owned completion commits.</p>
+     *
+     * @param adminUserId active Admin performing the terminal action
+     * @param internUserId Intern account being completed
+     * @throws IllegalArgumentException when the actor or target account shape is invalid
+     * @throws IllegalStateException when Project/Task readiness or the internship state rejects completion
+     */
+    @Transactional
+    public void completeInternship(long adminUserId, long internUserId) {
+        accounts.completeInternship(
+                internUserId,
+                adminUserId,
+                lockedInternshipLifecycleGuard(adminUserId, internUserId));
+    }
+
+    /**
+     * Withdraws an Intern after recomputing Project leadership and Task ownership under the shared lock order.
+     *
+     * <p>The readiness transaction is identical to completion. Account withdrawal then deactivates the Intern and
+     * expires existing sessions before the surrounding transaction commits.</p>
+     *
+     * @param adminUserId active Admin performing the terminal action
+     * @param internUserId Intern account being withdrawn
+     * @throws IllegalArgumentException when the actor or target account shape is invalid
+     * @throws IllegalStateException when Project/Task readiness or the internship state rejects withdrawal
+     */
+    @Transactional
+    public void withdrawInternship(long adminUserId, long internUserId) {
+        accounts.withdrawInternship(
+                internUserId,
+                adminUserId,
+                lockedInternshipLifecycleGuard(adminUserId, internUserId));
+    }
+
+    /**
      * Activates a planned Project while holding its write lock. Current Account eligibility and
      * Task-assignee validity are checked inside the same transaction after all current-member
      * Account/profile locks are acquired in ascending order; any failure leaves the Project
@@ -1322,6 +1362,48 @@ public class ProjectService {
         } catch (IllegalArgumentException exception) {
             throw new ProjectAccessDeniedException();
         }
+    }
+
+    private InternshipLifecycleGuard lockedInternshipLifecycleGuard(long adminUserId, long internUserId) {
+        List<LockedAccountMutationEligibility> lockedAccounts;
+        try {
+            lockedAccounts = accounts.lockedAccountMutationEligibility(List.of(adminUserId, internUserId));
+        } catch (IllegalArgumentException failure) {
+            throw new IllegalArgumentException("Account action could not be completed", failure);
+        }
+        LockedAccountMutationEligibility admin = snapshotFor(lockedAccounts, adminUserId);
+        if (admin.role() != GlobalRole.ADMIN || admin.accountStatus() != AccountStatus.ACTIVE) {
+            throw new IllegalArgumentException("An active Admin is required");
+        }
+        LockedAccountMutationEligibility intern = snapshotFor(lockedAccounts, internUserId);
+        if (intern.role() != GlobalRole.INTERN) {
+            throw new IllegalArgumentException("An Intern account is required");
+        }
+
+        boolean currentLeader = false;
+        long unfinishedTaskCount = 0;
+        var currentMemberships = projects.findMembershipIntervalsByInternUserId(internUserId).stream()
+                .filter(interval -> interval.leftAt() == null)
+                .toList();
+        for (var interval : currentMemberships) {
+            var project = projects.findLockedById(interval.projectId())
+                    .orElseThrow(() -> new IllegalStateException("Project membership changed; retry the action"));
+            ProjectMembershipEntity membership;
+            try {
+                membership = project.currentMember(internUserId);
+            } catch (ProjectRuleViolationException failure) {
+                throw new IllegalStateException("Project membership changed; retry the action", failure);
+            }
+            if (!Objects.equals(membership.id(), interval.membershipId())) {
+                throw new IllegalStateException("Project membership changed; retry the action");
+            }
+            if (project.status() != ProjectStatus.COMPLETED
+                    && Objects.equals(project.currentLeader().id(), membership.id())) {
+                currentLeader = true;
+            }
+            unfinishedTaskCount += taskTransfers.unfinishedCount(interval.projectId(), interval.membershipId());
+        }
+        return new InternshipLifecycleGuard(currentLeader, unfinishedTaskCount);
     }
 
     private List<LockedAccountMutationEligibility> lockAccountsForTargetMutation(

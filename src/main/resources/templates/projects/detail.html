@@ -20,11 +20,19 @@
     <form class="inline-actions" th:if="${project.canManage and project.status == 'PLANNED'}" th:action="@{/projects/{id}/activate(id=${project.id})}" method="post">
         <button class="button button-primary" type="submit">Activate</button>
     </form>
+    <section class="panel form-panel" th:each="readiness : ${exitReadiness}">
+        <header class="panel-header"><h2 class="panel-title">Exit readiness</h2></header>
+        <p class="field-help" th:if="${readiness.targetIsCurrentLeader}">Appoint a replacement Leader before this exit can be approved.</p>
+        <p class="field-help" th:if="${readiness.unfinishedTaskCount > 0}" th:text="|${readiness.unfinishedTaskCount} unfinished Tasks remain before Mentor decision.|">Unfinished Tasks remain.</p>
+        <p class="field-help" th:if="${readiness.readyForApproval}">Ready for Mentor decision.</p>
+        <a class="button" th:href="@{/projects/{id}/workflows(id=${project.id})}">Open exit workflow</a>
+    </section>
     <nav class="tabs" aria-label="Project sections">
         <a class="tab" th:href="@{/projects/{id}(id=${project.id})}" aria-current="page">Overview</a>
         <a class="tab" th:href="@{/projects/{id}/members(id=${project.id})}">Members</a>
         <a class="tab" th:href="@{/projects/{id}/leadership(id=${project.id})}">Leadership</a>
         <a class="tab" th:href="@{/projects/{id}/tasks(id=${project.id})}">Tasks</a>
+        <a class="tab" th:href="@{/projects/{id}/workflows(id=${project.id})}">Workflows &amp; History</a>
     </nav>
 </main>
 </body>

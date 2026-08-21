@@ -1,0 +1,9 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<body>
+<div th:replace="~{fragments/components :: errorSummary('form-errors', 'Please correct the highlighted fields.', ${issues})}"></div>
+<div th:replace="~{fragments/components :: drawer('transfer-drawer', 'Transfer unfinished Tasks', 'Choose one recipient before confirming.', ~{::#drawer-content})}"></div>
+<div id="drawer-content"><p>Drawer content</p></div>
+<div th:replace="~{fragments/components :: reportChart('trend-chart', 'Attendance trend', 'Daily attendance rate for the selected period.', ${points})}"></div>
+</body>
+</html>

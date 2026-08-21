@@ -60,9 +60,20 @@ public record AttendanceRecord(
      * @return independent violation flags for presentation and reporting
      */
     public AttendanceViolations violations(Instant observedAt) {
+        return violations(observedAt, checkOutAt);
+    }
+
+    /**
+     * Classifies violations with a correction-derived effective checkout while retaining raw checkout separately.
+     *
+     * @param observedAt instant at which missing-checkout status is evaluated
+     * @param effectiveCheckoutAt approved correction checkout, or raw checkout
+     * @return effective violation flags
+     */
+    public AttendanceViolations violations(Instant observedAt, Instant effectiveCheckoutAt) {
         boolean late = checkInAt.isAfter(scheduledStart().plusSeconds(policy.checkInGraceMinutes() * 60L));
-        boolean missingCheckout = checkOutAt == null && observedAt.isAfter(checkoutCutoff());
-        boolean earlyDeparture = checkOutAt != null && checkOutAt.isBefore(scheduledEnd());
+        boolean missingCheckout = effectiveCheckoutAt == null && observedAt.isAfter(checkoutCutoff());
+        boolean earlyDeparture = effectiveCheckoutAt != null && effectiveCheckoutAt.isBefore(scheduledEnd());
         return new AttendanceViolations(late, earlyDeparture, missingCheckout);
     }
 

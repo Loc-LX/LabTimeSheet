@@ -145,6 +145,22 @@ public class NotificationEntity {
     }
 
     /**
+     * Marks this notification read for its own recipient; repeating the operation is a no-op.
+     *
+     * <p>The service loads this entity through a recipient-qualified query, so this state
+     * transition cannot be applied to another account's row through the inbox boundary.
+     *
+     * @param now server instant recorded for the first mark-read operation
+     */
+    public void markRead(Instant now) {
+        if (readAt != null) {
+            return;
+        }
+        readAt = now;
+        updatedAt = now;
+    }
+
+    /**
      * Marks the one immediate ordinary-email attempt successful after external I/O has completed.
      *
      * @param now server delivery instant
