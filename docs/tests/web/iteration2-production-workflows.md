@@ -104,6 +104,17 @@ assertion found the retained invitee option without `selected`; the same raw/num
 transfer source/error association, Task checkboxes, and recipient radio selection.
 ```
 
+The first complete candidate gate then exposed one stale source-audit expectation after Calendar's malformed-value
+repair deliberately changed typed MVC parameters to retained raw strings:
+
+```text
+JAVA_HOME=/opt/homebrew/opt/openjdk@25 DOCKER_HOST=unix:///Users/sechmachine/.orbstack/run/docker.sock ./mvnw -DargLine=-javaagent:/Users/sechmachine/.m2/repository/net/bytebuddy/byte-buddy-agent/1.18.10/byte-buddy-agent-1.18.10.jar test
+
+PostgreSQL 18.4 where applicable; Tests run: 444, Failures: 1, Errors: 0, Skipped: 0; BUILD FAILURE.
+AttendanceLombokBoilerplateTest still expected CalendarController's former LocalDate/boolean/long request signature.
+All other 443 tests passed.
+```
+
 ## GREEN
 
 **Command**
@@ -148,6 +159,15 @@ The latest repair's producer and authorization focus passed on PostgreSQL 18.4:
 JAVA_HOME=/opt/homebrew/opt/openjdk@25 DOCKER_HOST=unix:///Users/sechmachine/.orbstack/run/docker.sock ./mvnw -DargLine=-javaagent:/Users/sechmachine/.m2/repository/net/bytebuddy/byte-buddy-agent/1.18.10/byte-buddy-agent-1.18.10.jar '-Dtest=CalendarAuthorizationWebIntegrationTest,CalendarDevelopmentProfileWebIntegrationTest,ProjectInvitationExitIntegrationTest,ProjectLifecycleLockIntegrationTest,ProjectTaskMutationContextTest' test
 
 Tests run: 34, Failures: 0, Errors: 0, Skipped: 0; BUILD SUCCESS.
+```
+
+The explicit Calendar public-contract inventory was updated to the already-reviewed raw request signature and passed
+its focused audit:
+
+```text
+JAVA_HOME=/opt/homebrew/opt/openjdk@25 ./mvnw -Dtest=AttendanceLombokBoilerplateTest test
+
+Tests run: 4, Failures: 0, Errors: 0, Skipped: 0; BUILD SUCCESS.
 ```
 
 The lifecycle persistence focus (`ProjectServiceIntegrationTest`, `AccountWebIntegrationTest`, and

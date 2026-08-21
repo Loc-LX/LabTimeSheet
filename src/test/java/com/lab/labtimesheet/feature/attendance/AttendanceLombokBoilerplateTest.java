@@ -448,9 +448,9 @@ class AttendanceLombokBoilerplateTest {
                         "create",
                         String.class,
                         Principal.class,
-                        LocalDate.class,
                         String.class,
-                        boolean.class,
+                        String.class,
+                        String.class,
                         RedirectAttributes.class),
                 method(
                         Modifier.PUBLIC,
@@ -458,10 +458,10 @@ class AttendanceLombokBoilerplateTest {
                         String.class,
                         Principal.class,
                         long.class,
-                        long.class,
-                        LocalDate.class,
                         String.class,
-                        boolean.class,
+                        String.class,
+                        String.class,
+                        String.class,
                         RedirectAttributes.class));
         assertMethodSurface(
                 AttendanceApplicationService.class,
