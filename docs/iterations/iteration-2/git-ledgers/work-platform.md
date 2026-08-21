@@ -37,4 +37,4 @@ All recorded Iteration 2 commits and producer merges were local. No push, merge 
 
 ## What the team should do next
 
-Keep the producer branch/worktree for Iteration 3 handoff. Complete and pin the local merged-main verification, then stop; do not push without separate authorization.
+Keep the producer branch/worktree for Iteration 3 handoff. Local merged-main verification is complete; stop without pushing unless separately authorized.
