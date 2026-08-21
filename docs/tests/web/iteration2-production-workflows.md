@@ -3,8 +3,8 @@
 - **Test type:** Web
 - **Requirement IDs:** `I2-UI-02`, `ACC-014`–`ACC-025`, `AUTH-001`–`AUTH-002`, `UI-013`–`UI-014`, `UI-016`, `I2-ATT-01`–`I2-ATT-06`, `I2-PRJ-01`–`I2-PRJ-06`, `I2-TSK-01`, `I2-TSK-03`, `I2-TSK-04`
 - **Scenario IDs:** `AC-ACC-009`, `AC-ACC-010`, `AC-AUTH-001`, `AC-ATT-001`, `AC-CAL-002`, `AC-CAL-004`, `AC-COR-001`, `AC-COR-003`, `AC-LEV-003`–`AC-LEV-005`, `AC-PRJ-010`–`AC-PRJ-013`, `AC-TSK-004`, `AC-TSK-005`, `AC-TSK-007`, `AC-UI-005`
-- **Test class/method:** `AccountAdministrationControllerWebTest` (3 methods), `AccountWebIntegrationTest#adminListsAndOpensInternLifecycleAdministrationWithoutDisclosingGuessedIds`, `AccountSessionInvalidationWebIntegrationTest#adminLockUnlockAndDeactivateRoutesEnforceLoginStateAndExpireSessions`, `AttendanceRequestControllerWebTest` (8 methods), `AdminSettingsControllerWebTest` (7 methods), `Iteration2ProjectWorkflowWebTest` (3 methods), `Iteration2TaskWorkflowWebTest` (4 methods), `Iteration2WorkflowFragmentsWebTest` (2 methods)
-- **Implementation commit:** `5c6e0c67cd7be7bfb914e81743538e7f7d9ae47d`
+- **Test class/method:** `AccountAdministrationControllerWebTest` (3 methods), `AccountWebIntegrationTest#adminListsAndOpensInternLifecycleAdministrationWithoutDisclosingGuessedIds`, `AccountSessionInvalidationWebIntegrationTest#adminLockUnlockAndDeactivateRoutesEnforceLoginStateAndExpireSessions`, `AttendanceRequestControllerWebTest` (8 methods), `CalendarControllerWebTest` (2 methods), `AdminSettingsControllerWebTest` (7 methods), `Iteration2ProjectWorkflowWebTest` (4 methods), `Iteration2TaskWorkflowWebTest` (4 methods), `Iteration2WorkflowFragmentsWebTest` (2 methods)
+- **Implementation commit:** pending final review repair (base `126b3e4f4caa400e4ac8cabc9eb55387091f23e9`)
 
 ## Protected behavior
 
@@ -18,7 +18,7 @@ historical-policy zone, and integration/lifecycle terminal actions carry explici
 
 ## Test method
 
-Seven MVC/template slices invoke the real controllers, templates, request parsing, and redirects while mocking only
+Eight MVC/template slices invoke the real controllers, templates, request parsing, and redirects while mocking only
 reviewed public service/DTO boundaries. Real PostgreSQL web tests additionally prove the Account projection, Admin-only
 route, generic guessed-ID response, and lock/unlock/deactivate session behavior. Project integration tests recompute
 current leadership and unfinished Tasks under the Account-before-Project lock order before the Account terminal
@@ -81,20 +81,37 @@ node --test src/test/js/workflow-confirmation-contract.test.mjs
 Tests run: 1, Failures: 1. The SMTP and HolidayAPI activation forms had no retirement/replacement confirmation.
 ```
 
+The same-reviewer pass over the frozen repair commit then found two remaining gate failures:
+
+```text
+JAVA_HOME=/opt/homebrew/opt/openjdk@25 ./mvnw -DskipTests -Ddoclint=all javadoc:javadoc
+BUILD FAILURE with 7 errors. The standard Javadoc tool rejected `@implNote` as an unregistered block tag in
+AttendanceCorrectionApplicationService and LeaveApplicationService.
+
+JAVA_HOME=/opt/homebrew/opt/openjdk@25 ./mvnw -DargLine=-javaagent:/Users/sechmachine/.m2/repository/net/bytebuddy/byte-buddy-agent/1.18.10/byte-buddy-agent-1.18.10.jar '-Dtest=Iteration2ProjectWorkflowWebTest,CalendarControllerWebTest' test
+Tests run: 6, Failures: 2, Errors: 1. Malformed Project removal and Calendar date values returned framework HTTP 400,
+and a Calendar service conflict escaped the retained-input redirect boundary.
+```
+
 ## GREEN
 
 **Command**
 
 ```text
-JAVA_HOME=/opt/homebrew/opt/openjdk@25 ./mvnw -DargLine=-javaagent:/Users/sechmachine/.m2/repository/net/bytebuddy/byte-buddy-agent/1.18.10/byte-buddy-agent-1.18.10.jar '-Dtest=AccountAdministrationControllerWebTest,AccountTemplateIntegrationTest,AttendanceRequestControllerWebTest,AdminSettingsControllerWebTest,Iteration2ProjectWorkflowWebTest,Iteration2TaskWorkflowWebTest,Iteration2WorkflowFragmentsWebTest' test
+JAVA_HOME=/opt/homebrew/opt/openjdk@25 ./mvnw -DargLine=-javaagent:/Users/sechmachine/.m2/repository/net/bytebuddy/byte-buddy-agent/1.18.10/byte-buddy-agent-1.18.10.jar '-Dtest=AccountAdministrationControllerWebTest,AccountTemplateIntegrationTest,AttendanceRequestControllerWebTest,AdminSettingsControllerWebTest,CalendarControllerWebTest,Iteration2ProjectWorkflowWebTest,Iteration2TaskWorkflowWebTest,Iteration2WorkflowFragmentsWebTest' test
 ```
 
 **Observed result**
 
 ```text
-Java 25.0.4; Tests run: 31, Failures: 0, Errors: 0, Skipped: 0; BUILD SUCCESS. Safe non-secret
-input is retained with inline errors, explicit zones are rendered, Admin account controls use Account/Project owners,
-and terminal actions carry consequence confirmations. HolidayAPI secrets are deliberately never retained.
+Java 25.0.4; Tests run: 34, Failures: 0, Errors: 0, Skipped: 0; BUILD SUCCESS. Safe non-secret
+input is retained with inline errors across Account, Attendance, Calendar, Project, and Task workflows; explicit zones
+are rendered; Admin account controls use Account/Project owners; and terminal actions carry consequence confirmations.
+HolidayAPI secrets are deliberately never retained.
+
+JAVA_HOME=/opt/homebrew/opt/openjdk@25 ./mvnw -DskipTests -Ddoclint=all javadoc:javadoc
+BUILD SUCCESS with 100 pre-existing warnings and no errors after replacing the unsupported block tags with standard
+Javadoc prose.
 ```
 
 ## Affected suite
@@ -109,12 +126,22 @@ PostgreSQL 18.4 where applicable; Tests run: 441, Failures: 0, Errors: 0, Skippe
 
 The first affected run correctly failed two Attendance public-contract inventory assertions for the newly added
 `list(AttendanceActor)` method and `attendanceRecordId` component. Updating that explicit inventory produced a
-focused 4/4 GREEN and the final affected-suite rerun above; no production behavior was weakened.
+focused 4/4 GREEN and the 441/441 rerun above; no production behavior was weakened. That complete run predates the
+second-review Project/Calendar/Javadoc repair and is not claimed as the final committed-candidate exit gate.
+
+The latest repair's producer and authorization focus passed on PostgreSQL 18.4:
+
+```text
+JAVA_HOME=/opt/homebrew/opt/openjdk@25 DOCKER_HOST=unix:///Users/sechmachine/.orbstack/run/docker.sock ./mvnw -DargLine=-javaagent:/Users/sechmachine/.m2/repository/net/bytebuddy/byte-buddy-agent/1.18.10/byte-buddy-agent-1.18.10.jar '-Dtest=CalendarAuthorizationWebIntegrationTest,CalendarDevelopmentProfileWebIntegrationTest,ProjectInvitationExitIntegrationTest,ProjectLifecycleLockIntegrationTest,ProjectTaskMutationContextTest' test
+
+Tests run: 34, Failures: 0, Errors: 0, Skipped: 0; BUILD SUCCESS.
+```
 
 The lifecycle persistence focus (`ProjectServiceIntegrationTest`, `AccountWebIntegrationTest`, and
 `AccountSessionInvalidationWebIntegrationTest`) passed 18/18 on PostgreSQL 18.4. `npm run build` and
-`npm run test:ui` passed on Node 24/npm 11 (7/7 Node tests). Java 25 compile, repository-wide Javadoc/doclint, and
-`git diff --check` passed.
+`npm run test:ui` passed on Node 24/npm 11 (7/7 Node tests). Java 25 compile and `git diff --check` passed. The exact
+standard repository-wide Javadoc/doclint command now passes with 100 warnings and no errors; the complete exit gate
+will be repeated on the final committed candidate.
 
 ## External-test boundaries
 

@@ -100,11 +100,12 @@ public class LeaveApplicationService {
      * The account and Intern profile are pessimistically locked through the allocation and quota writes, while the
      * requested dates are checked against the account service's inclusive lifecycle window.
      *
+     * <p>The submission notification is written in this transaction for every active global Mentor. SMTP absence is
+     * represented by the notification boundary and does not roll back the leave request.</p>
+     *
      * @param actor authenticated Intern owner
      * @param command requested range and reason
      * @return persisted request and frozen allocations
-     * @implNote The submission notification is written in this transaction for every active global Mentor. SMTP
-     * absence is represented by the notification boundary and does not roll back the leave request.
      */
     @Transactional
     public LeaveRequestView submit(AttendanceActor actor, LeaveRequestCommand command) {
@@ -168,17 +169,18 @@ public class LeaveApplicationService {
     /**
      * Edits a pending request before its first counted start, replacing allocations atomically after revalidation.
      *
-     * @param actor authenticated Intern owner
-     * @param requestId request identifier
-     * @param command replacement inclusive range and reason
-     * @return updated request with freshly frozen allocations
-     * @implNote Authorization, expiry, quota validation, and allocation replacement share one independent
+     * <p>Authorization, expiry, quota validation, and allocation replacement share one independent
      * {@code REQUIRES_NEW} transaction and row lock. The independent boundary does not join an ambient caller
      * transaction, so a late pending request returns an internal sentinel only after automatic rejection commits;
      * the post-lock server-time expiry check runs before replacement lifecycle/date validation, and the public method
      * then reports that editing is closed even when the owner has since become ineligible. For a valid replacement,
      * the Account service's account and Intern-profile locks remain held through frozen allocation and quota
-     * persistence.
+     * persistence.</p>
+     *
+     * @param actor authenticated Intern owner
+     * @param requestId request identifier
+     * @param command replacement inclusive range and reason
+     * @return updated request with freshly frozen allocations
      */
     public LeaveRequestView edit(AttendanceActor actor, long requestId, LeaveRequestCommand command) {
         requireIntern(actor);
@@ -236,12 +238,13 @@ public class LeaveApplicationService {
     /**
      * Cancels a pending or approved request before its first counted start.
      *
+     * <p>Authorization, expiry, and cancellation share one independent {@code REQUIRES_NEW} transaction and row
+     * lock. The independent boundary does not join an ambient caller transaction, so a late pending request returns
+     * an internal sentinel only after automatic rejection commits; guessed IDs are authorized before expiry.</p>
+     *
      * @param actor authenticated Intern owner
      * @param requestId request identifier
      * @return cancelled request projection retaining its allocations
-     * @implNote Authorization, expiry, and cancellation share one independent {@code REQUIRES_NEW} transaction and
-     * row lock. The independent boundary does not join an ambient caller transaction, so a late pending request
-     * returns an internal sentinel only after automatic rejection commits; guessed IDs are authorized before expiry.
      */
     public LeaveRequestView cancel(AttendanceActor actor, long requestId) {
         requireIntern(actor);
@@ -276,13 +279,14 @@ public class LeaveApplicationService {
     /**
      * Approves a pending request for any active Mentor before the same immutable boundary.
      *
+     * <p>Active-Mentor authorization, request-time expiry, and approval share one independent {@code REQUIRES_NEW}
+     * transaction and one target-row lock. The independent boundary does not join an ambient caller transaction; an
+     * expired request returns an internal sentinel only after automatic rejection commits, then the public method
+     * reports the closed decision window.</p>
+     *
      * @param actor authenticated active Mentor
      * @param requestId request identifier
      * @return approved request projection
-     * @implNote Active-Mentor authorization, request-time expiry, and approval share one independent
-     * {@code REQUIRES_NEW} transaction and one target-row lock. The independent boundary does not join an ambient
-     * caller transaction; an expired request returns an internal sentinel only after automatic rejection commits,
-     * then the public method reports the closed decision window.
      */
     public LeaveRequestView approve(AttendanceActor actor, long requestId) {
         requireMentor(actor);
@@ -296,13 +300,14 @@ public class LeaveApplicationService {
     /**
      * Rejects a pending request for any active Mentor before its first counted start.
      *
+     * <p>Active-Mentor authorization, request-time expiry, and rejection share one independent {@code REQUIRES_NEW}
+     * transaction and one target-row lock. The independent boundary does not join an ambient caller transaction; an
+     * expired request returns an internal sentinel only after automatic rejection commits, then the public method
+     * reports the closed decision window.</p>
+     *
      * @param actor authenticated active Mentor
      * @param requestId request identifier
      * @return rejected request projection
-     * @implNote Active-Mentor authorization, request-time expiry, and rejection share one independent
-     * {@code REQUIRES_NEW} transaction and one target-row lock. The independent boundary does not join an ambient
-     * caller transaction; an expired request returns an internal sentinel only after automatic rejection commits,
-     * then the public method reports the closed decision window.
      */
     public LeaveRequestView reject(AttendanceActor actor, long requestId) {
         requireMentor(actor);

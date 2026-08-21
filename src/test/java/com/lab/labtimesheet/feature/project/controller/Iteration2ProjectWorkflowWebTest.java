@@ -1,6 +1,7 @@
 package com.lab.labtimesheet.feature.project.controller;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
@@ -167,7 +168,7 @@ class Iteration2ProjectWorkflowWebTest {
                 .thenThrow(new ProjectRuleViolationException("A pending request already exists"));
         Map<String, Object> retainedRemoval = Map.of(
                 "kind", "removal",
-                "targetMembershipId", 41L,
+                "targetMembershipId", "41",
                 "reason", "Retain this reason");
         mvc.perform(post("/projects/30/exits/removal")
                         .with(user("leader@example.test").roles("INTERN")).with(csrf())
@@ -183,6 +184,24 @@ class Iteration2ProjectWorkflowWebTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("value=\"Retain this reason\"")))
                 .andExpect(content().string(containsString("id=\"removal-form-error\"")));
+    }
+
+    @Test
+    void malformedRemovalMembershipRetainsTheSafeReasonWithoutCallingTheService() throws Exception {
+        when(pages.authenticatedUserId("leader@example.test")).thenReturn(20L);
+
+        mvc.perform(post("/projects/30/exits/removal")
+                        .with(user("leader@example.test").roles("INTERN"))
+                        .with(csrf())
+                        .param("targetMembershipId", "not-an-id")
+                        .param("reason", "Retain this reason"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/projects/30/workflows"))
+                .andExpect(flash().attribute("projectError", "Choose a valid membership."))
+                .andExpect(flash().attribute("projectInput", org.hamcrest.Matchers.hasEntry(
+                        "reason", "Retain this reason")));
+
+        verifyNoInteractions(projects);
     }
 
     @Test

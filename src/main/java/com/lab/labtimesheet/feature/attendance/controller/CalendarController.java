@@ -1,5 +1,6 @@
 package com.lab.labtimesheet.feature.attendance.controller;
 
+import com.lab.labtimesheet.feature.attendance.exception.CalendarException;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceRole;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceApplicationService;
@@ -7,9 +8,10 @@ import com.lab.labtimesheet.feature.attendance.service.AttendanceCurrentUserServ
 import com.lab.labtimesheet.feature.attendance.service.CalendarApplicationService;
 import java.security.Principal;
 import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
+import java.util.Map;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
-import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -52,22 +54,34 @@ public class CalendarController {
      * Creates a custom future event using the authenticated Admin identity.
      *
      * @param principal authenticated Admin
-     * @param date local event date
+     * @param date raw local event date
      * @param name non-blank display name
-     * @param dayOff authoritative day-off choice
+     * @param dayOff raw authoritative day-off choice
      * @param redirectAttributes flash-message destination
      * @return redirect to calendar management
      */
     @PostMapping
     public String create(
             Principal principal,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
-            @RequestParam String name,
-            @RequestParam(defaultValue = "false") boolean dayOff,
+            @RequestParam(defaultValue = "") String date,
+            @RequestParam(defaultValue = "") String name,
+            @RequestParam(defaultValue = "false") String dayOff,
             RedirectAttributes redirectAttributes) {
         AttendanceActor actor = requireAdmin(currentUsers.actor(principal));
-        calendar.createManual(actor, date, name, dayOff);
-        redirectAttributes.addFlashAttribute("message", "Calendar event created");
+        try {
+            calendar.createManual(
+                    actor,
+                    requiredDate(date),
+                    name,
+                    requiredBoolean(dayOff));
+            redirectAttributes.addFlashAttribute("message", "Calendar event created");
+        } catch (CalendarException | IllegalArgumentException failure) {
+            redirectAttributes.addFlashAttribute("calendarError", failure.getMessage());
+            redirectAttributes.addFlashAttribute("calendarInput", Map.of(
+                    "date", date,
+                    "name", name,
+                    "dayOff", dayOff));
+        }
         return "redirect:/attendance/calendar";
     }
 
@@ -76,10 +90,10 @@ public class CalendarController {
      *
      * @param principal authenticated Admin
      * @param eventId event identifier
-     * @param version expected optimistic version
-     * @param date replacement local date
+     * @param version raw expected optimistic version
+     * @param date raw replacement local date
      * @param name replacement display name
-     * @param dayOff replacement day-off choice
+     * @param dayOff raw replacement day-off choice
      * @param redirectAttributes flash-message destination
      * @return redirect to calendar management
      */
@@ -87,15 +101,54 @@ public class CalendarController {
     public String update(
             Principal principal,
             @PathVariable long eventId,
-            @RequestParam long version,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
-            @RequestParam String name,
-            @RequestParam(defaultValue = "false") boolean dayOff,
+            @RequestParam(defaultValue = "") String version,
+            @RequestParam(defaultValue = "") String date,
+            @RequestParam(defaultValue = "") String name,
+            @RequestParam(defaultValue = "false") String dayOff,
             RedirectAttributes redirectAttributes) {
         AttendanceActor actor = requireAdmin(currentUsers.actor(principal));
-        calendar.updateManual(actor, eventId, version, date, name, dayOff);
-        redirectAttributes.addFlashAttribute("message", "Calendar event updated");
+        try {
+            calendar.updateManual(
+                    actor,
+                    eventId,
+                    requiredLong(version),
+                    requiredDate(date),
+                    name,
+                    requiredBoolean(dayOff));
+            redirectAttributes.addFlashAttribute("message", "Calendar event updated");
+        } catch (CalendarException | IllegalArgumentException failure) {
+            redirectAttributes.addFlashAttribute("calendarError", failure.getMessage());
+            redirectAttributes.addFlashAttribute("calendarEditInput", Map.of(
+                    "eventId", eventId,
+                    "date", date,
+                    "name", name,
+                    "dayOff", dayOff));
+        }
         return "redirect:/attendance/calendar";
+    }
+
+    private static LocalDate requiredDate(String value) {
+        try {
+            return LocalDate.parse(value.strip());
+        } catch (DateTimeParseException failure) {
+            throw new IllegalArgumentException("Enter valid calendar event values.", failure);
+        }
+    }
+
+    private static long requiredLong(String value) {
+        try {
+            return Long.parseLong(value.strip());
+        } catch (NumberFormatException failure) {
+            throw new IllegalArgumentException("Enter valid calendar event values.", failure);
+        }
+    }
+
+    private static boolean requiredBoolean(String value) {
+        return switch (value.strip()) {
+            case "true" -> true;
+            case "false" -> false;
+            default -> throw new IllegalArgumentException("Enter valid calendar event values.");
+        };
     }
 
     private static AttendanceActor requireAdmin(AttendanceActor actor) {

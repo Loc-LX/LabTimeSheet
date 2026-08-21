@@ -165,10 +165,13 @@ public class ProjectController {
     public String respondToInvitation(
             Principal principal,
             @PathVariable long invitationId,
-            @RequestParam InvitationResponse response,
+            @RequestParam(defaultValue = "") String response,
             RedirectAttributes redirectAttributes) {
         return invitationMutation(redirectAttributes, () -> {
-            projects.respondToInvitation(actorId(principal), invitationId, response);
+            projects.respondToInvitation(
+                    actorId(principal),
+                    invitationId,
+                    requiredInvitationResponse(response));
             return null;
         });
     }
@@ -187,12 +190,15 @@ public class ProjectController {
     String issueInvitation(
             Principal principal,
             @PathVariable long projectId,
-            @RequestParam long invitedInternUserId,
+            @RequestParam(defaultValue = "") String invitedInternUserId,
             RedirectAttributes redirectAttributes) {
         return workflowMutation(projectId, redirectAttributes, Map.of(
                 "kind", "invitation",
                 "invitedInternUserId", invitedInternUserId), () -> {
-            projects.issueInvitation(actorId(principal), projectId, invitedInternUserId);
+            projects.issueInvitation(
+                    actorId(principal),
+                    projectId,
+                    requiredLong(invitedInternUserId, "Choose a valid Intern."));
             return null;
         });
     }
@@ -213,14 +219,18 @@ public class ProjectController {
     String requestRemoval(
             Principal principal,
             @PathVariable long projectId,
-            @RequestParam long targetMembershipId,
-            @RequestParam String reason,
+            @RequestParam(defaultValue = "") String targetMembershipId,
+            @RequestParam(defaultValue = "") String reason,
             RedirectAttributes redirectAttributes) {
         return workflowMutation(projectId, redirectAttributes, Map.of(
                 "kind", "removal",
                 "targetMembershipId", targetMembershipId,
                 "reason", reason), () -> {
-            projects.requestMemberRemoval(actorId(principal), projectId, targetMembershipId, reason);
+            projects.requestMemberRemoval(
+                    actorId(principal),
+                    projectId,
+                    requiredLong(targetMembershipId, "Choose a valid membership."),
+                    reason);
             return null;
         });
     }
@@ -229,7 +239,7 @@ public class ProjectController {
     String requestOwnLeave(
             Principal principal,
             @PathVariable long projectId,
-            @RequestParam String reason,
+            @RequestParam(defaultValue = "") String reason,
             RedirectAttributes redirectAttributes) {
         return workflowMutation(projectId, redirectAttributes, Map.of(
                 "kind", "leave",
@@ -256,17 +266,21 @@ public class ProjectController {
             Principal principal,
             @PathVariable long projectId,
             @PathVariable long requestId,
-            @RequestParam long sourceMembershipId,
-            @RequestParam Set<Long> taskIds,
-            @RequestParam long recipientMembershipId,
+            @RequestParam(defaultValue = "") String sourceMembershipId,
+            @RequestParam(required = false) Set<String> taskIds,
+            @RequestParam(defaultValue = "") String recipientMembershipId,
             RedirectAttributes redirectAttributes) {
         return workflowMutation(projectId, redirectAttributes, Map.of(
                 "kind", "transfer",
                 "requestId", requestId,
                 "sourceMembershipId", sourceMembershipId,
-                "taskIds", Set.copyOf(taskIds),
+                "taskIds", taskIds == null ? Set.of() : Set.copyOf(taskIds),
                 "recipientMembershipId", recipientMembershipId), () -> projects.transferTasks(
-                actorId(principal), projectId, sourceMembershipId, taskIds, recipientMembershipId));
+                actorId(principal),
+                projectId,
+                requiredLong(sourceMembershipId, "Choose a valid source membership."),
+                requiredLongSet(taskIds, "Choose at least one valid Task."),
+                requiredLong(recipientMembershipId, "Choose a valid recipient membership.")));
     }
 
     @PostMapping("/{projectId}/exits/{requestId}/approve")
@@ -306,15 +320,17 @@ public class ProjectController {
             Principal principal,
             @PathVariable long projectId,
             @PathVariable long membershipId,
-            @RequestParam(required = false) Long replacementLeaderUserId,
+            @RequestParam(defaultValue = "") String replacementLeaderUserId,
             RedirectAttributes redirectAttributes) {
         return workflowMutation(projectId, redirectAttributes, Map.of(
                 "kind", "direct-removal",
                 "membershipId", membershipId,
-                "replacementLeaderUserId", replacementLeaderUserId == null
-                        ? ""
-                        : replacementLeaderUserId.toString()), () -> {
-            projects.directRemoveMember(actorId(principal), projectId, membershipId, replacementLeaderUserId);
+                "replacementLeaderUserId", replacementLeaderUserId), () -> {
+            projects.directRemoveMember(
+                    actorId(principal),
+                    projectId,
+                    membershipId,
+                    optionalLong(replacementLeaderUserId, "Choose a valid replacement Leader."));
             return null;
         });
     }
@@ -598,6 +614,40 @@ public class ProjectController {
             redirectAttributes.addFlashAttribute("projectError", exception.getMessage());
         }
         return "redirect:/projects/invitations";
+    }
+
+    private static InvitationResponse requiredInvitationResponse(String value) {
+        try {
+            return InvitationResponse.valueOf(value.strip());
+        } catch (IllegalArgumentException exception) {
+            throw new ProjectRuleViolationException("Choose a valid invitation response.");
+        }
+    }
+
+    private static long requiredLong(String value, String errorMessage) {
+        try {
+            return Long.parseLong(value.strip());
+        } catch (NumberFormatException exception) {
+            throw new ProjectRuleViolationException(errorMessage);
+        }
+    }
+
+    private static Long optionalLong(String value, String errorMessage) {
+        return value == null || value.isBlank() ? null : requiredLong(value, errorMessage);
+    }
+
+    private static Set<Long> requiredLongSet(Set<String> values, String errorMessage) {
+        if (values == null || values.isEmpty()) {
+            throw new ProjectRuleViolationException(errorMessage);
+        }
+        try {
+            return values.stream()
+                    .map(String::strip)
+                    .map(Long::valueOf)
+                    .collect(Collectors.toUnmodifiableSet());
+        } catch (NumberFormatException exception) {
+            throw new ProjectRuleViolationException(errorMessage);
+        }
     }
 
     private List<EligibleInternOption> eligibleInternOptions() {
