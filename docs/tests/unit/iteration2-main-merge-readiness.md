@@ -4,7 +4,7 @@
 - **Requirement IDs:** `PROJECT_PLAN §9; Iteration 2 orchestration final-audit artifact requirement`
 - **Scenario IDs:** `N/A — local integration governance contract`
 - **Test class/method:** `Shell merge-readiness contract`
-- **Implementation commit:** `pending local documentation commit`
+- **Implementation commit:** `fdb4871894fa37af5c5eec863c4ccb4d67c99c8a`
 
 ## Protected behavior
 
