@@ -494,6 +494,50 @@ class AttendancePersistenceIntegrationTest {
     }
 
     @Test
+    void requestQueuesUseRealPersistenceAndRemainRoleScoped() {
+        long mentor = createActiveMentor();
+        long secondInternId = createActiveIntern(
+                "queue-intern@example.test",
+                "INT-QUEUE",
+                LocalDate.of(2026, 8, 1),
+                LocalDate.of(2026, 12, 31));
+        AttendanceActor firstIntern = new AttendanceActor(internId, AttendanceRole.INTERN);
+        AttendanceActor secondIntern = new AttendanceActor(secondInternId, AttendanceRole.INTERN);
+        AttendanceActor mentorActor = new AttendanceActor(mentor, AttendanceRole.MENTOR);
+
+        var firstLeave = leaves.submit(firstIntern, new LeaveRequestCommand(
+                LocalDate.of(2026, 8, 17), LocalDate.of(2026, 8, 17), "first queue leave"));
+        var secondLeave = leaves.submit(secondIntern, new LeaveRequestCommand(
+                LocalDate.of(2026, 8, 17), LocalDate.of(2026, 8, 17), "second queue leave"));
+
+        clock.set(Instant.parse("2026-08-14T02:00:00Z"));
+        attendance.checkIn(internId);
+        attendance.checkIn(secondInternId);
+        long firstRecordId = records.findByInternUserIdAndWorkDate(internId, LocalDate.of(2026, 8, 14))
+                .orElseThrow()
+                .id();
+        long secondRecordId = records.findByInternUserIdAndWorkDate(secondInternId, LocalDate.of(2026, 8, 14))
+                .orElseThrow()
+                .id();
+        clock.set(Instant.parse("2026-08-14T09:01:00Z"));
+        var firstCorrection = corrections.submit(firstIntern, firstRecordId, new CorrectionRequestCommand(
+                java.time.LocalDateTime.of(2026, 8, 14, 14, 0), "first queue correction"));
+        var secondCorrection = corrections.submit(secondIntern, secondRecordId, new CorrectionRequestCommand(
+                java.time.LocalDateTime.of(2026, 8, 14, 14, 0), "second queue correction"));
+
+        assertThat(leaves.list(firstIntern)).extracting(item -> item.id()).containsExactly(firstLeave.id());
+        assertThat(leaves.list(secondIntern)).extracting(item -> item.id()).containsExactly(secondLeave.id());
+        assertThat(leaves.list(mentorActor)).extracting(item -> item.id())
+                .containsExactly(secondLeave.id(), firstLeave.id());
+        assertThat(corrections.list(firstIntern)).extracting(item -> item.id())
+                .containsExactly(firstCorrection.id());
+        assertThat(corrections.list(secondIntern)).extracting(item -> item.id())
+                .containsExactly(secondCorrection.id());
+        assertThat(corrections.list(mentorActor)).extracting(item -> item.id())
+                .containsExactly(secondCorrection.id(), firstCorrection.id());
+    }
+
+    @Test
     void leaveSubmitRejectsDatesOutsideInclusiveInternshipWindow() {
         assertThatThrownBy(() -> leaves.submit(
                         new AttendanceActor(internId, AttendanceRole.INTERN),

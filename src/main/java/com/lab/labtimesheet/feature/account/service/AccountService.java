@@ -20,6 +20,7 @@ import com.lab.labtimesheet.feature.account.model.AccountStatus;
 import com.lab.labtimesheet.feature.account.model.GlobalRole;
 import com.lab.labtimesheet.feature.account.model.InternshipStatus;
 import com.lab.labtimesheet.feature.account.model.TokenPurpose;
+import com.lab.labtimesheet.feature.account.model.dto.AccountAdministrationView;
 import com.lab.labtimesheet.feature.account.model.dto.AccountCreation;
 import com.lab.labtimesheet.feature.account.model.dto.AccountIdentity;
 import com.lab.labtimesheet.feature.account.model.dto.AccountSummary;
@@ -430,6 +431,35 @@ public class AccountService {
                 users.countByAccountStatus(AccountStatus.ACTIVE),
                 users.countByAccountStatus(AccountStatus.PENDING_ACTIVATION),
                 internProfiles.countByInternshipStatus(InternshipStatus.ACTIVE));
+    }
+
+    /**
+     * Lists non-secret account and optional Intern-profile facts for active Admin administration.
+     *
+     * @param adminId active Admin account identifier
+     * @return stable account-ID ordered administration projections
+     * @throws IllegalArgumentException when the actor is missing or not an active Admin
+     */
+    @Transactional(readOnly = true)
+    public List<AccountAdministrationView> administrationViews(long adminId) {
+        requireActiveAdminId(adminId);
+        return users.findAdministrationViews();
+    }
+
+    /**
+     * Resolves one Admin-authorized account administration projection without exposing persistence types.
+     *
+     * @param targetUserId account being inspected
+     * @param adminId active Admin account identifier
+     * @return non-secret account and optional Intern-profile facts
+     * @throws IllegalArgumentException when the actor or target is unavailable
+     */
+    @Transactional(readOnly = true)
+    public AccountAdministrationView administrationView(long targetUserId, long adminId) {
+        return administrationViews(adminId).stream()
+                .filter(view -> view.id() == targetUserId)
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Account not found"));
     }
 
     /**

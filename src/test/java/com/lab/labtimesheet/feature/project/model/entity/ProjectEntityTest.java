@@ -131,6 +131,21 @@ class ProjectEntityTest {
                 () -> project.activate(10L, Set.of(20L), true, CREATED_AT.plusSeconds(120)));
     }
 
+    @Test
+    void completionClosesRetainedMembershipAndLeadershipIntervals() {
+        var project = plannedProject();
+        project.activate(10L, Set.of(20L), true, CREATED_AT.plusSeconds(60));
+
+        project.complete(10L, CREATED_AT.plusSeconds(120));
+
+        assertEquals(ProjectStatus.COMPLETED, project.status());
+        assertEquals(CREATED_AT.plusSeconds(120), project.completedAt());
+        assertTrue(project.memberships().stream().allMatch(membership -> membership.leftAt() != null));
+        assertTrue(project.leadershipTerms().stream().noneMatch(ProjectLeadershipTermEntity::isCurrent));
+        assertThrows(ProjectRuleViolationException.class,
+                () -> project.complete(10L, CREATED_AT.plusSeconds(180)));
+    }
+
     private static ProjectEntity plannedProject() {
         return ProjectEntity.plan(
                 10L,

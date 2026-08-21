@@ -11,6 +11,8 @@ import java.time.Instant;
  * @param joinedAt inclusive membership start instant
  * @param leftAt membership end instant, or null while current
  * @param currentLeader true only for the current open-Project Leader membership
+ * @param addedByUserId account that created the retained membership interval
+ * @param removedByMentorUserId owning Mentor that closed the interval, or null while current
  */
 public record ProjectMemberView(
         long membershipId,
@@ -18,5 +20,7 @@ public record ProjectMemberView(
         String displayName,
         Instant joinedAt,
         Instant leftAt,
-        boolean currentLeader) {
+        boolean currentLeader,
+        long addedByUserId,
+        Long removedByMentorUserId) {
 }

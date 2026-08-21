@@ -159,7 +159,8 @@ public class AttendanceApplicationService {
                             record.checkInAt(),
                             effectiveCheckout,
                             record.policy(),
-                            record.violations(clock.instant(), effectiveCheckout));
+                            record.violations(clock.instant(), effectiveCheckout),
+                            entity.id());
                 })
                 .toList();
     }

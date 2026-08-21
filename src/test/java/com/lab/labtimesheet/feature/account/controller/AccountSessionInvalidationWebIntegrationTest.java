@@ -2,6 +2,7 @@ package com.lab.labtimesheet.feature.account.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
@@ -9,6 +10,7 @@ import static org.springframework.security.test.web.servlet.response.SecurityMoc
 import static org.springframework.security.test.web.servlet.response.SecurityMockMvcResultMatchers.unauthenticated;
 
 import com.lab.labtimesheet.config.TestcontainersConfiguration;
+import com.lab.labtimesheet.feature.account.model.AccountStatus;
 import com.lab.labtimesheet.feature.account.model.GlobalRole;
 import com.lab.labtimesheet.feature.account.model.dto.CreateAccountCommand;
 import com.lab.labtimesheet.feature.account.service.AccountService;
@@ -54,7 +56,7 @@ class AccountSessionInvalidationWebIntegrationTest {
     private RecordingSmtpProbe mail;
 
     @Test
-    void lockingAnAuthenticatedAccountExpiresItsExistingSession() throws Exception {
+    void adminLockUnlockAndDeactivateRoutesEnforceLoginStateAndExpireSessions() throws Exception {
         bootstrap.bootstrap("admin@example.com", "Admin", "correct horse battery staple");
         long adminId = accounts.requireActiveAdminId("admin@example.com");
         long draftId = smtp.saveDraft(adminId,
@@ -73,10 +75,40 @@ class AccountSessionInvalidationWebIntegrationTest {
                 .andExpect(authenticated().withUsername("mentor@example.com"))
                 .andReturn();
         HttpSession session = login.getRequest().getSession(false);
-        accounts.lockAccount(creation.userId(), adminId);
+        mockMvc.perform(post("/admin/accounts/{id}/lock", creation.userId())
+                        .with(user("admin@example.com").roles("ADMIN"))
+                        .with(csrf()))
+                .andExpect(redirectedUrl("/admin/accounts/" + creation.userId()));
+        assertThat(accounts.requireIdentityById(creation.userId()).status()).isEqualTo(AccountStatus.LOCKED);
 
         mockMvc.perform(get("/admin/accounts/new").session((MockHttpSession) session))
                 .andExpect(redirectedUrl("/login"))
+                .andExpect(unauthenticated());
+
+        mockMvc.perform(post("/admin/accounts/{id}/unlock", creation.userId())
+                        .with(user("admin@example.com").roles("ADMIN"))
+                        .with(csrf()))
+                .andExpect(redirectedUrl("/admin/accounts/" + creation.userId()));
+        var secondLogin = mockMvc.perform(post("/login")
+                        .with(csrf())
+                        .param("username", "mentor@example.com")
+                        .param("password", "a secure mentor password"))
+                .andExpect(authenticated().withUsername("mentor@example.com"))
+                .andReturn();
+        MockHttpSession secondSession = (MockHttpSession) secondLogin.getRequest().getSession(false);
+
+        mockMvc.perform(post("/admin/accounts/{id}/deactivate", creation.userId())
+                        .with(user("admin@example.com").roles("ADMIN"))
+                        .with(csrf()))
+                .andExpect(redirectedUrl("/admin/accounts/" + creation.userId()));
+        assertThat(accounts.requireIdentityById(creation.userId()).status()).isEqualTo(AccountStatus.DEACTIVATED);
+        mockMvc.perform(get("/dashboard").session(secondSession))
+                .andExpect(redirectedUrl("/login"))
+                .andExpect(unauthenticated());
+        mockMvc.perform(post("/login")
+                        .with(csrf())
+                        .param("username", "mentor@example.com")
+                        .param("password", "a secure mentor password"))
                 .andExpect(unauthenticated());
     }
 

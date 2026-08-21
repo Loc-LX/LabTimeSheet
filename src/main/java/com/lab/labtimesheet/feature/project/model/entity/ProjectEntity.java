@@ -69,6 +69,9 @@ public class ProjectEntity {
     @Column(name = "activated_at")
     private Instant activatedAt;
 
+    @Column(name = "completed_at")
+    private Instant completedAt;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -309,6 +312,41 @@ public class ProjectEntity {
     }
 
     /**
+     * Returns when the Project became terminal and all current intervals were closed.
+     *
+     * @return server completion instant, or null while the Project is open
+     */
+    public Instant completedAt() {
+        return completedAt;
+    }
+
+    /**
+     * Completes an active Project after its caller has verified every current Task is DONE.
+     *
+     * <p>The final leadership term and every current membership are closed before the terminal
+     * status is stored. Their retained rows and Task attribution are never deleted or rewritten.</p>
+     *
+     * @param actorMentorUserId authenticated owning Mentor
+     * @param at server completion instant
+     * @throws ProjectAccessDeniedException when the actor does not own this Project
+     * @throws ProjectRuleViolationException when the Project is not active or has no current Leader
+     */
+    public void complete(long actorMentorUserId, Instant at) {
+        requireOwner(actorMentorUserId);
+        Objects.requireNonNull(at, "at");
+        if (status != ProjectStatus.ACTIVE) {
+            throw new ProjectRuleViolationException("Only an active Project can be completed");
+        }
+        var endedAt = currentLeadershipTerm().end(at, actorMentorUserId);
+        memberships.stream()
+                .filter(ProjectMembershipEntity::isCurrent)
+                .forEach(membership -> membership.close(endedAt, actorMentorUserId));
+        status = ProjectStatus.COMPLETED;
+        completedAt = endedAt;
+        updatedAt = endedAt;
+    }
+
+    /**
      * Returns a defensive snapshot of current and historical membership intervals.
      *
      * @return unmodifiable membership snapshot
@@ -369,9 +407,67 @@ public class ProjectEntity {
         return currentMembership(currentLeadershipTerm().internUserId());
     }
 
+    /**
+     * Returns the current leadership term for Project-owned invitation and exit operations.
+     *
+     * @return current leadership term
+     * @throws ProjectRuleViolationException when an open Project has no current Leader
+     */
+    public ProjectLeadershipTermEntity currentLeadershipTerm() {
+        return leadershipTerms.stream()
+                .filter(ProjectLeadershipTermEntity::isCurrent)
+                .findFirst()
+                .orElseThrow(() -> new ProjectRuleViolationException("Project has no current Leader"));
+    }
+
+    /**
+     * Resolves one current membership by its Intern account identifier.
+     *
+     * @param internUserId Intern account identifier
+     * @return current membership interval
+     * @throws ProjectRuleViolationException when no current membership exists
+     */
+    public ProjectMembershipEntity currentMember(long internUserId) {
+        return currentMembership(internUserId);
+    }
+
+    /**
+     * Resolves one membership interval by its stable identifier.
+     *
+     * @param membershipId membership identifier
+     * @return matching membership, current or historical
+     * @throws ProjectRuleViolationException when the identifier is outside this Project
+     */
+    public ProjectMembershipEntity membership(long membershipId) {
+        return memberships.stream()
+                .filter(candidate -> candidate.id() != null && candidate.id() == membershipId)
+                .findFirst()
+                .orElseThrow(() -> new ProjectRuleViolationException("Membership is not in this Project"));
+    }
+
+    /**
+     * Adds a membership accepted by the intended Intern's authenticated invitation response.
+     *
+     * @param internUserId accepting Intern account identifier
+     * @param at server join instant
+     * @return newly created current membership
+     */
+    public ProjectMembershipEntity acceptMembership(long internUserId, Instant at) {
+        requireMutable();
+        if (internUserId <= 0 || at == null || hasCurrentMember(internUserId)) {
+            throw new ProjectRuleViolationException("Intern is not eligible for Project membership");
+        }
+        return addEligibleMember(internUserId, internUserId, at);
+    }
+
     private ProjectMembershipEntity addEligibleMember(
             ProjectInternEligibility intern, long addedByUserId, Instant at) {
-        var membership = new ProjectMembershipEntity(this, intern.userId(), at, addedByUserId);
+        return addEligibleMember(intern.userId(), addedByUserId, at);
+    }
+
+    private ProjectMembershipEntity addEligibleMember(
+            long internUserId, long addedByUserId, Instant at) {
+        var membership = new ProjectMembershipEntity(this, internUserId, at, addedByUserId);
         memberships.add(membership);
         updatedAt = at;
         return membership;
@@ -383,13 +479,6 @@ public class ProjectEntity {
                 .findFirst()
                 .orElseThrow(() -> new ProjectRuleViolationException(
                         "Leader must be a current same-Project member"));
-    }
-
-    private ProjectLeadershipTermEntity currentLeadershipTerm() {
-        return leadershipTerms.stream()
-                .filter(ProjectLeadershipTermEntity::isCurrent)
-                .findFirst()
-                .orElseThrow(() -> new ProjectRuleViolationException("Project has no current Leader"));
     }
 
     private void requireOwner(long actorMentorUserId) {

@@ -45,6 +45,9 @@ public class ProjectMembershipEntity {
     @Column(name = "left_at")
     private Instant leftAt;
 
+    @Column(name = "removed_by_mentor_user_id")
+    private Long removedByMentorUserId;
+
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
@@ -105,11 +108,40 @@ public class ProjectMembershipEntity {
     }
 
     /**
+     * Returns the Mentor that closed this retained membership interval.
+     *
+     * @return closing owning-Mentor identifier, or null while membership remains current
+     */
+    public Long removedByMentorUserId() {
+        return removedByMentorUserId;
+    }
+
+    /**
      * Indicates whether the Intern currently belongs to the Project.
      *
      * @return true while the membership interval has no end instant
      */
     public boolean isCurrent() {
         return leftAt == null;
+    }
+
+    /**
+     * Closes this interval while retaining its assignment and history identity.
+     *
+     * @param at server closure instant; equality with join time is advanced by one microsecond
+     * @param mentorUserId owning Mentor performing the closure
+     * @throws IllegalStateException when the interval is already closed
+     * @throws IllegalArgumentException when the closure actor or instant is invalid
+     */
+    public void close(Instant at, long mentorUserId) {
+        if (!isCurrent()) {
+            throw new IllegalStateException("Membership is already closed");
+        }
+        if (at == null || mentorUserId <= 0) {
+            throw new IllegalArgumentException("Membership closure is incomplete");
+        }
+        leftAt = at.isAfter(joinedAt) ? at : joinedAt.plusNanos(1_000);
+        removedByMentorUserId = mentorUserId;
+        updatedAt = leftAt;
     }
 }

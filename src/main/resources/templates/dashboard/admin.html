@@ -10,6 +10,9 @@
 <a id="primary-action" class="button button-primary" th:href="@{/admin/accounts/new}">Create account</a>
 <main>
     <p class="page-description">Account readiness, internship activity, and active Project work.</p>
+    <th:block th:if="${notifications != null}">
+        <th:block th:replace="~{fragments/components :: notificationMenu(${notifications})}"></th:block>
+    </th:block>
     <section class="panel metric-strip" aria-label="System metrics">
         <div class="metric"><div class="metric-label">Active accounts</div><div class="metric-value" th:text="${dashboard.activeAccounts}">0</div><div class="metric-detail">Can authenticate when otherwise eligible</div></div>
         <div class="metric"><div class="metric-label">Pending activation</div><div class="metric-value" th:text="${dashboard.pendingActivations}">0</div><div class="metric-detail">Awaiting first password</div></div>

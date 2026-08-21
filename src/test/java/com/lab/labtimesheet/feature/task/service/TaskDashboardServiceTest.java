@@ -59,7 +59,8 @@ class TaskDashboardServiceTest {
                 summary(11L, "Former", "ACTIVE"),
                 summary(12L, "Completed", "COMPLETED")));
         given(projects.taskContext(5L, 10L)).willReturn(context(
-                10L, List.of(new ProjectTaskMemberView(70L, 5L, "Intern"))));
+                10L, List.of(new ProjectTaskMemberView(
+                        70L, 5L, "Intern", Instant.parse("2026-08-15T00:00:00Z")))));
         given(projects.taskContext(5L, 11L)).willReturn(context(11L, List.of()));
         given(tasks.countByProjectIdInAndAssigneeMembershipIdInAndDeletedAtIsNull(
                         List.of(10L), List.of(70L)))
@@ -103,6 +104,7 @@ class TaskDashboardServiceTest {
                 LocalDate.of(2026, 8, 1),
                 LocalDate.of(2026, 8, 31),
                 null,
-                members);
+                members,
+                java.util.Set.of());
     }
 }

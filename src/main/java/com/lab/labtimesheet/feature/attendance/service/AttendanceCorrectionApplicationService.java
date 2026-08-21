@@ -16,6 +16,7 @@ import com.lab.labtimesheet.feature.attendance.model.CorrectionStatus;
 import com.lab.labtimesheet.feature.attendance.model.dto.CorrectionDecision;
 import com.lab.labtimesheet.feature.attendance.model.dto.CorrectionEventView;
 import com.lab.labtimesheet.feature.attendance.model.dto.CorrectionRequestCommand;
+import com.lab.labtimesheet.feature.attendance.model.dto.CorrectionSummary;
 import com.lab.labtimesheet.feature.attendance.model.dto.CorrectionView;
 import com.lab.labtimesheet.feature.attendance.model.entity.AttendanceCorrectionEntity;
 import com.lab.labtimesheet.feature.attendance.model.entity.AttendanceCorrectionEventEntity;
@@ -65,15 +66,41 @@ public class AttendanceCorrectionApplicationService {
     private final NotificationService notifications;
 
     /**
+     * Lists retained correction requests visible to an owning Intern or active global Mentor.
+     *
+     * <p>The list is informational and may become stale immediately; detail and decision methods
+     * repeat ownership, active-role, deadline, and lock checks before returning or mutating state.</p>
+     *
+     * @param actor authenticated Attendance actor
+     * @return newest-first immutable correction summaries
+     */
+    @Transactional(readOnly = true)
+    public List<CorrectionSummary> list(AttendanceActor actor) {
+        if (actor == null) {
+            throw new AccessDeniedException("An attendance actor is required");
+        }
+        AccountIdentity identity = accounts.requireIdentityById(actor.userId());
+        if (identity.status() != AccountStatus.ACTIVE || !identity.role().name().equals(actor.role().name())) {
+            throw new AccessDeniedException("An active matching account is required");
+        }
+        return switch (actor.role()) {
+            case INTERN -> corrections.findSummariesByInternUserId(actor.userId());
+            case MENTOR -> corrections.findAllSummaries();
+            default -> throw new AccessDeniedException("Correction list is outside the requested scope");
+        };
+    }
+
+    /**
      * Submits one correction through the inclusive scheduled-end-plus-24-hour deadline.
+     *
+     * <p>Submission publishes to every active global Mentor after the correction row and immutable submitted event
+     * are flushed. SMTP absence is retained as {@code UNAVAILABLE} by the notification boundary without rolling back
+     * the correction.</p>
      *
      * @param actor owning Intern
      * @param attendanceRecordId missing-checkout attendance row
      * @param command same-local-date proposal and reason
      * @return correction view with raw/effective distinction
-     * @implNote Submission publishes to every active global Mentor after the correction row and immutable submitted
-     * event are flushed. SMTP absence is retained as {@code UNAVAILABLE} by the notification boundary without
-     * rolling back the correction.
      */
     @Transactional
     public CorrectionView submit(
@@ -138,15 +165,16 @@ public class AttendanceCorrectionApplicationService {
     /**
      * Applies an approve, reject, or reopen transition for an active Mentor.
      *
+     * <p>Active-Mentor authorization, request-time expiry, and the state transition share one independent
+     * {@code REQUIRES_NEW} transaction and one target-row lock. The independent boundary does not join an ambient
+     * caller transaction; an expired request returns an internal sentinel only after its persisted rejection/lock
+     * and event history commit, then the public method reports the closed decision window.</p>
+     *
      * @param actor authenticated active Mentor
      * @param correctionId correction identifier to lock and transition
      * @param decision requested state transition
      * @param note optional decision note retained in the event history
      * @return corrected attendance view with the raw/effective distinction
-     * @implNote Active-Mentor authorization, request-time expiry, and the state transition share one independent
-     * {@code REQUIRES_NEW} transaction and one target-row lock. The independent boundary does not join an ambient
-     * caller transaction; an expired request returns an internal sentinel only after its persisted rejection/lock
-     * and event history commit, then the public method reports the closed decision window.
      */
     public CorrectionView decide(
             AttendanceActor actor, long correctionId, CorrectionDecision decision, String note) {
