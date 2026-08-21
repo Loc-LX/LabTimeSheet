@@ -52,7 +52,8 @@ class UiContractWebTest {
         assertFalse(html.contains("Intern attendance"));
         assertFalse(html.contains("href=\"/attendance\""));
         assertFalse(html.contains("href=\"/profile\""));
-        assertFalse(html.contains("href=\"/notifications\""));
+        assertTrue(html.contains("href=\"/notifications\""));
+        assertTrue(html.contains("aria-label=\"Notifications\""));
         assertTrue(html.indexOf("/assets/theme.js") < html.indexOf("/assets/app.css"));
         assertTrue(html.contains("rel=\"icon\" href=\"/assets/icons.svg\""));
         assertTrue(html.contains("href=\"/assets/icons.svg#panel-left\""));
@@ -70,7 +71,8 @@ class UiContractWebTest {
         assertTrue(html.contains("href=\"/attendance\""));
         assertFalse(html.contains("href=\"/attendance/me\""));
         assertFalse(html.contains("href=\"/profile\""));
-        assertFalse(html.contains("href=\"/notifications\""));
+        assertTrue(html.contains("href=\"/notifications\""));
+        assertTrue(html.contains("aria-label=\"Notifications\""));
     }
 
     @Test

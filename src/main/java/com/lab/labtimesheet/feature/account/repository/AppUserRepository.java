@@ -5,6 +5,7 @@ import java.util.Optional;
 
 import com.lab.labtimesheet.feature.account.model.AccountStatus;
 import com.lab.labtimesheet.feature.account.model.GlobalRole;
+import com.lab.labtimesheet.feature.account.model.dto.AccountAdministrationView;
 import com.lab.labtimesheet.feature.account.model.dto.AccountIdentity;
 import com.lab.labtimesheet.feature.account.model.entity.AppUser;
 import jakarta.persistence.LockModeType;
@@ -47,6 +48,21 @@ public interface AppUserRepository extends JpaRepository<AppUser, Long> {
             order by u.id asc
             """)
     List<AccountIdentity> findActiveMentorIdentities();
+
+    /**
+     * Projects every account and optional Intern profile into the Admin-facing non-secret DTO.
+     *
+     * @return accounts in stable identifier order without credential or token material
+     */
+    @Query("""
+            select new com.lab.labtimesheet.feature.account.model.dto.AccountAdministrationView(
+                u.id, u.email, u.displayName, u.globalRole, u.accountStatus,
+                p.studentCode, p.internshipStartDate, p.internshipEndDate, p.internshipStatus)
+            from AppUser u
+            left join InternProfile p on p.userId = u.id
+            order by u.id asc
+            """)
+    List<AccountAdministrationView> findAdministrationViews();
 
     /**
      * Locks an account row for a lifecycle mutation until the current transaction completes.

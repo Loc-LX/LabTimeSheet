@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{fragments/layout :: shell(
+          pageTitle='Attendance and integration settings',
+          section='Admin',
+          activeNav='settings',
+          primaryAction=~{::#primary-action},
+          content=~{::main})}">
+<body>
+<a id="primary-action" class="button" th:href="@{/attendance/calendar}">Manage local calendar</a>
+<main>
+    <p class="page-description">Schedule attendance rules and review retained non-secret configuration history.</p>
+    <p class="alert" role="status" th:if="${message}" th:text="${message}"></p>
+    <p class="alert alert-error" role="alert" th:if="${settingsError}" th:text="${settingsError}"></p>
+
+    <nav class="tabs" aria-label="Settings sections"><a href="#policy-history">Policy</a><a href="#calendar-history">Calendar</a><a href="#smtp-history">SMTP</a><a href="#holiday-api-history">HolidayAPI</a></nav>
+
+    <section class="panel form-panel">
+        <header class="panel-header"><h2 class="panel-title">Schedule attendance policy</h2></header>
+        <form class="form-grid" method="post" th:action="@{/admin/settings/policy}"
+              th:attr="aria-describedby=${policyInput != null and settingsError != null ? 'policy-form-error' : null}">
+            <div class="form-grid form-grid-three">
+                <div class="field"><label class="field-label" for="effective-from">Effective from</label><input class="control" id="effective-from" name="effectiveFrom" type="date" required th:min="${today}" th:value="${policyInput == null ? null : policyInput.effectiveFrom}"></div>
+                <div class="field"><label class="field-label" for="zone-id">Timezone</label><input class="control" id="zone-id" name="zoneId" required th:value="${policyInput != null ? policyInput.zoneId : 'Asia/Ho_Chi_Minh'}"></div>
+                <div class="field"><label class="field-label" for="schedule-start">Start</label><input class="control" id="schedule-start" name="scheduledStart" type="time" required th:value="${policyInput != null ? policyInput.scheduledStart : '08:00'}"></div>
+                <div class="field"><label class="field-label" for="schedule-end">End</label><input class="control" id="schedule-end" name="scheduledEnd" type="time" required th:value="${policyInput != null ? policyInput.scheduledEnd : '17:00'}"></div>
+                <div class="field"><label class="field-label" for="checkin-grace">Check-in grace minutes</label><input class="control" id="checkin-grace" name="checkInGraceMinutes" type="number" min="0" required th:value="${policyInput != null ? policyInput.checkInGraceMinutes : 15}"></div>
+                <div class="field"><label class="field-label" for="checkout-grace">Checkout grace minutes</label><input class="control" id="checkout-grace" name="checkoutGraceMinutes" type="number" min="0" required th:value="${policyInput != null ? policyInput.checkoutGraceMinutes : 15}"></div>
+                <div class="field"><label class="field-label" for="leave-quota">Monthly leave quota</label><input class="control" id="leave-quota" name="monthlyLeaveQuota" type="number" min="0" max="31" required th:value="${policyInput != null ? policyInput.monthlyLeaveQuota : 2}"></div>
+                <div class="field"><label class="field-label" for="penalty">Violation penalty</label><input class="control" id="penalty" name="violationPenalty" type="number" min="0" max="1" step="0.01" required th:value="${policyInput != null ? policyInput.violationPenalty : '0.1'}"></div>
+            </div>
+            <fieldset><legend>Workdays</legend><div class="inline-actions"><label class="checkbox" th:each="day : ${T(java.time.DayOfWeek).values()}"><input name="workdays" type="checkbox" th:value="${day}" th:checked="${policyInput != null ? policyInput.workdays.contains(day) : day.value <= 5}"><span th:text="${day}">MONDAY</span></label></div></fieldset>
+            <p class="field-error" id="policy-form-error" role="alert" th:if="${policyInput != null and settingsError != null}" th:text="${settingsError}">Policy error</p>
+            <div class="form-actions"><button class="button button-primary" type="submit">Schedule policy</button></div>
+        </form>
+    </section>
+
+    <section class="panel form-panel" id="policy-history">
+        <header class="panel-header"><h2 class="panel-title">Policy History</h2></header>
+        <p th:if="${#lists.isEmpty(policyHistory)}">No retained policy versions.</p>
+        <div class="table-scroll" th:unless="${#lists.isEmpty(policyHistory)}"><table class="data-table"><caption class="sr-only">Policy History</caption><thead><tr><th scope="col">Version</th><th scope="col">Effective</th><th scope="col">Schedule</th><th scope="col">Workdays</th><th scope="col">Quota</th><th scope="col">Actor</th></tr></thead><tbody><tr th:each="entry : ${policyHistory}"><td th:text="${entry.id}">Version</td><td th:text="${#temporals.format(entry.effectiveFrom, 'dd/MM/yyyy')}">Date</td><td th:text="|${entry.policy.scheduledStart}–${entry.policy.scheduledEnd} ${entry.policy.zoneId}|">Schedule</td><td th:text="${entry.policy.workdays}">Days</td><td th:text="${entry.policy.monthlyLeaveQuota}">Quota</td><td th:text="${entry.createdByUserId ?: 'seed'}">Actor</td></tr></tbody></table></div>
+    </section>
+
+    <section class="panel form-panel">
+        <header class="panel-header"><h2 class="panel-title">HolidayAPI calendar preview</h2></header>
+        <p>Provider access is optional and occurs only when Preview is submitted. Local calendar reads never call the provider.</p>
+        <form class="filter-form" method="post" th:action="@{/admin/settings/calendar/preview}"><div class="field"><label class="field-label" for="preview-year">Year</label><input class="control" id="preview-year" name="year" type="number" min="1" max="9999" required th:value="${defaultYear}"></div><span></span><button class="button button-primary" type="submit">Preview provider holidays</button></form>
+        <p class="alert" th:if="${providerPreview}" th:text="${providerPreview.message}">Preview status</p>
+        <form th:if="${calendarPreview}" method="post" th:action="@{/admin/settings/calendar/import}">
+            <input name="year" type="hidden" th:value="${previewYear}">
+            <div class="table-scroll"><table class="data-table"><caption>HolidayAPI import candidates</caption><thead><tr><th scope="col">Holiday</th><th scope="col">Observed</th><th scope="col">Local decision</th></tr></thead><tbody><tr th:each="item : ${calendarPreview}"><td th:text="${item.candidate.name}">Holiday</td><td th:text="${#temporals.format(item.candidate.observedDate, 'dd/MM/yyyy')}">Date</td><td><div class="inline-actions"><label class="checkbox"><input type="radio" th:name="|decision_${item.candidate.uuid}|" value="true" th:checked="${item.selectedByDefault}">Import as day off</label><label class="checkbox"><input type="radio" th:name="|decision_${item.candidate.uuid}|" value="false" th:checked="${!item.selectedByDefault}">Import as working day</label><label class="checkbox"><input type="radio" th:name="|decision_${item.candidate.uuid}|" value="skip">Skip</label></div></td></tr></tbody></table></div>
+            <div class="form-actions"><button class="button button-primary" type="submit">Import selections</button></div>
+        </form>
+    </section>
+
+    <section class="panel form-panel" id="calendar-history">
+        <header class="panel-header"><h2 class="panel-title">Calendar History</h2></header>
+        <p th:if="${#lists.isEmpty(calendarHistory)}">No retained calendar events.</p>
+        <div class="table-scroll" th:unless="${#lists.isEmpty(calendarHistory)}"><table class="data-table"><caption class="sr-only">Calendar History</caption><thead><tr><th scope="col">Date</th><th scope="col">Name</th><th scope="col">Source</th><th scope="col">Local decision</th><th scope="col">Actor</th></tr></thead><tbody><tr th:each="entry : ${calendarHistory}"><td th:text="${#temporals.format(entry.calendarDate, 'dd/MM/yyyy')}">Date</td><td th:text="${entry.name}">Name</td><td th:text="${entry.source}">Source</td><td th:text="${entry.dayOff ? 'Day off' : 'Working day'}">Decision</td><td th:text="${entry.updatedByUserId}">Actor</td></tr></tbody></table></div>
+    </section>
+
+    <section class="panel form-panel" id="smtp-history">
+        <header class="panel-header"><h2 class="panel-title">SMTP History</h2><a class="button" th:href="@{/admin/smtp}">Configure SMTP</a></header>
+        <p class="field-help">Passwords and encrypted credential material are never displayed.</p>
+        <p th:if="${#lists.isEmpty(smtpHistory)}">No retained SMTP revisions.</p>
+        <div class="table-scroll" th:unless="${#lists.isEmpty(smtpHistory)}"><table class="data-table"><caption class="sr-only">SMTP History</caption><thead><tr><th scope="col">Status</th><th scope="col">Endpoint</th><th scope="col">Sender</th><th scope="col">Created (Asia/Ho_Chi_Minh)</th></tr></thead><tbody><tr th:each="entry : ${smtpHistory}"><td th:text="${entry.status}">Status</td><td th:text="|${entry.host}:${entry.port} · ${entry.securityMode}|">Endpoint</td><td th:text="|${entry.fromName} &lt;${entry.fromAddress}&gt;|">Sender</td><td th:text="${#temporals.format(entry.createdAt.atZone(T(java.time.ZoneId).of('Asia/Ho_Chi_Minh')), 'dd/MM/yyyy HH:mm')}">Created</td></tr></tbody></table></div>
+    </section>
+
+    <section class="panel form-panel" id="holiday-api-history">
+        <header class="panel-header"><h2 class="panel-title">HolidayAPI History</h2></header>
+        <p class="field-help" th:text="|VN only · active: ${holidayApiStatus.active}|">VN only</p>
+        <form class="filter-form" method="post" th:action="@{/admin/settings/holiday-api/draft}"><div class="field"><label class="field-label" for="holiday-key">New API key</label><input class="control" id="holiday-key" name="apiKey" type="password" autocomplete="new-password" required></div><span></span><button class="button" type="submit">Save encrypted draft</button></form>
+        <div class="inline-actions" th:if="${holidayApiStatus.draftId}"><form method="post" th:action="@{/admin/settings/holiday-api/test}"><input name="draftId" type="hidden" th:value="${holidayApiStatus.draftId}"><input name="year" type="hidden" th:value="${defaultYear}"><button class="button" type="submit">Test draft</button></form><form method="post" th:action="@{/admin/settings/holiday-api/activate}" data-confirm="Activate this tested HolidayAPI draft and retire the current active revision? Future provider previews will immediately use the replacement key."><input name="draftId" type="hidden" th:value="${holidayApiStatus.draftId}"><button class="button button-primary" type="submit" th:disabled="${!holidayApiStatus.tested}">Activate tested draft</button></form></div>
+        <p class="alert" th:if="${holidayTestResult}" th:text="${holidayTestResult.message}">Test result</p>
+        <p th:if="${#lists.isEmpty(holidayApiHistory)}">No retained HolidayAPI revisions.</p>
+        <div class="table-scroll" th:unless="${#lists.isEmpty(holidayApiHistory)}"><table class="data-table"><caption class="sr-only">HolidayAPI History</caption><thead><tr><th scope="col">Status</th><th scope="col">Country</th><th scope="col">Tested</th><th scope="col">Activated</th><th scope="col">Created (Asia/Ho_Chi_Minh)</th></tr></thead><tbody><tr th:each="entry : ${holidayApiHistory}"><td th:text="${entry.status}">Status</td><td th:text="${entry.countryCode}">VN</td><td th:text="${entry.testedAt == null ? 'Not tested' : #temporals.format(entry.testedAt.atZone(T(java.time.ZoneId).of('Asia/Ho_Chi_Minh')), 'dd/MM/yyyy HH:mm')}">Tested</td><td th:text="${entry.activatedAt == null ? 'Not activated' : #temporals.format(entry.activatedAt.atZone(T(java.time.ZoneId).of('Asia/Ho_Chi_Minh')), 'dd/MM/yyyy HH:mm')}">Activated</td><td th:text="${#temporals.format(entry.createdAt.atZone(T(java.time.ZoneId).of('Asia/Ho_Chi_Minh')), 'dd/MM/yyyy HH:mm')}">Created</td></tr></tbody></table></div>
+    </section>
+</main>
+</body>
+</html>

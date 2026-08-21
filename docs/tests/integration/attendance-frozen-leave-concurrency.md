@@ -2,7 +2,7 @@
 
 - **Test type:** Integration
 - **Requirement IDs:** `ATT-005`, `ATT-006`, `ATT-007`, `ATT-008`, `ATT-010`, `LEV-003`, `LEV-011`
-- **Scenario IDs:** `AC-ATT-003`, `AC-ATT-004`, `AC-LEV-001`, `AC-LEV-005`
+- **Scenario IDs:** `AC-ATT-003`, `AC-ATT-004`
 - **Test class/method:** `com.lab.labtimesheet.feature.attendance.service.AttendancePersistenceIntegrationTest#approvedLeaveBlocksOnlyItsFrozenAllocatedDates`, `com.lab.labtimesheet.feature.attendance.service.AttendanceConcurrencyIntegrationTest#concurrentDuplicatePunchesReturnStableDomainOutcomes`
 - **Implementation commit:** `4c39df70e1f901e232669e9090ff5d21393519f0`
 

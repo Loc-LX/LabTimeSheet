@@ -24,6 +24,7 @@ import com.lab.labtimesheet.feature.account.service.AccountService;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectCreateCommand;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectActorView;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectDetail;
+import com.lab.labtimesheet.feature.project.model.dto.ProjectExitReadinessView;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectSummary;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectLeadershipTermView;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectMemberView;
@@ -120,8 +121,8 @@ class ProjectControllerTest {
         when(pages.authenticatedUserId("mentor@example.test")).thenReturn(10L);
         when(pages.detail(10L, 30L)).thenReturn(plannedOwnerDetail());
         when(pages.members(10L, 30L)).thenReturn(List.of(
-                new ProjectMemberView(40L, 20L, "Current Leader", Instant.parse("2026-08-15T00:00:00Z"), null, true),
-                new ProjectMemberView(41L, 21L, "Current Member", Instant.parse("2026-08-15T00:00:00Z"), null, false)));
+                new ProjectMemberView(40L, 20L, "Current Leader", Instant.parse("2026-08-15T00:00:00Z"), null, true, 10L, null),
+                new ProjectMemberView(41L, 21L, "Current Member", Instant.parse("2026-08-15T00:00:00Z"), null, false, 10L, null)));
         when(pages.leadership(10L, 30L)).thenReturn(List.of());
         when(accounts.eligibleInternOptions(LocalDate.of(2026, 8, 15))).thenReturn(List.of(
                 option(20L, "Current Leader", "STU-020"),
@@ -313,7 +314,7 @@ class ProjectControllerTest {
         when(pages.detail(10L, 30L)).thenReturn(plannedOwnerDetail());
         when(pages.leadership(10L, 30L)).thenReturn(List.of());
         when(pages.members(10L, 30L)).thenReturn(List.of(new ProjectMemberView(
-                41L, 21L, "Current Member", Instant.parse("2026-08-15T00:00:00Z"), null, false)));
+                41L, 21L, "Current Member", Instant.parse("2026-08-15T00:00:00Z"), null, false, 10L, null)));
         when(accounts.eligibleInternOptions(LocalDate.of(2026, 8, 15))).thenReturn(List.of(
                 option(21L, "Current Member", "STU-021")));
 
@@ -356,11 +357,15 @@ class ProjectControllerTest {
                 "Mentor",
                 "Leader",
                 true));
+        when(pages.exitReadiness(10L, 30L)).thenReturn(List.of(
+                new ProjectExitReadinessView(70L, 40L, false, 2L, false)));
 
         mvc.perform(get("/projects/30"))
                 .andExpect(status().isOk())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
-                        .string(containsString(">Activate<")));
+                        .string(containsString(">Activate<")))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(containsString("2 unfinished Tasks remain")));
 
         when(pages.detail(10L, 30L)).thenReturn(new ProjectDetail(
                 30L,
@@ -411,9 +416,9 @@ class ProjectControllerTest {
         when(pages.authenticatedUserId("mentor@example.test")).thenReturn(10L);
         when(pages.detail(10L, 30L)).thenReturn(plannedOwnerDetail());
         when(pages.members(10L, 30L)).thenReturn(List.of(new ProjectMemberView(
-                40L, 20L, "Current Leader", Instant.parse("2026-08-15T00:00:00Z"), null, true)));
+                40L, 20L, "Current Leader", Instant.parse("2026-08-15T00:00:00Z"), null, true, 10L, null)));
         when(pages.leadership(10L, 30L)).thenReturn(List.of(new ProjectLeadershipTermView(
-                50L, "Current Leader", Instant.parse("2026-08-15T00:00:00Z"), null)));
+                50L, "Current Leader", Instant.parse("2026-08-15T00:00:00Z"), null, 10L, null)));
         when(projects.create(
                         10L,
                         new ProjectCreateCommand(
@@ -522,7 +527,9 @@ class ProjectControllerTest {
                 50L,
                 "Former Leader",
                 Instant.parse("2026-08-15T00:00:00Z"),
-                Instant.parse("2026-09-30T00:00:00Z"))));
+                Instant.parse("2026-09-30T00:00:00Z"),
+                10L,
+                10L)));
 
         mvc.perform(get("/projects/30").with(user(email)))
                 .andExpect(status().isOk())

@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{fragments/layout :: shell(
+          pageTitle='Project invitations',
+          section='Projects',
+          activeNav='project-invitations',
+          primaryAction=~{::#primary-action},
+          content=~{::main})}">
+<body>
+<a id="primary-action" class="button" th:href="@{/projects}">My Projects</a>
+<main>
+    <p class="page-description">Accept or decline pending invitations addressed to your account.</p>
+    <p class="alert" role="status" th:if="${message}" th:text="${message}"></p>
+    <p class="alert alert-error" role="alert" th:if="${projectError}" th:text="${projectError}"></p>
+    <section class="panel" th:if="${#lists.isEmpty(invitations)}"><th:block th:replace="~{fragments/components :: empty('No pending invitations', 'New Project invitations will appear here.')} "></th:block></section>
+    <div class="panel table-scroll" th:unless="${#lists.isEmpty(invitations)}"><table class="data-table"><caption>Pending Project invitations</caption><thead><tr><th scope="col">Project</th><th scope="col">Issued by</th><th scope="col">Created (Asia/Ho_Chi_Minh)</th><th scope="col">Response</th></tr></thead><tbody><tr th:each="invitation : ${invitations}"><th scope="row" th:text="${invitation.projectName}">Project</th><td th:text="${invitation.issuingLeaderName}">Leader</td><td th:text="${#temporals.format(invitation.createdAt.atZone(T(java.time.ZoneId).of('Asia/Ho_Chi_Minh')), 'dd/MM/yyyy HH:mm')}">Created</td><td><div class="inline-actions"><form method="post" th:action="@{/projects/invitations/{id}/respond(id=${invitation.invitationId})}"><input name="response" type="hidden" value="ACCEPT"><button class="button button-primary" type="submit">Accept</button></form><form method="post" th:action="@{/projects/invitations/{id}/respond(id=${invitation.invitationId})}"><input name="response" type="hidden" value="DECLINE"><button class="button" type="submit">Decline</button></form></div></td></tr></tbody></table></div>
+</main>
+</body>
+</html>

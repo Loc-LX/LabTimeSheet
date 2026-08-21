@@ -1,6 +1,7 @@
 package com.lab.labtimesheet.feature.task.repository;
 
 import com.lab.labtimesheet.feature.task.model.TaskStatus;
+import com.lab.labtimesheet.feature.task.model.dto.TaskProjectProgress;
 import com.lab.labtimesheet.feature.task.model.entity.Task;
 import jakarta.persistence.LockModeType;
 import java.util.List;
@@ -56,6 +57,81 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
     long countByProjectIdAndDeletedAtIsNull(long projectId);
 
     /**
+     * Reads status counts and retained work minutes from one aggregate query.
+     *
+     * <p>The aggregate produces one row even when a Project has no current Tasks. The correlated
+     * work-log sum is evaluated within the same database snapshot as the Task counts, avoiding
+     * mixed READ COMMITTED observations during concurrent status or log changes.
+     *
+     * @param projectId owning Project identifier
+     * @param todo TODO status value
+     * @param inProgress IN_PROGRESS status value
+     * @param blocked BLOCKED status value
+     * @param done DONE status value
+     * @return current non-deleted counts and retained total minutes
+     */
+    @Query("""
+            select new com.lab.labtimesheet.feature.task.model.dto.TaskProjectProgress(
+                coalesce(sum(case when task.status = :todo then 1 else 0 end), 0),
+                coalesce(sum(case when task.status = :inProgress then 1 else 0 end), 0),
+                coalesce(sum(case when task.status = :blocked then 1 else 0 end), 0),
+                coalesce(sum(case when task.status = :done then 1 else 0 end), 0),
+                coalesce((select sum(log.minutes)
+                          from TaskWorkLog log
+                          where log.projectId = :projectId), 0))
+            from Task task
+            where task.projectId = :projectId
+              and task.deletedAt is null
+            """)
+    TaskProjectProgress projectProgress(
+            @Param("projectId") long projectId,
+            @Param("todo") TaskStatus todo,
+            @Param("inProgress") TaskStatus inProgress,
+            @Param("blocked") TaskStatus blocked,
+            @Param("done") TaskStatus done);
+
+    /**
+     * Counts unfinished current Tasks assigned to one membership.
+     *
+     * @param projectId owning Project identifier
+     * @param assigneeMembershipId current assignee membership identifier
+     * @param statuses unfinished status set
+     * @return matching non-deleted Task count
+     */
+    long countByProjectIdAndAssigneeMembershipIdAndStatusInAndDeletedAtIsNull(
+            long projectId, long assigneeMembershipId, Set<TaskStatus> statuses);
+
+    /**
+     * Lists unfinished current Task IDs in stable order for a guarded all-or-nothing transfer.
+     *
+     * @param projectId owning Project identifier
+     * @param assigneeMembershipId source assignee membership identifier
+     * @param statuses unfinished status set
+     * @return matching non-deleted Task identifiers ordered ascending
+     */
+    @Query("""
+            select task.id
+            from Task task
+            where task.projectId = :projectId
+              and task.assigneeMembershipId = :assigneeMembershipId
+              and task.status in :statuses
+              and task.deletedAt is null
+            order by task.id
+            """)
+    List<Long> findIdsByProjectIdAndAssigneeMembershipIdAndStatusInAndDeletedAtIsNullOrderById(
+            @Param("projectId") long projectId,
+            @Param("assigneeMembershipId") long assigneeMembershipId,
+            @Param("statuses") Set<TaskStatus> statuses);
+
+    /**
+     * Lists all retained Task rows, including soft-deleted history, by stable identifier order.
+     *
+     * @param projectId owning Project identifier
+     * @return retained Task rows
+     */
+    List<Task> findAllByProjectIdOrderById(long projectId);
+
+    /**
      * Counts current Tasks in a status across the supplied Projects.
      *
      * @param projectIds authorized Project identifiers
@@ -73,17 +149,6 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
      */
     long countByProjectIdInAndAssigneeMembershipIdInAndDeletedAtIsNull(
             List<Long> projectIds, List<Long> assigneeMembershipIds);
-
-    /**
-     * Counts non-deleted Tasks assigned through the supplied membership identifiers whose status
-     * is not the supplied terminal status.
-     *
-     * @param assigneeMembershipIds retained Project membership identifiers
-     * @param terminalStatus status excluded from the unfinished count
-     * @return unfinished current Task count
-     */
-    long countByAssigneeMembershipIdInAndStatusNotAndDeletedAtIsNull(
-            Set<Long> assigneeMembershipIds, TaskStatus terminalStatus);
 
     /**
      * Loads the highest-priority current assignments within authorized Project/membership pairs.

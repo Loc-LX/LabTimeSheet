@@ -78,11 +78,12 @@
       <input type="hidden" name="draftId" th:value="${smtpStatus.draftId}">
       <button class="button" type="submit">Test connection</button>
     </form>
-    <form th:if="${smtpStatus.draftId != null and smtpStatus.tested}" method="post" th:action="@{/admin/smtp/activate}">
+    <form th:if="${smtpStatus.draftId != null and smtpStatus.tested}" method="post"
+          th:action="@{/admin/smtp/activate}"
+          data-confirm="Activate this tested SMTP draft and retire the current active revision? Email delivery will immediately use the replacement settings.">
       <input type="hidden" name="draftId" th:value="${smtpStatus.draftId}">
       <button class="button button-primary" type="submit">Activate SMTP</button>
     </form>
-    <a class="button" th:href="@{/admin/holiday-api}">Configure HolidayAPI</a>
     <a class="button" th:if="${param.onboarding}" th:href="@{/admin/smtp/defer}">Defer SMTP</a>
   </div>
 </main>

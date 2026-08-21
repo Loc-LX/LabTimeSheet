@@ -6,13 +6,15 @@
     "npm": "11.x"
   },
   "scripts": {
-    "build": "npm run build:css && npm run build:icons",
+    "build": "npm run build:css && npm run build:icons && npm run build:chart",
     "build:css": "tailwindcss -i src/main/frontend/app.css -o src/main/resources/static/assets/app.css --minify",
     "build:icons": "node src/main/frontend/build-icons.mjs",
+    "build:chart": "node src/main/frontend/build-chart.mjs",
     "test:ui": "node --test src/test/js/*.test.mjs"
   },
   "devDependencies": {
     "@tailwindcss/cli": "4.3.3",
+    "chart.js": "4.5.1",
     "lucide-static": "1.27.0",
     "tailwindcss": "4.3.3"
   }

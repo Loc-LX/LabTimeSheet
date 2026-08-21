@@ -7,7 +7,7 @@
           primaryAction=~{::#primary-action},
           content=~{::main})}">
 <body>
-<a id="primary-action" class="button" th:href="@{/dashboard}">Back to overview</a>
+<a id="primary-action" class="button" th:href="@{/admin/accounts}">Back to accounts</a>
 <main>
   <p class="page-description">Create a role-specific account and send its one-time activation link.</p>
   <p class="alert" th:if="${param.created}" role="status">Account created and activation email sent.</p>
@@ -52,7 +52,7 @@
       </div>
       <p class="field-error" id="account-intern-details-error" th:if="${#fields.hasErrors('internDetailsValid')}" th:errors="*{internDetailsValid}" role="alert"></p>
     </fieldset>
-    <div class="form-actions"><a class="button" th:href="@{/dashboard}">Cancel</a><button class="button button-primary" type="submit">Create account</button></div>
+    <div class="form-actions"><a class="button" th:href="@{/admin/accounts}">Cancel</a><button class="button button-primary" type="submit">Create account</button></div>
   </form>
 </main>
 </body>

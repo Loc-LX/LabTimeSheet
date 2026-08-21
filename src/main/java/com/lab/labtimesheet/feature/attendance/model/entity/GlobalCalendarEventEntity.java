@@ -1,6 +1,8 @@
 package com.lab.labtimesheet.feature.attendance.model.entity;
 
 import com.lab.labtimesheet.feature.attendance.model.dto.GlobalCalendarEvent;
+import com.lab.labtimesheet.feature.attendance.model.dto.CalendarHistoryItem;
+import com.lab.labtimesheet.feature.integration.model.dto.HolidayApiCandidate;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -10,6 +12,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import java.time.LocalDate;
+import java.time.Instant;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
@@ -34,6 +37,18 @@ public class GlobalCalendarEventEntity {
     @Column(nullable = false)
     private String source;
 
+    @Column(name = "source_uuid")
+    private String sourceUuid;
+
+    @Column(name = "actual_date")
+    private LocalDate actualDate;
+
+    @Column(name = "observed_date")
+    private LocalDate observedDate;
+
+    @Column(name = "public_holiday")
+    private Boolean publicHoliday;
+
     @Column(name = "is_day_off", nullable = false)
     private boolean dayOff;
 
@@ -42,6 +57,15 @@ public class GlobalCalendarEventEntity {
 
     @Column(name = "updated_by_user_id", nullable = false)
     private long updatedByUserId;
+
+    @Column(name = "imported_at")
+    private Instant importedAt;
+
+    @Column(name = "created_at", nullable = false)
+    private Instant createdAt;
+
+    @Column(name = "updated_at", nullable = false)
+    private Instant updatedAt;
 
     @Version
     private long version;
@@ -55,12 +79,57 @@ public class GlobalCalendarEventEntity {
      * @param actorUserId Admin who created the local decision
      */
     public GlobalCalendarEventEntity(LocalDate date, String name, boolean dayOff, long actorUserId) {
+        this(date, name, dayOff, actorUserId, Instant.now());
+    }
+
+    /**
+     * Creates a custom event with an injected server timestamp.
+     *
+     * @param date local business date
+     * @param name display name
+     * @param dayOff local day-off decision
+     * @param actorUserId Admin actor
+     * @param now server creation timestamp
+     */
+    public GlobalCalendarEventEntity(LocalDate date, String name, boolean dayOff, long actorUserId, Instant now) {
         this.calendarDate = date;
         this.name = name;
         this.source = "CUSTOM";
         this.dayOff = dayOff;
         this.createdByUserId = actorUserId;
         this.updatedByUserId = actorUserId;
+        this.createdAt = now;
+        this.updatedAt = now;
+    }
+
+    /**
+     * Creates a locally authoritative imported event while retaining all upstream provenance.
+     *
+     * @param candidate validated Platform-owned upstream candidate
+     * @param dayOff explicit local Admin decision
+     * @param actorUserId Admin performing import
+     * @param importedAt Platform preview retrieval instant retained as local import provenance
+     * @param now local persistence timestamp
+     */
+    public GlobalCalendarEventEntity(
+            HolidayApiCandidate candidate,
+            boolean dayOff,
+            long actorUserId,
+            Instant importedAt,
+            Instant now) {
+        this.calendarDate = candidate.observedDate();
+        this.name = candidate.name();
+        this.source = "HOLIDAY_API";
+        this.sourceUuid = candidate.uuid();
+        this.actualDate = candidate.actualDate();
+        this.observedDate = candidate.observedDate();
+        this.publicHoliday = candidate.publicHoliday();
+        this.dayOff = dayOff;
+        this.importedAt = importedAt;
+        this.createdByUserId = actorUserId;
+        this.updatedByUserId = actorUserId;
+        this.createdAt = now;
+        this.updatedAt = now;
     }
 
     /**
@@ -72,10 +141,24 @@ public class GlobalCalendarEventEntity {
      * @param actorUserId Admin performing the update
      */
     public void update(LocalDate date, String name, boolean dayOff, long actorUserId) {
+        update(date, name, dayOff, actorUserId, Instant.now());
+    }
+
+    /**
+     * Applies an authorized future-event edit with a server-provided timestamp.
+     *
+     * @param date replacement local business date
+     * @param name replacement display name
+     * @param dayOff replacement day-off decision
+     * @param actorUserId Admin actor
+     * @param now server update timestamp
+     */
+    public void update(LocalDate date, String name, boolean dayOff, long actorUserId, Instant now) {
         this.calendarDate = date;
         this.name = name;
         this.dayOff = dayOff;
         this.updatedByUserId = actorUserId;
+        this.updatedAt = now;
     }
 
     /**
@@ -103,5 +186,29 @@ public class GlobalCalendarEventEntity {
      */
     public long version() {
         return version;
+    }
+
+    /**
+     * Converts retained provenance and local decision metadata for Admin Calendar History.
+     *
+     * @return non-secret history projection
+     */
+    public CalendarHistoryItem toHistory() {
+        return new CalendarHistoryItem(
+                id,
+                calendarDate,
+                name,
+                source,
+                sourceUuid,
+                actualDate,
+                observedDate,
+                publicHoliday,
+                dayOff,
+                importedAt,
+                createdByUserId,
+                updatedByUserId,
+                createdAt,
+                updatedAt,
+                version);
     }
 }
