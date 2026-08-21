@@ -4,7 +4,7 @@
 - **Requirement IDs:** `I2-UI-02`, `ACC-014`–`ACC-025`, `AUTH-001`–`AUTH-002`, `UI-013`–`UI-014`, `UI-016`, `I2-ATT-01`–`I2-ATT-06`, `I2-PRJ-01`–`I2-PRJ-06`, `I2-TSK-01`, `I2-TSK-03`, `I2-TSK-04`
 - **Scenario IDs:** `AC-ACC-009`, `AC-ACC-010`, `AC-AUTH-001`, `AC-ATT-001`, `AC-CAL-002`, `AC-CAL-004`, `AC-COR-001`, `AC-COR-003`, `AC-LEV-003`–`AC-LEV-005`, `AC-PRJ-010`–`AC-PRJ-013`, `AC-TSK-004`, `AC-TSK-005`, `AC-TSK-007`, `AC-UI-005`
 - **Test class/method:** `AccountAdministrationControllerWebTest` (3 methods), `AccountWebIntegrationTest#adminListsAndOpensInternLifecycleAdministrationWithoutDisclosingGuessedIds`, `AccountSessionInvalidationWebIntegrationTest#adminLockUnlockAndDeactivateRoutesEnforceLoginStateAndExpireSessions`, `AttendanceRequestControllerWebTest` (8 methods), `CalendarControllerWebTest` (2 methods), `AdminSettingsControllerWebTest` (7 methods), `Iteration2ProjectWorkflowWebTest` (4 methods), `Iteration2TaskWorkflowWebTest` (4 methods), `Iteration2WorkflowFragmentsWebTest` (2 methods), `AttendanceLombokBoilerplateTest#componentsExposeOnlyIntentionalPublicAndProtectedDeclaredMethods`
-- **Implementation commit:** `691a35eecafbebbe91a35275f8ed2d089d7089d7`
+- **Implementation commit:** `b761290e0bb586f1a9242b52a2c669ff1f4b888f`
 
 ## Protected behavior
 
@@ -145,13 +145,14 @@ Javadoc prose.
 ```text
 JAVA_HOME=/opt/homebrew/opt/openjdk@25 DOCKER_HOST=unix:///Users/sechmachine/.orbstack/run/docker.sock ./mvnw -DargLine=-javaagent:/Users/sechmachine/.m2/repository/net/bytebuddy/byte-buddy-agent/1.18.10/byte-buddy-agent-1.18.10.jar test
 
-PostgreSQL 18.4 where applicable; Tests run: 441, Failures: 0, Errors: 0, Skipped: 0; BUILD SUCCESS in 04:45.
+PostgreSQL 18.4 where applicable; Tests run: 444, Failures: 0, Errors: 0, Skipped: 0; BUILD SUCCESS.
 ```
 
 The first affected run correctly failed two Attendance public-contract inventory assertions for the newly added
 `list(AttendanceActor)` method and `attendanceRecordId` component. Updating that explicit inventory produced a
-focused 4/4 GREEN and the 441/441 rerun above; no production behavior was weakened. That complete run predates the
-second-review Project/Calendar/Javadoc repair and is not claimed as the final committed-candidate exit gate.
+focused 4/4 GREEN and a 441/441 rerun; no production behavior was weakened. The later exact integrated candidate at
+`b761290e0bb586f1a9242b52a2c669ff1f4b888f` includes the reviewed Project/Calendar/Javadoc repairs and the final
+Calendar surface-inventory repair, and passed the 444/444 command above.
 
 The latest repair's producer and authorization focus passed on PostgreSQL 18.4:
 
@@ -173,8 +174,7 @@ Tests run: 4, Failures: 0, Errors: 0, Skipped: 0; BUILD SUCCESS.
 The lifecycle persistence focus (`ProjectServiceIntegrationTest`, `AccountWebIntegrationTest`, and
 `AccountSessionInvalidationWebIntegrationTest`) passed 18/18 on PostgreSQL 18.4. `npm run build` and
 `npm run test:ui` passed on Node 24/npm 11 (7/7 Node tests). Java 25 compile and `git diff --check` passed. The exact
-standard repository-wide Javadoc/doclint command now passes with 100 warnings and no errors; the complete exit gate
-will be repeated on the final committed candidate.
+standard repository-wide Javadoc/doclint command passes with 100 warnings and no errors.
 
 ## External-test boundaries
 
