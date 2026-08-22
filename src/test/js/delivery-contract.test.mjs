@@ -106,15 +106,22 @@ test("enabled deployment passes one absolute remote Compose file through rollout
 
 test("deterministic E2E clock is opt-in and rejected in production", () => {
   const e2e = read("src/main/resources/application-e2e.yaml");
+  const application = read("src/main/resources/application.yaml");
   const timeConfiguration = read("src/main/java/com/lab/labtimesheet/config/TimeConfiguration.java");
   const development = read("DEVELOPMENT.md");
+  const testing = read("TESTING.md");
+  const startupTest = read("src/test/java/com/lab/labtimesheet/config/E2eProfileIntegrationTest.java");
 
   assert.match(e2e, /on-profile: e2e/);
   assert.match(e2e, /fixed-instant: "\$\{LAB_E2E_FIXED_INSTANT:/);
+  assert.match(application, /group:\n\s+e2e: dev/);
   assert.match(timeConfiguration, /@Profile\("e2e & !prod"\)/);
   assert.match(timeConfiguration, /@Profile\("prod & e2e"\)/);
   assert.match(timeConfiguration, /e2e fixed clock cannot be enabled with prod/);
+  assert.match(startupTest, /@SpringBootTest/);
+  assert.match(startupTest, /@ActiveProfiles\("e2e"\)/);
   assert.match(development, /LAB_E2E_FIXED_INSTANT=.*\n\s+\.\/mvnw spring-boot:run/);
+  assert.match(testing, /LAB_E2E_FIXED_INSTANT=.*spring-boot:run/s);
   assert.doesNotMatch(development, /spring\.profiles\.active=prod,e2e/);
 });
 

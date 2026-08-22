@@ -148,6 +148,29 @@ class LoginThrottleTest {
         assertThat(throttle.isBlocked("protected@example.com", "203.0.113.10")).isTrue();
     }
 
+    @Test
+    void allActiveSaturationFailsClosedForANewVictimUntilABlockExpires() {
+        MutableClock clock = new MutableClock(BASE);
+        LoginThrottle throttle = new LoginThrottle(clock);
+        for (int identifier = 0; identifier < 10_000; identifier++) {
+            for (int attempt = 0; attempt < 5; attempt++) {
+                throttle.recordFailure("blocked-" + identifier + "@example.com", "198.51.100.10");
+            }
+        }
+
+        for (int attempt = 0; attempt < 5; attempt++) {
+            throttle.recordFailure("victim@example.com", "203.0.113.10");
+        }
+
+        assertThat(throttle.isBlocked("victim@example.com", "203.0.113.10")).isTrue();
+
+        clock.advanceSeconds(900);
+        for (int attempt = 0; attempt < 5; attempt++) {
+            throttle.recordFailure("victim@example.com", "203.0.113.10");
+        }
+        assertThat(throttle.isBlocked("victim@example.com", "203.0.113.10")).isTrue();
+    }
+
     private static final class MutableClock extends Clock {
         private Instant instant;
 

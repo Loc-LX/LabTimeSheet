@@ -30,6 +30,7 @@ public class LoginThrottle {
     private final Clock clock;
     private final Map<Key, State> states = new ConcurrentHashMap<>();
     private final Object capacityLock = new Object();
+    private Instant saturationBlockedUntil;
 
     /**
      * Returns whether the normalized email/source-IP pair is currently throttled.
@@ -43,6 +44,12 @@ public class LoginThrottle {
         synchronized (capacityLock) {
             State state = states.get(key);
             if (state == null) {
+                if (saturationBlockedUntil != null) {
+                    if (clock.instant().isBefore(saturationBlockedUntil)) {
+                        return true;
+                    }
+                    saturationBlockedUntil = null;
+                }
                 return false;
             }
             Instant now = clock.instant();
@@ -60,7 +67,8 @@ public class LoginThrottle {
     /**
      * Records one failed authentication attempt and starts the fifteen-minute block at the fifth failure in the
      * rolling fifteen-minute window. When the bounded map is full, one non-blocked history may be evicted so the
-     * current key remains trackable; active blocks are never evicted.
+     * current key remains trackable; active blocks are never evicted. If every retained entry is actively blocked,
+     * new pairs are denied by a bounded fail-closed saturation guard until the earliest retained block expires.
      *
      * @param email submitted login email
      * @param sourceIp request source address
@@ -71,11 +79,17 @@ public class LoginThrottle {
             Instant now = clock.instant();
             State state = states.get(key);
             if (state == null) {
+                if (saturationBlockedUntil != null) {
+                    if (now.isBefore(saturationBlockedUntil)) {
+                        return;
+                    }
+                    saturationBlockedUntil = null;
+                }
                 if (states.size() >= MAX_ENTRIES) {
                     purgeUnblockedEntries(now);
                     if (states.size() >= MAX_ENTRIES) {
-                        evictNonBlockedEntry();
-                        if (states.size() >= MAX_ENTRIES) {
+                        if (!evictNonBlockedEntry()) {
+                            activateSaturationGuard(now);
                             return;
                         }
                     }
@@ -122,14 +136,32 @@ public class LoginThrottle {
      * Makes room for a new key only by dropping one non-blocked history when all expired empty states are gone.
      * Active blocks remain retained; partial failure history is the bounded state that may be evicted under attack.
      */
-    private void evictNonBlockedEntry() {
+    private boolean evictNonBlockedEntry() {
         for (Map.Entry<Key, State> entry : states.entrySet()) {
             Key key = entry.getKey();
             State state = entry.getValue();
             if (state.blockedUntil == null && states.remove(key, state)) {
-                return;
+                return true;
             }
         }
+        return false;
+    }
+
+    /**
+     * Denies unknown pairs without growing state when all bounded entries are active blocks. The guard expires at the
+     * earliest retained block deadline, allowing the normal purge path to reclaim capacity at the first safe point.
+     *
+     * @param now server clock instant used for the bounded fallback deadline
+     */
+    private void activateSaturationGuard(Instant now) {
+        Instant earliestExpiry = null;
+        for (State state : states.values()) {
+            if (state.blockedUntil != null
+                    && (earliestExpiry == null || state.blockedUntil.isBefore(earliestExpiry))) {
+                earliestExpiry = state.blockedUntil;
+            }
+        }
+        saturationBlockedUntil = earliestExpiry == null ? now.plus(BLOCK_DURATION) : earliestExpiry;
     }
 
     private static Key key(String email, String sourceIp) {

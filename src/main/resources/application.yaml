@@ -3,6 +3,8 @@ spring:
     name: labtimesheet
   profiles:
     default: dev
+    group:
+      e2e: dev
   docker:
     compose:
       enabled: false
