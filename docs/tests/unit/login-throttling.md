@@ -5,21 +5,26 @@
 - **Scenario IDs:** `AC-SEC-003`
 - **Test class/method:** `com.lab.labtimesheet.feature.account.service.LoginThrottleTest`
 - **Implementation commit:** `091361eb73c7d7118d8212df630a83aca4ad5f9e`
-- **Review-fix commit:** `9758199eae529351708aeb41d75177d089402196`
+- **Review-fix commit:** `bad2764c41bf1694dcfcc7c1407fd66c39eace4f`
+- **Round-2 saturation fix commit:** `f1052e6ed66db19c1f0419e81eeafdc539aa3393`
 
 ## Protected behavior
 
 Login failure state is keyed by trimmed, case-folded email plus the server-observed source IP. Five failures in a
 rolling fifteen-minute window throttle the sixth attempt for fifteen minutes; a successful login clears only the
 applicable pair, and another source IP remains independent. The in-memory state is bounded for the supported
-single-instance deployment and never evicts an active block under sequential or concurrent capacity pressure.
+single-instance deployment and never evicts an active block under sequential or concurrent capacity pressure. When
+capacity is full of recent nonblocked histories, one bounded nonblocked history may be evicted so a new target is
+tracked and can reach its fifth-failure block. If all 10,000 retained entries are active blocks, a bounded global
+saturation guard denies unknown pairs until the earliest active block expires rather than bypassing throttling or
+growing memory.
 
 ## Test method
 
 The unit test injects a mutable deterministic clock and exercises the concrete throttle with five failures, distinct
 source addresses, exact 15-minute expiry, successful-login clearing, rolling-window expiry, interleaved arbitrary
-identifiers, 15,120-key capacity pressure, and eight-worker concurrent capacity pressure. It avoids Spring or a database because this boundary is
-intentionally bounded in-memory state.
+identifiers, 15,120-key capacity pressure, eight-worker concurrent capacity pressure, and a new-target saturation
+regression. It avoids Spring or a database because this boundary is intentionally bounded in-memory state.
 
 ## Hand-derived expected result
 
@@ -67,6 +72,19 @@ usernames erased the target's four live partial failures before its fifth attemp
 
 2026-08-22T15:53:02+07:00 — Round-2 fix GREEN: Tests run: 6, Failures: 0, Errors: 0, Skipped: 0; BUILD SUCCESS.
 Capacity purge now runs only at actual capacity and removes only expired, empty states.
+
+2026-08-22T16:31:00+07:00 — Saturated-new-target RED: Tests run: 7, Failures: 1, Errors: 0; 10,000 recent
+nonblocked filler histories left the new victim untracked, so its sixth attempt was not blocked.
+
+2026-08-22T16:31:30+07:00 — Saturated-new-target GREEN: Tests run: 7, Failures: 0, Errors: 0, Skipped: 0;
+BUILD SUCCESS. One nonblocked state is evicted at capacity while the pre-existing active block remains protected.
+
+2026-08-22T20:38:55+07:00 — All-active saturation RED: Tests run: 8, Failures: 1, Errors: 0; all 10,000 retained
+entries were active blocks and the new victim remained unblocked after five failures.
+
+2026-08-22T20:42:19+07:00 — All-active saturation GREEN: Tests run: 8, Failures: 0, Errors: 0, Skipped: 0;
+BUILD SUCCESS. The earliest active block deadline bounds a fail-closed saturation guard, then normal purge reclaims
+capacity at expiry.
 ```
 
 ## Affected suite
@@ -79,8 +97,13 @@ export PATH="$JAVA_HOME/bin:$PATH"
 export DOCKER_HOST=unix:///Users/sechmachine/.orbstack/run/docker.sock
 ./mvnw -Dtest=NotificationServiceIntegrationTest,LoginThrottleTest,ProductionReadinessTest,SecurityResponseIntegrationTest,AuthenticationWebIntegrationTest,CalendarDevelopmentProfileWebIntegrationTest test
 
-2026-08-22T15:22:10+07:00 — affected combined Platform security/notification suite; LoginThrottleTest 5/5 and
-AuthenticationWebIntegrationTest 1/1 passed with PostgreSQL 18.4 Testcontainers; total affected command `25/25`.
+2026-08-22T15:22:10+07:00 — prior affected combined Platform security/notification suite; total `25/25`.
+
+2026-08-22T20:17:52+07:00 — affected Account/security PostgreSQL suite `54/54` passed, including LoginThrottleTest
+`7/7`, UserActionTokenCleanupIntegrationTest `2/2`, and TimeConfigurationTest `3/3`; no failures, errors, or skips.
+
+2026-08-22T20:45:12+07:00 — fresh affected Account/security/E2E suite `56/56` passed, including LoginThrottleTest
+`8/8`, TimeConfigurationTest `3/3`, and full E2eProfileIntegrationTest `1/1`; no failures, errors, or skips.
 ```
 
 ## External-test boundaries

@@ -158,6 +158,17 @@ Spring Boot configuration remains `Lab Timesheet (dev)` with active `dev`
 profile and the repository root as working directory; start PostgreSQL/Mailpit
 before running the browser command.
 
+For date-sensitive local E2E journeys, use the deterministic clock handoff. The
+`e2e` profile is grouped with `dev`, so the normal local datasource, Mailpit,
+origin, and security-key configuration remains active:
+
+```bash
+LAB_E2E_FIXED_INSTANT=2026-08-22T02:00:00Z \
+  ./mvnw spring-boot:run -Dspring-boot.run.profiles=e2e
+```
+
+The fixed clock is local-only and `prod` plus `e2e` is rejected at startup.
+
 Do not record a real browser journey as a web test. Use `docs/tests/e2e/`.
 
 ### Structure and configuration checks

@@ -168,6 +168,20 @@ At first setup, configure SMTP through the Admin console with:
 Test the draft before activating it. Mailpit's web inbox shows activation and
 other development messages.
 
+### Deterministic local E2E clock
+
+Date-sensitive browser journeys may opt into the `e2e` profile, which uses an
+immutable Vietnam-zone clock. The profile is absent by default, has no runtime
+mutation or endpoint, and is rejected when combined with `prod`:
+
+```bash
+LAB_E2E_FIXED_INSTANT=2026-08-22T02:00:00Z \
+  ./mvnw spring-boot:run -Dspring-boot.run.profiles=e2e
+```
+
+Use this only for local E2E startup. Keep the normal `dev` profile for ordinary
+development and never activate `e2e` in production.
+
 Stop the application with `Control+C`.
 
 ## 5. Run with IntelliJ IDEA

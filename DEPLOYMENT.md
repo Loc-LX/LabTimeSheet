@@ -11,6 +11,7 @@ Copy [`.env.compose.example`](.env.compose.example) to a protected path outside 
 ```bash
 sudo install -d -m 0700 /etc/labtimesheet
 sudo install -m 0600 .env.compose.example /etc/labtimesheet/compose.env
+sudo install -m 0644 compose.yaml /etc/labtimesheet/compose.yaml
 sudo editor /etc/labtimesheet/compose.env
 ```
 
@@ -23,8 +24,8 @@ Generate `LAB_SECURITY_MASTER_KEY` with `openssl rand -base64 32`. Use an immuta
 Keep the example JDBC host `postgres`, then run:
 
 ```bash
-docker compose --env-file /etc/labtimesheet/compose.env --profile bundled-db up -d
-docker compose --env-file /etc/labtimesheet/compose.env ps
+docker compose --env-file /etc/labtimesheet/compose.env -f /etc/labtimesheet/compose.yaml --profile bundled-db up -d
+docker compose --env-file /etc/labtimesheet/compose.env -f /etc/labtimesheet/compose.yaml ps
 ```
 
 The application waits for PostgreSQL health and stores database files in the `postgres_data` named volume.
@@ -34,8 +35,8 @@ The application waits for PostgreSQL health and stores database files in the `po
 Set `LAB_DB_URL`, `LAB_DB_USERNAME`, and `LAB_DB_PASSWORD` for the external database. Do not enable the `bundled-db` profile:
 
 ```bash
-docker compose --env-file /etc/labtimesheet/compose.env up -d app
-docker compose --env-file /etc/labtimesheet/compose.env ps
+docker compose --env-file /etc/labtimesheet/compose.env -f /etc/labtimesheet/compose.yaml up -d app
+docker compose --env-file /etc/labtimesheet/compose.env -f /etc/labtimesheet/compose.yaml ps
 ```
 
 The same application image is used in both modes.
@@ -44,13 +45,13 @@ The same application image is used in both modes.
 
 - Liveness: `GET /actuator/health/liveness`
 - Readiness: `GET /actuator/health/readiness` (includes PostgreSQL)
-- Logs: `docker compose --env-file /etc/labtimesheet/compose.env logs -f app`
+- Logs: `docker compose --env-file /etc/labtimesheet/compose.env -f /etc/labtimesheet/compose.yaml logs -f app`
 
 The container runs as UID/GID `10001`, with a read-only root filesystem, no Linux capabilities, and only `/tmp` writable. TLS termination is intentionally outside this Compose example.
 
 Back up PostgreSQL with database-aware tooling such as `pg_dump`. The named volume survives container replacement, but it is not a backup. Test restore procedures before upgrades.
 
-To update or roll back, change `LAB_IMAGE` to the required immutable SHA tag and run `docker compose ... up -d` again. Keep the previous SHA recorded until the new image is healthy.
+To update or roll back, change `LAB_IMAGE` to the required immutable SHA tag and run `docker compose --env-file /etc/labtimesheet/compose.env -f /etc/labtimesheet/compose.yaml up -d` again. Keep the previous SHA recorded until the new image is healthy.
 
 ## 4. Gitea Actions setup
 
@@ -72,4 +73,4 @@ When ARM64 is disabled, those canonical tags remain valid AMD64 images and the w
 
 The `deploy` job is a dormant operator-controlled template. It runs only for a `main` ref when `DEPLOY_ENABLED` is exactly `true` and all four `DEPLOY_*` secrets are present, after `verify` and the AMD64 image job. Pull requests, work branches, manual runs, and runs missing any gate skip the job and do not receive its host secrets. The job writes the private key and known-hosts file only to the ephemeral runner temp directory with mode `0600`; SSH uses `StrictHostKeyChecking=yes` and the supplied `UserKnownHostsFile`.
 
-The enabled job selects `git.sechmachine.io.vn/sechmachine/labtimesheet:sha-<full-commit>-amd64`, never a mutable tag. The remote host must already contain `/etc/labtimesheet/compose.env` with an immutable `LAB_IMAGE=...:sha-<40-hex>(-amd64)` value, Docker Compose, and the application deployment. The job records the previous immutable image at `/etc/labtimesheet/deploy-state/previous-image`, pulls the selected image, updates `compose.env`, restarts only `app`, and waits for the container readiness healthcheck. Failed rollout attempts restore the recorded image and return a failure; no database or volume is deleted.
+The enabled job selects `git.sechmachine.io.vn/sechmachine/labtimesheet:sha-<full-commit>-amd64`, never a mutable tag. The remote host must already contain `/etc/labtimesheet/compose.env` with an immutable `LAB_IMAGE=...:sha-<40-hex>(-amd64)` value, `/etc/labtimesheet/compose.yaml`, and Docker Compose. The job passes that absolute Compose file path through SSH and uses `docker compose --env-file /etc/labtimesheet/compose.env -f /etc/labtimesheet/compose.yaml` for rollout, health lookup, and rollback. It records the previous immutable image at `/etc/labtimesheet/deploy-state/previous-image`, pulls the selected image, updates `compose.env`, restarts only `app`, and waits for the container readiness healthcheck. Failed rollout attempts restore the recorded image and return a failure; no database or volume is deleted.

@@ -221,6 +221,7 @@ jobs:
       GITEA_SHA: ${{ gitea.sha }}
       IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${{ gitea.sha }}-amd64
       REMOTE_COMPOSE_ENV: /etc/labtimesheet/compose.env
+      REMOTE_COMPOSE_FILE: /etc/labtimesheet/compose.yaml
     steps:
       - name: Prepare SSH trust files
         shell: bash
@@ -249,13 +250,15 @@ jobs:
           fi
           ssh_opts=(-i "$SSH_DIR/id_ed25519" -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
             -o UserKnownHostsFile="$SSH_DIR/known_hosts")
-          ssh "${ssh_opts[@]}" "$DEPLOY_USER@$DEPLOY_HOST" bash -s -- "$REMOTE_COMPOSE_ENV" "$IMAGE" <<'REMOTE'
+          ssh "${ssh_opts[@]}" "$DEPLOY_USER@$DEPLOY_HOST" bash -s -- "$REMOTE_COMPOSE_ENV" "$REMOTE_COMPOSE_FILE" "$IMAGE" <<'REMOTE'
           set -eu
           compose_env=$1
-          new_image=$2
+          compose_file=$2
+          new_image=$3
           state_dir="$(dirname "$compose_env")/deploy-state"
 
           test -f "$compose_env"
+          test -f "$compose_file"
           mkdir -p "$state_dir"
           previous_image="$(sed -n 's/^LAB_IMAGE=//p' "$compose_env" | head -n 1)"
           if ! printf '%s\n' "$previous_image" | grep -Eq ':sha-[0-9a-f]{40}(-amd64)?$'; then
@@ -279,7 +282,7 @@ jobs:
           }
 
           compose() {
-            docker compose --env-file "$compose_env" "$@"
+            docker compose --env-file "$compose_env" -f "$compose_file" "$@"
           }
 
           wait_for_health() {
