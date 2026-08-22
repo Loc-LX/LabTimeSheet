@@ -13,6 +13,7 @@ services:
       LAB_PUBLIC_ORIGIN: "${LAB_PUBLIC_ORIGIN:?Set the public HTTPS origin}"
       LAB_SECURITY_MASTER_KEY: "${LAB_SECURITY_MASTER_KEY:?Set a Base64 256-bit key}"
       LAB_FORWARD_HEADERS_STRATEGY: "${LAB_FORWARD_HEADERS_STRATEGY:?Set the explicit proxy strategy}"
+      LAB_TRUSTED_PROXY_CIDRS: "${LAB_TRUSTED_PROXY_CIDRS:?Set the trusted reverse-proxy CIDRs}"
     ports:
       # Bind locally by default; terminate HTTPS in a reverse proxy on the same host.
       - "${LAB_HTTP_BIND:-127.0.0.1}:${LAB_HTTP_PORT:-8080}:8080"
