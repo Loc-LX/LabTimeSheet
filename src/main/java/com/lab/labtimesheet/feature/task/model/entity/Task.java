@@ -76,7 +76,7 @@ public class Task {
     private Instant updatedAt;
 
     @Version
-    @Getter(AccessLevel.NONE)
+    @Getter
     private long version;
 
     /**

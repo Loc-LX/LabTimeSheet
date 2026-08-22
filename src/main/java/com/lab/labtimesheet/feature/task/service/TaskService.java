@@ -19,6 +19,7 @@ import com.lab.labtimesheet.feature.project.model.dto.ProjectTaskMemberView;
 import com.lab.labtimesheet.feature.project.service.ProjectQueryService;
 import com.lab.labtimesheet.feature.project.service.ProjectService;
 import com.lab.labtimesheet.feature.task.exception.TaskNotFoundException;
+import com.lab.labtimesheet.feature.task.exception.TaskConflictException;
 import com.lab.labtimesheet.feature.task.exception.TaskValidationException;
 import com.lab.labtimesheet.feature.task.model.TaskProgress;
 import com.lab.labtimesheet.feature.task.model.TaskStatus;
@@ -47,6 +48,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -113,7 +115,7 @@ public class TaskService {
                 command.dueDate(),
                 actorMembership.membershipId(),
                 clock.instant());
-        TaskView result = view(tasks.saveAndFlush(task), assignee.displayName());
+        TaskView result = view(saveTask(task), assignee.displayName());
         publish(
                 new NotificationEvent(
                         NotificationType.TASK_ASSIGNED,
@@ -138,13 +140,15 @@ public class TaskService {
      * @param actorEmail authenticated account email
      * @param projectId owning Project identifier
      * @param taskId Task identifier within that Project
+     * @param expectedVersion client-observed Task version from the rendered form
      * @param target requested next status
      * @return updated Task projection
      * @throws TaskNotFoundException when scope, lifecycle, assignment, or identifiers are invalid
      * @throws TaskValidationException when the requested status edge is forbidden
      */
     @Transactional
-    public TaskView changeStatus(String actorEmail, long projectId, long taskId, TaskStatus target) {
+    public TaskView changeStatus(
+            String actorEmail, long projectId, long taskId, Long expectedVersion, TaskStatus target) {
         TaskAccess access = requireMutationAccess(actorEmail, projectId);
         if (!"ACTIVE".equals(access.project().status())) {
             throw new TaskNotFoundException();
@@ -160,11 +164,12 @@ public class TaskService {
         if (task.getAssigneeMembershipId() != actorMembership.membershipId()) {
             throw new TaskNotFoundException();
         }
+        requireTaskVersion(task, expectedVersion);
         if (!task.getStatus().canTransitionTo(target)) {
             throw new TaskValidationException("Task status transition is not allowed");
         }
         task.changeStatus(target, clock.instant());
-        TaskView result = view(tasks.saveAndFlush(task), actorMembership.displayName());
+        TaskView result = view(saveTask(task), actorMembership.displayName());
         publish(
                 new NotificationEvent(
                         NotificationType.TASK_STATUS_CHANGED,
@@ -177,6 +182,21 @@ public class TaskService {
     }
 
     /**
+     * Retains the programmatic mutation overload for callers that do not have a browser snapshot.
+     * Web forms must use the expected-version overload above.
+     *
+     * @param actorEmail authenticated account email
+     * @param projectId owning Project identifier
+     * @param taskId Task identifier
+     * @param target requested next status
+     * @return updated Task projection
+     */
+    @Transactional
+    public TaskView changeStatus(String actorEmail, long projectId, long taskId, TaskStatus target) {
+        return changeStatus(actorEmail, projectId, taskId, null, target);
+    }
+
+    /**
      * Edits the current definition of an unfinished Task under the Project write lock.
      *
      * <p>The current Leader may edit any unfinished Task in the Project. A non-Leader creator may
@@ -186,6 +206,7 @@ public class TaskService {
      * @param actorEmail authenticated account email
      * @param projectId owning Project identifier
      * @param taskId Task identifier within that Project
+     * @param expectedVersion client-observed Task version from the rendered form
      * @param title required replacement title
      * @param description optional replacement description
      * @param dueDate optional replacement due date
@@ -198,6 +219,7 @@ public class TaskService {
             String actorEmail,
             long projectId,
             long taskId,
+            Long expectedVersion,
             String title,
             String description,
             LocalDate dueDate) {
@@ -208,10 +230,34 @@ public class TaskService {
         Task task = requireLockedTask(projectId, taskId);
         requireUnfinished(task);
         requireDefinitionMutationActor(access.project(), actorMembership, task);
+        requireTaskVersion(task, expectedVersion);
         validateDueDate(access.project(), dueDate);
         task.updateDefinition(requireTitle(title), trimToNull(description), dueDate, clock.instant());
-        return view(tasks.saveAndFlush(task), requireAssigneeName(
+        return view(saveTask(task), requireAssigneeName(
                 projectMembers(access), task.getAssigneeMembershipId()));
+    }
+
+    /**
+     * Retains the programmatic edit overload for callers that do not have a browser snapshot.
+     * Web forms must use the expected-version overload above.
+     *
+     * @param actorEmail authenticated account email
+     * @param projectId owning Project identifier
+     * @param taskId Task identifier
+     * @param title replacement title
+     * @param description replacement description
+     * @param dueDate replacement due date
+     * @return updated Task projection
+     */
+    @Transactional
+    public TaskView edit(
+            String actorEmail,
+            long projectId,
+            long taskId,
+            String title,
+            String description,
+            LocalDate dueDate) {
+        return edit(actorEmail, projectId, taskId, null, title, description, dueDate);
     }
 
     /**
@@ -220,10 +266,11 @@ public class TaskService {
      * @param actorEmail authenticated account email
      * @param projectId owning Project identifier
      * @param taskId Task identifier within that Project
+     * @param expectedVersion client-observed Task version from the rendered form
      * @throws TaskNotFoundException when the actor or Task is outside the authorized mutation scope
      */
     @Transactional
-    public void softDelete(String actorEmail, long projectId, long taskId) {
+    public void softDelete(String actorEmail, long projectId, long taskId, Long expectedVersion) {
         TaskAccess access = requireMutationAccess(actorEmail, projectId);
         requireOpenProject(access.project());
         ProjectTaskMemberView actorMembership = requireActorMembership(
@@ -231,8 +278,22 @@ public class TaskService {
         Task task = requireLockedTask(projectId, taskId);
         requireUnfinished(task);
         requireDefinitionMutationActor(access.project(), actorMembership, task);
+        requireTaskVersion(task, expectedVersion);
         task.softDelete(actorMembership.membershipId(), clock.instant());
-        tasks.saveAndFlush(task);
+        saveTask(task);
+    }
+
+    /**
+     * Retains the programmatic deletion overload for callers that do not have a browser snapshot.
+     * Web forms must use the expected-version overload above.
+     *
+     * @param actorEmail authenticated account email
+     * @param projectId owning Project identifier
+     * @param taskId Task identifier
+     */
+    @Transactional
+    public void softDelete(String actorEmail, long projectId, long taskId) {
+        softDelete(actorEmail, projectId, taskId, null);
     }
 
     /**
@@ -247,6 +308,7 @@ public class TaskService {
      * @param actorEmail authenticated current-Leader account email
      * @param projectId owning Project identifier
      * @param taskId Task identifier within that Project
+     * @param expectedVersion client-observed Task version from the rendered form
      * @param assigneeMembershipId eligible same-Project recipient membership
      * @return updated current Task projection
      * @throws TaskNotFoundException when authorization or recipient scope is invalid
@@ -254,7 +316,11 @@ public class TaskService {
      */
     @Transactional
     public TaskView reassign(
-            String actorEmail, long projectId, long taskId, long assigneeMembershipId) {
+            String actorEmail,
+            long projectId,
+            long taskId,
+            Long expectedVersion,
+            long assigneeMembershipId) {
         TaskAccess access = requireMutationAccess(actorEmail, projectId);
         requireOpenProject(access.project());
         ProjectTaskMemberView actorMembership = requireActorMembership(
@@ -269,11 +335,12 @@ public class TaskService {
         if (task.getAssigneeMembershipId() == recipient.membershipId()) {
             throw new TaskValidationException("Task is already assigned to that member");
         }
+        requireTaskVersion(task, expectedVersion);
         List<NotificationRecipient> assigneeRecipients = notificationRecipients(
                 access.project(), null,
                 List.of(previousAssigneeMembershipId, recipient.membershipId()));
         task.reassign(recipient.membershipId(), actorMembership.membershipId(), clock.instant());
-        TaskView result = view(tasks.saveAndFlush(task), recipient.displayName());
+        TaskView result = view(saveTask(task), recipient.displayName());
         publish(
                 new NotificationEvent(
                         NotificationType.TASK_REASSIGNED,
@@ -283,6 +350,22 @@ public class TaskService {
                 new NotificationAction(taskAction(projectId, task.getId()), false),
                 assigneeRecipients);
         return result;
+    }
+
+    /**
+     * Retains the programmatic reassignment overload for callers that do not have a browser snapshot.
+     * Web forms must use the expected-version overload above.
+     *
+     * @param actorEmail authenticated current-Leader account email
+     * @param projectId owning Project identifier
+     * @param taskId Task identifier
+     * @param assigneeMembershipId eligible recipient membership
+     * @return updated Task projection
+     */
+    @Transactional
+    public TaskView reassign(
+            String actorEmail, long projectId, long taskId, long assigneeMembershipId) {
+        return reassign(actorEmail, projectId, taskId, null, assigneeMembershipId);
     }
 
     /**
@@ -351,6 +434,7 @@ public class TaskService {
      * @param actorEmail authenticated current Task assignee email
      * @param projectId owning Project identifier
      * @param taskId current Task identifier
+     * @param expectedTaskVersion client-observed Task version from the rendered form
      * @param workDate local effort date, evaluated against Account, Project, membership, and server-date bounds
      * @param minutes effort minutes in the inclusive range 1 through 1440
      * @param note optional non-blank note
@@ -363,6 +447,7 @@ public class TaskService {
             String actorEmail,
             long projectId,
             long taskId,
+            Long expectedTaskVersion,
             LocalDate workDate,
             int minutes,
             String note) {
@@ -381,6 +466,7 @@ public class TaskService {
         if (task.getAssigneeMembershipId() != actorMembership.membershipId()) {
             throw new TaskNotFoundException();
         }
+        requireTaskVersion(task, expectedTaskVersion);
         requireDailyLimit(workLogs.sumMinutesByMembershipIdsAndWorkDate(membershipIds, workDate), minutes);
 
         TaskWorkLog log = new TaskWorkLog(
@@ -391,7 +477,30 @@ public class TaskService {
                 minutes,
                 note,
                 clock.instant());
-        return view(workLogs.saveAndFlush(log));
+        return view(saveWorkLog(log));
+    }
+
+    /**
+     * Retains the programmatic work-log overload for callers that do not have a browser snapshot.
+     * Web forms must use the expected-task-version overload above.
+     *
+     * @param actorEmail authenticated current Task assignee email
+     * @param projectId owning Project identifier
+     * @param taskId current Task identifier
+     * @param workDate local effort date
+     * @param minutes effort minutes
+     * @param note optional note
+     * @return persisted work-log projection
+     */
+    @Transactional
+    public TaskWorkLogView addWorkLog(
+            String actorEmail,
+            long projectId,
+            long taskId,
+            LocalDate workDate,
+            int minutes,
+            String note) {
+        return addWorkLog(actorEmail, projectId, taskId, null, workDate, minutes, note);
     }
 
     /**
@@ -406,6 +515,8 @@ public class TaskService {
      * @param actorEmail authenticated author email
      * @param projectId owning Project identifier
      * @param workLogId work-log identifier within the Project
+     * @param expectedTaskVersion client-observed Task version from the rendered form
+     * @param expectedWorkLogVersion client-observed work-log version from the rendered form
      * @param minutes replacement effort in the inclusive range 1 through 1440
      * @param note replacement optional non-blank note
      * @return corrected immutable work-log projection
@@ -417,6 +528,8 @@ public class TaskService {
             String actorEmail,
             long projectId,
             long workLogId,
+            Long expectedTaskVersion,
+            Long expectedWorkLogVersion,
             int minutes,
             String note) {
         validateWorkLogValues(minutes, note);
@@ -435,15 +548,38 @@ public class TaskService {
                 .orElseThrow(TaskNotFoundException::new);
         requireSameCandidate(candidate, log, projectId, workLogId);
         requireMembershipIncluded(membershipIds, log.getMembershipId());
-        requireLockedTask(projectId, log.getTaskId());
         if (log.getMembershipId() != actorMembership.membershipId()) {
             throw new TaskNotFoundException();
         }
+        requireWorkLogVersion(log, expectedWorkLogVersion);
+        Task task = requireLockedTask(projectId, log.getTaskId());
+        requireTaskVersion(task, expectedTaskVersion);
         validateWorkLogInput(log.getWorkDate(), minutes, note);
         long currentMinutes = workLogs.sumMinutesByMembershipIdsAndWorkDate(membershipIds, log.getWorkDate());
         requireDailyLimit(currentMinutes - log.getMinutes(), minutes);
         log.correct(minutes, note, clock.instant());
-        return view(workLogs.saveAndFlush(log));
+        return view(saveWorkLog(log));
+    }
+
+    /**
+     * Retains the programmatic correction overload for callers that do not have a browser snapshot.
+     * Web forms must use both expected-version values in the overload above.
+     *
+     * @param actorEmail authenticated author email
+     * @param projectId owning Project identifier
+     * @param workLogId work-log identifier
+     * @param minutes replacement effort
+     * @param note replacement note
+     * @return corrected work-log projection
+     */
+    @Transactional
+    public TaskWorkLogView correctWorkLog(
+            String actorEmail,
+            long projectId,
+            long workLogId,
+            int minutes,
+            String note) {
+        return correctWorkLog(actorEmail, projectId, workLogId, null, null, minutes, note);
     }
 
     /**
@@ -805,7 +941,8 @@ public class TaskService {
                 task.getCreatorMembershipId(),
                 task.getAssignerMembershipId(),
                 task.getAssignedAt(),
-                task.getCreatedAt());
+                task.getCreatedAt(),
+                task.getVersion());
     }
 
     private void publish(
@@ -898,7 +1035,8 @@ public class TaskService {
                 log.getMinutes(),
                 log.getNote(),
                 log.getCreatedAt(),
-                log.getUpdatedAt());
+                log.getUpdatedAt(),
+                log.getVersion());
     }
 
     private static String requireTitle(String title) {
@@ -907,6 +1045,22 @@ public class TaskService {
             throw new TaskValidationException("Title is required and must not exceed 200 characters");
         }
         return trimmed;
+    }
+
+    private Task saveTask(Task task) {
+        try {
+            return tasks.saveAndFlush(task);
+        } catch (ObjectOptimisticLockingFailureException conflict) {
+            throw new TaskConflictException("Task changed concurrently; reload before trying again", conflict);
+        }
+    }
+
+    private TaskWorkLog saveWorkLog(TaskWorkLog log) {
+        try {
+            return workLogs.saveAndFlush(log);
+        } catch (ObjectOptimisticLockingFailureException conflict) {
+            throw new TaskConflictException("Task work log changed concurrently; reload before trying again", conflict);
+        }
     }
 
     private static String requireCommentBody(String body) {
@@ -922,6 +1076,19 @@ public class TaskService {
             return null;
         }
         return value.trim();
+    }
+
+    private static void requireTaskVersion(Task task, Long expectedVersion) {
+        if (expectedVersion != null && expectedVersion.longValue() != task.getVersion()) {
+            throw new TaskConflictException("Task changed concurrently; reload before trying again", null);
+        }
+    }
+
+    private static void requireWorkLogVersion(TaskWorkLog log, Long expectedVersion) {
+        if (expectedVersion != null && expectedVersion.longValue() != log.getVersion()) {
+            throw new TaskConflictException(
+                    "Task work log changed concurrently; reload before trying again", null);
+        }
     }
 
     private record TaskAccess(ProjectActorView actor, ProjectTaskContext project) {}
