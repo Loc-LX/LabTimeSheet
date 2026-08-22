@@ -17,6 +17,7 @@ import jakarta.validation.Valid;
 import java.security.Principal;
 import java.time.Clock;
 import java.time.LocalDate;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -271,6 +272,24 @@ public class ProjectController {
         });
     }
 
+    /**
+     * Transfers one selected unfinished-Task batch from a pending exit target.
+     *
+     * <p>The browser submits one repeated {@code taskVersions} value per selected Task in the
+     * {@code taskId:version} form. The complete pair set is validated at this trust boundary before
+     * the immutable map is passed to the Project transaction; a missing, extra, duplicate, or
+     * malformed pair cannot reach Task mutation.</p>
+     *
+     * @param principal authenticated current Leader
+     * @param projectId owning Project encoded by the route
+     * @param requestId pending exit request encoded by the route
+     * @param sourceMembershipId pending-exit source membership input
+     * @param taskIds selected Task identifiers
+     * @param taskVersionPairs client-observed Task ID/version pairs
+     * @param recipientMembershipId one eligible recipient membership input
+     * @param redirectAttributes originating workflow flash state
+     * @return workflow redirect after a successful or rejected Project rule operation
+     */
     @PostMapping("/{projectId}/exits/{requestId}/transfer")
     String transferExitTasks(
             Principal principal,
@@ -278,6 +297,7 @@ public class ProjectController {
             @PathVariable long requestId,
             @RequestParam(defaultValue = "") String sourceMembershipId,
             @RequestParam(required = false) Set<String> taskIds,
+            @RequestParam(name = "taskVersions", required = false) List<String> taskVersionPairs,
             @RequestParam(defaultValue = "") String recipientMembershipId,
             RedirectAttributes redirectAttributes) {
         return workflowMutation(projectId, redirectAttributes, Map.of(
@@ -285,13 +305,18 @@ public class ProjectController {
                 "requestId", requestId,
                 "sourceMembershipId", sourceMembershipId,
                 "taskIds", taskIds == null ? Set.of() : Set.copyOf(taskIds),
-                "recipientMembershipId", recipientMembershipId), () -> projects.transferTasks(
-                actorId(principal),
-                projectId,
-                requestId,
-                requiredLong(sourceMembershipId, "Choose a valid source membership."),
-                requiredLongSet(taskIds, "Choose at least one valid Task."),
-                requiredLong(recipientMembershipId, "Choose a valid recipient membership.")));
+                "taskVersions", taskVersionPairs == null ? List.of() : List.copyOf(taskVersionPairs),
+                "recipientMembershipId", recipientMembershipId), () -> {
+            Set<Long> selectedTaskIds = requiredLongSet(taskIds, "Choose at least one valid Task.");
+            return projects.transferTasks(
+                    actorId(principal),
+                    projectId,
+                    requestId,
+                    requiredLong(sourceMembershipId, "Choose a valid source membership."),
+                    selectedTaskIds,
+                    requiredTaskVersions(selectedTaskIds, taskVersionPairs),
+                    requiredLong(recipientMembershipId, "Choose a valid recipient membership."));
+        });
     }
 
     @PostMapping("/{projectId}/exits/{requestId}/approve")
@@ -658,6 +683,41 @@ public class ProjectController {
                     .collect(Collectors.toUnmodifiableSet());
         } catch (NumberFormatException exception) {
             throw new ProjectRuleViolationException(errorMessage);
+        }
+    }
+
+    private static Map<Long, Long> requiredTaskVersions(
+            Set<Long> taskIds, List<String> taskVersionPairs) {
+        if (taskVersionPairs == null || taskVersionPairs.isEmpty()) {
+            throw new ProjectRuleViolationException("Submit one version for every selected Task.");
+        }
+        Map<Long, Long> versions = new LinkedHashMap<>();
+        for (String rawPair : taskVersionPairs) {
+            String[] parts = rawPair == null ? new String[0] : rawPair.strip().split(":", -1);
+            if (parts.length != 2) {
+                throw new ProjectRuleViolationException("Submit valid Task ID/version pairs.");
+            }
+            long taskId = parseTransferValue(parts[0], true);
+            long version = parseTransferValue(parts[1], false);
+            if (!taskIds.contains(taskId) || versions.putIfAbsent(taskId, version) != null) {
+                throw new ProjectRuleViolationException("Submit one version for every selected Task.");
+            }
+        }
+        if (!versions.keySet().equals(taskIds)) {
+            throw new ProjectRuleViolationException("Submit one version for every selected Task.");
+        }
+        return Map.copyOf(versions);
+    }
+
+    private static long parseTransferValue(String value, boolean taskId) {
+        try {
+            long parsed = Long.parseLong(value.strip());
+            if ((taskId && parsed <= 0) || (!taskId && parsed < 0)) {
+                throw new NumberFormatException();
+            }
+            return parsed;
+        } catch (NumberFormatException | NullPointerException exception) {
+            throw new ProjectRuleViolationException("Submit valid Task ID/version pairs.");
         }
     }
 

@@ -618,6 +618,7 @@ public class ProjectService {
                 null,
                 sourceMembershipId,
                 taskIds,
+                null,
                 recipientMembershipId);
     }
 
@@ -649,6 +650,47 @@ public class ProjectService {
             long sourceMembershipId,
             Set<Long> taskIds,
             long recipientMembershipId) {
+        return transferTasks(
+                actorUserId,
+                projectId,
+                requestId,
+                sourceMembershipId,
+                taskIds,
+                null,
+                recipientMembershipId);
+    }
+
+    /**
+     * Commits one pending-exit Task batch with the client-observed version of every selected Task.
+     *
+     * <p>The request-bound route and source membership are checked before this service copies and
+     * validates the version map. A non-null map must have exactly the selected Task IDs and
+     * non-negative versions; the immutable result is then passed through the locked Project
+     * context to the Task producer. A stale version raises the Task-owned conflict, rolling back
+     * the whole transaction before assignment or notification mutation.</p>
+     *
+     * @param actorUserId authenticated current Leader
+     * @param projectId owning open Project
+     * @param requestId pending exit request from the route
+     * @param sourceMembershipId pending-exit source membership
+     * @param taskIds selected unfinished Task identifiers
+     * @param expectedTaskVersions client-observed version for each selected Task
+     * @param recipientMembershipId eligible current recipient not pending exit
+     * @return atomic Task transfer result
+     * @throws ProjectAccessDeniedException when the request is outside the Project or source
+     *         membership is not its target
+     * @throws ProjectRuleViolationException when the request is terminal, the Project changed, or
+     *         the supplied Task/version key sets are incomplete
+     */
+    @Transactional
+    public TaskTransferResult transferTasks(
+            long actorUserId,
+            long projectId,
+            long requestId,
+            long sourceMembershipId,
+            Set<Long> taskIds,
+            Map<Long, Long> expectedTaskVersions,
+            long recipientMembershipId) {
         var route = exitRequestRoute(requestId);
         if (route.projectId() != projectId) {
             throw new ProjectAccessDeniedException();
@@ -659,6 +701,7 @@ public class ProjectService {
                 requestId,
                 sourceMembershipId,
                 taskIds,
+                expectedTaskVersions,
                 recipientMembershipId);
     }
 
@@ -668,6 +711,7 @@ public class ProjectService {
             Long requestId,
             long sourceMembershipId,
             Set<Long> taskIds,
+            Map<Long, Long> expectedTaskVersions,
             long recipientMembershipId) {
         var route = projectRoute(projectId);
         if (!Objects.equals(route.currentLeaderUserId(), actorUserId)) {
@@ -700,13 +744,31 @@ public class ProjectService {
                 throw new ProjectAccessDeniedException();
             }
         }
+        Map<Long, Long> immutableTaskVersions = immutableTaskVersions(taskIds, expectedTaskVersions);
         var context = queries.taskContext(actorUserId, project, pendingExitMembershipIds);
         return taskTransfers.transferBatch(
                 context,
                 leader.id(),
                 sourceMembershipId,
                 taskIds,
+                immutableTaskVersions,
                 recipientMembershipId);
+    }
+
+    private static Map<Long, Long> immutableTaskVersions(
+            Set<Long> taskIds, Map<Long, Long> expectedTaskVersions) {
+        if (expectedTaskVersions == null) {
+            return null;
+        }
+        if (taskIds == null || taskIds.isEmpty()
+                || expectedTaskVersions.size() != taskIds.size()
+                || !expectedTaskVersions.keySet().equals(taskIds)
+                || expectedTaskVersions.entrySet().stream().anyMatch(entry ->
+                        entry.getKey() == null || entry.getValue() == null
+                                || entry.getKey() <= 0 || entry.getValue() < 0)) {
+            throw new ProjectRuleViolationException("Submit one version for every selected Task.");
+        }
+        return Map.copyOf(expectedTaskVersions);
     }
 
     /**

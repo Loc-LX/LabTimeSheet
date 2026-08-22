@@ -32,12 +32,15 @@ import com.lab.labtimesheet.feature.project.model.dto.ProjectListPage;
 import com.lab.labtimesheet.feature.project.service.ProjectQueryService;
 import com.lab.labtimesheet.feature.project.service.ProjectService;
 import com.lab.labtimesheet.feature.integration.service.SmtpConfigurationService;
+import com.lab.labtimesheet.feature.task.exception.TaskConflictException;
 import java.time.Instant;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.regex.Pattern;
+import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -264,6 +267,65 @@ class ProjectControllerTest {
         verify(projects).cancelExit(10L, 30L, 50L);
         verify(projects).approveExit(10L, 30L, 60L, null);
         verify(projects).rejectExit(10L, 30L, 70L, "No");
+    }
+
+    @Test
+    @WithMockUser(username = "leader@example.test")
+    void exitTransferBindsCompleteTaskVersionPairsAndPassesThemToProjectService() throws Exception {
+        when(pages.authenticatedUserId("leader@example.test")).thenReturn(20L);
+
+        mvc.perform(post("/projects/30/exits/70/transfer")
+                        .with(csrf())
+                        .param("sourceMembershipId", "41")
+                        .param("taskIds", "101", "102")
+                        .param("taskVersions", "101:4", "102:9")
+                        .param("recipientMembershipId", "42"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/projects/30/workflows"));
+
+        verify(projects).transferTasks(
+                20L, 30L, 70L, 41L, Set.of(101L, 102L), Map.of(101L, 4L, 102L, 9L), 42L);
+    }
+
+    @Test
+    @WithMockUser(username = "leader@example.test")
+    void exitTransferRejectsAnIncompleteTaskVersionMapBeforeCallingProjectService() throws Exception {
+        when(pages.authenticatedUserId("leader@example.test")).thenReturn(20L);
+
+        mvc.perform(post("/projects/30/exits/70/transfer")
+                        .with(csrf())
+                        .param("sourceMembershipId", "41")
+                        .param("taskIds", "101", "102")
+                        .param("taskVersions", "101:4")
+                        .param("recipientMembershipId", "42"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/projects/30/workflows"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.flash()
+                        .attribute("projectError", "Submit one version for every selected Task."));
+
+        org.mockito.Mockito.verifyNoInteractions(projects);
+    }
+
+    @Test
+    @WithMockUser(username = "leader@example.test")
+    void staleExitTransferReturnsSafeConflictWithoutProjectRedirect() throws Exception {
+        when(pages.authenticatedUserId("leader@example.test")).thenReturn(20L);
+        when(projects.transferTasks(
+                        20L, 30L, 70L, 41L, Set.of(101L), Map.of(101L, 4L), 42L))
+                .thenThrow(new TaskConflictException(
+                        "Task changed concurrently; reload before trying again", null));
+
+        mvc.perform(post("/projects/30/exits/70/transfer")
+                        .with(csrf())
+                        .param("sourceMembershipId", "41")
+                        .param("taskIds", "101")
+                        .param("taskVersions", "101:4")
+                        .param("recipientMembershipId", "42"))
+                .andExpect(status().isConflict())
+                .andExpect(view().name("error/generic"))
+                .andExpect(model().attribute("errorStatus", 409))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(containsString("Reload")));
     }
 
     @Test

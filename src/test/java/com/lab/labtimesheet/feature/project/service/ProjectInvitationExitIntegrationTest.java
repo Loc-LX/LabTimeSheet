@@ -11,11 +11,13 @@ import com.lab.labtimesheet.feature.project.exception.ProjectAccessDeniedExcepti
 import com.lab.labtimesheet.feature.project.exception.ProjectRuleViolationException;
 import com.lab.labtimesheet.feature.project.model.InvitationResponse;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectCreateCommand;
+import com.lab.labtimesheet.feature.task.exception.TaskConflictException;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.function.Executable;
@@ -532,6 +534,43 @@ class ProjectInvitationExitIntegrationTest {
                 "select assignee_membership_id from tasks where id = ?", secondTaskId));
         assertEquals(targetMembershipId, number(
                 "select assignee_membership_id from tasks where id = ?", doneTaskId));
+    }
+
+    @Test
+    void staleExitTransferVersionReturnsConflictWithoutPartialTaskOrRequestMutation() {
+        long mentorId = user("mentor-stale-transfer@example.test", "MENTOR");
+        long leaderId = intern("leader-stale-transfer@example.test", "I190");
+        long targetId = intern("target-stale-transfer@example.test", "I191");
+        long recipientId = intern("recipient-stale-transfer@example.test", "I192");
+        long projectId = createProject(mentorId, leaderId, "Stale transfer");
+        projects.addMembers(mentorId, projectId, List.of(targetId, recipientId));
+        long targetMembershipId = membershipId(projectId, targetId);
+        long recipientMembershipId = membershipId(projectId, recipientId);
+        long leaderMembershipId = membershipId(projectId, leaderId);
+        long taskId = insertTask(projectId, targetMembershipId, leaderMembershipId, "Stale Task", "TODO");
+        long requestId = projects.requestMemberRemoval(
+                leaderId, projectId, targetMembershipId, "Stale browser snapshot");
+        long observedVersion = number("select version from tasks where id = ?", taskId);
+        int notificationCount = count("select count(*) from notifications");
+
+        jdbc.update("update tasks set version = version + 1 where id = ?", taskId);
+        entityManager.clear();
+
+        assertThrows(TaskConflictException.class, () -> projects.transferTasks(
+                leaderId,
+                projectId,
+                requestId,
+                targetMembershipId,
+                Set.of(taskId),
+                Map.of(taskId, observedVersion),
+                recipientMembershipId));
+
+        assertEquals(targetMembershipId, number(
+                "select assignee_membership_id from tasks where id = ?", taskId));
+        assertEquals(observedVersion + 1, number("select version from tasks where id = ?", taskId));
+        assertEquals("PENDING", text(
+                "select status from project_membership_exit_requests where id = ?", requestId));
+        assertEquals(notificationCount, count("select count(*) from notifications"));
     }
 
     @Test
