@@ -22,16 +22,37 @@ class TimeConfigurationTest {
     }
 
     @Test
-    void e2eProfileUsesTheConfiguredFixedInstant() {
+    void e2eProfileStartsNearTheConfiguredInstant() {
         try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext()) {
             context.getEnvironment().setActiveProfiles("e2e");
             TestPropertySourceUtils.addInlinedPropertiesToEnvironment(
-                    context, "lab.e2e.fixed-instant=2026-08-22T02:00:00Z");
+                    context, "lab.e2e.start-instant=2026-08-22T02:00:00Z");
             context.register(TimeConfiguration.class);
             context.refresh();
 
             Clock clock = context.getBean(Clock.class);
-            assertThat(clock.instant()).isEqualTo(Instant.parse("2026-08-22T02:00:00Z"));
+            assertThat(clock.instant()).isBetween(Instant.parse("2026-08-22T02:00:00Z"),
+                    Instant.parse("2026-08-22T02:00:05Z"));
+        }
+    }
+
+    @Test
+    void e2eProfileClockAdvancesFromTheConfiguredStartInstant() throws InterruptedException {
+        try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext()) {
+            context.getEnvironment().setActiveProfiles("e2e");
+            TestPropertySourceUtils.addInlinedPropertiesToEnvironment(
+                    context, "lab.e2e.start-instant=2026-08-22T02:00:00Z");
+            context.register(TimeConfiguration.class);
+            context.refresh();
+
+            Clock clock = context.getBean(Clock.class);
+            Instant before = clock.instant();
+            Thread.sleep(20);
+            Instant after = clock.instant();
+
+            assertThat(before).isBetween(Instant.parse("2026-08-22T02:00:00Z"),
+                    Instant.parse("2026-08-22T02:00:05Z"));
+            assertThat(after).isAfter(before);
         }
     }
 
@@ -40,11 +61,26 @@ class TimeConfigurationTest {
         try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext()) {
             context.getEnvironment().setActiveProfiles("prod", "e2e");
             TestPropertySourceUtils.addInlinedPropertiesToEnvironment(
-                    context, "lab.e2e.fixed-instant=2026-08-22T02:00:00Z");
+                    context, "lab.e2e.start-instant=2026-08-22T02:00:00Z");
             context.register(TimeConfiguration.class);
 
             assertThat(org.assertj.core.api.Assertions.catchThrowable(context::refresh))
                     .hasRootCauseMessage("e2e fixed clock cannot be enabled with prod");
+        }
+    }
+
+    @Test
+    void retiredFixedClockPropertyIsRejectedExplicitly() {
+        try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext()) {
+            context.getEnvironment().setActiveProfiles("e2e");
+            TestPropertySourceUtils.addInlinedPropertiesToEnvironment(
+                    context,
+                    "lab.e2e.start-instant=2026-08-22T02:00:00Z",
+                    "lab.e2e.fixed-instant=2026-08-22T02:00:00Z");
+            context.register(TimeConfiguration.class);
+
+            assertThat(org.assertj.core.api.Assertions.catchThrowable(context::refresh))
+                    .hasRootCauseMessage("lab.e2e.fixed-instant is retired; use lab.e2e.start-instant");
         }
     }
 }

@@ -113,15 +113,16 @@ test("deterministic E2E clock is opt-in and rejected in production", () => {
   const startupTest = read("src/test/java/com/lab/labtimesheet/config/E2eProfileIntegrationTest.java");
 
   assert.match(e2e, /on-profile: e2e/);
-  assert.match(e2e, /fixed-instant: "\$\{LAB_E2E_FIXED_INSTANT:/);
+  assert.match(e2e, /start-instant: "\$\{LAB_E2E_START_INSTANT:/);
   assert.match(application, /group:\n\s+e2e: dev/);
   assert.match(timeConfiguration, /@Profile\("e2e & !prod"\)/);
   assert.match(timeConfiguration, /@Profile\("prod & e2e"\)/);
   assert.match(timeConfiguration, /e2e fixed clock cannot be enabled with prod/);
+  assert.match(timeConfiguration, /lab\.e2e\.fixed-instant is retired; use lab\.e2e\.start-instant/);
   assert.match(startupTest, /@SpringBootTest/);
   assert.match(startupTest, /@ActiveProfiles\("e2e"\)/);
-  assert.match(development, /LAB_E2E_FIXED_INSTANT=.*\n\s+\.\/mvnw spring-boot:run/);
-  assert.match(testing, /LAB_E2E_FIXED_INSTANT=.*spring-boot:run/s);
+  assert.match(development, /LAB_E2E_START_INSTANT=.*\n\s+\.\/mvnw spring-boot:run/);
+  assert.match(testing, /LAB_E2E_START_INSTANT=.*spring-boot:run/s);
   assert.doesNotMatch(development, /spring\.profiles\.active=prod,e2e/);
 });
 
