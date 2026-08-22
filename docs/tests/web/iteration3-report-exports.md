@@ -3,7 +3,7 @@
 - **Test type:** Web
 - **Requirement IDs:** `I3-UI-01`, `I3-UI-02`, `RPT-001`, `RPT-006`–`RPT-010`
 - **Scenario IDs:** `AC-RPT-001`, `AC-RPT-002`, `AC-RPT-003`, `AC-TST-001`
-- **Test class/method:** `com.lab.labtimesheet.feature.reporting.controller.ReportingExportControllerWebTest#attendanceXlsxDownloadUsesAttachmentAndWorkbookContentType`; `#projectTaskPdfDownloadUsesAttachmentAndPdfContentType`; `#rejectsInvalidProjectTaskExportRangesBeforeDatasetConstruction`
+- **Test class/method:** `com.lab.labtimesheet.feature.reporting.controller.ReportingExportControllerWebTest#attendanceXlsxDownloadUsesAttachmentAndWorkbookContentType`; `#projectTaskPdfDownloadUsesAttachmentAndPdfContentType`; `#rejectsInvalidProjectTaskExportRangesBeforeDatasetConstruction`; `com.lab.labtimesheet.feature.reporting.service.ReportExportServiceTest#nonEmptyVietnameseProjectTaskDatasetKeepsActualHtmlWorkbookAndPdfParity`
 - **Implementation commit:** `639d02e404cbd551ffd70def15021a1d6beb8cf9` (bounded export production fix)
 
 ## Protected behavior
@@ -12,7 +12,7 @@ Authorized attendance and Project/Task report datasets have downloadable XLSX an
 
 ## Test method
 
-The MVC slice authenticates an Intern for attendance and a Mentor for Project/Task, then requests one download route for each format. The report services and byte exporter are test doubles at this response-contract boundary. The merged Platform dependency pin is consumed by the focused exporter tests. A shared-dataset test now checks the same totals in print HTML, parsed XLSX summary cells, and PDF text extraction; the PDF test also checks Vietnamese text and an embedded `/FontFile` marker.
+The MVC slice authenticates an Intern for attendance and a Mentor for Project/Task, then requests one download route for each format. The report services and byte exporter are test doubles at this response-contract boundary. The merged Platform dependency pin is consumed by the focused exporter tests. A shared-dataset test renders the actual `reports/project-tasks` application template and checks the same non-empty Vietnamese project/task, filters, status counts, completion, member/total minutes, and `N/A` values in print HTML, parsed XLSX summary/task cells, and PDF text extraction; the PDF test also checks Vietnamese text and an embedded `/FontFile` marker.
 
 ## Hand-derived expected result
 
@@ -34,6 +34,8 @@ FAIL: /reports/attendance.xlsx and /reports/project-tasks.pdf returned 404 becau
 
 The first unsandboxed run was not counted as RED because Mockito could not self-attach under the sandbox; the host-permitted rerun reached the expected missing-route failures.
 
+The new parity test first failed in the host-permitted focused run because the actual application template requires a servlet-aware Thymeleaf `WebContext`; a plain context could not resolve the layout's context-relative asset link. The test now uses the servlet-aware template context required by the application.
+
 ## GREEN
 
 **Command**
@@ -45,7 +47,7 @@ JAVA_HOME=/opt/homebrew/opt/openjdk@25 PATH=/opt/homebrew/opt/openjdk@25/bin:$PA
 **Observed result**
 
 ```text
-Merged Platform dependency tree: BUILD SUCCESS for 13/13 focused tests (9 bounded-route cases plus 4 exporter cases, including the actual Thymeleaf print template) with POI 5.5.1 and OpenPDF HTML/fonts-extra 3.0.3. The additional parity/font extraction tests pass individually and are recorded in `2a26ceb661c065e5a7908a0b76603df967f36d33`; managed-browser results remain unclaimed.
+Merged Platform dependency tree: BUILD SUCCESS for the focused exporter/controller selection (15 tests: 6 exporter-service and 9 bounded-controller cases) with POI 5.5.1 and OpenPDF HTML/fonts-extra 3.0.3. The new `ReportExportServiceTest` parity selection passed 7/7, including the non-empty Vietnamese actual-template/XLSX/PDF parity case; managed-browser results are recorded separately in the E2E evidence.
 ```
 
 ## Affected suite
@@ -53,7 +55,7 @@ Merged Platform dependency tree: BUILD SUCCESS for 13/13 focused tests (9 bounde
 **Command and result**
 
 ```text
-Merged-tree regression slice: `./mvnw -Dtest=AttendanceReportControllerWebTest,ProjectTaskReportControllerWebTest,AttendanceTemplateIntegrationTest,ProjectTaskShellContractTest test` passed 17/17 after the bounded-link template guard. The focused exporter route/service suite passed 13/13; the parity/font extraction tests are in `ReportExportServiceTest`.
+Merged-tree regression slice: `./mvnw -Dtest=AttendanceReportControllerWebTest,ProjectTaskReportControllerWebTest,AttendanceTemplateIntegrationTest,ProjectTaskShellContractTest test` passed 17/17 after the bounded-link template guard. The current focused exporter/controller count is 15 (6 service + 9 controller); the separate parity selection passed 7/7 in `ReportExportServiceTest`.
 ```
 
 ### Boundary-fix RED/GREEN
@@ -62,4 +64,4 @@ The new parameterized MVC cases first failed because null and half-open Project/
 
 ## External-test boundaries
 
-This evidence does not prove PostgreSQL report authorization or live browser download behavior. The credential-gated Playwright journey is implemented but remains unexecuted because the local Java service could not start without `LAB_SMTP_HOST` and `LAB_DB_*` configuration.
+This evidence does not prove PostgreSQL report authorization. Live browser download evidence is recorded in the E2E document; the current final-review E2E rerun is blocked later at the Attendance non-workday check-in mutation, after the previously green Project/Task downloads.

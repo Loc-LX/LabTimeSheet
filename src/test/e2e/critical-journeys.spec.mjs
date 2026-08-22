@@ -5,6 +5,7 @@ test.describe.configure({ mode: 'serial' });
 test('Iteration 3 setup and critical Admin/Intern/Mentor journeys', async ({ page, request }, testInfo) => {
   test.setTimeout(120_000);
   const stamp = Date.now();
+  const dates = runtimeDates();
   const admin = account(`admin-${stamp}@e2e.test`, `E2E Admin ${stamp}`, 'AdminPass!2026');
   const mentor = account(`mentor-${stamp}@e2e.test`, `E2E Mentor ${stamp}`, 'MentorPass!2026');
   const intern = account(`intern-${stamp}@e2e.test`, `E2E Intern ${stamp}`, 'InternPass!2026');
@@ -29,8 +30,8 @@ test('Iteration 3 setup and critical Admin/Intern/Mentor journeys', async ({ pag
   await signIn(page, admin);
   await createAccount(page, request, intern, 'INTERN', {
     studentCode: `STU-${stamp}`,
-    start: '2026-08-01',
-    end: '2026-12-31',
+    start: dates.internshipStart,
+    end: dates.internshipEnd,
   });
 
   await signIn(page, admin);
@@ -39,6 +40,32 @@ test('Iteration 3 setup and critical Admin/Intern/Mentor journeys', async ({ pag
   await page.getByLabel('Search').fill(intern.email);
   await page.getByRole('button', { name: 'Apply filters' }).click();
   await expect(page.getByText(intern.displayName)).toBeVisible();
+
+  const internRow = page.locator('tbody tr').filter({ hasText: intern.email });
+  await internRow.getByRole('link', { name: 'View' }).click();
+  await page.getByRole('link', { name: 'Edit permitted details' }).click();
+  await expect(page.getByRole('heading', { name: 'Account correction' })).toBeVisible();
+  const correctedStudentCode = `CORR-${stamp}`;
+  await page.getByLabel('Student code').fill(correctedStudentCode);
+  await page.getByRole('button', { name: 'Save correction' }).click();
+  await expect(page).toHaveURL(/\/admin\/accounts\/\d+$/);
+  await expect(page.getByText('Account correction saved', { exact: true })).toBeVisible();
+
+  await page.goto('/admin/attendance-policies');
+  await expect(page.locator('h1').filter({ hasText: 'Attendance Policy' })).toBeVisible();
+  await page.getByLabel('Effective month').fill(dates.nextMonth);
+  await page.getByRole('button', { name: 'Schedule policy' }).click();
+  await expect(page.getByText('Attendance policy scheduled', { exact: true })).toBeVisible();
+  await expect(page.locator('#policy-history')).toContainText(formatDate(`${dates.nextMonth}-01`));
+
+  await page.goto('/attendance/calendar');
+  await page.getByLabel('Date', { exact: true }).fill(dates.today);
+  await page.getByLabel('Name', { exact: true }).fill(`E2E workday ${stamp}`);
+  const dayOff = page.locator('form[action="/attendance/calendar"] input[name="dayOff"]');
+  if (await dayOff.isChecked()) await dayOff.uncheck();
+  await page.getByRole('button', { name: 'Add event' }).click();
+  await expect(page.getByText('Calendar event created', { exact: true })).toBeVisible();
+  await expect(page.locator('#calendar-history')).toContainText(`E2E workday ${stamp}`);
 
   for (const [route, heading] of [
     ['/admin/attendance-policies', 'Attendance Policy'],
@@ -59,8 +86,8 @@ test('Iteration 3 setup and critical Admin/Intern/Mentor journeys', async ({ pag
   await waitForEligibleIntern(page, intern.displayName);
   await page.getByRole('textbox', { name: 'Name', exact: true }).fill(projectName);
   await page.getByLabel('Description').fill(`Browser-created project ${stamp}`);
-  await page.getByLabel('Start date').fill('2026-08-01');
-  await page.getByLabel('End date').fill('2026-12-31');
+  await page.getByLabel('Start date').fill(dates.projectStart);
+  await page.getByLabel('End date').fill(dates.projectEnd);
   await page.getByRole('button', { name: 'Choose an eligible Intern' }).click();
   await page.locator('[data-picker-option]').filter({ hasText: intern.displayName })
     .locator('input[type="radio"]').check();
@@ -81,7 +108,7 @@ test('Iteration 3 setup and critical Admin/Intern/Mentor journeys', async ({ pag
   await page.getByLabel('Title').fill(taskTitle);
   await page.getByLabel('Description').fill(`Browser-created task ${stamp}`);
   await page.getByLabel('Assignee').selectOption({ label: intern.displayName });
-  await page.getByLabel('Due date').fill('2026-09-30');
+  await page.getByLabel('Due date').fill(dates.taskDue);
   await page.getByRole('button', { name: 'Create Task' }).click();
   await expect(page).toHaveURL(new RegExp(`/projects/${projectId}/tasks/\\d+$`));
   const taskId = idFromUrl(page.url(), /\/tasks\/(\d+)$/);
@@ -89,7 +116,7 @@ test('Iteration 3 setup and critical Admin/Intern/Mentor journeys', async ({ pag
   await page.getByLabel('New status').selectOption('IN_PROGRESS');
   await page.getByRole('button', { name: 'Change status' }).click();
   await expect(page.getByText('IN_PROGRESS', { exact: true })).toBeVisible();
-  await page.getByLabel('Work date').fill('2026-08-22');
+  await page.getByLabel('Work date').fill(dates.today);
   await page.getByLabel('Minutes').fill('90');
   await page.getByLabel('Note').fill('Browser-created work log');
   await page.getByRole('button', { name: 'Log work' }).click();
@@ -103,21 +130,21 @@ test('Iteration 3 setup and critical Admin/Intern/Mentor journeys', async ({ pag
   await page.goto('/reports/project-tasks');
   await expect(page.getByRole('heading', { name: 'Project and Task report' })).toBeVisible();
   await page.getByLabel('Project', { exact: true }).selectOption(String(projectId));
-  await page.getByLabel('Due from').fill('2026-09-01');
-  await page.getByLabel('Due to').fill('2026-09-30');
-  await page.getByLabel('Work date from').fill('2026-08-01');
-  await page.getByLabel('Work date to').fill('2026-08-31');
+  await page.getByLabel('Due from').fill(dates.reportDueFrom);
+  await page.getByLabel('Due to').fill(dates.reportDueTo);
+  await page.getByLabel('Work date from').fill(dates.reportWorkFrom);
+  await page.getByLabel('Work date to').fill(dates.reportWorkTo);
   await page.getByRole('button', { name: 'Apply filters' }).click();
   await expect(page.getByText(taskTitle)).toBeVisible();
   await assertDownload(page, 'Download XLSX', '/reports/project-tasks.xlsx',
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    /^project-task-report-2026-08-01-to-2026-09-30\.xlsx$/,
+    new RegExp(`^project-task-report-${dates.reportWorkFrom}-to-${dates.reportDueTo}\\.xlsx$`),
     (bytes) => {
       expect(bytes.subarray(0, 4).toString()).toBe('PK\u0003\u0004');
       expect(bytes.includes(Buffer.from('xl/worksheets/sheet1.xml'))).toBe(true);
     });
   await assertDownload(page, 'Download PDF', '/reports/project-tasks.pdf', 'application/pdf',
-    /^project-task-report-2026-08-01-to-2026-09-30\.pdf$/,
+    new RegExp(`^project-task-report-${dates.reportWorkFrom}-to-${dates.reportDueTo}\\.pdf$`),
     (bytes) => expect(bytes.subarray(0, 4).toString()).toBe('%PDF'));
 
   await signIn(page, intern);
@@ -133,21 +160,67 @@ test('Iteration 3 setup and critical Admin/Intern/Mentor journeys', async ({ pag
   await page.goto('/attendance/leave');
   await expect(page.getByText('Submit and review full-day leave requests.')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'My Leave' })).toBeVisible();
-  await page.getByLabel('Quota month').fill('2026-08');
+  await page.getByLabel('Quota month').fill(dates.month);
   await page.getByRole('button', { name: 'View balance' }).click();
   await expect(page.getByText(/reserved.*quota.*remaining/)).toBeVisible();
+
+  await page.getByLabel('Start').fill(dates.leaveDate);
+  await page.getByLabel('End').fill(dates.leaveDate);
+  await page.getByLabel('Reason').fill(`E2E leave ${stamp}`);
+  await page.getByRole('button', { name: 'Submit leave' }).click();
+  await expect(page).toHaveURL(/\/attendance\/leave\/\d+$/);
+  const leaveDetail = page.locator('section').filter({ hasText: 'Leave request detail' });
+  await expect(leaveDetail.getByText('Pending decision', { exact: true })).toBeVisible();
+  const leaveUrl = page.url();
+  await signIn(page, mentor);
+  await page.goto(leaveUrl);
+  await expect(page.getByRole('heading', { name: 'Leave request detail' })).toBeVisible();
+  await page.getByRole('button', { name: 'Approve' }).click();
+  await expect(page.getByText('Leave request approved', { exact: true })).toBeVisible();
+  await expect(leaveDetail.getByText('Approved', { exact: true })).toBeVisible();
+
+  await signIn(page, intern);
+  await page.goto('/attendance');
+  await page.getByRole('button', { name: 'Check in' }).click();
+  await expect(page.getByText('Checked in', { exact: true })).toBeVisible();
+  const correctionLink = page.getByRole('link', { name: 'Request correction' }).first();
+  await expect(correctionLink).toBeVisible();
+  const correctionFormUrl = await correctionLink.getAttribute('href');
+  if (!correctionFormUrl) throw new Error('Checked-in attendance row did not expose correction form');
+  const attendanceRecordId = new URL(correctionFormUrl, page.url()).searchParams.get('attendanceRecordId');
+  if (!attendanceRecordId) throw new Error(`Correction form did not retain attendance record: ${correctionFormUrl}`);
+  const proposedCheckout = await proposedCheckoutAfterCheckIn(page);
+  await page.goto(correctionFormUrl);
+  await page.getByLabel('Attendance record').fill(attendanceRecordId);
+  await page.getByLabel('Proposed checkout').fill(proposedCheckout.value);
+  await page.getByLabel('Reason').fill(`E2E correction ${stamp}`);
+  await page.getByRole('button', { name: 'Submit correction' }).click();
+  await expect(page).toHaveURL(/\/attendance\/corrections\/\d+$/);
+  const correctionDetail = page.locator('section').filter({ hasText: 'Correction detail' });
+  await expect(correctionDetail.getByText('Pending decision', { exact: true })).toBeVisible();
+  const correctionUrl = page.url();
+  await signIn(page, mentor);
+  await page.goto(correctionUrl);
+  await expect(page.getByRole('heading', { name: 'Correction detail' })).toBeVisible();
+  await page.getByLabel('Decision').selectOption('APPROVE');
+  await page.getByLabel('Note').fill(`E2E correction approved ${stamp}`);
+  await page.getByRole('button', { name: 'Save decision' }).click();
+  await expect(page.getByText('Correction decision saved', { exact: true })).toBeVisible();
+  await expect(correctionDetail.getByText('Approved', { exact: true })).toBeVisible();
+
+  await signIn(page, intern);
   await page.goto('/attendance/corrections');
   await expect(page.getByText('Submit and review missed-checkout corrections.')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'My Corrections' })).toBeVisible();
 
-  await page.goto('/reports/attendance?from=2026-08-01&to=2026-08-31');
+  await page.goto(`/reports/attendance?from=${dates.reportWorkFrom}&to=${dates.reportWorkTo}`);
   await expect(page.getByRole('heading', { name: 'Attendance report' })).toBeVisible();
   await assertDownload(page, 'Download XLSX', '/reports/attendance.xlsx',
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    /^attendance-report-2026-08-01-to-2026-08-31\.xlsx$/,
+    new RegExp(`^attendance-report-${dates.reportWorkFrom}-to-${dates.reportWorkTo}\\.xlsx$`),
     (bytes) => expect(bytes.subarray(0, 4).toString()).toBe('PK\u0003\u0004'));
   await assertDownload(page, 'Download PDF', '/reports/attendance.pdf', 'application/pdf',
-    /^attendance-report-2026-08-01-to-2026-08-31\.pdf$/,
+    new RegExp(`^attendance-report-${dates.reportWorkFrom}-to-${dates.reportWorkTo}\\.pdf$`),
     (bytes) => expect(bytes.subarray(0, 4).toString()).toBe('%PDF'));
 
   await signIn(page, mentor);
@@ -156,6 +229,73 @@ test('Iteration 3 setup and critical Admin/Intern/Mentor journeys', async ({ pag
   await page.goto('/attendance/corrections');
   await expect(page.getByRole('heading', { name: 'Correction decisions' })).toBeVisible();
 });
+
+function runtimeDates() {
+  const today = zonedToday();
+  const internshipStart = addDays(today, -7);
+  const internshipEnd = addDays(today, 90);
+  const taskDue = addDays(today, 30);
+  const reportDueFrom = addDays(taskDue, -7);
+  const reportWorkFrom = addDays(today, -7);
+  const [year, month] = today.slice(0, 7).split('-').map(Number);
+  const nextMonthDate = new Date(Date.UTC(year, month, 1));
+  const nextMonth = nextMonthDate.toISOString().slice(0, 7);
+  return {
+    today,
+    internshipStart,
+    internshipEnd,
+    projectStart: internshipStart,
+    projectEnd: internshipEnd,
+    taskDue,
+    reportDueFrom,
+    reportDueTo: taskDue,
+    reportWorkFrom,
+    reportWorkTo: today,
+    month: today.slice(0, 7),
+    nextMonth,
+    leaveDate: nextWeekday(today),
+  };
+}
+
+function zonedToday() {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(new Date());
+  const values = Object.fromEntries(parts.filter(({ type }) => type !== 'literal').map(({ type, value }) => [type, value]));
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
+function addDays(isoDate, days) {
+  const date = new Date(`${isoDate}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function nextWeekday(isoDate) {
+  let date = addDays(isoDate, 1);
+  while ([0, 6].includes(new Date(`${date}T00:00:00Z`).getUTCDay())) date = addDays(date, 1);
+  return date;
+}
+
+function formatDate(isoDate) {
+  const [year, month, day] = isoDate.split('-');
+  return `${day}/${month}/${year}`;
+}
+
+async function proposedCheckoutAfterCheckIn(page) {
+  const proposal = await page.evaluate(() => {
+    const now = new Date();
+    now.setSeconds(0, 0);
+    const proposed = new Date(now.getTime() + 60_000);
+    const pad = (value) => String(value).padStart(2, '0');
+    return {
+      value: `${proposed.getFullYear()}-${pad(proposed.getMonth() + 1)}-${pad(proposed.getDate())}T${pad(proposed.getHours())}:${pad(proposed.getMinutes())}`,
+      deadline: proposed.getTime(),
+    };
+  });
+  await page.waitForTimeout(Math.max(0, proposal.deadline - Date.now() + 1_000));
+  return proposal;
+}
 
 function account(email, displayName, password) {
   return { email, displayName, password };
