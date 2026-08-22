@@ -4,7 +4,7 @@
 - **Requirement IDs:** `I3-UI-01`, `I3-UI-02`, `RPT-001`, `RPT-006`–`RPT-010`
 - **Scenario IDs:** `AC-RPT-001`, `AC-RPT-002`, `AC-RPT-003`, `AC-TST-001`
 - **Test class/method:** `com.lab.labtimesheet.feature.reporting.controller.ReportingExportControllerWebTest#attendanceXlsxDownloadUsesAttachmentAndWorkbookContentType`; `#projectTaskPdfDownloadUsesAttachmentAndPdfContentType`; `#rejectsInvalidProjectTaskExportRangesBeforeDatasetConstruction`; `com.lab.labtimesheet.feature.reporting.service.ReportExportServiceTest#nonEmptyVietnameseProjectTaskDatasetKeepsActualHtmlWorkbookAndPdfParity`
-- **Implementation commit:** `639d02e404cbd551ffd70def15021a1d6beb8cf9` (bounded export production fix)
+- **Implementation commit:** `f0506492857288927f91e020aeba2fa0bb8550e8` (cross-format filter and metric parity fix)
 
 ## Protected behavior
 
@@ -12,7 +12,7 @@ Authorized attendance and Project/Task report datasets have downloadable XLSX an
 
 ## Test method
 
-The MVC slice authenticates an Intern for attendance and a Mentor for Project/Task, then requests one download route for each format. The report services and byte exporter are test doubles at this response-contract boundary. The merged Platform dependency pin is consumed by the focused exporter tests. A shared-dataset test renders the actual `reports/project-tasks` application template and checks the same non-empty Vietnamese project/task, filters, status counts, completion, member/total minutes, and `N/A` values in print HTML, parsed XLSX summary/task cells, and PDF text extraction; the PDF test also checks Vietnamese text and an embedded `/FontFile` marker.
+The MVC slice authenticates an Intern for attendance and a Mentor for Project/Task, then requests one download route for each format. The report services and byte exporter are test doubles at this response-contract boundary. The merged Platform dependency pin is consumed by the focused exporter tests. A shared-dataset test renders the actual `reports/project-tasks` application template and checks the same non-empty Vietnamese project/task, selected Project/member/status/due/work filters, status counts, completion, distinct member/total/task-row minutes (60/90/45), and `N/A` values in print HTML, parsed XLSX cells, and extracted PDF text; the PDF test also checks Vietnamese text and an embedded `/FontFile` marker.
 
 ## Hand-derived expected result
 
@@ -36,18 +36,27 @@ The first unsandboxed run was not counted as RED because Mockito could not self-
 
 The new parity test first failed in the host-permitted focused run because the actual application template requires a servlet-aware Thymeleaf `WebContext`; a plain context could not resolve the layout's context-relative asset link. The test now uses the servlet-aware template context required by the application.
 
+The round-7 parity assertions then failed in the host-permitted focused run because the XLSX filter row contained only Project/status, the PDF had no filter block, and the HTML assertion matched static help text rather than the Completion metric. The first failing assertion was `ReportExportServiceTest.java:222`, expected XLSX `Member` but observed `Status`.
+
 ## GREEN
 
 **Command**
 
 ```text
-JAVA_HOME=/opt/homebrew/opt/openjdk@25 PATH=/opt/homebrew/opt/openjdk@25/bin:$PATH ./mvnw -Dtest=ReportingExportControllerWebTest test
+rtk proxy env JAVA_HOME=/opt/homebrew/opt/openjdk@25 PATH=/opt/homebrew/opt/openjdk@25/bin:/usr/bin:/bin ./mvnw -DargLine=-javaagent:/Users/sechmachine/.m2/repository/net/bytebuddy/byte-buddy-agent/1.18.10/byte-buddy-agent-1.18.10.jar -Dtest=ReportExportServiceTest test
 ```
 
 **Observed result**
 
 ```text
-Merged Platform dependency tree: BUILD SUCCESS for the focused exporter/controller selection (16 tests: 7 exporter-service and 9 bounded-controller cases) with POI 5.5.1 and OpenPDF HTML/fonts-extra 3.0.3. `ReportExportServiceTest` now proves selected Project/member/status/date filters in actual HTML, distinct member/total/row minutes, and empty selected-Project `N/A` in actual HTML/XLSX/PDF; the whole selection passed 16/16. Managed-browser results are recorded separately in the E2E evidence.
+RED: Tests run: 7, Failures: 1. `nonEmptyVietnameseProjectTaskDatasetKeepsActualHtmlWorkbookAndPdfParity` failed at line 222: expected XLSX cell `Member`, observed `Status`, proving the production XLSX/PDF parity fields were absent rather than an invalid fixture.
+```
+
+**Round-7 GREEN command and result**
+
+```text
+rtk proxy env JAVA_HOME=/opt/homebrew/opt/openjdk@25 PATH=/opt/homebrew/opt/openjdk@25/bin:/usr/bin:/bin ./mvnw -DargLine=-javaagent:/Users/sechmachine/.m2/repository/net/bytebuddy/byte-buddy-agent/1.18.10/byte-buddy-agent-1.18.10.jar -Dtest=ReportExportServiceTest,ReportingExportControllerWebTest test
+BUILD SUCCESS; Tests run: 16, Failures: 0, Errors: 0, Skipped: 0 (7 exporter-service and 9 bounded-controller cases). The shared dataset now proves all selected filters and distinct 60-minute member, 90-minute total, and 45-minute Task-row values in HTML/XLSX/PDF, with the empty HTML assertion scoped to `data-report-metric="completion"`.
 ```
 
 ## Affected suite
@@ -55,7 +64,7 @@ Merged Platform dependency tree: BUILD SUCCESS for the focused exporter/controll
 **Command and result**
 
 ```text
-Merged-tree regression slice: `./mvnw -Dtest=AttendanceReportControllerWebTest,ProjectTaskReportControllerWebTest,AttendanceTemplateIntegrationTest,ProjectTaskShellContractTest test` passed 17/17 after the bounded-link template guard. The current focused exporter/controller count is 16 (7 service + 9 controller), all green.
+Merged-tree reporting/template regression selection with the Java 25 Byte Buddy agent: `-Dtest=ReportExportServiceTest,ReportingExportControllerWebTest,AttendanceReportControllerWebTest,ProjectTaskReportControllerWebTest,AttendanceTemplateIntegrationTest,ProjectTaskShellContractTest` passed 35/35 (7 exporter-service, 9 export-controller, 2 attendance-report-controller, 2 project-task-report-controller, 5 attendance-template, 10 shell-contract).
 ```
 
 ### Boundary-fix RED/GREEN
@@ -64,4 +73,4 @@ The new parameterized MVC cases first failed because null and half-open Project/
 
 ## External-test boundaries
 
-This evidence does not prove PostgreSQL report authorization. Live browser download evidence is recorded in the E2E document; the reviewed advancing-clock critical/full E2E is green with real non-empty Project/Task downloads.
+This evidence does not prove PostgreSQL report authorization. The managed-browser report-download rerun is required after this exporter/template change; its command/result will be recorded in the E2E document before final review. The previously reviewed advancing-clock critical/full E2E remains historical evidence for the unchanged workflow.
