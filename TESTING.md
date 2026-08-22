@@ -98,10 +98,17 @@ They cover report downloads and the selected Iteration 1/2 regression journeys;
 the credential-gated report journey uses `E2E_EMAIL` and `E2E_PASSWORD` from the
 shell and never stores a password in the repository.
 
-Install the exact lockfile dependencies and managed browser on Windows
-PowerShell or macOS:
+Install the exact lockfile dependencies and managed Chromium on Windows
+PowerShell:
 
 ```powershell
+npm ci
+npx playwright install chromium
+```
+
+On macOS, run the same commands from Terminal:
+
+```bash
 npm ci
 npx playwright install chromium
 ```
@@ -127,6 +134,12 @@ npm run test:e2e:ui
 npm run test:e2e:smoke
 npx playwright test src/test/e2e/report-journeys.spec.mjs --project=chromium
 npx playwright show-report
+```
+
+The focused command accepts a file or test title filter, for example:
+
+```bash
+npx playwright test src/test/e2e/report-journeys.spec.mjs --grep "XLSX"
 ```
 
 Project/Task XLSX and PDF downloads require complete inclusive due-date and
