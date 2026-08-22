@@ -4,7 +4,7 @@
 - **Requirement IDs:** `ATT-018`, `GOV-005`, `RPT-004`
 - **Scenario IDs:** `AC-ACC-010`, `AC-ATT-001`
 - **Test class/method:** `com.lab.labtimesheet.feature.attendance.service.AttendancePersistenceIntegrationTest#terminalDateKeepsAttendanceRecordedBeforeInternshipCompletion`
-- **Implementation commit:** `5c08db6d3dc4a2962ee83ba9d10eb62b4a09b373`
+- **Implementation commit:** `715e02b0e24125388cf449ca8f81e9d614458c47`
 
 ## Protected behavior
 
@@ -61,7 +61,7 @@ BUILD SUCCESS; 1 test, 0 failures, 0 errors on PostgreSQL 18.4.
 
 ```text
 rtk env JAVA_HOME=/opt/homebrew/opt/openjdk@25 PATH=/opt/homebrew/opt/openjdk@25/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin ./mvnw -Dtest="AttendanceLombokBoilerplateTest,AttendanceControllerTest,AttendancePolicyControllerWebTest,AttendanceRequestControllerWebTest,CalendarAuthorizationWebIntegrationTest,CalendarControllerWebTest,CalendarDevelopmentProfileWebIntegrationTest,AttendanceApplicationServiceTest,AttendanceConcurrencyIntegrationTest,AttendanceCorrectionApplicationServiceTest,AttendanceDeadlineSchedulerTest,AttendancePersistenceIntegrationTest,AttendancePolicyApplicationServiceTest,AttendanceReadModelServiceTest,AttendanceServiceTest,CalendarImportServiceTest,LeaveApplicationServiceTest,AdminSettingsControllerWebTest,AttendanceReportServiceTest,AttendanceTemplateIntegrationTest" test
-BUILD SUCCESS; 116 tests, 0 failures, 0 errors on Java 25 and PostgreSQL 18.4 Testcontainers.
+BUILD SUCCESS; 128 tests, 0 failures, 0 errors on Java 25 and PostgreSQL 18.4 Testcontainers.
 ```
 
 ## External-test boundaries
@@ -74,10 +74,10 @@ PostgreSQL/Flyway integration boundary.
 
 The companion PostgreSQL regression
 `AttendancePersistenceIntegrationTest#terminalDateWithoutAttendanceDoesNotCreateAbsenceForLeaveOrDayOff`
-covers the complementary terminal-date cases: no attendance row, an approved
-leave allocation, and a global day off all produce no newly synthesized
-absence after the Intern's terminal date. The recorded-row case above remains
-reportable.
+covers the complementary terminal-date cases on three distinct eligible dates:
+no attendance row, an approved leave allocation, and a global day off each
+produce no newly synthesized absence after the Intern's terminal date. The
+recorded-row case above remains reportable.
 
 ```text
 rtk env JAVA_HOME=/opt/homebrew/opt/openjdk@25 PATH=/opt/homebrew/opt/openjdk@25/bin:/opt/homebrew/bin:/usr/local/bin:/usr/sbin:/usr/bin ./mvnw -Dtest="AttendancePersistenceIntegrationTest#terminalDateWithoutAttendanceDoesNotCreateAbsenceForLeaveOrDayOff" test

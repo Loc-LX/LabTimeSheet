@@ -53,16 +53,16 @@ rtk env JAVA_HOME=/opt/homebrew/opt/openjdk@25 PATH=/opt/homebrew/opt/openjdk@25
 **Observed result**
 
 ```text
-BUILD SUCCESS; 126 tests, 0 failures, 0 errors on Java 25 and PostgreSQL 18.4 Testcontainers.
+BUILD SUCCESS; 128 tests, 0 failures, 0 errors on Java 25 and PostgreSQL 18.4 Testcontainers.
 ```
 
-## Affected suite
+## Branch suite
 
 **Command and result**
 
 ```text
 rtk env JAVA_HOME=/opt/homebrew/opt/openjdk@25 PATH=/opt/homebrew/opt/openjdk@25/bin:/opt/homebrew/bin:/usr/local/bin:/usr/sbin:/usr/bin:/bin ./mvnw test
-BUILD SUCCESS; 452 tests, 0 failures, 0 errors on Java 25 and PostgreSQL 18.4 Testcontainers.
+BUILD SUCCESS; 463 tests, 0 failures, 0 errors on Java 25 and PostgreSQL 18.4 Testcontainers.
 ```
 
 The targeted producer gate above includes all attendance service/controller
@@ -125,3 +125,31 @@ auto-reject/lock due visible requests, and re-query the queue projection. The
 combined settings route remains operational until Reports/UI supplies all
 replacement workflows. Split Leave/Correction templates retain posted values
 and associate inline errors with their forms.
+
+## Review-round-3 RED/GREEN evidence
+
+**Lifecycle revalidation RED**
+
+```text
+rtk env JAVA_HOME=/opt/homebrew/opt/openjdk@25 PATH=/opt/homebrew/opt/openjdk@25/bin:/usr/local/bin:/usr/sbin:/usr/bin:/bin ./mvnw -Dtest="AttendancePersistenceIntegrationTest#firstAccessExpiryRevalidatesLockedInternAndAdminLifecycle" test
+BUILD FAILURE; Expecting code to raise a throwable at AttendancePersistenceIntegrationTest.java:554.
+```
+
+The RED was run with the new regression present and before the locked actor
+snapshot checks were restored. Stale active Intern/Admin snapshots were
+accepted and expired rows were mutated.
+
+**Lifecycle and distinct-terminal GREEN**
+
+```text
+./mvnw -Dtest="AttendancePersistenceIntegrationTest#firstAccessExpiryRevalidatesLockedInternAndAdminLifecycle" test
+BUILD SUCCESS; 1 test, 0 failures, 0 errors on PostgreSQL 18.4 Testcontainers.
+
+./mvnw -Dtest="AttendancePersistenceIntegrationTest#terminalDateWithoutAttendanceDoesNotCreateAbsenceForLeaveOrDayOff" test
+BUILD SUCCESS; 1 test, 0 failures, 0 errors on PostgreSQL 18.4 Testcontainers.
+```
+
+The terminal regression uses distinct eligible dates for empty-row,
+approved-Leave, and global-day-off Interns, so the global calendar event cannot
+mask the other two classification paths. The affected gate is 128/128 and the
+exact branch gate is 463/463.
