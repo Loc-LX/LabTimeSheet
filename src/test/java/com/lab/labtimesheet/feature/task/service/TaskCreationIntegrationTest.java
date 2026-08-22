@@ -16,6 +16,7 @@ import com.lab.labtimesheet.feature.task.model.dto.TaskDetails;
 import com.lab.labtimesheet.feature.task.model.dto.TaskListView;
 import com.lab.labtimesheet.feature.task.model.dto.TaskHistoryView;
 import com.lab.labtimesheet.feature.task.model.dto.TaskProjectProgress;
+import com.lab.labtimesheet.feature.task.model.dto.TaskDueDateImpactView;
 import com.lab.labtimesheet.feature.task.model.dto.TaskView;
 import com.lab.labtimesheet.feature.task.model.entity.TaskWorkLog;
 import com.lab.labtimesheet.feature.task.repository.TaskWorkLogRepository;
@@ -181,6 +182,63 @@ class TaskCreationIntegrationTest {
                         new CreateTaskCommand(projectId, memberMembershipId, "Day off", null, LocalDate.of(2026, 8, 15))))
                 .isInstanceOf(TaskValidationException.class);
         assertThat(taskCount()).isEqualTo(2);
+    }
+
+    @Test
+    void laterDayOffKeepsExistingDueDateAndListsOnlyCurrentAffectedTasks() {
+        LocalDate impactDate = LocalDate.of(2026, 8, 20);
+        TaskView affected = taskService.create(
+                "leader@example.test",
+                new CreateTaskCommand(projectId, memberMembershipId, "Affected", null, impactDate));
+        TaskView deleted = taskService.create(
+                "leader@example.test",
+                new CreateTaskCommand(projectId, memberMembershipId, "Deleted", null, impactDate));
+        softDelete(deleted.id());
+
+        insertDayOff(impactDate);
+
+        assertThat(taskQueries.dueDateImpacts(impactDate))
+                .containsExactly(new TaskDueDateImpactView(
+                        affected.id(), projectId, "Affected", impactDate,
+                        TaskStatus.TODO, memberMembershipId));
+        assertThat(jdbc.sql("select due_date from tasks where id = :id")
+                .param("id", affected.id()).query(LocalDate.class).single())
+                .isEqualTo(impactDate);
+    }
+
+    @Test
+    void taskProgressAndDueDatePathsHaveTheirSupportingPostgresIndexes() {
+        List<String> indexes = jdbc.sql("""
+                        select indexdef
+                        from pg_indexes
+                        where schemaname = 'public' and tablename = 'tasks'
+                        """)
+                .query(String.class)
+                .list();
+
+        assertThat(indexes).anyMatch(index -> index.contains("ix_tasks_project_status_active")
+                && index.contains("(project_id, status, id)"));
+        assertThat(indexes).anyMatch(index -> index.contains("ix_tasks_due_date_active")
+                && index.contains("(due_date, project_id)"));
+    }
+
+    @Test
+    void taskAuthorizationMatrixKeepsAdminReadOnlyAndRejectsGuessedOrCrossContextMutations() {
+        TaskView task = createMemberTask("Authorization matrix");
+        insertUser("admin@example.test", "ADMIN");
+
+        assertThat(taskService.list("admin@example.test", projectId).tasks())
+                .extracting(TaskView::id)
+                .containsExactly(task.id());
+        assertThatThrownBy(() -> taskService.edit(
+                        "admin@example.test", projectId, task.id(), "No", null, null))
+                .isInstanceOf(TaskNotFoundException.class);
+        assertThatThrownBy(() -> taskService.changeStatus(
+                        "admin@example.test", projectId, task.id(), TaskStatus.IN_PROGRESS))
+                .isInstanceOf(TaskNotFoundException.class);
+        assertThatThrownBy(() -> taskService.details(
+                        "admin@example.test", projectId + 9999, task.id()))
+                .isInstanceOf(TaskNotFoundException.class);
     }
 
     @Test

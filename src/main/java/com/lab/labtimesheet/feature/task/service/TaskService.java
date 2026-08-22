@@ -19,6 +19,7 @@ import com.lab.labtimesheet.feature.project.model.dto.ProjectTaskMemberView;
 import com.lab.labtimesheet.feature.project.service.ProjectQueryService;
 import com.lab.labtimesheet.feature.project.service.ProjectService;
 import com.lab.labtimesheet.feature.task.exception.TaskNotFoundException;
+import com.lab.labtimesheet.feature.task.exception.TaskConflictException;
 import com.lab.labtimesheet.feature.task.exception.TaskValidationException;
 import com.lab.labtimesheet.feature.task.model.TaskProgress;
 import com.lab.labtimesheet.feature.task.model.TaskStatus;
@@ -47,6 +48,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -113,7 +115,7 @@ public class TaskService {
                 command.dueDate(),
                 actorMembership.membershipId(),
                 clock.instant());
-        TaskView result = view(tasks.saveAndFlush(task), assignee.displayName());
+        TaskView result = view(saveTask(task), assignee.displayName());
         publish(
                 new NotificationEvent(
                         NotificationType.TASK_ASSIGNED,
@@ -164,7 +166,7 @@ public class TaskService {
             throw new TaskValidationException("Task status transition is not allowed");
         }
         task.changeStatus(target, clock.instant());
-        TaskView result = view(tasks.saveAndFlush(task), actorMembership.displayName());
+        TaskView result = view(saveTask(task), actorMembership.displayName());
         publish(
                 new NotificationEvent(
                         NotificationType.TASK_STATUS_CHANGED,
@@ -210,7 +212,7 @@ public class TaskService {
         requireDefinitionMutationActor(access.project(), actorMembership, task);
         validateDueDate(access.project(), dueDate);
         task.updateDefinition(requireTitle(title), trimToNull(description), dueDate, clock.instant());
-        return view(tasks.saveAndFlush(task), requireAssigneeName(
+        return view(saveTask(task), requireAssigneeName(
                 projectMembers(access), task.getAssigneeMembershipId()));
     }
 
@@ -232,7 +234,7 @@ public class TaskService {
         requireUnfinished(task);
         requireDefinitionMutationActor(access.project(), actorMembership, task);
         task.softDelete(actorMembership.membershipId(), clock.instant());
-        tasks.saveAndFlush(task);
+        saveTask(task);
     }
 
     /**
@@ -273,7 +275,7 @@ public class TaskService {
                 access.project(), null,
                 List.of(previousAssigneeMembershipId, recipient.membershipId()));
         task.reassign(recipient.membershipId(), actorMembership.membershipId(), clock.instant());
-        TaskView result = view(tasks.saveAndFlush(task), recipient.displayName());
+        TaskView result = view(saveTask(task), recipient.displayName());
         publish(
                 new NotificationEvent(
                         NotificationType.TASK_REASSIGNED,
@@ -391,7 +393,7 @@ public class TaskService {
                 minutes,
                 note,
                 clock.instant());
-        return view(workLogs.saveAndFlush(log));
+        return view(saveWorkLog(log));
     }
 
     /**
@@ -443,7 +445,7 @@ public class TaskService {
         long currentMinutes = workLogs.sumMinutesByMembershipIdsAndWorkDate(membershipIds, log.getWorkDate());
         requireDailyLimit(currentMinutes - log.getMinutes(), minutes);
         log.correct(minutes, note, clock.instant());
-        return view(workLogs.saveAndFlush(log));
+        return view(saveWorkLog(log));
     }
 
     /**
@@ -907,6 +909,22 @@ public class TaskService {
             throw new TaskValidationException("Title is required and must not exceed 200 characters");
         }
         return trimmed;
+    }
+
+    private Task saveTask(Task task) {
+        try {
+            return tasks.saveAndFlush(task);
+        } catch (ObjectOptimisticLockingFailureException conflict) {
+            throw new TaskConflictException("Task changed concurrently; reload before trying again", conflict);
+        }
+    }
+
+    private TaskWorkLog saveWorkLog(TaskWorkLog log) {
+        try {
+            return workLogs.saveAndFlush(log);
+        } catch (ObjectOptimisticLockingFailureException conflict) {
+            throw new TaskConflictException("Task work log changed concurrently; reload before trying again", conflict);
+        }
     }
 
     private static String requireCommentBody(String body) {

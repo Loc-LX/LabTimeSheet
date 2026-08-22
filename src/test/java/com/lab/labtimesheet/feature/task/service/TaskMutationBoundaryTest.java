@@ -33,6 +33,7 @@ import com.lab.labtimesheet.feature.task.model.entity.TaskComment;
 import com.lab.labtimesheet.feature.task.repository.TaskCommentRepository;
 import com.lab.labtimesheet.feature.task.repository.TaskRepository;
 import com.lab.labtimesheet.feature.task.repository.TaskWorkLogRepository;
+import com.lab.labtimesheet.feature.task.exception.TaskConflictException;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -40,6 +41,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -214,6 +216,24 @@ class TaskMutationBoundaryTest {
         order.verify(projectMutations).taskMutationContext(5L, 10L);
         order.verify(tasks).findLockedByIdAndProjectIdAndDeletedAtIsNull(25L, 10L);
         order.verify(task).changeStatus(TaskStatus.IN_PROGRESS, NOW);
+    }
+
+    @Test
+    void statusChangeTurnsAnOptimisticTaskRaceIntoAnExplicitConflict() {
+        Task task = mock(Task.class);
+        when(task.getAssigneeMembershipId()).thenReturn(70L);
+        when(task.getStatus()).thenReturn(TaskStatus.TODO);
+        when(tasks.findLockedByIdAndProjectIdAndDeletedAtIsNull(25L, 10L))
+                .thenReturn(Optional.of(task));
+        when(tasks.saveAndFlush(task)).thenThrow(
+                new ObjectOptimisticLockingFailureException(Task.class, 25L));
+
+        assertThatThrownBy(() -> service.changeStatus(
+                        "member@example.test", 10L, 25L, TaskStatus.IN_PROGRESS))
+                .isInstanceOf(TaskConflictException.class)
+                .hasMessage("Task changed concurrently; reload before trying again");
+
+        verify(notifications, never()).publish(any(), any(), any());
     }
 
     @Test

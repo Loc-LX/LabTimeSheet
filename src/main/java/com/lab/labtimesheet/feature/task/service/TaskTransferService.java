@@ -10,6 +10,7 @@ import com.lab.labtimesheet.feature.notification.model.dto.NotificationEvent;
 import com.lab.labtimesheet.feature.notification.model.dto.NotificationRecipient;
 import com.lab.labtimesheet.feature.notification.service.NotificationService;
 import com.lab.labtimesheet.feature.task.exception.TaskNotFoundException;
+import com.lab.labtimesheet.feature.task.exception.TaskConflictException;
 import com.lab.labtimesheet.feature.task.exception.TaskValidationException;
 import com.lab.labtimesheet.feature.task.model.TaskStatus;
 import com.lab.labtimesheet.feature.task.model.entity.Task;
@@ -21,6 +22,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -95,7 +97,11 @@ public class TaskTransferService {
 
         Instant assignedAt = clock.instant();
         selected.forEach(task -> task.reassign(recipient.membershipId(), actorMembershipId, assignedAt));
-        tasks.saveAllAndFlush(selected);
+        try {
+            tasks.saveAllAndFlush(selected);
+        } catch (ObjectOptimisticLockingFailureException conflict) {
+            throw new TaskConflictException("Task changed concurrently; reload before trying again", conflict);
+        }
         selected.forEach(task -> notifications.publish(
                 new NotificationEvent(
                         NotificationType.TASK_REASSIGNED,

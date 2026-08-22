@@ -230,6 +230,67 @@ class TaskWorkLogIntegrationTest {
     }
 
     @Test
+    void correctionRejectsDeletedTaskHistoryEvenWhileAuthorAndProjectRemainActive() {
+        TaskWorkLogView original = taskService.addWorkLog(
+                fixture.email(), fixture.firstProjectId(), fixture.firstTaskId(),
+                WORK_DATE, 120, "Original");
+        jdbc.sql("""
+                        update tasks
+                        set deleted_at = current_timestamp,
+                            deleted_by_membership_id = :membershipId
+                        where id = :taskId
+                        """)
+                .param("membershipId", fixture.firstMembershipId())
+                .param("taskId", fixture.firstTaskId())
+                .update();
+
+        assertThatThrownBy(() -> taskService.correctWorkLog(
+                        fixture.email(), fixture.firstProjectId(), original.id(),
+                        60, "Rejected after deletion"))
+                .isInstanceOf(TaskNotFoundException.class);
+        assertThat(workLogs.findById(original.id()).orElseThrow().getMinutes()).isEqualTo(120);
+    }
+
+    @Test
+    void correctionRejectsFormerMemberWithoutChangingTheLog() {
+        TaskWorkLogView original = taskService.addWorkLog(
+                fixture.email(), fixture.firstProjectId(), fixture.firstTaskId(),
+                WORK_DATE, 120, "Original");
+        jdbc.sql("""
+                        update project_memberships
+                        set left_at = current_timestamp,
+                            removed_by_mentor_user_id = (
+                                select mentor_user_id from projects where id = :projectId)
+                        where id = :membershipId
+                        """)
+                .param("projectId", fixture.firstProjectId())
+                .param("membershipId", fixture.firstMembershipId())
+                .update();
+
+        assertThatThrownBy(() -> taskService.correctWorkLog(
+                        fixture.email(), fixture.firstProjectId(), original.id(),
+                        60, "Rejected after removal"))
+                .isInstanceOf(TaskNotFoundException.class);
+        assertThat(workLogs.findById(original.id()).orElseThrow().getMinutes()).isEqualTo(120);
+    }
+
+    @Test
+    void correctionRejectsCompletedProjectWithoutChangingTheLog() {
+        TaskWorkLogView original = taskService.addWorkLog(
+                fixture.email(), fixture.firstProjectId(), fixture.firstTaskId(),
+                WORK_DATE, 120, "Original");
+        jdbc.sql("update projects set status = 'COMPLETED', completed_at = current_timestamp where id = :projectId")
+                .param("projectId", fixture.firstProjectId())
+                .update();
+
+        assertThatThrownBy(() -> taskService.correctWorkLog(
+                        fixture.email(), fixture.firstProjectId(), original.id(),
+                        60, "Rejected after completion"))
+                .isInstanceOf(TaskNotFoundException.class);
+        assertThat(workLogs.findById(original.id()).orElseThrow().getMinutes()).isEqualTo(120);
+    }
+
+    @Test
     void workLogRejectsInactiveAndTerminalInternLifecycle() {
         jdbc.sql("update app_users set account_status = 'LOCKED', locked_at = current_timestamp where id = :id")
                 .param("id", fixture.internId())
