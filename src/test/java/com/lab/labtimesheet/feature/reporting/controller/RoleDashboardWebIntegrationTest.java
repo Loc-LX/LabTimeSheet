@@ -164,9 +164,6 @@ class RoleDashboardWebIntegrationTest {
             if ("/attendance/requests".equals(path)) {
                 request.andExpect(status().is3xxRedirection())
                         .andExpect(redirectedUrl("/attendance/leave"));
-            } else if ("/admin/settings".equals(path)) {
-                request.andExpect(status().is3xxRedirection())
-                        .andExpect(redirectedUrl("/admin/attendance-policies"));
             } else {
                 request.andExpect(status().isOk());
             }

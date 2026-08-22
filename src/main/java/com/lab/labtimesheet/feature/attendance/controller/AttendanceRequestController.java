@@ -49,7 +49,6 @@ public class AttendanceRequestController {
      * Redirects the superseded combined queue to the focused Leave workflow.
      *
      * @param principal authenticated actor
-     * @param attendanceRecordId retained legacy query value, ignored
      * @param model unused legacy view model
      * @return redirect to the focused Leave page
      */
@@ -66,7 +65,6 @@ public class AttendanceRequestController {
      *
      * @param principal authenticated actor
      * @param month optional selected quota month in {@code yyyy-MM} form
-     * @param attendanceRecordId optional attendance row retained from the history CTA
      * @param model Thymeleaf model
      * @param redirectAttributes validation feedback destination
      * @return focused Leave page or a safe redirect for malformed month input
@@ -102,6 +100,7 @@ public class AttendanceRequestController {
      * Renders the Intern-owned Correction page or the global Mentor decision queue.
      *
      * @param principal authenticated actor
+     * @param attendanceRecordId optional attendance row retained from the history CTA
      * @param model Thymeleaf model
      * @return focused Correction page
      */

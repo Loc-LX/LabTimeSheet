@@ -2,6 +2,7 @@ package com.lab.labtimesheet.feature.attendance.service;
 
 import com.lab.labtimesheet.feature.account.model.AccountStatus;
 import com.lab.labtimesheet.feature.account.model.GlobalRole;
+import com.lab.labtimesheet.feature.account.model.InternshipStatus;
 import com.lab.labtimesheet.feature.account.model.dto.AccountIdentity;
 import com.lab.labtimesheet.feature.account.model.dto.LockedAccountMutationEligibility;
 import com.lab.labtimesheet.feature.account.service.AccountService;
@@ -126,7 +127,7 @@ public class AttendanceCorrectionApplicationService {
                         .distinct()
                         .sorted()
                         .toList());
-        requireActiveMentorIfNeeded(actor, lockedAccounts);
+        requireActiveExpiryActor(actor, lockedAccounts);
         Map<Long, AccountIdentity> ownerIdentities = identities(ownerIds);
         for (CorrectionSummary candidate : due) {
             AttendanceCorrectionEntity correction = lockedCorrection(candidate.id());
@@ -134,12 +135,25 @@ public class AttendanceCorrectionApplicationService {
         }
     }
 
-    private void requireActiveMentorIfNeeded(
+    private void requireActiveExpiryActor(
             AttendanceActor actor, Map<Long, LockedAccountMutationEligibility> lockedAccounts) {
         if (actor.role() == AttendanceRole.MENTOR) {
             requireActiveMentor(actor.userId(), lockedAccounts);
-        } else if (actor.role() != AttendanceRole.INTERN) {
+        } else if (actor.role() == AttendanceRole.INTERN) {
+            requireActiveIntern(actor.userId(), lockedAccounts);
+        } else {
             throw new AccessDeniedException("Correction list is outside the requested scope");
+        }
+    }
+
+    private static void requireActiveIntern(
+            long userId, Map<Long, LockedAccountMutationEligibility> lockedAccounts) {
+        LockedAccountMutationEligibility locked = lockedAccounts.get(userId);
+        if (locked == null
+                || locked.role() != GlobalRole.INTERN
+                || locked.accountStatus() != AccountStatus.ACTIVE
+                || locked.internshipStatus().orElse(null) != InternshipStatus.ACTIVE) {
+            throw new AccessDeniedException("An active Intern is required");
         }
     }
 

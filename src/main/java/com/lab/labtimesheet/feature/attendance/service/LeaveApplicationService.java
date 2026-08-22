@@ -2,6 +2,7 @@ package com.lab.labtimesheet.feature.attendance.service;
 
 import com.lab.labtimesheet.feature.account.model.AccountStatus;
 import com.lab.labtimesheet.feature.account.model.GlobalRole;
+import com.lab.labtimesheet.feature.account.model.InternshipStatus;
 import com.lab.labtimesheet.feature.account.model.dto.AccountIdentity;
 import com.lab.labtimesheet.feature.account.model.dto.InternWorkWindow;
 import com.lab.labtimesheet.feature.account.model.dto.LockedAccountMutationEligibility;
@@ -126,6 +127,7 @@ public class LeaveApplicationService {
                         .distinct()
                         .sorted()
                         .toList());
+        requireActiveExpiryActor(actor, lockedAccounts);
         Map<Long, AccountIdentity> ownerIdentities = identities(ownerIds);
         for (LeaveRequestEntity candidate : due) {
             LeaveRequestEntity request = lockedRequest(candidate.id());
@@ -569,6 +571,37 @@ public class LeaveApplicationService {
         }
         if (actor.role() != AttendanceRole.ADMIN) {
             throw new AccessDeniedException("Leave is outside the requested scope");
+        }
+    }
+
+    private void requireActiveExpiryActor(
+            AttendanceActor actor, Map<Long, LockedAccountMutationEligibility> lockedAccounts) {
+        switch (actor.role()) {
+            case INTERN -> requireActiveIntern(actor.userId(), lockedAccounts);
+            case MENTOR -> requireActiveMentor(actor.userId(), lockedAccounts);
+            case ADMIN -> requireActiveAdmin(actor.userId(), lockedAccounts);
+            default -> throw new AccessDeniedException("Leave is outside the requested scope");
+        }
+    }
+
+    private static void requireActiveIntern(
+            long userId, Map<Long, LockedAccountMutationEligibility> lockedAccounts) {
+        LockedAccountMutationEligibility locked = lockedAccounts.get(userId);
+        if (locked == null
+                || locked.role() != GlobalRole.INTERN
+                || locked.accountStatus() != AccountStatus.ACTIVE
+                || locked.internshipStatus().orElse(null) != InternshipStatus.ACTIVE) {
+            throw new AccessDeniedException("An active Intern is required");
+        }
+    }
+
+    private static void requireActiveAdmin(
+            long userId, Map<Long, LockedAccountMutationEligibility> lockedAccounts) {
+        LockedAccountMutationEligibility locked = lockedAccounts.get(userId);
+        if (locked == null
+                || locked.role() != GlobalRole.ADMIN
+                || locked.accountStatus() != AccountStatus.ACTIVE) {
+            throw new AccessDeniedException("An active Admin is required");
         }
     }
 
