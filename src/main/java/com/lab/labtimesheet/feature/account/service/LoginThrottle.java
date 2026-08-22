@@ -70,9 +70,11 @@ public class LoginThrottle {
             Instant now = clock.instant();
             State state = states.get(key);
             if (state == null) {
-                purgeUnblockedEntries(now);
                 if (states.size() >= MAX_ENTRIES) {
-                    return;
+                    purgeUnblockedEntries(now);
+                    if (states.size() >= MAX_ENTRIES) {
+                        return;
+                    }
                 }
                 state = new State();
                 states.put(key, state);
@@ -103,7 +105,10 @@ public class LoginThrottle {
     private void purgeUnblockedEntries(Instant now) {
         states.forEach((key, state) -> {
             state.expireFailures(now);
-            if (state.blockedUntil == null) {
+            if (state.blockedUntil != null && !now.isBefore(state.blockedUntil)) {
+                state.blockedUntil = null;
+            }
+            if (state.blockedUntil == null && state.failures.isEmpty()) {
                 states.remove(key, state);
             }
         });

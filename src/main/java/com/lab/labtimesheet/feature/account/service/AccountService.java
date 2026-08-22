@@ -30,6 +30,7 @@ import com.lab.labtimesheet.feature.account.model.dto.CreateAccountCommand;
 import com.lab.labtimesheet.feature.account.model.dto.EligibleInternOption;
 import com.lab.labtimesheet.feature.account.model.dto.InternshipLifecycleGuard;
 import com.lab.labtimesheet.feature.account.model.dto.LockedAccountMutationEligibility;
+import com.lab.labtimesheet.feature.account.model.dto.InternReportingWindow;
 import com.lab.labtimesheet.feature.account.model.dto.InternWorkWindow;
 import com.lab.labtimesheet.feature.account.model.entity.AppUser;
 import com.lab.labtimesheet.feature.account.model.entity.InternProfile;
@@ -672,6 +673,59 @@ public class AccountService {
                         .existsByUserIdAndInternshipStatusAndInternshipStartDateLessThanEqualAndInternshipEndDateGreaterThanEqual(
                                 user.getId(), InternshipStatus.ACTIVE, workDate, workDate))
                 .isPresent();
+    }
+
+    /**
+     * Resolves the retained historical reporting window of an Intern without exposing Account persistence.
+     *
+     * <p>Active, completed, and withdrawn profiles use their retained activation timestamp and, when terminal, the
+     * terminal timestamp converted with the application's business timezone. The terminal business date is included
+     * in the returned window. A pending, not-started, manually deactivated active profile, missing account/profile,
+     * or lifecycle row without its required timestamp returns {@link Optional#empty()}; current terminal status is
+     * never replaced by the current active-only eligibility query.</p>
+     *
+     * @param userId Intern account identifier
+     * @return immutable historical window, or empty when no valid reporting window exists
+     */
+    @Transactional(readOnly = true)
+    public Optional<InternReportingWindow> historicalInternReportingWindow(long userId) {
+        if (userId <= 0) {
+            return Optional.empty();
+        }
+        AppUser user = users.findById(userId).orElse(null);
+        if (user == null || user.getGlobalRole() != GlobalRole.INTERN) {
+            return Optional.empty();
+        }
+        InternProfile profile = internProfiles.findById(userId).orElse(null);
+        if (profile == null || profile.getActivatedAt() == null) {
+            return Optional.empty();
+        }
+        Instant terminalAt = switch (profile.getInternshipStatus()) {
+            case ACTIVE -> null;
+            case COMPLETED -> profile.getCompletedAt();
+            case WITHDRAWN -> profile.getWithdrawnAt();
+            case NOT_STARTED -> null;
+        };
+        if (profile.getInternshipStatus() == InternshipStatus.ACTIVE
+                && user.getAccountStatus() != AccountStatus.ACTIVE) {
+            return Optional.empty();
+        }
+        if (profile.getInternshipStatus() == InternshipStatus.NOT_STARTED
+                || (terminalAt == null && profile.getInternshipStatus() != InternshipStatus.ACTIVE)) {
+            return Optional.empty();
+        }
+        LocalDate activationDate = profile.getActivatedAt().atZone(clock.getZone()).toLocalDate();
+        LocalDate terminalDate = terminalAt == null ? null : terminalAt.atZone(clock.getZone()).toLocalDate();
+        LocalDate startDate = activationDate.isAfter(profile.getInternshipStartDate())
+                ? activationDate : profile.getInternshipStartDate();
+        LocalDate endDate = profile.getInternshipEndDate();
+        if (terminalDate != null && terminalDate.isBefore(endDate)) {
+            endDate = terminalDate;
+        }
+        if (endDate.isBefore(startDate)) {
+            return Optional.empty();
+        }
+        return Optional.of(new InternReportingWindow(userId, activationDate, terminalDate, startDate, endDate));
     }
 
     /**

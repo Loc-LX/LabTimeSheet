@@ -17,8 +17,8 @@ single-instance deployment and never evicts an active block under sequential or 
 ## Test method
 
 The unit test injects a mutable deterministic clock and exercises the concrete throttle with five failures, distinct
-source addresses, exact 15-minute expiry, successful-login clearing, rolling-window expiry, 15,120-key capacity
-pressure, and eight-worker concurrent capacity pressure. It avoids Spring or a database because this boundary is
+source addresses, exact 15-minute expiry, successful-login clearing, rolling-window expiry, interleaved arbitrary
+identifiers, 15,120-key capacity pressure, and eight-worker concurrent capacity pressure. It avoids Spring or a database because this boundary is
 intentionally bounded in-memory state.
 
 ## Hand-derived expected result
@@ -60,7 +60,13 @@ export PATH="$JAVA_HOME/bin:$PATH"
 2026-08-22T15:15:24+07:00 — Review regression RED: Tests run: 5, Failures: 1, Errors: 0; the active target block was
 evicted after capacity pressure.
 
+2026-08-22T15:52:07+07:00 — Round-2 interleaving RED: Tests run: 6, Failures: 1, Errors: 0; interleaved arbitrary
+usernames erased the target's four live partial failures before its fifth attempt.
+
 2026-08-22T15:23:19+07:00 — Review-fix GREEN: Tests run: 5, Failures: 0, Errors: 0, Skipped: 0; BUILD SUCCESS.
+
+2026-08-22T15:53:02+07:00 — Round-2 fix GREEN: Tests run: 6, Failures: 0, Errors: 0, Skipped: 0; BUILD SUCCESS.
+Capacity purge now runs only at actual capacity and removes only expired, empty states.
 ```
 
 ## Affected suite

@@ -81,6 +81,19 @@ class LoginThrottleTest {
     }
 
     @Test
+    void interleavedArbitraryUsernamesDoNotEraseTargetFailureHistory() {
+        MutableClock clock = new MutableClock(BASE);
+        LoginThrottle throttle = new LoginThrottle(clock);
+
+        for (int attempt = 0; attempt < 5; attempt++) {
+            throttle.recordFailure("target@example.com", "203.0.113.10");
+            throttle.recordFailure("unknown-" + attempt + "@example.com", "203.0.113.10");
+        }
+
+        assertThat(throttle.isBlocked("target@example.com", "203.0.113.10")).isTrue();
+    }
+
+    @Test
     void concurrentCapacityPressureNeverEvictsAnActiveBlock() throws Exception {
         MutableClock clock = new MutableClock(BASE);
         LoginThrottle throttle = new LoginThrottle(clock);

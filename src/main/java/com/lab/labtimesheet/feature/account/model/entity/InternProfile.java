@@ -51,12 +51,15 @@ public class InternProfile {
     private InternshipStatus internshipStatus;
 
     @Column(name = "activated_at")
+    @Getter
     private Instant activatedAt;
 
     @Column(name = "completed_at")
+    @Getter
     private Instant completedAt;
 
     @Column(name = "withdrawn_at")
+    @Getter
     private Instant withdrawnAt;
 
     @Column(name = "created_at", nullable = false)
