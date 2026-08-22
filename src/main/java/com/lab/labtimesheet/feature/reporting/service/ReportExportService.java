@@ -5,6 +5,7 @@ import com.lab.labtimesheet.feature.reporting.model.dto.AttendanceReportView;
 import com.lab.labtimesheet.feature.reporting.model.dto.ProjectTaskReportMemberHours;
 import com.lab.labtimesheet.feature.reporting.model.dto.ProjectTaskReportRow;
 import com.lab.labtimesheet.feature.reporting.model.dto.ProjectTaskReportView;
+import java.time.LocalDate;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.time.ZoneId;
@@ -105,6 +106,16 @@ public class ReportExportService {
         Context context = new Context(Locale.ENGLISH);
         context.setVariable("reportKind", reportKind);
         context.setVariable("report", report);
+        if (report instanceof ProjectTaskReportView projectTaskReport) {
+            context.setVariable("projectFilterName", projectName(projectTaskReport));
+            context.setVariable("memberFilterName", memberName(projectTaskReport));
+            context.setVariable("statusFilterName", projectTaskReport.filter().status() == null
+                    ? "All statuses" : projectTaskReport.filter().status().name());
+            context.setVariable("dueFilterRange", dateRange(
+                    projectTaskReport.filter().dueFrom(), projectTaskReport.filter().dueTo()));
+            context.setVariable("workFilterRange", dateRange(
+                    projectTaskReport.filter().workFrom(), projectTaskReport.filter().workTo()));
+        }
         String markup = templates.process("reports/print", context);
         try (ByteArrayOutputStream output = new ByteArrayOutputStream()) {
             ITextRenderer renderer = new ITextRenderer();
@@ -178,9 +189,18 @@ public class ReportExportService {
         filter.createCell(0).setCellValue("Project");
         filter.createCell(1).setCellValue(report.filter().projectId() == null
                 ? "All authorized Projects" : projectName(report));
-        filter.createCell(2).setCellValue("Status");
-        filter.createCell(3).setCellValue(report.filter().status() == null
+        filter.createCell(2).setCellValue("Member");
+        filter.createCell(3).setCellValue(memberName(report));
+        filter.createCell(4).setCellValue("Status");
+        filter.createCell(5).setCellValue(report.filter().status() == null
                 ? "All statuses" : report.filter().status().name());
+        Row filterRanges = sheet.createRow(2);
+        filterRanges.createCell(0).setCellValue("Due");
+        filterRanges.createCell(1).setCellValue(dateRange(
+                report.filter().dueFrom(), report.filter().dueTo()));
+        filterRanges.createCell(2).setCellValue("Work");
+        filterRanges.createCell(3).setCellValue(dateRange(
+                report.filter().workFrom(), report.filter().workTo()));
 
         Row summaryHeading = sheet.createRow(3);
         String[] summaryLabels = {
@@ -236,10 +256,31 @@ public class ReportExportService {
 
     private static String projectName(ProjectTaskReportView report) {
         return report.projectOptions().stream()
-                .filter(project -> project.id() == report.filter().projectId())
+                .filter(project -> report.filter().projectId() != null
+                        && project.id() == report.filter().projectId())
                 .map(project -> project.name())
                 .findFirst()
                 .orElse("Selected Project");
+    }
+
+    private static String memberName(ProjectTaskReportView report) {
+        if (report.filter().memberMembershipId() == null) {
+            return "All current members";
+        }
+        return report.memberOptions().stream()
+                .filter(member -> member.membershipId() == report.filter().memberMembershipId())
+                .map(member -> member.displayName())
+                .findFirst()
+                .orElse("Selected Member");
+    }
+
+    private static String dateRange(LocalDate from, LocalDate to) {
+        if (from == null && to == null) {
+            return "Any";
+        }
+        String start = from == null ? "—" : DATE.format(from);
+        String end = to == null ? "—" : DATE.format(to);
+        return start + " – " + end;
     }
 
     private static CellStyle titleStyle(Workbook workbook) {

@@ -219,10 +219,22 @@ class ReportExportServiceTest {
                 new ByteArrayInputStream(exports.projectTaskXlsx(report)))) {
             var sheet = workbook.getSheet("Project Tasks");
             assertThat(sheet.getRow(1).getCell(1).getStringCellValue()).isEqualTo("Dự án Hà Nội");
+            assertThat(sheet.getRow(1).getCell(2).getStringCellValue()).isEqualTo("Member");
+            assertThat(sheet.getRow(1).getCell(3).getStringCellValue()).isEqualTo("Nguyễn Mai");
+            assertThat(sheet.getRow(1).getCell(4).getStringCellValue()).isEqualTo("Status");
+            assertThat(sheet.getRow(1).getCell(5).getStringCellValue()).isEqualTo("IN_PROGRESS");
+            assertThat(sheet.getRow(2).getCell(0).getStringCellValue()).isEqualTo("Due");
+            assertThat(sheet.getRow(2).getCell(1).getStringCellValue())
+                    .isEqualTo("01/09/2026 – 30/09/2026");
+            assertThat(sheet.getRow(2).getCell(2).getStringCellValue()).isEqualTo("Work");
+            assertThat(sheet.getRow(2).getCell(3).getStringCellValue())
+                    .isEqualTo("01/08/2026 – 31/08/2026");
             assertThat(sheet.getRow(4).getCell(0).getNumericCellValue()).isEqualTo(1);
             assertThat(sheet.getRow(4).getCell(2).getStringCellValue()).isEqualTo("0.0%");
             assertThat(sheet.getRow(4).getCell(4).getNumericCellValue()).isEqualTo(1);
             assertThat(sheet.getRow(4).getCell(6).getNumericCellValue()).isEqualTo(90);
+            assertThat(sheet.getRow(7).getCell(0).getStringCellValue()).isEqualTo("Nguyễn Mai");
+            assertThat(sheet.getRow(7).getCell(1).getNumericCellValue()).isEqualTo(60);
             assertThat(sheet.getRow(10).getCell(1).getStringCellValue()).isEqualTo("Xây dựng báo cáo Nguyễn");
             assertThat(sheet.getRow(10).getCell(3).getStringCellValue()).isEqualTo("IN_PROGRESS");
             assertThat(sheet.getRow(10).getCell(5).getNumericCellValue()).isEqualTo(45);
@@ -230,7 +242,10 @@ class ReportExportServiceTest {
         PdfReader reader = new PdfReader(exports.projectTaskPdf(report));
         try {
             String pdfText = new PdfTextExtractor(reader).getTextFromPage(1);
-            assertThat(pdfText).contains("Dự án Hà Nội", "Xây dựng báo cáo Nguyễn", "IN_PROGRESS", "0.0%", "45", "90");
+            assertThat(pdfText).contains(
+                    "Project", "Dự án Hà Nội", "Member", "Nguyễn Mai", "Status", "IN_PROGRESS",
+                    "Due", "01/09/2026", "30/09/2026", "Work", "01/08/2026", "31/08/2026",
+                    "Xây dựng báo cáo Nguyễn", "0.0%", "60", "90", "45");
         } finally {
             reader.close();
         }
@@ -242,7 +257,7 @@ class ReportExportServiceTest {
                 0L, 0L, "N/A", emptyStatusCounts(), 0L, true,
                 List.of(new ProjectTaskReportMemberHours(41L, "Nguyễn Mai", 0L)));
         String emptyHtml = renderProjectTasksHtml(templates, empty);
-        assertThat(emptyHtml).contains("N/A");
+        assertThat(emptyHtml).contains("data-report-metric=\"completion\">N/A");
         try (XSSFWorkbook workbook = new XSSFWorkbook(
                 new ByteArrayInputStream(exports.projectTaskXlsx(empty)))) {
             assertThat(workbook.getSheet("Project Tasks").getRow(4).getCell(2).getStringCellValue())

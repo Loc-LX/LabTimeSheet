@@ -53,6 +53,14 @@
 <section th:if="${reportKind == 'project-tasks'}">
     <h1>Project and Task report</h1>
     <p class="muted">Current readable Tasks grouped by the authorized Project scope.</p>
+    <h2>Filters</h2>
+    <table class="filters">
+        <tbody>
+        <tr><th>Project</th><td th:text="${projectFilterName}">All authorized Projects</td><th>Member</th><td th:text="${memberFilterName}">All current members</td></tr>
+        <tr><th>Status</th><td th:text="${statusFilterName}">All statuses</td><th>Due</th><td th:text="${dueFilterRange}">Any</td></tr>
+        <tr><th>Work</th><td th:text="${workFilterRange}" colspan="3">Any</td></tr>
+        </tbody>
+    </table>
     <table class="summary">
         <tbody><tr>
             <td><span class="muted">Tasks</span><strong th:text="${report.totalTasks}">0</strong></td>
