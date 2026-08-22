@@ -12,6 +12,26 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @Setter
 public class SecurityProperties {
     private String masterKey;
+    private String trustedProxyCidrs;
+
+    /**
+     * Returns the explicitly configured reverse-proxy socket networks used only by the production forwarded-header
+     * filter. An absent value is acceptable in dev/test but fails production readiness.
+     *
+     * @return comma-separated numeric IPv4/IPv6 CIDRs, or {@code null} when not configured
+     */
+    public String getTrustedProxyCidrs() {
+        return trustedProxyCidrs;
+    }
+
+    /**
+     * Sets the explicitly trusted reverse-proxy socket networks.
+     *
+     * @param trustedProxyCidrs comma-separated numeric IPv4/IPv6 CIDRs
+     */
+    public void setTrustedProxyCidrs(String trustedProxyCidrs) {
+        this.trustedProxyCidrs = trustedProxyCidrs;
+    }
 
     /**
      * Decodes and validates the configured AES-256 master key.
