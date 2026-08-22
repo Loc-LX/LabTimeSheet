@@ -40,7 +40,7 @@ async function assertDownload(page, linkName, route, mediaType, filename, inspec
   expect(response.status()).toBe(200);
   expect(response.headers()['content-type']).toContain(mediaType);
   expect(response.headers()['content-disposition']).toMatch(/attachment/i);
-  expect(download.failure()).resolves.toBeNull();
+  await expect(download.failure()).resolves.toBeNull();
   expect(download.suggestedFilename()).toMatch(filename);
 
   const path = await download.path();
