@@ -94,19 +94,21 @@ class ProjectQueryIndexIntegrationTest {
     }
 
     @Test
-    void roleScopedProjectListsUseBoundedPagesAndRepresentativePostgresPlans() {
+    void roleScopedProjectListsUseBoundedPagesAndEligibleDashboardTotals() {
         long mentorId = user("project-list-plan-mentor@example.test", "MENTOR");
         long adminId = user("project-list-plan-admin@example.test", "ADMIN");
-        long internId = intern("project-list-plan-intern@example.test", "LIST-001");
+        long leaderId = intern("project-list-plan-intern@example.test", "LIST-001");
+        long completedMemberId = intern("completed-dashboard-eligibility@example.test", "COMPLETED-001");
         for (int index = 0; index < 51; index++) {
-            projectMutations.create(
+            long projectId = projectMutations.create(
                     mentorId,
                     new ProjectCreateCommand(
                             "Bounded Project " + index,
                             "Representative list-plan fixture",
                             LocalDate.of(2026, 8, 1),
                             LocalDate.of(2026, 12, 31),
-                            internId));
+                            leaderId));
+            projectMutations.addMember(mentorId, projectId, completedMemberId);
         }
         jdbc.update("""
                 update projects
@@ -115,13 +117,27 @@ class ProjectQueryIndexIntegrationTest {
                 """, NOW.atOffset(java.time.ZoneOffset.UTC), NOW.atOffset(java.time.ZoneOffset.UTC), mentorId);
         jdbc.execute("analyze projects");
         jdbc.execute("analyze project_memberships");
+        projectMutations.completeInternship(adminId, completedMemberId);
+
+        assertThat(jdbc.queryForObject("""
+                select count(*)
+                from project_memberships membership
+                join projects project on project.id = membership.project_id
+                where project.mentor_user_id = ?
+                  and membership.intern_user_id = ?
+                  and membership.left_at is null
+                """, Integer.class, mentorId, completedMemberId)).isEqualTo(51);
+        assertThat(jdbc.queryForObject(
+                "select internship_status from intern_profiles where user_id = ?",
+                String.class,
+                completedMemberId)).isEqualTo("COMPLETED");
 
         ProjectListPage adminPageTwo = projectPages.listPage(adminId, PageRequest.of(1, 50));
         ProjectListPage mentorPageTwo = projectPages.listPage(mentorId, PageRequest.of(1, 50));
-        ProjectListPage internPageTwo = projectPages.listPage(internId, PageRequest.of(1, 50));
+        ProjectListPage internPageTwo = projectPages.listPage(leaderId, PageRequest.of(1, 50));
         assertThat(projectPages.listPage(adminId, PageRequest.of(0, 50)).projects()).hasSize(50);
         assertThat(projectPages.listPage(mentorId, PageRequest.of(0, 50)).projects()).hasSize(50);
-        assertThat(projectPages.listPage(internId, PageRequest.of(0, 50)).projects()).hasSize(50);
+        assertThat(projectPages.listPage(leaderId, PageRequest.of(0, 50)).projects()).hasSize(50);
         assertThat(adminPageTwo.projects()).hasSize(1);
         assertThat(mentorPageTwo.projects()).hasSize(1);
         assertThat(internPageTwo.projects()).hasSize(1);
@@ -136,7 +152,7 @@ class ProjectQueryIndexIntegrationTest {
         assertThat(projectPages.dashboardSummary(adminId).activeProjectCount()).isEqualTo(51);
         assertThat(projectPages.dashboardSummary(mentorId).activeProjectCount()).isEqualTo(51);
         assertThat(projectPages.dashboardSummary(mentorId).distinctActiveMemberCount()).isEqualTo(1);
-        assertThat(projectPages.dashboardSummary(internId).activeProjectCount()).isEqualTo(51);
+        assertThat(projectPages.dashboardSummary(leaderId).activeProjectCount()).isEqualTo(51);
 
         String adminPlan = explain("""
                 select project.*
@@ -159,7 +175,7 @@ class ProjectQueryIndexIntegrationTest {
                   and (membership.left_at is null or project.status = 'COMPLETED')
                 order by project.updated_at desc, project.id desc
                 limit 50
-                """.formatted(internId));
+                """.formatted(leaderId));
 
         assertThat(adminPlan).contains("Limit");
         assertThat(mentorPlan).contains("Limit").contains("ix_projects_mentor_status");

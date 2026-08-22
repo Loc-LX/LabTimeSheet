@@ -149,20 +149,23 @@ public interface ProjectRepository extends JpaRepository<ProjectEntity, Long> {
     long countActiveProjectsByMentor(@Param("mentorUserId") long mentorUserId);
 
     /**
-     * Counts distinct current members across all active Projects owned by one Mentor.
+     * Lists the complete distinct current-member ID set for active Projects owned by one Mentor.
+     * Account and internship eligibility is evaluated by the Account service after this scalar
+     * Project-owned projection; no Account persistence crosses the feature boundary.
      *
      * @param mentorUserId owning Mentor account identifier
-     * @return complete distinct current-member total
+     * @return distinct current-member account identifiers in stable order
      */
     @Query("""
-            select count(distinct membership.internUserId)
+            select distinct membership.internUserId
             from ProjectEntity project
             join project.memberships membership
             where project.mentorUserId = :mentorUserId
               and project.status = com.lab.labtimesheet.feature.project.model.ProjectStatus.ACTIVE
               and membership.leftAt is null
+            order by membership.internUserId asc
             """)
-    long countDistinctCurrentMembersByMentor(@Param("mentorUserId") long mentorUserId);
+    List<Long> findDistinctCurrentMemberUserIdsByMentor(@Param("mentorUserId") long mentorUserId);
 
     /**
      * Counts active Projects with a current membership for one Intern without hydrating the

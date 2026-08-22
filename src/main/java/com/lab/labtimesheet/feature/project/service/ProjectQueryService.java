@@ -455,7 +455,7 @@ public class ProjectQueryService {
      * Historical memberships never contribute to current Intern or Mentor metrics.
      *
      * @param actorUserId active actor user identifier
-     * @return active Project count and, for Mentors, distinct current active-member count
+     * @return active Project count and, for Mentors, distinct eligible active-member count
      */
     @Transactional(readOnly = true)
     public ProjectDashboardSummary dashboardSummary(long actorUserId) {
@@ -464,7 +464,7 @@ public class ProjectQueryService {
             case "ADMIN" -> new ProjectDashboardSummary(projects.countActiveProjects(), 0L);
             case "MENTOR" -> new ProjectDashboardSummary(
                     projects.countActiveProjectsByMentor(actorUserId),
-                    projects.countDistinctCurrentMembersByMentor(actorUserId));
+                    countEligibleCurrentMembers(actorUserId));
             case "INTERN" -> new ProjectDashboardSummary(
                     accounts.isEligibleIntern(actorUserId)
                             ? projects.countActiveProjectsByIntern(actorUserId)
@@ -541,6 +541,20 @@ public class ProjectQueryService {
             case "INTERN" -> projects.findVisibleToIntern(actorUserId, pageable);
             default -> throw new ProjectAccessDeniedException();
         };
+    }
+
+    /**
+     * Counts eligible active Interns across the complete distinct current-member set for a
+     * Mentor-owned active Project scope. The Project query supplies only scalar IDs; Account
+     * eligibility remains the public Account-service decision boundary.
+     *
+     * @param mentorUserId owning Mentor account identifier
+     * @return distinct eligible active-member total
+     */
+    private long countEligibleCurrentMembers(long mentorUserId) {
+        return projects.findDistinctCurrentMemberUserIdsByMentor(mentorUserId).stream()
+                .filter(accounts::isEligibleIntern)
+                .count();
     }
 
     private static Pageable defaultProjectPage() {
