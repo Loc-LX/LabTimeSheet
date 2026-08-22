@@ -6,4 +6,4 @@ spring:
 
 lab:
   e2e:
-    fixed-instant: "${LAB_E2E_FIXED_INSTANT:2026-08-22T02:00:00Z}"
+    start-instant: "${LAB_E2E_START_INSTANT:2026-08-22T02:00:00Z}"

@@ -41,8 +41,9 @@ class E2eProfileIntegrationTest {
     private Environment environment;
 
     @Test
-    void e2eStartupUsesDevelopmentDatasourceAndFixedClock() {
-        assertThat(clock.instant()).isEqualTo(Instant.parse("2026-08-22T02:00:00Z"));
+    void e2eStartupUsesDevelopmentDatasourceAndAdvancingClock() {
+        assertThat(clock.instant()).isBetween(Instant.parse("2026-08-22T02:00:00Z"),
+                Instant.parse("2026-08-22T02:00:05Z"));
         assertThat(environment.getProperty("server.port")).isEqualTo("0");
         assertThat(environment.getProperty("spring.mail.host")).isEqualTo("localhost");
         assertThat(environment.getProperty("lab.public-origin")).isEqualTo("http://localhost:8080");

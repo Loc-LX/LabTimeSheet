@@ -171,11 +171,12 @@ other development messages.
 ### Deterministic local E2E clock
 
 Date-sensitive browser journeys may opt into the `e2e` profile, which uses an
-immutable Vietnam-zone clock. The profile is absent by default, has no runtime
-mutation or endpoint, and is rejected when combined with `prod`:
+advancing Vietnam-zone clock anchored at the configured start instant. The
+profile is absent by default, has no runtime mutation or endpoint, and is
+rejected when combined with `prod`:
 
 ```bash
-LAB_E2E_FIXED_INSTANT=2026-08-22T02:00:00Z \
+LAB_E2E_START_INSTANT=2026-08-22T02:00:00Z \
   ./mvnw spring-boot:run -Dspring-boot.run.profiles=e2e
 ```
 

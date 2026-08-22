@@ -1,6 +1,7 @@
 package com.lab.labtimesheet.config;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 
@@ -22,15 +23,18 @@ class TimeConfiguration {
     }
 
     /**
-     * Provides an immutable clock for local E2E runs so date-sensitive journeys are repeatable.
+     * Provides an advancing clock anchored at a configured instant for local E2E runs. The offset preserves
+     * deterministic startup dates while allowing elapsed-time validation, such as checkout after check-in.
      *
-     * @param fixedInstant ISO-8601 instant configured only when the {@code e2e} profile is explicitly active
-     * @return fixed clock in the application's Vietnam business zone
+     * @param startInstant ISO-8601 instant configured only when the {@code e2e} profile is explicitly active
+     * @return advancing clock whose first instant is near the configured start in the application's business zone
      */
     @Bean
     @Profile("e2e & !prod")
-    Clock e2eClock(@Value("${lab.e2e.fixed-instant}") String fixedInstant) {
-        return Clock.fixed(Instant.parse(fixedInstant), BUSINESS_ZONE);
+    Clock e2eClock(@Value("${lab.e2e.start-instant}") String startInstant) {
+        Instant configuredStart = Instant.parse(startInstant);
+        Instant systemStart = Instant.now();
+        return Clock.offset(Clock.system(BUSINESS_ZONE), Duration.between(systemStart, configuredStart));
     }
 
     /**
