@@ -107,7 +107,7 @@ public class ReportExportService {
         context.setVariable("reportKind", reportKind);
         context.setVariable("report", report);
         if (report instanceof ProjectTaskReportView projectTaskReport) {
-            context.setVariable("projectFilterName", projectName(projectTaskReport));
+            context.setVariable("projectFilterName", projectFilterName(projectTaskReport));
             context.setVariable("memberFilterName", memberName(projectTaskReport));
             context.setVariable("statusFilterName", projectTaskReport.filter().status() == null
                     ? "All statuses" : projectTaskReport.filter().status().name());
@@ -187,8 +187,7 @@ public class ReportExportService {
         sheet.addMergedRegion(new CellRangeAddress(0, 0, 0, 7));
         Row filter = sheet.createRow(1);
         filter.createCell(0).setCellValue("Project");
-        filter.createCell(1).setCellValue(report.filter().projectId() == null
-                ? "All authorized Projects" : projectName(report));
+        filter.createCell(1).setCellValue(projectFilterName(report));
         filter.createCell(2).setCellValue("Member");
         filter.createCell(3).setCellValue(memberName(report));
         filter.createCell(4).setCellValue("Status");
@@ -261,6 +260,10 @@ public class ReportExportService {
                 .map(project -> project.name())
                 .findFirst()
                 .orElse("Selected Project");
+    }
+
+    private static String projectFilterName(ProjectTaskReportView report) {
+        return report.filter().projectId() == null ? "Select a Project" : projectName(report);
     }
 
     private static String memberName(ProjectTaskReportView report) {

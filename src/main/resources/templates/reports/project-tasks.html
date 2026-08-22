@@ -13,7 +13,7 @@
         <div class="field">
             <label class="field-label" for="task-report-project">Project</label>
             <select class="control" id="task-report-project" name="projectId">
-                <option value="">Select a Project</option>
+                <option value="" th:selected="${report.filter.projectId == null}">Select a Project</option>
                 <option th:each="project : ${report.projectOptions}" th:value="${project.id}"
                         th:selected="${report.filter.projectId != null and report.filter.projectId == project.id}"
                         th:text="${project.name}">Project</option>

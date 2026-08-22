@@ -82,6 +82,35 @@ class ReportExportServiceTest {
     }
 
     @Test
+    void omittedProjectFilterUsesSelectProjectAcrossHtmlWorkbookAndPdf() throws Exception {
+        ProjectTaskReportView report = new ProjectTaskReportView(
+                new ProjectTaskReportFilter(null, null, null,
+                        LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 30),
+                        LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 31)),
+                List.of(new ProjectSummary(7L, "Dự án Hà Nội", "ACTIVE",
+                        LocalDate.of(2026, 8, 1), LocalDate.of(2026, 12, 31))),
+                List.of(), List.of(), 0L, 0L, "N/A", emptyStatusCounts(), 0L, false, List.of());
+        SpringTemplateEngine templates = actualTemplates();
+        String html = renderProjectTasksHtml(templates, report);
+        assertThat(html).containsPattern(
+                "(?s)<option value=\"\" selected=\"selected\">Select a Project</option>");
+        assertThat(html).doesNotContain("selected=\"selected\">Dự án Hà Nội</option>");
+
+        ReportExportService exports = new ReportExportService(templates);
+        try (XSSFWorkbook workbook = new XSSFWorkbook(
+                new ByteArrayInputStream(exports.projectTaskXlsx(report)))) {
+            assertThat(workbook.getSheet("Project Tasks").getRow(1).getCell(1).getStringCellValue())
+                    .isEqualTo("Select a Project");
+        }
+        PdfReader reader = new PdfReader(exports.projectTaskPdf(report));
+        try {
+            assertThat(new PdfTextExtractor(reader).getTextFromPage(1)).contains("Select a Project");
+        } finally {
+            reader.close();
+        }
+    }
+
+    @Test
     void pdfUsesPrintTemplateAndStartsWithPdfSignature() {
         SpringTemplateEngine templates = Mockito.mock(SpringTemplateEngine.class);
         given(templates.process(Mockito.eq("reports/print"), Mockito.any()))
