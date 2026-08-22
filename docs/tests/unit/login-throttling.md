@@ -5,7 +5,7 @@
 - **Scenario IDs:** `AC-SEC-003`
 - **Test class/method:** `com.lab.labtimesheet.feature.account.service.LoginThrottleTest`
 - **Implementation commit:** `091361eb73c7d7118d8212df630a83aca4ad5f9e`
-- **Review-fix commit:** `1cd45526cfaadba46c632dd7ea5f77eb26e97b94`
+- **Review-fix commit:** `9758199eae529351708aeb41d75177d089402196`
 
 ## Protected behavior
 

@@ -4,7 +4,7 @@
 - **Requirement IDs:** `ACC-025`, `ATT-018`
 - **Scenario IDs:** Attendance round-3 review producer request; no separate numbered scenario assigned
 - **Test class/method:** `com.lab.labtimesheet.feature.account.service.HistoricalInternReportingWindowIntegrationTest`
-- **Implementation commit:** pending
+- **Implementation commit:** `9758199eae529351708aeb41d75177d089402196`
 
 ## Protected behavior
 
@@ -57,7 +57,7 @@ DOCKER_HOST=unix:///Users/sechmachine/.orbstack/run/docker.sock \
 **Observed result**
 
 ```text
-2026-08-22T15:55:18+07:00 — PostgreSQL 18.4 Testcontainers; Tests run: 3, Failures: 0, Errors: 0, Skipped: 0;
+2026-08-22T15:57:34+07:00 — PostgreSQL 18.4 Testcontainers; Tests run: 3, Failures: 0, Errors: 0, Skipped: 0;
 BUILD SUCCESS.
 ```
 
@@ -66,8 +66,12 @@ BUILD SUCCESS.
 **Command and result**
 
 ```text
-Account/security affected suite including HistoricalInternReportingWindowIntegrationTest: pending after this
-producer milestone; the focused PostgreSQL producer test passed 3/3 above.
+env JAVA_HOME=/opt/homebrew/opt/openjdk@25 PATH=/opt/homebrew/opt/openjdk@25/bin:$PATH \
+DOCKER_HOST=unix:///Users/sechmachine/.orbstack/run/docker.sock \
+./mvnw -q -Dtest=AccountActivationIntegrationTest,AccountIdentityCorrectionIntegrationTest,AccountLifecycleIntegrationTest,AccountRecoveryIntegrationTest,AccountRecoveryLockOrderIntegrationTest,AccountScalarLookupIntegrationTest,ActiveMentorIdentityIntegrationTest,BootstrapIntegrationTest,EligibleInternOptionIntegrationTest,HistoricalInternReportingWindowIntegrationTest,InternMutationEligibilityIntegrationTest,InternWorkWindowIntegrationTest,InternshipLifecycleIntegrationTest,LoginThrottleTest,PasswordResetIntegrationTest,UserActionTokenCleanupIntegrationTest test
+
+2026-08-22T16:00:34+07:00 — PostgreSQL 18.4 Testcontainers; Tests run: 52, Failures: 0, Errors: 0, Skipped: 0;
+BUILD SUCCESS.
 ```
 
 ## External-test boundaries
