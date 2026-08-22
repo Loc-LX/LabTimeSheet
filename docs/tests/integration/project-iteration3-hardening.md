@@ -42,12 +42,21 @@ found: long,long,long,long,java.util.Set<java.lang.Long>,long
 
 The production boundary had no request-bound transfer overload, so the route identifier could not be checked.
 
+The stale-leader race was also run once against a temporary guard-free working tree with:
+
+```text
+MAVEN_OPTS='-XX:+EnableDynamicAgentLoading' JAVA_HOME=/opt/homebrew/opt/openjdk@25 PATH="/opt/homebrew/opt/openjdk@25/bin:$PATH" ./mvnw '-Dtest=ProjectLifecycleLockIntegrationTest#concurrentLeaderChangeAndLeaderRemovalHaveOneWinnerFromTheSameSnapshot' test
+Tests run: 1, Failures: 1, Errors: 0, Skipped: 0, BUILD FAILURE
+AssertionError: expected successes=1 but observed successes=2
+```
+
 Additional behavior REDs were observed before their guards:
 
 ```text
 leaderRemovalRejectsMembershipIdFromAnotherProjectWithoutRuleDetails: expected ProjectAccessDeniedException but was ProjectRuleViolationException: Membership is not in this Project
 leadershipChangeRejectsAnInternFromAnotherProjectWithoutContextLeak: expected ProjectAccessDeniedException but was ProjectRuleViolationException: Leader must be a current same-Project member
 completedProjectsRejectInvitationRevocationWithoutChangingRetainedHistory: Expected ProjectRuleViolationException to be thrown, but nothing was thrown
+concurrentLeaderChangeAndLeaderRemovalHaveOneWinnerFromTheSameSnapshot: guard-free characterization completed both mutations and observed successes=2 instead of the required one success/one conflict
 ```
 
 ## GREEN
