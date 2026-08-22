@@ -4,13 +4,14 @@
 - **Requirement IDs:** `SEC-003`, `SEC-009`
 - **Scenario IDs:** No dedicated numbered acceptance scenario; plan trace `I3-PLAT-03` and requirement trace `SEC-003`, `SEC-009`
 - **Test class/method:** `com.lab.labtimesheet.feature.account.service.UserActionTokenCleanupIntegrationTest.cleanupDeletesExpiredAndTerminalRowsButRetainsLiveToken`
-- **Implementation commit:** `2eaa4b67bdf7ac1a378c3c72341b5664ec18ff8b`
+- **Implementation commit:** pending
 - **Metadata review-fix commit:** `1cd45526cfaadba46c632dd7ea5f77eb26e97b94`
 
 ## Protected behavior
 
 Expired, consumed, and invalidated activation/password-reset token rows are removed by a bounded scheduled cleanup,
-while a currently usable hashed token remains available. Raw token material is never part of the cleanup boundary.
+while a currently usable hashed token remains available. The hourly scheduler entrypoint owns its transaction rather
+than relying on a self-invoked transactional method. Raw token material is never part of the cleanup boundary.
 
 ## Test method
 
@@ -55,7 +56,13 @@ export DOCKER_HOST=unix:///Users/sechmachine/.orbstack/run/docker.sock
 **Observed result**
 
 ```text
-2026-08-22T13:43:46+07:00 — PostgreSQL 18.4 Testcontainers; Tests run: 1, Failures: 0, Errors: 0, Skipped: 0;
+2026-08-22T13:43:46+07:00 — PostgreSQL 18.4 Testcontainers; prior direct-cleanup test passed `1/1`.
+
+2026-08-22T20:01:32+07:00 — Scheduler-path RED: PostgreSQL 18.4 Testcontainers; the new scheduled entrypoint test
+failed with `TransactionRequiredException` because scheduler self-invocation bypassed the transactional proxy.
+
+2026-08-22T20:02:14+07:00 — Scheduler-path GREEN: PostgreSQL 18.4 Testcontainers; Tests run: 2, Failures: 0, Errors: 0,
+Skipped: 0; BUILD SUCCESS after moving the transaction boundary to the scheduled entrypoint.
 BUILD SUCCESS.
 ```
 

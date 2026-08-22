@@ -25,8 +25,13 @@ public class UserActionTokenCleanupService {
         return tokens.deleteExpiredAndTerminal(clock.instant());
     }
 
-    /** Runs cleanup hourly; token rows are not an operational history surface. */
+    /**
+     * Runs cleanup hourly inside a transaction owned by this scheduler entrypoint; token rows are not an operational
+     * history surface. The transaction is declared here because scheduler invocation bypasses self-invocation
+     * proxies when it delegates to {@link #cleanupExpiredAndTerminal()}.
+     */
     @Scheduled(fixedDelay = 3_600_000L, initialDelay = 3_600_000L)
+    @Transactional
     public void scheduledCleanup() {
         cleanupExpiredAndTerminal();
     }

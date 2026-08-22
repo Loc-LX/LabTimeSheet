@@ -64,6 +64,19 @@ class UserActionTokenCleanupIntegrationTest {
         assertThat(tokens.findById(live.getId())).isPresent();
     }
 
+    @Test
+    void scheduledCleanupRunsTheDeletionInsideItsSchedulerTransaction() {
+        bootstrap.bootstrap("scheduled-cleanup@example.com", "Scheduled Cleanup Admin",
+                "correct horse battery staple");
+        long userId = accounts.requireActiveAdminId("scheduled-cleanup@example.com");
+        UserActionToken expired = tokens.saveAndFlush(UserActionToken.passwordReset(
+                userId, hash(4), BASE.minusSeconds(30), BASE.minusSeconds(60)));
+
+        cleanup.scheduledCleanup();
+
+        assertThat(tokens.findById(expired.getId())).isEmpty();
+    }
+
     private static byte[] hash(int marker) {
         byte[] hash = new byte[32];
         hash[0] = (byte) marker;
