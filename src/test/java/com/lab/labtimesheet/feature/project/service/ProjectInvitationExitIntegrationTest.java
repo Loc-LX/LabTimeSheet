@@ -574,6 +574,43 @@ class ProjectInvitationExitIntegrationTest {
     }
 
     @Test
+    void versionedExitTransferRejectsNullTaskVersionsWithoutMutation() {
+        long mentorId = user("mentor-null-version-transfer@example.test", "MENTOR");
+        long leaderId = intern("leader-null-version-transfer@example.test", "I193");
+        long targetId = intern("target-null-version-transfer@example.test", "I194");
+        long recipientId = intern("recipient-null-version-transfer@example.test", "I195");
+        long projectId = createProject(mentorId, leaderId, "Null version transfer");
+        projects.addMembers(mentorId, projectId, List.of(targetId, recipientId));
+        long targetMembershipId = membershipId(projectId, targetId);
+        long recipientMembershipId = membershipId(projectId, recipientId);
+        long leaderMembershipId = membershipId(projectId, leaderId);
+        long taskId = insertTask(projectId, targetMembershipId, leaderMembershipId, "Null version Task", "TODO");
+        long requestId = projects.requestMemberRemoval(
+                leaderId, projectId, targetMembershipId, "Null browser version snapshot");
+        long observedVersion = number("select version from tasks where id = ?", taskId);
+        int notificationCount = count("select count(*) from notifications");
+
+        jdbc.update("update tasks set version = version + 1 where id = ?", taskId);
+        entityManager.clear();
+
+        assertThrows(ProjectRuleViolationException.class, () -> projects.transferTasks(
+                leaderId,
+                projectId,
+                requestId,
+                targetMembershipId,
+                Set.of(taskId),
+                (Map<Long, Long>) null,
+                recipientMembershipId));
+
+        assertEquals(targetMembershipId, number(
+                "select assignee_membership_id from tasks where id = ?", taskId));
+        assertEquals(observedVersion + 1, number("select version from tasks where id = ?", taskId));
+        assertEquals("PENDING", text(
+                "select status from project_membership_exit_requests where id = ?", requestId));
+        assertEquals(notificationCount, count("select count(*) from notifications"));
+    }
+
+    @Test
     void leaderExitRequiresReplacementAndLeaderChangeDoesNotMoveAssignments() {
         long mentorId = user("mentor-leader-exit@example.test", "MENTOR");
         long leaderId = intern("leader-leader-exit@example.test", "I141");
