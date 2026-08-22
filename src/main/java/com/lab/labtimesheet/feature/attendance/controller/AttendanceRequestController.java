@@ -49,6 +49,7 @@ public class AttendanceRequestController {
      * Redirects the superseded combined queue to the focused Leave workflow.
      *
      * @param principal authenticated actor
+     * @param attendanceRecordId retained legacy query value, ignored by the focused workflow
      * @param model unused legacy view model
      * @return redirect to the focused Leave page
      */

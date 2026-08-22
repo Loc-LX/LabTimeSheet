@@ -1787,6 +1787,7 @@ class AttendancePersistenceIntegrationTest {
                 Instant.parse("2026-08-20T07:30:00Z")));
         entityManager.flush();
 
+        clock.set(terminalDate.atStartOfDay(ZoneOffset.UTC).toInstant());
         accounts.completeInternship(
                 terminalIntern, adminId, new InternshipLifecycleGuard(false, 0));
 
@@ -1802,8 +1803,11 @@ class AttendancePersistenceIntegrationTest {
 
     @Test
     void terminalDateWithoutAttendanceDoesNotCreateAbsenceForLeaveOrDayOff() {
+        LocalDate emptyPreTerminalDate = LocalDate.of(2026, 8, 19);
         LocalDate emptyDate = LocalDate.of(2026, 8, 20);
+        LocalDate leavePreTerminalDate = LocalDate.of(2026, 8, 20);
         LocalDate leaveDate = LocalDate.of(2026, 8, 21);
+        LocalDate dayOffPreTerminalDate = LocalDate.of(2026, 8, 21);
         LocalDate dayOffDate = LocalDate.of(2026, 8, 24);
         long emptyIntern = createActiveIntern(
                 "terminal-empty-intern@example.test", "INT-REPORT-EMPTY", LocalDate.of(2026, 8, 1), emptyDate);
@@ -1821,16 +1825,45 @@ class AttendancePersistenceIntegrationTest {
         calendar.createManual(new AttendanceActor(adminId, AttendanceRole.ADMIN), dayOffDate, "Closure", true);
         entityManager.flush();
 
+        clock.set(emptyDate.atStartOfDay(ZoneOffset.UTC).toInstant());
         accounts.completeInternship(emptyIntern, adminId, new InternshipLifecycleGuard(false, 0));
+        clock.set(leaveDate.atStartOfDay(ZoneOffset.UTC).toInstant());
         accounts.completeInternship(leaveIntern, adminId, new InternshipLifecycleGuard(false, 0));
+        clock.set(dayOffDate.atStartOfDay(ZoneOffset.UTC).toInstant());
         accounts.completeInternship(dayOffIntern, adminId, new InternshipLifecycleGuard(false, 0));
 
-        assertThat(attendanceReports.query(new AttendanceActor(adminId, AttendanceRole.ADMIN),
-                emptyIntern, emptyDate, emptyDate).days()).isEmpty();
-        assertThat(attendanceReports.query(new AttendanceActor(adminId, AttendanceRole.ADMIN),
-                leaveIntern, leaveDate, leaveDate).days()).isEmpty();
-        assertThat(attendanceReports.query(new AttendanceActor(adminId, AttendanceRole.ADMIN),
-                dayOffIntern, dayOffDate, dayOffDate).days()).isEmpty();
+        AttendanceReport emptyReport = attendanceReports.query(
+                new AttendanceActor(adminId, AttendanceRole.ADMIN), emptyIntern, emptyPreTerminalDate,
+                emptyDate.plusDays(1));
+        assertThat(emptyReport.days()).extracting(AttendanceReportDay::workDate)
+                .containsExactly(emptyPreTerminalDate, emptyDate);
+        assertThat(emptyReport.days()).extracting(AttendanceReportDay::classification)
+                .containsExactly(AttendanceReportClassification.ABSENT, AttendanceReportClassification.ABSENT);
+        assertThat(emptyReport.expectedWorkdays()).isEqualTo(2);
+
+        AttendanceReport leaveReport = attendanceReports.query(
+                new AttendanceActor(adminId, AttendanceRole.ADMIN), leaveIntern, leavePreTerminalDate,
+                leaveDate.plusDays(1));
+        assertThat(leaveReport.days()).filteredOn(day -> day.workDate().equals(leavePreTerminalDate))
+                .singleElement().extracting(AttendanceReportDay::classification)
+                .isEqualTo(AttendanceReportClassification.ABSENT);
+        assertThat(leaveReport.days()).filteredOn(day -> day.workDate().equals(leaveDate))
+                .singleElement().extracting(AttendanceReportDay::classification)
+                .isEqualTo(AttendanceReportClassification.APPROVED_LEAVE);
+        assertThat(leaveReport.days()).noneMatch(day -> day.workDate().isAfter(leaveDate));
+        assertThat(leaveReport.expectedWorkdays()).isEqualTo(1);
+
+        AttendanceReport dayOffReport = attendanceReports.query(
+                new AttendanceActor(adminId, AttendanceRole.ADMIN), dayOffIntern, dayOffPreTerminalDate,
+                dayOffDate.plusDays(1));
+        assertThat(dayOffReport.days()).filteredOn(day -> day.workDate().equals(dayOffPreTerminalDate))
+                .singleElement().extracting(AttendanceReportDay::classification)
+                .isEqualTo(AttendanceReportClassification.ABSENT);
+        assertThat(dayOffReport.days()).filteredOn(day -> day.workDate().equals(dayOffDate))
+                .singleElement().extracting(AttendanceReportDay::classification)
+                .isEqualTo(AttendanceReportClassification.OFF_DAY);
+        assertThat(dayOffReport.days()).noneMatch(day -> day.workDate().isAfter(dayOffDate));
+        assertThat(dayOffReport.expectedWorkdays()).isEqualTo(1);
     }
 
     @Test

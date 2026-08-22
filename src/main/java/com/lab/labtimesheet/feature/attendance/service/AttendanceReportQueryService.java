@@ -3,6 +3,7 @@ package com.lab.labtimesheet.feature.attendance.service;
 import com.lab.labtimesheet.feature.account.model.AccountStatus;
 import com.lab.labtimesheet.feature.account.model.GlobalRole;
 import com.lab.labtimesheet.feature.account.model.dto.AccountIdentity;
+import com.lab.labtimesheet.feature.account.model.dto.InternReportingWindow;
 import com.lab.labtimesheet.feature.account.service.AccountService;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
 import com.lab.labtimesheet.feature.attendance.model.AttendancePolicy;
@@ -71,7 +72,8 @@ public class AttendanceReportQueryService {
      * themselves. Active Mentors and active Admins may inspect any target account whose immutable role is Intern; a
      * Project Leader remains an Intern at this boundary and therefore gets no cross-user access. Unavailable or
      * non-Intern targets use the same denied outcome for broad actors. The inclusive range is limited to one calendar
-     * year to keep the server-side read and per-date Account eligibility checks bounded. Percentages are exact
+     * year to keep the server-side read bounded. Historical eligibility comes from the Account-owned activation and
+     * terminal timestamp window, so completion does not remove previously eligible empty workdays. Percentages are exact
      * two-decimal HALF_UP values; empty metrics and their display helpers represent N/A when no expected workday
      * remains.</p>
      *
@@ -87,6 +89,7 @@ public class AttendanceReportQueryService {
     public AttendanceReport query(AttendanceActor actor, long internId, LocalDate from, LocalDate to) {
         validateRange(from, to);
         authorize(actor, internId);
+        InternReportingWindow reportingWindow = accounts.historicalInternReportingWindow(internId).orElse(null);
 
         List<AttendanceRecordEntity> recordRows = records
                 .findByInternUserIdAndWorkDateBetweenOrderByWorkDateAsc(internId, from, to);
@@ -106,8 +109,8 @@ public class AttendanceReportQueryService {
         while (!date.isAfter(to)) {
             AttendanceRecordEntity entity = recordsByDate.get(date);
             // A terminal lifecycle action closes future obligations but cannot erase a
-            // row already recorded on that local terminal date.
-            if (!accounts.isEligibleIntern(internId, date) && entity == null) {
+            // previously eligible empty workday or a row recorded on that local date.
+            if ((reportingWindow == null || !reportingWindow.eligibleOn(date)) && entity == null) {
                 date = date.plusDays(1);
                 continue;
             }
