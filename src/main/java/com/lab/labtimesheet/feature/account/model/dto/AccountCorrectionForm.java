@@ -1,6 +1,9 @@
 package com.lab.labtimesheet.feature.account.model.dto;
 
 import java.time.LocalDate;
+import com.lab.labtimesheet.feature.account.model.AccountStatus;
+import com.lab.labtimesheet.feature.account.model.GlobalRole;
+import com.lab.labtimesheet.feature.account.model.InternshipStatus;
 import lombok.Getter;
 import lombok.Setter;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -37,10 +40,10 @@ public class AccountCorrectionForm {
      * @param account account projection supplied by the Admin-only service boundary
      */
     public AccountCorrectionForm(AccountAdministrationView account) {
-        email = account.email();
-        studentCode = account.studentCode();
-        internshipStart = account.internshipStartDate();
-        internshipEnd = account.internshipEndDate();
+        email = emailEditable(account) ? account.email() : null;
+        studentCode = studentCodeEditable(account) ? account.studentCode() : null;
+        internshipStart = internshipDatesEditable(account) ? account.internshipStartDate() : null;
+        internshipEnd = internshipDatesEditable(account) ? account.internshipEndDate() : null;
     }
 
     /** Creates an empty correction form for binding and validation tests. */
@@ -76,5 +79,20 @@ public class AccountCorrectionForm {
 
     private static String clean(String value) {
         return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private static boolean emailEditable(AccountAdministrationView account) {
+        return account.accountStatus() != AccountStatus.DEACTIVATED;
+    }
+
+    private static boolean studentCodeEditable(AccountAdministrationView account) {
+        return account.role() == GlobalRole.INTERN
+                && (account.internshipStatus() == InternshipStatus.NOT_STARTED
+                || account.internshipStatus() == InternshipStatus.ACTIVE);
+    }
+
+    private static boolean internshipDatesEditable(AccountAdministrationView account) {
+        return account.role() == GlobalRole.INTERN
+                && account.internshipStatus() == InternshipStatus.NOT_STARTED;
     }
 }

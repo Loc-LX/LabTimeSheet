@@ -33,7 +33,7 @@
           <td th:text="${account.email}">email@example.test</td>
           <td th:text="${account.role.name() == 'ADMIN' ? 'Admin' : account.role.name() == 'MENTOR' ? 'Mentor' : 'Intern'}">Intern</td>
           <td th:text="${account.accountStatus.name() == 'ACTIVE' ? 'Active' : account.accountStatus.name() == 'LOCKED' ? 'Locked' : account.accountStatus.name() == 'PENDING_ACTIVATION' ? 'Pending activation' : 'Deactivated'}">Active</td>
-          <td th:text="${account.role.name() == 'INTERN' ? account.studentCode + ' · ' + (account.internshipStatus.name() == 'ACTIVE' ? 'Active' : account.internshipStatus.name() == 'COMPLETED' ? 'Completed' : 'Withdrawn') : 'N/A'}">STU-001 · Active</td>
+          <td th:text="${account.role.name() == 'INTERN' ? account.studentCode + ' · ' + (account.internshipStatus.name() == 'NOT_STARTED' ? 'Not started' : account.internshipStatus.name() == 'ACTIVE' ? 'Active' : account.internshipStatus.name() == 'COMPLETED' ? 'Completed' : 'Withdrawn') : 'N/A'}">STU-001 · Active</td>
           <td><a class="button" th:href="@{/admin/accounts/{id}(id=${account.id})}">View</a></td>
         </tr>
         </tbody>
@@ -51,7 +51,7 @@
         <div><dt>Account state</dt><dd th:text="${selectedAccount.accountStatus.name() == 'ACTIVE' ? 'Active' : selectedAccount.accountStatus.name() == 'LOCKED' ? 'Locked' : selectedAccount.accountStatus.name() == 'PENDING_ACTIVATION' ? 'Pending activation' : 'Deactivated'}">Active</dd></div>
       </dl>
       <div class="inline-actions">
-        <a class="button" th:href="@{/admin/accounts/{id}/edit(id=${selectedAccount.id})}">Edit permitted details</a>
+        <a class="button" th:if="${selectedAccount.accountStatus.name() != 'DEACTIVATED'}" th:href="@{/admin/accounts/{id}/edit(id=${selectedAccount.id})}">Edit permitted details</a>
         <form method="post" th:if="${selectedAccount.accountStatus.name() == 'ACTIVE'}"
               th:action="@{/admin/accounts/{id}/lock(id=${selectedAccount.id})}">
           <button class="button" type="submit">Lock account</button>
@@ -78,7 +78,7 @@
       <dl class="detail-list">
         <div><dt>Student code</dt><dd th:text="${selectedAccount.studentCode}">STU-001</dd></div>
         <div><dt>Inclusive dates</dt><dd th:text="|${#temporals.format(selectedAccount.internshipStartDate, 'dd/MM/yyyy')}–${#temporals.format(selectedAccount.internshipEndDate, 'dd/MM/yyyy')}|">Dates</dd></div>
-        <div><dt>Internship state</dt><dd th:text="${selectedAccount.internshipStatus}">ACTIVE</dd></div>
+        <div><dt>Internship state</dt><dd th:text="${selectedAccount.internshipStatus.name() == 'NOT_STARTED' ? 'Not started' : selectedAccount.internshipStatus.name() == 'ACTIVE' ? 'Active' : selectedAccount.internshipStatus.name() == 'COMPLETED' ? 'Completed' : 'Withdrawn'}">Active</dd></div>
         <div><dt>Current Leader</dt><dd th:text="${readiness.currentLeader ? 'Yes' : 'No'}">No</dd></div>
         <div><dt>Unfinished Tasks</dt><dd th:text="${readiness.unfinishedTaskCount}">0</dd></div>
       </dl>

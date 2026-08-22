@@ -4,6 +4,7 @@ import java.security.Principal;
 
 import com.lab.labtimesheet.feature.account.model.GlobalRole;
 import com.lab.labtimesheet.feature.account.model.dto.ActivationForm;
+import com.lab.labtimesheet.feature.account.model.dto.AccountAdministrationView;
 import com.lab.labtimesheet.feature.account.model.dto.AccountCorrectionForm;
 import com.lab.labtimesheet.feature.account.model.dto.AccountDirectoryFilter;
 import com.lab.labtimesheet.feature.account.model.dto.CreateAccountForm;
@@ -79,6 +80,9 @@ class AccountController {
         long adminId = accounts.requireActiveAdminId(principal.getName());
         try {
             var account = accounts.administrationView(targetUserId, adminId);
+            if (account.accountStatus() == com.lab.labtimesheet.feature.account.model.AccountStatus.DEACTIVATED) {
+                throw new IllegalArgumentException("Account not editable");
+            }
             model.addAttribute("selectedAccount", account);
             model.addAttribute("correctionForm", new AccountCorrectionForm(account));
             return "accounts/edit";
@@ -98,9 +102,9 @@ class AccountController {
             BindingResult bindingResult,
             Principal principal,
             Model model,
-            RedirectAttributes redirectAttributes) {
+        RedirectAttributes redirectAttributes) {
         long adminId = accounts.requireActiveAdminId(principal.getName());
-        var account = accounts.administrationView(targetUserId, adminId);
+        var account = editableAccount(targetUserId, adminId);
         model.addAttribute("selectedAccount", account);
         if (bindingResult.hasErrors()) {
             return "accounts/edit";
@@ -112,6 +116,21 @@ class AccountController {
         } catch (IllegalArgumentException | IllegalStateException failure) {
             bindingResult.reject("account.correction.invalid", "Account correction could not be completed.");
             return "accounts/edit";
+        } catch (DataIntegrityViolationException duplicate) {
+            rejectUniquenessViolation(bindingResult, duplicate);
+            return "accounts/edit";
+        }
+    }
+
+    private AccountAdministrationView editableAccount(long targetUserId, long adminId) {
+        try {
+            var account = accounts.administrationView(targetUserId, adminId);
+            if (account.accountStatus() == com.lab.labtimesheet.feature.account.model.AccountStatus.DEACTIVATED) {
+                throw new IllegalArgumentException("Account not editable");
+            }
+            return account;
+        } catch (IllegalArgumentException | ProjectAccessDeniedException failure) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND);
         }
     }
 

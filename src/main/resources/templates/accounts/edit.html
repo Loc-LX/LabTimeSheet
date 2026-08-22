@@ -16,14 +16,14 @@
       <strong>Please correct the highlighted fields.</strong>
       <ul><li th:each="fieldError : ${#fields.allErrors()}" th:text="${fieldError}"></li></ul>
     </div>
-    <div class="field">
+    <div class="field" th:if="${selectedAccount.accountStatus.name() != 'DEACTIVATED'}">
       <label class="field-label" for="email">Email</label>
       <input class="control" id="email" th:field="*{email}" type="email" autocomplete="off"
              th:attr="aria-invalid=${#fields.hasErrors('email')},aria-describedby=${#fields.hasErrors('email') ? 'account-correction-email-error' : null}">
       <p class="field-error" id="account-correction-email-error" role="alert"
          th:if="${#fields.hasErrors('email')}" th:errors="*{email}"></p>
     </div>
-    <fieldset class="form-section" th:if="${selectedAccount.role.name() == 'INTERN'}">
+    <fieldset class="form-section" th:if="${selectedAccount.role.name() == 'INTERN' and (selectedAccount.internshipStatus.name() == 'NOT_STARTED' or selectedAccount.internshipStatus.name() == 'ACTIVE')}">
       <legend>Intern profile correction</legend>
       <p class="field-help">Only retained Student Code and inclusive internship dates can be corrected.</p>
       <div class="form-grid form-grid-three">
@@ -34,8 +34,8 @@
           <p class="field-error" id="account-correction-student-code-error" role="alert"
              th:if="${#fields.hasErrors('studentCode')}" th:errors="*{studentCode}"></p>
         </div>
-        <div class="field"><label class="field-label" for="internshipStart">Internship start</label><input class="control" id="internshipStart" th:field="*{internshipStart}" type="date"></div>
-        <div class="field"><label class="field-label" for="internshipEnd">Internship end</label><input class="control" id="internshipEnd" th:field="*{internshipEnd}" type="date"></div>
+        <div class="field" th:if="${selectedAccount.internshipStatus.name() == 'NOT_STARTED'}"><label class="field-label" for="internshipStart">Internship start</label><input class="control" id="internshipStart" th:field="*{internshipStart}" type="date"></div>
+        <div class="field" th:if="${selectedAccount.internshipStatus.name() == 'NOT_STARTED'}"><label class="field-label" for="internshipEnd">Internship end</label><input class="control" id="internshipEnd" th:field="*{internshipEnd}" type="date"></div>
       </div>
     </fieldset>
     <div class="form-actions"><a class="button" th:href="@{/admin/accounts/{id}(id=${selectedAccount.id})}">Cancel</a><button class="button button-primary" type="submit">Save correction</button></div>

@@ -27,6 +27,8 @@ import com.lab.labtimesheet.feature.project.service.ProjectQueryService;
 import com.lab.labtimesheet.feature.project.service.ProjectService;
 import java.time.LocalDate;
 import java.util.List;
+import org.hibernate.exception.ConstraintViolationException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -123,13 +125,95 @@ class AccountAdministrationControllerWebTest {
                         .with(user(ADMIN_EMAIL).roles("ADMIN")).with(csrf())
                         .param("email", " corrected@example.test ")
                         .param("studentCode", "STU-008")
-                        .param("internshipStart", "2026-08-02")
-                        .param("internshipEnd", "2026-12-31"))
+                        )
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl("/admin/accounts/7"));
 
         verify(accounts).correctAccount(7L, 1L, new AccountIdentityCorrection(
-                "corrected@example.test", "STU-008", LocalDate.of(2026, 8, 2), LocalDate.of(2026, 12, 31)));
+                "corrected@example.test", "STU-008", null, null));
+    }
+
+    @Test
+    void correctionControlsFollowAccountAndInternshipLifecycle() throws Exception {
+        AccountAdministrationView pending = account(7L, AccountStatus.PENDING_ACTIVATION, InternshipStatus.NOT_STARTED);
+        AccountAdministrationView active = account(8L, AccountStatus.ACTIVE, InternshipStatus.ACTIVE);
+        AccountAdministrationView locked = account(9L, AccountStatus.LOCKED, InternshipStatus.ACTIVE);
+        AccountAdministrationView completed = account(10L, AccountStatus.ACTIVE, InternshipStatus.COMPLETED);
+        AccountAdministrationView withdrawn = account(11L, AccountStatus.ACTIVE, InternshipStatus.WITHDRAWN);
+        when(accounts.requireActiveAdminId(ADMIN_EMAIL)).thenReturn(1L);
+        when(accounts.administrationView(7L, 1L)).thenReturn(pending);
+        when(accounts.administrationView(8L, 1L)).thenReturn(active);
+        when(accounts.administrationView(9L, 1L)).thenReturn(locked);
+        when(accounts.administrationView(10L, 1L)).thenReturn(completed);
+        when(accounts.administrationView(11L, 1L)).thenReturn(withdrawn);
+
+        mvc.perform(get("/admin/accounts/7/edit").with(user(ADMIN_EMAIL).roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("id=\"email\"")))
+                .andExpect(content().string(containsString("id=\"studentCode\"")))
+                .andExpect(content().string(containsString("id=\"internshipStart\"")))
+                .andExpect(content().string(containsString("id=\"internshipEnd\"")));
+        for (long id : List.of(8L, 9L)) {
+            mvc.perform(get("/admin/accounts/" + id + "/edit").with(user(ADMIN_EMAIL).roles("ADMIN")))
+                    .andExpect(status().isOk())
+                    .andExpect(content().string(containsString("id=\"email\"")))
+                    .andExpect(content().string(containsString("id=\"studentCode\"")))
+                    .andExpect(content().string(not(containsString("id=\"internshipStart\""))))
+                    .andExpect(content().string(not(containsString("id=\"internshipEnd\""))));
+        }
+        for (long id : List.of(10L, 11L)) {
+            mvc.perform(get("/admin/accounts/" + id + "/edit").with(user(ADMIN_EMAIL).roles("ADMIN")))
+                    .andExpect(status().isOk())
+                    .andExpect(content().string(containsString("id=\"email\"")))
+                    .andExpect(content().string(not(containsString("id=\"studentCode\""))))
+                    .andExpect(content().string(not(containsString("id=\"internshipStart\""))));
+        }
+    }
+
+    @Test
+    void deactivatedAccountHasNoCorrectionSurface() throws Exception {
+        when(accounts.requireActiveAdminId(ADMIN_EMAIL)).thenReturn(1L);
+        when(accounts.administrationView(12L, 1L)).thenReturn(account(12L, AccountStatus.DEACTIVATED, InternshipStatus.ACTIVE));
+
+        mvc.perform(get("/admin/accounts/12/edit").with(user(ADMIN_EMAIL).roles("ADMIN")))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void duplicateCorrectionRetainsSafeInputWithoutSqlDiagnostics() throws Exception {
+        when(accounts.requireActiveAdminId(ADMIN_EMAIL)).thenReturn(1L);
+        when(accounts.administrationView(7L, 1L)).thenReturn(intern());
+        doThrow(new DataIntegrityViolationException("SQL duplicate detail", new ConstraintViolationException(
+                "duplicate", null, "uq_intern_profiles_student_code_ci")))
+                .when(accounts).correctAccount(7L, 1L,
+                        new AccountIdentityCorrection("corrected@example.test", "STU-DUPLICATE", null, null));
+
+        mvc.perform(post("/admin/accounts/7/edit")
+                        .with(user(ADMIN_EMAIL).roles("ADMIN")).with(csrf())
+                        .param("email", "corrected@example.test")
+                        .param("studentCode", "STU-DUPLICATE"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("An Intern with this student code already exists")))
+                .andExpect(content().string(containsString("STU-DUPLICATE")))
+                .andExpect(content().string(not(containsString("SQL duplicate detail"))))
+                .andExpect(content().string(not(containsString("uq_intern_profiles_student_code_ci"))));
+    }
+
+    @Test
+    void directoryUsesHumanLabelsForEveryInternshipStatus() throws Exception {
+        when(accounts.requireActiveAdminId(ADMIN_EMAIL)).thenReturn(1L);
+        when(accounts.administrationViews(1L)).thenReturn(List.of(
+                account(7L, AccountStatus.ACTIVE, InternshipStatus.NOT_STARTED),
+                account(8L, AccountStatus.ACTIVE, InternshipStatus.ACTIVE),
+                account(9L, AccountStatus.ACTIVE, InternshipStatus.COMPLETED),
+                account(10L, AccountStatus.ACTIVE, InternshipStatus.WITHDRAWN)));
+
+        mvc.perform(get("/admin/accounts").with(user(ADMIN_EMAIL).roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Not started")))
+                .andExpect(content().string(containsString("Active")))
+                .andExpect(content().string(containsString("Completed")))
+                .andExpect(content().string(containsString("Withdrawn")));
     }
 
     @Test
@@ -197,15 +281,13 @@ class AccountAdministrationControllerWebTest {
     }
 
     private static AccountAdministrationView intern() {
+        return account(7L, AccountStatus.ACTIVE, InternshipStatus.ACTIVE);
+    }
+
+    private static AccountAdministrationView account(long id, AccountStatus accountStatus,
+            InternshipStatus internshipStatus) {
         return new AccountAdministrationView(
-                7L,
-                "intern@example.test",
-                "Intern",
-                GlobalRole.INTERN,
-                AccountStatus.ACTIVE,
-                "STU-007",
-                LocalDate.of(2026, 8, 1),
-                LocalDate.of(2026, 12, 31),
-                InternshipStatus.ACTIVE);
+                id, id == 7L ? "intern@example.test" : "intern-" + id + "@example.test", "Intern " + id, GlobalRole.INTERN, accountStatus,
+                "STU-" + id, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 12, 31), internshipStatus);
     }
 }

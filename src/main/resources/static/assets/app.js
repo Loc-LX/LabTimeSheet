@@ -44,6 +44,16 @@ document.addEventListener('DOMContentLoaded', () => {
     applyRoleFields();
   }
 
+  document.querySelectorAll('[data-task-version-toggle]').forEach((taskCheckbox) => {
+    const versionInput = document.querySelector(`[data-task-version-for="${taskCheckbox.value}"]`);
+    if (!versionInput) return;
+    const syncTaskVersion = () => {
+      versionInput.disabled = !taskCheckbox.checked;
+    };
+    taskCheckbox.addEventListener('change', syncTaskVersion);
+    syncTaskVersion();
+  });
+
   let collapsed = false;
   try { collapsed = localStorage.getItem('labtimesheet-sidebar') === 'collapsed'; }
   catch (_) { /* Use the expanded default. */ }

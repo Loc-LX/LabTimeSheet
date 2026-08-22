@@ -4,7 +4,7 @@
 - **Requirement IDs:** `I3-UI-01`, `I3-UI-02`, `RPT-001`, `RPT-006`–`RPT-010`
 - **Scenario IDs:** `AC-RPT-001`, `AC-RPT-002`, `AC-RPT-003`, `AC-TST-001`
 - **Test class/method:** `com.lab.labtimesheet.feature.reporting.controller.ReportingExportControllerWebTest#attendanceXlsxDownloadUsesAttachmentAndWorkbookContentType`; `#projectTaskPdfDownloadUsesAttachmentAndPdfContentType`; `#rejectsInvalidProjectTaskExportRangesBeforeDatasetConstruction`
-- **Implementation commit:** `639d02e404cbd551ffd70def15021a1d6beb8cf9`
+- **Implementation commit:** `bf30dd16b4e70b99c58a12c87edf61bd81a26889` (export implementation ancestry)
 
 ## Protected behavior
 
@@ -12,7 +12,7 @@ Authorized attendance and Project/Task report datasets have downloadable XLSX an
 
 ## Test method
 
-The MVC slice authenticates an Intern for attendance and a Mentor for Project/Task, then requests one download route for each format. The report services and byte exporter are test doubles at this response-contract boundary; workbook/PDF byte parity is covered by the focused exporter test after the Platform dependencies are delivered.
+The MVC slice authenticates an Intern for attendance and a Mentor for Project/Task, then requests one download route for each format. The report services and byte exporter are test doubles at this response-contract boundary. The merged Platform dependency pin is consumed by the focused exporter tests; HTML/XLSX/PDF parity and PDF text/font extraction remain explicitly pending.
 
 ## Hand-derived expected result
 
@@ -45,7 +45,7 @@ JAVA_HOME=/opt/homebrew/opt/openjdk@25 PATH=/opt/homebrew/opt/openjdk@25/bin:$PA
 **Observed result**
 
 ```text
-Temporary local dependency probe: BUILD SUCCESS for compile and 13/13 focused tests (9 bounded-route cases plus 4 exporter cases, including the actual Thymeleaf print template) with the exact requested artifacts. The pom edit was removed immediately because Maven/dependency configuration belongs to Platform.
+Merged Platform dependency tree: BUILD SUCCESS for 13/13 focused tests (9 bounded-route cases plus 4 exporter cases, including the actual Thymeleaf print template) with POI 5.5.1 and OpenPDF HTML/fonts-extra 3.0.3. No exporter parity or managed-browser result is claimed here.
 ```
 
 ## Affected suite
@@ -53,7 +53,7 @@ Temporary local dependency probe: BUILD SUCCESS for compile and 13/13 focused te
 **Command and result**
 
 ```text
-Temporary exact-dependency regression slice: `./mvnw -Dtest=AttendanceReportControllerWebTest,ProjectTaskReportControllerWebTest,AttendanceTemplateIntegrationTest,ProjectTaskShellContractTest test` passed 17/17 after the bounded-link template guard. The final reports/UI Java affected suite remains pending the reviewed Platform dependency delivery; temporary evidence is not a final branch gate.
+Merged-tree regression slice: `./mvnw -Dtest=AttendanceReportControllerWebTest,ProjectTaskReportControllerWebTest,AttendanceTemplateIntegrationTest,ProjectTaskShellContractTest test` passed 17/17 after the bounded-link template guard. The final reports/UI Java affected suite remains separate from this export evidence.
 ```
 
 ### Boundary-fix RED/GREEN
