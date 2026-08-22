@@ -12,9 +12,12 @@ import java.io.ByteArrayInputStream;
 import java.time.LocalDate;
 import java.util.List;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.openpdf.text.pdf.PdfReader;
+import org.openpdf.text.pdf.parser.PdfTextExtractor;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.thymeleaf.templateresolver.ClassLoaderTemplateResolver;
+import org.thymeleaf.context.Context;
 import org.thymeleaf.spring6.SpringTemplateEngine;
 
 /** Focused workbook/PDF byte contracts for the shared report exporter. */
@@ -94,5 +97,64 @@ class ReportExportServiceTest {
                 List.of(), 0, 0, 0, "N/A", "N/A", List.of(), List.of()));
 
         assertThat(pdf).startsWith("%PDF".getBytes());
+    }
+
+    @Test
+    void actualPrintTemplateEmbedsFontAndPreservesVietnameseText() throws Exception {
+        ClassLoaderTemplateResolver resolver = new ClassLoaderTemplateResolver();
+        resolver.setPrefix("templates/");
+        resolver.setSuffix(".html");
+        resolver.setTemplateMode("HTML");
+        resolver.setCacheable(false);
+        SpringTemplateEngine templates = new SpringTemplateEngine();
+        templates.setTemplateResolver(resolver);
+
+        byte[] pdf = new ReportExportService(templates).attendancePdf(new AttendanceReportView(
+                7L, "Nguyễn Mai", LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 1), true,
+                List.of(), 0, 0, 0, "N/A", "N/A", List.of(), List.of()));
+
+        assertThat(new String(pdf, java.nio.charset.StandardCharsets.ISO_8859_1))
+                .contains("/FontFile");
+        PdfReader reader = new PdfReader(pdf);
+        try {
+            String text = new PdfTextExtractor(reader).getTextFromPage(1);
+            assertThat(text).contains("Nguyễn Mai");
+        } finally {
+            reader.close();
+        }
+    }
+
+    @Test
+    void sharedAttendanceDatasetKeepsTotalsAcrossHtmlWorkbookAndPdf() throws Exception {
+        AttendanceReportView report = new AttendanceReportView(
+                7L, "Nguyễn Mai", LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 31), true,
+                List.of(), 20, 19, 1, "95.00%", "92.50%", List.of(), List.of());
+        ClassLoaderTemplateResolver resolver = new ClassLoaderTemplateResolver();
+        resolver.setPrefix("templates/");
+        resolver.setSuffix(".html");
+        resolver.setTemplateMode("HTML");
+        resolver.setCacheable(false);
+        SpringTemplateEngine templates = new SpringTemplateEngine();
+        templates.setTemplateResolver(resolver);
+        Context context = new Context();
+        context.setVariable("reportKind", "attendance");
+        context.setVariable("report", report);
+
+        String html = templates.process("reports/print", context);
+        assertThat(html).contains("20").contains("19").contains("1").contains("95.00%").contains("92.50%");
+        try (XSSFWorkbook workbook = new XSSFWorkbook(
+                new ByteArrayInputStream(new ReportExportService(templates).attendanceXlsx(report)))) {
+            var summary = workbook.getSheet("Attendance").getRow(4);
+            assertThat(summary.getCell(0).getNumericCellValue()).isEqualTo(20);
+            assertThat(summary.getCell(1).getNumericCellValue()).isEqualTo(19);
+            assertThat(summary.getCell(2).getNumericCellValue()).isEqualTo(1);
+        }
+        PdfReader reader = new PdfReader(new ReportExportService(templates).attendancePdf(report));
+        try {
+            String pdfText = new PdfTextExtractor(reader).getTextFromPage(1);
+            assertThat(pdfText).contains("20").contains("19").contains("1").contains("95.00%").contains("92.50%");
+        } finally {
+            reader.close();
+        }
     }
 }
