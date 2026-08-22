@@ -4,7 +4,7 @@
 - **Requirement IDs:** `ATT-001`–`ATT-018`, `CAL-001`–`CAL-009`, `COR-001`–`COR-009`, `LEV-001`–`LEV-012`, `RPT-004`, `GOV-005`
 - **Scenario IDs:** `AC-ATT-001`–`AC-ATT-007`, `AC-COR-001`–`AC-COR-006`, `AC-LEV-001`–`AC-LEV-006`, `AC-UI-005`
 - **Test class/method:** `AttendancePersistenceIntegrationTest`, `AttendanceConcurrencyIntegrationTest`, `AttendanceDeadlineSchedulerTest`
-- **Implementation commit:** `5c08db6d3dc4a2962ee83ba9d10eb62b4a09b373`
+- **Implementation commits:** `5c08db6d3dc4a2962ee83ba9d10eb62b4a09b373` (initial hardening); `715e02b0e24125388cf449ca8f81e9d614458c47` (round-three repair)
 
 ## Protected behavior
 
@@ -47,7 +47,7 @@ to those contracts. The I3-ATT-05 terminal-date RED and GREEN are recorded in
 **Command**
 
 ```text
-rtk env JAVA_HOME=/opt/homebrew/opt/openjdk@25 PATH=/opt/homebrew/opt/openjdk@25/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin ./mvnw -Dtest="AttendanceLombokBoilerplateTest,AttendanceControllerTest,AttendancePolicyControllerWebTest,AttendanceRequestControllerWebTest,CalendarAuthorizationWebIntegrationTest,CalendarControllerWebTest,CalendarDevelopmentProfileWebIntegrationTest,AttendanceApplicationServiceTest,AttendanceConcurrencyIntegrationTest,AttendanceCorrectionApplicationServiceTest,AttendanceDeadlineSchedulerTest,AttendancePersistenceIntegrationTest,AttendancePolicyApplicationServiceTest,AttendanceReadModelServiceTest,AttendanceServiceTest,CalendarImportServiceTest,LeaveApplicationServiceTest,AdminSettingsControllerWebTest,AttendanceReportServiceTest,AttendanceTemplateIntegrationTest" test
+rtk env JAVA_HOME=/opt/homebrew/opt/openjdk@25 PATH=/opt/homebrew/opt/openjdk@25/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin ./mvnw -Dtest="AttendanceLombokBoilerplateTest,AttendanceControllerTest,AttendancePolicyControllerWebTest,AttendanceRequestControllerWebTest,CalendarAuthorizationWebIntegrationTest,CalendarControllerWebTest,CalendarDevelopmentProfileWebIntegrationTest,AttendanceApplicationServiceTest,AttendanceConcurrencyIntegrationTest,AttendanceCorrectionApplicationServiceTest,AttendanceDeadlineSchedulerTest,AttendancePersistenceIntegrationTest,AttendancePolicyApplicationServiceTest,AttendanceReadModelServiceTest,AttendanceServiceTest,CalendarImportServiceTest,LeaveApplicationServiceTest,AdminSettingsControllerWebTest,AttendanceReportServiceTest,AttendanceTemplateIntegrationTest,RoleDashboardWebIntegrationTest" test
 ```
 
 **Observed result**
