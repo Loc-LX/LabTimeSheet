@@ -4,6 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
+import java.time.Instant;
+import java.sql.Timestamp;
+import java.time.ZoneId;
 
 import com.lab.labtimesheet.config.TestcontainersConfiguration;
 import com.lab.labtimesheet.feature.account.model.GlobalRole;
@@ -104,6 +107,54 @@ class NotificationServiceIntegrationTest {
         assertThat(nextAttemptFor(adminId)).isNotNull();
         assertThat(mail.calls).isEqualTo(1);
         assertThat(mail.lastTransactionActive).isFalse();
+    }
+
+    @Test
+    void ordinaryEmailRetriesUseTheFiveBoundedDelaysThenBecomeTerminalAndManualRetryReusesTheRow() {
+        bootstrap.bootstrap("notification-retry@example.com", "Admin", "correct horse battery staple");
+        long adminId = accounts.requireActiveAdminId("notification-retry@example.com");
+        activateSmtp(adminId);
+        mail.reset();
+        mail.fail = true;
+
+        publish(
+                new NotificationEvent(
+                        NotificationType.LEAVE_DECIDED, "APPROVED", "Leave approved", "The leave was approved"),
+                new NotificationAction("/attendance/leave", false),
+                List.of(new NotificationRecipient(adminId, "notification-retry@example.com")));
+        long notificationId = jdbc.queryForObject(
+                "select id from notifications where recipient_user_id = ?", Long.class, adminId);
+        Instant base = Instant.parse("2026-08-14T00:00:00Z");
+        assertThat(nextAttemptFor(adminId).toString()).contains("2026-08-14 07:01");
+        List<Instant> delays = List.of(
+                base.plusSeconds(5 * 60),
+                base.plusSeconds(30 * 60),
+                base.plusSeconds(2 * 60 * 60),
+                base.plusSeconds(12 * 60 * 60));
+        for (int retry = 0; retry < delays.size(); retry++) {
+            markDue(notificationId, base);
+            assertThat(notifications.retryDueEmails()).isEqualTo(1);
+            assertThat(attemptsFor(adminId)).isEqualTo(retry + 2);
+            assertThat(nextAttemptFor(adminId)).isNotNull();
+            String expectedLocal = delays.get(retry).atZone(ZoneId.of("UTC"))
+                    .withZoneSameInstant(ZoneId.of("Asia/Ho_Chi_Minh"))
+                    .toLocalDateTime()
+                    .toString()
+                    .substring(0, 16)
+                    .replace('T', ' ');
+            assertThat(nextAttemptFor(adminId).toString()).contains(expectedLocal);
+        }
+        markDue(notificationId, base);
+        assertThat(notifications.retryDueEmails()).isEqualTo(1);
+        assertThat(statusFor(adminId)).isEqualTo("FAILED");
+        assertThat(attemptsFor(adminId)).isEqualTo(6);
+        assertThat(nextAttemptFor(adminId)).isNull();
+        assertThat(countFor(adminId)).isEqualTo(1);
+
+        mail.fail = false;
+        assertThat(notifications.retryFailedEmail(notificationId, adminId)).isTrue();
+        assertThat(statusFor(adminId)).isEqualTo("SENT");
+        assertThat(countFor(adminId)).isEqualTo(1);
     }
 
     @Test
@@ -369,6 +420,10 @@ class NotificationServiceIntegrationTest {
         return jdbc.queryForObject(
                 "select email_next_attempt_at from notifications where recipient_user_id = ? order by id desc limit 1",
                 Object.class, recipientId);
+    }
+
+    private void markDue(long notificationId, Instant now) {
+        jdbc.update("update notifications set email_next_attempt_at = ? where id = ?", Timestamp.from(now), notificationId);
     }
 
     @TestConfiguration(proxyBeanMethods = false)

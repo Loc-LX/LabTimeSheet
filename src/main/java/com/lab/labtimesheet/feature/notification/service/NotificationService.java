@@ -11,19 +11,21 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import com.lab.labtimesheet.feature.account.service.AccountService;
 import com.lab.labtimesheet.feature.integration.service.MailDeliveryService;
 import com.lab.labtimesheet.feature.notification.model.NotificationEmailStatus;
 import com.lab.labtimesheet.feature.notification.model.NotificationType;
 import com.lab.labtimesheet.feature.notification.model.dto.NotificationAction;
+import com.lab.labtimesheet.feature.notification.model.dto.NotificationDeliveryView;
 import com.lab.labtimesheet.feature.notification.model.dto.NotificationEvent;
 import com.lab.labtimesheet.feature.notification.model.dto.NotificationInbox;
 import com.lab.labtimesheet.feature.notification.model.dto.NotificationInboxItem;
 import com.lab.labtimesheet.feature.notification.model.dto.NotificationRecipient;
 import com.lab.labtimesheet.feature.notification.model.entity.NotificationEntity;
 import com.lab.labtimesheet.feature.notification.repository.NotificationRepository;
-import lombok.AccessLevel;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Propagation;
@@ -42,18 +44,42 @@ import org.springframework.transaction.PlatformTransactionManager;
  * provider I/O is deferred until after commit and is run
  * with transaction resources suspended so SMTP cannot roll back the domain mutation. Missing SMTP
  * is recorded as {@code UNAVAILABLE}, and that state has no later delivery path. A transient
- * adapter failure retains bounded {@code PENDING} state for the later retry worker.
+ * adapter failure retains bounded {@code PENDING} state for the scheduled retry worker, which applies the reviewed
+ * five-delay schedule and terminal {@code FAILED} state.
  */
 @Service
 @Slf4j
-@RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 public class NotificationService {
     private static final Set<String> SELF_TASK_TRANSITIONS = Set.of("SELF_TASK", "SELF_ASSIGNED", "SELF_CREATED");
+    private static final int RETRY_BATCH_SIZE = 100;
 
     private final NotificationRepository notifications;
     private final MailDeliveryService mailDelivery;
     private final Clock clock;
     private final PlatformTransactionManager transactionManager;
+    private final AccountService accounts;
+
+    NotificationService(
+            NotificationRepository notifications,
+            MailDeliveryService mailDelivery,
+            Clock clock,
+            PlatformTransactionManager transactionManager) {
+        this(notifications, mailDelivery, clock, transactionManager, null);
+    }
+
+    @Autowired
+    NotificationService(
+            NotificationRepository notifications,
+            MailDeliveryService mailDelivery,
+            Clock clock,
+            PlatformTransactionManager transactionManager,
+            AccountService accounts) {
+        this.notifications = notifications;
+        this.mailDelivery = mailDelivery;
+        this.clock = clock;
+        this.transactionManager = transactionManager;
+        this.accounts = accounts;
+    }
 
     /**
      * Persists one notification per distinct recipient and schedules only designated ordinary-email delivery.
@@ -153,11 +179,74 @@ public class NotificationService {
                 .ifPresent(notification -> notification.markRead(clock.instant()));
     }
 
+    /**
+     * Processes one bounded due ordinary-email retry batch while holding each row lock through its external send.
+     * A failed attempt retains the exact next delay; the sixth total attempt becomes terminal {@code FAILED}.
+     *
+     * @return number of due rows attempted
+     */
+    @Transactional
+    public int retryDueEmails() {
+        Instant now = clock.instant();
+        List<NotificationEntity> due = notifications.findDueEmailRetries(
+                NotificationEmailStatus.PENDING, now, PageRequest.of(0, RETRY_BATCH_SIZE));
+        due.forEach(this::retryLocked);
+        return due.size();
+    }
+
+    /**
+     * Lists failed ordinary-email state for an active Admin without exposing payloads or adapter diagnostics.
+     *
+     * @param adminId active Admin account identifier
+     * @return newest failed delivery projections
+     */
+    @Transactional(readOnly = true)
+    public List<NotificationDeliveryView> failedEmailViews(long adminId) {
+        requireAccountService().requireActiveAdminId(adminId);
+        return notifications.findByEmailStatusOrderByUpdatedAtDescIdDesc(NotificationEmailStatus.FAILED).stream()
+                .map(NotificationService::deliveryView)
+                .toList();
+    }
+
+    /**
+     * Re-enters one terminal failed ordinary email into a fresh bounded retry cycle and attempts it immediately.
+     * The existing in-app notification row is reused.
+     *
+     * @param notificationId failed notification identifier
+     * @param adminId active Admin authorizing the retry
+     * @return {@code true} when a failed row was requeued and attempted
+     */
+    @Transactional
+    public boolean retryFailedEmail(long notificationId, long adminId) {
+        requireAccountService().requireActiveAdminId(adminId);
+        NotificationEntity notification = notifications.findForUpdateById(notificationId).orElse(null);
+        if (notification == null || notification.getEmailStatus() != NotificationEmailStatus.FAILED) {
+            return false;
+        }
+        notification.requeueFailedEmail(clock.instant());
+        retryLocked(notification);
+        return true;
+    }
+
     private static NotificationInboxItem toInboxItem(NotificationEntity notification) {
         return new NotificationInboxItem(
                 notification.getId(), notification.getNotificationType(), notification.getTitle(),
                 notification.getBody(), notification.getActionUrl(), notification.getCreatedAt(),
                 notification.getReadAt() != null);
+    }
+
+    private static NotificationDeliveryView deliveryView(NotificationEntity notification) {
+        return new NotificationDeliveryView(
+                notification.getId(), notification.getRecipientUserId(), notification.getTitle(),
+                notification.getEmailStatus(), notification.getEmailAttempts(), notification.getEmailNextAttemptAt(),
+                notification.getUpdatedAt());
+    }
+
+    private AccountService requireAccountService() {
+        if (accounts == null) {
+            throw new IllegalStateException("Account authorization is unavailable");
+        }
+        return accounts;
     }
 
     private void validateSelfTaskShape(NotificationEvent event, NotificationAction action) {
@@ -196,7 +285,7 @@ public class NotificationService {
 
     private void deliver(long notificationId) {
         try {
-            Delivery delivery = executeInNewTransaction(status -> notifications.findById(notificationId)
+            Delivery delivery = executeInNewTransaction(status -> notifications.findForUpdateById(notificationId)
                     .filter(notification -> notification.getEmailStatus() == NotificationEmailStatus.PENDING)
                     .map(notification -> new Delivery(
                             notification.getEmailTo(), notification.getEmailSubject(), notification.getEmailBody()))
@@ -210,7 +299,7 @@ public class NotificationService {
                 Instant failedAt = clock.instant();
                 String safeError = failure.getClass().getSimpleName();
                 executeInNewTransaction(status -> {
-                    notifications.findById(notificationId)
+                    notifications.findForUpdateById(notificationId)
                             .ifPresent(notification -> notification.retainPendingRetry(
                                     failedAt, failedAt.plus(Duration.ofMinutes(1)), safeError));
                     return null;
@@ -218,7 +307,7 @@ public class NotificationService {
                 return;
             }
             executeInNewTransaction(status -> {
-                notifications.findById(notificationId)
+                notifications.findForUpdateById(notificationId)
                         .ifPresent(notification -> notification.markSent(clock.instant()));
                 return null;
             });
@@ -227,6 +316,31 @@ public class NotificationService {
             log.warn("Notification delivery attempt could not complete for id {} ({})",
                     notificationId, failure.getClass().getSimpleName());
         }
+    }
+
+    private void retryLocked(NotificationEntity notification) {
+        Delivery delivery = new Delivery(
+                notification.getEmailTo(), notification.getEmailSubject(), notification.getEmailBody());
+        try {
+            sendOutsideTransaction(delivery);
+            notification.markSent(clock.instant());
+        } catch (RuntimeException failure) {
+            Instant failedAt = clock.instant();
+            notification.retainPendingRetry(
+                    failedAt,
+                    failedAt.plus(retryDelay(notification.getEmailAttempts())),
+                    failure.getClass().getSimpleName());
+        }
+    }
+
+    private static Duration retryDelay(int attemptsBeforeRetry) {
+        return switch (attemptsBeforeRetry) {
+            case 1 -> Duration.ofMinutes(5);
+            case 2 -> Duration.ofMinutes(30);
+            case 3 -> Duration.ofHours(2);
+            case 4 -> Duration.ofHours(12);
+            default -> Duration.ofMinutes(1);
+        };
     }
 
     private <T> T executeInNewTransaction(org.springframework.transaction.support.TransactionCallback<T> callback) {
