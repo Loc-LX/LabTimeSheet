@@ -4,7 +4,7 @@
 - **Requirement IDs:** `I3-UI-05`, `I3-UI-06`, `UI-002`, `UI-003`, `UI-007`, `UI-014`, `RPT-001`–`RPT-010`
 - **Scenario IDs:** `AC-UI-001`, `AC-UI-002`, `AC-UI-005`, `AC-RPT-001`, `AC-RPT-002`, `AC-RPT-003`, `AC-TST-001`
 - **Test class/method:** `src/test/e2e/critical-journeys.spec.mjs`; `src/test/e2e/smoke.spec.mjs`; `src/test/e2e/report-journeys.spec.mjs`
-- **Implementation commit:** `e8bf331`
+- **Implementation commit:** `d020fbe`
 
 ## Protected behavior
 
@@ -12,7 +12,7 @@ The repository provides one pinned Chromium Playwright project with one worker, 
 
 ## Test method
 
-The critical journey serially bootstraps the first Admin when needed, configures and activates Mailpit SMTP through the real Admin forms, creates disposable Mentor/Intern accounts, consumes activation links through the Mailpit HTTP API, and retries Intern dashboard landing for up to 75 seconds while the production lifecycle scheduler moves a newly activated account from `NOT_STARTED`. It covers Account Directory and Admin Policy/Calendar/Holiday/SMTP navigation, exercises Intern Leave/Correction and balance plus Mentor decision pages, creates and activates a real Project, creates and updates a real Task as the current Intern member, logs work, renders the filtered Project/Task report, and downloads both Project/Task XLSX/PDF attachments with status, media, filename, ZIP/signature assertions. It also captures desktop light/dark screenshots, keyboard activation/focus outline, palette separation, and representative Project/attendance/notification/report routes. The smoke suite opens `/bootstrap` on a fresh installation or explicitly verifies its initialized 404 before checking the login shell, then repeats at 390×844. The older report journey remains credential-gated and skipped unless explicit Intern `E2E_EMAIL`/`E2E_PASSWORD` are supplied because its role-specific assertions are intentionally not substituted with Admin credentials.
+The critical journey serially bootstraps the first Admin when needed, configures and activates Mailpit SMTP through the real Admin forms, creates disposable Mentor/Intern accounts, consumes activation links through the Mailpit HTTP API, and retries Intern dashboard landing for up to 75 seconds while the production lifecycle scheduler moves a newly activated account from `NOT_STARTED`. It covers Account Directory and Admin Policy/Calendar/Holiday/SMTP navigation, exercises Intern Leave/Correction and balance plus Mentor decision pages, creates and activates a real Project, creates and updates a real Task as the current Intern member, logs work, opens the existing Project History route, asserts retained Task/work-log attribution, renders the filtered Project/Task report, and downloads both Project/Task XLSX/PDF attachments with status, media, filename, ZIP/signature assertions. It also captures desktop light/dark screenshots, keyboard activation/focus outline, palette separation, and representative Project/attendance/notification/report routes. The smoke suite opens `/bootstrap` on a fresh installation or explicitly verifies its initialized 404 before checking the login shell, then repeats at 390×844. The older report journey remains credential-gated and skipped unless explicit Intern `E2E_EMAIL`/`E2E_PASSWORD` are supplied because its role-specific assertions are intentionally not substituted with Admin credentials.
 
 ## Hand-derived expected result
 
@@ -49,7 +49,7 @@ PLAYWRIGHT_BROWSERS_PATH=/private/tmp/labtimesheet-playwright-browsers \
 PLAYWRIGHT_BASE_URL=http://127.0.0.1:8080 \
 PATH=/opt/homebrew/opt/node@24/bin:/usr/bin:/bin \
 npm run test:e2e
-3 passed, 2 skipped with one worker: the serial critical Iteration 3 journey (including real Project/Task creation, Task status/work-log, Project/Task XLSX/PDF downloads, and Intern Leave/Correction assertions) and both smoke tests passed; the two legacy Intern credential-gated tests skipped because `E2E_EMAIL`/`E2E_PASSWORD` were not supplied. Desktop evidence retained at `test-results/playwright/critical-journeys-Iteratio-89edd-dmin-Intern-Mentor-journeys-chromium/desktop-light.png` and `desktop-dark.png`; automated focus/keyboard assertions are separate from visual sign-off. Orchestrator manual visual sign-off at 1280x720 found complete navigation/form layout without clipping or overlap, with distinguishable text, controls, borders, selected navigation, statuses, and actions in both themes.
+3 passed, 2 skipped with one worker: the serial critical Iteration 3 journey (including real Project/Task creation, Task status/work-log, Project History retained Task/work-log attribution, Project/Task XLSX/PDF downloads, and Intern Leave/Correction assertions) and both smoke tests passed; the two legacy Intern credential-gated tests skipped because `E2E_EMAIL`/`E2E_PASSWORD` were not supplied. Desktop evidence retained at `test-results/playwright/critical-journeys-Iteratio-89edd-dmin-Intern-Mentor-journeys-chromium/desktop-light.png` and `desktop-dark.png`; automated focus/keyboard assertions are separate from visual sign-off. Orchestrator manual visual sign-off at 1280x720 found complete navigation/form layout without clipping or overlap, with distinguishable text, controls, borders, selected navigation, statuses, and actions in both themes.
 ```
 
 ## Affected suite
