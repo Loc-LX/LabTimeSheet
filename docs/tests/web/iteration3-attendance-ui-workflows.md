@@ -74,9 +74,10 @@ Vietnamese extraction, and an embedded `/FontFile` marker in `2a26ceb661c065e5a7
 ## External-test boundaries
 
 The MVC/template fixtures do not prove live PostgreSQL authorization, live SMTP/HolidayAPI
-delivery, or browser interaction. The exact pinned managed Chromium is installed, but the browser
-smoke could not start a Java service in this worktree because the documented `LAB_SMTP_HOST` and
+delivery, or browser interaction. The exact pinned Chromium artifact is installed, but Playwright
+cannot find its `chromium_headless_shell-1187` companion on this host and fallback system Chrome
+aborts under the sandbox. The Java service also cannot start because documented `LAB_SMTP_HOST` and
 `LAB_DB_*` environment-backed development services were not configured; no disposable database,
 SMTP service, or credential was created or changed. The credential-gated Leave/Correction and
 XLSX/PDF Playwright journeys are implemented in `src/test/e2e/report-journeys.spec.mjs` and remain
-unexecuted until those services and authorized credentials are supplied.
+unexecuted until managed browser artifacts, services, and authorized credentials are supplied.
