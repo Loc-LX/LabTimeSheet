@@ -1,10 +1,10 @@
 # Test Evidence: reviewed reporting dependency coordinates
 
 - **Test type:** Unit
-- **Requirement IDs:** `OPS-001`, `OPS-009`
-- **Scenario IDs:** `AC-OPS-004`
+- **Requirement IDs:** `RPT-007`, `ARC-002`, `OPS-019`
+- **Scenario IDs:** `AC-RPT-003`
 - **Test class/method:** `com.lab.labtimesheet.config.ReportingDependencyContractTest.reportingLibrariesUseTheReviewedCoordinatesAndResolveOnTheTestClasspath`
-- **Implementation commit:** `pending`
+- **Implementation commit:** `39fc97b84cabc6b6d4669e13a5521eeec3e191ce`
 
 ## Protected behavior
 
@@ -63,11 +63,21 @@ env JAVA_HOME=/opt/homebrew/opt/openjdk@25 PATH=/opt/homebrew/opt/openjdk@25/bin
 **Command and result**
 
 ```text
-The dependency-only milestone has no application behavior to widen. The focused contract, dependency tree, and
-production compile above are the affected checks; the complete platform suite remains the branch-completion gate.
+env JAVA_HOME=/opt/homebrew/opt/openjdk@25 PATH=/opt/homebrew/opt/openjdk@25/bin:$PATH ./mvnw -DskipTests package
 ```
+
+```text
+2026-08-22T14:09:10+07:00 — exact implementation tree 39fc97b84cabc6b6d4669e13a5521eeec3e191ce;
+Java 25 compile/test-compile, WAR packaging, and Spring Boot repackaging completed; BUILD SUCCESS.
+```
+
+The dependency-only milestone has no application behavior to widen. The focused contract and dependency tree above
+remain the direct coordinate checks; this fresh package is the affected compile/package gate and the complete platform
+suite remains the branch-completion gate.
 
 ## External-test boundaries
 
 This evidence does not prove XLSX/PDF content, Vietnamese font embedding, browser download behavior, licensing output,
-or report filter/total parity. Those remain the Reports/UI owner's implementation and integration scope.
+or report filter/total parity. `openpdf-fonts-extra` supplies font resources but does not by itself embed a Unicode
+font in a generated PDF; the Reports/UI owner must explicitly register/embed a TTF and prove Vietnamese output under
+`RPT-007`/`AC-RPT-003`.
