@@ -4,7 +4,7 @@
 - **Requirement IDs:** `I3-UI-05`, `I3-UI-06`, `UI-002`, `UI-003`, `UI-007`, `UI-014`, `RPT-001`–`RPT-010`
 - **Scenario IDs:** `AC-UI-001`, `AC-UI-002`, `AC-UI-005`, `AC-RPT-001`, `AC-RPT-002`, `AC-RPT-003`, `AC-TST-001`
 - **Test class/method:** `src/test/e2e/critical-journeys.spec.mjs`; `src/test/e2e/smoke.spec.mjs`; `src/test/e2e/report-journeys.spec.mjs`
-- **Implementation commit:** `51d116e`
+- **Implementation commit:** `2db457f`
 
 ## Protected behavior
 
@@ -12,7 +12,7 @@ The repository provides one pinned Chromium Playwright project with one worker, 
 
 ## Test method
 
-The critical journey serially bootstraps the first Admin when needed, configures and activates Mailpit SMTP through the real Admin forms, creates disposable Mentor/Intern accounts, consumes activation links through the Mailpit HTTP API, covers Account Directory and Admin Policy/Calendar/Holiday/SMTP navigation, exercises Intern Leave/Correction and balance plus Mentor decision pages, and performs real XLSX/PDF downloads with status, media, attachment, filename, ZIP/signature assertions. It also captures desktop light/dark screenshots, keyboard activation/focus outline, palette separation, and representative Project/attendance/notification/report routes. The smoke suite opens `/bootstrap` on a fresh installation or explicitly verifies its initialized 404 before checking the login shell, then repeats at 390×844. The older report journey remains credential-gated and skipped unless explicit Intern `E2E_EMAIL`/`E2E_PASSWORD` are supplied because its role-specific assertions are intentionally not substituted with Admin credentials.
+The critical journey serially bootstraps the first Admin when needed, configures and activates Mailpit SMTP through the real Admin forms, creates disposable Mentor/Intern accounts, consumes activation links through the Mailpit HTTP API, and retries Intern dashboard landing for up to 75 seconds while the production lifecycle scheduler moves a newly activated account from `NOT_STARTED`. It covers Account Directory and Admin Policy/Calendar/Holiday/SMTP navigation, exercises Intern Leave/Correction and balance plus Mentor decision pages, and performs real XLSX/PDF downloads with status, media, attachment, filename, ZIP/signature assertions. It also captures desktop light/dark screenshots, keyboard activation/focus outline, palette separation, and representative Project/attendance/notification/report routes. The smoke suite opens `/bootstrap` on a fresh installation or explicitly verifies its initialized 404 before checking the login shell, then repeats at 390×844. The older report journey remains credential-gated and skipped unless explicit Intern `E2E_EMAIL`/`E2E_PASSWORD` are supplied because its role-specific assertions are intentionally not substituted with Admin credentials.
 
 ## Hand-derived expected result
 
