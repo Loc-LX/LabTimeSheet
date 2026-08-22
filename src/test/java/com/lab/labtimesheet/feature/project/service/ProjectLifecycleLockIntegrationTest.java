@@ -484,6 +484,7 @@ class ProjectLifecycleLockIntegrationTest {
                     transactions.executeWithoutResult(status -> projects.transferTasks(
                             leaderId,
                             projectId,
+                            requestId,
                             targetMembershipId,
                             java.util.Set.of(taskId),
                             recipientMembershipId))));

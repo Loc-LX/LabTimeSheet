@@ -6,6 +6,7 @@ import com.lab.labtimesheet.feature.project.model.entity.ProjectEntity;
 import jakarta.persistence.LockModeType;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
@@ -33,17 +34,20 @@ public interface ProjectRepository extends JpaRepository<ProjectEntity, Long> {
     /**
      * Lists all Projects for Admin read-only inspection, most recently updated first.
      *
-     * @return ordered Projects
+     * @param pageable page and maximum result size
+     * @return ordered Projects within the requested page
      */
-    List<ProjectEntity> findAllByOrderByUpdatedAtDescIdDesc();
+    List<ProjectEntity> findAllByOrderByUpdatedAtDescIdDesc(Pageable pageable);
 
     /**
      * Lists Projects owned by one Mentor, most recently updated first.
      *
      * @param mentorUserId owning Mentor user identifier
-     * @return ordered owned Projects
+     * @param pageable page and maximum result size
+     * @return ordered owned Projects within the requested page
      */
-    List<ProjectEntity> findByMentorUserIdOrderByUpdatedAtDescIdDesc(long mentorUserId);
+    List<ProjectEntity> findByMentorUserIdOrderByUpdatedAtDescIdDesc(
+            long mentorUserId, Pageable pageable);
 
     /**
      * Projects retained membership intervals for one Intern without hydrating a filtered Project
@@ -104,7 +108,8 @@ public interface ProjectRepository extends JpaRepository<ProjectEntity, Long> {
      * memberships only after completion.
      *
      * @param internUserId Intern user identifier
-     * @return ordered visible Projects without duplicate rows
+     * @param pageable page and maximum result size
+     * @return ordered visible Projects without duplicate rows within the requested page
      */
     @Query("""
             select distinct project from ProjectEntity project
@@ -113,5 +118,6 @@ public interface ProjectRepository extends JpaRepository<ProjectEntity, Long> {
             and (membership.leftAt is null or project.status = com.lab.labtimesheet.feature.project.model.ProjectStatus.COMPLETED)
             order by project.updatedAt desc, project.id desc
             """)
-    List<ProjectEntity> findVisibleToIntern(@Param("internUserId") long internUserId);
+    List<ProjectEntity> findVisibleToIntern(
+            @Param("internUserId") long internUserId, Pageable pageable);
 }

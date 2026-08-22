@@ -16,7 +16,9 @@ import jakarta.persistence.PersistenceContext;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.function.Executable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
@@ -673,6 +675,245 @@ class ProjectInvitationExitIntegrationTest {
     }
 
     @Test
+    void routeBoundExitTransferRejectsTerminalRequestWithoutChangingTask() {
+        long mentorId = user("mentor-terminal-transfer@example.test", "MENTOR");
+        long leaderId = intern("leader-terminal-transfer@example.test", "I171");
+        long targetId = intern("target-terminal-transfer@example.test", "I172");
+        long recipientId = intern("recipient-terminal-transfer@example.test", "I173");
+        long projectId = createProject(mentorId, leaderId, "Terminal transfer");
+        projects.addMembers(mentorId, projectId, List.of(targetId, recipientId));
+        long targetMembershipId = membershipId(projectId, targetId);
+        long recipientMembershipId = membershipId(projectId, recipientId);
+        long leaderMembershipId = membershipId(projectId, leaderId);
+        long taskId = insertTask(projectId, targetMembershipId, leaderMembershipId, "Terminal route", "TODO");
+        long requestId = projects.requestMemberRemoval(
+                leaderId, projectId, targetMembershipId, "Resolve before transfer");
+        projects.rejectExit(mentorId, requestId, "Keep current member");
+        long retryRequestId = projects.requestMemberRemoval(
+                leaderId, projectId, targetMembershipId, "Retry after retained rejection");
+
+        assertThrows(ProjectRuleViolationException.class, () -> projects.transferTasks(
+                leaderId,
+                projectId,
+                requestId,
+                targetMembershipId,
+                java.util.Set.of(taskId),
+                recipientMembershipId));
+        assertEquals(targetMembershipId, number(
+                "select assignee_membership_id from tasks where id = ?", taskId));
+        assertEquals("REJECTED", text(
+                "select status from project_membership_exit_requests where id = ?", requestId));
+        assertEquals("PENDING", text(
+                "select status from project_membership_exit_requests where id = ?", retryRequestId));
+    }
+
+    @Test
+    void nestedWorkflowRoutesRejectForeignProjectIdsWithoutChangingRetainedState() {
+        long mentorId = user("mentor-nested-route-context@example.test", "MENTOR");
+        long leaderAId = intern("leader-nested-route-a@example.test", "I174");
+        long leaderBId = intern("leader-nested-route-b@example.test", "I175");
+        long cancelTargetId = intern("cancel-target-nested-route@example.test", "I176");
+        long approveTargetId = intern("approve-target-nested-route@example.test", "I177");
+        long rejectTargetId = intern("reject-target-nested-route@example.test", "I178");
+        long inviteeId = intern("invitee-nested-route@example.test", "I179");
+        long projectAId = createProject(mentorId, leaderAId, "Nested route A");
+        long projectBId = createProject(mentorId, leaderBId, "Nested route B");
+        projects.addMembers(
+                mentorId,
+                projectBId,
+                List.of(cancelTargetId, approveTargetId, rejectTargetId));
+        long invitationId = projects.issueInvitation(leaderBId, projectBId, inviteeId);
+        long cancelRequestId = projects.requestOwnLeave(
+                cancelTargetId, projectBId, "Cancel route context");
+        long approveRequestId = projects.requestMemberRemoval(
+                leaderBId, projectBId, membershipId(projectBId, approveTargetId), "Approve route context");
+        long rejectRequestId = projects.requestMemberRemoval(
+                leaderBId, projectBId, membershipId(projectBId, rejectTargetId), "Reject route context");
+        int notificationsBefore = count("select count(*) from notifications");
+
+        assertThrows(ProjectAccessDeniedException.class,
+                () -> projects.revokeInvitation(mentorId, projectAId, invitationId));
+        assertThrows(ProjectAccessDeniedException.class,
+                () -> projects.cancelExit(cancelTargetId, projectAId, cancelRequestId));
+        assertThrows(ProjectAccessDeniedException.class,
+                () -> projects.approveExit(mentorId, projectAId, approveRequestId, "Wrong route"));
+        assertThrows(ProjectAccessDeniedException.class,
+                () -> projects.rejectExit(mentorId, projectAId, rejectRequestId, "Wrong route"));
+
+        assertEquals("PENDING", text(
+                "select status from project_invitations where id = ?", invitationId));
+        assertEquals("PENDING", text(
+                "select status from project_membership_exit_requests where id = ?", cancelRequestId));
+        assertEquals("PENDING", text(
+                "select status from project_membership_exit_requests where id = ?", approveRequestId));
+        assertEquals("PENDING", text(
+                "select status from project_membership_exit_requests where id = ?", rejectRequestId));
+        assertEquals(notificationsBefore, count("select count(*) from notifications"));
+    }
+
+    @Test
+    void acAuth009ProjectRoleContextOperationMatrixDeniesWithoutStateDisclosureOrMutation() {
+        long mentorAId = user("mentor-auth-matrix-a@example.test", "MENTOR");
+        long mentorBId = user("mentor-auth-matrix-b@example.test", "MENTOR");
+        long adminId = user("admin-auth-matrix@example.test", "ADMIN");
+        long leaderAId = intern("leader-auth-matrix-a@example.test", "I184");
+        long replacementAId = intern("replacement-auth-matrix-a@example.test", "I185");
+        long ordinaryAId = intern("ordinary-auth-matrix-a@example.test", "I186");
+        long targetAId = intern("target-auth-matrix-a@example.test", "I187");
+        long inviteeAId = intern("invitee-auth-matrix-a@example.test", "I188");
+        long wrongInviteeId = intern("wrong-invitee-auth-matrix@example.test", "I189");
+        long candidateId = intern("candidate-auth-matrix@example.test", "I190");
+        long leaderBId = intern("leader-auth-matrix-b@example.test", "I191");
+        long completedLeaderId = intern("completed-leader-auth-matrix@example.test", "I192");
+        long removedMemberId = intern("removed-member-auth-matrix@example.test", "I193");
+        long projectAId = createProject(mentorAId, leaderAId, "Authorization matrix A");
+        createProject(mentorBId, leaderBId, "Authorization matrix B");
+        projects.addMembers(mentorAId, projectAId, List.of(replacementAId, ordinaryAId, targetAId));
+        projects.changeLeader(mentorAId, projectAId, replacementAId);
+        long invitationId = projects.issueInvitation(replacementAId, projectAId, inviteeAId);
+        long targetMembershipId = membershipId(projectAId, targetAId);
+        long ordinaryMembershipId = membershipId(projectAId, ordinaryAId);
+        long replacementMembershipId = membershipId(projectAId, replacementAId);
+        long requestId = projects.requestMemberRemoval(
+                replacementAId, projectAId, targetMembershipId, "Authorization matrix request");
+        long taskId = insertTask(
+                projectAId,
+                targetMembershipId,
+                replacementMembershipId,
+                "Authorization matrix task",
+                "TODO");
+
+        long completedProjectId = createProject(mentorAId, completedLeaderId, "Authorization matrix completed");
+        projects.addMember(mentorAId, completedProjectId, removedMemberId);
+        projects.directRemoveMember(
+                mentorAId, completedProjectId, membershipId(completedProjectId, removedMemberId), null);
+        completeProject(completedProjectId, mentorAId);
+
+        List<AuthorizationCase> cases = List.of(
+                new AuthorizationCase(
+                        projectAId,
+                        "Admin cannot directly add a member",
+                        ProjectAccessDeniedException.class,
+                        () -> projects.addMember(adminId, projectAId, candidateId)),
+                new AuthorizationCase(
+                        projectAId,
+                        "current Leader cannot use Mentor direct add",
+                        ProjectAccessDeniedException.class,
+                        () -> projects.addMember(replacementAId, projectAId, candidateId)),
+                new AuthorizationCase(
+                        projectAId,
+                        "non-owning Mentor cannot issue an invitation",
+                        ProjectAccessDeniedException.class,
+                        () -> projects.issueInvitation(mentorBId, projectAId, candidateId)),
+                new AuthorizationCase(
+                        projectAId,
+                        "ordinary member cannot revoke an invitation",
+                        ProjectAccessDeniedException.class,
+                        () -> projects.revokeInvitation(ordinaryAId, projectAId, invitationId)),
+                new AuthorizationCase(
+                        projectAId,
+                        "former Leader cannot revoke a current-term invitation",
+                        ProjectAccessDeniedException.class,
+                        () -> projects.revokeInvitation(leaderAId, projectAId, invitationId)),
+                new AuthorizationCase(
+                        projectAId,
+                        "wrong invitee cannot respond",
+                        ProjectAccessDeniedException.class,
+                        () -> projects.respondToInvitation(wrongInviteeId, invitationId, InvitationResponse.ACCEPT)),
+                new AuthorizationCase(
+                        projectAId,
+                        "former Leader cannot request member removal",
+                        ProjectAccessDeniedException.class,
+                        () -> projects.requestMemberRemoval(
+                                leaderAId, projectAId, ordinaryMembershipId, "Former Leader attempt")),
+                new AuthorizationCase(
+                        projectAId,
+                        "wrong requester cannot cancel an exit",
+                        ProjectAccessDeniedException.class,
+                        () -> projects.cancelExit(ordinaryAId, projectAId, requestId)),
+                new AuthorizationCase(
+                        projectAId,
+                        "exit target cannot cancel a Leader removal",
+                        ProjectAccessDeniedException.class,
+                        () -> projects.cancelExit(targetAId, projectAId, requestId)),
+                new AuthorizationCase(
+                        projectAId,
+                        "ordinary member cannot transfer exit Tasks",
+                        ProjectAccessDeniedException.class,
+                        () -> projects.transferTasks(
+                                ordinaryAId,
+                                projectAId,
+                                requestId,
+                                targetMembershipId,
+                                Set.of(taskId),
+                                replacementMembershipId)),
+                new AuthorizationCase(
+                        projectAId,
+                        "non-owning Mentor cannot approve an exit",
+                        ProjectAccessDeniedException.class,
+                        () -> projects.approveExit(mentorBId, projectAId, requestId, "Wrong owner")),
+                new AuthorizationCase(
+                        projectAId,
+                        "non-owning Mentor cannot reject an exit",
+                        ProjectAccessDeniedException.class,
+                        () -> projects.rejectExit(mentorBId, projectAId, requestId, "Wrong owner")),
+                new AuthorizationCase(
+                        projectAId,
+                        "non-owning Mentor cannot remove a member directly",
+                        ProjectAccessDeniedException.class,
+                        () -> projects.directRemoveMember(mentorBId, projectAId, targetMembershipId, null)),
+                new AuthorizationCase(
+                        projectAId,
+                        "non-owning Mentor cannot change leadership",
+                        ProjectAccessDeniedException.class,
+                        () -> projects.changeLeader(mentorBId, projectAId, ordinaryAId)),
+                new AuthorizationCase(
+                        completedProjectId,
+                        "removed member cannot request leave from completed Project",
+                        ProjectAccessDeniedException.class,
+                        () -> projects.requestOwnLeave(removedMemberId, completedProjectId, "Removed member")));
+
+        for (var authorizationCase : cases) {
+            var before = mutationState(authorizationCase.projectId());
+            Throwable failure = assertThrows(Throwable.class, authorizationCase.operation(), authorizationCase.label());
+            assertTrue(
+                    authorizationCase.expectedException().isInstance(failure),
+                    authorizationCase.label() + " returned " + failure.getClass().getName());
+            assertEquals(before, mutationState(authorizationCase.projectId()), authorizationCase.label());
+        }
+    }
+
+    @Test
+    void routeBoundTransferRejectsAnExistingRequestFromAnotherProject() {
+        long mentorId = user("mentor-transfer-foreign-route@example.test", "MENTOR");
+        long leaderAId = intern("leader-transfer-foreign-a@example.test", "I180");
+        long leaderBId = intern("leader-transfer-foreign-b@example.test", "I181");
+        long targetBId = intern("target-transfer-foreign-b@example.test", "I182");
+        long recipientBId = intern("recipient-transfer-foreign-b@example.test", "I183");
+        long projectAId = createProject(mentorId, leaderAId, "Transfer foreign A");
+        long projectBId = createProject(mentorId, leaderBId, "Transfer foreign B");
+        projects.addMembers(mentorId, projectBId, List.of(targetBId, recipientBId));
+        long targetMembershipId = membershipId(projectBId, targetBId);
+        long recipientMembershipId = membershipId(projectBId, recipientBId);
+        long leaderMembershipId = membershipId(projectBId, leaderBId);
+        long taskId = insertTask(projectBId, targetMembershipId, leaderMembershipId, "Foreign route", "TODO");
+        long requestId = projects.requestMemberRemoval(
+                leaderBId, projectBId, targetMembershipId, "Foreign route request");
+
+        assertThrows(ProjectAccessDeniedException.class, () -> projects.transferTasks(
+                leaderBId,
+                projectAId,
+                requestId,
+                targetMembershipId,
+                java.util.Set.of(taskId),
+                recipientMembershipId));
+        assertEquals(targetMembershipId, number(
+                "select assignee_membership_id from tasks where id = ?", taskId));
+        assertEquals("PENDING", text(
+                "select status from project_membership_exit_requests where id = ?", requestId));
+    }
+
+    @Test
     void leaderRemovalRejectsMembershipIdFromAnotherProjectWithoutRuleDetails() {
         long mentorId = user("mentor-cross-project-membership@example.test", "MENTOR");
         long leaderId = intern("leader-cross-project-membership@example.test", "I164");
@@ -845,6 +1086,44 @@ class ProjectInvitationExitIntegrationTest {
         assertEquals(2, projectPages.history(memberId, projectId).memberships().size());
         assertEquals(1, projectPages.history(mentorId, projectId).tasks().size());
         assertEquals(1, projectPages.history(leaderId, projectId).tasks().size());
+    }
+
+    private MutationState mutationState(long projectId) {
+        return new MutationState(
+                text("select status from projects where id = ?", projectId),
+                rows("select id || ':' || intern_user_id || ':' || coalesce(left_at::text, '') "
+                        + "from project_memberships where project_id = ? order by id", projectId),
+                rows("select id || ':' || membership_id || ':' || coalesce(ended_at::text, '') "
+                        + "from project_leadership_terms where project_id = ? order by id", projectId),
+                rows("select id || ':' || status || ':' || coalesce(resolution_code, '') "
+                        + "from project_invitations where project_id = ? order by id", projectId),
+                rows("select id || ':' || status || ':' || target_membership_id "
+                        + "from project_membership_exit_requests where project_id = ? order by id", projectId),
+                rows("select id || ':' || assignee_membership_id || ':' || status "
+                        + "from tasks where project_id = ? order by id", projectId),
+                rows("select id || ':' || notification_type || ':' || action_url "
+                        + "from notifications where action_url like ? order by id", "/projects/" + projectId + "%"));
+    }
+
+    private List<String> rows(String sql, Object... arguments) {
+        return List.copyOf(jdbc.queryForList(sql, String.class, arguments));
+    }
+
+    private record AuthorizationCase(
+            long projectId,
+            String label,
+            Class<? extends RuntimeException> expectedException,
+            Executable operation) {
+    }
+
+    private record MutationState(
+            String projectStatus,
+            List<String> memberships,
+            List<String> leadership,
+            List<String> invitations,
+            List<String> exits,
+            List<String> tasks,
+            List<String> notifications) {
     }
 
     private long createProject(long mentorId, long leaderId, String name) {

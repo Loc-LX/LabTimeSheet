@@ -44,6 +44,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -178,7 +179,7 @@ class ProjectControllerTest {
     void listsOnlyTheAuthenticatedUsersAuthorizedProjects() throws Exception {
         when(pages.authenticatedActor("mentor@example.test"))
                 .thenReturn(new ProjectActorView(10L, "MENTOR"));
-        when(pages.listVisible(10L)).thenReturn(List.of(new ProjectSummary(
+        when(pages.listVisible(10L, PageRequest.of(0, 50))).thenReturn(List.of(new ProjectSummary(
                 30L,
                 "Intern Portal Refresh",
                 "PLANNED",
@@ -192,7 +193,7 @@ class ProjectControllerTest {
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
                         .string(containsString("Create Project")));
 
-        verify(pages).listVisible(10L);
+        verify(pages).listVisible(10L, PageRequest.of(0, 50));
     }
 
     @Test
@@ -200,12 +201,32 @@ class ProjectControllerTest {
     void nonMentorProjectListOmitsTheCreateLink() throws Exception {
         when(pages.authenticatedActor("member@example.test"))
                 .thenReturn(new ProjectActorView(20L, "INTERN"));
-        when(pages.listVisible(20L)).thenReturn(List.of());
+        when(pages.listVisible(20L, PageRequest.of(0, 50))).thenReturn(List.of());
 
         mvc.perform(get("/projects"))
                 .andExpect(status().isOk())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
                         .string(not(containsString("Create Project"))));
+    }
+
+    @Test
+    @WithMockUser(username = "mentor@example.test")
+    void nestedWorkflowPostsPassTheirRouteProjectToEveryMutationBoundary() throws Exception {
+        when(pages.authenticatedUserId("mentor@example.test")).thenReturn(10L);
+
+        mvc.perform(post("/projects/30/invitations/40/revoke").with(csrf()))
+                .andExpect(status().is3xxRedirection());
+        mvc.perform(post("/projects/30/exits/50/cancel").with(csrf()))
+                .andExpect(status().is3xxRedirection());
+        mvc.perform(post("/projects/30/exits/60/approve").with(csrf()))
+                .andExpect(status().is3xxRedirection());
+        mvc.perform(post("/projects/30/exits/70/reject").with(csrf()).param("note", "No"))
+                .andExpect(status().is3xxRedirection());
+
+        verify(projects).revokeInvitation(10L, 30L, 40L);
+        verify(projects).cancelExit(10L, 30L, 50L);
+        verify(projects).approveExit(10L, 30L, 60L, null);
+        verify(projects).rejectExit(10L, 30L, 70L, "No");
     }
 
     @Test

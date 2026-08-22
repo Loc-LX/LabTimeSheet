@@ -22,6 +22,7 @@ import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
@@ -62,7 +63,7 @@ public class ProjectController {
     @GetMapping
     public String list(Principal principal, Model model) {
         var actor = pages.authenticatedActor(principal.getName());
-        model.addAttribute("projects", pages.listVisible(actor.userId()));
+        model.addAttribute("projects", pages.listVisible(actor.userId(), PageRequest.of(0, 50)));
         model.addAttribute("canCreateProject", "MENTOR".equals(actor.role()));
         return "projects/list";
     }
@@ -210,7 +211,7 @@ public class ProjectController {
             @PathVariable long invitationId,
             RedirectAttributes redirectAttributes) {
         return workflowMutation(projectId, redirectAttributes, () -> {
-            projects.revokeInvitation(actorId(principal), invitationId);
+            projects.revokeInvitation(actorId(principal), projectId, invitationId);
             return null;
         });
     }
@@ -256,7 +257,7 @@ public class ProjectController {
             @PathVariable long requestId,
             RedirectAttributes redirectAttributes) {
         return workflowMutation(projectId, redirectAttributes, () -> {
-            projects.cancelExit(actorId(principal), requestId);
+            projects.cancelExit(actorId(principal), projectId, requestId);
             return null;
         });
     }
@@ -295,7 +296,7 @@ public class ProjectController {
                 "kind", "approve",
                 "requestId", requestId,
                 "note", note == null ? "" : note), () -> {
-            projects.approveExit(actorId(principal), requestId, note);
+            projects.approveExit(actorId(principal), projectId, requestId, note);
             return null;
         });
     }
@@ -311,7 +312,7 @@ public class ProjectController {
                 "kind", "reject",
                 "requestId", requestId,
                 "note", note == null ? "" : note), () -> {
-            projects.rejectExit(actorId(principal), requestId, note);
+            projects.rejectExit(actorId(principal), projectId, requestId, note);
             return null;
         });
     }

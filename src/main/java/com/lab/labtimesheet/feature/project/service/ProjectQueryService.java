@@ -29,6 +29,8 @@ import com.lab.labtimesheet.feature.task.service.TaskTransferService;
 import java.util.List;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -42,6 +44,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 public class ProjectQueryService {
+
+    private static final int PROJECT_LIST_PAGE_SIZE = 50;
 
     private final ProjectRepository projects;
     private final ProjectExitRequestRepository exitRequests;
@@ -91,8 +95,25 @@ public class ProjectQueryService {
      */
     @Transactional(readOnly = true)
     public List<ProjectSummary> listVisible(long actorUserId) {
+        return listVisible(actorUserId, PageRequest.of(0, PROJECT_LIST_PAGE_SIZE));
+    }
+
+    /**
+     * Lists one bounded page of Projects visible under the actor's current role and Project
+     * relationship. Historical Intern membership grants visibility only to completed Projects;
+     * the page size is capped so an MVC list cannot turn a catalogue read into an unbounded
+     * aggregate load.
+     *
+     * @param actorUserId active actor user identifier
+     * @param requestedPage requested page; null or unpaged input uses the first default page
+     * @return ordered authorized summaries within the bounded page
+     */
+    @Transactional(readOnly = true)
+    public List<ProjectSummary> listVisible(long actorUserId, Pageable requestedPage) {
         var actor = activeActor(actorUserId);
-        return visibleProjects(actor, actorUserId).stream().map(ProjectQueryService::summary).toList();
+        return visibleProjects(actor, actorUserId, boundedPage(requestedPage)).stream()
+                .map(ProjectQueryService::summary)
+                .toList();
     }
 
     /**
@@ -415,7 +436,7 @@ public class ProjectQueryService {
     @Transactional(readOnly = true)
     public ProjectDashboardSummary dashboardSummary(long actorUserId) {
         var actor = activeActor(actorUserId);
-        var activeProjects = visibleProjects(actor, actorUserId).stream()
+        var activeProjects = visibleProjects(actor, actorUserId, defaultProjectPage()).stream()
                 .filter(project -> project.status() == ProjectStatus.ACTIVE)
                 .filter(project -> !"INTERN".equals(actor.role().name())
                         || (accounts.isEligibleIntern(actorUserId) && project.hasCurrentMember(actorUserId)))
@@ -491,13 +512,27 @@ public class ProjectQueryService {
         }
     }
 
-    private List<ProjectEntity> visibleProjects(AccountIdentity actor, long actorUserId) {
+    private List<ProjectEntity> visibleProjects(
+            AccountIdentity actor, long actorUserId, Pageable pageable) {
         return switch (actor.role().name()) {
-            case "ADMIN" -> projects.findAllByOrderByUpdatedAtDescIdDesc();
-            case "MENTOR" -> projects.findByMentorUserIdOrderByUpdatedAtDescIdDesc(actorUserId);
-            case "INTERN" -> projects.findVisibleToIntern(actorUserId);
+            case "ADMIN" -> projects.findAllByOrderByUpdatedAtDescIdDesc(pageable);
+            case "MENTOR" -> projects.findByMentorUserIdOrderByUpdatedAtDescIdDesc(actorUserId, pageable);
+            case "INTERN" -> projects.findVisibleToIntern(actorUserId, pageable);
             default -> throw new ProjectAccessDeniedException();
         };
+    }
+
+    private static Pageable defaultProjectPage() {
+        return PageRequest.of(0, PROJECT_LIST_PAGE_SIZE);
+    }
+
+    private static Pageable boundedPage(Pageable requestedPage) {
+        if (requestedPage == null || requestedPage.isUnpaged()) {
+            return defaultProjectPage();
+        }
+        return PageRequest.of(
+                requestedPage.getPageNumber(),
+                Math.min(requestedPage.getPageSize(), PROJECT_LIST_PAGE_SIZE));
     }
 
     private AccountIdentity activeActor(long actorUserId) {
