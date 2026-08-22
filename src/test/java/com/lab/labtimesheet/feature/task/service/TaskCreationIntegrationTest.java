@@ -229,19 +229,35 @@ class TaskCreationIntegrationTest {
                 "leader@example.test",
                 new CreateTaskCommand(projectId, memberMembershipId, "Planner proof", null,
                         LocalDate.of(2026, 8, 20)));
+        taskWorkLogs.saveAndFlush(new TaskWorkLog(
+                projectId,
+                task.id(),
+                memberMembershipId,
+                LocalDate.of(2026, 8, 20),
+                30,
+                "Planner effort",
+                Instant.parse("2026-08-20T01:00:00Z")));
         jdbc.sql("set local enable_seqscan = off").update();
         jdbc.sql("set local enable_indexscan = off").update();
 
         String progressPlan = explain("""
-                        select count(*)
+                        select
+                            coalesce(sum(case when status = 'TODO' then 1 else 0 end), 0),
+                            coalesce(sum(case when status = 'IN_PROGRESS' then 1 else 0 end), 0),
+                            coalesce(sum(case when status = 'BLOCKED' then 1 else 0 end), 0),
+                            coalesce(sum(case when status = 'DONE' then 1 else 0 end), 0),
+                            coalesce((select sum(log.minutes)
+                                      from task_work_logs log
+                                      where log.project_id = :projectId), 0)
                         from tasks
                         where project_id = :projectId
-                          and status = 'IN_PROGRESS'
                           and deleted_at is null
                         """)
                 .replace("\n", " ");
         assertThat(progressPlan)
                 .contains("Index")
+                .contains("ix_tasks_")
+                .contains("ix_task_work_logs_project_date")
                 .doesNotContain("Seq Scan");
         jdbc.sql("set local enable_indexscan = on").update();
         jdbc.sql("set local enable_bitmapscan = off").update();
