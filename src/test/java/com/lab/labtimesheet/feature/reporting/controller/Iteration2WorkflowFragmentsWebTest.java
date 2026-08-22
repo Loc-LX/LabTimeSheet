@@ -44,6 +44,8 @@ class Iteration2WorkflowFragmentsWebTest {
                 .andExpect(content().string(containsString("data-drawer-open=\"transfer-drawer\"")))
                 .andExpect(content().string(containsString("data-transfer-confirm")))
                 .andExpect(content().string(containsString("name=\"taskIds\"")))
+                .andExpect(content().string(containsString("name=\"taskVersions\" value=\"41:3\"")))
+                .andExpect(content().string(containsString("name=\"taskVersions\" value=\"42:5\"")))
                 .andExpect(content().string(containsString("name=\"sourceMembershipId\" value=\"12\"")))
                 .andExpect(content().string(containsString("type=\"radio\" name=\"recipientMembershipId\"")))
                 .andExpect(content().string(containsString("Project History")))
@@ -72,8 +74,8 @@ class Iteration2WorkflowFragmentsWebTest {
         String workflows(Model model) {
             model.addAttribute("readiness", new Readiness(false, 2, false, true));
             model.addAttribute("unfinishedTasks", List.of(
-                    new TransferTask(41L, "Review report", "IN_PROGRESS"),
-                    new TransferTask(42L, "Fix chart", "BLOCKED")));
+                    new TransferTask(41L, "Review report", "IN_PROGRESS", 3L),
+                    new TransferTask(42L, "Fix chart", "BLOCKED", 5L)));
             model.addAttribute("recipients", List.of(new TransferRecipient(8L, "Lan Intern")));
             model.addAttribute("projectHistory", List.of(new HistoryEvent(
                     "Task completed", "20/08/2026 09:00", "Mai Intern", "Completed Task: Review report", "Mai Intern")));
@@ -86,7 +88,7 @@ class Iteration2WorkflowFragmentsWebTest {
         String transferDenied(Model model) {
             model.addAttribute("readiness", new Readiness(false, 2, false, false));
             model.addAttribute("unfinishedTasks", List.of(
-                    new TransferTask(41L, "Review report", "IN_PROGRESS")));
+                    new TransferTask(41L, "Review report", "IN_PROGRESS", 3L)));
             model.addAttribute("recipients", List.of(new TransferRecipient(8L, "Lan Intern")));
             model.addAttribute("projectHistory", List.of());
             model.addAttribute("adminHistory", List.of());
@@ -97,7 +99,7 @@ class Iteration2WorkflowFragmentsWebTest {
     record Readiness(boolean replacementRequired, int unfinishedTaskCount,
                      boolean readyForMentorDecision, boolean canOpenTransfer) {}
 
-    record TransferTask(long id, String title, String status) {}
+    record TransferTask(long id, String title, String status, long version) {}
 
     record TransferRecipient(long membershipId, String displayName) {}
 

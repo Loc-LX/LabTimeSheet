@@ -29,6 +29,21 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  const roleField = document.querySelector('#role');
+  const roleDependent = document.querySelector('[data-role-dependent]');
+  if (roleField && roleDependent) {
+    const applyRoleFields = () => {
+      const isIntern = roleField.value === 'INTERN';
+      roleDependent.hidden = !isIntern;
+      roleDependent.querySelectorAll('input, select, textarea').forEach((input) => {
+        input.disabled = !isIntern;
+        if (!isIntern) input.value = '';
+      });
+    };
+    roleField.addEventListener('change', applyRoleFields);
+    applyRoleFields();
+  }
+
   let collapsed = false;
   try { collapsed = localStorage.getItem('labtimesheet-sidebar') === 'collapsed'; }
   catch (_) { /* Use the expanded default. */ }

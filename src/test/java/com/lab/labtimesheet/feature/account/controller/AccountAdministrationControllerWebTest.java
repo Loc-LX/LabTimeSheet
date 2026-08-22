@@ -18,6 +18,8 @@ import com.lab.labtimesheet.feature.account.model.AccountStatus;
 import com.lab.labtimesheet.feature.account.model.GlobalRole;
 import com.lab.labtimesheet.feature.account.model.InternshipStatus;
 import com.lab.labtimesheet.feature.account.model.dto.AccountAdministrationView;
+import com.lab.labtimesheet.feature.account.model.dto.AccountDirectoryFilter;
+import com.lab.labtimesheet.feature.account.model.dto.AccountIdentityCorrection;
 import com.lab.labtimesheet.feature.account.model.dto.InternshipLifecycleGuard;
 import com.lab.labtimesheet.feature.account.service.AccountService;
 import com.lab.labtimesheet.feature.integration.service.SmtpConfigurationService;
@@ -69,7 +71,7 @@ class AccountAdministrationControllerWebTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Accounts")))
                 .andExpect(content().string(containsString("intern@example.test")))
-                .andExpect(content().string(containsString("ACTIVE")));
+                .andExpect(content().string(containsString("Active")));
 
         mvc.perform(get("/admin/accounts/7").with(user(ADMIN_EMAIL).roles("ADMIN")))
                 .andExpect(status().isOk())
@@ -78,6 +80,78 @@ class AccountAdministrationControllerWebTest {
                 .andExpect(content().string(containsString("Complete this internship?")))
                 .andExpect(content().string(containsString("Withdraw this internship?")))
                 .andExpect(content().string(containsString("Deactivate this account?")));
+    }
+
+    @Test
+    void adminDirectoryAppliesSearchAndImmutableRoleFilter() throws Exception {
+        AccountDirectoryFilter filter = new AccountDirectoryFilter("intern", GlobalRole.INTERN);
+        when(accounts.requireActiveAdminId(ADMIN_EMAIL)).thenReturn(1L);
+        when(accounts.administrationViews(1L, filter)).thenReturn(List.of(intern()));
+
+        mvc.perform(get("/admin/accounts")
+                        .param("search", " intern ")
+                        .param("role", "INTERN")
+                        .with(user(ADMIN_EMAIL).roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("value=\"intern\"")))
+                .andExpect(content().string(containsString("value=\"INTERN\"")))
+                .andExpect(content().string(containsString("intern@example.test")));
+
+        verify(accounts).administrationViews(1L, filter);
+    }
+
+    @Test
+    void adminCanOpenIdentityCorrectionWithoutRoleOrDisplayNameEditors() throws Exception {
+        when(accounts.requireActiveAdminId(ADMIN_EMAIL)).thenReturn(1L);
+        when(accounts.administrationView(7L, 1L)).thenReturn(intern());
+
+        mvc.perform(get("/admin/accounts/7/edit").with(user(ADMIN_EMAIL).roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Account correction")))
+                .andExpect(content().string(containsString("name=\"email\"")))
+                .andExpect(content().string(containsString("name=\"studentCode\"")))
+                .andExpect(content().string(not(containsString("name=\"displayName\""))))
+                .andExpect(content().string(not(containsString("name=\"role\""))));
+    }
+
+    @Test
+    void adminSubmitsIdentityCorrectionThroughAccountService() throws Exception {
+        when(accounts.requireActiveAdminId(ADMIN_EMAIL)).thenReturn(1L);
+        when(accounts.administrationView(7L, 1L)).thenReturn(intern());
+
+        mvc.perform(post("/admin/accounts/7/edit")
+                        .with(user(ADMIN_EMAIL).roles("ADMIN")).with(csrf())
+                        .param("email", " corrected@example.test ")
+                        .param("studentCode", "STU-008")
+                        .param("internshipStart", "2026-08-02")
+                        .param("internshipEnd", "2026-12-31"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/admin/accounts/7"));
+
+        verify(accounts).correctAccount(7L, 1L, new AccountIdentityCorrection(
+                "corrected@example.test", "STU-008", LocalDate.of(2026, 8, 2), LocalDate.of(2026, 12, 31)));
+    }
+
+    @Test
+    void craftedInternFieldsForNonInternRemainServiceDenied() throws Exception {
+        AccountAdministrationView mentor = new AccountAdministrationView(
+                8L, "mentor@example.test", "Mentor", GlobalRole.MENTOR, AccountStatus.ACTIVE,
+                null, null, null, null);
+        when(accounts.requireActiveAdminId(ADMIN_EMAIL)).thenReturn(1L);
+        when(accounts.administrationView(8L, 1L)).thenReturn(mentor);
+        doThrow(new IllegalArgumentException("Internship fields are allowed only for Intern accounts"))
+                .when(accounts).correctAccount(8L, 1L,
+                        new AccountIdentityCorrection(null, "STU-999", null, null));
+
+        mvc.perform(post("/admin/accounts/8/edit")
+                        .with(user(ADMIN_EMAIL).roles("ADMIN")).with(csrf())
+                        .param("studentCode", "STU-999"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Account correction could not be completed.")))
+                .andExpect(content().string(not(containsString("name=\"role\""))));
+
+        verify(accounts).correctAccount(8L, 1L,
+                new AccountIdentityCorrection(null, "STU-999", null, null));
     }
 
     @Test

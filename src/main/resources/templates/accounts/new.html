@@ -42,7 +42,7 @@
       </select>
       <p class="field-error" id="account-role-error" th:if="${#fields.hasErrors('role')}" th:errors="*{role}" role="alert"></p>
     </div>
-    <fieldset class="form-section" th:attr="aria-describedby=${#fields.hasErrors('internDetailsValid') ? 'account-intern-details-error' : null}">
+    <fieldset class="form-section" data-role-dependent th:attr="aria-describedby=${#fields.hasErrors('internDetailsValid') ? 'account-intern-details-error' : null}">
       <legend>Intern details</legend>
       <p class="field-help">Required only when the selected role is Intern.</p>
       <div class="form-grid form-grid-three">
