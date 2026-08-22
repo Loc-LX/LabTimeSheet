@@ -95,7 +95,7 @@ final class ProductionReadiness {
      * Canonicalizes a configured origin and rejects paths, credentials, fragments, local hosts, and non-HTTPS schemes.
      *
      * @param value configured or request-derived origin
-     * @return canonical scheme/authority origin without a trailing slash
+     * @return canonical scheme/authority origin without a trailing slash, lower-case host, or default HTTPS port
      * @throws IllegalArgumentException when the value is not a valid production origin
      */
     static String canonicalOrigin(String value) {
@@ -112,11 +112,16 @@ final class ProductionReadiness {
                 throw new IllegalArgumentException("Invalid public origin");
             }
             String normalizedHost = host.toLowerCase(Locale.ROOT);
+            if (normalizedHost.startsWith("[") && normalizedHost.endsWith("]")) {
+                normalizedHost = normalizedHost.substring(1, normalizedHost.length() - 1);
+            }
             if (normalizedHost.equals("localhost") || normalizedHost.endsWith(".localhost")
                     || normalizedHost.equals("127.0.0.1") || normalizedHost.equals("::1")) {
                 throw new IllegalArgumentException("Local public origin is not production-safe");
             }
-            return "https://" + uri.getRawAuthority();
+            String canonicalHost = normalizedHost.contains(":") ? "[" + normalizedHost + "]" : normalizedHost;
+            String canonicalPort = uri.getPort() == -1 || uri.getPort() == 443 ? "" : ":" + uri.getPort();
+            return "https://" + canonicalHost + canonicalPort;
         } catch (URISyntaxException failure) {
             throw new IllegalArgumentException("Invalid public origin", failure);
         }

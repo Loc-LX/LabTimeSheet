@@ -2,7 +2,7 @@
 
 - **Test type:** Integration
 - **Requirement IDs:** `SEC-003`, `SEC-009`
-- **Scenario IDs:** `AC-SEC-003`
+- **Scenario IDs:** No dedicated numbered acceptance scenario; plan trace `I3-PLAT-03` and requirement trace `SEC-003`, `SEC-009`
 - **Test class/method:** `com.lab.labtimesheet.feature.account.service.UserActionTokenCleanupIntegrationTest.cleanupDeletesExpiredAndTerminalRowsButRetainsLiveToken`
 - **Implementation commit:** `2eaa4b67bdf7ac1a378c3c72341b5664ec18ff8b`
 

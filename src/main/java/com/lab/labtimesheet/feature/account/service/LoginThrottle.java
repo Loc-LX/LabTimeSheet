@@ -29,6 +29,7 @@ public class LoginThrottle {
 
     private final Clock clock;
     private final Map<Key, State> states = new ConcurrentHashMap<>();
+    private final Object capacityLock = new Object();
 
     /**
      * Returns whether the normalized email/source-IP pair is currently throttled.
@@ -39,17 +40,16 @@ public class LoginThrottle {
      */
     public boolean isBlocked(String email, String sourceIp) {
         Key key = key(email, sourceIp);
-        State state = states.get(key);
-        if (state == null) {
-            return false;
-        }
-        synchronized (state) {
+        synchronized (capacityLock) {
+            State state = states.get(key);
+            if (state == null) {
+                return false;
+            }
             Instant now = clock.instant();
             state.expireFailures(now);
             if (state.blockedUntil != null && now.isBefore(state.blockedUntil)) {
                 return true;
             }
-            state.blockedUntil = null;
             if (state.failures.isEmpty()) {
                 states.remove(key, state);
             }
@@ -66,12 +66,17 @@ public class LoginThrottle {
      */
     public void recordFailure(String email, String sourceIp) {
         Key key = key(email, sourceIp);
-        State state = states.computeIfAbsent(key, ignored -> {
-            evictIfFull();
-            return new State();
-        });
-        synchronized (state) {
+        synchronized (capacityLock) {
             Instant now = clock.instant();
+            State state = states.get(key);
+            if (state == null) {
+                purgeUnblockedEntries(now);
+                if (states.size() >= MAX_ENTRIES) {
+                    return;
+                }
+                state = new State();
+                states.put(key, state);
+            }
             state.expireFailures(now);
             if (state.blockedUntil != null && now.isBefore(state.blockedUntil)) {
                 return;
@@ -90,14 +95,18 @@ public class LoginThrottle {
      * @param sourceIp request source address
      */
     public void clear(String email, String sourceIp) {
-        states.remove(key(email, sourceIp));
+        synchronized (capacityLock) {
+            states.remove(key(email, sourceIp));
+        }
     }
 
-    private void evictIfFull() {
-        if (states.size() < MAX_ENTRIES) {
-            return;
-        }
-        states.keySet().stream().findFirst().ifPresent(states::remove);
+    private void purgeUnblockedEntries(Instant now) {
+        states.forEach((key, state) -> {
+            state.expireFailures(now);
+            if (state.blockedUntil == null) {
+                states.remove(key, state);
+            }
+        });
     }
 
     private static Key key(String email, String sourceIp) {

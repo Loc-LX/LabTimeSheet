@@ -70,6 +70,9 @@ final class TrustedProxyMatcher {
                 throw new IllegalStateException("Trusted proxy CIDR is malformed");
             }
         }
+        if (bits == 0) {
+            throw new IllegalStateException("Catch-all trusted proxy CIDR is not allowed");
+        }
         return new Network(address, bits);
     }
 

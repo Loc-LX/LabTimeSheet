@@ -1,6 +1,7 @@
 package com.lab.labtimesheet.config;
 
 import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.junit.jupiter.api.Test;
@@ -80,6 +81,46 @@ class ProductionReadinessTest {
         org.assertj.core.api.Assertions.assertThat(matcher.matches("10.20.0.44")).isTrue();
         org.assertj.core.api.Assertions.assertThat(matcher.matches("192.0.2.10")).isTrue();
         org.assertj.core.api.Assertions.assertThat(matcher.matches("192.0.2.11")).isFalse();
+    }
+
+    @Test
+    void catchAllTrustedProxyNetworksAreRejected() {
+        SecurityProperties security = securityProperties();
+
+        assertThatThrownBy(() -> ProductionReadiness.validate(inputsWithProxy("0.0.0.0/0", security)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("trusted proxy policy");
+        assertThatThrownBy(() -> ProductionReadiness.validate(inputsWithProxy("::/0", security)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("trusted proxy policy");
+    }
+
+    @Test
+    void productionOriginIsCanonicalAndRejectsBracketedIpv6Loopback() {
+        assertThatThrownBy(() -> ProductionReadiness.canonicalOrigin("https://[::1]"))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(ProductionReadiness.canonicalOrigin("https://Timesheet.Example.edu"))
+                .isEqualTo("https://timesheet.example.edu");
+        assertThat(ProductionReadiness.canonicalOrigin("https://Timesheet.Example.edu:443"))
+                .isEqualTo("https://timesheet.example.edu");
+        assertThat(ProductionReadiness.canonicalOrigin("https://Timesheet.Example.edu:8443"))
+                .isEqualTo("https://timesheet.example.edu:8443");
+    }
+
+    private static ProductionReadiness.Inputs inputsWithProxy(
+            String trustedProxyCidrs, SecurityProperties security) {
+        return new ProductionReadiness.Inputs(
+                "https://timesheet.example.edu",
+                "jdbc:postgresql://db.example.edu:5432/labtimesheet",
+                "labtimesheet",
+                "database-password",
+                "framework",
+                trustedProxyCidrs,
+                true,
+                "strict",
+                "never",
+                "never",
+                security);
     }
 
     private static SecurityProperties securityProperties() {

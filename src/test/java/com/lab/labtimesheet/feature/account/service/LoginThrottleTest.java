@@ -5,6 +5,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.Test;
 
@@ -57,6 +63,57 @@ class LoginThrottleTest {
         throttle.recordFailure("admin@example.com", "203.0.113.10");
 
         assertThat(throttle.isBlocked("admin@example.com", "203.0.113.10")).isFalse();
+    }
+
+    @Test
+    void capacityPressureNeverEvictsAnActiveBlock() {
+        MutableClock clock = new MutableClock(BASE);
+        LoginThrottle throttle = new LoginThrottle(clock);
+        for (int attempt = 0; attempt < 5; attempt++) {
+            throttle.recordFailure("target@example.com", "203.0.113.10");
+        }
+
+        for (int identifier = 0; identifier < 15_120; identifier++) {
+            throttle.recordFailure("unknown-" + identifier + "@example.com", "203.0.113.10");
+        }
+
+        assertThat(throttle.isBlocked("target@example.com", "203.0.113.10")).isTrue();
+    }
+
+    @Test
+    void concurrentCapacityPressureNeverEvictsAnActiveBlock() throws Exception {
+        MutableClock clock = new MutableClock(BASE);
+        LoginThrottle throttle = new LoginThrottle(clock);
+        for (int attempt = 0; attempt < 5; attempt++) {
+            throttle.recordFailure("target@example.com", "203.0.113.10");
+        }
+
+        int workers = 8;
+        CountDownLatch start = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(workers);
+        try {
+            List<java.util.concurrent.Future<?>> futures = new ArrayList<>();
+            for (int worker = 0; worker < workers; worker++) {
+                int workerId = worker;
+                futures.add(executor.submit(() -> {
+                    start.await();
+                    for (int identifier = 0; identifier < 2_000; identifier++) {
+                        throttle.recordFailure(
+                                "concurrent-" + workerId + "-" + identifier + "@example.com",
+                                "198.51.100." + (workerId + 1));
+                    }
+                    return null;
+                }));
+            }
+            start.countDown();
+            for (java.util.concurrent.Future<?> future : futures) {
+                future.get(10, TimeUnit.SECONDS);
+            }
+        } finally {
+            executor.shutdownNow();
+        }
+
+        assertThat(throttle.isBlocked("target@example.com", "203.0.113.10")).isTrue();
     }
 
     private static final class MutableClock extends Clock {

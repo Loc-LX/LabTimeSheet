@@ -7,6 +7,12 @@ import java.util.List;
 import java.time.Instant;
 import java.sql.Timestamp;
 import java.time.ZoneId;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import com.lab.labtimesheet.config.TestcontainersConfiguration;
 import com.lab.labtimesheet.feature.account.model.GlobalRole;
@@ -183,6 +189,40 @@ class NotificationServiceIntegrationTest {
         assertThat(statusFor(adminId)).isEqualTo("SENT");
         assertThat(mail.calls).isEqualTo(1);
         assertThat(mail.lastTransactionActive).isFalse();
+    }
+
+    @Test
+    void immediateDeliveryHoldsRowLockAgainstOverlappingRetryWorker() throws Exception {
+        bootstrap.bootstrap("notification-overlap@example.com", "Admin", "correct horse battery staple");
+        long adminId = accounts.requireActiveAdminId("notification-overlap@example.com");
+        activateSmtp(adminId);
+        mail.reset();
+        mail.blockForOverlap();
+
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<?> immediate = executor.submit(() -> publish(
+                    new NotificationEvent(
+                            NotificationType.LEAVE_DECIDED, "APPROVED", "Leave approved", "The leave was approved"),
+                    new NotificationAction("/attendance/leave", false),
+                    List.of(new NotificationRecipient(adminId, "notification-overlap@example.com"))));
+            assertThat(mail.awaitEntered()).isTrue();
+
+            Future<Integer> worker = executor.submit(notifications::retryDueEmails);
+            assertThatThrownBy(() -> worker.get(500, TimeUnit.MILLISECONDS))
+                    .isInstanceOf(TimeoutException.class);
+            assertThat(mail.calls).isEqualTo(1);
+
+            mail.releaseOverlap();
+            immediate.get(10, TimeUnit.SECONDS);
+            assertThat(worker.get(10, TimeUnit.SECONDS)).isZero();
+        } finally {
+            mail.releaseOverlap();
+            executor.shutdownNow();
+        }
+
+        assertThat(mail.calls).isEqualTo(1);
+        assertThat(statusFor(adminId)).isEqualTo("SENT");
     }
 
     @Test
@@ -440,6 +480,9 @@ class NotificationServiceIntegrationTest {
         private volatile String failRecipient;
         private volatile int calls;
         private volatile boolean lastTransactionActive;
+        private volatile boolean blockForOverlap;
+        private volatile CountDownLatch entered = new CountDownLatch(0);
+        private volatile CountDownLatch release = new CountDownLatch(0);
         private final java.util.concurrent.CopyOnWriteArrayList<String> recipients =
                 new java.util.concurrent.CopyOnWriteArrayList<>();
 
@@ -451,6 +494,17 @@ class NotificationServiceIntegrationTest {
             if (fail || recipient.equals(failRecipient)) {
                 throw new IllegalStateException("simulated SMTP failure");
             }
+            if (blockForOverlap) {
+                entered.countDown();
+                try {
+                    if (!release.await(10, TimeUnit.SECONDS)) {
+                        throw new IllegalStateException("timed out waiting to release SMTP overlap");
+                    }
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException("SMTP overlap interrupted", interrupted);
+                }
+            }
         }
 
         void reset() {
@@ -458,7 +512,24 @@ class NotificationServiceIntegrationTest {
             fail = false;
             failRecipient = null;
             lastTransactionActive = false;
+            blockForOverlap = false;
+            entered = new CountDownLatch(0);
+            release = new CountDownLatch(0);
             recipients.clear();
+        }
+
+        void blockForOverlap() {
+            blockForOverlap = true;
+            entered = new CountDownLatch(1);
+            release = new CountDownLatch(1);
+        }
+
+        boolean awaitEntered() throws InterruptedException {
+            return entered.await(10, TimeUnit.SECONDS);
+        }
+
+        void releaseOverlap() {
+            release.countDown();
         }
     }
 }

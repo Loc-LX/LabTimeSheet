@@ -285,30 +285,12 @@ public class NotificationService {
 
     private void deliver(long notificationId) {
         try {
-            Delivery delivery = executeInNewTransaction(status -> notifications.findForUpdateById(notificationId)
-                    .filter(notification -> notification.getEmailStatus() == NotificationEmailStatus.PENDING)
-                    .map(notification -> new Delivery(
-                            notification.getEmailTo(), notification.getEmailSubject(), notification.getEmailBody()))
-                    .orElse(null));
-            if (delivery == null) {
-                return;
-            }
-            try {
-                sendOutsideTransaction(delivery);
-            } catch (RuntimeException failure) {
-                Instant failedAt = clock.instant();
-                String safeError = failure.getClass().getSimpleName();
-                executeInNewTransaction(status -> {
-                    notifications.findForUpdateById(notificationId)
-                            .ifPresent(notification -> notification.retainPendingRetry(
-                                    failedAt, failedAt.plus(Duration.ofMinutes(1)), safeError));
-                    return null;
-                });
-                return;
-            }
+            // Keep this transaction open through the SMTP attempt. sendOutsideTransaction suspends only its
+            // resources, leaving this row lock held until the SENT/PENDING transition is committed.
             executeInNewTransaction(status -> {
                 notifications.findForUpdateById(notificationId)
-                        .ifPresent(notification -> notification.markSent(clock.instant()));
+                        .filter(notification -> notification.getEmailStatus() == NotificationEmailStatus.PENDING)
+                        .ifPresent(this::retryLocked);
                 return null;
             });
         } catch (RuntimeException failure) {

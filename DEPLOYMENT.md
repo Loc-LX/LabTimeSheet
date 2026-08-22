@@ -60,9 +60,16 @@ Configure these repository settings:
 |---|---|---|
 | Variable | `ARM64_RUNNER_AVAILABLE` | `true` only while a trusted `ubuntu-latest-arm` runner is registered and online; otherwise omit it or set `false` |
 | Secret | `REGISTRY_TOKEN` | Token for the triggering Gitea account with package read/write access |
+| Variable | `DEPLOY_ENABLED` | Must be exactly `true` before the dormant deployment job can run; leave unset/false by default |
+| Secret | `DEPLOY_HOST` | SSH deployment hostname; used only by the enabled deploy job |
+| Secret | `DEPLOY_USER` | SSH deployment user; used only by the enabled deploy job |
+| Secret | `DEPLOY_PRIVATE_KEY` | Dedicated SSH private key for the deployment host; never store in the repository |
+| Secret | `DEPLOY_KNOWN_HOSTS` | Complete pinned `known_hosts` contents for the deployment host; strict host-key checking is always enabled |
 
 The workflow publishes `git.sechmachine.io.vn/sechmachine/labtimesheet` and authenticates as the triggering Gitea account. `verify.yml` runs for every pull request and push. `container.yml` runs only when manually dispatched or when `main` is pushed, and it repeats verification before either architecture build. Manual runs build without publishing. A push to `main` publishes immutable `sha-<commit>` and convenience `main` tags.
 
 When ARM64 is disabled, those canonical tags remain valid AMD64 images and the workflow succeeds. When it is enabled, the native ARM runner publishes an architecture tag and the final job replaces the canonical tags with a combined AMD64/ARM64 manifest. Gitea cannot discover an unavailable runner from inside an unscheduled job, so the repository variable is the deliberate availability gate.
 
-The workflows stop at verification and image publication. They do not contain SSH deployment or receive host deployment secrets.
+The `deploy` job is a dormant operator-controlled template. It runs only for a `main` ref when `DEPLOY_ENABLED` is exactly `true` and all four `DEPLOY_*` secrets are present, after `verify` and the AMD64 image job. Pull requests, work branches, manual runs, and runs missing any gate skip the job and do not receive its host secrets. The job writes the private key and known-hosts file only to the ephemeral runner temp directory with mode `0600`; SSH uses `StrictHostKeyChecking=yes` and the supplied `UserKnownHostsFile`.
+
+The enabled job selects `git.sechmachine.io.vn/sechmachine/labtimesheet:sha-<full-commit>-amd64`, never a mutable tag. The remote host must already contain `/etc/labtimesheet/compose.env` with an immutable `LAB_IMAGE=...:sha-<40-hex>(-amd64)` value, Docker Compose, and the application deployment. The job records the previous immutable image at `/etc/labtimesheet/deploy-state/previous-image`, pulls the selected image, updates `compose.env`, restarts only `app`, and waits for the container readiness healthcheck. Failed rollout attempts restore the recorded image and return a failure; no database or volume is deleted.
