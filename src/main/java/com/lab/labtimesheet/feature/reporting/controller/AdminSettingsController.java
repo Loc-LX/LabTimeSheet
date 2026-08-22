@@ -57,14 +57,35 @@ public class AdminSettingsController {
     private final HolidayApiConfigurationService holidayApi;
     private final SmtpConfigurationService smtp;
 
-    /** Renders local setup state and all four non-secret Admin History sections. */
+    /**
+     * Renders the combined Admin settings page while its provider workflows remain discoverable.
+     *
+     * @param principal authenticated Admin
+     * @param model Thymeleaf model
+     * @return combined settings view
+     */
     @GetMapping
     public String settings(Principal principal, Model model) {
         render(principal, model);
         return "admin/settings";
     }
 
-    /** Schedules one future attendance-policy version through the policy service. */
+    /**
+     * Schedules one future attendance-policy version through the policy service.
+     *
+     * @param principal authenticated Admin
+     * @param effectiveFrom first effective local date
+     * @param zoneId policy timezone
+     * @param scheduledStart local schedule start
+     * @param scheduledEnd local schedule end
+     * @param checkInGraceMinutes check-in grace
+     * @param checkoutGraceMinutes checkout grace
+     * @param monthlyLeaveQuota monthly quota
+     * @param violationPenalty per-violation penalty
+     * @param workdays selected ISO weekdays
+     * @param redirectAttributes validation feedback destination
+     * @return redirect to focused policy settings
+     */
     @PostMapping("/policy")
     public String schedulePolicy(
             Principal principal,
@@ -108,7 +129,14 @@ public class AdminSettingsController {
         return "redirect:/admin/settings#policy-history";
     }
 
-    /** Saves a request-local HolidayAPI key as an encrypted VN draft. */
+    /**
+     * Saves a request-local HolidayAPI key as an encrypted VN draft.
+     *
+     * @param principal authenticated Admin
+     * @param apiKey provider credential, never rendered back
+     * @param redirectAttributes operation feedback destination
+     * @return redirect to retained HolidayAPI history
+     */
     @PostMapping("/holiday-api/draft")
     public String saveHolidayDraft(
             Principal principal, @RequestParam String apiKey, RedirectAttributes redirectAttributes) {
@@ -121,7 +149,16 @@ public class AdminSettingsController {
         return "redirect:/admin/settings#holiday-api-history";
     }
 
-    /** Tests the current encrypted HolidayAPI draft and renders only its safe outcome. */
+    /**
+     * Tests the current encrypted HolidayAPI draft and renders only its safe outcome.
+     *
+     * @param principal authenticated Admin
+     * @param draftId draft identifier
+     * @param year provider preview year
+     * @param model Thymeleaf model for the safe test result
+     * @param redirectAttributes operation feedback destination
+     * @return legacy settings view on success or history redirect on failure
+     */
     @PostMapping("/holiday-api/test")
     public String testHolidayDraft(
             Principal principal,
@@ -143,7 +180,14 @@ public class AdminSettingsController {
         }
     }
 
-    /** Activates one tested HolidayAPI draft and retires the previous revision. */
+    /**
+     * Activates one tested HolidayAPI draft and retires the previous revision.
+     *
+     * @param principal authenticated Admin
+     * @param draftId tested draft identifier
+     * @param redirectAttributes operation feedback destination
+     * @return redirect to retained HolidayAPI history
+     */
     @PostMapping("/holiday-api/activate")
     public String activateHolidayDraft(
             Principal principal, @RequestParam String draftId, RedirectAttributes redirectAttributes) {
@@ -158,7 +202,15 @@ public class AdminSettingsController {
         return "redirect:/admin/settings#holiday-api-history";
     }
 
-    /** Performs the explicit provider call and renders locally selectable candidate decisions. */
+    /**
+     * Performs the explicit provider call and renders locally selectable candidate decisions.
+     *
+     * @param principal authenticated Admin
+     * @param year provider preview year
+     * @param model Thymeleaf model for candidates
+     * @param redirectAttributes operation feedback destination
+     * @return legacy settings view on success or history redirect on failure
+     */
     @PostMapping("/calendar/preview")
     public String previewCalendar(
             Principal principal,
@@ -180,7 +232,15 @@ public class AdminSettingsController {
         }
     }
 
-    /** Imports only explicitly selected provider identities with each local day-off decision. */
+    /**
+     * Imports only explicitly selected provider identities with each local day-off decision.
+     *
+     * @param principal authenticated Admin
+     * @param year calendar year
+     * @param parameters submitted candidate decisions
+     * @param redirectAttributes operation feedback destination
+     * @return redirect to retained calendar history
+     */
     @PostMapping("/calendar/import")
     public String importCalendar(
             Principal principal,

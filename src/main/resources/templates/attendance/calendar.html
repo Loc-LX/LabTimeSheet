@@ -40,6 +40,17 @@
         </tr>
         </tbody>
     </table></div>
+
+    <section class="panel form-panel" id="calendar-history">
+        <header class="panel-header"><h2 class="panel-title">Calendar History</h2></header>
+        <p class="field-help">Past and current event metadata is retained here; integration credentials are never shown.</p>
+        <p th:if="${#lists.isEmpty(history)}">No retained calendar events.</p>
+        <div class="table-scroll" th:unless="${#lists.isEmpty(history)}"><table class="data-table">
+            <caption class="sr-only">Global Calendar History</caption>
+            <thead><tr><th scope="col">Date</th><th scope="col">Name</th><th scope="col">Source</th><th scope="col">Decision</th><th scope="col">Actor</th></tr></thead>
+            <tbody><tr th:each="entry : ${history}"><td th:text="${#temporals.format(entry.calendarDate, 'dd/MM/yyyy')}">Date</td><td th:text="${entry.name}">Name</td><td th:text="${entry.source}">Source</td><td th:text="${entry.dayOff ? 'Day off' : 'Working day'}">Decision</td><td th:text="${entry.updatedByUserId}">Actor</td></tr></tbody>
+        </table></div>
+    </section>
 </main>
 </body>
 </html>
