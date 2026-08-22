@@ -5,6 +5,7 @@
 - **Scenario IDs:** `AC-ACC-010` (business-date boundary); local E2E date-sensitive journey handoff
 - **Test class/method:** `com.lab.labtimesheet.config.E2eProfileIntegrationTest#e2eStartupUsesDevelopmentDatasourceAndAdvancingClock`, `com.lab.labtimesheet.config.TimeConfigurationTest#e2eProfileStartsNearTheConfiguredInstant`, `#e2eProfileClockAdvancesFromTheConfiguredStartInstant`, `#e2eProfileIsRejectedAlongsideProduction`; `src/test/js/delivery-contract.test.mjs`
 - **Implementation commit:** `b8d4a77c29fe0b0349861c1daabd9cf363ee82d1`
+- **Retired-property guard commit:** `4409a2d3103552a34a177b3ef2448b7fe9c31737`
 
 ## Protected behavior
 
@@ -24,7 +25,9 @@ command.
 ## Hand-derived expected result
 
 The first instant is near `2026-08-22T02:00:00Z` in `Asia/Ho_Chi_Minh` and subsequent samples advance with elapsed
-time; production activation must throw before a clock bean is available.
+time. Launchers must migrate from `LAB_E2E_FIXED_INSTANT` / `lab.e2e.fixed-instant` to
+`LAB_E2E_START_INSTANT` / `lab.e2e.start-instant`; the retired property now fails startup explicitly. Production
+activation must throw before a clock bean is available.
 
 ## RED
 
@@ -65,6 +68,12 @@ configured instant and advanced after 20ms; prod+e2e rejection remained green.
 
 2026-08-22T21:03:48+07:00 — Full `E2eProfileIntegrationTest`: active profiles `e2e`, `dev`; PostgreSQL 18.4
 Testcontainers context started and the advancing E2E clock plus dev datasource/Mailpit/origin properties passed `1/1`.
+
+2026-08-22T21:22:48+07:00 — Retired-property RED: TimeConfigurationTest `5` tests, `1` failure; the nonblank
+`lab.e2e.fixed-instant` property was silently ignored and startup succeeded.
+
+2026-08-22T21:23:13+07:00 — Retired-property GREEN: TimeConfigurationTest `5/5`; startup now fails explicitly with
+`lab.e2e.fixed-instant is retired; use lab.e2e.start-instant`. The stale production-profile test property was removed.
 ```
 
 ## Affected suite
@@ -76,10 +85,10 @@ npm run test:ui
 Tests: 10 passed
 
 env JAVA_HOME=/opt/homebrew/opt/openjdk@25 PATH=/opt/homebrew/opt/openjdk@25/bin:$PATH ./mvnw -q test
-Tests run: 483, Failures: 0, Errors: 0, Skipped: 0
+Tests run: 484, Failures: 0, Errors: 0, Skipped: 0
 PostgreSQL: 18.4; Java: 25.0.4
 
-Affected Account/security/E2E suite: 57/57; Node delivery contracts: 10/10.
+Affected Account/security/E2E suite: 58/58; Node delivery contracts: 10/10.
 ```
 
 ## External-test boundaries
