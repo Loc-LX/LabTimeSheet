@@ -6,6 +6,7 @@
 - **Test class/method:** `com.lab.labtimesheet.feature.account.service.LoginThrottleTest`
 - **Implementation commit:** `091361eb73c7d7118d8212df630a83aca4ad5f9e`
 - **Review-fix commit:** `bad2764c41bf1694dcfcc7c1407fd66c39eace4f`
+- **Round-2 saturation fix commit:** `f1052e6ed66db19c1f0419e81eeafdc539aa3393`
 
 ## Protected behavior
 
@@ -14,7 +15,9 @@ rolling fifteen-minute window throttle the sixth attempt for fifteen minutes; a 
 applicable pair, and another source IP remains independent. The in-memory state is bounded for the supported
 single-instance deployment and never evicts an active block under sequential or concurrent capacity pressure. When
 capacity is full of recent nonblocked histories, one bounded nonblocked history may be evicted so a new target is
-tracked and can reach its fifth-failure block.
+tracked and can reach its fifth-failure block. If all 10,000 retained entries are active blocks, a bounded global
+saturation guard denies unknown pairs until the earliest active block expires rather than bypassing throttling or
+growing memory.
 
 ## Test method
 
@@ -75,6 +78,13 @@ nonblocked filler histories left the new victim untracked, so its sixth attempt 
 
 2026-08-22T16:31:30+07:00 — Saturated-new-target GREEN: Tests run: 7, Failures: 0, Errors: 0, Skipped: 0;
 BUILD SUCCESS. One nonblocked state is evicted at capacity while the pre-existing active block remains protected.
+
+2026-08-22T20:38:55+07:00 — All-active saturation RED: Tests run: 8, Failures: 1, Errors: 0; all 10,000 retained
+entries were active blocks and the new victim remained unblocked after five failures.
+
+2026-08-22T20:42:19+07:00 — All-active saturation GREEN: Tests run: 8, Failures: 0, Errors: 0, Skipped: 0;
+BUILD SUCCESS. The earliest active block deadline bounds a fail-closed saturation guard, then normal purge reclaims
+capacity at expiry.
 ```
 
 ## Affected suite
@@ -91,6 +101,9 @@ export DOCKER_HOST=unix:///Users/sechmachine/.orbstack/run/docker.sock
 
 2026-08-22T20:17:52+07:00 — affected Account/security PostgreSQL suite `54/54` passed, including LoginThrottleTest
 `7/7`, UserActionTokenCleanupIntegrationTest `2/2`, and TimeConfigurationTest `3/3`; no failures, errors, or skips.
+
+2026-08-22T20:45:12+07:00 — fresh affected Account/security/E2E suite `56/56` passed, including LoginThrottleTest
+`8/8`, TimeConfigurationTest `3/3`, and full E2eProfileIntegrationTest `1/1`; no failures, errors, or skips.
 ```
 
 ## External-test boundaries
