@@ -4,7 +4,7 @@
 - **Requirement IDs:** `ACC-017`–`ACC-019`, `UI-014`
 - **Scenario IDs:** `AC-ACC-011`, `AC-ACC-012`
 - **Test class/method:** `AccountAdministrationControllerWebTest`; `Iteration2WorkflowFragmentsWebTest`; `account-form-contract.test.mjs`
-- **Implementation commit:** `dd066a75986692fb77a6ea38582cd354187e28c6`
+- **Implementation commit:** `6b68ecd4f2039eaa74337cb69dddf8593bc0d944`
 
 ## Protected behavior
 
