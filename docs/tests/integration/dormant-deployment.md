@@ -60,7 +60,7 @@ env PATH=/opt/homebrew/opt/node@24/bin:/usr/bin:/bin node --test src/test/js/del
 **Observed result**
 
 ```text
-2026-08-22T19:52:30+07:00 — 6 tests, 6 passed, 0 failed, 0 skipped. The enabled deployment now passes and validates
+2026-08-22T20:25:00+07:00 — 7 tests, 7 passed, 0 failed, 0 skipped. The enabled deployment now passes and validates
 `/etc/labtimesheet/compose.yaml`; rollout, health lookup, and rollback all call the same absolute file.
 ```
 
@@ -77,7 +77,7 @@ git diff --check
 ```
 
 ```text
-Node UI/operational contracts: 9/9 passed. YAML parser: PASS. External and bundled Compose configs: PASS.
+Node UI/operational contracts: 10/10 passed. YAML parser: PASS. External and bundled Compose configs: PASS.
 Whitespace check: PASS. No SSH or registry deployment was attempted; the job remains disabled by default.
 ```
 

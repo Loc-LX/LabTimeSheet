@@ -73,8 +73,9 @@ BUILD SUCCESS.
 ```text
 env JAVA_HOME=/opt/homebrew/opt/openjdk@25 PATH=/opt/homebrew/opt/openjdk@25/bin:$PATH DOCKER_HOST=unix:///Users/sechmachine/.orbstack/run/docker.sock ./mvnw -Dtest=AccountActivationIntegrationTest,AccountIdentityCorrectionIntegrationTest,AccountLifecycleIntegrationTest,AccountRecoveryIntegrationTest,AccountRecoveryLockOrderIntegrationTest,AccountScalarLookupIntegrationTest,ActiveMentorIdentityIntegrationTest,BootstrapIntegrationTest,EligibleInternOptionIntegrationTest,InternMutationEligibilityIntegrationTest,InternWorkWindowIntegrationTest,InternshipLifecycleIntegrationTest,LoginThrottleTest,PasswordResetIntegrationTest,UserActionTokenCleanupIntegrationTest test
 
-2026-08-22T20:02:14+07:00 — focused scheduler test `2/2` passed. Fresh affected-suite result is recorded after the
-post-fix branch gate because the earlier concurrent full run was invalidated by overlapping Testcontainers contexts.
+2026-08-22T20:17:52+07:00 — affected Account/security PostgreSQL suite `54/54` passed with the scheduler-path test,
+throttle saturation regression, and deterministic E2E clock contract included. The earlier sandbox attempt with 44
+Testcontainers errors was excluded because Docker socket access was denied; the elevated rerun passed.
 ```
 
 ## External-test boundaries

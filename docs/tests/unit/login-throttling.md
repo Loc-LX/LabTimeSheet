@@ -89,8 +89,8 @@ export DOCKER_HOST=unix:///Users/sechmachine/.orbstack/run/docker.sock
 
 2026-08-22T15:22:10+07:00 — prior affected combined Platform security/notification suite; total `25/25`.
 
-2026-08-22T19:52:00+07:00 — affected Account/security PostgreSQL suite `53/53` passed, including LoginThrottleTest
-`7/7`; no failures, errors, or skips.
+2026-08-22T20:17:52+07:00 — affected Account/security PostgreSQL suite `54/54` passed, including LoginThrottleTest
+`7/7`, UserActionTokenCleanupIntegrationTest `2/2`, and TimeConfigurationTest `3/3`; no failures, errors, or skips.
 ```
 
 ## External-test boundaries

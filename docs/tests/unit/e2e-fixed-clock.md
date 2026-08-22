@@ -4,7 +4,7 @@
 - **Requirement IDs:** `ACC-019`, `ACC-020`, `I3-UI-05`
 - **Scenario IDs:** `AC-ACC-010` (business-date boundary); local E2E date-sensitive journey handoff
 - **Test class/method:** `com.lab.labtimesheet.config.TimeConfigurationTest#e2eProfileUsesTheConfiguredFixedInstant`, `#e2eProfileIsRejectedAlongsideProduction`; `src/test/js/delivery-contract.test.mjs`
-- **Implementation commit:** `pending`
+- **Implementation commit:** `3343f7f30f3061bee4b4598fa88f12c299ee936a`
 
 ## Protected behavior
 
@@ -62,7 +62,7 @@ npm run test:ui
 Tests: 10 passed
 
 env JAVA_HOME=/opt/homebrew/opt/openjdk@25 PATH=/opt/homebrew/opt/openjdk@25/bin:$PATH ./mvnw -q test
-Tests run: 478, Failures: 0, Errors: 0, Skipped: 0
+Tests run: 480, Failures: 0, Errors: 0, Skipped: 0
 PostgreSQL: 18.4; Java: 25.0.4
 ```
 
