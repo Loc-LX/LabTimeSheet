@@ -14,6 +14,7 @@ import com.lab.labtimesheet.feature.project.model.dto.ProjectExitReadinessView;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectHistoryView;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectInvitationHistoryView;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectLeadershipTermView;
+import com.lab.labtimesheet.feature.project.model.dto.ProjectListPage;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectMemberView;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectMembershipIntervalView;
 import com.lab.labtimesheet.feature.project.model.dto.PendingProjectInvitationView;
@@ -29,6 +30,9 @@ import com.lab.labtimesheet.feature.task.service.TaskTransferService;
 import java.util.List;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -42,6 +46,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 public class ProjectQueryService {
+
+    private static final int PROJECT_LIST_PAGE_SIZE = 50;
 
     private final ProjectRepository projects;
     private final ProjectExitRequestRepository exitRequests;
@@ -91,8 +97,47 @@ public class ProjectQueryService {
      */
     @Transactional(readOnly = true)
     public List<ProjectSummary> listVisible(long actorUserId) {
+        return listVisible(actorUserId, PageRequest.of(0, PROJECT_LIST_PAGE_SIZE));
+    }
+
+    /**
+     * Lists one bounded page of Projects visible under the actor's current role and Project
+     * relationship. Historical Intern membership grants visibility only to completed Projects;
+     * the page size is capped so an MVC list cannot turn a catalogue read into an unbounded
+     * aggregate load.
+     *
+     * @param actorUserId active actor user identifier
+     * @param requestedPage requested page; null or unpaged input uses the first default page
+     * @return ordered authorized summaries within the bounded page
+     */
+    @Transactional(readOnly = true)
+    public List<ProjectSummary> listVisible(long actorUserId, Pageable requestedPage) {
+        return listPage(actorUserId, requestedPage).projects();
+    }
+
+    /**
+     * Lists one bounded page of Projects and exposes whether an authorized continuation exists.
+     * The returned page is role-filtered before its rows are mapped to DTOs, and its continuation
+     * flags come from the same repository slice rather than from a truncated display collection.
+     *
+     * @param actorUserId active actor user identifier
+     * @param requestedPage requested zero-based Spring page; null or unpaged input uses page zero
+     * @return one-based MVC page metadata and authorized summaries
+     */
+    @Transactional(readOnly = true)
+    public ProjectListPage listPage(long actorUserId, Pageable requestedPage) {
         var actor = activeActor(actorUserId);
-        return visibleProjects(actor, actorUserId).stream().map(ProjectQueryService::summary).toList();
+        Pageable bounded = boundedPage(requestedPage);
+        Slice<ProjectEntity> visiblePage = visibleProjectSlice(actor, actorUserId, bounded);
+        List<ProjectSummary> summaries = visiblePage.getContent().stream()
+                .map(ProjectQueryService::summary)
+                .toList();
+        return new ProjectListPage(
+                summaries,
+                visiblePage.getNumber() + 1,
+                visiblePage.getSize(),
+                visiblePage.hasPrevious(),
+                visiblePage.hasNext());
     }
 
     /**
@@ -415,21 +460,18 @@ public class ProjectQueryService {
     @Transactional(readOnly = true)
     public ProjectDashboardSummary dashboardSummary(long actorUserId) {
         var actor = activeActor(actorUserId);
-        var activeProjects = visibleProjects(actor, actorUserId).stream()
-                .filter(project -> project.status() == ProjectStatus.ACTIVE)
-                .filter(project -> !"INTERN".equals(actor.role().name())
-                        || (accounts.isEligibleIntern(actorUserId) && project.hasCurrentMember(actorUserId)))
-                .toList();
-        var distinctActiveMembers = "MENTOR".equals(actor.role().name())
-                ? activeProjects.stream()
-                        .flatMap(project -> project.memberships().stream())
-                        .filter(membership -> membership.isCurrent()
-                                && accounts.isEligibleIntern(membership.internUserId()))
-                        .map(membership -> membership.internUserId())
-                        .distinct()
-                        .count()
-                : 0L;
-        return new ProjectDashboardSummary(activeProjects.size(), distinctActiveMembers);
+        return switch (actor.role().name()) {
+            case "ADMIN" -> new ProjectDashboardSummary(projects.countActiveProjects(), 0L);
+            case "MENTOR" -> new ProjectDashboardSummary(
+                    projects.countActiveProjectsByMentor(actorUserId),
+                    countEligibleCurrentMembers(actorUserId));
+            case "INTERN" -> new ProjectDashboardSummary(
+                    accounts.isEligibleIntern(actorUserId)
+                            ? projects.countActiveProjectsByIntern(actorUserId)
+                            : 0L,
+                    0L);
+            default -> throw new ProjectAccessDeniedException();
+        };
     }
 
     /**
@@ -491,13 +533,41 @@ public class ProjectQueryService {
         }
     }
 
-    private List<ProjectEntity> visibleProjects(AccountIdentity actor, long actorUserId) {
+    private Slice<ProjectEntity> visibleProjectSlice(
+            AccountIdentity actor, long actorUserId, Pageable pageable) {
         return switch (actor.role().name()) {
-            case "ADMIN" -> projects.findAllByOrderByUpdatedAtDescIdDesc();
-            case "MENTOR" -> projects.findByMentorUserIdOrderByUpdatedAtDescIdDesc(actorUserId);
-            case "INTERN" -> projects.findVisibleToIntern(actorUserId);
+            case "ADMIN" -> projects.findAllByOrderByUpdatedAtDescIdDesc(pageable);
+            case "MENTOR" -> projects.findByMentorUserIdOrderByUpdatedAtDescIdDesc(actorUserId, pageable);
+            case "INTERN" -> projects.findVisibleToIntern(actorUserId, pageable);
             default -> throw new ProjectAccessDeniedException();
         };
+    }
+
+    /**
+     * Counts eligible active Interns across the complete distinct current-member set for a
+     * Mentor-owned active Project scope. The Project query supplies only scalar IDs; Account
+     * eligibility remains the public Account-service decision boundary.
+     *
+     * @param mentorUserId owning Mentor account identifier
+     * @return distinct eligible active-member total
+     */
+    private long countEligibleCurrentMembers(long mentorUserId) {
+        return projects.findDistinctCurrentMemberUserIdsByMentor(mentorUserId).stream()
+                .filter(accounts::isEligibleIntern)
+                .count();
+    }
+
+    private static Pageable defaultProjectPage() {
+        return PageRequest.of(0, PROJECT_LIST_PAGE_SIZE);
+    }
+
+    private static Pageable boundedPage(Pageable requestedPage) {
+        if (requestedPage == null || requestedPage.isUnpaged()) {
+            return defaultProjectPage();
+        }
+        return PageRequest.of(
+                requestedPage.getPageNumber(),
+                Math.min(requestedPage.getPageSize(), PROJECT_LIST_PAGE_SIZE));
     }
 
     private AccountIdentity activeActor(long actorUserId) {

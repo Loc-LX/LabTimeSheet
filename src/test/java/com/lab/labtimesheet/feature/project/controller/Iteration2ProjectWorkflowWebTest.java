@@ -163,11 +163,13 @@ class Iteration2ProjectWorkflowWebTest {
                         .with(csrf())
                         .param("sourceMembershipId", "41")
                         .param("taskIds", "101", "102")
+                        .param("taskVersions", "101:0", "102:0")
                         .param("recipientMembershipId", "42"))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl("/projects/30/workflows"));
 
-        verify(projects).transferTasks(20L, 30L, 41L, Set.of(101L, 102L), 42L);
+        verify(projects).transferTasks(
+                20L, 30L, 70L, 41L, Set.of(101L, 102L), Map.of(101L, 0L, 102L, 0L), 42L);
 
         when(projects.issueInvitation(20L, 30L, 24L))
                 .thenThrow(new ProjectRuleViolationException("Invitation state changed"));
@@ -211,18 +213,21 @@ class Iteration2ProjectWorkflowWebTest {
                         "(?s).*<option[^>]*value=\"42\"[^>]*selected=\"selected\"[^>]*>.*")))
                 .andExpect(content().string(containsString("id=\"removal-form-error\"")));
 
-        when(projects.transferTasks(20L, 30L, 41L, Set.of(101L, 102L), 42L))
+        when(projects.transferTasks(
+                        20L, 30L, 70L, 41L, Set.of(101L, 102L), Map.of(101L, 0L, 102L, 0L), 42L))
                 .thenThrow(new ProjectRuleViolationException("Transfer state changed"));
         Map<String, Object> retainedTransfer = Map.of(
                 "kind", "transfer",
                 "requestId", 70L,
                 "sourceMembershipId", "41",
                 "taskIds", Set.of("101", "102"),
+                "taskVersions", List.of("101:0", "102:0"),
                 "recipientMembershipId", "42");
         mvc.perform(post("/projects/30/exits/70/transfer")
                         .with(user("leader@example.test").roles("INTERN")).with(csrf())
                         .param("sourceMembershipId", "41")
                         .param("taskIds", "101", "102")
+                        .param("taskVersions", "101:0", "102:0")
                         .param("recipientMembershipId", "42"))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(flash().attribute("projectInput", retainedTransfer));

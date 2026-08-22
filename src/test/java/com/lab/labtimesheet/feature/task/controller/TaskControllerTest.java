@@ -16,6 +16,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 
 import com.lab.labtimesheet.feature.task.exception.TaskNotFoundException;
+import com.lab.labtimesheet.feature.task.exception.TaskConflictException;
 import com.lab.labtimesheet.feature.task.exception.TaskValidationException;
 import com.lab.labtimesheet.feature.task.model.TaskProgress;
 import com.lab.labtimesheet.feature.task.model.TaskStatus;
@@ -176,7 +177,7 @@ class TaskControllerTest {
 
     @Test
     void statusAndCommentPostsUseAuthenticatedIdentityAndCsrf() throws Exception {
-        given(taskService.changeStatus(ACTOR_EMAIL, 10L, 25L, TaskStatus.IN_PROGRESS))
+        given(taskService.changeStatus(ACTOR_EMAIL, 10L, 25L, 0L, TaskStatus.IN_PROGRESS))
                 .willReturn(task(25L));
         given(taskService.addComment(ACTOR_EMAIL, 10L, 25L, "Update"))
                 .willReturn(new TaskCommentView(3L, 25L, 5L, "Update", Instant.parse("2026-08-14T10:00:00Z")));
@@ -184,6 +185,7 @@ class TaskControllerTest {
         mockMvc.perform(post("/projects/10/tasks/25/status")
                         .with(user(ACTOR_EMAIL))
                         .with(csrf())
+                        .param("expectedVersion", "0")
                         .param("status", "IN_PROGRESS"))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl("/projects/10/tasks/25"));
@@ -193,6 +195,22 @@ class TaskControllerTest {
                         .param("body", "Update"))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl("/projects/10/tasks/25"));
+    }
+
+    @Test
+    void taskConflictReturnsExplicitReloadResponse() throws Exception {
+        given(taskService.changeStatus(ACTOR_EMAIL, 10L, 25L, 3L, TaskStatus.IN_PROGRESS))
+                .willThrow(new TaskConflictException(
+                        "Task changed concurrently; reload before trying again", null));
+
+        mockMvc.perform(post("/projects/10/tasks/25/status")
+                        .with(user(ACTOR_EMAIL))
+                        .with(csrf())
+                        .param("expectedVersion", "3")
+                        .param("status", "IN_PROGRESS"))
+                .andExpect(status().isConflict())
+                .andExpect(view().name("error/generic"))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Reload")));
     }
 
     @Test

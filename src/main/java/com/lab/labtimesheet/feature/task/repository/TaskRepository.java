@@ -4,6 +4,7 @@ import com.lab.labtimesheet.feature.task.model.TaskStatus;
 import com.lab.labtimesheet.feature.task.model.dto.TaskProjectProgress;
 import com.lab.labtimesheet.feature.task.model.entity.Task;
 import jakarta.persistence.LockModeType;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -47,6 +48,14 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
      * @return non-deleted Tasks
      */
     List<Task> findAllByProjectIdAndDeletedAtIsNullOrderById(long projectId);
+
+    /**
+     * Lists current Tasks whose stored due date matches a later calendar impact date.
+     *
+     * @param dueDate exact local date being previewed
+     * @return non-deleted Tasks ordered by Project and Task identifier
+     */
+    List<Task> findAllByDueDateAndDeletedAtIsNullOrderByProjectIdAscIdAsc(LocalDate dueDate);
 
     /**
      * Counts all current Tasks in one Project.

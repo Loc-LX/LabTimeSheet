@@ -220,19 +220,38 @@ public class ProjectService {
     }
 
     /**
-     * Revokes a pending invitation owned by the issuing Leader or owning Mentor.
-     * The authenticated actor, invitation target, issuing Leader, and owning Mentor Account/profile
-     * rows are locked in ascending order before the Project and invitation rows; terminal state is
-     * inspected only after the actor's Project relationship is authorized.
+     * Revokes a pending invitation using the invitation's own Project route.
+     *
+     * <p>This compatibility entry point remains for non-HTTP callers that do not carry a route
+     * Project. HTTP handlers must use the route-bound overload below.</p>
      *
      * @param actorUserId authenticated current issuing Leader or owning Mentor
      * @param invitationId invitation identifier
-     * @throws ProjectAccessDeniedException when the actor is outside the invitation context
-     * @throws ProjectRuleViolationException when the invitation is already terminal
      */
     @Transactional
     public void revokeInvitation(long actorUserId, long invitationId) {
         var route = invitationRoute(invitationId);
+        revokeInvitation(actorUserId, route.projectId(), invitationId);
+    }
+
+    /**
+     * Revokes a pending invitation only when its nested identifier belongs to the route Project.
+     * Completed Projects are read-only even when a stale pending row is encountered during a
+     * concurrent lifecycle boundary. The authenticated actor, invitation target, issuing Leader,
+     * and owning Mentor Account/profile rows are locked in ascending order before the Project and
+     * invitation rows; terminal state is inspected only after route and actor authorization.
+     *
+     * @param actorUserId authenticated current issuing Leader or owning Mentor
+     * @param projectId Project encoded by the HTTP route
+     * @param invitationId invitation identifier encoded by the nested route
+     * @throws ProjectAccessDeniedException when the actor or nested invitation is outside the
+     *         route Project
+     * @throws ProjectRuleViolationException when the invitation is already terminal
+     */
+    @Transactional
+    public void revokeInvitation(long actorUserId, long projectId, long invitationId) {
+        var route = invitationRoute(invitationId);
+        requireRouteProject(projectId, route.projectId());
         var notificationRoute = invitationNotificationRoute(invitationId);
         var lockedAccounts = lockAccounts(List.of(
                 actorUserId,
@@ -254,6 +273,7 @@ public class ProjectService {
         if (issuingLeader) {
             requireEligibleInternForProjectActor(actor);
         }
+        requireOpenProject(project);
         if (!invitation.isPending()) {
             throw new ProjectRuleViolationException("Invitation is no longer pending");
         }
@@ -394,7 +414,7 @@ public class ProjectService {
         var project = lockedProject(projectId);
         var leader = requireCurrentLeader(project, actorUserId, actor);
         requireOpenProject(project);
-        var target = project.membership(targetMembershipId);
+        var target = membershipInProject(project, targetMembershipId);
         if (!target.isCurrent() || target.id().equals(leader.id())) {
             throw new ProjectRuleViolationException("Removal target must be another current member");
         }
@@ -449,10 +469,10 @@ public class ProjectService {
     }
 
     /**
-     * Cancels a pending request only by its original requester.
-     * All current-member Account and Intern-profile rows are locked before the Project and
-     * request; requester authorization precedes the terminal-state check and the exit-notification
-     * recipient rows cannot introduce a later Account lock.
+     * Cancels a pending request using the request's own Project route.
+     *
+     * <p>This compatibility entry point remains for non-HTTP callers that do not carry a route
+     * Project. HTTP handlers must use the route-bound overload below.</p>
      *
      * @param actorUserId authenticated requester
      * @param requestId exit-request identifier
@@ -460,6 +480,25 @@ public class ProjectService {
     @Transactional
     public void cancelExit(long actorUserId, long requestId) {
         var route = exitRequestRoute(requestId);
+        cancelExit(actorUserId, route.projectId(), requestId);
+    }
+
+    /**
+     * Cancels a pending request only by its original requester and only when the nested request
+     * belongs to the route Project. All current-member Account and Intern-profile rows are locked
+     * before the Project and request; requester authorization precedes the terminal-state check
+     * and exit-notification recipient rows cannot introduce a later Account lock.
+     *
+     * @param actorUserId authenticated requester
+     * @param projectId Project encoded by the HTTP route
+     * @param requestId exit-request identifier encoded by the nested route
+     * @throws ProjectAccessDeniedException when the requester or nested request is outside the
+     *         route Project
+     */
+    @Transactional
+    public void cancelExit(long actorUserId, long projectId, long requestId) {
+        var route = exitRequestRoute(requestId);
+        requireRouteProject(projectId, route.projectId());
         var snapshotMemberIds = projects.findCurrentInternUserIdsByProjectId(route.projectId());
         var lockedAccounts = lockAccounts(concat(actorUserId, snapshotMemberIds));
         var actor = snapshotFor(lockedAccounts, actorUserId);
@@ -488,7 +527,9 @@ public class ProjectService {
     }
 
     /**
-     * Replaces the current Leader with an eligible current member in one transaction.
+     * Replaces the current Leader with an eligible current member in one transaction. The
+     * current-Leader route snapshot is rechecked after locking the Project, so concurrent Mentor
+     * changes based on the same prior term have one valid winner and a retryable conflict.
      * The closed term is flushed before its replacement so PostgreSQL's immediate exclusion rule
      * observes exactly one current term. The Mentor, all current-member recipients, replacement,
      * and every pending-invitation notification recipient are locked in ascending Account order
@@ -514,8 +555,11 @@ public class ProjectService {
         requireActiveMentor(snapshotFor(lockedAccounts, actorUserId));
         var project = lockedProject(projectId);
         project.authorizeOwner(actorUserId);
+        if (!Objects.equals(route.currentLeaderUserId(), project.currentLeader().internUserId())) {
+            throw new ProjectRuleViolationException("Project leadership changed; retry the mutation");
+        }
         requireEligibleInternForProjectTarget(snapshotFor(lockedAccounts, internUserId));
-        var replacementMembership = project.currentMember(internUserId);
+        var replacementMembership = currentMemberTarget(project, internUserId);
         if (exitRequests.findLockedPendingByTargetMembershipId(replacementMembership.id()).isPresent()) {
             throw new ProjectRuleViolationException("Leader replacement cannot have a pending exit");
         }
@@ -550,10 +594,10 @@ public class ProjectService {
     /**
      * Commits one Leader-selected unfinished Task transfer batch for a pending exit.
      *
-     * <p>The scalar route and current-member snapshot establish authorization before Account and
-     * Intern-profile locks. The locked Project then supplies the DTO context consumed by Task,
-     * which rechecks the current Leader, pending recipient, and selected unfinished rows. Each
-     * call is independent and therefore repeatable; completed batches are not later undone.</p>
+     * <p>This deliberate legacy overload resolves the pending request by its source membership and
+     * uses the Task producer's no-version compatibility path. New HTTP routes must use the
+     * request-bound overload with expected versions so a stale or guessed request identifier
+     * cannot transfer a different pending exit.</p>
      *
      * @param actorUserId authenticated current Leader
      * @param projectId owning open Project
@@ -569,6 +613,130 @@ public class ProjectService {
             long sourceMembershipId,
             Set<Long> taskIds,
             long recipientMembershipId) {
+        return transferTasksInternal(
+                actorUserId,
+                projectId,
+                null,
+                sourceMembershipId,
+                taskIds,
+                recipientMembershipId);
+    }
+
+    /**
+     * Commits one Leader-selected unfinished Task transfer batch only for the supplied pending
+     * exit request. This deliberate legacy overload uses the Task producer's no-version
+     * compatibility path; callers with a browser Task snapshot must use the map-bearing overload.
+     *
+     * <p>The request route is checked before the Project lock, then its row is locked and its
+     * pending status, Project, and target membership are rechecked after the Project lock. Account,
+     * Project, exit-request, and Task locks therefore cover the full mutation, while a stale or
+     * mismatched request fails before any Task or retained history changes.</p>
+     *
+     * @param actorUserId authenticated current Leader
+     * @param projectId owning open Project
+     * @param requestId pending exit request from the route
+     * @param sourceMembershipId pending-exit source membership
+     * @param taskIds selected unfinished Task identifiers
+     * @param recipientMembershipId eligible current recipient not pending exit
+     * @return atomic Task transfer result
+     * @throws ProjectAccessDeniedException when the request is outside the Project or source
+     *         membership is not its target
+     * @throws ProjectRuleViolationException when the request is terminal or the Project changed
+     */
+    @Transactional
+    public TaskTransferResult transferTasks(
+            long actorUserId,
+            long projectId,
+            long requestId,
+            long sourceMembershipId,
+            Set<Long> taskIds,
+            long recipientMembershipId) {
+        var route = exitRequestRoute(requestId);
+        if (route.projectId() != projectId) {
+            throw new ProjectAccessDeniedException();
+        }
+        return transferTasksInternal(
+                actorUserId,
+                projectId,
+                requestId,
+                sourceMembershipId,
+                taskIds,
+                recipientMembershipId);
+    }
+
+    /**
+     * Commits one pending-exit Task batch with the client-observed version of every selected Task.
+     *
+     * <p>The request-bound route is checked before this service copies and validates the required
+     * version map. The map must be non-null, have exactly the selected Task IDs, and contain
+     * non-negative versions; Project locks and source/recipient checks then precede the Task
+     * producer call. A stale version raises the Task-owned conflict, rolling back the whole
+     * transaction before assignment or notification mutation. Deliberate legacy callers use the
+     * separate overload without a map.</p>
+     *
+     * @param actorUserId authenticated current Leader
+     * @param projectId owning open Project
+     * @param requestId pending exit request from the route
+     * @param sourceMembershipId pending-exit source membership
+     * @param taskIds selected unfinished Task identifiers
+     * @param expectedTaskVersions client-observed version for each selected Task
+     * @param recipientMembershipId eligible current recipient not pending exit
+     * @return atomic Task transfer result
+     * @throws ProjectAccessDeniedException when the request is outside the Project or source
+     *         membership is not its target
+     * @throws ProjectRuleViolationException when the request is terminal, the Project changed, or
+     *         the required Task/version map is null or incomplete
+     */
+    @Transactional
+    public TaskTransferResult transferTasks(
+            long actorUserId,
+            long projectId,
+            long requestId,
+            long sourceMembershipId,
+            Set<Long> taskIds,
+            Map<Long, Long> expectedTaskVersions,
+            long recipientMembershipId) {
+        var route = exitRequestRoute(requestId);
+        if (route.projectId() != projectId) {
+            throw new ProjectAccessDeniedException();
+        }
+        Map<Long, Long> immutableExpectedTaskVersions =
+                immutableTaskVersions(taskIds, expectedTaskVersions);
+        return transferTasksInternal(
+                actorUserId,
+                projectId,
+                requestId,
+                sourceMembershipId,
+                taskIds,
+                immutableExpectedTaskVersions,
+                recipientMembershipId);
+    }
+
+    private TaskTransferResult transferTasksInternal(
+            long actorUserId,
+            long projectId,
+            Long requestId,
+            long sourceMembershipId,
+            Set<Long> taskIds,
+            long recipientMembershipId) {
+        return transferTasksInternal(
+                actorUserId,
+                projectId,
+                requestId,
+                sourceMembershipId,
+                taskIds,
+                null,
+                recipientMembershipId);
+    }
+
+    private TaskTransferResult transferTasksInternal(
+            long actorUserId,
+            long projectId,
+            Long requestId,
+            long sourceMembershipId,
+            Set<Long> taskIds,
+            Map<Long, Long> expectedTaskVersions,
+            long recipientMembershipId) {
         var route = projectRoute(projectId);
         if (!Objects.equals(route.currentLeaderUserId(), actorUserId)) {
             throw new ProjectAccessDeniedException();
@@ -582,21 +750,61 @@ public class ProjectService {
         }
         requireOpenProject(project);
         var leader = requireCurrentLeader(project, actorUserId, snapshotFor(lockedAccounts, actorUserId));
-        var pendingExitMembershipIds = exitRequests.findLockedPendingByProjectId(projectId).stream()
+        var pendingExitRequests = exitRequests.findLockedPendingByProjectId(projectId);
+        var pendingExitMembershipIds = pendingExitRequests.stream()
                 .map(ProjectExitRequestEntity::targetMembershipId)
                 .collect(Collectors.toUnmodifiableSet());
+        if (requestId == null) {
+            if (!pendingExitMembershipIds.contains(sourceMembershipId)) {
+                throw new ProjectAccessDeniedException();
+            }
+        } else {
+            var request = lockedExitRequest(requestId, project.id());
+            if (!request.isPending()) {
+                throw new ProjectRuleViolationException("Exit request is no longer pending");
+            }
+            if (request.targetMembershipId() != sourceMembershipId
+                    || !pendingExitMembershipIds.contains(sourceMembershipId)) {
+                throw new ProjectAccessDeniedException();
+            }
+        }
         var context = queries.taskContext(actorUserId, project, pendingExitMembershipIds);
+        if (expectedTaskVersions == null) {
+            return taskTransfers.transferBatch(
+                    context,
+                    leader.id(),
+                    sourceMembershipId,
+                    taskIds,
+                    recipientMembershipId);
+        }
         return taskTransfers.transferBatch(
                 context,
                 leader.id(),
                 sourceMembershipId,
                 taskIds,
+                expectedTaskVersions,
                 recipientMembershipId);
     }
 
+    private static Map<Long, Long> immutableTaskVersions(
+            Set<Long> taskIds, Map<Long, Long> expectedTaskVersions) {
+        if (expectedTaskVersions == null
+                || taskIds == null || taskIds.isEmpty()
+                || expectedTaskVersions.size() != taskIds.size()
+                || !expectedTaskVersions.keySet().equals(taskIds)
+                || expectedTaskVersions.entrySet().stream().anyMatch(entry ->
+                        entry.getKey() == null || entry.getValue() == null
+                                || entry.getKey() <= 0 || entry.getValue() < 0)) {
+            throw new ProjectRuleViolationException("Submit one version for every selected Task.");
+        }
+        return Map.copyOf(expectedTaskVersions);
+    }
+
     /**
-     * Approves a pending exit only when the target is no longer Leader and owns no unfinished
-     * non-deleted Tasks. Membership closure and request resolution commit in the same transaction.
+     * Approves a pending exit using the request's own Project route.
+     *
+     * <p>This compatibility entry point remains for non-HTTP callers that do not carry a route
+     * Project. HTTP handlers must use the route-bound overload below.</p>
      *
      * @param actorMentorUserId authenticated owning Mentor
      * @param requestId pending exit request identifier
@@ -605,7 +813,26 @@ public class ProjectService {
     @Transactional
     public void approveExit(long actorMentorUserId, long requestId, String note) {
         var route = exitRequestRoute(requestId);
-        var locked = lockOwnedProject(actorMentorUserId, route.projectId(),
+        approveExit(actorMentorUserId, route.projectId(), requestId, note);
+    }
+
+    /**
+     * Approves a pending exit only when its nested request belongs to the route Project, the
+     * target is no longer Leader, and the target owns no unfinished non-deleted Tasks. Membership
+     * closure and request resolution commit in the same transaction.
+     *
+     * @param actorMentorUserId authenticated owning Mentor
+     * @param projectId Project encoded by the HTTP route
+     * @param requestId pending exit request identifier encoded by the nested route
+     * @param note optional retained Mentor decision note
+     * @throws ProjectAccessDeniedException when the nested request is outside the route Project
+     * @throws ProjectRuleViolationException when the request or target is not approval-ready
+     */
+    @Transactional
+    public void approveExit(long actorMentorUserId, long projectId, long requestId, String note) {
+        var route = exitRequestRoute(requestId);
+        requireRouteProject(projectId, route.projectId());
+        var locked = lockOwnedProject(actorMentorUserId, projectId,
                 List.of(route.requesterUserId()));
         var project = locked.project();
         requireOpenProject(project);
@@ -641,7 +868,10 @@ public class ProjectService {
     }
 
     /**
-     * Rejects a pending exit without closing membership or undoing completed transfer batches.
+     * Rejects a pending exit using the request's own Project route.
+     *
+     * <p>This compatibility entry point remains for non-HTTP callers that do not carry a route
+     * Project. HTTP handlers must use the route-bound overload below.</p>
      *
      * @param actorMentorUserId authenticated owning Mentor
      * @param requestId pending exit request identifier
@@ -650,7 +880,25 @@ public class ProjectService {
     @Transactional
     public void rejectExit(long actorMentorUserId, long requestId, String note) {
         var route = exitRequestRoute(requestId);
-        var locked = lockOwnedProject(actorMentorUserId, route.projectId(),
+        rejectExit(actorMentorUserId, route.projectId(), requestId, note);
+    }
+
+    /**
+     * Rejects a pending exit only when its nested request belongs to the route Project. Rejection
+     * retains membership and does not undo completed transfer batches.
+     *
+     * @param actorMentorUserId authenticated owning Mentor
+     * @param projectId Project encoded by the HTTP route
+     * @param requestId pending exit request identifier encoded by the nested route
+     * @param note optional retained Mentor decision note
+     * @throws ProjectAccessDeniedException when the nested request is outside the route Project
+     * @throws ProjectRuleViolationException when the request is no longer pending
+     */
+    @Transactional
+    public void rejectExit(long actorMentorUserId, long projectId, long requestId, String note) {
+        var route = exitRequestRoute(requestId);
+        requireRouteProject(projectId, route.projectId());
+        var locked = lockOwnedProject(actorMentorUserId, projectId,
                 List.of(route.requesterUserId()));
         var project = locked.project();
         requireOpenProject(project);
@@ -695,11 +943,15 @@ public class ProjectService {
             throw new ProjectRuleViolationException("Removal target must be current");
         }
         var leader = project.currentLeader();
+        if (Objects.equals(locked.initialLeaderUserId(), target.internUserId())
+                && !leader.id().equals(target.id())) {
+            throw new ProjectRuleViolationException("Project leadership changed; retry the removal");
+        }
         if (leader.id().equals(target.id())) {
             if (replacementLeaderUserId == null || replacementLeaderUserId <= 0) {
                 throw new ProjectRuleViolationException("Removing the current Leader requires a replacement");
             }
-            var replacement = project.currentMember(replacementLeaderUserId);
+            var replacement = currentMemberTarget(project, replacementLeaderUserId);
             if (exitRequests.findLockedPendingByTargetMembershipId(replacement.id()).isPresent()) {
                 throw new ProjectRuleViolationException("Leader replacement cannot have a pending exit");
             }
@@ -970,6 +1222,12 @@ public class ProjectService {
                 .orElseThrow(ProjectAccessDeniedException::new);
     }
 
+    private static void requireRouteProject(long expectedProjectId, long actualProjectId) {
+        if (expectedProjectId != actualProjectId) {
+            throw new ProjectAccessDeniedException();
+        }
+    }
+
     private LockedOwnedProject lockOwnedProject(long actorMentorUserId, long projectId) {
         return lockOwnedProject(actorMentorUserId, projectId, List.of());
     }
@@ -987,7 +1245,8 @@ public class ProjectService {
      * @param actorMentorUserId authenticated owning Mentor
      * @param projectId Project identifier
      * @param additionalAccountIds immutable route recipients required by this mutation
-     * @return locked Project, Account eligibility snapshots, and pre-resolved recipient facts
+     * @return locked Project, initial Leader snapshot, Account eligibility snapshots, and
+     *         pre-resolved recipient facts
      */
     private LockedOwnedProject lockOwnedProject(
             long actorMentorUserId, long projectId, Collection<Long> additionalAccountIds) {
@@ -1013,7 +1272,8 @@ public class ProjectService {
         if (!snapshotMemberIds.equals(currentInternUserIds(project))) {
             throw new ProjectRuleViolationException("Project membership changed; retry mutation");
         }
-        return new LockedOwnedProject(project, lockedAccounts, recipientFacts);
+        return new LockedOwnedProject(
+                project, route.currentLeaderUserId(), lockedAccounts, recipientFacts);
     }
 
     private ProjectExitRequestEntity lockedExitRequest(long requestId, long projectId) {
@@ -1028,6 +1288,14 @@ public class ProjectService {
     private ProjectMembershipEntity membershipInProject(ProjectEntity project, long membershipId) {
         try {
             return project.membership(membershipId);
+        } catch (ProjectRuleViolationException exception) {
+            throw new ProjectAccessDeniedException();
+        }
+    }
+
+    private ProjectMembershipEntity currentMemberTarget(ProjectEntity project, long internUserId) {
+        try {
+            return project.currentMember(internUserId);
         } catch (ProjectRuleViolationException exception) {
             throw new ProjectAccessDeniedException();
         }
@@ -1523,6 +1791,7 @@ public class ProjectService {
 
     private record LockedOwnedProject(
             ProjectEntity project,
+            Long initialLeaderUserId,
             List<LockedAccountMutationEligibility> accounts,
             Map<Long, NotificationRecipient> notificationRecipients) {
     }

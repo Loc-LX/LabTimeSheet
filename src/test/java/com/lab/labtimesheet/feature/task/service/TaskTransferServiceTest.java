@@ -15,6 +15,7 @@ import com.lab.labtimesheet.feature.notification.service.NotificationService;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectTaskContext;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectTaskMemberView;
 import com.lab.labtimesheet.feature.task.exception.TaskValidationException;
+import com.lab.labtimesheet.feature.task.exception.TaskConflictException;
 import com.lab.labtimesheet.feature.task.model.TaskStatus;
 import com.lab.labtimesheet.feature.task.model.entity.Task;
 import com.lab.labtimesheet.feature.task.repository.TaskRepository;
@@ -23,6 +24,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
@@ -30,6 +32,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 
 @ExtendWith(MockitoExtension.class)
 class TaskTransferServiceTest {
@@ -119,6 +122,39 @@ class TaskTransferServiceTest {
     }
 
     @Test
+    void batchTransferTurnsAnOptimisticTaskRaceIntoAnExplicitConflict() {
+        Task sourceTask = task(11L);
+        when(tasks.findLockedByIdAndProjectIdAndDeletedAtIsNull(11L, 10L))
+                .thenReturn(Optional.of(sourceTask));
+        when(tasks.saveAllAndFlush(any())).thenThrow(
+                new ObjectOptimisticLockingFailureException(Task.class, 11L));
+
+        assertThatThrownBy(() -> service().transferBatch(
+                        context(), 70L, 71L, Set.of(11L), 72L))
+                .isInstanceOf(TaskConflictException.class)
+                .hasMessage("Task changed concurrently; reload before trying again");
+
+        verify(notifications, org.mockito.Mockito.never()).publish(any(), any(), any());
+    }
+
+    @Test
+    void batchTransferRejectsAStaleClientTaskVersionBeforeMutation() {
+        Task sourceTask = task(11L);
+        when(sourceTask.getVersion()).thenReturn(4L);
+        when(tasks.findLockedByIdAndProjectIdAndDeletedAtIsNull(11L, 10L))
+                .thenReturn(Optional.of(sourceTask));
+
+        assertThatThrownBy(() -> service().transferBatch(
+                        context(), 70L, 71L, Set.of(11L), Map.of(11L, 3L), 72L))
+                .isInstanceOf(TaskConflictException.class)
+                .hasMessage("Task changed concurrently; reload before trying again");
+
+        verify(sourceTask, org.mockito.Mockito.never()).reassign(72L, 70L, NOW);
+        verify(tasks, org.mockito.Mockito.never()).saveAllAndFlush(any());
+        verifyNoNotifications();
+    }
+
+    @Test
     void rejectsPendingExitRecipientWhileAllowingExistingSourceContext() {
         TaskTransferService service = service();
 
@@ -159,6 +195,10 @@ class TaskTransferServiceTest {
 
     private TaskTransferService service() {
         return new TaskTransferService(tasks, Clock.fixed(NOW, ZoneOffset.UTC), accounts, notifications);
+    }
+
+    private void verifyNoNotifications() {
+        verify(notifications, org.mockito.Mockito.never()).publish(any(), any(), any());
     }
 
     private static AccountIdentity identity(long id, String email, String displayName) {

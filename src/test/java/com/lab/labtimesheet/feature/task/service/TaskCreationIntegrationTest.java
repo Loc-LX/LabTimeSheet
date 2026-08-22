@@ -16,6 +16,7 @@ import com.lab.labtimesheet.feature.task.model.dto.TaskDetails;
 import com.lab.labtimesheet.feature.task.model.dto.TaskListView;
 import com.lab.labtimesheet.feature.task.model.dto.TaskHistoryView;
 import com.lab.labtimesheet.feature.task.model.dto.TaskProjectProgress;
+import com.lab.labtimesheet.feature.task.model.dto.TaskDueDateImpactView;
 import com.lab.labtimesheet.feature.task.model.dto.TaskView;
 import com.lab.labtimesheet.feature.task.model.entity.TaskWorkLog;
 import com.lab.labtimesheet.feature.task.repository.TaskWorkLogRepository;
@@ -32,6 +33,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
+import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest
@@ -181,6 +183,202 @@ class TaskCreationIntegrationTest {
                         new CreateTaskCommand(projectId, memberMembershipId, "Day off", null, LocalDate.of(2026, 8, 15))))
                 .isInstanceOf(TaskValidationException.class);
         assertThat(taskCount()).isEqualTo(2);
+    }
+
+    @Test
+    void laterDayOffKeepsExistingDueDateAndListsOnlyCurrentAffectedTasks() {
+        LocalDate impactDate = LocalDate.of(2026, 8, 20);
+        TaskView affected = taskService.create(
+                "leader@example.test",
+                new CreateTaskCommand(projectId, memberMembershipId, "Affected", null, impactDate));
+        TaskView deleted = taskService.create(
+                "leader@example.test",
+                new CreateTaskCommand(projectId, memberMembershipId, "Deleted", null, impactDate));
+        softDelete(deleted.id());
+
+        insertDayOff(impactDate);
+
+        assertThat(taskQueries.dueDateImpacts(impactDate))
+                .containsExactly(new TaskDueDateImpactView(
+                        affected.id(), projectId, "Affected", impactDate,
+                        TaskStatus.TODO, memberMembershipId));
+        assertThat(jdbc.sql("select due_date from tasks where id = :id")
+                .param("id", affected.id()).query(LocalDate.class).single())
+                .isEqualTo(impactDate);
+    }
+
+    @Test
+    void taskProgressAndDueDatePathsHaveTheirSupportingPostgresIndexes() {
+        List<String> indexes = jdbc.sql("""
+                        select indexdef
+                        from pg_indexes
+                        where schemaname = 'public' and tablename = 'tasks'
+                        """)
+                .query(String.class)
+                .list();
+
+        assertThat(indexes).anyMatch(index -> index.contains("ix_tasks_project_status_active")
+                && index.contains("(project_id, status, id)"));
+        assertThat(indexes).anyMatch(index -> index.contains("ix_tasks_due_date_active")
+                && index.contains("(due_date, project_id)"));
+    }
+
+    @Test
+    void taskProgressAndDueDateQueriesUseTheirSupportingPostgresIndexes() {
+        TaskView task = taskService.create(
+                "leader@example.test",
+                new CreateTaskCommand(projectId, memberMembershipId, "Planner proof", null,
+                        LocalDate.of(2026, 8, 20)));
+        taskWorkLogs.saveAndFlush(new TaskWorkLog(
+                projectId,
+                task.id(),
+                memberMembershipId,
+                LocalDate.of(2026, 8, 20),
+                30,
+                "Planner effort",
+                Instant.parse("2026-08-20T01:00:00Z")));
+        jdbc.sql("set local enable_seqscan = off").update();
+        jdbc.sql("set local enable_indexscan = off").update();
+
+        String progressPlan = explain("""
+                        select
+                            coalesce(sum(case when status = 'TODO' then 1 else 0 end), 0),
+                            coalesce(sum(case when status = 'IN_PROGRESS' then 1 else 0 end), 0),
+                            coalesce(sum(case when status = 'BLOCKED' then 1 else 0 end), 0),
+                            coalesce(sum(case when status = 'DONE' then 1 else 0 end), 0),
+                            coalesce((select sum(log.minutes)
+                                      from task_work_logs log
+                                      where log.project_id = :projectId), 0)
+                        from tasks
+                        where project_id = :projectId
+                          and deleted_at is null
+                        """)
+                .replace("\n", " ");
+        assertThat(progressPlan)
+                .contains("Index")
+                .contains("ix_tasks_")
+                .contains("ix_task_work_logs_project_date")
+                .doesNotContain("Seq Scan");
+        jdbc.sql("set local enable_indexscan = on").update();
+        jdbc.sql("set local enable_bitmapscan = off").update();
+        String dueDatePlan = explain("""
+                        select id, project_id, due_date
+                        from tasks
+                        where due_date = :dueDate and deleted_at is null
+                        order by project_id, id
+                        """)
+                .replace("\n", " ");
+        assertThat(dueDatePlan).contains("ix_tasks_due_date_active");
+        assertThat(jdbc.sql("select due_date from tasks where id = :id")
+                .param("id", task.id()).query(LocalDate.class).single())
+                .isEqualTo(LocalDate.of(2026, 8, 20));
+    }
+
+    @Test
+    void taskAuthorizationMatrixKeepsAdminReadOnlyAndRejectsGuessedOrCrossContextMutations() {
+        TaskView task = createMemberTask("Authorization matrix");
+        insertUser("admin@example.test", "ADMIN");
+
+        assertThat(taskService.list("admin@example.test", projectId).tasks())
+                .extracting(TaskView::id)
+                .containsExactly(task.id());
+        assertThatThrownBy(() -> taskService.edit(
+                        "admin@example.test", projectId, task.id(), "No", null, null))
+                .isInstanceOf(TaskNotFoundException.class);
+        assertThatThrownBy(() -> taskService.changeStatus(
+                        "admin@example.test", projectId, task.id(), TaskStatus.IN_PROGRESS))
+                .isInstanceOf(TaskNotFoundException.class);
+        assertThatThrownBy(() -> taskService.details(
+                        "admin@example.test", projectId + 9999, task.id()))
+                .isInstanceOf(TaskNotFoundException.class);
+    }
+
+    @Test
+    void authorizationMatrixKeepsEveryDeniedActorNonDisclosingAndStateUnchanged() {
+        TaskView task = createMemberTask("Complete authorization matrix");
+        long replacementLeaderId = insertIntern("matrix-current-leader@example.test");
+        long replacementLeaderMembershipId = insertMembership(
+                projectId, replacementLeaderId, userId("mentor@example.test"));
+        long unassignedId = insertIntern("matrix-unassigned@example.test");
+        insertMembership(projectId, unassignedId, userId("mentor@example.test"));
+        long formerMemberId = insertIntern("matrix-former-member@example.test");
+        long formerMemberMembershipId = insertMembership(
+                projectId, formerMemberId, userId("mentor@example.test"));
+        insertIntern("matrix-unrelated@example.test");
+        insertUser("matrix-other-mentor@example.test", "MENTOR");
+        insertUser("matrix-admin@example.test", "ADMIN");
+
+        jdbc.sql("""
+                        update project_leadership_terms
+                        set ended_at = started_at + interval '1 second',
+                            ended_by_mentor_user_id = :mentorId
+                        where project_id = :projectId and ended_at is null
+                        """)
+                .param("projectId", projectId)
+                .param("mentorId", userId("mentor@example.test"))
+                .update();
+        jdbc.sql("""
+                        insert into project_leadership_terms
+                            (project_id, membership_id, appointed_by_mentor_user_id, started_at)
+                        values (:projectId, :membershipId, :mentorId,
+                                current_timestamp + interval '1 second')
+                        """)
+                .param("projectId", projectId)
+                .param("membershipId", replacementLeaderMembershipId)
+                .param("mentorId", userId("mentor@example.test"))
+                .update();
+        closeMembership(formerMemberMembershipId);
+        activateProject();
+
+        assertThat(taskService.list("mentor@example.test", projectId).tasks())
+                .extracting(TaskView::id).containsExactly(task.id());
+        assertThat(taskService.list("matrix-admin@example.test", projectId).tasks())
+                .extracting(TaskView::id).containsExactly(task.id());
+        assertThat(taskService.list("leader@example.test", projectId).tasks())
+                .extracting(TaskView::id).containsExactly(task.id());
+        assertThat(taskService.list("matrix-current-leader@example.test", projectId).tasks())
+                .extracting(TaskView::id).containsExactly(task.id());
+        assertThat(taskService.list("matrix-unassigned@example.test", projectId).tasks())
+                .extracting(TaskView::id).containsExactly(task.id());
+        assertThatThrownBy(() -> taskService.list("matrix-other-mentor@example.test", projectId))
+                .isInstanceOf(TaskNotFoundException.class);
+        assertThatThrownBy(() -> taskService.list("matrix-former-member@example.test", projectId))
+                .isInstanceOf(TaskNotFoundException.class);
+        assertThatThrownBy(() -> taskService.list("matrix-unrelated@example.test", projectId))
+                .isInstanceOf(TaskNotFoundException.class);
+
+        assertThat(taskService.details("member@example.test", projectId, task.id()))
+                .satisfies(details -> {
+                    assertThat(details.canEdit()).isTrue();
+                    assertThat(details.canDelete()).isTrue();
+                    assertThat(details.canChangeStatus()).isTrue();
+                });
+        assertThat(taskService.details("matrix-current-leader@example.test", projectId, task.id()))
+                .satisfies(details -> {
+                    assertThat(details.canEdit()).isTrue();
+                    assertThat(details.canDelete()).isTrue();
+                    assertThat(details.canReassign()).isTrue();
+                });
+
+        List<String> deniedActors = List.of(
+                "mentor@example.test",
+                "matrix-admin@example.test",
+                "leader@example.test",
+                "matrix-unassigned@example.test",
+                "matrix-other-mentor@example.test",
+                "matrix-former-member@example.test",
+                "matrix-unrelated@example.test");
+        for (String actor : deniedActors) {
+            assertDeniedAndUnchanged(task,
+                    () -> taskService.changeStatus(actor, projectId, task.id(), TaskStatus.IN_PROGRESS));
+            assertDeniedAndUnchanged(task,
+                    () -> taskService.edit(actor, projectId, task.id(), "Denied", null, null));
+            assertDeniedAndUnchanged(task,
+                    () -> taskService.softDelete(actor, projectId, task.id()));
+            assertDeniedAndUnchanged(task,
+                    () -> taskService.reassign(actor, projectId, task.id(), leaderMembershipId));
+        }
+
     }
 
     @Test
@@ -657,6 +855,64 @@ class TaskCreationIntegrationTest {
                 .query(Long.class)
                 .single();
     }
+
+    private String explain(String query) {
+        return String.join(" ", jdbc.sql("explain (costs off) " + query)
+                .param("projectId", projectId)
+                .param("dueDate", LocalDate.of(2026, 8, 20))
+                .query(String.class)
+                .list());
+    }
+
+    private void assertDeniedAndUnchanged(TaskView task, ThrowingCallable operation) {
+        TaskSnapshot before = snapshot(task.id());
+        assertThatThrownBy(operation).isInstanceOf(TaskNotFoundException.class);
+        assertThat(snapshot(task.id())).isEqualTo(before);
+    }
+
+    private TaskSnapshot snapshot(long taskId) {
+        TaskRow task = jdbc.sql("""
+                        select status, title, description, assignee_membership_id,
+                               version, deleted_at
+                        from tasks where id = :id
+                        """)
+                .param("id", taskId)
+                .query((result, row) -> new TaskRow(
+                        result.getString("status"),
+                        result.getString("title"),
+                        result.getString("description"),
+                        result.getLong("assignee_membership_id"),
+                        result.getLong("version"),
+                        result.getTimestamp("deleted_at") == null
+                                ? null
+                                : result.getTimestamp("deleted_at").toInstant()))
+                .single();
+        return new TaskSnapshot(
+                task.status(), task.title(), task.description(), task.assigneeMembershipId(),
+                task.version(), task.deletedAt(),
+                jdbc.sql("select count(*) from task_comments where task_id = :id")
+                        .param("id", taskId).query(Long.class).single(),
+                jdbc.sql("select count(*) from task_work_logs where task_id = :id")
+                        .param("id", taskId).query(Long.class).single());
+    }
+
+    private record TaskSnapshot(
+            String status,
+            String title,
+            String description,
+            long assigneeMembershipId,
+            long version,
+            Instant deletedAt,
+            long commentCount,
+            long workLogCount) {}
+
+    private record TaskRow(
+            String status,
+            String title,
+            String description,
+            long assigneeMembershipId,
+            long version,
+            Instant deletedAt) {}
 
     private long insertIntern(String email) {
         long userId = insertUser(email, "INTERN");
