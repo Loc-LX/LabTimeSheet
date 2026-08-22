@@ -76,6 +76,20 @@ Tests run: 109, Failures: 0, Errors: 0, Skipped: 0
 BUILD SUCCESS; PostgreSQL 18.4 Testcontainers and Java 25.0.4.
 ```
 
+## Branch-wide suite
+
+**Command and result**
+
+```text
+JAVA_HOME=/opt/homebrew/opt/openjdk@25 PATH=/opt/homebrew/opt/openjdk@25/bin:$PATH DOCKER_HOST=unix:///Users/sechmachine/.orbstack/run/docker.sock ./mvnw test -DargLine='-javaagent:/Users/sechmachine/.m2/repository/net/bytebuddy/byte-buddy-agent/1.18.10/byte-buddy-agent-1.18.10.jar'
+```
+
+```text
+Tests run: 459, Failures: 0, Errors: 0, Skipped: 0
+BUILD SUCCESS; PostgreSQL 18.4 Testcontainers and Java 25.0.4; total time 05:53 min.
+Finished at 2026-08-22T14:44:02+07:00.
+```
+
 ## External-test boundaries
 
 This unit evidence does not prove the live Project exit-transfer POST consumes version pairs; that
