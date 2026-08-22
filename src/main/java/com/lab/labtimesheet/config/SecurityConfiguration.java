@@ -1,7 +1,9 @@
 package com.lab.labtimesheet.config;
 
 import com.lab.labtimesheet.feature.account.controller.BootstrapAccessFilter;
+import com.lab.labtimesheet.feature.account.controller.LoginThrottleFilter;
 import com.lab.labtimesheet.feature.account.service.BootstrapService;
+import com.lab.labtimesheet.feature.account.service.LoginThrottle;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.springframework.context.annotation.Bean;
@@ -17,6 +19,9 @@ import org.springframework.security.core.session.SessionRegistryImpl;
 import org.springframework.security.web.session.HttpSessionEventPublisher;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.intercept.AuthorizationFilter;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.authentication.SimpleUrlAuthenticationFailureHandler;
+import org.springframework.security.web.authentication.SavedRequestAwareAuthenticationSuccessHandler;
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter.ReferrerPolicy;
 
 /**
@@ -57,9 +62,22 @@ class SecurityConfiguration {
     }
 
     @Bean
+    LoginThrottleFilter loginThrottleFilter(LoginThrottle throttle) {
+        return new LoginThrottleFilter(throttle);
+    }
+
+    @Bean
     SecurityFilterChain securityFilterChain(
-            HttpSecurity http, BootstrapAccessFilter bootstrapAccessFilter, SessionRegistry sessionRegistry)
+            HttpSecurity http,
+            BootstrapAccessFilter bootstrapAccessFilter,
+            LoginThrottleFilter loginThrottleFilter,
+            LoginThrottle throttle,
+            SessionRegistry sessionRegistry)
             throws Exception {
+        var success = new SavedRequestAwareAuthenticationSuccessHandler();
+        success.setDefaultTargetUrl("/");
+        success.setAlwaysUseDefaultTargetUrl(false);
+        var failure = new SimpleUrlAuthenticationFailureHandler("/login?error");
         return http
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers(
@@ -70,7 +88,15 @@ class SecurityConfiguration {
                         .requestMatchers("/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated())
                 .headers(headers -> headers.referrerPolicy(policy -> policy.policy(ReferrerPolicy.NO_REFERRER)))
-                .formLogin(form -> form.loginPage("/login").defaultSuccessUrl("/", false))
+                .formLogin(form -> form.loginPage("/login")
+                        .successHandler((request, response, authentication) -> {
+                            throttle.clear(request.getParameter("username"), request.getRemoteAddr());
+                            success.onAuthenticationSuccess(request, response, authentication);
+                        })
+                        .failureHandler((request, response, exception) -> {
+                            throttle.recordFailure(request.getParameter("username"), request.getRemoteAddr());
+                            failure.onAuthenticationFailure(request, response, exception);
+                        }))
                 .sessionManagement(session -> {
                     session.maximumSessions(Integer.MAX_VALUE)
                             .sessionRegistry(sessionRegistry)
@@ -78,6 +104,7 @@ class SecurityConfiguration {
                 })
                 .logout(logout -> logout.logoutSuccessUrl("/login?logout"))
                 .addFilterBefore(bootstrapAccessFilter, AuthorizationFilter.class)
+                .addFilterBefore(loginThrottleFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
     }
 }
