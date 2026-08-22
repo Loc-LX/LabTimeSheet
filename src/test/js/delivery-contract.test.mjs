@@ -104,6 +104,20 @@ test("enabled deployment passes one absolute remote Compose file through rollout
   assert.match(deployment, /\/etc\/labtimesheet\/compose\.yaml/);
 });
 
+test("deterministic E2E clock is opt-in and rejected in production", () => {
+  const e2e = read("src/main/resources/application-e2e.yaml");
+  const timeConfiguration = read("src/main/java/com/lab/labtimesheet/config/TimeConfiguration.java");
+  const development = read("DEVELOPMENT.md");
+
+  assert.match(e2e, /on-profile: e2e/);
+  assert.match(e2e, /fixed-instant: "\$\{LAB_E2E_FIXED_INSTANT:/);
+  assert.match(timeConfiguration, /@Profile\("e2e & !prod"\)/);
+  assert.match(timeConfiguration, /@Profile\("prod & e2e"\)/);
+  assert.match(timeConfiguration, /e2e fixed clock cannot be enabled with prod/);
+  assert.match(development, /LAB_E2E_FIXED_INSTANT=.*\n\s+\.\/mvnw spring-boot:run/);
+  assert.doesNotMatch(development, /spring\.profiles\.active=prod,e2e/);
+});
+
 test("workflows pin every action to the latest reviewed immutable release", () => {
   const workflows = [
     read(".gitea/workflows/verify.yml"),
