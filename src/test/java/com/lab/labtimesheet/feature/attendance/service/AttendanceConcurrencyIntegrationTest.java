@@ -14,6 +14,7 @@ import com.lab.labtimesheet.feature.attendance.exception.CorrectionException;
 import com.lab.labtimesheet.feature.attendance.exception.LeaveException;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceRole;
+import com.lab.labtimesheet.feature.attendance.model.CorrectionEventType;
 import com.lab.labtimesheet.feature.attendance.model.CorrectionStatus;
 import com.lab.labtimesheet.feature.attendance.model.entity.AttendanceCorrectionEntity;
 import com.lab.labtimesheet.feature.attendance.model.entity.AttendancePolicyEntity;
@@ -24,6 +25,7 @@ import com.lab.labtimesheet.feature.attendance.model.dto.CalendarImportSelection
 import com.lab.labtimesheet.feature.attendance.model.dto.CorrectionDecision;
 import com.lab.labtimesheet.feature.attendance.model.dto.CorrectionRequestCommand;
 import com.lab.labtimesheet.feature.attendance.repository.AttendanceCorrectionRepository;
+import com.lab.labtimesheet.feature.attendance.repository.AttendanceCorrectionEventRepository;
 import com.lab.labtimesheet.feature.attendance.repository.AttendancePolicyRepository;
 import com.lab.labtimesheet.feature.attendance.repository.AttendanceRecordRepository;
 import com.lab.labtimesheet.feature.integration.model.dto.HolidayApiCandidate;
@@ -78,6 +80,9 @@ class AttendanceConcurrencyIntegrationTest {
 
     @Autowired
     private AttendanceCorrectionRepository correctionRequests;
+
+    @Autowired
+    private AttendanceCorrectionEventRepository correctionEvents;
 
     @Autowired
     private AttendancePolicyRepository policies;
@@ -255,6 +260,38 @@ class AttendanceConcurrencyIntegrationTest {
                 return "FAILURE:" + failure.getClass().getSimpleName();
             }
         })).containsExactlyInAnyOrder("LEAVE_APPROVED", "CORRECTION_APPROVED");
+    }
+
+    @Test
+    void concurrentDecisionsOnOneCorrectionCommitOneTransitionAndOneFailure() throws Exception {
+        long internId = createActiveIntern();
+        long mentorId = createActiveMentor();
+        clock.set(Instant.parse("2026-11-09T02:00:00Z"));
+        attendance.checkIn(internId);
+        long recordId = records.findByInternUserIdAndWorkDate(internId, LocalDate.of(2026, 11, 9))
+                .orElseThrow().id();
+        clock.set(Instant.parse("2026-11-09T09:01:00Z"));
+        var submitted = corrections.submit(
+                new AttendanceActor(internId, AttendanceRole.INTERN), recordId,
+                new CorrectionRequestCommand(LocalDateTime.of(2026, 11, 9, 14, 0), "same correction"));
+        clock.set(Instant.parse("2026-11-09T10:00:00Z"));
+
+        List<String> outcomes = runConcurrently(() -> {
+            try {
+                corrections.decide(new AttendanceActor(mentorId, AttendanceRole.MENTOR), submitted.id(),
+                        CorrectionDecision.APPROVE, "race");
+                return "SUCCESS";
+            } catch (CorrectionException failure) {
+                return "CONFLICT";
+            }
+        });
+
+        assertThat(outcomes).containsExactlyInAnyOrder("SUCCESS", "CONFLICT");
+        assertThat(correctionRequests.findById(submitted.id()).orElseThrow().status())
+                .isEqualTo(CorrectionStatus.APPROVED);
+        assertThat(correctionEvents.findByCorrectionIdOrderByOccurredAtAscIdAsc(submitted.id()))
+                .extracting(event -> event.toView().type())
+                .containsExactly(CorrectionEventType.SUBMITTED, CorrectionEventType.APPROVED);
     }
 
     @Test

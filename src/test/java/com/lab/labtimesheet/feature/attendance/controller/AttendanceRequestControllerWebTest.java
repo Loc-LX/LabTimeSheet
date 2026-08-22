@@ -222,6 +222,67 @@ class AttendanceRequestControllerWebTest {
     }
 
     @Test
+    void correctionEntryRetainsAttendanceRecordIdFromHistoryLink() throws Exception {
+        AttendanceActor actor = new AttendanceActor(7L, AttendanceRole.INTERN);
+        when(currentUsers.actor(org.mockito.ArgumentMatchers.any())).thenReturn(actor);
+        when(corrections.list(actor)).thenReturn(List.of());
+
+        mvc.perform(get("/attendance/corrections").param("attendanceRecordId", "55")
+                        .with(user("intern@example.test").roles("INTERN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("value=\"55\"")));
+    }
+
+    @Test
+    void correctionFormRendersRetainedSafeInputAfterValidationFailure() throws Exception {
+        AttendanceActor actor = new AttendanceActor(7L, AttendanceRole.INTERN);
+        when(currentUsers.actor(org.mockito.ArgumentMatchers.any())).thenReturn(actor);
+        when(corrections.list(actor)).thenReturn(List.of());
+
+        mvc.perform(get("/attendance/corrections")
+                        .with(user("intern@example.test").roles("INTERN"))
+                        .flashAttr("requestError", "Enter a valid attendance record and proposed checkout.")
+                        .flashAttr("correctionInput", Map.of(
+                                "attendanceRecordId", "not-an-id",
+                                "proposedCheckout", "2026-08-20T16:00",
+                                "reason", "Retained reason")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("value=\"not-an-id\"")))
+                .andExpect(content().string(containsString("value=\"2026-08-20T16:00\"")))
+                .andExpect(content().string(containsString("value=\"Retained reason\"")))
+                .andExpect(content().string(containsString("id=\"correction-form-error\"")));
+    }
+
+    @Test
+    void leaveEditFormRendersRetainedSafeInputAfterValidationFailure() throws Exception {
+        AttendanceActor actor = new AttendanceActor(7L, AttendanceRole.INTERN);
+        when(currentUsers.actor(org.mockito.ArgumentMatchers.any())).thenReturn(actor);
+        when(attendance.currentBusinessDate()).thenReturn(LocalDate.of(2026, 8, 21));
+        when(leave.list(actor)).thenReturn(List.of());
+        when(corrections.list(actor)).thenReturn(List.of());
+        when(leave.balance(actor, YearMonth.of(2026, 8))).thenReturn(
+                new com.lab.labtimesheet.feature.attendance.model.dto.LeaveBalance(
+                        YearMonth.of(2026, 8), 0, 3));
+        when(leave.view(actor, 10L)).thenReturn(new LeaveRequestView(
+                10L, 7L, LocalDate.of(2026, 8, 28), LocalDate.of(2026, 8, 28), "Original",
+                LeaveStatus.PENDING, Instant.parse("2026-08-20T00:00:00Z"),
+                Instant.parse("2026-08-28T01:00:00Z"), null, null, null, List.of()));
+
+        mvc.perform(get("/attendance/leave/10")
+                        .with(user("intern@example.test").roles("INTERN"))
+                        .flashAttr("requestError", "Leave dates are invalid")
+                        .flashAttr("leaveEditInput", Map.of(
+                                "startDate", "not-a-date",
+                                "endDate", "2026-08-30",
+                                "reason", "Retained edit reason")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("value=\"not-a-date\"")))
+                .andExpect(content().string(containsString("value=\"2026-08-30\"")))
+                .andExpect(content().string(containsString("value=\"Retained edit reason\"")))
+                .andExpect(content().string(containsString("id=\"leave-edit-form-error\"")));
+    }
+
+    @Test
     void malformedCorrectionDecisionRetainsRawSafeInputInsteadOfReturningBadRequest() throws Exception {
         mvc.perform(post("/attendance/corrections/11/decide")
                         .with(user("mentor@example.test").roles("MENTOR")).with(csrf())
@@ -233,6 +294,33 @@ class AttendanceRequestControllerWebTest {
                 .andExpect(flash().attribute("correctionDecisionInput", Map.of(
                         "decision", "NOT_A_DECISION",
                         "note", "Retained note")));
+    }
+
+    @Test
+    void correctionDecisionFormRendersRetainedSafeInputAfterValidationFailure() throws Exception {
+        AttendanceActor mentor = new AttendanceActor(2L, AttendanceRole.MENTOR);
+        when(currentUsers.actor(org.mockito.ArgumentMatchers.any())).thenReturn(mentor);
+        when(leave.list(mentor)).thenReturn(List.of());
+        when(corrections.list(mentor)).thenReturn(List.of());
+        AttendancePolicy policy = new AttendancePolicy(
+                1L, LocalDate.of(2026, 1, 1), ZoneId.of("Asia/Ho_Chi_Minh"),
+                LocalTime.of(8, 0), LocalTime.of(17, 0), 15, 15, 3,
+                BigDecimal.valueOf(0.1), Set.of(DayOfWeek.MONDAY));
+        when(corrections.view(mentor, 11L)).thenReturn(new CorrectionView(
+                11L, 55L, 7L, null, LocalDateTime.of(2026, 8, 20, 16, 0), null,
+                "Missed", CorrectionStatus.PENDING, Instant.parse("2026-08-20T10:00:00Z"),
+                Instant.parse("2026-08-21T10:00:00Z"), Instant.parse("2026-08-21T10:00:00Z"),
+                null, policy, new AttendanceViolations(false, false, true), List.of()));
+
+        mvc.perform(get("/attendance/corrections/11")
+                        .with(user("mentor@example.test").roles("MENTOR"))
+                        .flashAttr("requestError", "Choose a valid correction decision.")
+                        .flashAttr("correctionDecisionInput", Map.of(
+                                "decision", "NOT_A_DECISION",
+                                "note", "Retained note")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("value=\"Retained note\"")))
+                .andExpect(content().string(containsString("id=\"decision-form-error\"")));
     }
 
     @Test

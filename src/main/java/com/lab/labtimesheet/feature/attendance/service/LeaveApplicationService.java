@@ -76,13 +76,14 @@ public class LeaveApplicationService {
      * Lists retained leave requests visible to the authenticated Attendance actor.
      *
      * <p>Interns receive only their own rows. Active global Mentors and Admins receive the
-     * decision/read-only queue respectively; every mutation and detail read still repeats its
-     * locked authorization and deadline checks.</p>
+     * decision/read-only queue respectively. Pending rows whose first counted start has
+     * arrived are locked and auto-rejected before the actionable queue is built, so a late
+     * scheduler cannot leave stale decision affordances on this first-access read path.</p>
      *
      * @param actor authenticated Attendance actor
      * @return actionable pending summaries first, followed by retained history in newest-first order
      */
-    @Transactional(readOnly = true)
+    @Transactional
     public List<LeaveRequestSummary> list(AttendanceActor actor) {
         AccountIdentity identity = requireListActor(actor);
         if (identity.status() != AccountStatus.ACTIVE) {
@@ -91,6 +92,7 @@ public class LeaveApplicationService {
         List<LeaveRequestEntity> visible = actor.role() == AttendanceRole.INTERN
                 ? requests.findByInternUserIdOrderBySubmittedAtDescIdDesc(actor.userId())
                 : requests.findAllByOrderBySubmittedAtDescIdDesc();
+        expireVisiblePending(actor, visible);
         return visible.stream()
                 .map(request -> new LeaveRequestSummary(
                         request.id(), request.internUserId(), request.startDate(), request.endDate(),
@@ -101,6 +103,35 @@ public class LeaveApplicationService {
                                 Comparator.nullsLast(Comparator.reverseOrder()))
                         .thenComparing(LeaveRequestSummary::id, Comparator.reverseOrder()))
                 .toList();
+    }
+
+    private void expireVisiblePending(AttendanceActor actor, List<LeaveRequestEntity> visible) {
+        Instant now = clock.instant();
+        List<LeaveRequestEntity> due = visible.stream()
+                .filter(request -> request.status() == LeaveStatus.PENDING)
+                .filter(request -> request.firstCountedStartAt() != null)
+                .filter(request -> !now.isBefore(request.firstCountedStartAt()))
+                .sorted(Comparator.comparing(LeaveRequestEntity::id))
+                .toList();
+        if (due.isEmpty()) {
+            return;
+        }
+        List<Long> ownerIds = due.stream()
+                .map(LeaveRequestEntity::internUserId)
+                .distinct()
+                .sorted()
+                .toList();
+        Map<Long, LockedAccountMutationEligibility> lockedAccounts = lockAccounts(
+                java.util.stream.Stream.concat(java.util.stream.Stream.of(actor.userId()), ownerIds.stream())
+                        .distinct()
+                        .sorted()
+                        .toList());
+        Map<Long, AccountIdentity> ownerIdentities = identities(ownerIds);
+        for (LeaveRequestEntity candidate : due) {
+            LeaveRequestEntity request = lockedRequest(candidate.id());
+            requireReader(actor, request, lockedAccounts);
+            expireIfNeeded(request, clock.instant(), ownerIdentities.get(request.internUserId()));
+        }
     }
 
     /**

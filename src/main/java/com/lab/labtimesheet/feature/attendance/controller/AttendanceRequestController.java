@@ -66,6 +66,7 @@ public class AttendanceRequestController {
      *
      * @param principal authenticated actor
      * @param month optional selected quota month in {@code yyyy-MM} form
+     * @param attendanceRecordId optional attendance row retained from the history CTA
      * @param model Thymeleaf model
      * @param redirectAttributes validation feedback destination
      * @return focused Leave page or a safe redirect for malformed month input
@@ -105,11 +106,15 @@ public class AttendanceRequestController {
      * @return focused Correction page
      */
     @GetMapping("/corrections")
-    public String correctionRequests(Principal principal, Model model) {
+    public String correctionRequests(
+            Principal principal,
+            @RequestParam(required = false) Long attendanceRecordId,
+            Model model) {
         AttendanceActor actor = currentUsers.actor(principal);
         model.addAttribute("actor", actor);
         model.addAttribute("intern", actor.role() == AttendanceRole.INTERN);
         model.addAttribute("mentor", actor.role() == AttendanceRole.MENTOR);
+        model.addAttribute("attendanceRecordId", attendanceRecordId);
         model.addAttribute("correctionRequests", corrections.list(actor));
         return "attendance/corrections";
     }

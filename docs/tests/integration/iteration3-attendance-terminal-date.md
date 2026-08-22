@@ -69,3 +69,17 @@ BUILD SUCCESS; 116 tests, 0 failures, 0 errors on Java 25 and PostgreSQL 18.4 Te
 This test does not exercise browser rendering or XLSX/PDF exports. It covers
 the Account lifecycle, persisted attendance row, report classification, and
 PostgreSQL/Flyway integration boundary.
+
+## Review-round-2 terminal boundary
+
+The companion PostgreSQL regression
+`AttendancePersistenceIntegrationTest#terminalDateWithoutAttendanceDoesNotCreateAbsenceForLeaveOrDayOff`
+covers the complementary terminal-date cases: no attendance row, an approved
+leave allocation, and a global day off all produce no newly synthesized
+absence after the Intern's terminal date. The recorded-row case above remains
+reportable.
+
+```text
+rtk env JAVA_HOME=/opt/homebrew/opt/openjdk@25 PATH=/opt/homebrew/opt/openjdk@25/bin:/opt/homebrew/bin:/usr/local/bin:/usr/sbin:/usr/bin ./mvnw -Dtest="AttendancePersistenceIntegrationTest#terminalDateWithoutAttendanceDoesNotCreateAbsenceForLeaveOrDayOff" test
+BUILD SUCCESS; 1 test, 0 failures, 0 errors on PostgreSQL 18.4 Testcontainers.
+```

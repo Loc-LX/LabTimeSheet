@@ -49,8 +49,10 @@
     <section class="panel form-panel" th:if="${selectedLeave}">
         <header class="panel-header"><h2 class="panel-title">Leave request detail</h2><span class="badge" th:text="${selectedLeave.status}">PENDING</span></header>
         <p th:text="${#temporals.format(selectedLeave.startDate, 'dd/MM/yyyy') + ' – ' + #temporals.format(selectedLeave.endDate, 'dd/MM/yyyy') + ': ' + selectedLeave.reason}">Leave</p>
-        <form class="form-grid" th:if="${intern and selectedLeave.status.name() == 'PENDING'}" method="post" th:action="@{/attendance/leave/{id}/edit(id=${selectedLeave.id})}">
-            <div class="form-grid form-grid-three"><input class="control" name="startDate" type="date" required th:value="${selectedLeave.startDate}" aria-label="Leave start"><input class="control" name="endDate" type="date" required th:value="${selectedLeave.endDate}" aria-label="Leave end"><input class="control" name="reason" required th:value="${selectedLeave.reason}" aria-label="Leave reason"></div>
+        <form class="form-grid" th:if="${intern and selectedLeave.status.name() == 'PENDING'}" method="post" th:action="@{/attendance/leave/{id}/edit(id=${selectedLeave.id})}"
+              th:attr="aria-describedby=${leaveEditInput != null and requestError != null ? 'leave-edit-form-error' : null}">
+            <div class="form-grid form-grid-three"><input class="control" name="startDate" type="date" required th:value="${leaveEditInput == null ? selectedLeave.startDate : leaveEditInput.startDate}" aria-label="Leave start"><input class="control" name="endDate" type="date" required th:value="${leaveEditInput == null ? selectedLeave.endDate : leaveEditInput.endDate}" aria-label="Leave end"><input class="control" name="reason" required th:value="${leaveEditInput == null ? selectedLeave.reason : leaveEditInput.reason}" aria-label="Leave reason"></div>
+            <p class="field-error" id="leave-edit-form-error" role="alert" th:if="${leaveEditInput != null and requestError != null}" th:text="${requestError}">Leave edit error</p>
             <div class="form-actions"><button class="button" type="submit">Save leave</button></div>
         </form>
         <div class="inline-actions" th:if="${intern and (selectedLeave.status.name() == 'PENDING' or selectedLeave.status.name() == 'APPROVED')}"><form method="post" th:action="@{/attendance/leave/{id}/cancel(id=${selectedLeave.id})}"><button class="button button-danger" type="submit">Cancel leave</button></form></div>

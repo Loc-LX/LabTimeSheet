@@ -58,16 +58,16 @@ public class AdminSettingsController {
     private final SmtpConfigurationService smtp;
 
     /**
-     * Redirects the superseded combined settings page to focused Admin policy workflow.
+     * Renders the combined Admin settings page while its provider workflows remain discoverable.
      *
      * @param principal authenticated Admin
-     * @param model unused legacy model retained for route compatibility
-     * @return redirect to focused policy settings
+     * @param model Thymeleaf model
+     * @return combined settings view
      */
     @GetMapping
     public String settings(Principal principal, Model model) {
-        actor(principal);
-        return "redirect:/admin/attendance-policies";
+        render(principal, model);
+        return "admin/settings";
     }
 
     /**
@@ -126,7 +126,7 @@ public class AdminSettingsController {
                     "violationPenalty", violationPenalty,
                     "workdays", selectedWorkdays));
         }
-        return "redirect:/admin/attendance-policies";
+        return "redirect:/admin/settings#policy-history";
     }
 
     /**

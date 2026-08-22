@@ -75,3 +75,53 @@ These checks do not replace Reports/UI browser acceptance or a production
 deployment smoke test. Shared navigation links remain a Reports/UI consumer
 responsibility; the producer handoff exposes focused `/admin/attendance-policies`,
 `/attendance/leave`, `/attendance/corrections`, and Calendar history data.
+
+## Review-round-2 RED/GREEN evidence
+
+The scoped review found six regressions: queue reads did not apply request-time
+expiry, the history CTA used the legacy combined route, `/admin/settings`
+redirected before HolidayAPI/import replacements existed, monthly balance had no
+production-shaped persisted proof, overlap/race/terminal coverage was incomplete,
+and split forms discarded safe input after validation errors.
+
+**RED command (before the repair delta)**
+
+```text
+rtk env JAVA_HOME=/opt/homebrew/opt/openjdk@25 PATH=/opt/homebrew/opt/openjdk@25/bin:/opt/homebrew/bin:/usr/local/bin:/usr/sbin:/usr/bin:/bin ./mvnw -Dtest="AttendancePersistenceIntegrationTest#leaveQueueFirstAccessExpiresPendingRequestBeforeScheduler+AttendancePersistenceIntegrationTest#correctionQueueFirstAccessLocksExpiredRequestBeforeScheduler+AttendancePersistenceIntegrationTest#monthlyBalanceUsesPersistedFrozenAllocationsAcrossStatusesMonthsAndPolicyReplacement+AttendancePersistenceIntegrationTest#postgresExclusionRejectsOverlappingActiveLeaveRanges+AttendancePersistenceIntegrationTest#terminalDateWithoutAttendanceDoesNotCreateAbsenceForLeaveOrDayOff,AttendanceConcurrencyIntegrationTest#concurrentDecisionsOnOneCorrectionCommitOneTransitionAndOneFailure,AttendanceRequestControllerWebTest,AttendanceTemplateIntegrationTest,AdminSettingsControllerWebTest" test
+```
+
+Observed `BUILD FAILURE` with the intended missing behavior: expired leave
+remained `PENDING`, the settings GET remained a `302`, and the history response
+did not contain the split correction href. The persistence race and form tests
+also failed before their production/template changes.
+
+**Focused GREEN commands and results**
+
+```text
+./mvnw -Dtest="AttendanceRequestControllerWebTest,AttendanceTemplateIntegrationTest,AdminSettingsControllerWebTest" test
+BUILD SUCCESS; 23 tests, 0 failures, 0 errors (Java 25; focused MVC/template gate).
+
+./mvnw -Dtest="AttendancePersistenceIntegrationTest#leaveQueueFirstAccessExpiresPendingRequestBeforeScheduler" test
+BUILD SUCCESS; 1 test, 0 failures, 0 errors (PostgreSQL 18.4 Testcontainers).
+
+./mvnw -Dtest="AttendancePersistenceIntegrationTest#correctionQueueFirstAccessLocksExpiredRequestBeforeScheduler" test
+BUILD SUCCESS; 1 test, 0 failures, 0 errors (PostgreSQL 18.4 Testcontainers).
+
+./mvnw -Dtest="AttendancePersistenceIntegrationTest#monthlyBalanceUsesPersistedFrozenAllocationsAcrossStatusesMonthsAndPolicyReplacement" test
+BUILD SUCCESS; 1 test, 0 failures, 0 errors (PostgreSQL 18.4 Testcontainers).
+
+./mvnw -Dtest="AttendancePersistenceIntegrationTest#postgresExclusionRejectsOverlappingActiveLeaveRanges" test
+BUILD SUCCESS; 1 test, 0 failures, 0 errors (PostgreSQL 18.4 Testcontainers).
+
+./mvnw -Dtest="AttendancePersistenceIntegrationTest#terminalDateWithoutAttendanceDoesNotCreateAbsenceForLeaveOrDayOff" test
+BUILD SUCCESS; 1 test, 0 failures, 0 errors (PostgreSQL 18.4 Testcontainers).
+
+./mvnw -Dtest="AttendanceConcurrencyIntegrationTest#concurrentDecisionsOnOneCorrectionCommitOneTransitionAndOneFailure" test
+BUILD SUCCESS; 1 test, 0 failures, 0 errors (PostgreSQL 18.4 Testcontainers).
+```
+
+The queue services now lock accounts and target rows in deterministic order,
+auto-reject/lock due visible requests, and re-query the queue projection. The
+combined settings route remains operational until Reports/UI supplies all
+replacement workflows. Split Leave/Correction templates retain posted values
+and associate inline errors with their forms.

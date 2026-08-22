@@ -97,8 +97,15 @@ class AdminSettingsControllerWebTest {
         TimeZone.setDefault(TimeZone.getTimeZone("UTC"));
         try {
             mvc.perform(get("/admin/settings").with(user("admin@example.test").roles("ADMIN")))
-                    .andExpect(status().is3xxRedirection())
-                    .andExpect(redirectedUrl("/admin/attendance-policies"));
+                    .andExpect(status().isOk())
+                    .andExpect(content().string(containsString("Policy History")))
+                    .andExpect(content().string(containsString("Calendar History")))
+                    .andExpect(content().string(containsString("SMTP History")))
+                    .andExpect(content().string(containsString("HolidayAPI History")))
+                    .andExpect(content().string(containsString("01/08/2026")))
+                    .andExpect(content().string(containsString("02/09/2026")))
+                    .andExpect(content().string(containsString("21/08/2026 07:00")))
+                    .andExpect(content().string(not(containsString("super-secret"))));
         } finally {
             TimeZone.setDefault(previousZone);
         }
@@ -198,7 +205,7 @@ class AdminSettingsControllerWebTest {
                         .param("violationPenalty", "not-a-decimal")
                         .param("workdays", "MONDAY"))
                 .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/admin/attendance-policies"))
+                .andExpect(redirectedUrl("/admin/settings#policy-history"))
                 .andExpect(flash().attribute("settingsError", "Enter valid attendance policy values."))
                 .andExpect(flash().attribute("policyInput", org.hamcrest.Matchers.hasEntry(
                         "effectiveFrom", "not-a-date")))
@@ -256,8 +263,9 @@ class AdminSettingsControllerWebTest {
                                 "monthlyLeaveQuota", 2,
                                 "violationPenalty", "0.1",
                                 "workdays", Set.of())))
-                .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/admin/attendance-policies"));
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("value=\"2026-09-01\"")))
+                .andExpect(content().string(containsString("id=\"policy-form-error\"")));
     }
 
     private static AttendanceActor adminActor() {
