@@ -8,6 +8,7 @@ import com.lab.labtimesheet.feature.project.model.dto.ProjectCreateForm;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectMemberForm;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectMembersForm;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectExitWorkflowView;
+import com.lab.labtimesheet.feature.project.model.dto.ProjectListPage;
 import com.lab.labtimesheet.feature.project.model.InvitationResponse;
 import com.lab.labtimesheet.feature.task.model.TaskStatus;
 import com.lab.labtimesheet.feature.project.service.ProjectQueryService;
@@ -57,13 +58,21 @@ public class ProjectController {
      * to Mentors.
      *
      * @param principal authenticated user
+     * @param page one-based bounded page number; values below one use the first page
      * @param model response model
      * @return the Project list view
      */
     @GetMapping
-    public String list(Principal principal, Model model) {
+    public String list(
+            Principal principal,
+            @RequestParam(defaultValue = "1") int page,
+            Model model) {
         var actor = pages.authenticatedActor(principal.getName());
-        model.addAttribute("projects", pages.listVisible(actor.userId(), PageRequest.of(0, 50)));
+        int requestedPage = Math.max(page, 1);
+        ProjectListPage projectPage = pages.listPage(
+                actor.userId(), PageRequest.of(requestedPage - 1, 50));
+        model.addAttribute("projects", projectPage.projects());
+        model.addAttribute("projectPage", projectPage);
         model.addAttribute("canCreateProject", "MENTOR".equals(actor.role()));
         return "projects/list";
     }

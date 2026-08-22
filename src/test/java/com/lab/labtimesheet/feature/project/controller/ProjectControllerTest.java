@@ -28,6 +28,7 @@ import com.lab.labtimesheet.feature.project.model.dto.ProjectExitReadinessView;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectSummary;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectLeadershipTermView;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectMemberView;
+import com.lab.labtimesheet.feature.project.model.dto.ProjectListPage;
 import com.lab.labtimesheet.feature.project.service.ProjectQueryService;
 import com.lab.labtimesheet.feature.project.service.ProjectService;
 import com.lab.labtimesheet.feature.integration.service.SmtpConfigurationService;
@@ -179,12 +180,17 @@ class ProjectControllerTest {
     void listsOnlyTheAuthenticatedUsersAuthorizedProjects() throws Exception {
         when(pages.authenticatedActor("mentor@example.test"))
                 .thenReturn(new ProjectActorView(10L, "MENTOR"));
-        when(pages.listVisible(10L, PageRequest.of(0, 50))).thenReturn(List.of(new ProjectSummary(
-                30L,
-                "Intern Portal Refresh",
-                "PLANNED",
-                LocalDate.of(2026, 8, 15),
-                LocalDate.of(2026, 9, 30))));
+        when(pages.listPage(10L, PageRequest.of(0, 50))).thenReturn(new ProjectListPage(
+                List.of(new ProjectSummary(
+                        30L,
+                        "Intern Portal Refresh",
+                        "PLANNED",
+                        LocalDate.of(2026, 8, 15),
+                        LocalDate.of(2026, 9, 30))),
+                1,
+                50,
+                false,
+                false));
 
         mvc.perform(get("/projects"))
                 .andExpect(status().isOk())
@@ -193,7 +199,37 @@ class ProjectControllerTest {
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
                         .string(containsString("Create Project")));
 
-        verify(pages).listVisible(10L, PageRequest.of(0, 50));
+        verify(pages).listPage(10L, PageRequest.of(0, 50));
+    }
+
+    @Test
+    @WithMockUser(username = "mentor@example.test")
+    void projectListExposesPageTwoContinuationForMoreThanOneBoundedPage() throws Exception {
+        when(pages.authenticatedActor("mentor@example.test"))
+                .thenReturn(new ProjectActorView(10L, "MENTOR"));
+        when(pages.listPage(10L, PageRequest.of(1, 50))).thenReturn(new ProjectListPage(
+                List.of(new ProjectSummary(
+                        1L,
+                        "Project 51",
+                        "Second page",
+                        LocalDate.of(2026, 8, 1),
+                        LocalDate.of(2026, 12, 31))),
+                2,
+                50,
+                true,
+                false));
+
+        mvc.perform(get("/projects").param("page", "2"))
+                .andExpect(status().isOk())
+                .andExpect(view().name("projects/list"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(containsString("Project 51")))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(containsString("/projects?page=1")))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(not(containsString("/projects?page=3"))));
+
+        verify(pages).listPage(10L, PageRequest.of(1, 50));
     }
 
     @Test
@@ -201,7 +237,8 @@ class ProjectControllerTest {
     void nonMentorProjectListOmitsTheCreateLink() throws Exception {
         when(pages.authenticatedActor("member@example.test"))
                 .thenReturn(new ProjectActorView(20L, "INTERN"));
-        when(pages.listVisible(20L, PageRequest.of(0, 50))).thenReturn(List.of());
+        when(pages.listPage(20L, PageRequest.of(0, 50))).thenReturn(new ProjectListPage(
+                List.of(), 1, 50, false, false));
 
         mvc.perform(get("/projects"))
                 .andExpect(status().isOk())

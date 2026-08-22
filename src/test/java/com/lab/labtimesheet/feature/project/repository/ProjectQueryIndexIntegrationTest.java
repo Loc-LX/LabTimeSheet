@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.lab.labtimesheet.config.TestcontainersConfiguration;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectCreateCommand;
+import com.lab.labtimesheet.feature.project.model.dto.ProjectListPage;
 import com.lab.labtimesheet.feature.project.service.ProjectQueryService;
 import com.lab.labtimesheet.feature.project.service.ProjectService;
 import java.time.Instant;
@@ -13,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -106,12 +108,35 @@ class ProjectQueryIndexIntegrationTest {
                             LocalDate.of(2026, 12, 31),
                             internId));
         }
+        jdbc.update("""
+                update projects
+                set status = 'ACTIVE', activated_at = ?, updated_at = ?
+                where mentor_user_id = ?
+                """, NOW.atOffset(java.time.ZoneOffset.UTC), NOW.atOffset(java.time.ZoneOffset.UTC), mentorId);
         jdbc.execute("analyze projects");
         jdbc.execute("analyze project_memberships");
 
-        assertThat(projectPages.listVisible(adminId)).hasSize(50);
-        assertThat(projectPages.listVisible(mentorId)).hasSize(50);
-        assertThat(projectPages.listVisible(internId)).hasSize(50);
+        ProjectListPage adminPageTwo = projectPages.listPage(adminId, PageRequest.of(1, 50));
+        ProjectListPage mentorPageTwo = projectPages.listPage(mentorId, PageRequest.of(1, 50));
+        ProjectListPage internPageTwo = projectPages.listPage(internId, PageRequest.of(1, 50));
+        assertThat(projectPages.listPage(adminId, PageRequest.of(0, 50)).projects()).hasSize(50);
+        assertThat(projectPages.listPage(mentorId, PageRequest.of(0, 50)).projects()).hasSize(50);
+        assertThat(projectPages.listPage(internId, PageRequest.of(0, 50)).projects()).hasSize(50);
+        assertThat(adminPageTwo.projects()).hasSize(1);
+        assertThat(mentorPageTwo.projects()).hasSize(1);
+        assertThat(internPageTwo.projects()).hasSize(1);
+        assertThat(adminPageTwo.pageNumber()).isEqualTo(2);
+        assertThat(adminPageTwo.hasPrevious()).isTrue();
+        assertThat(adminPageTwo.hasNext()).isFalse();
+        assertThat(mentorPageTwo.projects().getFirst().id())
+                .isEqualTo(adminPageTwo.projects().getFirst().id());
+        assertThat(internPageTwo.projects().getFirst().id())
+                .isEqualTo(adminPageTwo.projects().getFirst().id());
+
+        assertThat(projectPages.dashboardSummary(adminId).activeProjectCount()).isEqualTo(51);
+        assertThat(projectPages.dashboardSummary(mentorId).activeProjectCount()).isEqualTo(51);
+        assertThat(projectPages.dashboardSummary(mentorId).distinctActiveMemberCount()).isEqualTo(1);
+        assertThat(projectPages.dashboardSummary(internId).activeProjectCount()).isEqualTo(51);
 
         String adminPlan = explain("""
                 select project.*
