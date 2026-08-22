@@ -21,8 +21,10 @@ import com.lab.labtimesheet.feature.account.model.GlobalRole;
 import com.lab.labtimesheet.feature.account.model.InternshipStatus;
 import com.lab.labtimesheet.feature.account.model.TokenPurpose;
 import com.lab.labtimesheet.feature.account.model.dto.AccountAdministrationView;
+import com.lab.labtimesheet.feature.account.model.dto.AccountDirectoryFilter;
 import com.lab.labtimesheet.feature.account.model.dto.AccountCreation;
 import com.lab.labtimesheet.feature.account.model.dto.AccountIdentity;
+import com.lab.labtimesheet.feature.account.model.dto.AccountIdentityCorrection;
 import com.lab.labtimesheet.feature.account.model.dto.AccountSummary;
 import com.lab.labtimesheet.feature.account.model.dto.CreateAccountCommand;
 import com.lab.labtimesheet.feature.account.model.dto.EligibleInternOption;
@@ -442,8 +444,24 @@ public class AccountService {
      */
     @Transactional(readOnly = true)
     public List<AccountAdministrationView> administrationViews(long adminId) {
+        return administrationViews(adminId, new AccountDirectoryFilter(null, null));
+    }
+
+    /**
+     * Lists the Admin directory with normalized text and immutable-role filtering.
+     *
+     * @param adminId active Admin account identifier
+     * @param filter normalized directory search and role filter
+     * @return non-secret account and optional Intern-profile facts in stable ID order
+     * @throws IllegalArgumentException when the actor is not an active Admin or the filter is malformed
+     */
+    @Transactional(readOnly = true)
+    public List<AccountAdministrationView> administrationViews(long adminId, AccountDirectoryFilter filter) {
         requireActiveAdminId(adminId);
-        return users.findAdministrationViews();
+        if (filter == null) {
+            throw new IllegalArgumentException("Account directory filter is required");
+        }
+        return users.findAdministrationViewsByFilter(filter.search(), filter.role());
     }
 
     /**
@@ -460,6 +478,98 @@ public class AccountService {
                 .filter(view -> view.id() == targetUserId)
                 .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("Account not found"));
+    }
+
+    /**
+     * Applies the narrow Admin identity-correction contract and, when email changes, delivers the required notice
+     * or replacement activation before the transaction commits. Email delivery failure rolls back the account and
+     * profile changes; no raw activation token is persisted.
+     *
+     * @param targetUserId account being corrected
+     * @param adminId active Admin authorizing the correction
+     * @param correction optional email, Student Code, and internship-date replacements
+     * @throws IllegalArgumentException when authorization, uniqueness, role, or field shape is invalid
+     * @throws IllegalStateException when lifecycle, SMTP, or required delivery rules reject the correction
+     */
+    @Transactional
+    public void correctAccount(long targetUserId, long adminId, AccountIdentityCorrection correction) {
+        if (correction == null) {
+            throw new IllegalArgumentException("Account correction is required");
+        }
+        AppUser admin = users.findForUpdateById(adminId)
+                .orElseThrow(() -> new IllegalArgumentException("Admin not found"));
+        requireActiveAdmin(admin);
+        AppUser target = users.findForUpdateById(targetUserId)
+                .orElseThrow(() -> new IllegalArgumentException("Account not found"));
+        if (target.getAccountStatus() == AccountStatus.DEACTIVATED) {
+            throw new IllegalStateException("Deactivated account is read-only");
+        }
+
+        String correctedEmail = correction.email() == null
+                ? null
+                : BootstrapService.normalizeEmail(correction.email());
+        boolean emailChanged = correctedEmail != null && !correctedEmail.equals(target.getEmail());
+        boolean profileChange = correction.studentCode() != null
+                || correction.internshipStart() != null
+                || correction.internshipEnd() != null;
+        if (!emailChanged && !profileChange) {
+            throw new IllegalArgumentException("At least one account field must change");
+        }
+        if (correctedEmail != null) {
+            users.findByNormalizedEmail(correctedEmail)
+                    .filter(existing -> !existing.getId().equals(targetUserId))
+                    .ifPresent(existing -> {
+                        throw new IllegalArgumentException("An account with this email already exists");
+                    });
+        }
+
+        if (profileChange) {
+            if (target.getGlobalRole() != GlobalRole.INTERN) {
+                throw new IllegalArgumentException("Internship fields are allowed only for Intern accounts");
+            }
+            InternProfile profile = internProfiles.findForUpdateByUserId(targetUserId)
+                    .orElseThrow(() -> new IllegalArgumentException("Intern profile not found"));
+            if (correction.studentCode() != null) {
+                profile.correctStudentCode(correction.studentCode(), clock.instant());
+            }
+            if (correction.internshipStart() != null || correction.internshipEnd() != null) {
+                profile.correctDates(correction.internshipStart(), correction.internshipEnd(), clock.instant());
+            }
+        }
+        if (!emailChanged) {
+            return;
+        }
+        if (!mailDelivery.isAvailable()) {
+            throw new IllegalStateException("Tested active SMTP configuration is required for email correction");
+        }
+
+        String previousEmail = target.getEmail();
+        Instant now = clock.instant();
+        target.correctEmail(correctedEmail, now);
+        try {
+            if (target.getAccountStatus() == AccountStatus.PENDING_ACTIVATION) {
+                String rawToken = newRawToken();
+                invalidateLiveTokens(targetUserId, TokenPurpose.ACTIVATION, now);
+                UserActionToken token = tokens.save(UserActionToken.activation(
+                        targetUserId, sha256(rawToken), now.plus(ACTIVATION_LIFETIME), adminId, now));
+                tokens.flush();
+                mailDelivery.send(
+                        correctedEmail,
+                        "Activate your Lab Timesheet account",
+                        "Activate your account using this single-use link:\n" + activationLink(rawToken));
+                if (token.getId() == null) {
+                    throw new IllegalStateException("Activation token was not created");
+                }
+            } else {
+                mailDelivery.send(
+                        correctedEmail,
+                        "Your Lab Timesheet email was corrected",
+                        "An administrator corrected the email identity for your Lab Timesheet account.");
+                invalidateSessionsForEmail(previousEmail);
+            }
+        } catch (RuntimeException deliveryFailure) {
+            throw new IllegalStateException("Identity correction delivery failed", deliveryFailure);
+        }
     }
 
     /**
@@ -811,6 +921,15 @@ public class AccountService {
         return new PendingActivation(userId, user.getEmail(), token.getId());
     }
 
+    private void invalidateLiveTokens(long userId, TokenPurpose purpose, Instant now) {
+        for (UserActionToken previous : tokens.findByUserIdAndPurposeOrderByCreatedAtDesc(userId, purpose)) {
+            if (previous.getUsedAt() == null && previous.getInvalidatedAt() == null) {
+                previous.invalidate(now);
+            }
+        }
+        tokens.flush();
+    }
+
     private void invalidateTokenAfterDeliveryFailure(long tokenId) {
         transactions.executeWithoutResult(status -> tokens.findForUpdateById(tokenId)
                 .ifPresent(token -> {
@@ -825,8 +944,12 @@ public class AccountService {
     }
 
     private void invalidateSessions(AppUser user) {
+        invalidateSessionsForEmail(user.getEmail());
+    }
+
+    private void invalidateSessionsForEmail(String email) {
         sessions.getAllPrincipals().stream()
-                .filter(principal -> principalMatches(principal, user.getEmail()))
+                .filter(principal -> principalMatches(principal, email))
                 .flatMap(principal -> sessions.getAllSessions(principal, false).stream())
                 .forEach(SessionInformation::expireNow);
     }

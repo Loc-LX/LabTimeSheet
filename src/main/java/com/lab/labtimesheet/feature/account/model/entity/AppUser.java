@@ -200,4 +200,22 @@ public class AppUser {
         updatedAt = now;
     }
 
+    /**
+     * Replaces the normalized login email while preserving the immutable role and lifecycle state.
+     *
+     * @param normalizedEmail canonical trimmed lower-case email
+     * @param now server timestamp recorded for the correction
+     * @throws IllegalStateException when the account is deactivated
+     */
+    public void correctEmail(String normalizedEmail, Instant now) {
+        if (accountStatus == AccountStatus.DEACTIVATED) {
+            throw new IllegalStateException("Deactivated account is read-only");
+        }
+        if (normalizedEmail == null || normalizedEmail.isBlank()) {
+            throw new IllegalArgumentException("Email is required");
+        }
+        email = normalizedEmail;
+        updatedAt = now;
+    }
+
 }

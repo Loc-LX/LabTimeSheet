@@ -28,6 +28,7 @@ public class InternProfile {
     private Long userId;
 
     @Column(name = "student_code", nullable = false, length = 64)
+    @Getter
     private String studentCode;
 
     @Column(length = 120)
@@ -135,6 +136,44 @@ public class InternProfile {
         }
         internshipStatus = InternshipStatus.WITHDRAWN;
         withdrawnAt = now;
+        updatedAt = now;
+    }
+
+    /**
+     * Corrects the case-insensitive Student Code before terminal internship state.
+     *
+     * @param correctedStudentCode trimmed Student Code
+     * @param now server timestamp recorded for the correction
+     * @throws IllegalStateException when the internship is completed or withdrawn
+     */
+    public void correctStudentCode(String correctedStudentCode, Instant now) {
+        if (internshipStatus != InternshipStatus.NOT_STARTED && internshipStatus != InternshipStatus.ACTIVE) {
+            throw new IllegalStateException("Terminal internship profile is read-only");
+        }
+        if (correctedStudentCode == null || correctedStudentCode.isBlank()) {
+            throw new IllegalArgumentException("Student code is required");
+        }
+        studentCode = correctedStudentCode.trim();
+        updatedAt = now;
+    }
+
+    /**
+     * Corrects both inclusive internship dates while the internship has not started.
+     *
+     * @param correctedStart inclusive start date
+     * @param correctedEnd inclusive end date
+     * @param now server timestamp recorded for the correction
+     * @throws IllegalStateException when the internship is not {@link InternshipStatus#NOT_STARTED}
+     */
+    public void correctDates(LocalDate correctedStart, LocalDate correctedEnd, Instant now) {
+        if (internshipStatus != InternshipStatus.NOT_STARTED) {
+            throw new IllegalStateException("Internship dates are editable only while NOT_STARTED");
+        }
+        if (correctedStart == null || correctedEnd == null || correctedEnd.isBefore(correctedStart)) {
+            throw new IllegalArgumentException("A valid internship date range is required");
+        }
+        internshipStartDate = correctedStart;
+        internshipEndDate = correctedEnd;
         updatedAt = now;
     }
 
