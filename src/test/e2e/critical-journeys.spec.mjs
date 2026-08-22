@@ -96,8 +96,18 @@ async function signIn(page, account) {
   await page.getByLabel('Email').fill(account.email);
   await page.getByLabel('Password').fill(account.password);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page).toHaveURL(/dashboard|\/admin\/smtp/);
+  if (account.role === 'INTERN') await waitForInternLanding(page);
+  else await expect(page).toHaveURL(/dashboard|\/admin\/smtp/);
   if (account === globalAdmin && page.url().includes('/admin/smtp')) await activateMailpitSmtp(page);
+}
+
+async function waitForInternLanding(page) {
+  for (let attempt = 0; attempt < 15; attempt += 1) {
+    if (page.url().includes('/dashboard')) return;
+    await page.waitForTimeout(5000);
+    await page.goto('/dashboard');
+  }
+  await expect(page).toHaveURL(/dashboard/);
 }
 
 async function ensureSmtp(page) {
@@ -129,6 +139,7 @@ async function activateMailpitSmtp(page) {
 }
 
 async function createAccount(page, request, account, role, internDetails = {}) {
+  account.role = role;
   await page.goto('/admin/accounts/new');
   await page.getByLabel('Email').fill(account.email);
   await page.getByLabel('Display name').fill(account.displayName);
