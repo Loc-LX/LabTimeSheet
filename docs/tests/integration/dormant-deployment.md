@@ -5,6 +5,7 @@
 - **Scenario IDs:** `AC-OPS-005`
 - **Test class/method:** `src/test/js/delivery-contract.test.mjs` deployment template contract
 - **Implementation commit:** `1f2590f9654fc670e0cf93d0c4960777db2cb5f7`
+- **Documentation review-fix commit:** `1cd45526cfaadba46c632dd7ea5f77eb26e97b94`
 
 ## Protected behavior
 
@@ -20,6 +21,10 @@ The Node contract reads the workflow as an untrusted static artifact and asserts
 strict known-host SSH options, full-SHA validation, Docker pull/Compose rollout, health polling, previous-image state,
 and absence of a `jobs.<job_id>.environment` approval boundary. No deployment secret is available to the test process,
 and no SSH connection is attempted while the job is dormant.
+
+`DEPLOYMENT.md` documents the same variable/secret gate, isolated runner files, remote
+`/etc/labtimesheet/compose.env` and `deploy-state/previous-image` assumptions, immutable image selection, health
+polling, and rollback behavior.
 
 ## Hand-derived expected result
 

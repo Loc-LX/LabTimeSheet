@@ -5,6 +5,7 @@
 - **Scenario IDs:** `AC-SEC-004`, `AC-SEC-005`
 - **Test class/method:** `com.lab.labtimesheet.config.ProductionReadinessTest`, `com.lab.labtimesheet.config.TrustedForwardedHeaderFilterTest`, `com.lab.labtimesheet.config.OriginEnforcementFilterTest`
 - **Implementation commit:** `c52b375c41f40ba758b4121a85e185ba69e34f21`
+- **Review-fix commit:** `1cd45526cfaadba46c632dd7ea5f77eb26e97b94`
 
 ## Protected behavior
 
@@ -24,7 +25,7 @@ the application with PostgreSQL 18.4 Testcontainers under test/dev profiles.
 ## Hand-derived expected result
 
 Production requires an HTTPS non-local origin, a PostgreSQL JDBC URL and non-empty credentials, `framework`
-forwarded-header handling, one or more numeric trusted-proxy CIDRs, `Secure` plus `SameSite=Strict` session cookies,
+forwarded-header handling, one or more numeric trusted-proxy CIDRs excluding `0.0.0.0/0` and `::/0`, `Secure` plus `SameSite=Strict` session cookies,
 `never` error message/stacktrace inclusion, and a Base64-decoded 32-byte master key. A foreign state-changing origin
 must return 403; a forwarded-header request from outside the configured proxy networks must return 400 without reaching
 the chain. Dev/test must retain its explicit localhost HTTP and CSRF-protected relaxed profile.
@@ -43,6 +44,10 @@ env JAVA_HOME=/opt/homebrew/opt/openjdk@25 PATH=/opt/homebrew/opt/openjdk@25/bin
 2026-08-22T14:03:47+07:00 — testCompile reported 20 missing production-boundary symbols
 (ProductionReadiness, TrustedProxyMatcher, TrustedForwardedHeaderFilter, and OriginEnforcementFilter); BUILD FAILURE.
 This was the expected missing-behavior RED after the test fixtures were corrected.
+
+2026-08-22T15:17:21+07:00 — review regression fixture compile RED: three missing static `assertThat` imports.
+2026-08-22T15:17:42+07:00 — behavioral RED after fixture repair: 6 tests, 2 failures for catch-all proxy CIDRs and
+bracketed IPv6 loopback origin.
 ```
 
 ## GREEN
@@ -56,8 +61,8 @@ env JAVA_HOME=/opt/homebrew/opt/openjdk@25 PATH=/opt/homebrew/opt/openjdk@25/bin
 **Observed result**
 
 ```text
-2026-08-22T14:13:02+07:00 — ProductionReadinessTest 4/4, TrustedForwardedHeaderFilterTest 2/2,
-OriginEnforcementFilterTest 2/2; Tests run: 8, Failures: 0, Errors: 0, Skipped: 0; Java 25 compile and BUILD SUCCESS.
+2026-08-22T15:19:10+07:00 — ProductionReadinessTest 6/6, TrustedForwardedHeaderFilterTest 2/2,
+OriginEnforcementFilterTest 2/2; Tests run: 10, Failures: 0, Errors: 0, Skipped: 0; Java 25 compile and BUILD SUCCESS.
 ```
 
 ## Affected suite
@@ -65,13 +70,13 @@ OriginEnforcementFilterTest 2/2; Tests run: 8, Failures: 0, Errors: 0, Skipped: 
 **Command and result**
 
 ```text
-env JAVA_HOME=/opt/homebrew/opt/openjdk@25 PATH=/opt/homebrew/opt/openjdk@25/bin:$PATH ./mvnw -Dtest=SecurityResponseIntegrationTest,AuthenticationWebIntegrationTest,CalendarDevelopmentProfileWebIntegrationTest test
+env JAVA_HOME=/opt/homebrew/opt/openjdk@25 PATH=/opt/homebrew/opt/openjdk@25/bin:$PATH DOCKER_HOST=unix:///Users/sechmachine/.orbstack/run/docker.sock ./mvnw -Dtest=NotificationServiceIntegrationTest,LoginThrottleTest,ProductionReadinessTest,SecurityResponseIntegrationTest,AuthenticationWebIntegrationTest,CalendarDevelopmentProfileWebIntegrationTest test
 ```
 
 ```text
-2026-08-22T14:11:32+07:00 — PostgreSQL 18.4 Testcontainers; SecurityResponseIntegrationTest 2/2,
-CalendarDevelopmentProfileWebIntegrationTest 1/1, AuthenticationWebIntegrationTest 1/1;
-Tests run: 4, Failures: 0, Errors: 0, Skipped: 0; BUILD SUCCESS.
+2026-08-22T15:22:10+07:00 — PostgreSQL 18.4 Testcontainers; SecurityResponseIntegrationTest 2/2,
+CalendarDevelopmentProfileWebIntegrationTest 1/1, AuthenticationWebIntegrationTest 1/1; combined affected
+security/notification command: Tests run: 25, Failures: 0, Errors: 0, Skipped: 0; BUILD SUCCESS.
 ```
 
 The first sandbox attempt was not evidence because Docker access returned `Operation not permitted`; the identical

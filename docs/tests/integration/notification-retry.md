@@ -5,6 +5,7 @@
 - **Scenario IDs:** `AC-NOT-002`
 - **Test class/method:** `com.lab.labtimesheet.feature.notification.service.NotificationServiceIntegrationTest.ordinaryEmailRetriesUseTheFiveBoundedDelaysThenBecomeTerminalAndManualRetryReusesTheRow`
 - **Implementation commit:** `1c762021aa5025ce90a96259a36ea4db1af262b6`
+- **Review-fix commit:** `1cd45526cfaadba46c632dd7ea5f77eb26e97b94`
 
 ## Protected behavior
 
@@ -17,7 +18,8 @@ attempt `FAILED`, and lets an Admin manually requeue the same row without creati
 The PostgreSQL 18.4 Testcontainers test uses the deterministic test clock and a recording SMTP adapter. It publishes
 one designated email event that fails immediately, marks the retry row due at each boundary, invokes the concrete
 bounded worker, checks attempts/status/next-attempt state, then succeeds through the Admin-authorized manual retry.
-The row count is asserted throughout to prove no duplicate in-app record.
+The row count is asserted throughout to prove no duplicate in-app record. A blocking SMTP overlap test concurrently
+starts immediate after-commit delivery and the retry worker, proving the row lock produces one provider call.
 
 ## Hand-derived expected result
 
@@ -58,6 +60,15 @@ export DOCKER_HOST=unix:///Users/sechmachine/.orbstack/run/docker.sock
 ```text
 2026-08-22T13:37:39+07:00 — PostgreSQL 18.4 Testcontainers; Tests run: 1, Failures: 0, Errors: 0, Skipped: 0;
 BUILD SUCCESS.
+
+**Review-fix RED/GREEN**
+
+```text
+2026-08-22T15:16:49+07:00 — blocking-SMTP overlap regression: Tests run: 1, Failures: 1, Errors: 0; the provider
+was called twice while immediate delivery had released its row lock.
+2026-08-22T15:19:35+07:00 — review-fix overlap GREEN: Tests run: 1, Failures: 0, Errors: 0, Skipped: 0; one provider
+call and one `SENT` row while the retry worker waited for the lock.
+```
 ```
 
 ## Affected suite
@@ -70,7 +81,7 @@ export PATH="$JAVA_HOME/bin:$PATH"
 export DOCKER_HOST=unix:///Users/sechmachine/.orbstack/run/docker.sock
 ./mvnw -Dtest=NotificationServiceIntegrationTest test
 
-2026-08-22T13:36:19+07:00 — PostgreSQL 18.4 Testcontainers; Tests run: 9, Failures: 0, Errors: 0, Skipped: 0;
+2026-08-22T15:22:10+07:00 — PostgreSQL 18.4 Testcontainers; Tests run: 10, Failures: 0, Errors: 0, Skipped: 0;
 BUILD SUCCESS.
 ```
 
