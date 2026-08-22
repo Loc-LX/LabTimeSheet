@@ -266,15 +266,15 @@ class AttendanceConcurrencyIntegrationTest {
     void concurrentDecisionsOnOneCorrectionCommitOneTransitionAndOneFailure() throws Exception {
         long internId = createActiveIntern();
         long mentorId = createActiveMentor();
-        clock.set(Instant.parse("2026-11-09T02:00:00Z"));
+        clock.set(Instant.parse("2026-11-10T02:00:00Z"));
         attendance.checkIn(internId);
-        long recordId = records.findByInternUserIdAndWorkDate(internId, LocalDate.of(2026, 11, 9))
+        long recordId = records.findByInternUserIdAndWorkDate(internId, LocalDate.of(2026, 11, 10))
                 .orElseThrow().id();
-        clock.set(Instant.parse("2026-11-09T09:01:00Z"));
+        clock.set(Instant.parse("2026-11-10T09:01:00Z"));
         var submitted = corrections.submit(
                 new AttendanceActor(internId, AttendanceRole.INTERN), recordId,
-                new CorrectionRequestCommand(LocalDateTime.of(2026, 11, 9, 14, 0), "same correction"));
-        clock.set(Instant.parse("2026-11-09T10:00:00Z"));
+                new CorrectionRequestCommand(LocalDateTime.of(2026, 11, 10, 14, 0), "same correction"));
+        clock.set(Instant.parse("2026-11-10T10:00:00Z"));
 
         List<String> outcomes = runConcurrently(() -> {
             try {

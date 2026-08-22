@@ -535,6 +535,7 @@ class AttendancePersistenceIntegrationTest {
     }
 
     @Test
+    @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
     void monthlyBalanceUsesPersistedFrozenAllocationsAcrossStatusesMonthsAndPolicyReplacement() {
         AttendanceActor intern = new AttendanceActor(internId, AttendanceRole.INTERN);
         long decisionMentorId = createActiveMentor();
