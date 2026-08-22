@@ -127,13 +127,6 @@ Finished at: 2026-08-22T15:15:45+07:00
 
 The affected Project suite below includes the route-bound MockMvc calls, cross-Project nested-ID regressions, AC-AUTH-009 matrix, terminal R1/R2 regression, wrong-Project request regression, and six-argument concurrency boundary.
 
-```text
-env MAVEN_OPTS='-XX:+EnableDynamicAgentLoading' JAVA_HOME=/opt/homebrew/opt/openjdk@25 PATH=/opt/homebrew/opt/openjdk@25/bin:/usr/bin:/bin ./mvnw -Dtest=ProjectControllerTest#projectListExposesPageTwoContinuationForMoreThanOneBoundedPage,ProjectQueryIndexIntegrationTest#roleScopedProjectListsUseBoundedPagesAndEligibleDashboardTotals test
-Tests run: 2, Failures: 0, Errors: 0, Skipped: 0
-BUILD SUCCESS
-Finished at: 2026-08-22T14:49:25+07:00
-```
-
 ## Affected suite
 
 **Command and result**
