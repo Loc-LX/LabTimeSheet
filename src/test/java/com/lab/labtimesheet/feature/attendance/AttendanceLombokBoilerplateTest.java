@@ -534,6 +534,8 @@ class AttendanceLombokBoilerplateTest {
                 method(Modifier.PUBLIC, "history", List.class, AttendanceActor.class));
         assertMethodSurface(
                 LeaveApplicationService.class,
+                method(Modifier.PUBLIC, "balance", com.lab.labtimesheet.feature.attendance.model.dto.LeaveBalance.class,
+                        AttendanceActor.class, java.time.YearMonth.class),
                 method(Modifier.PUBLIC, "submit", com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestView.class,
                         AttendanceActor.class, com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestCommand.class),
                 method(Modifier.PUBLIC, "edit", com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestView.class,

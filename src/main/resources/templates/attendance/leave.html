@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{fragments/layout :: shell(
+          pageTitle='Leave',
+          section=${intern ? 'Intern' : actor.role},
+          activeNav='attendance-requests',
+          primaryAction=~{::#primary-action},
+          content=~{::main})}">
+<body>
+<a id="primary-action" class="button" th:href="@{/attendance/corrections}">My Corrections</a>
+<main>
+    <p class="page-description">Submit and review full-day leave requests.</p>
+    <p class="alert" role="status" th:if="${message}" th:text="${message}"></p>
+    <p class="alert alert-error" role="alert" th:if="${requestError}" th:text="${requestError}"></p>
+
+    <section class="panel form-panel" th:if="${intern}">
+        <header class="panel-header"><h2 class="panel-title">Leave balance</h2></header>
+        <form class="filter-form" method="get" th:action="@{/attendance/leave}">
+            <div class="field"><label class="field-label" for="balance-month">Quota month</label><input class="control" id="balance-month" name="month" type="month" required th:value="${selectedMonth}"></div>
+            <span></span><button class="button" type="submit">View balance</button>
+        </form>
+        <p th:if="${balance}" th:text="|${balance.reservedDays} reserved / ${balance.quotaDays} quota / ${balance.remainingDays} remaining|">Balance</p>
+        <p class="field-help" th:if="${balance != null and balance.frozenCrossMonthDays > 0}" th:text="|${balance.frozenCrossMonthDays} reserved day(s) belong to a cross-month request and remain frozen.|">Cross-month allocation</p>
+    </section>
+
+    <section class="panel form-panel" th:if="${intern}">
+        <header class="panel-header"><h2 class="panel-title">Request leave</h2></header>
+        <form class="form-grid" method="post" th:action="@{/attendance/leave}"
+              th:attr="aria-describedby=${leaveInput != null and requestError != null ? 'leave-form-error' : null}">
+            <div class="form-grid form-grid-three">
+                <div class="field"><label class="field-label" for="leave-start">Start</label><input class="control" id="leave-start" name="startDate" type="date" required th:value="${leaveInput == null ? null : leaveInput.startDate}"></div>
+                <div class="field"><label class="field-label" for="leave-end">End</label><input class="control" id="leave-end" name="endDate" type="date" required th:value="${leaveInput == null ? null : leaveInput.endDate}"></div>
+                <div class="field"><label class="field-label" for="leave-reason">Reason</label><input class="control" id="leave-reason" name="reason" maxlength="500" required th:value="${leaveInput == null ? null : leaveInput.reason}"></div>
+            </div>
+            <p class="field-error" id="leave-form-error" role="alert" th:if="${leaveInput != null and requestError != null}" th:text="${requestError}">Leave error</p>
+            <div class="form-actions"><button class="button button-primary" type="submit">Submit leave</button></div>
+        </form>
+    </section>
+
+    <section class="panel form-panel">
+        <header class="panel-header"><h2 class="panel-title" th:text="${mentor ? 'Leave decisions' : 'My Leave'}">Leave</h2></header>
+        <div th:if="${#lists.isEmpty(leaveRequests)}"><th:block th:replace="~{fragments/components :: empty('No leave requests', 'Submitted leave will appear here.')} "></th:block></div>
+        <div class="table-scroll" th:unless="${#lists.isEmpty(leaveRequests)}"><table class="data-table"><caption class="sr-only">Leave requests</caption>
+            <thead><tr><th scope="col">Range</th><th scope="col">Intern</th><th scope="col">Reason</th><th scope="col">Status</th><th scope="col">View</th></tr></thead>
+            <tbody><tr th:each="request : ${leaveRequests}"><td th:text="${#temporals.format(request.startDate, 'dd/MM/yyyy') + ' – ' + #temporals.format(request.endDate, 'dd/MM/yyyy')}">Range</td><td th:text="${request.internUserId}">Intern</td><td th:text="${request.reason}">Reason</td><td><span class="badge" th:text="${request.status}">PENDING</span></td><td><a class="button" th:href="@{/attendance/leave/{id}(id=${request.id})}">Open</a></td></tr></tbody>
+        </table></div>
+    </section>
+
+    <section class="panel form-panel" th:if="${selectedLeave}">
+        <header class="panel-header"><h2 class="panel-title">Leave request detail</h2><span class="badge" th:text="${selectedLeave.status}">PENDING</span></header>
+        <p th:text="${#temporals.format(selectedLeave.startDate, 'dd/MM/yyyy') + ' – ' + #temporals.format(selectedLeave.endDate, 'dd/MM/yyyy') + ': ' + selectedLeave.reason}">Leave</p>
+        <form class="form-grid" th:if="${intern and selectedLeave.status.name() == 'PENDING'}" method="post" th:action="@{/attendance/leave/{id}/edit(id=${selectedLeave.id})}">
+            <div class="form-grid form-grid-three"><input class="control" name="startDate" type="date" required th:value="${selectedLeave.startDate}" aria-label="Leave start"><input class="control" name="endDate" type="date" required th:value="${selectedLeave.endDate}" aria-label="Leave end"><input class="control" name="reason" required th:value="${selectedLeave.reason}" aria-label="Leave reason"></div>
+            <div class="form-actions"><button class="button" type="submit">Save leave</button></div>
+        </form>
+        <div class="inline-actions" th:if="${intern and (selectedLeave.status.name() == 'PENDING' or selectedLeave.status.name() == 'APPROVED')}"><form method="post" th:action="@{/attendance/leave/{id}/cancel(id=${selectedLeave.id})}"><button class="button button-danger" type="submit">Cancel leave</button></form></div>
+        <div class="inline-actions" th:if="${mentor and selectedLeave.status.name() == 'PENDING'}"><form method="post" th:action="@{/attendance/leave/{id}/approve(id=${selectedLeave.id})}"><button class="button button-primary" type="submit">Approve</button></form><form method="post" th:action="@{/attendance/leave/{id}/reject(id=${selectedLeave.id})}"><button class="button button-danger" type="submit">Reject</button></form></div>
+        <ul><li th:each="allocation : ${selectedLeave.allocations}" th:text="${#temporals.format(allocation.leaveDate, 'dd/MM/yyyy') + ' · quota month ' + #temporals.format(allocation.quotaMonth, 'MM/yyyy')}">Allocation</li></ul>
+    </section>
+</main>
+</body>
+</html>

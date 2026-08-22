@@ -55,6 +55,29 @@ public interface LeaveRequestDayRepository extends JpaRepository<LeaveRequestDay
             @Param("excludeId") Long excludeId);
 
     /**
+     * Counts reserved allocations from requests that cross at least one month boundary.
+     *
+     * @param internId owning Intern
+     * @param quotaMonth selected allocation month
+     * @param nextMonth first date after the selected month
+     * @param statuses quota-reserving request states
+     * @return reserved rows whose retained request range spans outside the selected month
+     */
+    @Query("""
+            select count(day) from LeaveRequestDayEntity day
+            join day.request request
+            where request.internUserId = :internId
+              and day.quotaMonth = :quotaMonth
+              and request.status in :statuses
+              and (request.startDate < :quotaMonth or request.endDate >= :nextMonth)
+            """)
+    long countReservedCrossMonth(
+            @Param("internId") long internId,
+            @Param("quotaMonth") LocalDate quotaMonth,
+            @Param("nextMonth") LocalDate nextMonth,
+            @Param("statuses") List<String> statuses);
+
+    /**
      * Loads a request's allocations in date order for the persistence-free view.
      *
      * @param requestId leave request identifier

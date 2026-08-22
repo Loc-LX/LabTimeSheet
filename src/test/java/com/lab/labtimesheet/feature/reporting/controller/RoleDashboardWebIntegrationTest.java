@@ -5,6 +5,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.lab.labtimesheet.config.TestcontainersConfiguration;
@@ -159,8 +160,16 @@ class RoleDashboardWebIntegrationTest {
             assertThat(paths).doesNotContain("/admin/smtp");
         }
         for (String path : paths) {
-            mvc.perform(get(path).with(user(email).roles(role)))
-                    .andExpect(status().isOk());
+            var request = mvc.perform(get(path).with(user(email).roles(role)));
+            if ("/attendance/requests".equals(path)) {
+                request.andExpect(status().is3xxRedirection())
+                        .andExpect(redirectedUrl("/attendance/leave"));
+            } else if ("/admin/settings".equals(path)) {
+                request.andExpect(status().is3xxRedirection())
+                        .andExpect(redirectedUrl("/admin/attendance-policies"));
+            } else {
+                request.andExpect(status().isOk());
+            }
         }
     }
 

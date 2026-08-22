@@ -104,37 +104,41 @@ public class AttendanceReportQueryService {
         int expectedWorkdays = 0;
         LocalDate date = from;
         while (!date.isAfter(to)) {
-            if (accounts.isEligibleIntern(internId, date)) {
-                AttendanceRecordEntity entity = recordsByDate.get(date);
-                AttendanceRecord record = entity == null ? null : entity.toDomain();
-                AttendancePolicy policy = record == null ? timeline.resolve(date) : record.policy();
-                AttendanceReportClassification classification = classify(
-                        date, policy, dayOffs.get(date), approvedLeaveDates, record);
-                java.time.Instant effectiveCheckout = record == null
-                        ? null
-                        : effectiveCheckouts.get(entity.id());
-                AttendanceViolations violations = record == null
-                        ? new AttendanceViolations(false, false, false)
-                        : record.violations(observedAt, effectiveCheckout);
-                Optional<BigDecimal> score = dailyScore(classification, policy, violations);
-                if (classification == AttendanceReportClassification.PRESENT) {
-                    presentWorkdays++;
-                    expectedWorkdays++;
-                } else if (classification == AttendanceReportClassification.ABSENT) {
-                    expectedWorkdays++;
-                }
-                if (score.isPresent() && isExpected(classification)) {
-                    complianceTotal = complianceTotal.add(score.orElseThrow());
-                }
-                days.add(toDay(
-                        date,
-                        classification,
-                        policy,
-                        record,
-                        effectiveCheckout,
-                        violations,
-                        score));
+            AttendanceRecordEntity entity = recordsByDate.get(date);
+            // A terminal lifecycle action closes future obligations but cannot erase a
+            // row already recorded on that local terminal date.
+            if (!accounts.isEligibleIntern(internId, date) && entity == null) {
+                date = date.plusDays(1);
+                continue;
             }
+            AttendanceRecord record = entity == null ? null : entity.toDomain();
+            AttendancePolicy policy = record == null ? timeline.resolve(date) : record.policy();
+            AttendanceReportClassification classification = classify(
+                    date, policy, dayOffs.get(date), approvedLeaveDates, record);
+            java.time.Instant effectiveCheckout = record == null
+                    ? null
+                    : effectiveCheckouts.get(entity.id());
+            AttendanceViolations violations = record == null
+                    ? new AttendanceViolations(false, false, false)
+                    : record.violations(observedAt, effectiveCheckout);
+            Optional<BigDecimal> score = dailyScore(classification, policy, violations);
+            if (classification == AttendanceReportClassification.PRESENT) {
+                presentWorkdays++;
+                expectedWorkdays++;
+            } else if (classification == AttendanceReportClassification.ABSENT) {
+                expectedWorkdays++;
+            }
+            if (score.isPresent() && isExpected(classification)) {
+                complianceTotal = complianceTotal.add(score.orElseThrow());
+            }
+            days.add(toDay(
+                    date,
+                    classification,
+                    policy,
+                    record,
+                    effectiveCheckout,
+                    violations,
+                    score));
             date = date.plusDays(1);
         }
 

@@ -1616,6 +1616,35 @@ class AttendancePersistenceIntegrationTest {
     }
 
     @Test
+    void terminalDateKeepsAttendanceRecordedBeforeInternshipCompletion() {
+        LocalDate terminalDate = LocalDate.of(2026, 8, 20);
+        long terminalIntern = createActiveIntern(
+                "terminal-report-intern@example.test",
+                "INT-REPORT-TERMINAL",
+                LocalDate.of(2026, 8, 1),
+                terminalDate);
+        entityManager.persist(new AttendanceRecordEntity(
+                terminalIntern,
+                terminalDate,
+                entityManager.getReference(AttendancePolicyEntity.class, 1L),
+                Instant.parse("2026-08-20T01:30:00Z"),
+                Instant.parse("2026-08-20T07:30:00Z")));
+        entityManager.flush();
+
+        accounts.completeInternship(
+                terminalIntern, adminId, new InternshipLifecycleGuard(false, 0));
+
+        AttendanceReport report = attendanceReports.query(
+                new AttendanceActor(adminId, AttendanceRole.ADMIN),
+                terminalIntern,
+                terminalDate,
+                terminalDate);
+
+        assertThat(report.days()).singleElement().satisfies(day ->
+                assertThat(day.classification()).isEqualTo(AttendanceReportClassification.PRESENT));
+    }
+
+    @Test
     void attendanceReportEnforcesOwnInternScopeAndAllowsActiveMentorAndAdmin() {
         long mentor = createActiveMentor();
         long otherIntern = createActiveIntern(

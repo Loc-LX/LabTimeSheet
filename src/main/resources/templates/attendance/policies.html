@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{fragments/layout :: shell(
+          pageTitle='Attendance Policy',
+          section='Admin',
+          activeNav='settings',
+          primaryAction=~{::#primary-action},
+          content=~{::main})}">
+<body>
+<a id="primary-action" class="button" th:href="@{/attendance/calendar}">Global Calendar</a>
+<main>
+    <p class="page-description">Schedule future attendance rules and review retained policy history.</p>
+    <p class="alert" role="status" th:if="${message}" th:text="${message}"></p>
+    <p class="alert alert-error" role="alert" th:if="${settingsError}" th:text="${settingsError}"></p>
+
+    <section class="panel form-panel">
+        <header class="panel-header"><h2 class="panel-title">Schedule attendance policy</h2></header>
+        <form class="form-grid" method="post" th:action="@{/admin/attendance-policies}"
+              th:attr="aria-describedby=${policyInput != null and settingsError != null ? 'policy-form-error' : null}">
+            <div class="form-grid form-grid-three">
+                <div class="field"><label class="field-label" for="effective-month">Effective month</label><input class="control" id="effective-month" name="effectiveMonth" type="month" required th:min="${minimumPolicyMonth}" th:value="${policyInput == null ? null : policyInput.effectiveMonth}"></div>
+                <div class="field"><label class="field-label" for="zone-id">Timezone</label><input class="control" id="zone-id" name="zoneId" required th:value="${policyInput != null ? policyInput.zoneId : 'Asia/Ho_Chi_Minh'}"></div>
+                <div class="field"><label class="field-label" for="schedule-start">Start</label><input class="control" id="schedule-start" name="scheduledStart" type="time" required th:value="${policyInput != null ? policyInput.scheduledStart : '08:30'}"></div>
+                <div class="field"><label class="field-label" for="schedule-end">End</label><input class="control" id="schedule-end" name="scheduledEnd" type="time" required th:value="${policyInput != null ? policyInput.scheduledEnd : '15:30'}"></div>
+                <div class="field"><label class="field-label" for="checkin-grace">Check-in grace minutes</label><input class="control" id="checkin-grace" name="checkInGraceMinutes" type="number" min="0" max="720" required th:value="${policyInput != null ? policyInput.checkInGraceMinutes : 30}"></div>
+                <div class="field"><label class="field-label" for="checkout-grace">Checkout grace minutes</label><input class="control" id="checkout-grace" name="checkoutGraceMinutes" type="number" min="0" max="720" required th:value="${policyInput != null ? policyInput.checkoutGraceMinutes : 30}"></div>
+                <div class="field"><label class="field-label" for="leave-quota">Monthly leave quota</label><input class="control" id="leave-quota" name="monthlyLeaveQuota" type="number" min="0" max="31" required th:value="${policyInput != null ? policyInput.monthlyLeaveQuota : 3}"></div>
+                <div class="field"><label class="field-label" for="penalty">Violation penalty</label><input class="control" id="penalty" name="violationPenalty" type="number" min="0" max="1" step="0.0001" required th:value="${policyInput != null ? policyInput.violationPenalty : '0.25'}"></div>
+            </div>
+            <fieldset><legend>Workdays</legend><div class="inline-actions"><label class="checkbox" th:each="day : ${T(java.time.DayOfWeek).values()}"><input name="workdays" type="checkbox" th:value="${day}" th:checked="${policyInput != null ? policyInput.workdays.contains(day) : day.value <= 5}"><span th:text="${day}">MONDAY</span></label></div></fieldset>
+            <p class="field-error" id="policy-form-error" role="alert" th:if="${policyInput != null and settingsError != null}" th:text="${settingsError}">Policy error</p>
+            <div class="form-actions"><button class="button button-primary" type="submit">Schedule policy</button></div>
+        </form>
+    </section>
+
+    <section class="panel form-panel" id="policy-history">
+        <header class="panel-header"><h2 class="panel-title">Policy History</h2></header>
+        <p th:if="${#lists.isEmpty(policyHistory)}">No retained policy versions.</p>
+        <div class="table-scroll" th:unless="${#lists.isEmpty(policyHistory)}"><table class="data-table"><caption class="sr-only">Policy History</caption><thead><tr><th scope="col">Version</th><th scope="col">Effective</th><th scope="col">Schedule</th><th scope="col">Workdays</th><th scope="col">Quota</th><th scope="col">Actor</th></tr></thead><tbody><tr th:each="entry : ${policyHistory}"><td th:text="${entry.id}">Version</td><td th:text="${#temporals.format(entry.effectiveFrom, 'dd/MM/yyyy')}">Date</td><td th:text="|${entry.policy.scheduledStart}–${entry.policy.scheduledEnd} ${entry.policy.zoneId}|"></td><td th:text="${entry.policy.workdays}">Days</td><td th:text="${entry.policy.monthlyLeaveQuota}">Quota</td><td th:text="${entry.createdByUserId ?: 'seed'}">Actor</td></tr></tbody></table></div>
+    </section>
+</main>
+</body>
+</html>

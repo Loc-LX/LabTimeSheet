@@ -43,9 +43,10 @@ public class CalendarController {
      */
     @GetMapping
     public String calendar(Principal principal, Model model) {
-        requireAdmin(currentUsers.actor(principal));
+        AttendanceActor actor = requireAdmin(currentUsers.actor(principal));
         LocalDate today = attendance.currentBusinessDate();
         model.addAttribute("events", calendar.list(today, today.plusYears(1)));
+        model.addAttribute("history", calendar.history(actor));
         model.addAttribute("today", today);
         return "attendance/calendar";
     }

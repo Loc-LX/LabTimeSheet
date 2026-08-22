@@ -12,6 +12,7 @@ import com.lab.labtimesheet.feature.attendance.model.AttendancePolicy;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceRole;
 import com.lab.labtimesheet.feature.attendance.model.LeaveStatus;
 import com.lab.labtimesheet.feature.attendance.model.dto.LeaveAllocation;
+import com.lab.labtimesheet.feature.attendance.model.dto.LeaveBalance;
 import com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestCommand;
 import com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestSummary;
 import com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestView;
@@ -29,9 +30,11 @@ import com.lab.labtimesheet.feature.notification.service.NotificationService;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -77,7 +80,7 @@ public class LeaveApplicationService {
      * locked authorization and deadline checks.</p>
      *
      * @param actor authenticated Attendance actor
-     * @return newest-first immutable request summaries
+     * @return actionable pending summaries first, followed by retained history in newest-first order
      */
     @Transactional(readOnly = true)
     public List<LeaveRequestSummary> list(AttendanceActor actor) {
@@ -92,7 +95,49 @@ public class LeaveApplicationService {
                 .map(request -> new LeaveRequestSummary(
                         request.id(), request.internUserId(), request.startDate(), request.endDate(),
                         request.reason(), request.status(), request.submittedAt()))
+                .sorted(Comparator.comparing(
+                                (LeaveRequestSummary row) -> row.status() != LeaveStatus.PENDING)
+                        .thenComparing(LeaveRequestSummary::submittedAt,
+                                Comparator.nullsLast(Comparator.reverseOrder()))
+                        .thenComparing(LeaveRequestSummary::id, Comparator.reverseOrder()))
                 .toList();
+    }
+
+    /**
+     * Returns the selected month's frozen Leave reservation balance for the
+     * authenticated Intern.
+     *
+     * <p>The read boundary uses only Attendance-owned allocation rows and the
+     * policy timeline. It does not mutate requests or recalculate historical
+     * allocations when a later policy is scheduled.</p>
+     *
+     * @param actor authenticated active Intern
+     * @param month selected local business month
+     * @return reserved, applicable quota, remaining, and cross-month counts
+     */
+    @Transactional(readOnly = true)
+    public LeaveBalance balance(AttendanceActor actor, YearMonth month) {
+        requireIntern(actor);
+        if (month == null) {
+            throw new IllegalArgumentException("Leave balance month is required");
+        }
+        AccountIdentity identity = accounts.requireIdentityById(actor.userId());
+        if (identity.status() != AccountStatus.ACTIVE
+                || identity.role() != GlobalRole.INTERN) {
+            throw new AccessDeniedException("An active Intern is required");
+        }
+        LocalDate quotaMonth = month.atDay(1);
+        int quota = timeline().resolve(quotaMonth).monthlyLeaveQuota();
+        long reserved = days.countReserved(actor.userId(), quotaMonth, RESERVED);
+        long crossMonth = days.countReservedCrossMonth(
+                actor.userId(), quotaMonth, quotaMonth.plusMonths(1), RESERVED);
+        int reservedDays = Math.toIntExact(reserved);
+        return new LeaveBalance(
+                month,
+                reservedDays,
+                quota,
+                Math.max(0, quota - reservedDays),
+                Math.toIntExact(crossMonth));
     }
 
     /**
