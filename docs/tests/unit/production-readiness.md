@@ -4,7 +4,7 @@
 - **Requirement IDs:** `SEC-010`, `SEC-011`, `SEC-012`, `SEC-013`, `SEC-014`
 - **Scenario IDs:** `AC-SEC-004`, `AC-SEC-005`
 - **Test class/method:** `com.lab.labtimesheet.config.ProductionReadinessTest`, `com.lab.labtimesheet.config.TrustedForwardedHeaderFilterTest`, `com.lab.labtimesheet.config.OriginEnforcementFilterTest`
-- **Implementation commit:** `pending`
+- **Implementation commit:** `c52b375c41f40ba758b4121a85e185ba69e34f21`
 
 ## Protected behavior
 
