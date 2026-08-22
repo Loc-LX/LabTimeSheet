@@ -4,7 +4,7 @@
 - **Requirement IDs:** `AUTH-001`, `AUTH-004`, `AUTH-006`, `AUTH-011`, `PRJ-017`–`PRJ-022`, `DB-003`, `DB-006`, `DB-007`, `DB-011`, `DB-012`
 - **Scenario IDs:** `AC-AUTH-001`, `AC-AUTH-007`, `AC-AUTH-009`, `AC-AUTH-010`, `AC-PRJ-010`–`AC-PRJ-013`
 - **Test class/method:** `ProjectInvitationExitIntegrationTest` and `ProjectLifecycleLockIntegrationTest`; `ProjectQueryIndexIntegrationTest`
-- **Implementation commit:** `pending`
+- **Implementation commit:** `0f27e8a07352dd51f0f34386854bbafdfcae0868`
 
 ## Protected behavior
 
