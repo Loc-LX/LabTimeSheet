@@ -4,7 +4,7 @@
 - **Requirement IDs:** `I3-UI-05`, `I3-UI-06`, `UI-002`, `UI-003`, `UI-007`, `UI-014`, `RPT-001`–`RPT-010`
 - **Scenario IDs:** `AC-UI-001`, `AC-UI-002`, `AC-UI-005`, `AC-RPT-001`, `AC-RPT-002`, `AC-RPT-003`, `AC-TST-001`
 - **Test class/method:** `src/test/e2e/smoke.spec.mjs`; `src/test/e2e/report-journeys.spec.mjs`
-- **Implementation commit:** `c771840faf78cbf85a22880b4576bdbc51ae8f4f`
+- **Implementation commit:** `639d02e404cbd551ffd70def15021a1d6beb8cf9`
 
 ## Protected behavior
 
