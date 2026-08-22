@@ -2,6 +2,7 @@ package com.lab.labtimesheet.feature.account.controller;
 
 import java.security.Principal;
 
+import com.lab.labtimesheet.feature.account.model.AccountStatus;
 import com.lab.labtimesheet.feature.account.model.GlobalRole;
 import com.lab.labtimesheet.feature.account.model.dto.ActivationForm;
 import com.lab.labtimesheet.feature.account.model.dto.AccountAdministrationView;
@@ -80,7 +81,7 @@ class AccountController {
         long adminId = accounts.requireActiveAdminId(principal.getName());
         try {
             var account = accounts.administrationView(targetUserId, adminId);
-            if (account.accountStatus() == com.lab.labtimesheet.feature.account.model.AccountStatus.DEACTIVATED) {
+            if (account.accountStatus() == AccountStatus.DEACTIVATED) {
                 throw new IllegalArgumentException("Account not editable");
             }
             model.addAttribute("selectedAccount", account);
@@ -102,7 +103,7 @@ class AccountController {
             BindingResult bindingResult,
             Principal principal,
             Model model,
-        RedirectAttributes redirectAttributes) {
+            RedirectAttributes redirectAttributes) {
         long adminId = accounts.requireActiveAdminId(principal.getName());
         var account = editableAccount(targetUserId, adminId);
         model.addAttribute("selectedAccount", account);
@@ -125,7 +126,7 @@ class AccountController {
     private AccountAdministrationView editableAccount(long targetUserId, long adminId) {
         try {
             var account = accounts.administrationView(targetUserId, adminId);
-            if (account.accountStatus() == com.lab.labtimesheet.feature.account.model.AccountStatus.DEACTIVATED) {
+            if (account.accountStatus() == AccountStatus.DEACTIVATED) {
                 throw new IllegalArgumentException("Account not editable");
             }
             return account;

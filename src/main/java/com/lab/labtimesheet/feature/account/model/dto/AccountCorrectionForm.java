@@ -1,14 +1,14 @@
 package com.lab.labtimesheet.feature.account.model.dto;
 
-import java.time.LocalDate;
 import com.lab.labtimesheet.feature.account.model.AccountStatus;
 import com.lab.labtimesheet.feature.account.model.GlobalRole;
 import com.lab.labtimesheet.feature.account.model.InternshipStatus;
+import java.time.LocalDate;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
 import org.springframework.format.annotation.DateTimeFormat;
-import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.Size;
 
 /**
  * Safe Admin form input for the narrow account identity-correction contract.
