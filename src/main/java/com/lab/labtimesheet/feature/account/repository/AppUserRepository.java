@@ -65,6 +65,31 @@ public interface AppUserRepository extends JpaRepository<AppUser, Long> {
     List<AccountAdministrationView> findAdministrationViews();
 
     /**
+     * Projects the Admin directory after applying normalized text and immutable-role filters.
+     *
+     * @param search lower-case trimmed text, or the empty string for all accounts
+     * @param role immutable global role, or {@code null} for all roles
+     * @return matching non-secret account and optional Intern-profile projections in ID order
+     */
+    @Query("""
+            select new com.lab.labtimesheet.feature.account.model.dto.AccountAdministrationView(
+                u.id, u.email, u.displayName, u.globalRole, u.accountStatus,
+                p.studentCode, p.internshipStartDate, p.internshipEndDate, p.internshipStatus)
+            from AppUser u
+            left join InternProfile p on p.userId = u.id
+            where (:role is null or u.globalRole = :role)
+              and (
+                    :search = ''
+                    or lower(trim(u.displayName)) like concat('%', :search, '%')
+                    or lower(trim(u.email)) like concat('%', :search, '%')
+                    or lower(coalesce(trim(p.studentCode), '')) like concat('%', :search, '%')
+              )
+            order by u.id asc
+            """)
+    List<AccountAdministrationView> findAdministrationViewsByFilter(
+            @Param("search") String search, @Param("role") GlobalRole role);
+
+    /**
      * Locks an account row for a lifecycle mutation until the current transaction completes.
      *
      * @param id account identifier

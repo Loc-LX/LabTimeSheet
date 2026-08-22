@@ -189,8 +189,31 @@ public class NotificationEntity {
             return;
         }
         emailAttempts++;
-        emailNextAttemptAt = nextAttemptAt;
+        if (emailAttempts >= 6) {
+            emailStatus = NotificationEmailStatus.FAILED;
+            emailNextAttemptAt = null;
+        } else {
+            emailNextAttemptAt = nextAttemptAt;
+        }
         emailLastError = safeError;
+        updatedAt = now;
+    }
+
+    /**
+     * Reopens one terminal ordinary-email delivery for an explicit Admin retry without creating another in-app row.
+     *
+     * @param now server instant at which the retry becomes due
+     * @throws IllegalStateException when this row is not terminally failed
+     */
+    public void requeueFailedEmail(Instant now) {
+        if (emailStatus != NotificationEmailStatus.FAILED) {
+            throw new IllegalStateException("Only a failed email can be retried");
+        }
+        emailStatus = NotificationEmailStatus.PENDING;
+        emailAttempts = 0;
+        emailNextAttemptAt = now;
+        emailSentAt = null;
+        emailLastError = null;
         updatedAt = now;
     }
 }
