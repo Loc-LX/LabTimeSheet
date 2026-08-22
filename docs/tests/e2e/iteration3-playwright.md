@@ -4,7 +4,7 @@
 - **Requirement IDs:** `I3-UI-05`, `I3-UI-06`, `UI-002`, `UI-003`, `UI-007`, `UI-014`, `RPT-001`–`RPT-010`
 - **Scenario IDs:** `AC-UI-001`, `AC-UI-002`, `AC-UI-005`, `AC-RPT-001`, `AC-RPT-002`, `AC-RPT-003`, `AC-TST-001`
 - **Test class/method:** `src/test/e2e/critical-journeys.spec.mjs`; `src/test/e2e/smoke.spec.mjs`; `src/test/e2e/report-journeys.spec.mjs`
-- **Implementation commit:** pending local review-fix commit
+- **Implementation commit:** `075ba0015b1340276bda1be779012c4849cd80a9`
 
 ## Protected behavior
 
@@ -12,7 +12,7 @@ The repository provides one pinned Chromium Playwright project with one worker, 
 
 ## Test method
 
-The critical journey serially bootstraps the first Admin when needed, configures and activates Mailpit SMTP through the real Admin forms, creates disposable Mentor/Intern accounts, consumes activation links through the Mailpit HTTP API, and retries Intern dashboard landing for up to 75 seconds while the production lifecycle scheduler moves a newly activated account from `NOT_STARTED`. Its dates are derived from one Asia/Ho_Chi_Minh runtime business-date fixture. It covers Account Directory correction, future Admin Policy scheduling, Global Calendar workday mutation, Intern Leave submission plus Mentor approval, and the real Project/Task/History/report flow with XLSX/PDF downloads and status/media/filename/ZIP/signature assertions. The correction-submit/decision continuation is present through the public attendance forms but is blocked on the current live Saturday because the reviewed Attendance policy rejects the current date as `NON_WORKDAY` even after a non-day-off Global Calendar event. It also captures desktop light/dark screenshots, keyboard activation/focus outline, palette separation, and representative Project/attendance/notification/report routes. The smoke suite opens `/bootstrap` on a fresh installation or explicitly verifies its initialized 404 before checking the login shell, then repeats at 390×844. The older report journey remains credential-gated and skipped unless explicit Intern `E2E_EMAIL`/`E2E_PASSWORD` are supplied because its role-specific assertions are intentionally not substituted with Admin credentials.
+The critical journey serially bootstraps the first Admin when needed, configures and activates Mailpit SMTP through the real Admin forms, creates disposable Mentor/Intern accounts, consumes activation links through the Mailpit HTTP API, and retries Intern dashboard landing for up to 75 seconds while the production lifecycle scheduler moves a newly activated account from `NOT_STARTED`. Its dates are derived from one Asia/Ho_Chi_Minh runtime business-date fixture, with validated `E2E_BUSINESS_DATE` available for the reviewed advancing-clock stack. It covers Account Directory correction, future Admin Policy scheduling, Global Calendar workday mutation, Intern Leave submission plus Mentor approval, real missed-checkout check-in/correction submission/Mentor approval, and the real Project/Task/History/report flow with XLSX/PDF downloads and status/media/filename/ZIP/signature assertions. It also captures desktop light/dark screenshots, keyboard activation/focus outline, palette separation, and representative Project/attendance/notification/report routes. The smoke suite opens `/bootstrap` on a fresh installation or explicitly verifies its initialized 404 before checking the login shell, then repeats at 390×844. The older report journey remains credential-gated and skipped unless explicit Intern `E2E_EMAIL`/`E2E_PASSWORD` are supplied because its role-specific assertions are intentionally not substituted with Admin credentials.
 
 ## Hand-derived expected result
 
@@ -31,7 +31,7 @@ npm run test:e2e:smoke
 ```text
 The first managed run was RED before browser navigation because Playwright's managed `chromium_headless_shell-1187` was incomplete; retained traces/screenshots are under `/private/tmp/labtimesheet-iteration3-playwright-artifacts-20260822/managed-chromium-failure/test-results-playwright/`. The first critical journey RED then exposed missing SMTP activation state and brittle selectors; the Project/Task extension exposed role-derived Task creation, scheduler eligibility, and exact report selectors. The production-shaped journey now opens the picker on each bounded eligibility attempt and asserts real redirects, native dialogs, and exact labels.
 
-The final-review rerun reached Account correction, future Policy scheduling, Calendar workday creation, Leave submission, and Mentor approval through the real forms. It then attempted the required Intern check-in and received the visible `NON_WORKDAY` rejection for Asia/Ho_Chi_Minh date `2026-08-22` (Saturday). The non-day-off Global Calendar event does not override the seeded Monday–Friday Attendance policy. The correction submit/decision steps remain implemented but unverified on this live date; no direct database fixture, test-only endpoint, or production bypass was added. Failure artifacts remain under `test-results/playwright/critical-journeys-Iteratio-89edd-dmin-Intern-Mentor-journeys-chromium/`.
+The review-fix RED sequence exposed and corrected three browser-harness issues: the picker retry needed to tolerate native disabled state, eligibility reloads needed the required Project fields refilled, and correction proposals needed the server-rendered check-in time rather than machine wall time. No direct database fixture, test-only endpoint, or production bypass was added. Failure artifacts remain under `test-results/playwright/critical-journeys-Iteratio-89edd-dmin-Intern-Mentor-journeys-chromium/`.
 ```
 
 ## GREEN
@@ -47,17 +47,18 @@ npm run test:e2e:smoke
 
 E2E_ADMIN_EMAIL=<runtime-only disposable Admin> \
 E2E_ADMIN_PASSWORD=<runtime-only disposable password> \
+E2E_BUSINESS_DATE=2026-08-21 \
 PLAYWRIGHT_BROWSERS_PATH=/private/tmp/labtimesheet-playwright-browsers \
 PLAYWRIGHT_BASE_URL=http://127.0.0.1:8080 \
 PATH=/opt/homebrew/opt/node@24/bin:/usr/bin:/bin \
 npm run test:e2e
-3 passed, 2 skipped with one worker: the serial critical Iteration 3 journey (including real Project/Task creation, Task status/work-log, Project History retained Task/work-log attribution, Project/Task XLSX/PDF downloads, and Intern Leave/Correction assertions) and both smoke tests passed; the two legacy Intern credential-gated tests skipped because `E2E_EMAIL`/`E2E_PASSWORD` were not supplied. Desktop evidence retained at `test-results/playwright/critical-journeys-Iteratio-89edd-dmin-Intern-Mentor-journeys-chromium/desktop-light.png` and `desktop-dark.png`; automated focus/keyboard assertions are separate from visual sign-off. Orchestrator manual visual sign-off at 1280x720 found complete navigation/form layout without clipping or overlap, with distinguishable text, controls, borders, selected navigation, statuses, and actions in both themes.
+3 passed, 2 skipped with one worker in 1.8 minutes: the serial critical Iteration 3 journey (including Account correction, future Policy/Calendar mutations, real Leave submit/Mentor approval, missed-checkout Correction submit/Mentor approval, Project/Task creation/status/work-log, Project History attribution, and Project/Task XLSX/PDF downloads) and both smoke tests passed; the two legacy Intern credential-gated tests skipped because `E2E_EMAIL`/`E2E_PASSWORD` were not supplied. `E2E_BUSINESS_DATE=2026-08-21` was validated by the journey and the advancing application clock supplied the server check-in time. Desktop evidence retained at `test-results/playwright/critical-journeys-Iteratio-89edd-dmin-Intern-Mentor-journeys-chromium/desktop-light.png` and `desktop-dark.png`; automated focus/keyboard assertions are separate from visual sign-off. Orchestrator manual visual sign-off at 1280x720 found complete navigation/form layout without clipping or overlap, with distinguishable text, controls, borders, selected navigation, statuses, and actions in both themes.
 ```
 
 ## Affected suite
 
 ```text
-Historical pre-review evidence: Node UI contracts, managed Chromium critical journeys, and both smoke paths were GREEN. The current final-review mutation run is blocked at the producer Attendance non-workday contract described in RED; it must not be counted as a new critical-journey GREEN. The older role-specific report spec remains intentionally skipped without explicit Intern credentials; Java report exporter parity/font evidence remains separately covered by merged-dependency tests and Project/Task browser exports previously passed with a real non-empty dataset.
+Current evidence: Node UI contracts passed 14/14; frontend build passed; managed Chromium critical/full journeys passed as recorded above. The older role-specific report spec remains intentionally skipped without explicit Intern credentials; Java report exporter parity/font evidence remains separately covered by merged-dependency tests and Project/Task browser exports passed with a real non-empty dataset.
 ```
 
 ## External-test boundaries
