@@ -37,3 +37,7 @@ node_modules/
 
 # Local requirements review artifacts
 /labtimesheet-docs-hub/
+
+# Playwright output is retained locally for failure inspection and is not source evidence.
+/playwright-report/
+/test-results/

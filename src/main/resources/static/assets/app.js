@@ -5,6 +5,13 @@ document.addEventListener('DOMContentLoaded', () => {
     try { return localStorage.getItem('labtimesheet-theme') || 'system'; }
     catch (_) { return 'system'; }
   })();
+  const systemPreference = matchMedia('(prefers-color-scheme: dark)');
+  const applyTheme = (preference) => {
+    const dark = preference === 'dark'
+      || (preference === 'system' && systemPreference.matches);
+    root.dataset.theme = dark ? 'dark' : 'light';
+    root.style.colorScheme = dark ? 'dark' : 'light';
+  };
   if (theme) {
     theme.value = stored;
     theme.addEventListener('change', () => {
@@ -15,10 +22,10 @@ document.addEventListener('DOMContentLoaded', () => {
       } catch (_) {
         // Theme still applies for this page when persistence is unavailable.
       }
-      const dark = theme.value === 'dark'
-        || (theme.value === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
-      root.dataset.theme = dark ? 'dark' : 'light';
-      root.style.colorScheme = dark ? 'dark' : 'light';
+      applyTheme(theme.value);
+    });
+    systemPreference.addEventListener?.('change', () => {
+      if (theme.value === 'system') applyTheme('system');
     });
   }
 

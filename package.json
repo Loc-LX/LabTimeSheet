@@ -10,9 +10,14 @@
     "build:css": "tailwindcss -i src/main/frontend/app.css -o src/main/resources/static/assets/app.css --minify",
     "build:icons": "node src/main/frontend/build-icons.mjs",
     "build:chart": "node src/main/frontend/build-chart.mjs",
-    "test:ui": "node --test src/test/js/*.test.mjs"
+    "test:ui": "node --test src/test/js/*.test.mjs",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:smoke": "playwright test --grep @smoke"
   },
   "devDependencies": {
+    "@playwright/test": "1.55.0",
     "@tailwindcss/cli": "4.3.3",
     "chart.js": "4.5.1",
     "lucide-static": "1.27.0",
