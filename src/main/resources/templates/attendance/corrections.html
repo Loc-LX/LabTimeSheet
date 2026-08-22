@@ -3,7 +3,7 @@
       th:replace="~{fragments/layout :: shell(
           pageTitle='Corrections',
           section=${intern ? 'Intern' : actor.role},
-          activeNav='attendance-requests',
+          activeNav='corrections',
           primaryAction=~{::#primary-action},
           content=~{::main})}">
 <body>
@@ -32,12 +32,12 @@
         <div th:if="${#lists.isEmpty(correctionRequests)}"><th:block th:replace="~{fragments/components :: empty('No corrections', 'Submitted corrections will appear here.')} "></th:block></div>
         <div class="table-scroll" th:unless="${#lists.isEmpty(correctionRequests)}"><table class="data-table"><caption class="sr-only">Missed checkout corrections</caption>
             <thead><tr><th scope="col">Attendance record</th><th scope="col">Intern</th><th scope="col">Reason</th><th scope="col">Status</th><th scope="col">View</th></tr></thead>
-            <tbody><tr th:each="request : ${correctionRequests}"><td th:text="${request.attendanceRecordId}">Record</td><td th:text="${request.internUserId}">Intern</td><td th:text="${request.reason}">Reason</td><td><span class="badge" th:text="${request.status}">PENDING</span></td><td><a class="button" th:href="@{/attendance/corrections/{id}(id=${request.id})}">Open</a></td></tr></tbody>
+            <tbody><tr th:each="request : ${correctionRequests}"><td th:text="|Attendance record ${request.attendanceRecordId}|">Record</td><td th:text="|Intern account ${request.internUserId}|">Intern</td><td th:text="${request.reason}">Reason</td><td><span class="badge" th:attr="aria-label=${'Correction status: ' + (request.status == 'PENDING' ? 'Pending decision' : request.status == 'APPROVED' ? 'Approved' : 'Rejected')}" th:text="${request.status == 'PENDING' ? 'Pending decision' : request.status == 'APPROVED' ? 'Approved' : 'Rejected'}">Pending decision</span></td><td><a class="button" th:href="@{/attendance/corrections/{id}(id=${request.id})}">Open</a></td></tr></tbody>
         </table></div>
     </section>
 
     <section class="panel form-panel" th:if="${selectedCorrection}">
-        <header class="panel-header"><h2 class="panel-title">Correction detail</h2><span class="badge" th:text="${selectedCorrection.status}">PENDING</span></header>
+        <header class="panel-header"><h2 class="panel-title">Correction detail</h2><span class="badge" th:attr="aria-label=${'Correction status: ' + (selectedCorrection.status.name() == 'PENDING' ? 'Pending decision' : selectedCorrection.status.name() == 'APPROVED' ? 'Approved' : 'Rejected')}" th:text="${selectedCorrection.status.name() == 'PENDING' ? 'Pending decision' : selectedCorrection.status.name() == 'APPROVED' ? 'Approved' : 'Rejected'}">Pending decision</span></header>
         <p th:text="${'Raw checkout: ' + (selectedCorrection.rawCheckoutAt == null ? 'missing' : #temporals.format(selectedCorrection.rawCheckoutAt.atZone(selectedCorrection.policy.zoneId), 'dd/MM/yyyy HH:mm')) + ' · proposed: ' + #temporals.format(selectedCorrection.proposedCheckout, 'dd/MM/yyyy HH:mm') + ' · effective: ' + (selectedCorrection.effectiveCheckoutAt == null ? 'not approved' : #temporals.format(selectedCorrection.effectiveCheckoutAt.atZone(selectedCorrection.policy.zoneId), 'dd/MM/yyyy HH:mm')) + ' (' + selectedCorrection.policy.zoneId + ')'}">Correction values</p>
         <form class="form-grid" th:if="${mentor and (selectedCorrection.status.name() == 'PENDING' or selectedCorrection.lockedAt == null)}" method="post" th:action="@{/attendance/corrections/{id}/decide(id=${selectedCorrection.id})}"
               th:attr="aria-describedby=${correctionDecisionInput != null and requestError != null ? 'decision-form-error' : null}">

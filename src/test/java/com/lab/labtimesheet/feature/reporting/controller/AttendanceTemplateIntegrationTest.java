@@ -6,12 +6,19 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
+import com.lab.labtimesheet.feature.attendance.model.AttendanceRole;
 import com.lab.labtimesheet.feature.attendance.model.AttendancePolicyFixtures;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceViolations;
+import com.lab.labtimesheet.feature.attendance.model.LeaveStatus;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceHistoryItem;
+import com.lab.labtimesheet.feature.attendance.model.dto.CorrectionSummary;
+import com.lab.labtimesheet.feature.attendance.model.dto.LeaveBalance;
+import com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestSummary;
 import com.lab.labtimesheet.feature.integration.service.SmtpConfigurationService;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -58,6 +65,34 @@ class AttendanceTemplateIntegrationTest {
                 .andExpect(content().string(containsString("action=\"/attendance/calendar\"")))
                 .andExpect(content().string(containsString("No upcoming calendar events")))
                 .andExpect(content().string(containsString("src=\"/assets/theme.js\"")));
+    }
+
+    @Test
+    void focusedAdminPolicyUsesNativeMonthFormAndRetainedHistoryPanel() throws Exception {
+        mvc.perform(get("/template-contract/attendance/policy")
+                        .with(user("admin@example.test").roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("action=\"/admin/attendance-policies\"")))
+                .andExpect(content().string(containsString("id=\"effective-month\"")))
+                .andExpect(content().string(containsString("Policy History")));
+    }
+
+    @Test
+    void leaveAndCorrectionPagesRemainSeparateAndHumanizeStatuses() throws Exception {
+        mvc.perform(get("/template-contract/attendance/leave")
+                        .with(user("intern@example.test").roles("INTERN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("My Leave")))
+                .andExpect(content().string(containsString("My Corrections")))
+                .andExpect(content().string(containsString("3 reserved / 12 quota / 9 remaining")))
+                .andExpect(content().string(containsString("Pending decision")));
+
+        mvc.perform(get("/template-contract/attendance/corrections")
+                        .with(user("mentor@example.test").roles("MENTOR")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Correction decisions")))
+                .andExpect(content().string(containsString("Leave decisions")))
+                .andExpect(content().string(containsString("Pending decision")));
     }
 
     @Test
@@ -122,6 +157,38 @@ class AttendanceTemplateIntegrationTest {
             model.addAttribute("today", LocalDate.of(2026, 8, 15));
             model.addAttribute("events", List.of());
             return "attendance/calendar";
+        }
+
+        @GetMapping("/template-contract/attendance/policy")
+        String policy(Model model) {
+            model.addAttribute("minimumPolicyMonth", YearMonth.of(2026, 9));
+            model.addAttribute("policyHistory", List.of());
+            return "attendance/policies";
+        }
+
+        @GetMapping("/template-contract/attendance/leave")
+        String leave(Model model) {
+            model.addAttribute("actor", new AttendanceActor(7L, AttendanceRole.INTERN));
+            model.addAttribute("intern", true);
+            model.addAttribute("mentor", false);
+            model.addAttribute("leaveRequests", List.of(new LeaveRequestSummary(
+                    11L, 7L, LocalDate.of(2026, 8, 20), LocalDate.of(2026, 8, 21),
+                    "Family", LeaveStatus.PENDING, Instant.parse("2026-08-19T00:00:00Z"))));
+            model.addAttribute("selectedMonth", YearMonth.of(2026, 8));
+            model.addAttribute("balance", new LeaveBalance(YearMonth.of(2026, 8), 3, 12));
+            return "attendance/leave";
+        }
+
+        @GetMapping("/template-contract/attendance/corrections")
+        String corrections(Model model) {
+            model.addAttribute("actor", new AttendanceActor(2L, AttendanceRole.MENTOR));
+            model.addAttribute("intern", false);
+            model.addAttribute("mentor", true);
+            model.addAttribute("correctionRequests", List.of(new CorrectionSummary(
+                    12L, 55L, 7L, Instant.parse("2026-08-20T09:00:00Z"),
+                    "Missed checkout", "PENDING", Instant.parse("2026-08-20T10:00:00Z"),
+                    Instant.parse("2026-08-21T10:00:00Z"))));
+            return "attendance/corrections";
         }
     }
 }

@@ -3,7 +3,7 @@
       th:replace="~{fragments/layout :: shell(
           pageTitle='Attendance Policy',
           section='Admin',
-          activeNav='settings',
+          activeNav='attendance-policy',
           primaryAction=~{::#primary-action},
           content=~{::main})}">
 <body>
@@ -36,7 +36,7 @@
     <section class="panel form-panel" id="policy-history">
         <header class="panel-header"><h2 class="panel-title">Policy History</h2></header>
         <p th:if="${#lists.isEmpty(policyHistory)}">No retained policy versions.</p>
-        <div class="table-scroll" th:unless="${#lists.isEmpty(policyHistory)}"><table class="data-table"><caption class="sr-only">Policy History</caption><thead><tr><th scope="col">Version</th><th scope="col">Effective</th><th scope="col">Schedule</th><th scope="col">Workdays</th><th scope="col">Quota</th><th scope="col">Actor</th></tr></thead><tbody><tr th:each="entry : ${policyHistory}"><td th:text="${entry.id}">Version</td><td th:text="${#temporals.format(entry.effectiveFrom, 'dd/MM/yyyy')}">Date</td><td th:text="|${entry.policy.scheduledStart}–${entry.policy.scheduledEnd} ${entry.policy.zoneId}|"></td><td th:text="${entry.policy.workdays}">Days</td><td th:text="${entry.policy.monthlyLeaveQuota}">Quota</td><td th:text="${entry.createdByUserId ?: 'seed'}">Actor</td></tr></tbody></table></div>
+        <div class="table-scroll" th:unless="${#lists.isEmpty(policyHistory)}"><table class="data-table"><caption class="sr-only">Policy History</caption><thead><tr><th scope="col">Version</th><th scope="col">Effective</th><th scope="col">Schedule</th><th scope="col">Workdays</th><th scope="col">Quota</th><th scope="col">Actor</th></tr></thead><tbody><tr th:each="entry : ${policyHistory}"><td th:text="|Policy version ${entry.id}|">Version</td><td th:text="${#temporals.format(entry.effectiveFrom, 'dd/MM/yyyy')}">Date</td><td th:text="|${entry.policy.scheduledStart}–${entry.policy.scheduledEnd} ${entry.policy.zoneId}|"></td><td><span th:each="day, iteration : ${entry.policy.workdays}" th:text="${(day.name() == 'MONDAY' ? 'Monday' : day.name() == 'TUESDAY' ? 'Tuesday' : day.name() == 'WEDNESDAY' ? 'Wednesday' : day.name() == 'THURSDAY' ? 'Thursday' : day.name() == 'FRIDAY' ? 'Friday' : day.name() == 'SATURDAY' ? 'Saturday' : 'Sunday') + (iteration.last ? '' : ', ')}">Days</span></td><td th:text="|${entry.policy.monthlyLeaveQuota} days|">Quota</td><td th:text="${entry.createdByUserId == null ? 'Seeded policy' : 'Admin account ' + entry.createdByUserId}">Actor</td></tr></tbody></table></div>
     </section>
 </main>
 </body>

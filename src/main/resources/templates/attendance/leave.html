@@ -3,7 +3,7 @@
       th:replace="~{fragments/layout :: shell(
           pageTitle='Leave',
           section=${intern ? 'Intern' : actor.role},
-          activeNav='attendance-requests',
+          activeNav='leave',
           primaryAction=~{::#primary-action},
           content=~{::main})}">
 <body>
@@ -42,12 +42,12 @@
         <div th:if="${#lists.isEmpty(leaveRequests)}"><th:block th:replace="~{fragments/components :: empty('No leave requests', 'Submitted leave will appear here.')} "></th:block></div>
         <div class="table-scroll" th:unless="${#lists.isEmpty(leaveRequests)}"><table class="data-table"><caption class="sr-only">Leave requests</caption>
             <thead><tr><th scope="col">Range</th><th scope="col">Intern</th><th scope="col">Reason</th><th scope="col">Status</th><th scope="col">View</th></tr></thead>
-            <tbody><tr th:each="request : ${leaveRequests}"><td th:text="${#temporals.format(request.startDate, 'dd/MM/yyyy') + ' – ' + #temporals.format(request.endDate, 'dd/MM/yyyy')}">Range</td><td th:text="${request.internUserId}">Intern</td><td th:text="${request.reason}">Reason</td><td><span class="badge" th:text="${request.status}">PENDING</span></td><td><a class="button" th:href="@{/attendance/leave/{id}(id=${request.id})}">Open</a></td></tr></tbody>
+            <tbody><tr th:each="request : ${leaveRequests}"><td th:text="${#temporals.format(request.startDate, 'dd/MM/yyyy') + ' – ' + #temporals.format(request.endDate, 'dd/MM/yyyy')}">Range</td><td th:text="|Intern account ${request.internUserId}|">Intern</td><td th:text="${request.reason}">Reason</td><td><span class="badge" th:attr="aria-label=${'Leave status: ' + (request.status.name() == 'PENDING' ? 'Pending decision' : request.status.name() == 'APPROVED' ? 'Approved' : request.status.name() == 'REJECTED' ? 'Rejected' : 'Cancelled')}" th:text="${request.status.name() == 'PENDING' ? 'Pending decision' : request.status.name() == 'APPROVED' ? 'Approved' : request.status.name() == 'REJECTED' ? 'Rejected' : 'Cancelled'}">Pending decision</span></td><td><a class="button" th:href="@{/attendance/leave/{id}(id=${request.id})}">Open</a></td></tr></tbody>
         </table></div>
     </section>
 
     <section class="panel form-panel" th:if="${selectedLeave}">
-        <header class="panel-header"><h2 class="panel-title">Leave request detail</h2><span class="badge" th:text="${selectedLeave.status}">PENDING</span></header>
+        <header class="panel-header"><h2 class="panel-title">Leave request detail</h2><span class="badge" th:attr="aria-label=${'Leave status: ' + (selectedLeave.status.name() == 'PENDING' ? 'Pending decision' : selectedLeave.status.name() == 'APPROVED' ? 'Approved' : selectedLeave.status.name() == 'REJECTED' ? 'Rejected' : 'Cancelled')}" th:text="${selectedLeave.status.name() == 'PENDING' ? 'Pending decision' : selectedLeave.status.name() == 'APPROVED' ? 'Approved' : selectedLeave.status.name() == 'REJECTED' ? 'Rejected' : 'Cancelled'}">Pending decision</span></header>
         <p th:text="${#temporals.format(selectedLeave.startDate, 'dd/MM/yyyy') + ' – ' + #temporals.format(selectedLeave.endDate, 'dd/MM/yyyy') + ': ' + selectedLeave.reason}">Leave</p>
         <form class="form-grid" th:if="${intern and selectedLeave.status.name() == 'PENDING'}" method="post" th:action="@{/attendance/leave/{id}/edit(id=${selectedLeave.id})}"
               th:attr="aria-describedby=${leaveEditInput != null and requestError != null ? 'leave-edit-form-error' : null}">

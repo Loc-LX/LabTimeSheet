@@ -54,6 +54,10 @@ class UiContractWebTest {
         assertFalse(html.contains("href=\"/profile\""));
         assertTrue(html.contains("href=\"/notifications\""));
         assertTrue(html.contains("aria-label=\"Notifications\""));
+        assertTrue(html.contains("href=\"/attendance/leave\""));
+        assertTrue(html.contains("Leave decisions"));
+        assertTrue(html.contains("href=\"/attendance/corrections\""));
+        assertTrue(html.contains("Correction decisions"));
         assertTrue(html.indexOf("/assets/theme.js") < html.indexOf("/assets/app.css"));
         assertTrue(html.contains("rel=\"icon\" href=\"/assets/icons.svg\""));
         assertTrue(html.contains("href=\"/assets/icons.svg#panel-left\""));
@@ -69,6 +73,10 @@ class UiContractWebTest {
                 .getContentAsString(StandardCharsets.UTF_8);
 
         assertTrue(html.contains("href=\"/attendance\""));
+        assertTrue(html.contains("href=\"/attendance/leave\""));
+        assertTrue(html.contains("My Leave"));
+        assertTrue(html.contains("href=\"/attendance/corrections\""));
+        assertTrue(html.contains("My Corrections"));
         assertFalse(html.contains("href=\"/attendance/me\""));
         assertFalse(html.contains("href=\"/profile\""));
         assertTrue(html.contains("href=\"/notifications\""));
@@ -136,6 +144,7 @@ class UiContractWebTest {
         assertTrue(html.contains("data-tooltip=\"Overview\""));
         assertTrue(html.contains("data-tooltip=\"Accounts\""));
         assertTrue(html.contains("data-tooltip=\"Global calendar\""));
+        assertTrue(html.contains("data-tooltip=\"Attendance Policy\""));
         assertTrue(html.contains("data-tooltip=\"Logout\""));
         assertTrue(html.contains("title=\"Theme preference\""));
         assertTrue(script.contains("setAttribute('aria-expanded', String(!collapsed))"));
