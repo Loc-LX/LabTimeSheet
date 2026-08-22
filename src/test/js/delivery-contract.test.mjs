@@ -69,7 +69,27 @@ test("container workflow runs only manually or on main and verifies before eithe
   assert.match(workflow, /username: \$\{\{ gitea\.actor \}\}/);
   assert.match(workflow, /password: \$\{\{ secrets\.REGISTRY_TOKEN \}\}/);
   assert.doesNotMatch(workflow, /CONTAINER_IMAGE|REGISTRY_USERNAME/);
-  assert.doesNotMatch(workflow, /ssh|DEPLOY_HOST|DEPLOY_KEY/i);
+});
+
+test("deployment template is dormant, main-only, host-key checked, and rollback-capable", () => {
+  const workflow = read(".gitea/workflows/container.yml");
+
+  assert.match(
+    workflow,
+    /deploy:\n\s+if: gitea\.ref == 'refs\/heads\/main' && vars\.DEPLOY_ENABLED == 'true'/,
+  );
+  assert.match(workflow, /secrets\.DEPLOY_HOST != ''/);
+  assert.match(workflow, /secrets\.DEPLOY_USER != ''/);
+  assert.match(workflow, /secrets\.DEPLOY_PRIVATE_KEY != ''/);
+  assert.match(workflow, /secrets\.DEPLOY_KNOWN_HOSTS != ''/);
+  assert.match(workflow, /StrictHostKeyChecking=yes/);
+  assert.match(workflow, /UserKnownHostsFile/);
+  assert.match(workflow, /docker pull/);
+  assert.match(workflow, /docker compose/);
+  assert.match(workflow, /State\.Health\.Status/);
+  assert.match(workflow, /previous-image/);
+  assert.match(workflow, /rollback/i);
+  assert.doesNotMatch(workflow, /jobs\.[a-z0-9_-]+\.environment/);
 });
 
 test("workflows pin every action to the latest reviewed immutable release", () => {
