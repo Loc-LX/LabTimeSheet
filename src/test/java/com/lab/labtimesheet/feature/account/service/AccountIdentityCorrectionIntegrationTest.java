@@ -13,6 +13,7 @@ import com.lab.labtimesheet.feature.account.model.GlobalRole;
 import com.lab.labtimesheet.feature.account.model.dto.AccountDirectoryFilter;
 import com.lab.labtimesheet.feature.account.model.dto.AccountIdentityCorrection;
 import com.lab.labtimesheet.feature.account.model.dto.CreateAccountCommand;
+import com.lab.labtimesheet.feature.account.model.dto.InternshipLifecycleGuard;
 import com.lab.labtimesheet.feature.account.repository.AppUserRepository;
 import com.lab.labtimesheet.feature.account.repository.InternProfileRepository;
 import com.lab.labtimesheet.feature.account.repository.UserActionTokenRepository;
@@ -71,12 +72,15 @@ class AccountIdentityCorrectionIntegrationTest {
         bootstrap.bootstrap(ADMIN_EMAIL, "Primary Admin", ADMIN_PASSWORD);
         long adminId = accounts.requireActiveAdminId(ADMIN_EMAIL);
         enableSmtp(adminId);
-        createPendingMentor(adminId, "mentor.directory@example.com", "Mentor Directory");
-        createPendingIntern(adminId, "intern.directory@example.com", "Intern Directory", "STU-42");
+        createPendingMentor(adminId, "mentor.directory@example.com", "Professor North");
+        createPendingIntern(adminId, "intern.directory@example.com", "Student South", "STU-42");
 
         assertThat(accounts.administrationViews(adminId, new AccountDirectoryFilter("  DIRECTORY@EXAMPLE.COM ", null)))
                 .extracting(view -> view.email())
                 .containsExactly("mentor.directory@example.com", "intern.directory@example.com");
+        assertThat(accounts.administrationViews(adminId, new AccountDirectoryFilter(" professor ", null)))
+                .extracting(view -> view.displayName())
+                .containsExactly("Professor North");
         assertThat(accounts.administrationViews(adminId, new AccountDirectoryFilter(" stu-42 ", GlobalRole.INTERN)))
                 .extracting(view -> view.email())
                 .containsExactly("intern.directory@example.com");
@@ -177,9 +181,88 @@ class AccountIdentityCorrectionIntegrationTest {
                 .hasMessageContaining("read-only");
     }
 
-    private void createPendingMentor(long adminId, String email, String name) {
-        accounts.create(new CreateAccountCommand(email, name, GlobalRole.MENTOR, null, null, null), adminId);
+    @Test
+    void omittedInternshipDateIsResolvedFromTheLockedProfile() {
+        bootstrap.bootstrap(ADMIN_EMAIL, "Primary Admin", ADMIN_PASSWORD);
+        long adminId = accounts.requireActiveAdminId(ADMIN_EMAIL);
+        enableSmtp(adminId);
+        long userId = createPendingIntern(adminId, "date-omitted@example.com", "Date Omitted", "STU-DATE");
+
+        accounts.correctAccount(userId, adminId, new AccountIdentityCorrection(
+                null, null, LocalDate.of(2026, 8, 2), null));
+
+        var profile = internProfiles.findById(userId).orElseThrow();
+        assertThat(profile.getInternshipStartDate()).isEqualTo(LocalDate.of(2026, 8, 2));
+        assertThat(profile.getInternshipEndDate()).isEqualTo(LocalDate.of(2026, 12, 31));
+    }
+
+    @Test
+    void uniquenessFailureDoesNotDeliverOrExpireSessions() {
+        bootstrap.bootstrap(ADMIN_EMAIL, "Primary Admin", ADMIN_PASSWORD);
+        long adminId = accounts.requireActiveAdminId(ADMIN_EMAIL);
+        enableSmtp(adminId);
+        long firstId = createActiveIntern(adminId, "first-unique@example.com", "First Unique", "STU-UNIQUE");
+        long secondId = createActiveIntern(adminId, "second-unique@example.com", "Second Unique", "STU-OTHER");
+        sessions.registerNewSession("unique-session", User.withUsername("second-unique@example.com")
+                .password("unused")
+                .roles("INTERN")
+                .build());
         mail.clear();
+
+        assertThatThrownBy(() -> accounts.correctAccount(secondId, adminId, new AccountIdentityCorrection(
+                "second-corrected@example.com", "STU-UNIQUE", null, null)))
+                .isInstanceOf(RuntimeException.class);
+
+        assertThat(mail.messages).isEmpty();
+        assertThat(sessions.getSessionInformation("unique-session").isExpired()).isFalse();
+        assertThat(users.findById(secondId).orElseThrow().getEmail()).isEqualTo("second-unique@example.com");
+        assertThat(internProfiles.findById(secondId).orElseThrow().getStudentCode()).isEqualTo("STU-OTHER");
+        assertThat(users.findById(firstId)).isPresent();
+    }
+
+    @Test
+    void nonAdminAndGuessedTargetCannotUseCorrectionBoundary() {
+        bootstrap.bootstrap(ADMIN_EMAIL, "Primary Admin", ADMIN_PASSWORD);
+        long adminId = accounts.requireActiveAdminId(ADMIN_EMAIL);
+        enableSmtp(adminId);
+        long mentorId = createActiveMentor(adminId, "non-admin@example.com", "Non Admin");
+        long targetId = createPendingMentor(adminId, "target-guess@example.com", "Target Guess");
+
+        assertThatThrownBy(() -> accounts.correctAccount(targetId, mentorId, new AccountIdentityCorrection(
+                "forbidden@example.com", null, null, null)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("active Admin");
+        assertThatThrownBy(() -> accounts.correctAccount(999_999L, adminId, new AccountIdentityCorrection(
+                "missing@example.com", null, null, null)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Account not found");
+    }
+
+    @Test
+    void completedAndWithdrawnInternProfilesRemainReadOnly() {
+        bootstrap.bootstrap(ADMIN_EMAIL, "Primary Admin", ADMIN_PASSWORD);
+        long adminId = accounts.requireActiveAdminId(ADMIN_EMAIL);
+        enableSmtp(adminId);
+        long completedId = createActiveIntern(adminId, "completed@example.com", "Completed Intern", "STU-COMPLETE");
+        accounts.completeInternship(completedId, adminId, new InternshipLifecycleGuard(false, 0));
+        assertThatThrownBy(() -> accounts.correctAccount(completedId, adminId, new AccountIdentityCorrection(
+                null, "STU-COMPLETE-NEW", null, null)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("read-only");
+
+        long withdrawnId = createActiveIntern(adminId, "withdrawn@example.com", "Withdrawn Intern", "STU-WITHDRAW");
+        accounts.withdrawInternship(withdrawnId, adminId, new InternshipLifecycleGuard(false, 0));
+        assertThatThrownBy(() -> accounts.correctAccount(withdrawnId, adminId, new AccountIdentityCorrection(
+                null, "STU-WITHDRAW-NEW", null, null)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("read-only");
+    }
+
+    private long createPendingMentor(long adminId, String email, String name) {
+        long id = accounts.create(new CreateAccountCommand(email, name, GlobalRole.MENTOR, null, null, null), adminId)
+                .userId();
+        mail.clear();
+        return id;
     }
 
     private long createPendingIntern(long adminId, String email, String name, String studentCode) {
@@ -192,6 +275,14 @@ class AccountIdentityCorrectionIntegrationTest {
         long id = accounts.create(new CreateAccountCommand(email, name, GlobalRole.MENTOR, null, null, null), adminId)
                 .userId();
         accounts.activate(mail.lastToken(), "mentor secure password");
+        mail.clear();
+        return id;
+    }
+
+    private long createActiveIntern(long adminId, String email, String name, String studentCode) {
+        long id = createPendingIntern(adminId, email, name, studentCode);
+        accounts.activate(mail.lastToken(), "intern secure password");
+        accounts.activateInternship(id, adminId);
         mail.clear();
         return id;
     }

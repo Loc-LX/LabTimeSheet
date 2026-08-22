@@ -533,7 +533,13 @@ public class AccountService {
                 profile.correctStudentCode(correction.studentCode(), clock.instant());
             }
             if (correction.internshipStart() != null || correction.internshipEnd() != null) {
-                profile.correctDates(correction.internshipStart(), correction.internshipEnd(), clock.instant());
+                LocalDate correctedStart = correction.internshipStart() == null
+                        ? profile.getInternshipStartDate()
+                        : correction.internshipStart();
+                LocalDate correctedEnd = correction.internshipEnd() == null
+                        ? profile.getInternshipEndDate()
+                        : correction.internshipEnd();
+                profile.correctDates(correctedStart, correctedEnd, clock.instant());
             }
         }
         if (!emailChanged) {
@@ -546,6 +552,9 @@ public class AccountService {
         String previousEmail = target.getEmail();
         Instant now = clock.instant();
         target.correctEmail(correctedEmail, now);
+        // Flush every changed account/profile constraint before SMTP or session expiration becomes irreversible.
+        users.flush();
+        internProfiles.flush();
         try {
             if (target.getAccountStatus() == AccountStatus.PENDING_ACTIVATION) {
                 String rawToken = newRawToken();
