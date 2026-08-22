@@ -167,7 +167,7 @@ class Iteration2ProjectWorkflowWebTest {
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl("/projects/30/workflows"));
 
-        verify(projects).transferTasks(20L, 30L, 41L, Set.of(101L, 102L), 42L);
+        verify(projects).transferTasks(20L, 30L, 70L, 41L, Set.of(101L, 102L), 42L);
 
         when(projects.issueInvitation(20L, 30L, 24L))
                 .thenThrow(new ProjectRuleViolationException("Invitation state changed"));
@@ -211,7 +211,7 @@ class Iteration2ProjectWorkflowWebTest {
                         "(?s).*<option[^>]*value=\"42\"[^>]*selected=\"selected\"[^>]*>.*")))
                 .andExpect(content().string(containsString("id=\"removal-form-error\"")));
 
-        when(projects.transferTasks(20L, 30L, 41L, Set.of(101L, 102L), 42L))
+        when(projects.transferTasks(20L, 30L, 70L, 41L, Set.of(101L, 102L), 42L))
                 .thenThrow(new ProjectRuleViolationException("Transfer state changed"));
         Map<String, Object> retainedTransfer = Map.of(
                 "kind", "transfer",

@@ -645,6 +645,88 @@ class ProjectInvitationExitIntegrationTest {
     }
 
     @Test
+    void exitTransferMustUseThePendingRequestFromTheRoute() {
+        long mentorId = user("mentor-transfer-route@example.test", "MENTOR");
+        long leaderId = intern("leader-transfer-route@example.test", "I161");
+        long targetId = intern("target-transfer-route@example.test", "I162");
+        long recipientId = intern("recipient-transfer-route@example.test", "I163");
+        long projectId = createProject(mentorId, leaderId, "Transfer route");
+        projects.addMembers(mentorId, projectId, List.of(targetId, recipientId));
+        long targetMembershipId = membershipId(projectId, targetId);
+        long recipientMembershipId = membershipId(projectId, recipientId);
+        long leaderMembershipId = membershipId(projectId, leaderId);
+        long taskId = insertTask(projectId, targetMembershipId, leaderMembershipId, "Route guarded", "TODO");
+        long requestId = projects.requestMemberRemoval(
+                leaderId, projectId, targetMembershipId, "Transfer route must be bound");
+
+        assertThrows(ProjectAccessDeniedException.class, () -> projects.transferTasks(
+                leaderId,
+                projectId,
+                requestId + 1,
+                targetMembershipId,
+                java.util.Set.of(taskId),
+                recipientMembershipId));
+        assertEquals(targetMembershipId, number(
+                "select assignee_membership_id from tasks where id = ?", taskId));
+        assertEquals("PENDING", text(
+                "select status from project_membership_exit_requests where id = ?", requestId));
+    }
+
+    @Test
+    void leaderRemovalRejectsMembershipIdFromAnotherProjectWithoutRuleDetails() {
+        long mentorId = user("mentor-cross-project-membership@example.test", "MENTOR");
+        long leaderId = intern("leader-cross-project-membership@example.test", "I164");
+        long targetId = intern("target-cross-project-membership@example.test", "I165");
+        long otherLeaderId = intern("other-leader-cross-project-membership@example.test", "I166");
+        long firstProjectId = createProject(mentorId, leaderId, "First cross project");
+        long secondProjectId = createProject(mentorId, otherLeaderId, "Second cross project");
+        projects.addMember(mentorId, secondProjectId, targetId);
+        long foreignMembershipId = membershipId(secondProjectId, targetId);
+
+        assertThrows(ProjectAccessDeniedException.class, () -> projects.requestMemberRemoval(
+                leaderId, firstProjectId, foreignMembershipId, "Cross-project identifier"));
+        assertEquals(0, count(
+                "select count(*) from project_membership_exit_requests where target_membership_id = ?",
+                foreignMembershipId));
+    }
+
+    @Test
+    void leadershipChangeRejectsAnInternFromAnotherProjectWithoutContextLeak() {
+        long mentorId = user("mentor-cross-project-leader@example.test", "MENTOR");
+        long leaderId = intern("leader-cross-project-leader@example.test", "I167");
+        long foreignLeaderId = intern("foreign-leader-cross-project@example.test", "I168");
+        long firstProjectId = createProject(mentorId, leaderId, "First leadership project");
+        createProject(mentorId, foreignLeaderId, "Foreign leadership project");
+
+        assertThrows(ProjectAccessDeniedException.class, () -> projects.changeLeader(
+                mentorId, firstProjectId, foreignLeaderId));
+        assertThrows(ProjectAccessDeniedException.class, () -> projects.directRemoveMember(
+                mentorId,
+                firstProjectId,
+                membershipId(firstProjectId, leaderId),
+                foreignLeaderId));
+        assertEquals(leaderId, number("select membership.intern_user_id "
+                + "from project_leadership_terms term "
+                + "join project_memberships membership on membership.id = term.membership_id "
+                + "where term.project_id = ? and term.ended_at is null", firstProjectId));
+    }
+
+    @Test
+    void completedProjectsRejectInvitationRevocationWithoutChangingRetainedHistory() {
+        long mentorId = user("mentor-completed-invitation-revoke@example.test", "MENTOR");
+        long leaderId = intern("leader-completed-invitation-revoke@example.test", "I169");
+        long inviteeId = intern("invitee-completed-invitation-revoke@example.test", "I170");
+        long projectId = createProject(mentorId, leaderId, "Completed invitation revoke");
+        long invitationId = projects.issueInvitation(leaderId, projectId, inviteeId);
+
+        completeProject(projectId, mentorId);
+
+        assertThrows(ProjectRuleViolationException.class,
+                () -> projects.revokeInvitation(mentorId, invitationId));
+        assertEquals("PENDING", text("select status from project_invitations where id = ?", invitationId));
+    }
+
+    @Test
     void projectHistoryExposesStoredMembershipAndLeadershipProvenance() {
         long mentorId = user("mentor-history-provenance@example.test", "MENTOR");
         long leaderId = intern("leader-history-provenance@example.test", "I157");

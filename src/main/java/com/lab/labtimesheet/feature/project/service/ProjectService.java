@@ -220,7 +220,9 @@ public class ProjectService {
     }
 
     /**
-     * Revokes a pending invitation owned by the issuing Leader or owning Mentor.
+     * Revokes a pending invitation owned by the issuing Leader or owning Mentor while the
+     * Project remains open. Completed Projects are read-only even when a stale pending row is
+     * encountered during a concurrent lifecycle boundary.
      * The authenticated actor, invitation target, issuing Leader, and owning Mentor Account/profile
      * rows are locked in ascending order before the Project and invitation rows; terminal state is
      * inspected only after the actor's Project relationship is authorized.
@@ -254,6 +256,7 @@ public class ProjectService {
         if (issuingLeader) {
             requireEligibleInternForProjectActor(actor);
         }
+        requireOpenProject(project);
         if (!invitation.isPending()) {
             throw new ProjectRuleViolationException("Invitation is no longer pending");
         }
@@ -394,7 +397,7 @@ public class ProjectService {
         var project = lockedProject(projectId);
         var leader = requireCurrentLeader(project, actorUserId, actor);
         requireOpenProject(project);
-        var target = project.membership(targetMembershipId);
+        var target = membershipInProject(project, targetMembershipId);
         if (!target.isCurrent() || target.id().equals(leader.id())) {
             throw new ProjectRuleViolationException("Removal target must be another current member");
         }
@@ -488,7 +491,9 @@ public class ProjectService {
     }
 
     /**
-     * Replaces the current Leader with an eligible current member in one transaction.
+     * Replaces the current Leader with an eligible current member in one transaction. The
+     * current-Leader route snapshot is rechecked after locking the Project, so concurrent Mentor
+     * changes based on the same prior term have one valid winner and a retryable conflict.
      * The closed term is flushed before its replacement so PostgreSQL's immediate exclusion rule
      * observes exactly one current term. The Mentor, all current-member recipients, replacement,
      * and every pending-invitation notification recipient are locked in ascending Account order
@@ -514,8 +519,11 @@ public class ProjectService {
         requireActiveMentor(snapshotFor(lockedAccounts, actorUserId));
         var project = lockedProject(projectId);
         project.authorizeOwner(actorUserId);
+        if (!Objects.equals(route.currentLeaderUserId(), project.currentLeader().internUserId())) {
+            throw new ProjectRuleViolationException("Project leadership changed; retry the mutation");
+        }
         requireEligibleInternForProjectTarget(snapshotFor(lockedAccounts, internUserId));
-        var replacementMembership = project.currentMember(internUserId);
+        var replacementMembership = currentMemberTarget(project, internUserId);
         if (exitRequests.findLockedPendingByTargetMembershipId(replacementMembership.id()).isPresent()) {
             throw new ProjectRuleViolationException("Leader replacement cannot have a pending exit");
         }
@@ -550,10 +558,9 @@ public class ProjectService {
     /**
      * Commits one Leader-selected unfinished Task transfer batch for a pending exit.
      *
-     * <p>The scalar route and current-member snapshot establish authorization before Account and
-     * Intern-profile locks. The locked Project then supplies the DTO context consumed by Task,
-     * which rechecks the current Leader, pending recipient, and selected unfinished rows. Each
-     * call is independent and therefore repeatable; completed batches are not later undone.</p>
+     * <p>This compatibility overload resolves the pending request by its source membership. New
+     * HTTP routes must use the request-bound overload so a stale or guessed request identifier
+     * cannot transfer a different pending exit.</p>
      *
      * @param actorUserId authenticated current Leader
      * @param projectId owning open Project
@@ -566,6 +573,63 @@ public class ProjectService {
     public TaskTransferResult transferTasks(
             long actorUserId,
             long projectId,
+            long sourceMembershipId,
+            Set<Long> taskIds,
+            long recipientMembershipId) {
+        return transferTasksInternal(
+                actorUserId,
+                projectId,
+                null,
+                sourceMembershipId,
+                taskIds,
+                recipientMembershipId);
+    }
+
+    /**
+     * Commits one Leader-selected unfinished Task transfer batch only for the supplied pending
+     * exit request.
+     *
+     * <p>The request route is checked before the Project lock, then its row is locked and its
+     * pending status, Project, and target membership are rechecked after the Project lock. Account,
+     * Project, exit-request, and Task locks therefore cover the full mutation, while a stale or
+     * mismatched request fails before any Task or retained history changes.</p>
+     *
+     * @param actorUserId authenticated current Leader
+     * @param projectId owning open Project
+     * @param requestId pending exit request from the route
+     * @param sourceMembershipId pending-exit source membership
+     * @param taskIds selected unfinished Task identifiers
+     * @param recipientMembershipId eligible current recipient not pending exit
+     * @return atomic Task transfer result
+     * @throws ProjectAccessDeniedException when the request is outside the Project or source
+     *         membership is not its target
+     * @throws ProjectRuleViolationException when the request is terminal or the Project changed
+     */
+    @Transactional
+    public TaskTransferResult transferTasks(
+            long actorUserId,
+            long projectId,
+            long requestId,
+            long sourceMembershipId,
+            Set<Long> taskIds,
+            long recipientMembershipId) {
+        var route = exitRequestRoute(requestId);
+        if (route.projectId() != projectId) {
+            throw new ProjectAccessDeniedException();
+        }
+        return transferTasksInternal(
+                actorUserId,
+                projectId,
+                requestId,
+                sourceMembershipId,
+                taskIds,
+                recipientMembershipId);
+    }
+
+    private TaskTransferResult transferTasksInternal(
+            long actorUserId,
+            long projectId,
+            Long requestId,
             long sourceMembershipId,
             Set<Long> taskIds,
             long recipientMembershipId) {
@@ -582,9 +646,24 @@ public class ProjectService {
         }
         requireOpenProject(project);
         var leader = requireCurrentLeader(project, actorUserId, snapshotFor(lockedAccounts, actorUserId));
-        var pendingExitMembershipIds = exitRequests.findLockedPendingByProjectId(projectId).stream()
+        var pendingExitRequests = exitRequests.findLockedPendingByProjectId(projectId);
+        var pendingExitMembershipIds = pendingExitRequests.stream()
                 .map(ProjectExitRequestEntity::targetMembershipId)
                 .collect(Collectors.toUnmodifiableSet());
+        if (requestId == null) {
+            if (!pendingExitMembershipIds.contains(sourceMembershipId)) {
+                throw new ProjectAccessDeniedException();
+            }
+        } else {
+            var request = lockedExitRequest(requestId, project.id());
+            if (!request.isPending()) {
+                throw new ProjectRuleViolationException("Exit request is no longer pending");
+            }
+            if (request.targetMembershipId() != sourceMembershipId
+                    || !pendingExitMembershipIds.contains(sourceMembershipId)) {
+                throw new ProjectAccessDeniedException();
+            }
+        }
         var context = queries.taskContext(actorUserId, project, pendingExitMembershipIds);
         return taskTransfers.transferBatch(
                 context,
@@ -695,11 +774,15 @@ public class ProjectService {
             throw new ProjectRuleViolationException("Removal target must be current");
         }
         var leader = project.currentLeader();
+        if (Objects.equals(locked.initialLeaderUserId(), target.internUserId())
+                && !leader.id().equals(target.id())) {
+            throw new ProjectRuleViolationException("Project leadership changed; retry the removal");
+        }
         if (leader.id().equals(target.id())) {
             if (replacementLeaderUserId == null || replacementLeaderUserId <= 0) {
                 throw new ProjectRuleViolationException("Removing the current Leader requires a replacement");
             }
-            var replacement = project.currentMember(replacementLeaderUserId);
+            var replacement = currentMemberTarget(project, replacementLeaderUserId);
             if (exitRequests.findLockedPendingByTargetMembershipId(replacement.id()).isPresent()) {
                 throw new ProjectRuleViolationException("Leader replacement cannot have a pending exit");
             }
@@ -987,7 +1070,8 @@ public class ProjectService {
      * @param actorMentorUserId authenticated owning Mentor
      * @param projectId Project identifier
      * @param additionalAccountIds immutable route recipients required by this mutation
-     * @return locked Project, Account eligibility snapshots, and pre-resolved recipient facts
+     * @return locked Project, initial Leader snapshot, Account eligibility snapshots, and
+     *         pre-resolved recipient facts
      */
     private LockedOwnedProject lockOwnedProject(
             long actorMentorUserId, long projectId, Collection<Long> additionalAccountIds) {
@@ -1013,7 +1097,8 @@ public class ProjectService {
         if (!snapshotMemberIds.equals(currentInternUserIds(project))) {
             throw new ProjectRuleViolationException("Project membership changed; retry mutation");
         }
-        return new LockedOwnedProject(project, lockedAccounts, recipientFacts);
+        return new LockedOwnedProject(
+                project, route.currentLeaderUserId(), lockedAccounts, recipientFacts);
     }
 
     private ProjectExitRequestEntity lockedExitRequest(long requestId, long projectId) {
@@ -1028,6 +1113,14 @@ public class ProjectService {
     private ProjectMembershipEntity membershipInProject(ProjectEntity project, long membershipId) {
         try {
             return project.membership(membershipId);
+        } catch (ProjectRuleViolationException exception) {
+            throw new ProjectAccessDeniedException();
+        }
+    }
+
+    private ProjectMembershipEntity currentMemberTarget(ProjectEntity project, long internUserId) {
+        try {
+            return project.currentMember(internUserId);
         } catch (ProjectRuleViolationException exception) {
             throw new ProjectAccessDeniedException();
         }
@@ -1523,6 +1616,7 @@ public class ProjectService {
 
     private record LockedOwnedProject(
             ProjectEntity project,
+            Long initialLeaderUserId,
             List<LockedAccountMutationEligibility> accounts,
             Map<Long, NotificationRecipient> notificationRecipients) {
     }

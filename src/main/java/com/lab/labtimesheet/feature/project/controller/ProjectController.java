@@ -278,6 +278,7 @@ public class ProjectController {
                 "recipientMembershipId", recipientMembershipId), () -> projects.transferTasks(
                 actorId(principal),
                 projectId,
+                requestId,
                 requiredLong(sourceMembershipId, "Choose a valid source membership."),
                 requiredLongSet(taskIds, "Choose at least one valid Task."),
                 requiredLong(recipientMembershipId, "Choose a valid recipient membership.")));

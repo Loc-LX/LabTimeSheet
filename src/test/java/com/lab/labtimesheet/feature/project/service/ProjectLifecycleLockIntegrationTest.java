@@ -12,9 +12,12 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import com.lab.labtimesheet.config.TestcontainersConfiguration;
 import com.lab.labtimesheet.feature.project.exception.ProjectAccessDeniedException;
+import com.lab.labtimesheet.feature.project.exception.ProjectRuleViolationException;
+import com.lab.labtimesheet.feature.project.model.InvitationResponse;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectCreateCommand;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -266,6 +269,301 @@ class ProjectLifecycleLockIntegrationTest {
     }
 
     @Test
+    void concurrentLeadershipChangesHaveOneWinnerFromTheSameLeaderSnapshot() throws Exception {
+        long mentorId = user("mentor-leadership-race@example.test", "MENTOR");
+        long outgoingLeaderId = intern("outgoing-leadership-race@example.test", "I912");
+        long firstReplacementId = intern("first-replacement-leadership-race@example.test", "I913");
+        long secondReplacementId = intern("second-replacement-leadership-race@example.test", "I914");
+        long projectId = transactions.execute(status -> projects.create(
+                mentorId,
+                new ProjectCreateCommand(
+                        "Leadership race",
+                        null,
+                        LocalDate.of(2026, 8, 1),
+                        LocalDate.of(2026, 12, 31),
+                        outgoingLeaderId)));
+        transactions.executeWithoutResult(status -> projects.addMembers(
+                mentorId, projectId, java.util.List.of(firstReplacementId, secondReplacementId)));
+
+        CountDownLatch started = new CountDownLatch(2);
+        CountDownLatch mentorAccountHeld = new CountDownLatch(1);
+        CountDownLatch releaseMentorAccount = new CountDownLatch(1);
+        AtomicInteger successes = new AtomicInteger();
+        AtomicInteger conflicts = new AtomicInteger();
+        ExecutorService executor = Executors.newFixedThreadPool(3);
+        try {
+            Future<?> holder = executor.submit(() -> transactions.executeWithoutResult(status -> {
+                jdbc.queryForObject("select id from app_users where id = ? for update", Long.class, mentorId);
+                mentorAccountHeld.countDown();
+                awaitLatch(releaseMentorAccount, "leadership race Account release");
+            }));
+            assertThat(mentorAccountHeld.await(5, TimeUnit.SECONDS)).isTrue();
+
+            Future<?> first = executor.submit(() -> runLeadershipRace(
+                    started, successes, conflicts, mentorId, projectId, firstReplacementId));
+            Future<?> second = executor.submit(() -> runLeadershipRace(
+                    started, successes, conflicts, mentorId, projectId, secondReplacementId));
+            assertThat(started.await(5, TimeUnit.SECONDS)).isTrue();
+            awaitAccountLockWaiters(2);
+            releaseMentorAccount.countDown();
+
+            first.get(10, TimeUnit.SECONDS);
+            second.get(10, TimeUnit.SECONDS);
+            holder.get(10, TimeUnit.SECONDS);
+        } finally {
+            releaseMentorAccount.countDown();
+            executor.shutdownNow();
+            assertThat(executor.awaitTermination(10, TimeUnit.SECONDS)).isTrue();
+        }
+
+        assertThat(successes).as("successes=%s conflicts=%s", successes.get(), conflicts.get()).hasValue(1);
+        assertThat(conflicts).as("successes=%s conflicts=%s", successes.get(), conflicts.get()).hasValue(1);
+        assertThat(jdbc.queryForObject(
+                "select count(*) from project_leadership_terms where project_id = ? and ended_at is null",
+                Integer.class,
+                projectId)).isEqualTo(1);
+    }
+
+    @Test
+    void concurrentLeaderChangeAndLeaderRemovalHaveOneWinnerFromTheSameSnapshot() throws Exception {
+        long mentorId = user("mentor-leader-removal-race@example.test", "MENTOR");
+        long outgoingLeaderId = intern("outgoing-leader-removal-race@example.test", "I920");
+        long changeLeaderTargetId = intern("change-leader-target-race@example.test", "I921");
+        long removalReplacementId = intern("removal-replacement-race@example.test", "I922");
+        long projectId = transactions.execute(status -> projects.create(
+                mentorId,
+                new ProjectCreateCommand(
+                        "Leader removal race",
+                        null,
+                        LocalDate.of(2026, 8, 1),
+                        LocalDate.of(2026, 12, 31),
+                        outgoingLeaderId)));
+        transactions.executeWithoutResult(status -> projects.addMembers(
+                mentorId, projectId, java.util.List.of(changeLeaderTargetId, removalReplacementId)));
+        long outgoingMembershipId = membershipId(projectId, outgoingLeaderId);
+
+        CountDownLatch started = new CountDownLatch(2);
+        CountDownLatch mentorAccountHeld = new CountDownLatch(1);
+        CountDownLatch releaseMentorAccount = new CountDownLatch(1);
+        AtomicInteger successes = new AtomicInteger();
+        AtomicInteger conflicts = new AtomicInteger();
+        ExecutorService executor = Executors.newFixedThreadPool(3);
+        try {
+            Future<?> holder = executor.submit(() -> transactions.executeWithoutResult(status -> {
+                jdbc.queryForObject("select id from app_users where id = ? for update", Long.class, mentorId);
+                mentorAccountHeld.countDown();
+                awaitLatch(releaseMentorAccount, "leader removal race Account release");
+            }));
+            assertThat(mentorAccountHeld.await(5, TimeUnit.SECONDS)).isTrue();
+            Future<?> leaderChange = executor.submit(() -> runLeaderRemovalRace(
+                    started,
+                    successes,
+                    conflicts,
+                    () -> transactions.executeWithoutResult(status -> projects.changeLeader(
+                            mentorId, projectId, changeLeaderTargetId))));
+            Future<?> removal = executor.submit(() -> runLeaderRemovalRace(
+                    started,
+                    successes,
+                    conflicts,
+                    () -> transactions.executeWithoutResult(status -> projects.directRemoveMember(
+                            mentorId, projectId, outgoingMembershipId, removalReplacementId))));
+            assertThat(started.await(5, TimeUnit.SECONDS)).isTrue();
+            awaitAccountLockWaiters(2);
+            releaseMentorAccount.countDown();
+            leaderChange.get(10, TimeUnit.SECONDS);
+            removal.get(10, TimeUnit.SECONDS);
+            holder.get(10, TimeUnit.SECONDS);
+        } finally {
+            releaseMentorAccount.countDown();
+            executor.shutdownNow();
+            assertThat(executor.awaitTermination(10, TimeUnit.SECONDS)).isTrue();
+        }
+
+        assertThat(successes).hasValue(1);
+        assertThat(conflicts).hasValue(1);
+        assertThat(jdbc.queryForObject(
+                "select count(*) from project_leadership_terms where project_id = ? and ended_at is null",
+                Integer.class,
+                projectId)).isEqualTo(1);
+    }
+
+    private void runLeaderRemovalRace(
+            CountDownLatch started,
+            AtomicInteger successes,
+            AtomicInteger conflicts,
+            Runnable mutation) {
+        started.countDown();
+        try {
+            mutation.run();
+            successes.incrementAndGet();
+        } catch (ProjectRuleViolationException expectedConflict) {
+            conflicts.incrementAndGet();
+        }
+    }
+
+    @Test
+    void invitationAcceptanceAndMentorDirectAddHaveOneCommittedWinner() throws Exception {
+        long mentorId = user("mentor-invitation-race@example.test", "MENTOR");
+        long leaderId = intern("leader-invitation-race@example.test", "I915");
+        long inviteeId = intern("invitee-invitation-race@example.test", "I916");
+        long projectId = transactions.execute(status -> projects.create(
+                mentorId,
+                new ProjectCreateCommand(
+                        "Invitation race",
+                        null,
+                        LocalDate.of(2026, 8, 1),
+                        LocalDate.of(2026, 12, 31),
+                        leaderId)));
+        long invitationId = transactions.execute(status -> projects.issueInvitation(
+                leaderId, projectId, inviteeId));
+
+        CountDownLatch started = new CountDownLatch(2);
+        CountDownLatch release = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<Boolean> acceptance = executor.submit(() -> runInvitationRace(
+                    started,
+                    release,
+                    () -> transactions.executeWithoutResult(status -> projects.respondToInvitation(
+                            inviteeId, invitationId, InvitationResponse.ACCEPT))));
+            Future<Boolean> directAdd = executor.submit(() -> runInvitationRace(
+                    started,
+                    release,
+                    () -> transactions.executeWithoutResult(status -> projects.addMember(
+                            mentorId, projectId, inviteeId))));
+            assertThat(started.await(5, TimeUnit.SECONDS)).isTrue();
+            release.countDown();
+
+            assertThat(acceptance.get(10, TimeUnit.SECONDS)
+                    ^ directAdd.get(10, TimeUnit.SECONDS)).isTrue();
+        } finally {
+            release.countDown();
+            executor.shutdownNow();
+            assertThat(executor.awaitTermination(10, TimeUnit.SECONDS)).isTrue();
+        }
+
+        assertThat(jdbc.queryForObject(
+                "select count(*) from project_memberships where project_id = ? and intern_user_id = ? and left_at is null",
+                Integer.class,
+                projectId,
+                inviteeId)).isEqualTo(1);
+        assertThat(jdbc.queryForObject(
+                "select status from project_invitations where id = ?",
+                String.class,
+                invitationId)).isIn("ACCEPTED", "SUPERSEDED");
+    }
+
+    @Test
+    void concurrentExitApprovalAndTransferLeaveOnlyAReadyOrPendingState() throws Exception {
+        long mentorId = user("mentor-exit-race@example.test", "MENTOR");
+        long leaderId = intern("leader-exit-race@example.test", "I917");
+        long targetId = intern("target-exit-race@example.test", "I918");
+        long recipientId = intern("recipient-exit-race@example.test", "I919");
+        long projectId = transactions.execute(status -> projects.create(
+                mentorId,
+                new ProjectCreateCommand(
+                        "Exit race",
+                        null,
+                        LocalDate.of(2026, 8, 1),
+                        LocalDate.of(2026, 12, 31),
+                        leaderId)));
+        transactions.executeWithoutResult(status -> projects.addMembers(
+                mentorId, projectId, java.util.List.of(targetId, recipientId)));
+        long leaderMembershipId = membershipId(projectId, leaderId);
+        long targetMembershipId = membershipId(projectId, targetId);
+        long recipientMembershipId = membershipId(projectId, recipientId);
+        long taskId = insertTask(projectId, targetMembershipId, leaderMembershipId, "Exit race task", "TODO");
+        long requestId = transactions.execute(status -> projects.requestMemberRemoval(
+                leaderId, projectId, targetMembershipId, "Transfer before approval"));
+
+        CountDownLatch started = new CountDownLatch(2);
+        CountDownLatch release = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<Boolean> transfer = executor.submit(() -> runExitRace(started, release, () ->
+                    transactions.executeWithoutResult(status -> projects.transferTasks(
+                            leaderId,
+                            projectId,
+                            targetMembershipId,
+                            java.util.Set.of(taskId),
+                            recipientMembershipId))));
+            Future<Boolean> approval = executor.submit(() -> runExitRace(started, release, () ->
+                    transactions.executeWithoutResult(status -> projects.approveExit(
+                            mentorId, requestId, "Concurrent decision"))));
+            assertThat(started.await(5, TimeUnit.SECONDS)).isTrue();
+            release.countDown();
+
+            assertThat(transfer.get(10, TimeUnit.SECONDS)).isTrue();
+            boolean approved = approval.get(10, TimeUnit.SECONDS);
+            assertThat(jdbc.queryForObject(
+                    "select assignee_membership_id from tasks where id = ?", Long.class, taskId))
+                    .isEqualTo(recipientMembershipId);
+            if (approved) {
+                assertThat(jdbc.queryForObject(
+                        "select status from project_membership_exit_requests where id = ?",
+                        String.class,
+                        requestId)).isEqualTo("APPROVED");
+                assertThat(jdbc.queryForObject(
+                        "select left_at is not null from project_memberships where id = ?",
+                        Boolean.class,
+                        targetMembershipId)).isTrue();
+            } else {
+                assertThat(jdbc.queryForObject(
+                        "select status from project_membership_exit_requests where id = ?",
+                        String.class,
+                        requestId)).isEqualTo("PENDING");
+                assertThat(jdbc.queryForObject(
+                        "select left_at is null from project_memberships where id = ?",
+                        Boolean.class,
+                        targetMembershipId)).isTrue();
+            }
+        } finally {
+            release.countDown();
+            executor.shutdownNow();
+            assertThat(executor.awaitTermination(10, TimeUnit.SECONDS)).isTrue();
+        }
+    }
+
+    private boolean runExitRace(CountDownLatch started, CountDownLatch release, Runnable mutation) {
+        started.countDown();
+        awaitLatch(release, "exit race release");
+        try {
+            mutation.run();
+            return true;
+        } catch (ProjectRuleViolationException expectedConflict) {
+            return false;
+        }
+    }
+
+    private boolean runInvitationRace(
+            CountDownLatch started, CountDownLatch release, Runnable mutation) {
+        started.countDown();
+        awaitLatch(release, "invitation race release");
+        try {
+            mutation.run();
+            return true;
+        } catch (ProjectAccessDeniedException | ProjectRuleViolationException expectedConflict) {
+            return false;
+        }
+    }
+
+    private void runLeadershipRace(
+            CountDownLatch started,
+            AtomicInteger successes,
+            AtomicInteger conflicts,
+            long mentorId,
+            long projectId,
+            long replacementId) {
+        started.countDown();
+        try {
+            transactions.executeWithoutResult(status -> projects.changeLeader(mentorId, projectId, replacementId));
+            successes.incrementAndGet();
+        } catch (ProjectRuleViolationException expectedConflict) {
+            conflicts.incrementAndGet();
+        }
+    }
+
+    @Test
     void exitDecisionLocksHistoricalRequesterBeforeProject() throws Exception {
         long mentorId = user("mentor-historical-requester-lock@example.test", "MENTOR");
         long outgoingLeaderId = intern("outgoing-historical-requester-lock@example.test", "I909");
@@ -340,6 +638,31 @@ class ProjectLifecycleLockIntegrationTest {
                 internUserId);
     }
 
+    private long insertTask(
+            long projectId,
+            long assigneeMembershipId,
+            long actorMembershipId,
+            String title,
+            String status) {
+        return jdbc.queryForObject("""
+                insert into tasks (
+                    project_id, assignee_membership_id, title, status,
+                    created_by_membership_id, assigned_by_membership_id,
+                    assigned_at, created_at, updated_at)
+                values (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                returning id
+                """, Long.class,
+                projectId,
+                assigneeMembershipId,
+                title,
+                status,
+                actorMembershipId,
+                actorMembershipId,
+                java.sql.Timestamp.from(NOW),
+                java.sql.Timestamp.from(NOW),
+                java.sql.Timestamp.from(NOW));
+    }
+
     private long user(String email, String role) {
         return jdbc.queryForObject("""
                 insert into app_users (
@@ -372,6 +695,10 @@ class ProjectLifecycleLockIntegrationTest {
     }
 
     private void awaitAccountLockWait() {
+        awaitAccountLockWaiters(1);
+    }
+
+    private void awaitAccountLockWaiters(int expectedWaiters) {
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
         while (System.nanoTime() < deadline) {
             Integer waiting = jdbc.queryForObject("""
@@ -380,7 +707,7 @@ class ProjectLifecycleLockIntegrationTest {
                     where activity.pid <> pg_backend_pid()
                       and activity.wait_event_type = 'Lock'
                     """, Integer.class);
-            if (waiting != null && waiting > 0) {
+            if (waiting != null && waiting >= expectedWaiters) {
                 return;
             }
             Thread.yield();
