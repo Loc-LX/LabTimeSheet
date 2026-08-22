@@ -6,6 +6,7 @@
 - **Test class/method:** `src/test/e2e/critical-journeys.spec.mjs`; `src/test/e2e/smoke.spec.mjs`; `src/test/e2e/report-journeys.spec.mjs`
 - **Implementation commit:** `075ba0015b1340276bda1be779012c4849cd80a9`
 - **Latest exporter parity rerun:** `f0506492857288927f91e020aeba2fa0bb8550e8`
+- **Latest null-project parity rerun:** `d0c7dc60ac8c9925c4ea7621fef519c60ed2f9b3`
 
 ## Protected behavior
 
@@ -54,13 +55,13 @@ PLAYWRIGHT_BASE_URL=http://127.0.0.1:8080 \
 PATH=/opt/homebrew/opt/node@24/bin:/usr/bin:/bin \
 npm run test:e2e
 3 passed, 2 skipped with one worker in 1.8 minutes: the serial critical Iteration 3 journey (including Account correction, future Policy/Calendar mutations, real Leave submit/Mentor approval, missed-checkout Correction submit/Mentor approval, Project/Task creation/status/work-log, Project History attribution, and Project/Task XLSX/PDF downloads) and both smoke tests passed; the two legacy Intern credential-gated tests skipped because `E2E_EMAIL`/`E2E_PASSWORD` were not supplied. `E2E_BUSINESS_DATE=2026-08-21` was validated by the journey and the advancing application clock supplied the server check-in time. Desktop evidence retained at `test-results/playwright/critical-journeys-Iteratio-89edd-dmin-Intern-Mentor-journeys-chromium/desktop-light.png` and `desktop-dark.png`; automated focus/keyboard assertions are separate from visual sign-off. Orchestrator manual visual sign-off at 1280x720 found complete navigation/form layout without clipping or overlap, with distinguishable text, controls, borders, selected navigation, statuses, and actions in both themes.
+```
 
 After the reporting exporter and print-template parity fix, the same real browser report-download journey was rerun against the live Java 25/PostgreSQL/Mailpit stack:
 
 ```text
 rtk env PATH=/opt/homebrew/opt/node@24/bin:/usr/bin:/bin PLAYWRIGHT_BROWSERS_PATH=/private/tmp/labtimesheet-playwright-browsers PLAYWRIGHT_BASE_URL=http://127.0.0.1:8080 E2E_BUSINESS_DATE=2026-08-21 E2E_ADMIN_EMAIL=<runtime-only disposable Admin> E2E_ADMIN_PASSWORD=<runtime-only disposable password> npx playwright test src/test/e2e/critical-journeys.spec.mjs --reporter=line
-1 passed with one worker in 1.8 minutes. The journey created a real Project/Task/work-log dataset and completed successful XLSX and PDF downloads with filename, media-type, ZIP, and PDF signature assertions.
-```
+1 passed with one worker in 2.1 minutes. The journey created a real Project/Task/work-log dataset and completed successful XLSX and PDF downloads with filename, media-type, ZIP, and PDF signature assertions.
 ```
 
 ## Affected suite
