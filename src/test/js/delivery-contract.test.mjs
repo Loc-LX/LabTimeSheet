@@ -92,6 +92,18 @@ test("deployment template is dormant, main-only, host-key checked, and rollback-
   assert.doesNotMatch(workflow, /jobs\.[a-z0-9_-]+\.environment/);
 });
 
+test("enabled deployment passes one absolute remote Compose file through rollout, health, and rollback", () => {
+  const workflow = read(".gitea/workflows/container.yml");
+  const deployment = read("DEPLOYMENT.md");
+
+  assert.match(workflow, /REMOTE_COMPOSE_FILE: \/etc\/labtimesheet\/compose\.yaml/);
+  assert.match(workflow, /bash -s -- "\$REMOTE_COMPOSE_ENV" "\$REMOTE_COMPOSE_FILE" "\$IMAGE"/);
+  assert.match(workflow, /compose_file=\$2/);
+  assert.match(workflow, /test -f "\$compose_file"/);
+  assert.match(workflow, /docker compose --env-file "\$compose_env" -f "\$compose_file"/);
+  assert.match(deployment, /\/etc\/labtimesheet\/compose\.yaml/);
+});
+
 test("workflows pin every action to the latest reviewed immutable release", () => {
   const workflows = [
     read(".gitea/workflows/verify.yml"),

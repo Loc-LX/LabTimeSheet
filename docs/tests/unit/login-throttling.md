@@ -5,21 +5,23 @@
 - **Scenario IDs:** `AC-SEC-003`
 - **Test class/method:** `com.lab.labtimesheet.feature.account.service.LoginThrottleTest`
 - **Implementation commit:** `091361eb73c7d7118d8212df630a83aca4ad5f9e`
-- **Review-fix commit:** `9758199eae529351708aeb41d75177d089402196`
+- **Review-fix commit:** pending
 
 ## Protected behavior
 
 Login failure state is keyed by trimmed, case-folded email plus the server-observed source IP. Five failures in a
 rolling fifteen-minute window throttle the sixth attempt for fifteen minutes; a successful login clears only the
 applicable pair, and another source IP remains independent. The in-memory state is bounded for the supported
-single-instance deployment and never evicts an active block under sequential or concurrent capacity pressure.
+single-instance deployment and never evicts an active block under sequential or concurrent capacity pressure. When
+capacity is full of recent nonblocked histories, one bounded nonblocked history may be evicted so a new target is
+tracked and can reach its fifth-failure block.
 
 ## Test method
 
 The unit test injects a mutable deterministic clock and exercises the concrete throttle with five failures, distinct
 source addresses, exact 15-minute expiry, successful-login clearing, rolling-window expiry, interleaved arbitrary
-identifiers, 15,120-key capacity pressure, and eight-worker concurrent capacity pressure. It avoids Spring or a database because this boundary is
-intentionally bounded in-memory state.
+identifiers, 15,120-key capacity pressure, eight-worker concurrent capacity pressure, and a new-target saturation
+regression. It avoids Spring or a database because this boundary is intentionally bounded in-memory state.
 
 ## Hand-derived expected result
 
@@ -67,6 +69,12 @@ usernames erased the target's four live partial failures before its fifth attemp
 
 2026-08-22T15:53:02+07:00 — Round-2 fix GREEN: Tests run: 6, Failures: 0, Errors: 0, Skipped: 0; BUILD SUCCESS.
 Capacity purge now runs only at actual capacity and removes only expired, empty states.
+
+2026-08-22T16:31:00+07:00 — Saturated-new-target RED: Tests run: 7, Failures: 1, Errors: 0; 10,000 recent
+nonblocked filler histories left the new victim untracked, so its sixth attempt was not blocked.
+
+2026-08-22T16:31:30+07:00 — Saturated-new-target GREEN: Tests run: 7, Failures: 0, Errors: 0, Skipped: 0;
+BUILD SUCCESS. One nonblocked state is evicted at capacity while the pre-existing active block remains protected.
 ```
 
 ## Affected suite
@@ -79,8 +87,10 @@ export PATH="$JAVA_HOME/bin:$PATH"
 export DOCKER_HOST=unix:///Users/sechmachine/.orbstack/run/docker.sock
 ./mvnw -Dtest=NotificationServiceIntegrationTest,LoginThrottleTest,ProductionReadinessTest,SecurityResponseIntegrationTest,AuthenticationWebIntegrationTest,CalendarDevelopmentProfileWebIntegrationTest test
 
-2026-08-22T15:22:10+07:00 — affected combined Platform security/notification suite; LoginThrottleTest 5/5 and
-AuthenticationWebIntegrationTest 1/1 passed with PostgreSQL 18.4 Testcontainers; total affected command `25/25`.
+2026-08-22T15:22:10+07:00 — prior affected combined Platform security/notification suite; total `25/25`.
+
+2026-08-22T16:31:30+07:00 — focused LoginThrottle suite `7/7` passed. The PostgreSQL affected suite and full
+branch gate are recorded in the final branch report after the implementation milestone.
 ```
 
 ## External-test boundaries

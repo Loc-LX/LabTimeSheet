@@ -4,7 +4,7 @@
 - **Requirement IDs:** `OPS-014`, `OPS-015`, `OPS-016`
 - **Scenario IDs:** `AC-OPS-005`
 - **Test class/method:** `src/test/js/delivery-contract.test.mjs` deployment template contract
-- **Implementation commit:** `1f2590f9654fc670e0cf93d0c4960777db2cb5f7`
+- **Implementation commit:** pending
 - **Documentation review-fix commit:** `1cd45526cfaadba46c632dd7ea5f77eb26e97b94`
 
 ## Protected behavior
@@ -12,8 +12,9 @@
 The SSH deployment job is dormant unless the workflow is on `main`, `vars.DEPLOY_ENABLED` is exactly `true`, and all
 four required deployment secrets (`DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_PRIVATE_KEY`, `DEPLOY_KNOWN_HOSTS`) are
 present. When explicitly enabled, it selects the full commit SHA's immutable AMD64 image tag, verifies the supplied
-known-host file, pulls the image, updates the remote Compose environment, waits for the app healthcheck, and retains
-the prior immutable image under the remote deployment state directory for rollback.
+known-host file, passes the absolute `/etc/labtimesheet/compose.yaml` path alongside `/etc/labtimesheet/compose.env`,
+and uses that file for Compose rollout, health lookup, and rollback while retaining the prior immutable image under
+the remote deployment state directory.
 
 ## Test method
 
@@ -23,8 +24,8 @@ and absence of a `jobs.<job_id>.environment` approval boundary. No deployment se
 and no SSH connection is attempted while the job is dormant.
 
 `DEPLOYMENT.md` documents the same variable/secret gate, isolated runner files, remote
-`/etc/labtimesheet/compose.env` and `deploy-state/previous-image` assumptions, immutable image selection, health
-polling, and rollback behavior.
+`/etc/labtimesheet/compose.env`, `/etc/labtimesheet/compose.yaml`, and `deploy-state/previous-image` assumptions,
+immutable image selection, health polling, and rollback behavior.
 
 ## Hand-derived expected result
 
@@ -43,8 +44,9 @@ env PATH=/opt/homebrew/opt/node@24/bin:/usr/bin:/bin node --test src/test/js/del
 **Observed result**
 
 ```text
-2026-08-22T14:29:21+07:00 — 5 tests, 4 passed, 1 failed. The new deployment-template contract failed at the first
-missing `deploy` job gate on the base workflow; this was the expected missing-template RED.
+2026-08-22T16:31:45+07:00 — 6 tests, 5 passed, 1 failed. The new absolute remote Compose-file contract failed because
+the enabled workflow passed only the env-file path and invoked Compose without `-f`; this was the expected missing
+behavior RED.
 ```
 
 ## GREEN
@@ -58,7 +60,8 @@ env PATH=/opt/homebrew/opt/node@24/bin:/usr/bin:/bin node --test src/test/js/del
 **Observed result**
 
 ```text
-2026-08-22T14:29:36+07:00 — 5 tests, 5 passed, 0 failed, 0 skipped.
+2026-08-22T16:32:05+07:00 — 6 tests, 6 passed, 0 failed, 0 skipped. The enabled deployment now passes and validates
+`/etc/labtimesheet/compose.yaml`; rollout, health lookup, and rollback all call the same absolute file.
 ```
 
 ## Affected suite
@@ -74,7 +77,7 @@ git diff --check
 ```
 
 ```text
-Node UI/operational contracts: 8/8 passed. YAML parser: PASS. External and bundled Compose configs: PASS.
+Node UI/operational contracts: 9/9 passed. YAML parser: PASS. External and bundled Compose configs: PASS.
 Whitespace check: PASS. No SSH or registry deployment was attempted; the job remains disabled by default.
 ```
 

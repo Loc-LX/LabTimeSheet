@@ -59,7 +59,8 @@ public class LoginThrottle {
 
     /**
      * Records one failed authentication attempt and starts the fifteen-minute block at the fifth failure in the
-     * rolling fifteen-minute window.
+     * rolling fifteen-minute window. When the bounded map is full, one non-blocked history may be evicted so the
+     * current key remains trackable; active blocks are never evicted.
      *
      * @param email submitted login email
      * @param sourceIp request source address
@@ -73,7 +74,10 @@ public class LoginThrottle {
                 if (states.size() >= MAX_ENTRIES) {
                     purgeUnblockedEntries(now);
                     if (states.size() >= MAX_ENTRIES) {
-                        return;
+                        evictNonBlockedEntry();
+                        if (states.size() >= MAX_ENTRIES) {
+                            return;
+                        }
                     }
                 }
                 state = new State();
@@ -112,6 +116,20 @@ public class LoginThrottle {
                 states.remove(key, state);
             }
         });
+    }
+
+    /**
+     * Makes room for a new key only by dropping one non-blocked history when all expired empty states are gone.
+     * Active blocks remain retained; partial failure history is the bounded state that may be evicted under attack.
+     */
+    private void evictNonBlockedEntry() {
+        for (Map.Entry<Key, State> entry : states.entrySet()) {
+            Key key = entry.getKey();
+            State state = entry.getValue();
+            if (state.blockedUntil == null && states.remove(key, state)) {
+                return;
+            }
+        }
     }
 
     private static Key key(String email, String sourceIp) {
