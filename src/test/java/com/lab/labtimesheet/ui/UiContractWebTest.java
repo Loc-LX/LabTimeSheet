@@ -145,6 +145,7 @@ class UiContractWebTest {
         assertTrue(html.contains("data-tooltip=\"Accounts\""));
         assertTrue(html.contains("data-tooltip=\"Global calendar\""));
         assertTrue(html.contains("data-tooltip=\"Attendance Policy\""));
+        assertTrue(html.contains("data-tooltip=\"Holiday Import\""));
         assertTrue(html.contains("data-tooltip=\"Logout\""));
         assertTrue(html.contains("title=\"Theme preference\""));
         assertTrue(script.contains("setAttribute('aria-expanded', String(!collapsed))"));

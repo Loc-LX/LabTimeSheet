@@ -10,10 +10,7 @@ test.describe('Iteration 3 report journeys', () => {
   });
 
   test('authorized Intern can download attendance XLSX and PDF reports', async ({ page }) => {
-    await page.goto('/login');
-    await page.getByLabel('Email').fill(email);
-    await page.getByLabel('Password').fill(password);
-    await page.getByRole('button', { name: 'Sign in' }).click();
+    await signIn(page);
     await page.goto('/reports/attendance?from=2026-08-01&to=2026-08-31');
     await expect(page.getByRole('heading', { name: 'Attendance report' })).toBeVisible();
 
@@ -28,7 +25,25 @@ test.describe('Iteration 3 report journeys', () => {
         expect(bytes.subarray(0, 4).toString()).toBe('%PDF');
       });
   });
+
+  test('authorized attendance user can open the split Leave and Correction workflows', async ({ page }) => {
+    await signIn(page);
+    await page.goto('/attendance/leave');
+    await expect(page.getByText('Submit and review full-day leave requests.')).toBeVisible();
+    await expect(page.getByRole('link', { name: /My Corrections|Correction decisions/ })).toBeVisible();
+
+    await page.goto('/attendance/corrections');
+    await expect(page.getByText('Submit and review missed-checkout corrections.')).toBeVisible();
+    await expect(page.getByRole('link', { name: /My Leave|Leave decisions/ })).toBeVisible();
+  });
 });
+
+async function signIn(page) {
+  await page.goto('/login');
+  await page.getByLabel('Email').fill(email);
+  await page.getByLabel('Password').fill(password);
+  await page.getByRole('button', { name: 'Sign in' }).click();
+}
 
 async function assertDownload(page, linkName, route, mediaType, filename, inspect) {
   const responsePromise = page.waitForResponse((response) =>
