@@ -4,7 +4,7 @@
 - **Requirement IDs:** `SEC-003`, `SEC-009`
 - **Scenario IDs:** No dedicated numbered acceptance scenario; plan trace `I3-PLAT-03` and requirement trace `SEC-003`, `SEC-009`
 - **Test class/method:** `com.lab.labtimesheet.feature.account.service.UserActionTokenCleanupIntegrationTest.cleanupDeletesExpiredAndTerminalRowsButRetainsLiveToken`
-- **Implementation commit:** pending
+- **Implementation commit:** `fe48b8bd19fb0961e4f853087ec7ee8c41d7dd1f`
 - **Metadata review-fix commit:** `1cd45526cfaadba46c632dd7ea5f77eb26e97b94`
 
 ## Protected behavior
@@ -16,9 +16,9 @@ than relying on a self-invoked transactional method. Raw token material is never
 ## Test method
 
 The PostgreSQL 18.4 Testcontainers test creates an expired password-reset row, a consumed activation row, and a live
-password-reset row for account-owned users. It invokes the concrete cleanup service with the repository clock and
-asserts the deletion count and each row's resulting presence. This is the narrowest production-shaped test for the
-bulk cleanup predicate and retention boundary.
+password-reset row for account-owned users. It invokes both the concrete cleanup service and the scheduled entrypoint
+with the repository clock, asserting deletion and retention through the production scheduler path. This is the
+narrowest production-shaped test for the bulk cleanup predicate and transaction boundary.
 
 ## Hand-derived expected result
 
@@ -73,8 +73,8 @@ BUILD SUCCESS.
 ```text
 env JAVA_HOME=/opt/homebrew/opt/openjdk@25 PATH=/opt/homebrew/opt/openjdk@25/bin:$PATH DOCKER_HOST=unix:///Users/sechmachine/.orbstack/run/docker.sock ./mvnw -Dtest=AccountActivationIntegrationTest,AccountIdentityCorrectionIntegrationTest,AccountLifecycleIntegrationTest,AccountRecoveryIntegrationTest,AccountRecoveryLockOrderIntegrationTest,AccountScalarLookupIntegrationTest,ActiveMentorIdentityIntegrationTest,BootstrapIntegrationTest,EligibleInternOptionIntegrationTest,InternMutationEligibilityIntegrationTest,InternWorkWindowIntegrationTest,InternshipLifecycleIntegrationTest,LoginThrottleTest,PasswordResetIntegrationTest,UserActionTokenCleanupIntegrationTest test
 
-2026-08-22T13:59:29+07:00 — PostgreSQL 18.4 Testcontainers; Tests run: 46, Failures: 0, Errors: 0, Skipped: 0;
-BUILD SUCCESS with Java 25.0.4. The cleanup test was included in this affected Account suite.
+2026-08-22T20:02:14+07:00 — focused scheduler test `2/2` passed. Fresh affected-suite result is recorded after the
+post-fix branch gate because the earlier concurrent full run was invalidated by overlapping Testcontainers contexts.
 ```
 
 ## External-test boundaries

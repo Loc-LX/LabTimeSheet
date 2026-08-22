@@ -5,7 +5,7 @@
 - **Scenario IDs:** `AC-SEC-003`
 - **Test class/method:** `com.lab.labtimesheet.feature.account.service.LoginThrottleTest`
 - **Implementation commit:** `091361eb73c7d7118d8212df630a83aca4ad5f9e`
-- **Review-fix commit:** pending
+- **Review-fix commit:** `bad2764c41bf1694dcfcc7c1407fd66c39eace4f`
 
 ## Protected behavior
 
@@ -89,8 +89,8 @@ export DOCKER_HOST=unix:///Users/sechmachine/.orbstack/run/docker.sock
 
 2026-08-22T15:22:10+07:00 — prior affected combined Platform security/notification suite; total `25/25`.
 
-2026-08-22T16:31:30+07:00 — focused LoginThrottle suite `7/7` passed. The PostgreSQL affected suite and full
-branch gate are recorded in the final branch report after the implementation milestone.
+2026-08-22T19:52:00+07:00 — affected Account/security PostgreSQL suite `53/53` passed, including LoginThrottleTest
+`7/7`; no failures, errors, or skips.
 ```
 
 ## External-test boundaries

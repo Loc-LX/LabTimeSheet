@@ -4,7 +4,7 @@
 - **Requirement IDs:** `OPS-014`, `OPS-015`, `OPS-016`
 - **Scenario IDs:** `AC-OPS-005`
 - **Test class/method:** `src/test/js/delivery-contract.test.mjs` deployment template contract
-- **Implementation commit:** pending
+- **Implementation commit:** `bad2764c41bf1694dcfcc7c1407fd66c39eace4f`
 - **Documentation review-fix commit:** `1cd45526cfaadba46c632dd7ea5f77eb26e97b94`
 
 ## Protected behavior
@@ -60,7 +60,7 @@ env PATH=/opt/homebrew/opt/node@24/bin:/usr/bin:/bin node --test src/test/js/del
 **Observed result**
 
 ```text
-2026-08-22T16:32:05+07:00 — 6 tests, 6 passed, 0 failed, 0 skipped. The enabled deployment now passes and validates
+2026-08-22T19:52:30+07:00 — 6 tests, 6 passed, 0 failed, 0 skipped. The enabled deployment now passes and validates
 `/etc/labtimesheet/compose.yaml`; rollout, health lookup, and rollback all call the same absolute file.
 ```
 
