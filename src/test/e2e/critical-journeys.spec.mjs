@@ -83,11 +83,9 @@ test('Iteration 3 setup and critical Admin/Intern/Mentor journeys', async ({ pag
   await signIn(page, mentor);
   const projectName = `E2E Project ${stamp}`;
   await page.goto('/projects/new');
-  await page.getByRole('textbox', { name: 'Name', exact: true }).fill(projectName);
-  await page.getByLabel('Description').fill(`Browser-created project ${stamp}`);
-  await page.getByLabel('Start date').fill(dates.projectStart);
-  await page.getByLabel('End date').fill(dates.projectEnd);
+  await fillProjectForm(page, projectName, dates, stamp);
   await waitForEligibleIntern(page, intern.displayName);
+  await fillProjectForm(page, projectName, dates, stamp);
   await page.getByRole('button', { name: 'Choose an eligible Intern' }).click();
   await page.locator('[data-picker-option]').filter({ hasText: intern.displayName })
     .locator('input[type="radio"]').check();
@@ -189,7 +187,7 @@ test('Iteration 3 setup and critical Admin/Intern/Mentor journeys', async ({ pag
   if (!correctionFormUrl) throw new Error('Checked-in attendance row did not expose correction form');
   const attendanceRecordId = new URL(correctionFormUrl, page.url()).searchParams.get('attendanceRecordId');
   if (!attendanceRecordId) throw new Error(`Correction form did not retain attendance record: ${correctionFormUrl}`);
-  const proposedCheckout = await proposedCheckoutAfterCheckIn(page);
+  const proposedCheckout = await proposedCheckoutAfterCheckIn(page, dates.today);
   await page.goto(correctionFormUrl);
   await page.getByLabel('Attendance record').fill(attendanceRecordId);
   await page.getByLabel('Proposed checkout').fill(proposedCheckout.value);
@@ -202,8 +200,9 @@ test('Iteration 3 setup and critical Admin/Intern/Mentor journeys', async ({ pag
   await signIn(page, mentor);
   await page.goto(correctionUrl);
   await expect(page.getByRole('heading', { name: 'Correction detail' })).toBeVisible();
-  await page.getByLabel('Decision').selectOption('APPROVE');
-  await page.getByLabel('Note').fill(`E2E correction approved ${stamp}`);
+  const correctionDecisionForm = correctionDetail.locator('form');
+  await correctionDecisionForm.getByLabel('Decision', { exact: true }).selectOption('APPROVE');
+  await correctionDecisionForm.getByLabel('Note', { exact: true }).fill(`E2E correction approved ${stamp}`);
   await page.getByRole('button', { name: 'Save decision' }).click();
   await expect(page.getByText('Correction decision saved', { exact: true })).toBeVisible();
   await expect(correctionDetail.getByText('Approved', { exact: true })).toBeVisible();
@@ -291,19 +290,32 @@ function formatDate(isoDate) {
   return `${day}/${month}/${year}`;
 }
 
-async function proposedCheckoutAfterCheckIn(page) {
-  const proposal = await page.evaluate(() => {
-    const now = new Date();
-    now.setSeconds(0, 0);
-    const proposed = new Date(now.getTime() + 60_000);
-    const pad = (value) => String(value).padStart(2, '0');
-    return {
-      value: `${proposed.getFullYear()}-${pad(proposed.getMonth() + 1)}-${pad(proposed.getDate())}T${pad(proposed.getHours())}:${pad(proposed.getMinutes())}`,
-      deadline: proposed.getTime(),
-    };
-  });
-  await page.waitForTimeout(Math.max(0, proposal.deadline - Date.now() + 1_000));
-  return proposal;
+async function proposedCheckoutAfterCheckIn(page, businessDate) {
+  const row = page.locator('tbody tr').first();
+  const workDateDisplay = (await row.locator('td').nth(0).textContent()).trim();
+  const checkInDisplay = (await row.locator('td').nth(1).textContent()).trim();
+  const [day, month, year] = workDateDisplay.split('/');
+  const [hour, minute] = checkInDisplay.split(':').map(Number);
+  if (!day || !month || !year || !Number.isInteger(hour) || !Number.isInteger(minute)) {
+    throw new Error(`Attendance row did not expose a parseable server check-in: ${workDateDisplay} ${checkInDisplay}`);
+  }
+  const workDate = `${year}-${month}-${day}`;
+  if (workDate !== businessDate) {
+    throw new Error(`Attendance business date ${workDate} did not match E2E_BUSINESS_DATE ${businessDate}`);
+  }
+  const proposal = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day), hour, minute + 1));
+  const pad = (value) => String(value).padStart(2, '0');
+  await page.waitForTimeout(61_000);
+  return {
+    value: `${proposal.getUTCFullYear()}-${pad(proposal.getUTCMonth() + 1)}-${pad(proposal.getUTCDate())}T${pad(proposal.getUTCHours())}:${pad(proposal.getUTCMinutes())}`,
+  };
+}
+
+async function fillProjectForm(page, projectName, dates, stamp) {
+  await page.getByRole('textbox', { name: 'Name', exact: true }).fill(projectName);
+  await page.getByLabel('Description').fill(`Browser-created project ${stamp}`);
+  await page.getByLabel('Start date').fill(dates.projectStart);
+  await page.getByLabel('End date').fill(dates.projectEnd);
 }
 
 function account(email, displayName, password) {
