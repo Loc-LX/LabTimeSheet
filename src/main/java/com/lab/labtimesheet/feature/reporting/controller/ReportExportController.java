@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -19,6 +20,7 @@ import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.server.ResponseStatusException;
 
 /** Serves bounded XLSX and print-safe PDF representations of the shared report datasets. */
 @Controller
@@ -85,10 +87,10 @@ public class ReportExportController {
      * @param projectId optional visible Project
      * @param memberMembershipId optional visible member filter
      * @param status optional Task status filter
-     * @param dueFrom optional inclusive due-date lower bound
-     * @param dueTo optional inclusive due-date upper bound
-     * @param workFrom optional inclusive work-date lower bound
-     * @param workTo optional inclusive work-date upper bound
+     * @param dueFrom required inclusive due-date lower bound
+     * @param dueTo required inclusive due-date upper bound
+     * @param workFrom required inclusive work-date lower bound
+     * @param workTo required inclusive work-date upper bound
      * @return workbook attachment with safe deterministic filename
      */
     @GetMapping("/project-tasks.xlsx")
@@ -101,8 +103,7 @@ public class ReportExportController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dueTo,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate workFrom,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate workTo) {
-        validateOptionalRange(dueFrom, dueTo);
-        validateOptionalRange(workFrom, workTo);
+        validateProjectTaskExportRanges(dueFrom, dueTo, workFrom, workTo);
         ProjectTaskReportView report = projectTaskReports.build(
                 authentication.getName(), projectId, memberMembershipId, status,
                 dueFrom, dueTo, workFrom, workTo);
@@ -117,10 +118,10 @@ public class ReportExportController {
      * @param projectId optional visible Project
      * @param memberMembershipId optional visible member filter
      * @param status optional Task status filter
-     * @param dueFrom optional inclusive due-date lower bound
-     * @param dueTo optional inclusive due-date upper bound
-     * @param workFrom optional inclusive work-date lower bound
-     * @param workTo optional inclusive work-date upper bound
+     * @param dueFrom required inclusive due-date lower bound
+     * @param dueTo required inclusive due-date upper bound
+     * @param workFrom required inclusive work-date lower bound
+     * @param workTo required inclusive work-date upper bound
      * @return print-safe PDF attachment with safe deterministic filename
      */
     @GetMapping("/project-tasks.pdf")
@@ -133,8 +134,7 @@ public class ReportExportController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dueTo,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate workFrom,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate workTo) {
-        validateOptionalRange(dueFrom, dueTo);
-        validateOptionalRange(workFrom, workTo);
+        validateProjectTaskExportRanges(dueFrom, dueTo, workFrom, workTo);
         ProjectTaskReportView report = projectTaskReports.build(
                 authentication.getName(), projectId, memberMembershipId, status,
                 dueFrom, dueTo, workFrom, workTo);
@@ -142,9 +142,28 @@ public class ReportExportController {
                 projectFilename(".pdf", dueFrom, dueTo, workFrom, workTo));
     }
 
+    private static void validateProjectTaskExportRanges(
+            LocalDate dueFrom, LocalDate dueTo, LocalDate workFrom, LocalDate workTo) {
+        validateRequiredRange("due", dueFrom, dueTo);
+        validateRequiredRange("work", workFrom, workTo);
+    }
+
     private static void validateOptionalRange(LocalDate from, LocalDate to) {
-        if (from != null && to != null) {
+        if (from != null || to != null) {
+            validateRequiredRange("attendance", from, to);
+        }
+    }
+
+    private static void validateRequiredRange(String label, LocalDate from, LocalDate to) {
+        if (from == null || to == null) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, "Report exports require complete bounded date ranges");
+        }
+        try {
             validateRange(from, to);
+        } catch (IllegalArgumentException invalidRange) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Project/Task " + label + " date range is invalid", invalidRange);
         }
     }
 

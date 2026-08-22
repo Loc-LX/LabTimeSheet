@@ -54,10 +54,15 @@
         </div>
         <div class="field form-actions"><button class="button button-primary" type="submit">Apply filters</button></div>
     </form>
-    <div class="inline-actions report-downloads" aria-label="Download Project and Task report">
+    <div class="inline-actions report-downloads" aria-label="Download Project and Task report"
+         th:if="${report.filter.dueFrom != null and report.filter.dueTo != null and report.filter.workFrom != null and report.filter.workTo != null}">
         <a class="button" th:href="@{/reports/project-tasks.xlsx(projectId=${report.filter.projectId},memberMembershipId=${report.filter.memberMembershipId},status=${report.filter.status},dueFrom=${report.filter.dueFrom},dueTo=${report.filter.dueTo},workFrom=${report.filter.workFrom},workTo=${report.filter.workTo})}">Download XLSX</a>
         <a class="button" th:href="@{/reports/project-tasks.pdf(projectId=${report.filter.projectId},memberMembershipId=${report.filter.memberMembershipId},status=${report.filter.status},dueFrom=${report.filter.dueFrom},dueTo=${report.filter.dueTo},workFrom=${report.filter.workFrom},workTo=${report.filter.workTo})}">Download PDF</a>
     </div>
+    <p class="field-help" role="status"
+       th:unless="${report.filter.dueFrom != null and report.filter.dueTo != null and report.filter.workFrom != null and report.filter.workTo != null}">
+        Choose complete due-date and work-date ranges of 366 days or fewer to download this report.
+    </p>
     <section class="panel metric-strip metric-strip-three" aria-label="Project and Task report summary">
         <div class="metric"><div class="metric-label">Tasks</div><div class="metric-value" th:text="${report.totalTasks}">0</div><div class="metric-detail">Current readable Tasks</div></div>
         <div class="metric"><div class="metric-label">Done</div><div class="metric-value" th:text="${report.doneTasks}">0</div><div class="metric-detail">Filtered DONE status</div></div>

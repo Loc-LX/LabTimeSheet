@@ -129,6 +129,10 @@ npx playwright test src/test/e2e/report-journeys.spec.mjs --project=chromium
 npx playwright show-report
 ```
 
+Project/Task XLSX and PDF downloads require complete inclusive due-date and
+work-date ranges, each no longer than 366 days. Invalid, half-open, reversed,
+or overlong ranges are rejected before report dataset construction.
+
 The Playwright configuration uses Chromium with one worker and retains traces
 and screenshots on failures under `test-results/playwright/`; the HTML report is
 under `playwright-report/`. Video capture is disabled to keep the harness

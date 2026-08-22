@@ -3,7 +3,7 @@
 - **Test type:** Web
 - **Requirement IDs:** `I3-UI-01`, `I3-UI-02`, `RPT-001`, `RPT-006`–`RPT-010`
 - **Scenario IDs:** `AC-RPT-001`, `AC-RPT-002`, `AC-RPT-003`, `AC-TST-001`
-- **Test class/method:** `com.lab.labtimesheet.feature.reporting.controller.ReportingExportControllerWebTest#attendanceXlsxDownloadUsesAttachmentAndWorkbookContentType`; `#projectTaskPdfDownloadUsesAttachmentAndPdfContentType`
+- **Test class/method:** `com.lab.labtimesheet.feature.reporting.controller.ReportingExportControllerWebTest#attendanceXlsxDownloadUsesAttachmentAndWorkbookContentType`; `#projectTaskPdfDownloadUsesAttachmentAndPdfContentType`; `#rejectsInvalidProjectTaskExportRangesBeforeDatasetConstruction`
 - **Implementation commit:** `c771840faf78cbf85a22880b4576bdbc51ae8f4f`
 
 ## Protected behavior
@@ -45,7 +45,7 @@ JAVA_HOME=/opt/homebrew/opt/openjdk@25 PATH=/opt/homebrew/opt/openjdk@25/bin:$PA
 **Observed result**
 
 ```text
-Temporary local dependency probe: BUILD SUCCESS for compile and 6/6 focused tests (2 route, 4 exporter, including the actual Thymeleaf print template) with the exact requested artifacts. The pom edit was removed immediately because Maven/dependency configuration belongs to Platform.
+Temporary local dependency probe: BUILD SUCCESS for compile and 13/13 focused tests (9 bounded-route cases plus 4 exporter cases, including the actual Thymeleaf print template) with the exact requested artifacts. The pom edit was removed immediately because Maven/dependency configuration belongs to Platform.
 ```
 
 ## Affected suite
@@ -53,8 +53,12 @@ Temporary local dependency probe: BUILD SUCCESS for compile and 6/6 focused test
 **Command and result**
 
 ```text
-Temporary exact-dependency regression slice: `./mvnw -Dtest=AttendanceReportControllerWebTest,ProjectTaskReportControllerWebTest,AttendanceTemplateIntegrationTest,ProjectTaskShellContractTest test` passed 17/17. The final reports/UI Java affected suite remains pending the reviewed Platform dependency delivery; temporary evidence is not a final branch gate.
+Temporary exact-dependency regression slice: `./mvnw -Dtest=AttendanceReportControllerWebTest,ProjectTaskReportControllerWebTest,AttendanceTemplateIntegrationTest,ProjectTaskShellContractTest test` passed 17/17 after the bounded-link template guard. The final reports/UI Java affected suite remains pending the reviewed Platform dependency delivery; temporary evidence is not a final branch gate.
 ```
+
+### Boundary-fix RED/GREEN
+
+The new parameterized MVC cases first failed because null and half-open Project/Task ranges returned 200 and reached the mocked report service, while reversed and overlong ranges escaped as uncaught `IllegalArgumentException`. After the controller guard was added, the same test passed 9/9 and verified both XLSX/PDF routes return 400 without calling `ProjectTaskReportService`.
 
 ## External-test boundaries
 

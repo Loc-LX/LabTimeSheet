@@ -12,11 +12,11 @@ The repository provides one pinned Chromium Playwright project with one worker, 
 
 ## Test method
 
-The smoke suite opens `/bootstrap`, verifies the server-rendered first-Admin form and local stylesheet, then repeats at 390×844 to guard against catastrophic horizontal overflow. The report journey is credential-gated and skipped unless explicit local E2E credentials are supplied; it then verifies the attendance report and both download controls.
+The smoke suite opens `/bootstrap`, verifies the server-rendered first-Admin form and local stylesheet, then repeats at 390×844 to guard against catastrophic horizontal overflow. The report journey is credential-gated and skipped unless explicit local E2E credentials are supplied; it opens a bounded attendance period, initiates both downloads, and checks HTTP 200, media type, attachment metadata, deterministic filename, XLSX ZIP structure, and the PDF signature.
 
 ## Hand-derived expected result
 
-The harness must list exactly two smoke tests and one credential-gated report test, run with one worker, and retain artifacts when Chromium or the app is unavailable. No test stores a password in the repository.
+The harness must list exactly two smoke tests and one credential-gated report test, run with one worker, and retain artifacts when Chromium or the app is unavailable. The report test must exercise both download endpoints rather than only checking link markup. No test stores a password in the repository.
 
 ## RED
 
@@ -45,7 +45,7 @@ PLAYWRIGHT_CHANNEL=chrome npm run test:e2e:smoke
 ## Affected suite
 
 ```text
-Node UI contracts and the disposable Chrome baseline smoke are GREEN. The default managed Chromium baseline remains blocked by the incomplete headless-shell download; the credential-gated report journey and broader Iteration 1/2 regression set remain pending integrated producer/application fixtures.
+Node UI contracts and the disposable Chrome baseline smoke are GREEN. The credential-gated report journey now contains real download assertions but has not been run. The default managed Chromium baseline remains blocked by the incomplete headless-shell download; the report journey and broader Iteration 1/2 regression set remain pending reviewed dependencies and integrated producer/application fixtures.
 ```
 
 ## External-test boundaries

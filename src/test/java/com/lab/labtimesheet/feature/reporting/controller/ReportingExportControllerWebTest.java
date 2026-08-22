@@ -2,6 +2,7 @@ package com.lab.labtimesheet.feature.reporting.controller;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -18,8 +19,13 @@ import com.lab.labtimesheet.feature.reporting.service.ReportExportService;
 import java.security.Principal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -85,10 +91,47 @@ class ReportingExportControllerWebTest {
                         .with(user("mentor@example.test").roles("MENTOR"))
                         .param("projectId", "7")
                         .param("dueFrom", "2026-08-01")
-                        .param("dueTo", "2026-08-31"))
+                        .param("dueTo", "2026-08-31")
+                        .param("workFrom", "2026-08-01")
+                        .param("workTo", "2026-08-31"))
                 .andExpect(status().isOk())
                 .andExpect(header().string("Content-Disposition", containsString("attachment")))
                 .andExpect(header().string("Content-Disposition", containsString("2026-08-01-to-2026-08-31")))
                 .andExpect(content().contentType("application/pdf"));
+    }
+
+    @ParameterizedTest(name = "rejects {0} for both Project/Task export formats")
+    @MethodSource("invalidProjectTaskExportRanges")
+    void rejectsInvalidProjectTaskExportRangesBeforeDatasetConstruction(
+            String description, Map<String, String> parameters) throws Exception {
+        for (String endpoint : List.of("/reports/project-tasks.xlsx", "/reports/project-tasks.pdf")) {
+            var request = get(endpoint)
+                    .with(user("mentor@example.test").roles("MENTOR"))
+                    .param("projectId", "7");
+            parameters.forEach(request::param);
+
+            mvc.perform(request).andExpect(status().isBadRequest());
+        }
+        verifyNoInteractions(projectTaskReports);
+    }
+
+    private static Stream<Arguments> invalidProjectTaskExportRanges() {
+        return Stream.of(
+                Arguments.of("missing ranges", Map.of()),
+                Arguments.of("half-open due range", Map.of("dueFrom", "2026-08-01")),
+                Arguments.of("half-open work range", Map.of(
+                        "dueFrom", "2026-08-01", "dueTo", "2026-08-31", "workFrom", "2026-08-01")),
+                Arguments.of("reversed due range", Map.of(
+                        "dueFrom", "2026-08-31", "dueTo", "2026-08-01",
+                        "workFrom", "2026-08-01", "workTo", "2026-08-31")),
+                Arguments.of("reversed work range", Map.of(
+                        "dueFrom", "2026-08-01", "dueTo", "2026-08-31",
+                        "workFrom", "2026-08-31", "workTo", "2026-08-01")),
+                Arguments.of("overlong due range", Map.of(
+                        "dueFrom", "2026-01-01", "dueTo", "2027-01-02",
+                        "workFrom", "2026-08-01", "workTo", "2026-08-31")),
+                Arguments.of("overlong work range", Map.of(
+                        "dueFrom", "2026-08-01", "dueTo", "2026-08-31",
+                        "workFrom", "2026-01-01", "workTo", "2027-01-02")));
     }
 }
