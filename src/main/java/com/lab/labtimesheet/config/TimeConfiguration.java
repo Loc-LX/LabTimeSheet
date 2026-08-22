@@ -5,6 +5,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 
+import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -14,6 +15,21 @@ import org.springframework.context.annotation.Profile;
 @Configuration(proxyBeanMethods = false)
 class TimeConfiguration {
     private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
+
+    @Value("${lab.e2e.fixed-instant:}")
+    private String retiredFixedInstant;
+
+    /**
+     * Prevents stale launchers from silently falling back to an ordinary live clock after the E2E property migration.
+     *
+     * @throws IllegalStateException when the retired fixed-clock property is nonblank
+     */
+    @PostConstruct
+    void rejectRetiredFixedClockProperty() {
+        if (retiredFixedInstant != null && !retiredFixedInstant.isBlank()) {
+            throw new IllegalStateException("lab.e2e.fixed-instant is retired; use lab.e2e.start-instant");
+        }
+    }
 
     /** Provides the live server clock for every profile other than the deterministic E2E profile. */
     @Bean

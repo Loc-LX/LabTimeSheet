@@ -118,6 +118,7 @@ test("deterministic E2E clock is opt-in and rejected in production", () => {
   assert.match(timeConfiguration, /@Profile\("e2e & !prod"\)/);
   assert.match(timeConfiguration, /@Profile\("prod & e2e"\)/);
   assert.match(timeConfiguration, /e2e fixed clock cannot be enabled with prod/);
+  assert.match(timeConfiguration, /lab\.e2e\.fixed-instant is retired; use lab\.e2e\.start-instant/);
   assert.match(startupTest, /@SpringBootTest/);
   assert.match(startupTest, /@ActiveProfiles\("e2e"\)/);
   assert.match(development, /LAB_E2E_START_INSTANT=.*\n\s+\.\/mvnw spring-boot:run/);

@@ -61,11 +61,26 @@ class TimeConfigurationTest {
         try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext()) {
             context.getEnvironment().setActiveProfiles("prod", "e2e");
             TestPropertySourceUtils.addInlinedPropertiesToEnvironment(
-                    context, "lab.e2e.fixed-instant=2026-08-22T02:00:00Z");
+                    context, "lab.e2e.start-instant=2026-08-22T02:00:00Z");
             context.register(TimeConfiguration.class);
 
             assertThat(org.assertj.core.api.Assertions.catchThrowable(context::refresh))
                     .hasRootCauseMessage("e2e fixed clock cannot be enabled with prod");
+        }
+    }
+
+    @Test
+    void retiredFixedClockPropertyIsRejectedExplicitly() {
+        try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext()) {
+            context.getEnvironment().setActiveProfiles("e2e");
+            TestPropertySourceUtils.addInlinedPropertiesToEnvironment(
+                    context,
+                    "lab.e2e.start-instant=2026-08-22T02:00:00Z",
+                    "lab.e2e.fixed-instant=2026-08-22T02:00:00Z");
+            context.register(TimeConfiguration.class);
+
+            assertThat(org.assertj.core.api.Assertions.catchThrowable(context::refresh))
+                    .hasRootCauseMessage("lab.e2e.fixed-instant is retired; use lab.e2e.start-instant");
         }
     }
 }
