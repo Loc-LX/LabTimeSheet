@@ -67,7 +67,7 @@ PATH=/opt/homebrew/opt/node@24/bin:$PATH npm run test:ui
 
 ```text
 JAVA_HOME=/opt/homebrew/opt/openjdk@25 PATH=/opt/homebrew/opt/openjdk@25/bin:$PATH ./mvnw -Dtest=AccountAdministrationControllerWebTest,AccountTemplateIntegrationTest,NotificationControllerWebTest,Iteration2WorkflowFragmentsWebTest,ReportingExportControllerWebTest,ReportExportServiceTest,ProjectTaskReportControllerWebTest,AttendanceReportControllerWebTest test
-# BUILD SUCCESS — 34 tests, 0 failures, 0 errors
+# BUILD SUCCESS — 38 tests, 0 failures, 0 errors
 
 JAVA_HOME=/opt/homebrew/opt/openjdk@25 PATH=/opt/homebrew/opt/openjdk@25/bin:$PATH ./mvnw -Dtest=AccountIdentityCorrectionIntegrationTest,Iteration2ProjectWorkflowWebTest,ProjectControllerTest test
 # BUILD SUCCESS — 40 tests, 0 failures, 0 errors; PostgreSQL 18.4 Testcontainers

@@ -4,7 +4,7 @@
 - **Requirement IDs:** `I3-UI-01`, `I3-UI-02`, `RPT-001`, `RPT-006`–`RPT-010`
 - **Scenario IDs:** `AC-RPT-001`, `AC-RPT-002`, `AC-RPT-003`, `AC-TST-001`
 - **Test class/method:** `com.lab.labtimesheet.feature.reporting.controller.ReportingExportControllerWebTest#attendanceXlsxDownloadUsesAttachmentAndWorkbookContentType`; `#projectTaskPdfDownloadUsesAttachmentAndPdfContentType`; `#rejectsInvalidProjectTaskExportRangesBeforeDatasetConstruction`
-- **Implementation commit:** `6b68ecd4f2039eaa74337cb69dddf8593bc0d944` (export implementation ancestry)
+- **Implementation commit:** `639d02e404cbd551ffd70def15021a1d6beb8cf9` (bounded export production fix)
 
 ## Protected behavior
 
