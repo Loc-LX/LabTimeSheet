@@ -258,6 +258,15 @@ function runtimeDates() {
 }
 
 function zonedToday() {
+  const configuredBusinessDate = process.env.E2E_BUSINESS_DATE;
+  if (configuredBusinessDate !== undefined) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(configuredBusinessDate)
+        || Number.isNaN(Date.parse(`${configuredBusinessDate}T00:00:00Z`))
+        || new Date(`${configuredBusinessDate}T00:00:00Z`).toISOString().slice(0, 10) !== configuredBusinessDate) {
+      throw new Error(`E2E_BUSINESS_DATE must be a valid YYYY-MM-DD date: ${configuredBusinessDate}`);
+    }
+    return configuredBusinessDate;
+  }
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit',
   }).formatToParts(new Date());
