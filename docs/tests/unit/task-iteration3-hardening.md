@@ -4,7 +4,7 @@
 - **Requirement IDs:** `TSK-004`, `TSK-006`, `TSK-009`, `TSK-013`–`TSK-019`, `DB-004`, `DB-007`–`DB-008`
 - **Scenario IDs:** `AC-TSK-002`, `AC-TSK-004`, `AC-TSK-007`, `AC-TSK-008`, `AC-TSK-011`
 - **Test class/method:** `TaskMutationBoundaryTest#statusChangeTurnsAnOptimisticTaskRaceIntoAnExplicitConflict`; `TaskTransferServiceTest#batchTransferTurnsAnOptimisticTaskRaceIntoAnExplicitConflict`; `TaskIteration3QueryTest#dueDateImpactListsCurrentTasksWithoutRewritingTheirStoredDueDate`
-- **Implementation commit:** `pending`
+- **Implementation commit:** `df7f2a7a59dfe8e8c7d9d9faa0c07c1fd00317d5`
 
 ## Protected behavior
 
@@ -68,6 +68,19 @@ JAVA_HOME=/opt/homebrew/opt/openjdk@25 PATH=/opt/homebrew/opt/openjdk@25/bin:$PA
 ```text
 Tests run: 99, Failures: 0, Errors: 0, Skipped: 0
 BUILD SUCCESS; PostgreSQL 18.4 Testcontainers and Java 25.0.4.
+```
+
+## Branch-wide suite
+
+**Command and result**
+
+```text
+JAVA_HOME=/opt/homebrew/opt/openjdk@25 PATH=/opt/homebrew/opt/openjdk@25/bin:$PATH DOCKER_HOST=unix:///Users/sechmachine/.orbstack/run/docker.sock ./mvnw test -DargLine='-javaagent:/Users/sechmachine/.m2/repository/net/bytebuddy/byte-buddy-agent/1.18.10/byte-buddy-agent-1.18.10.jar'
+```
+
+```text
+Tests run: 453, Failures: 0, Errors: 0, Skipped: 0
+BUILD SUCCESS; Java 25.0.4 and PostgreSQL 18.4 Testcontainers.
 ```
 
 ## External-test boundaries
