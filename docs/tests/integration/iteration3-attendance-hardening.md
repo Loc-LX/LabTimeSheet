@@ -53,7 +53,7 @@ rtk env JAVA_HOME=/opt/homebrew/opt/openjdk@25 PATH=/opt/homebrew/opt/openjdk@25
 **Observed result**
 
 ```text
-BUILD SUCCESS; 116 tests, 0 failures, 0 errors on Java 25 and PostgreSQL 18.4 Testcontainers.
+BUILD SUCCESS; 126 tests, 0 failures, 0 errors on Java 25 and PostgreSQL 18.4 Testcontainers.
 ```
 
 ## Affected suite
