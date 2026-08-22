@@ -4,7 +4,7 @@
 - **Requirement IDs:** `I3-UI-07`, `I3-UI-01`, `I3-UI-02`
 - **Scenario IDs:** Account Directory/Detail/Edit, role-dependent account fields, `AC-TST-001`
 - **Test class/method:** `AccountAdministrationControllerWebTest`; `Iteration2WorkflowFragmentsWebTest`; `account-form-contract.test.mjs`
-- **Implementation commit:** `pending`
+- **Implementation commit:** `dd066a75986692fb77a6ea38582cd354187e28c6`
 
 ## Protected behavior
 
