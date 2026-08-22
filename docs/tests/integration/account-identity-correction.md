@@ -4,7 +4,7 @@
 - **Requirement IDs:** `ACC-009`, `ACC-017`–`ACC-019`, `ACC-018`
 - **Scenario IDs:** `AC-ACC-012`, `AC-AUTH-001`
 - **Test class/method:** `com.lab.labtimesheet.feature.account.service.AccountIdentityCorrectionIntegrationTest`
-- **Implementation commit:** `pending`
+- **Implementation commit:** `9348b6fabe9fd904a2aaf8cdbabc4890467f06ed`
 
 ## Protected behavior
 
