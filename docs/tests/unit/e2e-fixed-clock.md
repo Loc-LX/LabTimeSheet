@@ -93,6 +93,6 @@ Affected Account/security/E2E suite: 58/58; Node delivery contracts: 10/10.
 
 ## External-test boundaries
 
-This proves configuration selection, elapsed-time behavior, and startup rejection. It does not claim a browser run,
-calendar override, or production deployment; the Reports/UI owner must use the documented start instant for the blocked
-Saturday journey.
+This proves configuration selection, elapsed-time behavior, and startup rejection. It does not claim a production
+deployment. The reviewed Reports/UI browser journey used the documented advancing start instant and validated
+`E2E_BUSINESS_DATE=2026-08-21`; the earlier Saturday non-workday attempt is historical and superseded.

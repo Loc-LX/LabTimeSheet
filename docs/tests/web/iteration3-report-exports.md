@@ -47,7 +47,7 @@ JAVA_HOME=/opt/homebrew/opt/openjdk@25 PATH=/opt/homebrew/opt/openjdk@25/bin:$PA
 **Observed result**
 
 ```text
-Merged Platform dependency tree: BUILD SUCCESS for the focused exporter/controller selection (15 tests: 6 exporter-service and 9 bounded-controller cases) with POI 5.5.1 and OpenPDF HTML/fonts-extra 3.0.3. The new `ReportExportServiceTest` parity selection passed 7/7, including the non-empty Vietnamese actual-template/XLSX/PDF parity case; managed-browser results are recorded separately in the E2E evidence.
+Merged Platform dependency tree: BUILD SUCCESS for the focused exporter/controller selection (16 tests: 7 exporter-service and 9 bounded-controller cases) with POI 5.5.1 and OpenPDF HTML/fonts-extra 3.0.3. `ReportExportServiceTest` now proves selected Project/member/status/date filters in actual HTML, distinct member/total/row minutes, and empty selected-Project `N/A` in actual HTML/XLSX/PDF; the whole selection passed 16/16. Managed-browser results are recorded separately in the E2E evidence.
 ```
 
 ## Affected suite
@@ -55,7 +55,7 @@ Merged Platform dependency tree: BUILD SUCCESS for the focused exporter/controll
 **Command and result**
 
 ```text
-Merged-tree regression slice: `./mvnw -Dtest=AttendanceReportControllerWebTest,ProjectTaskReportControllerWebTest,AttendanceTemplateIntegrationTest,ProjectTaskShellContractTest test` passed 17/17 after the bounded-link template guard. The current focused exporter/controller count is 15 (6 service + 9 controller); the separate parity selection passed 7/7 in `ReportExportServiceTest`.
+Merged-tree regression slice: `./mvnw -Dtest=AttendanceReportControllerWebTest,ProjectTaskReportControllerWebTest,AttendanceTemplateIntegrationTest,ProjectTaskShellContractTest test` passed 17/17 after the bounded-link template guard. The current focused exporter/controller count is 16 (7 service + 9 controller), all green.
 ```
 
 ### Boundary-fix RED/GREEN
@@ -64,4 +64,4 @@ The new parameterized MVC cases first failed because null and half-open Project/
 
 ## External-test boundaries
 
-This evidence does not prove PostgreSQL report authorization. Live browser download evidence is recorded in the E2E document; the current final-review E2E rerun is blocked later at the Attendance non-workday check-in mutation, after the previously green Project/Task downloads.
+This evidence does not prove PostgreSQL report authorization. Live browser download evidence is recorded in the E2E document; the reviewed advancing-clock critical/full E2E is green with real non-empty Project/Task downloads.

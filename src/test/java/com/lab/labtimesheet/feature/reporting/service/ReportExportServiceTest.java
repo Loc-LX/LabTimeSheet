@@ -182,7 +182,7 @@ class ReportExportServiceTest {
         ProjectTaskReportRow row = new ProjectTaskReportRow(
                 7L, "Dự án Hà Nội", 42L, "Xây dựng báo cáo Nguyễn",
                 "Nguyễn Mai", 41L, TaskStatus.IN_PROGRESS, dueDate,
-                41L, 41L, createdAt, createdAt, 90L);
+                41L, 41L, createdAt, createdAt, 45L);
         EnumMap<TaskStatus, Long> statusCounts = new EnumMap<>(TaskStatus.class);
         for (TaskStatus status : TaskStatus.values()) statusCounts.put(status, 0L);
         statusCounts.put(TaskStatus.IN_PROGRESS, 1L);
@@ -193,7 +193,7 @@ class ReportExportServiceTest {
                 List.of(new ProjectTaskMemberView(41L, 7L, "Nguyễn Mai", createdAt)),
                 List.of(row),
                 1L, 0L, "0.0%", statusCounts, 90L, true,
-                List.of(new ProjectTaskReportMemberHours(41L, "Nguyễn Mai", 90L)));
+                List.of(new ProjectTaskReportMemberHours(41L, "Nguyễn Mai", 60L)));
 
         SpringTemplateEngine templates = actualTemplates();
         MockServletContext servletContext = new MockServletContext();
@@ -205,7 +205,14 @@ class ReportExportServiceTest {
         context.setVariable("statuses", List.of(TaskStatus.values()));
         context.setVariable("smtpRestricted", false);
         String html = templates.process("reports/project-tasks", context);
-        assertThat(html).contains("Dự án Hà Nội", "Xây dựng báo cáo Nguyễn", "IN_PROGRESS", "0.0%", "90");
+        assertThat(html)
+                .contains("name=\"projectId\"", "name=\"memberMembershipId\"")
+                .containsPattern("(?s)<option value=\"7\"\\s+selected=\"selected\">Dự án Hà Nội</option>")
+                .containsPattern("(?s)<option value=\"41\"\\s+selected=\"selected\">Nguyễn Mai</option>")
+                .containsPattern("(?s)<option value=\"IN_PROGRESS\"\\s+selected=\"selected\">IN_PROGRESS</option>")
+                .contains("value=\"2026-09-01\"", "value=\"2026-09-30\"")
+                .contains("value=\"2026-08-01\"", "value=\"2026-08-31\"")
+                .contains("Dự án Hà Nội", "Xây dựng báo cáo Nguyễn", "IN_PROGRESS", "0.0%", "Nguyễn Mai", "60", "90", "45");
 
         ReportExportService exports = new ReportExportService(templates);
         try (XSSFWorkbook workbook = new XSSFWorkbook(
@@ -218,14 +225,34 @@ class ReportExportServiceTest {
             assertThat(sheet.getRow(4).getCell(6).getNumericCellValue()).isEqualTo(90);
             assertThat(sheet.getRow(10).getCell(1).getStringCellValue()).isEqualTo("Xây dựng báo cáo Nguyễn");
             assertThat(sheet.getRow(10).getCell(3).getStringCellValue()).isEqualTo("IN_PROGRESS");
-            assertThat(sheet.getRow(10).getCell(5).getNumericCellValue()).isEqualTo(90);
+            assertThat(sheet.getRow(10).getCell(5).getNumericCellValue()).isEqualTo(45);
         }
         PdfReader reader = new PdfReader(exports.projectTaskPdf(report));
         try {
             String pdfText = new PdfTextExtractor(reader).getTextFromPage(1);
-            assertThat(pdfText).contains("Dự án Hà Nội", "Xây dựng báo cáo Nguyễn", "IN_PROGRESS", "0.0%", "90");
+            assertThat(pdfText).contains("Dự án Hà Nội", "Xây dựng báo cáo Nguyễn", "IN_PROGRESS", "0.0%", "45", "90");
         } finally {
             reader.close();
+        }
+
+        ProjectTaskReportView empty = new ProjectTaskReportView(
+                new ProjectTaskReportFilter(7L, 41L, TaskStatus.IN_PROGRESS,
+                        null, null, null, null),
+                report.projectOptions(), report.memberOptions(), List.of(),
+                0L, 0L, "N/A", emptyStatusCounts(), 0L, true,
+                List.of(new ProjectTaskReportMemberHours(41L, "Nguyễn Mai", 0L)));
+        String emptyHtml = renderProjectTasksHtml(templates, empty);
+        assertThat(emptyHtml).contains("N/A");
+        try (XSSFWorkbook workbook = new XSSFWorkbook(
+                new ByteArrayInputStream(exports.projectTaskXlsx(empty)))) {
+            assertThat(workbook.getSheet("Project Tasks").getRow(4).getCell(2).getStringCellValue())
+                    .isEqualTo("N/A");
+        }
+        PdfReader emptyReader = new PdfReader(exports.projectTaskPdf(empty));
+        try {
+            assertThat(new PdfTextExtractor(emptyReader).getTextFromPage(1)).contains("N/A");
+        } finally {
+            emptyReader.close();
         }
     }
 
@@ -238,5 +265,23 @@ class ReportExportServiceTest {
         SpringTemplateEngine templates = new SpringTemplateEngine();
         templates.setTemplateResolver(resolver);
         return templates;
+    }
+
+    private static String renderProjectTasksHtml(SpringTemplateEngine templates, ProjectTaskReportView report) {
+        MockServletContext servletContext = new MockServletContext();
+        WebContext context = new WebContext(
+                JakartaServletWebApplication.buildApplication(servletContext).buildExchange(
+                        new MockHttpServletRequest(servletContext), new MockHttpServletResponse()),
+                Locale.ENGLISH);
+        context.setVariable("report", report);
+        context.setVariable("statuses", List.of(TaskStatus.values()));
+        context.setVariable("smtpRestricted", false);
+        return templates.process("reports/project-tasks", context);
+    }
+
+    private static EnumMap<TaskStatus, Long> emptyStatusCounts() {
+        EnumMap<TaskStatus, Long> counts = new EnumMap<>(TaskStatus.class);
+        for (TaskStatus status : TaskStatus.values()) counts.put(status, 0L);
+        return counts;
     }
 }
