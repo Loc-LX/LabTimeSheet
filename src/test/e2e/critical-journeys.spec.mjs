@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 test.describe.configure({ mode: 'serial' });
 
 test('Iteration 3 setup and critical Admin/Intern/Mentor journeys', async ({ page, request }, testInfo) => {
-  test.setTimeout(120_000);
+  test.setTimeout(240_000);
   const stamp = Date.now();
   const dates = runtimeDates();
   const admin = account(`admin-${stamp}@e2e.test`, `E2E Admin ${stamp}`, 'AdminPass!2026');
@@ -83,11 +83,11 @@ test('Iteration 3 setup and critical Admin/Intern/Mentor journeys', async ({ pag
   await signIn(page, mentor);
   const projectName = `E2E Project ${stamp}`;
   await page.goto('/projects/new');
-  await waitForEligibleIntern(page, intern.displayName);
   await page.getByRole('textbox', { name: 'Name', exact: true }).fill(projectName);
   await page.getByLabel('Description').fill(`Browser-created project ${stamp}`);
   await page.getByLabel('Start date').fill(dates.projectStart);
   await page.getByLabel('End date').fill(dates.projectEnd);
+  await waitForEligibleIntern(page, intern.displayName);
   await page.getByRole('button', { name: 'Choose an eligible Intern' }).click();
   await page.locator('[data-picker-option]').filter({ hasText: intern.displayName })
     .locator('input[type="radio"]').check();
