@@ -3,6 +3,7 @@ import { test, expect } from '@playwright/test';
 test.describe.configure({ mode: 'serial' });
 
 test('Iteration 3 setup and critical Admin/Intern/Mentor journeys', async ({ page, request }, testInfo) => {
+  test.setTimeout(120_000);
   const stamp = Date.now();
   const admin = account(`admin-${stamp}@e2e.test`, `E2E Admin ${stamp}`, 'AdminPass!2026');
   const mentor = account(`mentor-${stamp}@e2e.test`, `E2E Mentor ${stamp}`, 'MentorPass!2026');
@@ -50,6 +51,71 @@ test('Iteration 3 setup and critical Admin/Intern/Mentor journeys', async ({ pag
   }
   await assertDesktopThemeAndKeyboard(page, testInfo);
 
+  // The production scheduler promotes a newly activated Intern before Project eligibility is evaluated.
+  await signIn(page, intern);
+  await signIn(page, mentor);
+  const projectName = `E2E Project ${stamp}`;
+  await page.goto('/projects/new');
+  await waitForEligibleIntern(page, intern.displayName);
+  await page.getByRole('textbox', { name: 'Name', exact: true }).fill(projectName);
+  await page.getByLabel('Description').fill(`Browser-created project ${stamp}`);
+  await page.getByLabel('Start date').fill('2026-08-01');
+  await page.getByLabel('End date').fill('2026-12-31');
+  await page.getByRole('button', { name: 'Choose an eligible Intern' }).click();
+  await page.locator('[data-picker-option]').filter({ hasText: intern.displayName })
+    .locator('input[type="radio"]').check();
+  await page.getByRole('button', { name: 'Use selection' }).click();
+  await page.getByRole('button', { name: 'Create Project' }).click();
+  await expect(page).toHaveURL(/\/projects\/\d+$/);
+  const projectId = idFromUrl(page.url(), /\/projects\/(\d+)$/);
+  await expect(page.getByRole('heading', { name: projectName, exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Activate' }).click();
+  await expect(page.getByText('ACTIVE', { exact: true })).toBeVisible();
+  await page.getByRole('link', { name: 'View Tasks' }).click();
+  await expect(page.getByRole('heading', { name: 'Project Tasks' })).toBeVisible();
+  await signIn(page, intern);
+  await page.goto(`/projects/${projectId}/tasks`);
+  await expect(page.getByRole('heading', { name: 'Project Tasks' })).toBeVisible();
+  await page.getByRole('link', { name: 'Create Task' }).click();
+  const taskTitle = `E2E Task ${stamp}`;
+  await page.getByLabel('Title').fill(taskTitle);
+  await page.getByLabel('Description').fill(`Browser-created task ${stamp}`);
+  await page.getByLabel('Assignee').selectOption({ label: intern.displayName });
+  await page.getByLabel('Due date').fill('2026-09-30');
+  await page.getByRole('button', { name: 'Create Task' }).click();
+  await expect(page).toHaveURL(new RegExp(`/projects/${projectId}/tasks/\\d+$`));
+  const taskId = idFromUrl(page.url(), /\/tasks\/(\d+)$/);
+  await expect(page.getByRole('heading', { name: taskTitle })).toBeVisible();
+  await page.getByLabel('New status').selectOption('IN_PROGRESS');
+  await page.getByRole('button', { name: 'Change status' }).click();
+  await expect(page.getByText('IN_PROGRESS', { exact: true })).toBeVisible();
+  await page.getByLabel('Work date').fill('2026-08-22');
+  await page.getByLabel('Minutes').fill('90');
+  await page.getByLabel('Note').fill('Browser-created work log');
+  await page.getByRole('button', { name: 'Log work' }).click();
+  await expect(page.getByText('Browser-created work log')).toBeVisible();
+
+  await signIn(page, mentor);
+  await page.goto('/reports/project-tasks');
+  await expect(page.getByRole('heading', { name: 'Project and Task report' })).toBeVisible();
+  await page.getByLabel('Project', { exact: true }).selectOption(String(projectId));
+  await page.getByLabel('Due from').fill('2026-09-01');
+  await page.getByLabel('Due to').fill('2026-09-30');
+  await page.getByLabel('Work date from').fill('2026-08-01');
+  await page.getByLabel('Work date to').fill('2026-08-31');
+  await page.getByRole('button', { name: 'Apply filters' }).click();
+  await expect(page.getByText(taskTitle)).toBeVisible();
+  await assertDownload(page, 'Download XLSX', '/reports/project-tasks.xlsx',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    /^project-task-report-2026-08-01-to-2026-09-30\.xlsx$/,
+    (bytes) => {
+      expect(bytes.subarray(0, 4).toString()).toBe('PK\u0003\u0004');
+      expect(bytes.includes(Buffer.from('xl/worksheets/sheet1.xml'))).toBe(true);
+    });
+  await assertDownload(page, 'Download PDF', '/reports/project-tasks.pdf', 'application/pdf',
+    /^project-task-report-2026-08-01-to-2026-09-30\.pdf$/,
+    (bytes) => expect(bytes.subarray(0, 4).toString()).toBe('%PDF'));
+
   await signIn(page, intern);
   for (const [route, heading] of [
     ['/projects', 'Projects'],
@@ -91,6 +157,12 @@ function account(email, displayName, password) {
   return { email, displayName, password };
 }
 
+function idFromUrl(url, pattern) {
+  const match = url.match(pattern);
+  if (!match) throw new Error(`Expected numeric identifier in ${url}`);
+  return Number.parseInt(match[1], 10);
+}
+
 async function signIn(page, account) {
   await page.goto('/login');
   await page.getByLabel('Email').fill(account.email);
@@ -108,6 +180,24 @@ async function waitForInternLanding(page) {
     await page.goto('/dashboard');
   }
   await expect(page).toHaveURL(/dashboard/);
+}
+
+async function waitForEligibleIntern(page, displayName) {
+  const openPicker = page.getByRole('button', { name: 'Choose an eligible Intern' });
+  const option = page.locator('[data-picker-option]').filter({ hasText: displayName });
+  for (let attempt = 0; attempt < 15; attempt += 1) {
+    await openPicker.click();
+    if (await option.count() > 0) {
+      await page.getByRole('button', { name: 'Cancel' }).click();
+      return;
+    }
+    await page.getByRole('button', { name: 'Cancel' }).click();
+    if (attempt === 14) {
+      throw new Error(`Intern ${displayName} did not become Project-eligible within 75 seconds`);
+    }
+    await page.waitForTimeout(5000);
+    await page.reload();
+  }
 }
 
 async function ensureSmtp(page) {
