@@ -4,7 +4,7 @@
 - **Requirement IDs:** `ATT-018`, `GOV-005`, `RPT-004`
 - **Scenario IDs:** `AC-ACC-010`, `AC-ATT-001`
 - **Test class/method:** `com.lab.labtimesheet.feature.attendance.service.AttendancePersistenceIntegrationTest#terminalDateKeepsAttendanceRecordedBeforeInternshipCompletion`
-- **Implementation commit:** pending
+- **Implementation commit:** `5c08db6d3dc4a2962ee83ba9d10eb62b4a09b373`
 
 ## Protected behavior
 

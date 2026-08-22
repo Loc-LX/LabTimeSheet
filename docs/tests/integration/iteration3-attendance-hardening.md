@@ -4,7 +4,7 @@
 - **Requirement IDs:** `ATT-001`–`ATT-018`, `CAL-001`–`CAL-009`, `COR-001`–`COR-009`, `LEV-001`–`LEV-012`, `RPT-004`, `GOV-005`
 - **Scenario IDs:** `AC-ATT-001`–`AC-ATT-007`, `AC-COR-001`–`AC-COR-006`, `AC-LEV-001`–`AC-LEV-006`, `AC-UI-005`
 - **Test class/method:** `AttendancePersistenceIntegrationTest`, `AttendanceConcurrencyIntegrationTest`, `AttendanceDeadlineSchedulerTest`
-- **Implementation commit:** pending
+- **Implementation commit:** `5c08db6d3dc4a2962ee83ba9d10eb62b4a09b373`
 
 ## Protected behavior
 

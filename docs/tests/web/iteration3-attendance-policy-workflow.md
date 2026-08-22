@@ -4,7 +4,7 @@
 - **Requirement IDs:** `ATT-003`, `UI-014`, `UI-019`
 - **Scenario IDs:** `AC-ATT-001`, `AC-UI-005`
 - **Test class/method:** `com.lab.labtimesheet.feature.attendance.controller.AttendancePolicyControllerWebTest`
-- **Implementation commit:** pending
+- **Implementation commit:** `5c08db6d3dc4a2962ee83ba9d10eb62b4a09b373`
 
 ## Protected behavior
 

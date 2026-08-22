@@ -4,7 +4,7 @@
 - **Requirement IDs:** `LEV-003`, `LEV-004`, `COR-001`–`COR-009`, `AUTH-003`, `UI-019`
 - **Scenario IDs:** `AC-LEV-006`, `AC-COR-006`
 - **Test class/method:** `com.lab.labtimesheet.feature.attendance.service.AttendanceReadModelServiceTest`
-- **Implementation commit:** pending
+- **Implementation commit:** `5c08db6d3dc4a2962ee83ba9d10eb62b4a09b373`
 
 ## Protected behavior
 
