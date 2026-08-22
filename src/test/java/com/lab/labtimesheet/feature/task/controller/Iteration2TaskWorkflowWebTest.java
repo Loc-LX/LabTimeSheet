@@ -65,34 +65,39 @@ class Iteration2TaskWorkflowWebTest {
                 .andExpect(content().string(containsString("Correct work log")));
 
         mvc.perform(post("/projects/10/tasks/25/edit").with(user(EMAIL)).with(csrf())
+                        .param("expectedVersion", "0")
                         .param("title", "Updated").param("description", "Safe")
                         .param("dueDate", "2026-08-30"))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl("/projects/10/tasks/25"));
         mvc.perform(post("/projects/10/tasks/25/reassign").with(user(EMAIL)).with(csrf())
+                        .param("expectedVersion", "0")
                         .param("assigneeMembershipId", "8"))
                 .andExpect(status().is3xxRedirection());
         mvc.perform(post("/projects/10/tasks/25/work-logs").with(user(EMAIL)).with(csrf())
+                        .param("expectedTaskVersion", "0")
                         .param("workDate", "2026-08-21").param("minutes", "90").param("note", "Work"))
                 .andExpect(status().is3xxRedirection());
         mvc.perform(post("/projects/10/tasks/25/work-logs/77").with(user(EMAIL)).with(csrf())
+                        .param("expectedTaskVersion", "0").param("expectedWorkLogVersion", "0")
                         .param("minutes", "75").param("note", "Corrected"))
                 .andExpect(status().is3xxRedirection());
-        mvc.perform(post("/projects/10/tasks/25/delete").with(user(EMAIL)).with(csrf()))
+        mvc.perform(post("/projects/10/tasks/25/delete").with(user(EMAIL)).with(csrf())
+                        .param("expectedVersion", "0"))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl("/projects/10/tasks"));
 
-        verify(tasks).edit(EMAIL, 10L, 25L, "Updated", "Safe", LocalDate.of(2026, 8, 30));
-        verify(tasks).reassign(EMAIL, 10L, 25L, 8L);
-        verify(tasks).addWorkLog(EMAIL, 10L, 25L, LocalDate.of(2026, 8, 21), 90, "Work");
-        verify(tasks).correctWorkLog(EMAIL, 10L, 77L, 75, "Corrected");
-        verify(tasks).softDelete(EMAIL, 10L, 25L);
+        verify(tasks).edit(EMAIL, 10L, 25L, 0L, "Updated", "Safe", LocalDate.of(2026, 8, 30));
+        verify(tasks).reassign(EMAIL, 10L, 25L, 0L, 8L);
+        verify(tasks).addWorkLog(EMAIL, 10L, 25L, 0L, LocalDate.of(2026, 8, 21), 90, "Work");
+        verify(tasks).correctWorkLog(EMAIL, 10L, 77L, 0L, 0L, 75, "Corrected");
+        verify(tasks).softDelete(EMAIL, 10L, 25L, 0L);
     }
 
     @Test
     void rejectedTaskEditRetainsSafeInputWithAnInlineError() throws Exception {
         doThrow(new TaskValidationException("Due date is outside the Project"))
-                .when(tasks).edit(EMAIL, 10L, 25L, "Retained title", "Retained description",
+                .when(tasks).edit(EMAIL, 10L, 25L, 0L, "Retained title", "Retained description",
                         LocalDate.of(2026, 9, 1));
         Map<String, Object> input = Map.of(
                 "title", "Retained title",
@@ -100,7 +105,8 @@ class Iteration2TaskWorkflowWebTest {
                 "dueDate", "2026-09-01");
 
         mvc.perform(post("/projects/10/tasks/25/edit").with(user(EMAIL)).with(csrf())
-                        .param("title", "Retained title")
+                .param("title", "Retained title")
+                        .param("expectedVersion", "0")
                         .param("description", "Retained description")
                         .param("dueDate", "2026-09-01"))
                 .andExpect(status().is3xxRedirection())
@@ -119,6 +125,7 @@ class Iteration2TaskWorkflowWebTest {
     @Test
     void malformedTaskWorkLogRetainsRawSafeInputInsteadOfReturningBadRequest() throws Exception {
         mvc.perform(post("/projects/10/tasks/25/work-logs").with(user(EMAIL)).with(csrf())
+                        .param("expectedTaskVersion", "0")
                         .param("workDate", "not-a-date")
                         .param("minutes", "many")
                         .param("note", "Retained note"))
@@ -134,6 +141,7 @@ class Iteration2TaskWorkflowWebTest {
     @Test
     void malformedTaskStatusRetainsRawSafeInputInsteadOfReturningBadRequest() throws Exception {
         mvc.perform(post("/projects/10/tasks/25/status").with(user(EMAIL)).with(csrf())
+                        .param("expectedVersion", "0")
                         .param("status", "NOT_A_STATUS"))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl("/projects/10/tasks/25"))

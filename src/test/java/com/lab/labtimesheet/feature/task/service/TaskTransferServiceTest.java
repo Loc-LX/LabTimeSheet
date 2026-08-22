@@ -24,6 +24,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
@@ -137,6 +138,23 @@ class TaskTransferServiceTest {
     }
 
     @Test
+    void batchTransferRejectsAStaleClientTaskVersionBeforeMutation() {
+        Task sourceTask = task(11L);
+        when(sourceTask.getVersion()).thenReturn(4L);
+        when(tasks.findLockedByIdAndProjectIdAndDeletedAtIsNull(11L, 10L))
+                .thenReturn(Optional.of(sourceTask));
+
+        assertThatThrownBy(() -> service().transferBatch(
+                        context(), 70L, 71L, Set.of(11L), Map.of(11L, 3L), 72L))
+                .isInstanceOf(TaskConflictException.class)
+                .hasMessage("Task changed concurrently; reload before trying again");
+
+        verify(sourceTask, org.mockito.Mockito.never()).reassign(72L, 70L, NOW);
+        verify(tasks, org.mockito.Mockito.never()).saveAllAndFlush(any());
+        verifyNoNotifications();
+    }
+
+    @Test
     void rejectsPendingExitRecipientWhileAllowingExistingSourceContext() {
         TaskTransferService service = service();
 
@@ -177,6 +195,10 @@ class TaskTransferServiceTest {
 
     private TaskTransferService service() {
         return new TaskTransferService(tasks, Clock.fixed(NOW, ZoneOffset.UTC), accounts, notifications);
+    }
+
+    private void verifyNoNotifications() {
+        verify(notifications, org.mockito.Mockito.never()).publish(any(), any(), any());
     }
 
     private static AccountIdentity identity(long id, String email, String displayName) {

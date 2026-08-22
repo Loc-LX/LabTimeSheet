@@ -19,6 +19,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
@@ -59,6 +60,7 @@ public class TaskTransferService {
      * @param actorMembershipId current Leader membership performing the batch
      * @param sourceMembershipId pending-exit or direct-removal source membership
      * @param taskIds selected Task identifiers in the locked Project
+     * @param expectedTaskVersions client-observed version for every selected Task
      * @param recipientMembershipId eligible same-Project recipient membership
      * @return atomic transfer count and recipient
      * @throws TaskNotFoundException when the context, Leader, source, or recipient is invalid
@@ -70,6 +72,7 @@ public class TaskTransferService {
             long actorMembershipId,
             long sourceMembershipId,
             Set<Long> taskIds,
+            Map<Long, Long> expectedTaskVersions,
             long recipientMembershipId) {
         requireOpenProject(project);
         requireLeader(project, actorMembershipId);
@@ -93,6 +96,7 @@ public class TaskTransferService {
             if (task.getAssigneeMembershipId() != sourceMembershipId) {
                 throw new TaskValidationException("One or more selected Tasks changed assignment");
             }
+            requireExpectedVersion(expectedTaskVersions, task);
         });
 
         Instant assignedAt = clock.instant();
@@ -111,6 +115,28 @@ public class TaskTransferService {
                 new NotificationAction(taskAction(project.projectId(), task.getId()), false),
                 notificationRecipients));
         return new TaskTransferResult(selected.size(), recipient.membershipId());
+    }
+
+    /**
+     * Retains the programmatic transfer overload for callers without a browser task snapshot.
+     * The Project controller uses the expected-version overload above.
+     *
+     * @param project locked Project task context
+     * @param actorMembershipId current Leader membership
+     * @param sourceMembershipId source membership
+     * @param taskIds selected Task identifiers
+     * @param recipientMembershipId recipient membership
+     * @return atomic transfer count and recipient
+     */
+    @Transactional
+    public TaskTransferResult transferBatch(
+            ProjectTaskContext project,
+            long actorMembershipId,
+            long sourceMembershipId,
+            Set<Long> taskIds,
+            long recipientMembershipId) {
+        return transferBatch(project, actorMembershipId, sourceMembershipId, taskIds, null,
+                recipientMembershipId);
     }
 
     /**
@@ -159,6 +185,16 @@ public class TaskTransferService {
     public long unfinishedCount(long projectId, long sourceMembershipId) {
         return tasks.countByProjectIdAndAssigneeMembershipIdAndStatusInAndDeletedAtIsNull(
                 projectId, sourceMembershipId, UNFINISHED);
+    }
+
+    private static void requireExpectedVersion(Map<Long, Long> expectedTaskVersions, Task task) {
+        if (expectedTaskVersions == null) {
+            return;
+        }
+        Long expected = expectedTaskVersions.get(task.getId());
+        if (expected == null || expected.longValue() != task.getVersion()) {
+            throw new TaskConflictException("Task changed concurrently; reload before trying again", null);
+        }
     }
 
     private static void requireOpenProject(ProjectTaskContext project) {

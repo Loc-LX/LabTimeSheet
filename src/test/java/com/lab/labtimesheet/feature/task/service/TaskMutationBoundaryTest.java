@@ -368,6 +368,40 @@ class TaskMutationBoundaryTest {
         order.verify(workLogs).saveAndFlush(locked);
     }
 
+    @Test
+    void correctionRejectsAStaleClientWorkLogVersionBeforeMutation() {
+        LocalDate workDate = LocalDate.of(2026, 8, 14);
+        TaskWorkLogCandidate candidate = new TaskWorkLogCandidate(90L, 10L, 25L, 70L, workDate);
+        TaskWorkLog locked = mock(TaskWorkLog.class);
+        when(locked.getId()).thenReturn(90L);
+        when(locked.getProjectId()).thenReturn(10L);
+        when(locked.getTaskId()).thenReturn(25L);
+        when(locked.getMembershipId()).thenReturn(70L);
+        when(locked.getWorkDate()).thenReturn(workDate);
+        when(locked.getVersion()).thenReturn(4L);
+        when(workLogs.findCandidateByIdAndProjectId(90L, 10L)).thenReturn(Optional.of(candidate));
+        when(workLogs.findLockedByIdAndProjectId(90L, 10L)).thenReturn(Optional.of(locked));
+        when(accounts.requireAccountIdByEmail("member@example.test")).thenReturn(5L);
+        when(accounts.lockedInternWorkWindow(5L, workDate)).thenReturn(new InternWorkWindow(
+                5L,
+                workDate,
+                LocalDate.of(2026, 8, 1),
+                LocalDate.of(2026, 8, 31),
+                AccountStatus.ACTIVE,
+                InternshipStatus.ACTIVE));
+        when(projectQueries.membershipIntervals(5L)).thenReturn(List.of(
+                new ProjectMembershipIntervalView(10L, 70L, JOINED, null)));
+
+        assertThatThrownBy(() -> service.correctWorkLog(
+                        "member@example.test", 10L, 90L, 1L, 3L, 60, "Corrected"))
+                .isInstanceOf(TaskConflictException.class)
+                .hasMessage("Task work log changed concurrently; reload before trying again");
+
+        verify(tasks, never()).findLockedByIdAndProjectIdAndDeletedAtIsNull(25L, 10L);
+        verify(workLogs, never()).saveAndFlush(any(TaskWorkLog.class));
+        verify(notifications, never()).publish(any(), any(), any());
+    }
+
     private static Task taskForView(TaskStatus status) {
         Task task = mock(Task.class);
         when(task.getId()).thenReturn(25L);

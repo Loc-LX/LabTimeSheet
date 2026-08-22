@@ -28,6 +28,7 @@
                 <p class="field-help" th:id="${id + '-tasks-help'}">Only TODO, IN_PROGRESS, and BLOCKED Tasks can be transferred.</p>
                 <label class="checkbox" th:each="task : ${unfinishedTasks}">
                     <input type="checkbox" name="taskIds" th:value="${task.id}" th:checked="${projectInput != null and projectInput.kind == 'transfer' and projectInput.sourceMembershipId == sourceMembershipId.toString() and projectInput.taskIds.contains(task.id.toString())}" th:attr="aria-describedby=${id + '-tasks-help'}">
+                    <input type="hidden" name="taskVersions" th:value="${task.id + ':' + task.version}">
                     <span th:text="|${task.title} · ${task.status}|">Task · IN_PROGRESS</span>
                 </label>
                 <p class="field-help" th:if="${#lists.isEmpty(unfinishedTasks)}">No unfinished Tasks are available.</p>

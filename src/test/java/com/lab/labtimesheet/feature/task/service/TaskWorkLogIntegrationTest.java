@@ -5,8 +5,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.lab.labtimesheet.config.TestcontainersConfiguration;
 import com.lab.labtimesheet.feature.account.service.AccountService;
+import com.lab.labtimesheet.feature.task.exception.TaskConflictException;
 import com.lab.labtimesheet.feature.task.exception.TaskNotFoundException;
 import com.lab.labtimesheet.feature.task.exception.TaskValidationException;
+import com.lab.labtimesheet.feature.task.model.TaskStatus;
 import com.lab.labtimesheet.feature.task.model.dto.CreateTaskCommand;
 import com.lab.labtimesheet.feature.task.model.dto.TaskView;
 import com.lab.labtimesheet.feature.task.model.dto.TaskWorkLogView;
@@ -403,6 +405,58 @@ class TaskWorkLogIntegrationTest {
         }
     }
 
+    @Test
+    void twoTransactionsUsingOneObservedTaskVersionRejectTheStaleStatusWithoutPartialState()
+            throws Exception {
+        long expectedVersion = jdbc.sql("select version from tasks where id = :taskId")
+                .param("taskId", fixture.firstTaskId())
+                .query(Long.class)
+                .single();
+        long notificationsBefore = notificationCount();
+        CountDownLatch start = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<Throwable> first = submitStatus(
+                    executor, start, TaskStatus.BLOCKED, expectedVersion);
+            Future<Throwable> second = submitStatus(
+                    executor, start, TaskStatus.DONE, expectedVersion);
+            start.countDown();
+
+            List<Throwable> failures = java.util.stream.Stream.of(
+                            first.get(10, TimeUnit.SECONDS), second.get(10, TimeUnit.SECONDS))
+                    .filter(java.util.Objects::nonNull)
+                    .toList();
+
+            assertThat(failures).hasSize(1);
+            assertThat(failures.get(0)).isInstanceOf(TaskConflictException.class);
+            assertThat(jdbc.sql("select version from tasks where id = :taskId")
+                    .param("taskId", fixture.firstTaskId()).query(Long.class).single())
+                    .isEqualTo(expectedVersion + 1);
+            assertThat(jdbc.sql("select status from tasks where id = :taskId")
+                    .param("taskId", fixture.firstTaskId()).query(String.class).single())
+                    .isIn(TaskStatus.BLOCKED.name(), TaskStatus.DONE.name());
+            assertThat(notificationCount()).isEqualTo(notificationsBefore);
+        } finally {
+            executor.shutdownNow();
+            assertThat(executor.awaitTermination(10, TimeUnit.SECONDS)).isTrue();
+        }
+    }
+
+    private Future<Throwable> submitStatus(
+            ExecutorService executor, CountDownLatch start, TaskStatus target, long expectedVersion) {
+        return executor.submit(() -> {
+            start.await(5, TimeUnit.SECONDS);
+            try {
+                taskService.changeStatus(
+                        fixture.email(), fixture.firstProjectId(), fixture.firstTaskId(),
+                        expectedVersion, target);
+                return null;
+            } catch (Throwable failure) {
+                return unwrap(failure);
+            }
+        });
+    }
+
     private Future<Throwable> submitAllocation(
             ExecutorService executor, CountDownLatch start, long projectId, long taskId, int minutes) {
         return executor.submit(() -> {
@@ -423,6 +477,10 @@ class TaskWorkLogIntegrationTest {
 
     private static Throwable unwrap(Throwable failure) {
         return failure.getCause() == null ? failure : failure.getCause();
+    }
+
+    private long notificationCount() {
+        return jdbc.sql("select count(*) from notifications").query(Long.class).single();
     }
 
     private static void await(CountDownLatch latch) {

@@ -145,7 +145,8 @@ public class TaskQueryService {
                         .toList(),
                 workLogs.findAllByTaskIdAndProjectIdOrderByWorkDateAscIdAsc(task.getId(), projectId).stream()
                         .map(TaskQueryService::workLogView)
-                        .toList());
+                        .toList(),
+                task.getVersion());
     }
 
     private static TaskCommentView commentView(TaskComment comment) {
@@ -157,6 +158,7 @@ public class TaskQueryService {
     private static TaskWorkLogView workLogView(TaskWorkLog log) {
         return new TaskWorkLogView(
                 log.getId(), log.getProjectId(), log.getTaskId(), log.getMembershipId(),
-                log.getWorkDate(), log.getMinutes(), log.getNote(), log.getCreatedAt(), log.getUpdatedAt());
+                log.getWorkDate(), log.getMinutes(), log.getNote(), log.getCreatedAt(), log.getUpdatedAt(),
+                log.getVersion());
     }
 }
