@@ -4,7 +4,7 @@
 - **Requirement IDs:** `I3-UI-03`, `I3-UI-04`, `I3-UI-06`, `UI-002`, `UI-007`, `UI-010`–`UI-015`, `UI-018`
 - **Scenario IDs:** `AC-UI-001`, `AC-UI-002`, `AC-UI-003`, `AC-UI-004`, `AC-UI-005`, `AC-TST-001`
 - **Test class/method:** `src/test/js/narrow-screen-contract.test.mjs#desktop shell includes a narrow-screen overflow safeguard`; existing `src/test/js/chart-contract.test.mjs`
-- **Implementation commit:** pending
+- **Implementation commit:** `c771840faf78cbf85a22880b4576bdbc51ae8f4f`
 
 ## Protected behavior
 
@@ -44,7 +44,7 @@ npm run test:ui -- --test-name-pattern='Playwright harness|narrow-screen'
 ## Affected suite
 
 ```text
-Pending final Node 24/npm 11 build and browser smoke on the integrated tree.
+Node 24/npm 11 `npm ci`, `npm run test:ui` (9/9), `npm run build`, syntax checks, and disposable Chrome desktop/narrow smoke are GREEN. Full integrated browser accessibility and contrast evidence remains pending.
 ```
 
 ## External-test boundaries
