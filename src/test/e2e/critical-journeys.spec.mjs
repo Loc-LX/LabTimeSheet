@@ -339,6 +339,14 @@ async function waitForEligibleIntern(page, displayName) {
   const openPicker = page.getByRole('button', { name: 'Choose an eligible Intern' });
   const option = page.locator('[data-picker-option]').filter({ hasText: displayName });
   for (let attempt = 0; attempt < 15; attempt += 1) {
+    if (await openPicker.isDisabled()) {
+      if (attempt === 14) {
+        throw new Error(`Intern ${displayName} did not become Project-eligible within 75 seconds`);
+      }
+      await page.waitForTimeout(5000);
+      await page.reload();
+      continue;
+    }
     await openPicker.click();
     if (await option.count() > 0) {
       await page.getByRole('button', { name: 'Cancel' }).click();

@@ -3,7 +3,7 @@
 - **Test type:** Integration / configuration contract
 - **Requirement IDs:** `ACC-019`, `ACC-020`, `I3-UI-05`
 - **Scenario IDs:** `AC-ACC-010` (business-date boundary); local E2E date-sensitive journey handoff
-- **Test class/method:** `com.lab.labtimesheet.config.E2eProfileIntegrationTest#e2eStartupUsesDevelopmentDatasourceAndAdvancingClock`, `com.lab.labtimesheet.config.TimeConfigurationTest#e2eProfileStartsNearTheConfiguredInstant`, `#e2eProfileClockAdvancesFromTheConfiguredStartInstant`, `#e2eProfileIsRejectedAlongsideProduction`; `src/test/js/delivery-contract.test.mjs`
+- **Test class/method:** `com.lab.labtimesheet.config.E2eProfileIntegrationTest#e2eStartupUsesDevelopmentDatasourceAndAdvancingClock`, `com.lab.labtimesheet.config.TimeConfigurationTest#e2eProfileStartsNearTheConfiguredInstant`, `#e2eProfileClockAdvancesFromTheConfiguredStartInstant`, `#e2eProfileIsRejectedAlongsideProduction`, `#retiredFixedClockPropertyIsRejectedExplicitly`; `src/test/js/delivery-contract.test.mjs`
 - **Implementation commit:** `b8d4a77c29fe0b0349861c1daabd9cf363ee82d1`
 - **Retired-property guard commit:** `4409a2d3103552a34a177b3ef2448b7fe9c31737`
 
