@@ -153,3 +153,16 @@ The terminal regression uses distinct eligible dates for empty-row,
 approved-Leave, and global-day-off Interns, so the global calendar event cannot
 mask the other two classification paths. The affected gate is 128/128 and the
 exact branch gate is 463/463.
+
+## Post-merge Platform consumer verification
+
+Reviewed Platform parent `45faa562b051023ee1c69f7cae541185d68de6fd` was
+normal-merged into Attendance as `97dc2b6050eebffe6ba16e4ecdd66da32cf73f67`.
+Attendance consumes only `AccountService.historicalInternReportingWindow(long)`
+and the immutable `InternReportingWindow` DTO; it does not import Account
+repositories or entities.
+
+```text
+Focused affected gate: 133/133, 0 failures/errors on Java 25 and PostgreSQL 18.4 Testcontainers.
+Invalidated full branch gate on dc1ab9ab21dcb255033bcfb0ec4c424dded03bd1: 495/495, 0 failures/errors/skips.
+```

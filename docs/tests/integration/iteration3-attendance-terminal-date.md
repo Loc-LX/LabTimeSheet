@@ -4,7 +4,7 @@
 - **Requirement IDs:** `ATT-018`, `GOV-005`, `RPT-004`
 - **Scenario IDs:** `AC-ACC-010`, `AC-ATT-001`
 - **Test class/method:** `com.lab.labtimesheet.feature.attendance.service.AttendancePersistenceIntegrationTest#terminalDateKeepsAttendanceRecordedBeforeInternshipCompletion`
-- **Implementation commit:** `715e02b0e24125388cf449ca8f81e9d614458c47`
+- **Implementation commits:** `715e02b0e24125388cf449ca8f81e9d614458c47` (terminal repair); `dc1ab9ab21dcb255033bcfb0ec4c424dded03bd1` (historical-window consumer)
 
 ## Protected behavior
 
@@ -83,3 +83,18 @@ recorded-row case above remains reportable.
 rtk env JAVA_HOME=/opt/homebrew/opt/openjdk@25 PATH=/opt/homebrew/opt/openjdk@25/bin:/opt/homebrew/bin:/usr/local/bin:/usr/sbin:/usr/bin ./mvnw -Dtest="AttendancePersistenceIntegrationTest#terminalDateWithoutAttendanceDoesNotCreateAbsenceForLeaveOrDayOff" test
 BUILD SUCCESS; 1 test, 0 failures, 0 errors on PostgreSQL 18.4 Testcontainers.
 ```
+
+## Post-merge historical-window boundary
+
+The terminal tests set the mutable server clock to each actual lifecycle action
+date before completion: August 20 for the empty-row Intern, August 21 for the
+approved-Leave Intern, August 24 for the day-off Intern, and August 20 for the
+recorded-row Intern. Reports retain pre-terminal empty eligible workdays and
+the inclusive terminal date, while excluding dates after the terminal action;
+the empty-row case asserts its historical denominator remains two expected
+workdays.
+
+The Attendance report consumer uses only the Account-owned
+`InternReportingWindow` DTO, with no Account persistence import. Focused
+post-merge affected verification passed `133/133`; the invalidated full branch
+gate passed `495/495`.
