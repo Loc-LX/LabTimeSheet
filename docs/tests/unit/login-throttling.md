@@ -4,7 +4,7 @@
 - **Requirement IDs:** `SEC-006`, `SEC-007`
 - **Scenario IDs:** `AC-SEC-003`
 - **Test class/method:** `com.lab.labtimesheet.feature.account.service.LoginThrottleTest`
-- **Implementation commit:** `pending`
+- **Implementation commit:** `091361eb73c7d7118d8212df630a83aca4ad5f9e`
 
 ## Protected behavior
 

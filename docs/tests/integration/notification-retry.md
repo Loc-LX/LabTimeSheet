@@ -4,7 +4,7 @@
 - **Requirement IDs:** `NOT-006`, `NOT-007`, `ERR-004`
 - **Scenario IDs:** `AC-NOT-002`
 - **Test class/method:** `com.lab.labtimesheet.feature.notification.service.NotificationServiceIntegrationTest.ordinaryEmailRetriesUseTheFiveBoundedDelaysThenBecomeTerminalAndManualRetryReusesTheRow`
-- **Implementation commit:** `pending`
+- **Implementation commit:** `1c762021aa5025ce90a96259a36ea4db1af262b6`
 
 ## Protected behavior
 

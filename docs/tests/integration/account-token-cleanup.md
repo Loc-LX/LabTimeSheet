@@ -4,7 +4,7 @@
 - **Requirement IDs:** `SEC-003`, `SEC-009`
 - **Scenario IDs:** `AC-SEC-003`
 - **Test class/method:** `com.lab.labtimesheet.feature.account.service.UserActionTokenCleanupIntegrationTest.cleanupDeletesExpiredAndTerminalRowsButRetainsLiveToken`
-- **Implementation commit:** `pending`
+- **Implementation commit:** `2eaa4b67bdf7ac1a378c3c72341b5664ec18ff8b`
 
 ## Protected behavior
 
@@ -63,8 +63,10 @@ BUILD SUCCESS.
 **Command and result**
 
 ```text
-Pending for the branch-wide platform gate. The focused GREEN above is the producer milestone gate; the account
-service suite and branch-wide suite will be recorded after the remaining platform rows land.
+env JAVA_HOME=/opt/homebrew/opt/openjdk@25 PATH=/opt/homebrew/opt/openjdk@25/bin:$PATH DOCKER_HOST=unix:///Users/sechmachine/.orbstack/run/docker.sock ./mvnw -Dtest=AccountActivationIntegrationTest,AccountIdentityCorrectionIntegrationTest,AccountLifecycleIntegrationTest,AccountRecoveryIntegrationTest,AccountRecoveryLockOrderIntegrationTest,AccountScalarLookupIntegrationTest,ActiveMentorIdentityIntegrationTest,BootstrapIntegrationTest,EligibleInternOptionIntegrationTest,InternMutationEligibilityIntegrationTest,InternWorkWindowIntegrationTest,InternshipLifecycleIntegrationTest,LoginThrottleTest,PasswordResetIntegrationTest,UserActionTokenCleanupIntegrationTest test
+
+2026-08-22T13:59:29+07:00 — PostgreSQL 18.4 Testcontainers; Tests run: 46, Failures: 0, Errors: 0, Skipped: 0;
+BUILD SUCCESS with Java 25.0.4. The cleanup test was included in this affected Account suite.
 ```
 
 ## External-test boundaries
