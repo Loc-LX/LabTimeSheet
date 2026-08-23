@@ -1,27 +1,23 @@
 <!doctype html>
 <html lang="en" xmlns:th="http://www.thymeleaf.org"
       th:replace="~{fragments/layout :: shell(
-          pageTitle=${taskId == null ? 'Create Task' : 'Edit Task'},
+          pageTitle='Create Task',
           section='Projects',
           activeNav='projects',
           primaryAction=~{},
           content=~{::main})}">
 <body>
 <main>
-    <th:block th:replace="~{fragments/components :: projectTabs(${projectId}, 'tasks')}"></th:block>
     <p class="page-description">Assign work to a current eligible Project member.</p>
-    <form class="panel form-panel form-grid" method="post" th:action="${taskId == null} ? @{/projects/{projectId}/tasks(projectId=${projectId})} : @{/projects/{projectId}/tasks/{taskId}/edit(projectId=${projectId},taskId=${taskId})}" th:object="${taskForm}">
+    <form class="panel form-panel form-grid" method="post" th:action="@{/projects/{projectId}/tasks(projectId=${projectId})}" th:object="${taskForm}">
         <div class="alert alert-error" role="alert" th:if="${#fields.hasAnyErrors()}"><strong>Please correct the highlighted fields.</strong><ul><li th:each="error : ${#fields.allErrors()}" th:text="${error}">Validation error</li></ul></div>
         <div class="field"><label class="field-label" for="title">Title</label><input class="control" id="title" type="text" maxlength="200" required th:field="*{title}" th:attr="aria-invalid=${#fields.hasErrors('title')},aria-describedby=${#fields.hasErrors('title') ? 'title-error' : null}"><p class="field-error" id="title-error" role="alert" th:if="${#fields.hasErrors('title')}" th:errors="*{title}">Title error</p></div>
         <div class="field"><label class="field-label" for="description">Description</label><textarea class="control" id="description" rows="5" th:field="*{description}"></textarea></div>
-        <div class="form-grid form-grid-three" th:unless="${taskId != null}">
+        <div class="form-grid form-grid-three">
             <div class="field"><label class="field-label" for="assigneeMembershipId">Assignee</label><select class="control" id="assigneeMembershipId" required th:field="*{assigneeMembershipId}" th:attr="aria-invalid=${#fields.hasErrors('assigneeMembershipId')},aria-describedby=${#fields.hasErrors('assigneeMembershipId') ? 'assigneeMembershipId-error' : null}"><option value="">Select an assignee</option><option th:each="assignee : ${assignees}" th:value="${assignee.membershipId}" th:text="${assignee.displayName}">Member</option></select><p class="field-error" id="assigneeMembershipId-error" role="alert" th:if="${#fields.hasErrors('assigneeMembershipId')}" th:errors="*{assigneeMembershipId}">Assignee error</p></div>
             <div class="field"><label class="field-label" for="dueDate">Due date</label><input class="control" id="dueDate" type="date" th:field="*{dueDate}" th:attr="aria-invalid=${#fields.hasErrors('dueDate')},aria-describedby=${#fields.hasErrors('dueDate') ? 'dueDate-error' : null}"><p class="field-error" id="dueDate-error" role="alert" th:if="${#fields.hasErrors('dueDate')}" th:errors="*{dueDate}">Due date error</p></div>
         </div>
-        <div class="form-grid form-grid-three" th:if="${taskId != null}">
-            <div class="field"><label class="field-label" for="dueDate">Due date</label><input class="control" id="dueDate" type="date" th:field="*{dueDate}" th:attr="aria-invalid=${#fields.hasErrors('dueDate')},aria-describedby=${#fields.hasErrors('dueDate') ? 'dueDate-error' : null}"><p class="field-error" id="dueDate-error" role="alert" th:if="${#fields.hasErrors('dueDate')}" th:errors="*{dueDate}">Due date error</p></div>
-        </div>
-        <div class="form-actions"><a class="button" th:href="@{/projects/{projectId}/tasks(projectId=${projectId})}">Cancel</a><button class="button button-primary" type="submit" th:text="${taskId == null ? 'Create Task' : 'Save changes'}">Create Task</button></div>
+        <div class="form-actions"><a class="button" th:href="@{/projects/{projectId}/tasks(projectId=${projectId})}">Cancel</a><button class="button button-primary" type="submit">Create Task</button></div>
     </form>
 </main>
 </body>

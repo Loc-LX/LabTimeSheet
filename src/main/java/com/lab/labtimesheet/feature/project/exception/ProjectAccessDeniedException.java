@@ -1,11 +1,11 @@
 package com.lab.labtimesheet.feature.project.exception;
 
 /**
- * Báo hiệu tra cứu hoặc thao tác Project phải thất bại mà không tiết lộ tài nguyên có tồn tại hay không.
+ * Signals a Project lookup or operation that must fail without revealing resource existence.
  */
 public final class ProjectAccessDeniedException extends RuntimeException {
 
-    /** Tạo tín hiệu từ chối nội bộ; controller thay thông báo bằng nội dung chung an toàn. */
+    /** Creates the internal denial signal; controllers replace its message with generic copy. */
     public ProjectAccessDeniedException() {
         super("Project access denied");
     }

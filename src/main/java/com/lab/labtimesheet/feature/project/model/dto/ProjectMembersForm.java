@@ -5,13 +5,13 @@ import jakarta.validation.constraints.Positive;
 import java.util.List;
 
 /**
- * Biểu mẫu trên trình duyệt cho một lần chọn thành viên để Mentor sở hữu thêm nguyên tử.
+ * Browser form for one atomic owning-Mentor direct-add selection.
  *
- * @param internUserIds các mã tài khoản Intern dương, không trùng nhau, được chọn trong danh sách
+ * @param internUserIds distinct positive Intern account identifiers selected in the picker
  */
 public record ProjectMembersForm(@NotEmpty List<@Positive Long> internUserIds) {
 
-    /** Tạo biểu mẫu rỗng cho yêu cầu GET ban đầu của trang thành viên. */
+    /** Creates an empty form for the initial membership page. */
     public ProjectMembersForm() {
         this(List.of());
     }

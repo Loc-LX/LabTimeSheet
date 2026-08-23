@@ -1,15 +1,15 @@
 package com.lab.labtimesheet.feature.project.exception;
 
 /**
- * Báo hiệu quy tắc vòng đời, điều kiện, thành viên hoặc Leader của Project đã từ chối thay đổi mà
- * không commit một phần aggregate.
+ * Signals that a Project lifecycle, eligibility, membership, or leadership rule rejected a
+ * mutation without committing a partial aggregate change.
  */
 public final class ProjectRuleViolationException extends RuntimeException {
 
     /**
-     * Tạo lỗi quy tắc nghiệp vụ; thông báo chỉ được hiển thị trong luồng biểu mẫu an toàn đã biết.
+     * Creates a domain-rule failure whose message may be shown only by a known safe form flow.
      *
-     * @param message nội dung kiểm tra có thể hành động, không chứa mã cần bảo vệ
+     * @param message actionable domain validation message without protected identifiers
      */
     public ProjectRuleViolationException(String message) {
         super(message);

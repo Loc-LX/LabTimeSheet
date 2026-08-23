@@ -2,6 +2,7 @@ package com.lab.labtimesheet.feature.task.service;
 
 import com.lab.labtimesheet.feature.task.model.TaskStatus;
 import com.lab.labtimesheet.feature.task.model.dto.TaskCommentView;
+import com.lab.labtimesheet.feature.task.model.dto.TaskDueDateImpactView;
 import com.lab.labtimesheet.feature.task.model.dto.TaskHistoryView;
 import com.lab.labtimesheet.feature.task.model.dto.TaskMemberWorkView;
 import com.lab.labtimesheet.feature.task.model.dto.TaskProjectProgress;
@@ -12,6 +13,7 @@ import com.lab.labtimesheet.feature.task.model.entity.TaskWorkLog;
 import com.lab.labtimesheet.feature.task.repository.TaskCommentRepository;
 import com.lab.labtimesheet.feature.task.repository.TaskRepository;
 import com.lab.labtimesheet.feature.task.repository.TaskWorkLogRepository;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
@@ -81,6 +83,32 @@ public class TaskQueryService {
     }
 
     /**
+     * Returns current Task facts affected by a later global day-off decision.
+     *
+     * <p>The stored due date is never changed here. Attendance owns the calendar decision and may
+     * use this DTO-only boundary to show an impact preview to the authorized Project Leader.</p>
+     *
+     * @param dueDate exact local date being previewed
+     * @return current matching Tasks in deterministic Project/Task order
+     * @throws IllegalArgumentException when the impact date is missing
+     */
+    @Transactional(readOnly = true)
+    public List<TaskDueDateImpactView> dueDateImpacts(LocalDate dueDate) {
+        if (dueDate == null) {
+            throw new IllegalArgumentException("Due date is required");
+        }
+        return tasks.findAllByDueDateAndDeletedAtIsNullOrderByProjectIdAscIdAsc(dueDate).stream()
+                .map(task -> new TaskDueDateImpactView(
+                        task.getId(),
+                        task.getProjectId(),
+                        task.getTitle(),
+                        task.getDueDate(),
+                        task.getStatus(),
+                        task.getAssigneeMembershipId()))
+                .toList();
+    }
+
+    /**
      * Returns retained Task, comment, and work-log rows for Project History.
      *
      * <p>Authorization is deliberately owned by the Project caller. This method reports only
@@ -117,7 +145,8 @@ public class TaskQueryService {
                         .toList(),
                 workLogs.findAllByTaskIdAndProjectIdOrderByWorkDateAscIdAsc(task.getId(), projectId).stream()
                         .map(TaskQueryService::workLogView)
-                        .toList());
+                        .toList(),
+                task.getVersion());
     }
 
     private static TaskCommentView commentView(TaskComment comment) {
@@ -129,6 +158,7 @@ public class TaskQueryService {
     private static TaskWorkLogView workLogView(TaskWorkLog log) {
         return new TaskWorkLogView(
                 log.getId(), log.getProjectId(), log.getTaskId(), log.getMembershipId(),
-                log.getWorkDate(), log.getMinutes(), log.getNote(), log.getCreatedAt(), log.getUpdatedAt());
+                log.getWorkDate(), log.getMinutes(), log.getNote(), log.getCreatedAt(), log.getUpdatedAt(),
+                log.getVersion());
     }
 }

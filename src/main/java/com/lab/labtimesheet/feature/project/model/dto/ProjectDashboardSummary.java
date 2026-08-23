@@ -1,10 +1,10 @@
 package com.lab.labtimesheet.feature.project.model.dto;
 
 /**
- * Số liệu Project hiện tại trên dashboard, giới hạn theo phạm vi vai trò.
+ * Role-scoped current Project metrics for the dashboard.
  *
- * @param activeProjectCount số Project đang hoạt động hiển thị trong phạm vi của người dùng
- * @param distinctActiveMemberCount số thành viên đang hoạt động, đủ điều kiện và không trùng nhau của Mentor; các vai trò khác nhận giá trị 0
+ * @param activeProjectCount number of active Projects visible in the actor's current scope
+ * @param distinctActiveMemberCount distinct eligible active members for a Mentor; zero for other roles
  */
 public record ProjectDashboardSummary(long activeProjectCount, long distinctActiveMemberCount) {
 }

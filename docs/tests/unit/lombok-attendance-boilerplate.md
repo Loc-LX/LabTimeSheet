@@ -89,45 +89,6 @@ BUILD SUCCESS
 Process exited 0.
 ```
 
-## Extension (I2-ATT-03)
-
-`69b54eb` extended the compiled-contract audit to the leave stack: the
-`InternLeaveController` (form/submit) and `LeaveService` (submit/overview)
-method surfaces were added, `LeaveRequestDayEntity` gained its public 4-arg
-constructor and getter surface, `LeaveRequestDayId` gained `leaveDate()`, and
-`LeaveRequestEntity` gained the `PENDING` 7-arg constructor plus the public
-static `pending` factory and its getter surface. All four test methods still
-pass unchanged at the full-suite run recorded in `docs/tests/unit/leave-service.md`.
-
-## Extension (I2-ATT-04)
-
-`5e9e598` extended the compiled-contract audit to the leave lifecycle:
-`LeaveRequestEntity` gained its decision/cancellation mutators
-(`approve`/`reject`/`cancel`/`updateRange`) and getters
-(`decidedByMentorUserId`/`decidedAt`/`decisionNote`/`cancelledAt`),
-`LeaveService` gained `decide`/`cancel`/`edit`/`decisions`, the
-`InternLeaveController` gained `cancel`/`edit`, and the new
-`MentorLeaveController` surface (form/approve/reject) is asserted. All four
-test methods still pass unchanged at the full-suite run recorded in
-`docs/tests/unit/leave-lifecycle.md`.
-
-## Extension (I2-ATT-05)
-
-`4c09382` extended the compiled-contract audit to the correction stack:
-`AttendanceApplicationService` gained the injected
-`AttendanceCorrectionRepository` (8-param constructor),
-`AttendanceRecordEntity` gained `id()`/`checkInAt()`/`checkOutAt()`,
-`AttendanceHistoryItem` gained its `effectiveCheckOutAt` component, the new
-`InternCorrectionController` (form/submit) and `CorrectionService`
-(submit/overview) surfaces are asserted, and the new correction entities and
-DTOs are covered: `AttendanceCorrectionEntity` (protected JPA + 6-arg public
-constructor, `approve` mutator, and decision getters), `AttendanceCorrectionEventEntity`
-(protected JPA + 7-arg public constructor and getter surface), and the
-`CorrectionSubmission` (9 components), `CorrectionSubmissionCommand`
-(3 components), and `CorrectionsOverview` (2 components) records. All four test
-methods still pass unchanged at the full-suite run recorded in
-`docs/tests/unit/correction-submission.md`.
-
 ## External-test boundaries
 
 The reflection audit does not replace Spring/JPA bootstrapping, MVC property access, PostgreSQL persistence, or

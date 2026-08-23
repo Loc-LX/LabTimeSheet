@@ -1,10 +1,10 @@
 package com.lab.labtimesheet.feature.project.model.dto;
 
 /**
- * Thông tin người dùng đang hoạt động và đã xác thực được cung cấp cho phần web của Project.
+ * Active authenticated actor information exposed to Project web consumers.
  *
- * @param userId mã tài khoản ổn định
- * @param role tên vai trò toàn cục bất biến
+ * @param userId stable account identifier
+ * @param role immutable global role name
  */
 public record ProjectActorView(long userId, String role) {
 }

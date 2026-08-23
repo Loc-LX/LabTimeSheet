@@ -50,9 +50,7 @@ class LayerStructureTest {
             List<String> featurePackages = entries
                     .filter(Files::isDirectory)
                     .filter(path -> path.getNameCount() > featurePackage.getNameCount() + 1)
-                    .map(path -> path.subpath(featurePackage.getNameCount() + 1, path.getNameCount())
-                            .toString()
-                            .replace('\\', '/'))
+                    .map(path -> path.subpath(featurePackage.getNameCount() + 1, path.getNameCount()).toString())
                     .toList();
 
             assertThat(featurePackages).allMatch(APPROVED_FEATURE_PACKAGES::contains);

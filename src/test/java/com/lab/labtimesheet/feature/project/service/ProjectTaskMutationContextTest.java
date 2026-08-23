@@ -32,7 +32,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-/** [I1-PRJ-04, I2-PRJ-02] Giữ boundary Project trước khi feature Task kiểm tra quyền mutation. */
 @ExtendWith(MockitoExtension.class)
 class ProjectTaskMutationContextTest {
 

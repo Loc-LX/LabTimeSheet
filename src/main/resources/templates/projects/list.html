@@ -27,6 +27,13 @@
             </table>
         </div>
     </section>
+    <nav class="pagination" aria-label="Project pages" th:if="${projectPage.hasPrevious or projectPage.hasNext}">
+        <a class="button" th:if="${projectPage.hasPrevious}"
+           th:href="@{/projects(page=${projectPage.pageNumber - 1})}">Previous</a>
+        <span class="field-help" th:text="|Page ${projectPage.pageNumber}|">Page 1</span>
+        <a class="button" th:if="${projectPage.hasNext}"
+           th:href="@{/projects(page=${projectPage.pageNumber + 1})}">Next</a>
+    </nav>
 </main>
 </body>
 </html>

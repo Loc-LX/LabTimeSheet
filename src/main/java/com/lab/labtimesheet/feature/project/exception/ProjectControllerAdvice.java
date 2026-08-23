@@ -7,19 +7,20 @@ import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.servlet.ModelAndView;
 
 /**
- * Chuyển lỗi phân quyền và vòng đời Project chưa được xử lý thành hợp đồng lỗi hiển thị phía máy
- * chủ dùng chung, không tiết lộ thông tin.
+ * Maps uncaught Project authorization and lifecycle failures to the shared, non-disclosing
+ * server-rendered error contract.
  *
- * <p>Feature Reporting/UI cung cấp {@code error/generic}. Model ổn định gồm {@code errorStatus},
- * {@code errorTitle} và {@code errorMessage}; không trường nào lấy trực tiếp từ thông báo của exception.
+ * <p>The Reporting/UI feature supplies {@code error/generic}. Its stable model contains
+ * {@code errorStatus}, {@code errorTitle}, and {@code errorMessage}; none is populated from the
+ * exception message.
  */
 @ControllerAdvice(assignableTypes = ProjectController.class)
 public class ProjectControllerAdvice {
 
     /**
-     * Che giấu việc Project hoặc tài nguyên lồng bên trong được yêu cầu có tồn tại hay không.
+     * Hides whether a requested Project or nested resource exists.
      *
-     * @return view lỗi chung với HTTP 404 và nội dung an toàn
+     * @return the shared generic error view with HTTP 404 and safe copy
      */
     @ExceptionHandler(ProjectAccessDeniedException.class)
     public ModelAndView accessDenied() {
@@ -30,10 +31,10 @@ public class ProjectControllerAdvice {
     }
 
     /**
-     * Báo cáo yêu cầu Project cũ hoặc không hợp lệ chưa được xử lý mà không lộ chi tiết aggregate.
-     * Lỗi kiểm tra biểu mẫu đã biết được controller xử lý trước khi tới fallback này.
+     * Reports an uncaught stale or invalid Project request without exposing aggregate details.
+     * Known form validation failures are handled by the controller before reaching this fallback.
      *
-     * @return view lỗi chung với HTTP 409 và nội dung an toàn
+     * @return the shared generic error view with HTTP 409 and safe copy
      */
     @ExceptionHandler(ProjectRuleViolationException.class)
     public ModelAndView conflict() {
@@ -43,7 +44,6 @@ public class ProjectControllerAdvice {
                 "Review the Project and try again.");
     }
 
-    /** Tạo phản hồi lỗi chung với status và nội dung cố định do controller advice cung cấp. */
     private static ModelAndView genericError(HttpStatus status, String title, String message) {
         var error = new ModelAndView("error/generic");
         error.setStatus(status);

@@ -1,11 +1,11 @@
 package com.lab.labtimesheet.feature.project.model;
 
-/** Vòng đời aggregate Project; trạng thái Completed là kết thúc và chỉ đọc. */
+/** Project aggregate lifecycle; completion is terminal and read-only. */
 public enum ProjectStatus {
-    /** Trạng thái chuẩn bị, cho phép thay đổi thành viên, Leader và định nghĩa Task. */
+    /** Preparation state in which membership, leadership, and Task definitions may change. */
     PLANNED,
-    /** Trạng thái thực thi, cho phép công việc của Project diễn ra. */
+    /** Execution state in which Project work may proceed. */
     ACTIVE,
-    /** Trạng thái kết thúc chỉ đọc, vẫn giữ khả năng xem thành viên và nhiệm kỳ Leader lịch sử. */
+    /** Terminal read-only state retaining historical membership and leadership visibility. */
     COMPLETED
 }

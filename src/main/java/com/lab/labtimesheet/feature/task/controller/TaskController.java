@@ -109,6 +109,7 @@ public class TaskController {
             Authentication authentication,
             @PathVariable long projectId,
             @PathVariable long taskId,
+            @RequestParam long expectedVersion,
             @RequestParam String title,
             @RequestParam(required = false) String description,
             @RequestParam(required = false) String dueDate,
@@ -118,6 +119,7 @@ public class TaskController {
                     authentication.getName(),
                     projectId,
                     taskId,
+                    expectedVersion,
                     title,
                     description,
                     optionalDate(dueDate, "Enter a valid due date."));
@@ -136,9 +138,10 @@ public class TaskController {
             Authentication authentication,
             @PathVariable long projectId,
             @PathVariable long taskId,
+            @RequestParam long expectedVersion,
             RedirectAttributes redirectAttributes) {
         try {
-            taskService.softDelete(authentication.getName(), projectId, taskId);
+            taskService.softDelete(authentication.getName(), projectId, taskId, expectedVersion);
             return "redirect:/projects/%d/tasks".formatted(projectId);
         } catch (TaskValidationException exception) {
             redirectAttributes.addFlashAttribute("taskError", exception.getMessage());
@@ -151,6 +154,7 @@ public class TaskController {
             Authentication authentication,
             @PathVariable long projectId,
             @PathVariable long taskId,
+            @RequestParam long expectedVersion,
             @RequestParam String assigneeMembershipId,
             RedirectAttributes redirectAttributes) {
         try {
@@ -158,6 +162,7 @@ public class TaskController {
                     authentication.getName(),
                     projectId,
                     taskId,
+                    expectedVersion,
                     requiredLong(assigneeMembershipId, "Choose a valid assignee."));
         } catch (TaskValidationException exception) {
             redirectAttributes.addFlashAttribute("taskError", exception.getMessage());
@@ -172,6 +177,7 @@ public class TaskController {
             Authentication authentication,
             @PathVariable long projectId,
             @PathVariable long taskId,
+            @RequestParam long expectedTaskVersion,
             @RequestParam String workDate,
             @RequestParam String minutes,
             @RequestParam(required = false) String note,
@@ -181,6 +187,7 @@ public class TaskController {
                     authentication.getName(),
                     projectId,
                     taskId,
+                    expectedTaskVersion,
                     requiredDate(workDate, "Enter a valid work date and minutes."),
                     requiredInt(minutes, "Enter a valid work date and minutes."),
                     note);
@@ -200,6 +207,8 @@ public class TaskController {
             @PathVariable long projectId,
             @PathVariable long taskId,
             @PathVariable long workLogId,
+            @RequestParam long expectedTaskVersion,
+            @RequestParam long expectedWorkLogVersion,
             @RequestParam String minutes,
             @RequestParam(required = false) String note,
             RedirectAttributes redirectAttributes) {
@@ -208,6 +217,8 @@ public class TaskController {
                     authentication.getName(),
                     projectId,
                     workLogId,
+                    expectedTaskVersion,
+                    expectedWorkLogVersion,
                     requiredInt(minutes, "Enter valid corrected minutes."),
                     note);
         } catch (TaskValidationException exception) {
@@ -225,6 +236,7 @@ public class TaskController {
             Authentication authentication,
             @PathVariable long projectId,
             @PathVariable long taskId,
+            @RequestParam long expectedVersion,
             @RequestParam String status,
             RedirectAttributes redirectAttributes) {
         try {
@@ -232,6 +244,7 @@ public class TaskController {
                     authentication.getName(),
                     projectId,
                     taskId,
+                    expectedVersion,
                     requiredStatus(status));
         } catch (TaskValidationException exception) {
             redirectAttributes.addFlashAttribute("taskError", exception.getMessage());
