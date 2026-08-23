@@ -24,15 +24,6 @@ public interface GlobalCalendarEventRepository extends JpaRepository<GlobalCalen
     boolean existsByCalendarDateAndDayOffTrue(LocalDate date);
 
     /**
-     * Reports whether a HolidayAPI source UUID is already stored locally.
-     *
-     * @param source event origin ({@code CUSTOM} or {@code HOLIDAY_API})
-     * @param sourceUuid source-side identifier
-     * @return {@code true} when an identical import already exists
-     */
-    boolean existsBySourceAndSourceUuid(String source, String sourceUuid);
-
-    /**
      * Lists events across an inclusive local-date range in deterministic order.
      *
      * @param from inclusive first date

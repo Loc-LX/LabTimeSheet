@@ -4,6 +4,7 @@ import com.lab.labtimesheet.feature.attendance.exception.PolicyException;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
 import com.lab.labtimesheet.feature.attendance.model.AttendancePolicy;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceRole;
+import com.lab.labtimesheet.feature.attendance.model.dto.AttendancePolicyVersionView;
 import com.lab.labtimesheet.feature.attendance.model.dto.SchedulePolicyCommand;
 import com.lab.labtimesheet.feature.attendance.model.entity.AttendancePolicyEntity;
 import com.lab.labtimesheet.feature.attendance.repository.AttendancePolicyRepository;
@@ -87,6 +88,20 @@ public class AttendancePolicyService {
         return policyEntities.findAllByOrderByEffectiveFromAsc()
                 .stream()
                 .map(AttendancePolicyEntity::toDomain)
+                .toList();
+    }
+
+    /**
+     * Returns every policy version in effective-date order with its current optimistic
+     * version, so the Admin editor can replace scheduled-but-not-yet-effective versions.
+     *
+     * @return ascending versions including the historical seed and their optimistic versions
+     */
+    @Transactional(readOnly = true)
+    public List<AttendancePolicyVersionView> versions() {
+        return policyEntities.findAllByOrderByEffectiveFromAsc()
+                .stream()
+                .map(entity -> new AttendancePolicyVersionView(entity.toDomain(), entity.version()))
                 .toList();
     }
 

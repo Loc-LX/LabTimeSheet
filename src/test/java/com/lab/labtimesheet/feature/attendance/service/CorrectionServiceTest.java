@@ -47,6 +47,8 @@ class CorrectionServiceTest {
     private final AttendanceRecordRepository records = mock(AttendanceRecordRepository.class);
     private final AttendanceCorrectionRepository corrections = mock(AttendanceCorrectionRepository.class);
     private final AttendanceCorrectionEventRepository events = mock(AttendanceCorrectionEventRepository.class);
+    private final CorrectionWindowGuard windowGuard = mock(CorrectionWindowGuard.class);
+      private final AttendanceDeadlineService deadlines = mock(AttendanceDeadlineService.class);
 
     private AttendanceRecordEntity record;
     private AttendanceCorrectionEntity saved;
@@ -249,11 +251,13 @@ class CorrectionServiceTest {
     }
 
     private CorrectionService serviceAt(Instant now) {
-        return new CorrectionService(
-                Clock.fixed(now, ZoneOffset.UTC),
-                accounts,
-                records,
-                corrections,
-                events);
+return new CorrectionService(
+                  Clock.fixed(now, ZoneOffset.UTC),
+                  accounts,
+                  records,
+                  corrections,
+                  events,
+                  windowGuard,
+                  deadlines);
     }
 }

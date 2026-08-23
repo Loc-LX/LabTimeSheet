@@ -2,6 +2,7 @@ package com.lab.labtimesheet.feature.attendance.service;
 
 import com.lab.labtimesheet.feature.account.model.AccountStatus;
 import com.lab.labtimesheet.feature.account.model.GlobalRole;
+import com.lab.labtimesheet.feature.account.model.InternshipStatus;
 import com.lab.labtimesheet.feature.account.model.dto.AccountIdentity;
 import com.lab.labtimesheet.feature.account.model.dto.LockedAccountMutationEligibility;
 import com.lab.labtimesheet.feature.account.service.AccountService;
@@ -34,6 +35,7 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZonedDateTime;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -68,13 +70,14 @@ public class AttendanceCorrectionApplicationService {
     /**
      * Lists retained correction requests visible to an owning Intern or active global Mentor.
      *
-     * <p>The list is informational and may become stale immediately; detail and decision methods
-     * repeat ownership, active-role, deadline, and lock checks before returning or mutating state.</p>
+     * <p>Pending rows at or beyond their decision deadline are locked and auto-rejected before
+     * the actionable queue is built. Detail and decision methods still repeat ownership,
+     * active-role, deadline, and lock checks before returning or mutating state.</p>
      *
      * @param actor authenticated Attendance actor
-     * @return newest-first immutable correction summaries
+     * @return actionable pending summaries first, followed by retained decision history in newest-first order
      */
-    @Transactional(readOnly = true)
+    @Transactional
     public List<CorrectionSummary> list(AttendanceActor actor) {
         if (actor == null) {
             throw new AccessDeniedException("An attendance actor is required");
@@ -83,11 +86,75 @@ public class AttendanceCorrectionApplicationService {
         if (identity.status() != AccountStatus.ACTIVE || !identity.role().name().equals(actor.role().name())) {
             throw new AccessDeniedException("An active matching account is required");
         }
-        return switch (actor.role()) {
+        List<CorrectionSummary> visible = switch (actor.role()) {
             case INTERN -> corrections.findSummariesByInternUserId(actor.userId());
             case MENTOR -> corrections.findAllSummaries();
             default -> throw new AccessDeniedException("Correction list is outside the requested scope");
         };
+        expireVisiblePending(actor, visible);
+        visible = switch (actor.role()) {
+            case INTERN -> corrections.findSummariesByInternUserId(actor.userId());
+            case MENTOR -> corrections.findAllSummaries();
+            default -> throw new AccessDeniedException("Correction list is outside the requested scope");
+        };
+        return visible.stream()
+                .sorted(Comparator.comparing(
+                                (CorrectionSummary row) -> !CorrectionStatus.PENDING.name().equals(row.status()))
+                        .thenComparing(CorrectionSummary::submittedAt,
+                                Comparator.nullsLast(Comparator.reverseOrder()))
+                        .thenComparing(CorrectionSummary::id, Comparator.reverseOrder()))
+                .toList();
+    }
+
+    private void expireVisiblePending(AttendanceActor actor, List<CorrectionSummary> visible) {
+        Instant now = clock.instant();
+        List<CorrectionSummary> due = visible.stream()
+                .filter(summary -> CorrectionStatus.PENDING.name().equals(summary.status()))
+                .filter(summary -> summary.decisionDeadline() != null)
+                .filter(summary -> !now.isBefore(summary.decisionDeadline()))
+                .sorted(Comparator.comparing(CorrectionSummary::id))
+                .toList();
+        if (due.isEmpty()) {
+            return;
+        }
+        List<Long> ownerIds = due.stream()
+                .map(CorrectionSummary::internUserId)
+                .distinct()
+                .sorted()
+                .toList();
+        Map<Long, LockedAccountMutationEligibility> lockedAccounts = lockAccounts(
+                java.util.stream.Stream.concat(java.util.stream.Stream.of(actor.userId()), ownerIds.stream())
+                        .distinct()
+                        .sorted()
+                        .toList());
+        requireActiveExpiryActor(actor, lockedAccounts);
+        Map<Long, AccountIdentity> ownerIdentities = identities(ownerIds);
+        for (CorrectionSummary candidate : due) {
+            AttendanceCorrectionEntity correction = lockedCorrection(candidate.id());
+            expireIfNeeded(correction, clock.instant(), ownerIdentities.get(candidate.internUserId()));
+        }
+    }
+
+    private void requireActiveExpiryActor(
+            AttendanceActor actor, Map<Long, LockedAccountMutationEligibility> lockedAccounts) {
+        if (actor.role() == AttendanceRole.MENTOR) {
+            requireActiveMentor(actor.userId(), lockedAccounts);
+        } else if (actor.role() == AttendanceRole.INTERN) {
+            requireActiveIntern(actor.userId(), lockedAccounts);
+        } else {
+            throw new AccessDeniedException("Correction list is outside the requested scope");
+        }
+    }
+
+    private static void requireActiveIntern(
+            long userId, Map<Long, LockedAccountMutationEligibility> lockedAccounts) {
+        LockedAccountMutationEligibility locked = lockedAccounts.get(userId);
+        if (locked == null
+                || locked.role() != GlobalRole.INTERN
+                || locked.accountStatus() != AccountStatus.ACTIVE
+                || locked.internshipStatus().orElse(null) != InternshipStatus.ACTIVE) {
+            throw new AccessDeniedException("An active Intern is required");
+        }
     }
 
     /**

@@ -9,8 +9,9 @@
 ## Protected behavior
 
 The seeded policy applies from 1970-01-01 with the required timezone, schedule,
-workdays, grace values, leave quota, and penalty. Grace outside 0..720 or a
-checkout cutoff at midnight is rejected.
+workdays, grace values, leave quota, and penalty. Grace outside 0..720, a checkout
+cutoff at midnight, a monthly leave quota outside 0..31, a violation penalty
+outside 0..1, or an empty workday set is rejected at construction.
 
 ## Test method
 
@@ -21,43 +22,40 @@ dates, and exercises the validation boundary without Spring or persistence.
 
 08:30 plus 30 minutes makes the inclusive on-time boundary 09:00. 15:30 plus
 30 minutes makes the inclusive checkout boundary 16:00. A 23:30 end plus 30
-minutes reaches midnight and is invalid.
+minutes reaches midnight and is invalid. Quota `-1`/`32`, penalty `-0.01`/`1.01`,
+and an empty workday set each fail validation.
 
 ## RED
 
 **Command**
 
 ```text
-export JAVA_HOME=/opt/homebrew/opt/openjdk@25
-export PATH="$JAVA_HOME/bin:$PATH"
-./mvnw -Dtest=AttendancePolicyTest test
+cmd /c "mvnw.cmd -Dtest=AttendancePolicyTest test"
 ```
 
 **Observed result**
 
 ```text
-[ERROR] AttendancePolicyTest.java:[51,20] cannot find symbol
-  symbol:   class AttendancePolicy
+[ERROR] Tests run: 6, Failures: 3, Errors: 0, Skipped: 0
 [INFO] BUILD FAILURE
-Process exited 1. The test reached compilation and failed because the required policy domain did not exist.
 ```
+
+The three new boundary tests (quota, penalty, empty workdays) failed against the
+permissive constructor, which accepted the out-of-range values silently.
 
 ## GREEN
 
 **Command**
 
 ```text
-export JAVA_HOME=/opt/homebrew/opt/openjdk@25
-export PATH="$JAVA_HOME/bin:$PATH"
-./mvnw -Dtest=AttendancePolicyTest test
+cmd /c "mvnw.cmd -Dtest=AttendancePolicyTest test"
 ```
 
 **Observed result**
 
 ```text
-Tests run: 3, Failures: 0, Errors: 0, Skipped: 0
+AttendancePolicyTest: Tests run: 6, Failures: 0, Errors: 0, Skipped: 0
 BUILD SUCCESS
-Process exited 0.
 ```
 
 ## Affected suite
@@ -65,10 +63,10 @@ Process exited 0.
 **Command and result**
 
 ```text
-./mvnw -Dtest='*Attendance*Test' test
-Tests run: 32, Failures: 0, Errors: 0, Skipped: 0
+cmd /c "mvnw.cmd -Dtest=AttendancePolicyTest,AttendancePolicyServiceTest,AttendancePolicySchedulingIntegrationTest,AttendancePolicyWebIntegrationTest test"
+AttendancePolicyTest 6, AttendancePolicyServiceTest 7, AttendancePolicySchedulingIntegrationTest 4, AttendancePolicyWebIntegrationTest 6
+Tests run: 23, Failures: 0, Errors: 0, Skipped: 0
 BUILD SUCCESS
-Process exited 0.
 ```
 
 ## External-test boundaries

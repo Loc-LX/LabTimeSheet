@@ -32,12 +32,14 @@ import com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestSummary;
 import com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestView;
 import com.lab.labtimesheet.feature.attendance.model.dto.CorrectionView;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceCorrectionApplicationService;
+import com.lab.labtimesheet.feature.attendance.service.AttendanceApplicationService;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceCurrentUserService;
 import com.lab.labtimesheet.feature.attendance.service.LeaveApplicationService;
 import com.lab.labtimesheet.feature.integration.service.SmtpConfigurationService;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.YearMonth;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.DayOfWeek;
@@ -63,6 +65,9 @@ class AttendanceRequestControllerWebTest {
     private AttendanceCurrentUserService currentUsers;
 
     @MockitoBean
+    private AttendanceApplicationService attendance;
+
+    @MockitoBean
     private LeaveApplicationService leave;
 
     @MockitoBean
@@ -72,9 +77,18 @@ class AttendanceRequestControllerWebTest {
     private SmtpConfigurationService smtpConfiguration;
 
     @Test
+    void legacyRequestRouteRedirectsToLeaveWorkflow() throws Exception {
+        mvc.perform(get("/attendance/requests")
+                        .with(user("intern@example.test").roles("INTERN")))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/attendance/leave"));
+    }
+
+    @Test
     void internListsOwnRequestsAndSubmitsLeaveAndCorrection() throws Exception {
         AttendanceActor actor = new AttendanceActor(7L, AttendanceRole.INTERN);
         when(currentUsers.actor(org.mockito.ArgumentMatchers.any())).thenReturn(actor);
+        when(attendance.currentBusinessDate()).thenReturn(LocalDate.of(2026, 8, 21));
         when(leave.list(actor)).thenReturn(List.of(new LeaveRequestSummary(
                 10L, 7L, LocalDate.of(2026, 8, 28), LocalDate.of(2026, 9, 2),
                 "Family", LeaveStatus.PENDING, Instant.parse("2026-08-20T00:00:00Z"))));
@@ -93,10 +107,13 @@ class AttendanceRequestControllerWebTest {
                 new CorrectionRequestCommand(LocalDateTime.of(2026, 8, 20, 16, 0), "Missed")))
                 .thenReturn(submittedCorrection);
 
-        mvc.perform(get("/attendance/requests").with(user("intern@example.test").roles("INTERN")))
+        when(leave.balance(actor, YearMonth.of(2026, 8))).thenReturn(
+                new com.lab.labtimesheet.feature.attendance.model.dto.LeaveBalance(
+                        YearMonth.of(2026, 8), 1, 3));
+        mvc.perform(get("/attendance/leave").param("month", "2026-08")
+                        .with(user("intern@example.test").roles("INTERN")))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("Cross-month leave")))
-                .andExpect(content().string(containsString("Missed checkout correction")))
+                .andExpect(content().string(containsString("Leave balance")))
                 .andExpect(content().string(containsString("Family")));
 
         mvc.perform(post("/attendance/leave").with(user("intern@example.test").roles("INTERN")).with(csrf())
@@ -140,6 +157,7 @@ class AttendanceRequestControllerWebTest {
         when(currentUsers.actor(org.mockito.ArgumentMatchers.any())).thenReturn(actor);
         when(leave.list(actor)).thenReturn(List.of());
         when(corrections.list(actor)).thenReturn(List.of());
+        when(attendance.currentBusinessDate()).thenReturn(LocalDate.of(2026, 8, 21));
         when(leave.submit(actor, command)).thenThrow(new LeaveException("Leave overlaps an active request"));
         Map<String, Object> input = Map.of(
                 "startDate", "2026-08-28",
@@ -154,7 +172,7 @@ class AttendanceRequestControllerWebTest {
                 .andExpect(status().is3xxRedirection())
                 .andExpect(flash().attribute("leaveInput", input));
 
-        mvc.perform(get("/attendance/requests")
+        mvc.perform(get("/attendance/leave")
                         .with(user("intern@example.test").roles("INTERN"))
                         .flashAttr("requestError", "Leave overlaps an active request")
                         .flashAttr("leaveInput", input))
@@ -175,7 +193,7 @@ class AttendanceRequestControllerWebTest {
                         .param("endDate", "2026-09-02")
                         .param("reason", "Retained reason"))
                 .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/attendance/requests"))
+                .andExpect(redirectedUrl("/attendance/leave"))
                 .andExpect(flash().attribute("requestError", "Enter valid leave dates."))
                 .andExpect(flash().attribute("leaveInput", Map.of(
                         "startDate", "not-a-date",
@@ -194,13 +212,74 @@ class AttendanceRequestControllerWebTest {
                         .param("proposedCheckout", "not-a-date-time")
                         .param("reason", "Retained reason"))
                 .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/attendance/requests"))
+                .andExpect(redirectedUrl("/attendance/corrections"))
                 .andExpect(flash().attribute(
                         "requestError", "Enter a valid attendance record and proposed checkout."))
                 .andExpect(flash().attribute("correctionInput", Map.of(
                         "attendanceRecordId", "not-an-id",
                         "proposedCheckout", "not-a-date-time",
                         "reason", "Retained reason")));
+    }
+
+    @Test
+    void correctionEntryRetainsAttendanceRecordIdFromHistoryLink() throws Exception {
+        AttendanceActor actor = new AttendanceActor(7L, AttendanceRole.INTERN);
+        when(currentUsers.actor(org.mockito.ArgumentMatchers.any())).thenReturn(actor);
+        when(corrections.list(actor)).thenReturn(List.of());
+
+        mvc.perform(get("/attendance/corrections").param("attendanceRecordId", "55")
+                        .with(user("intern@example.test").roles("INTERN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("value=\"55\"")));
+    }
+
+    @Test
+    void correctionFormRendersRetainedSafeInputAfterValidationFailure() throws Exception {
+        AttendanceActor actor = new AttendanceActor(7L, AttendanceRole.INTERN);
+        when(currentUsers.actor(org.mockito.ArgumentMatchers.any())).thenReturn(actor);
+        when(corrections.list(actor)).thenReturn(List.of());
+
+        mvc.perform(get("/attendance/corrections")
+                        .with(user("intern@example.test").roles("INTERN"))
+                        .flashAttr("requestError", "Enter a valid attendance record and proposed checkout.")
+                        .flashAttr("correctionInput", Map.of(
+                                "attendanceRecordId", "not-an-id",
+                                "proposedCheckout", "2026-08-20T16:00",
+                                "reason", "Retained reason")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("value=\"not-an-id\"")))
+                .andExpect(content().string(containsString("value=\"2026-08-20T16:00\"")))
+                .andExpect(content().string(containsString("value=\"Retained reason\"")))
+                .andExpect(content().string(containsString("id=\"correction-form-error\"")));
+    }
+
+    @Test
+    void leaveEditFormRendersRetainedSafeInputAfterValidationFailure() throws Exception {
+        AttendanceActor actor = new AttendanceActor(7L, AttendanceRole.INTERN);
+        when(currentUsers.actor(org.mockito.ArgumentMatchers.any())).thenReturn(actor);
+        when(attendance.currentBusinessDate()).thenReturn(LocalDate.of(2026, 8, 21));
+        when(leave.list(actor)).thenReturn(List.of());
+        when(corrections.list(actor)).thenReturn(List.of());
+        when(leave.balance(actor, YearMonth.of(2026, 8))).thenReturn(
+                new com.lab.labtimesheet.feature.attendance.model.dto.LeaveBalance(
+                        YearMonth.of(2026, 8), 0, 3));
+        when(leave.view(actor, 10L)).thenReturn(new LeaveRequestView(
+                10L, 7L, LocalDate.of(2026, 8, 28), LocalDate.of(2026, 8, 28), "Original",
+                LeaveStatus.PENDING, Instant.parse("2026-08-20T00:00:00Z"),
+                Instant.parse("2026-08-28T01:00:00Z"), null, null, null, List.of()));
+
+        mvc.perform(get("/attendance/leave/10")
+                        .with(user("intern@example.test").roles("INTERN"))
+                        .flashAttr("requestError", "Leave dates are invalid")
+                        .flashAttr("leaveEditInput", Map.of(
+                                "startDate", "not-a-date",
+                                "endDate", "2026-08-30",
+                                "reason", "Retained edit reason")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("value=\"not-a-date\"")))
+                .andExpect(content().string(containsString("value=\"2026-08-30\"")))
+                .andExpect(content().string(containsString("value=\"Retained edit reason\"")))
+                .andExpect(content().string(containsString("id=\"leave-edit-form-error\"")));
     }
 
     @Test
@@ -218,9 +297,37 @@ class AttendanceRequestControllerWebTest {
     }
 
     @Test
+    void correctionDecisionFormRendersRetainedSafeInputAfterValidationFailure() throws Exception {
+        AttendanceActor mentor = new AttendanceActor(2L, AttendanceRole.MENTOR);
+        when(currentUsers.actor(org.mockito.ArgumentMatchers.any())).thenReturn(mentor);
+        when(leave.list(mentor)).thenReturn(List.of());
+        when(corrections.list(mentor)).thenReturn(List.of());
+        AttendancePolicy policy = new AttendancePolicy(
+                1L, LocalDate.of(2026, 1, 1), ZoneId.of("Asia/Ho_Chi_Minh"),
+                LocalTime.of(8, 0), LocalTime.of(17, 0), 15, 15, 3,
+                BigDecimal.valueOf(0.1), Set.of(DayOfWeek.MONDAY));
+        when(corrections.view(mentor, 11L)).thenReturn(new CorrectionView(
+                11L, 55L, 7L, null, LocalDateTime.of(2026, 8, 20, 16, 0), null,
+                "Missed", CorrectionStatus.PENDING, Instant.parse("2026-08-20T10:00:00Z"),
+                Instant.parse("2026-08-21T10:00:00Z"), Instant.parse("2026-08-21T10:00:00Z"),
+                null, policy, new AttendanceViolations(false, false, true), List.of()));
+
+        mvc.perform(get("/attendance/corrections/11")
+                        .with(user("mentor@example.test").roles("MENTOR"))
+                        .flashAttr("requestError", "Choose a valid correction decision.")
+                        .flashAttr("correctionDecisionInput", Map.of(
+                                "decision", "NOT_A_DECISION",
+                                "note", "Retained note")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("value=\"Retained note\"")))
+                .andExpect(content().string(containsString("id=\"decision-form-error\"")));
+    }
+
+    @Test
     void retainedLeaveAllocationsAndCorrectionEventsRenderWithoutExposingRawMutationState() throws Exception {
         AttendanceActor intern = new AttendanceActor(7L, AttendanceRole.INTERN);
         when(currentUsers.actor(org.mockito.ArgumentMatchers.any())).thenReturn(intern);
+        when(attendance.currentBusinessDate()).thenReturn(LocalDate.of(2026, 8, 21));
         when(leave.list(intern)).thenReturn(List.of());
         when(corrections.list(intern)).thenReturn(List.of());
         when(leave.view(intern, 10L)).thenReturn(new LeaveRequestView(
@@ -232,7 +339,7 @@ class AttendanceRequestControllerWebTest {
 
         mvc.perform(get("/attendance/leave/10").with(user("intern@example.test").roles("INTERN")))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("28/08/2026 · 01/08/2026")));
+                .andExpect(content().string(containsString("28/08/2026 · quota month 08/2026")));
 
         AttendanceActor mentor = new AttendanceActor(2L, AttendanceRole.MENTOR);
         when(currentUsers.actor(org.mockito.ArgumentMatchers.any())).thenReturn(mentor);

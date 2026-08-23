@@ -69,6 +69,7 @@ class AttendanceTemplateIntegrationTest {
                 .andExpect(content().string(containsString("09:05")))
                 .andExpect(content().string(containsString("16:00")))
                 .andExpect(content().string(containsString("08:30–15:30 (Asia/Ho_Chi_Minh)")))
+                .andExpect(content().string(containsString("/attendance/corrections?attendanceRecordId=55")))
                 .andExpect(content().string(containsString("Late")))
                 .andExpect(content().string(containsString("Early departure")))
                 .andExpect(content().string(containsString("Missing checkout")));
@@ -96,16 +97,23 @@ class AttendanceTemplateIntegrationTest {
                             LocalDate.of(2026, 8, 14),
                             Instant.parse("2026-08-14T02:05:00Z"),
                             Instant.parse("2026-08-14T09:00:00Z"),
-                            Instant.parse("2026-08-14T09:00:00Z"),
                             AttendancePolicyFixtures.seeded(1L),
-                            new AttendanceViolations(true, true, false)),
+                            new AttendanceViolations(true, true, false),
+                            55L),
                     new AttendanceHistoryItem(
                             LocalDate.of(2026, 8, 13),
                             Instant.parse("2026-08-13T01:30:00Z"),
                             null,
+                            AttendancePolicyFixtures.seeded(1L),
+                            new AttendanceViolations(true, false, true),
+                            55L),
+                    new AttendanceHistoryItem(
+                            LocalDate.of(2026, 8, 12),
+                            Instant.parse("2026-08-12T01:30:00Z"),
                             null,
                             AttendancePolicyFixtures.seeded(1L),
-                            new AttendanceViolations(true, false, true))));
+                            new AttendanceViolations(false, false, true),
+                            55L)));
             return "attendance/history";
         }
 

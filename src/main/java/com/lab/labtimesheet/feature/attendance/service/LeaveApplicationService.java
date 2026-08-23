@@ -2,6 +2,7 @@ package com.lab.labtimesheet.feature.attendance.service;
 
 import com.lab.labtimesheet.feature.account.model.AccountStatus;
 import com.lab.labtimesheet.feature.account.model.GlobalRole;
+import com.lab.labtimesheet.feature.account.model.InternshipStatus;
 import com.lab.labtimesheet.feature.account.model.dto.AccountIdentity;
 import com.lab.labtimesheet.feature.account.model.dto.InternWorkWindow;
 import com.lab.labtimesheet.feature.account.model.dto.LockedAccountMutationEligibility;
@@ -12,6 +13,7 @@ import com.lab.labtimesheet.feature.attendance.model.AttendancePolicy;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceRole;
 import com.lab.labtimesheet.feature.attendance.model.LeaveStatus;
 import com.lab.labtimesheet.feature.attendance.model.dto.LeaveAllocation;
+import com.lab.labtimesheet.feature.attendance.model.dto.LeaveBalance;
 import com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestCommand;
 import com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestSummary;
 import com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestView;
@@ -29,9 +31,11 @@ import com.lab.labtimesheet.feature.notification.service.NotificationService;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -73,13 +77,14 @@ public class LeaveApplicationService {
      * Lists retained leave requests visible to the authenticated Attendance actor.
      *
      * <p>Interns receive only their own rows. Active global Mentors and Admins receive the
-     * decision/read-only queue respectively; every mutation and detail read still repeats its
-     * locked authorization and deadline checks.</p>
+     * decision/read-only queue respectively. Pending rows whose first counted start has
+     * arrived are locked and auto-rejected before the actionable queue is built, so a late
+     * scheduler cannot leave stale decision affordances on this first-access read path.</p>
      *
      * @param actor authenticated Attendance actor
-     * @return newest-first immutable request summaries
+     * @return actionable pending summaries first, followed by retained history in newest-first order
      */
-    @Transactional(readOnly = true)
+    @Transactional
     public List<LeaveRequestSummary> list(AttendanceActor actor) {
         AccountIdentity identity = requireListActor(actor);
         if (identity.status() != AccountStatus.ACTIVE) {
@@ -88,11 +93,84 @@ public class LeaveApplicationService {
         List<LeaveRequestEntity> visible = actor.role() == AttendanceRole.INTERN
                 ? requests.findByInternUserIdOrderBySubmittedAtDescIdDesc(actor.userId())
                 : requests.findAllByOrderBySubmittedAtDescIdDesc();
+        expireVisiblePending(actor, visible);
         return visible.stream()
                 .map(request -> new LeaveRequestSummary(
                         request.id(), request.internUserId(), request.startDate(), request.endDate(),
                         request.reason(), request.status(), request.submittedAt()))
+                .sorted(Comparator.comparing(
+                                (LeaveRequestSummary row) -> row.status() != LeaveStatus.PENDING)
+                        .thenComparing(LeaveRequestSummary::submittedAt,
+                                Comparator.nullsLast(Comparator.reverseOrder()))
+                        .thenComparing(LeaveRequestSummary::id, Comparator.reverseOrder()))
                 .toList();
+    }
+
+    private void expireVisiblePending(AttendanceActor actor, List<LeaveRequestEntity> visible) {
+        Instant now = clock.instant();
+        List<LeaveRequestEntity> due = visible.stream()
+                .filter(request -> request.status() == LeaveStatus.PENDING)
+                .filter(request -> request.firstCountedStartAt() != null)
+                .filter(request -> !now.isBefore(request.firstCountedStartAt()))
+                .sorted(Comparator.comparing(LeaveRequestEntity::id))
+                .toList();
+        if (due.isEmpty()) {
+            return;
+        }
+        List<Long> ownerIds = due.stream()
+                .map(LeaveRequestEntity::internUserId)
+                .distinct()
+                .sorted()
+                .toList();
+        Map<Long, LockedAccountMutationEligibility> lockedAccounts = lockAccounts(
+                java.util.stream.Stream.concat(java.util.stream.Stream.of(actor.userId()), ownerIds.stream())
+                        .distinct()
+                        .sorted()
+                        .toList());
+        requireActiveExpiryActor(actor, lockedAccounts);
+        Map<Long, AccountIdentity> ownerIdentities = identities(ownerIds);
+        for (LeaveRequestEntity candidate : due) {
+            LeaveRequestEntity request = lockedRequest(candidate.id());
+            requireReader(actor, request, lockedAccounts);
+            expireIfNeeded(request, clock.instant(), ownerIdentities.get(request.internUserId()));
+        }
+    }
+
+    /**
+     * Returns the selected month's frozen Leave reservation balance for the
+     * authenticated Intern.
+     *
+     * <p>The read boundary uses only Attendance-owned allocation rows and the
+     * policy timeline. It does not mutate requests or recalculate historical
+     * allocations when a later policy is scheduled.</p>
+     *
+     * @param actor authenticated active Intern
+     * @param month selected local business month
+     * @return reserved, applicable quota, remaining, and cross-month counts
+     */
+    @Transactional(readOnly = true)
+    public LeaveBalance balance(AttendanceActor actor, YearMonth month) {
+        requireIntern(actor);
+        if (month == null) {
+            throw new IllegalArgumentException("Leave balance month is required");
+        }
+        AccountIdentity identity = accounts.requireIdentityById(actor.userId());
+        if (identity.status() != AccountStatus.ACTIVE
+                || identity.role() != GlobalRole.INTERN) {
+            throw new AccessDeniedException("An active Intern is required");
+        }
+        LocalDate quotaMonth = month.atDay(1);
+        int quota = timeline().resolve(quotaMonth).monthlyLeaveQuota();
+        long reserved = days.countReserved(actor.userId(), quotaMonth, RESERVED);
+        long crossMonth = days.countReservedCrossMonth(
+                actor.userId(), quotaMonth, quotaMonth.plusMonths(1), RESERVED);
+        int reservedDays = Math.toIntExact(reserved);
+        return new LeaveBalance(
+                month,
+                reservedDays,
+                quota,
+                Math.max(0, quota - reservedDays),
+                Math.toIntExact(crossMonth));
     }
 
     /**
@@ -493,6 +571,37 @@ public class LeaveApplicationService {
         }
         if (actor.role() != AttendanceRole.ADMIN) {
             throw new AccessDeniedException("Leave is outside the requested scope");
+        }
+    }
+
+    private void requireActiveExpiryActor(
+            AttendanceActor actor, Map<Long, LockedAccountMutationEligibility> lockedAccounts) {
+        switch (actor.role()) {
+            case INTERN -> requireActiveIntern(actor.userId(), lockedAccounts);
+            case MENTOR -> requireActiveMentor(actor.userId(), lockedAccounts);
+            case ADMIN -> requireActiveAdmin(actor.userId(), lockedAccounts);
+            default -> throw new AccessDeniedException("Leave is outside the requested scope");
+        }
+    }
+
+    private static void requireActiveIntern(
+            long userId, Map<Long, LockedAccountMutationEligibility> lockedAccounts) {
+        LockedAccountMutationEligibility locked = lockedAccounts.get(userId);
+        if (locked == null
+                || locked.role() != GlobalRole.INTERN
+                || locked.accountStatus() != AccountStatus.ACTIVE
+                || locked.internshipStatus().orElse(null) != InternshipStatus.ACTIVE) {
+            throw new AccessDeniedException("An active Intern is required");
+        }
+    }
+
+    private static void requireActiveAdmin(
+            long userId, Map<Long, LockedAccountMutationEligibility> lockedAccounts) {
+        LockedAccountMutationEligibility locked = lockedAccounts.get(userId);
+        if (locked == null
+                || locked.role() != GlobalRole.ADMIN
+                || locked.accountStatus() != AccountStatus.ACTIVE) {
+            throw new AccessDeniedException("An active Admin is required");
         }
     }
 

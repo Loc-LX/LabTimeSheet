@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{fragments/layout :: shell(
+          pageTitle='Corrections',
+          section=${intern ? 'Intern' : actor.role},
+          activeNav='attendance-requests',
+          primaryAction=~{::#primary-action},
+          content=~{::main})}">
+<body>
+<a id="primary-action" class="button" th:href="@{/attendance/leave}">My Leave</a>
+<main>
+    <p class="page-description">Submit and review missed-checkout corrections.</p>
+    <p class="alert" role="status" th:if="${message}" th:text="${message}"></p>
+    <p class="alert alert-error" role="alert" th:if="${requestError}" th:text="${requestError}"></p>
+
+    <section class="panel form-panel" th:if="${intern}">
+        <header class="panel-header"><h2 class="panel-title">Request correction</h2></header>
+        <form class="form-grid" method="post" th:action="@{/attendance/corrections}"
+              th:attr="aria-describedby=${correctionInput != null and requestError != null ? 'correction-form-error' : null}">
+            <div class="form-grid form-grid-three">
+                <div class="field"><label class="field-label" for="attendance-record">Attendance record</label><input class="control" id="attendance-record" name="attendanceRecordId" type="number" min="1" required th:value="${correctionInput == null ? attendanceRecordId : correctionInput.attendanceRecordId}"></div>
+                <div class="field"><label class="field-label" for="proposed-checkout">Proposed checkout</label><input class="control" id="proposed-checkout" name="proposedCheckout" type="datetime-local" required th:value="${correctionInput == null ? null : correctionInput.proposedCheckout}"></div>
+                <div class="field"><label class="field-label" for="correction-reason">Reason</label><input class="control" id="correction-reason" name="reason" maxlength="500" required th:value="${correctionInput == null ? null : correctionInput.reason}"></div>
+            </div>
+            <p class="field-error" id="correction-form-error" role="alert" th:if="${correctionInput != null and requestError != null}" th:text="${requestError}">Correction error</p>
+            <div class="form-actions"><button class="button button-primary" type="submit">Submit correction</button></div>
+        </form>
+    </section>
+
+    <section class="panel form-panel">
+        <header class="panel-header"><h2 class="panel-title" th:text="${mentor ? 'Correction decisions' : 'My Corrections'}">Corrections</h2></header>
+        <div th:if="${#lists.isEmpty(correctionRequests)}"><th:block th:replace="~{fragments/components :: empty('No corrections', 'Submitted corrections will appear here.')} "></th:block></div>
+        <div class="table-scroll" th:unless="${#lists.isEmpty(correctionRequests)}"><table class="data-table"><caption class="sr-only">Missed checkout corrections</caption>
+            <thead><tr><th scope="col">Attendance record</th><th scope="col">Intern</th><th scope="col">Reason</th><th scope="col">Status</th><th scope="col">View</th></tr></thead>
+            <tbody><tr th:each="request : ${correctionRequests}"><td th:text="${request.attendanceRecordId}">Record</td><td th:text="${request.internUserId}">Intern</td><td th:text="${request.reason}">Reason</td><td><span class="badge" th:text="${request.status}">PENDING</span></td><td><a class="button" th:href="@{/attendance/corrections/{id}(id=${request.id})}">Open</a></td></tr></tbody>
+        </table></div>
+    </section>
+
+    <section class="panel form-panel" th:if="${selectedCorrection}">
+        <header class="panel-header"><h2 class="panel-title">Correction detail</h2><span class="badge" th:text="${selectedCorrection.status}">PENDING</span></header>
+        <p th:text="${'Raw checkout: ' + (selectedCorrection.rawCheckoutAt == null ? 'missing' : #temporals.format(selectedCorrection.rawCheckoutAt.atZone(selectedCorrection.policy.zoneId), 'dd/MM/yyyy HH:mm')) + ' · proposed: ' + #temporals.format(selectedCorrection.proposedCheckout, 'dd/MM/yyyy HH:mm') + ' · effective: ' + (selectedCorrection.effectiveCheckoutAt == null ? 'not approved' : #temporals.format(selectedCorrection.effectiveCheckoutAt.atZone(selectedCorrection.policy.zoneId), 'dd/MM/yyyy HH:mm')) + ' (' + selectedCorrection.policy.zoneId + ')'}">Correction values</p>
+        <form class="form-grid" th:if="${mentor and (selectedCorrection.status.name() == 'PENDING' or selectedCorrection.lockedAt == null)}" method="post" th:action="@{/attendance/corrections/{id}/decide(id=${selectedCorrection.id})}"
+              th:attr="aria-describedby=${correctionDecisionInput != null and requestError != null ? 'decision-form-error' : null}">
+            <div class="form-grid form-grid-three"><div class="field"><label class="field-label" for="correction-decision">Decision</label><select class="control" id="correction-decision" name="decision"><option th:if="${selectedCorrection.status.name() == 'PENDING'}" value="APPROVE" th:selected="${correctionDecisionInput != null and correctionDecisionInput.decision == 'APPROVE'}">Approve</option><option th:if="${selectedCorrection.status.name() == 'PENDING'}" value="REJECT" th:selected="${correctionDecisionInput != null and correctionDecisionInput.decision == 'REJECT'}">Reject</option><option th:if="${selectedCorrection.status.name() != 'PENDING' and selectedCorrection.lockedAt == null}" value="REOPEN" th:selected="${correctionDecisionInput != null and correctionDecisionInput.decision == 'REOPEN'}">Reopen</option></select></div><div class="field"><label class="field-label" for="decision-note">Note</label><input class="control" id="decision-note" name="note" maxlength="500" th:value="${correctionDecisionInput == null ? null : correctionDecisionInput.note}"></div></div>
+            <p class="field-error" id="decision-form-error" role="alert" th:if="${correctionDecisionInput != null and requestError != null}" th:text="${requestError}">Decision error</p>
+            <div class="form-actions"><button class="button button-primary" type="submit">Save decision</button></div>
+        </form>
+        <div class="table-scroll" th:unless="${#lists.isEmpty(selectedCorrection.events)}"><table class="data-table"><caption>Correction event history</caption><thead><tr><th scope="col">Event</th><th scope="col">Actor</th><th scope="col" th:text="|When (${selectedCorrection.policy.zoneId})|">When</th><th scope="col">Note</th></tr></thead><tbody><tr th:each="event : ${selectedCorrection.events}"><td th:text="${event.type}">Event</td><td th:text="${event.actorUserId ?: 'scheduler'}">Actor</td><td th:text="${#temporals.format(event.occurredAt.atZone(selectedCorrection.policy.zoneId), 'dd/MM/yyyy HH:mm')}">When</td><td th:text="${event.note ?: '—'}">Note</td></tr></tbody></table></div>
+    </section>
+</main>
+</body>
+</html>

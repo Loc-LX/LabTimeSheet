@@ -43,12 +43,15 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 public class LeaveService {
 
+    private static final int LEAVE_BATCH_SIZE = 100;
+
     private final Clock clock;
     private final AccountService accounts;
     private final AttendancePolicyRepository policies;
     private final CalendarApplicationService calendar;
     private final LeaveRequestRepository requests;
     private final LeaveRequestDayRepository days;
+    private final AttendanceDeadlineService deadlines;
 
     /**
      * Submits a full-day inclusive leave range in one transaction: freeze eligible workdays with their policy
@@ -114,6 +117,7 @@ public class LeaveService {
         requireActiveMentor(mentorId);
         Instant now = clock.instant();
         LeaveRequestEntity request = requireRequest(requestId);
+        guardLeaveDeadline(request, requestId, now);
         requireStatus(request, "PENDING");
         requireBeforeBoundary(request.firstCountedStartAt(), now);
         if (command.approved()) {
@@ -137,6 +141,7 @@ public class LeaveService {
         Instant now = clock.instant();
         LeaveRequestEntity request = requireRequest(requestId);
         requireOwner(request, internId);
+        guardLeaveDeadline(request, requestId, now);
         requireStatus(request, "PENDING", "APPROVED");
         requireBeforeBoundary(request.firstCountedStartAt(), now);
         request.cancel(now);
@@ -159,6 +164,7 @@ public class LeaveService {
         Instant now = clock.instant();
         LeaveRequestEntity request = requireRequest(requestId);
         requireOwner(request, internId);
+        guardLeaveDeadline(request, requestId, now);
         requireStatus(request, "PENDING");
         requireBeforeBoundary(request.firstCountedStartAt(), now);
 
@@ -208,6 +214,7 @@ public class LeaveService {
         if (!accounts.isEligibleIntern(internId)) {
             throw new LeaveException(LeaveRejection.INACTIVE_INTERN);
         }
+        deadlines.expirePendingLeavesForIntern(internId, LEAVE_BATCH_SIZE);
         int quota = timeline().resolve(month).monthlyLeaveQuota();
         long reserved = days.countReservedByMonth(internId).stream()
                 .filter(item -> item.quotaMonth().equals(month))
@@ -238,6 +245,7 @@ public class LeaveService {
      */
     @Transactional(readOnly = true)
     public List<LeaveDecisionRow> decisions() {
+        deadlines.expirePendingLeaves(LEAVE_BATCH_SIZE);
         return requests.findAllByOrderByIdDesc().stream()
                 .map(request -> new LeaveDecisionRow(
                         request.id(),
@@ -314,6 +322,13 @@ public class LeaveService {
             accounts.requireActiveMentorId(mentorId);
         } catch (IllegalArgumentException exception) {
             throw new LeaveException(LeaveRejection.INACTIVE_MENTOR);
+        }
+    }
+
+    private void guardLeaveDeadline(LeaveRequestEntity request, long requestId, Instant now) {
+        if ("PENDING".equals(request.status()) && !now.isBefore(request.firstCountedStartAt())) {
+            deadlines.expireLeave(requestId);
+            throw new LeaveException(LeaveRejection.BOUNDARY_PASSED);
         }
     }
 

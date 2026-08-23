@@ -51,7 +51,8 @@ class LayerStructureTest {
                     .filter(Files::isDirectory)
                     .filter(path -> path.getNameCount() > featurePackage.getNameCount() + 1)
                     .map(path -> path.subpath(featurePackage.getNameCount() + 1, path.getNameCount())
-                            .toString().replace('\\', '/'))
+                            .toString()
+                            .replace('\\', '/'))
                     .toList();
 
             assertThat(featurePackages).allMatch(APPROVED_FEATURE_PACKAGES::contains);

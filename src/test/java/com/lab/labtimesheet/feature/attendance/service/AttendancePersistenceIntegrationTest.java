@@ -9,9 +9,11 @@ import static org.mockito.Mockito.reset;
 
 import com.lab.labtimesheet.feature.account.model.AccountStatus;
 import com.lab.labtimesheet.feature.account.model.GlobalRole;
+import com.lab.labtimesheet.feature.account.model.InternshipStatus;
 import com.lab.labtimesheet.feature.account.model.dto.CreateAccountCommand;
 import com.lab.labtimesheet.feature.account.model.dto.InternWorkWindow;
 import com.lab.labtimesheet.feature.account.model.dto.InternshipLifecycleGuard;
+import com.lab.labtimesheet.feature.account.model.dto.LockedAccountMutationEligibility;
 import com.lab.labtimesheet.feature.account.service.AccountService;
 import com.lab.labtimesheet.feature.account.service.BootstrapService;
 import com.lab.labtimesheet.feature.attendance.exception.AttendanceException;
@@ -34,6 +36,7 @@ import com.lab.labtimesheet.feature.attendance.model.dto.CalendarImportSelection
 import com.lab.labtimesheet.feature.attendance.model.dto.CorrectionDecision;
 import com.lab.labtimesheet.feature.attendance.model.dto.CorrectionRequestCommand;
 import com.lab.labtimesheet.feature.attendance.model.dto.LeaveAllocation;
+import com.lab.labtimesheet.feature.attendance.model.dto.LeaveBalance;
 import com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestCommand;
 import com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestView;
 import com.lab.labtimesheet.feature.attendance.model.entity.AttendancePolicyEntity;
@@ -64,6 +67,7 @@ import com.lab.labtimesheet.feature.notification.repository.NotificationReposito
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.DayOfWeek;
@@ -81,6 +85,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import jakarta.persistence.EntityManager;
+import org.hibernate.exception.ConstraintViolationException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -491,6 +496,157 @@ class AttendancePersistenceIntegrationTest {
         assertThat(leaves.view(new AttendanceActor(internId, AttendanceRole.INTERN), submitted.id()).status())
                 .isEqualTo(LeaveStatus.REJECTED);
         assertThat(leaveRequests.findById(submitted.id()).orElseThrow().decidedByMentorUserId()).isNull();
+    }
+
+    @Test
+    void leaveQueueFirstAccessExpiresPendingRequestBeforeScheduler() {
+        AttendanceActor intern = new AttendanceActor(internId, AttendanceRole.INTERN);
+        var submitted = leaves.submit(intern, new LeaveRequestCommand(
+                LocalDate.of(2026, 8, 17), LocalDate.of(2026, 8, 17), "queue expiry"));
+
+        clock.set(submitted.firstCountedStartAt());
+
+        assertThat(leaves.list(intern)).singleElement()
+                .satisfies(summary -> assertThat(summary.status()).isEqualTo(LeaveStatus.REJECTED));
+        assertThat(leaveRequests.findById(submitted.id()).orElseThrow().status())
+                .isEqualTo(LeaveStatus.REJECTED);
+        assertThat(leaves.expirePending(100)).isZero();
+    }
+
+    @Test
+    void correctionQueueFirstAccessLocksExpiredRequestBeforeScheduler() {
+        AttendanceActor intern = new AttendanceActor(internId, AttendanceRole.INTERN);
+        clock.set(Instant.parse("2026-08-14T02:00:00Z"));
+        attendance.checkIn(internId);
+        long recordId = records.findByInternUserIdAndWorkDate(internId, LocalDate.of(2026, 8, 14))
+                .orElseThrow().id();
+        clock.set(Instant.parse("2026-08-14T09:01:00Z"));
+        var submitted = corrections.submit(intern, recordId, new CorrectionRequestCommand(
+                java.time.LocalDateTime.of(2026, 8, 14, 14, 0), "queue expiry"));
+
+        clock.set(submitted.decisionDeadline());
+
+        assertThat(corrections.list(intern)).singleElement()
+                .satisfies(summary -> assertThat(summary.status()).isEqualTo(CorrectionStatus.REJECTED.name()));
+        assertThat(correctionRequests.findById(submitted.id()).orElseThrow().lockedAt()).isNotNull();
+        assertThat(corrections.expire(100)).isZero();
+        assertThat(correctionEvents.findByCorrectionIdOrderByOccurredAtAscIdAsc(submitted.id()))
+                .extracting(event -> event.toView().type())
+                .containsExactly(CorrectionEventType.SUBMITTED, CorrectionEventType.AUTO_REJECTED,
+                        CorrectionEventType.LOCKED);
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
+    void firstAccessExpiryRevalidatesLockedInternAndAdminLifecycle() {
+        AttendanceActor intern = new AttendanceActor(internId, AttendanceRole.INTERN);
+        var leave = leaves.submit(intern, new LeaveRequestCommand(
+                LocalDate.of(2026, 8, 17), LocalDate.of(2026, 8, 17), "lifecycle race"));
+        clock.set(leave.firstCountedStartAt());
+        doReturn(List.of(new LockedAccountMutationEligibility(
+                internId,
+                GlobalRole.INTERN,
+                AccountStatus.DEACTIVATED,
+                Optional.of(InternshipStatus.ACTIVE))))
+                .when(accountSpy).lockedAccountMutationEligibility(any());
+
+        assertThatThrownBy(() -> leaves.list(intern))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("active Intern");
+        assertThat(leaveRequests.findById(leave.id()).orElseThrow().status())
+                .isEqualTo(LeaveStatus.PENDING);
+
+        reset(accountSpy);
+        doReturn(List.of(
+                new LockedAccountMutationEligibility(
+                        adminId, GlobalRole.ADMIN, AccountStatus.DEACTIVATED, Optional.empty()),
+                new LockedAccountMutationEligibility(
+                        internId, GlobalRole.INTERN, AccountStatus.ACTIVE, Optional.of(InternshipStatus.ACTIVE))))
+                .when(accountSpy).lockedAccountMutationEligibility(any());
+        AttendanceActor admin = new AttendanceActor(adminId, AttendanceRole.ADMIN);
+        assertThatThrownBy(() -> leaves.list(admin))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("active Admin");
+        assertThat(leaveRequests.findById(leave.id()).orElseThrow().status())
+                .isEqualTo(LeaveStatus.PENDING);
+
+        reset(accountSpy);
+        clock.set(Instant.parse("2026-08-14T02:00:00Z"));
+        attendance.checkIn(internId);
+        long recordId = records.findByInternUserIdAndWorkDate(internId, LocalDate.of(2026, 8, 14))
+                .orElseThrow().id();
+        clock.set(Instant.parse("2026-08-14T09:01:00Z"));
+        var correction = corrections.submit(intern, recordId, new CorrectionRequestCommand(
+                java.time.LocalDateTime.of(2026, 8, 14, 14, 0), "lifecycle race"));
+        clock.set(correction.decisionDeadline());
+        doReturn(List.of(new LockedAccountMutationEligibility(
+                internId,
+                GlobalRole.INTERN,
+                AccountStatus.LOCKED,
+                Optional.of(InternshipStatus.ACTIVE))))
+                .when(accountSpy).lockedAccountMutationEligibility(any());
+
+        assertThatThrownBy(() -> corrections.list(intern))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("active Intern");
+        assertThat(correctionRequests.findById(correction.id()).orElseThrow().status())
+                .isEqualTo(CorrectionStatus.PENDING);
+        assertThat(correctionRequests.findById(correction.id()).orElseThrow().lockedAt()).isNull();
+    }
+
+    @Test
+    @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
+    void monthlyBalanceUsesPersistedFrozenAllocationsAcrossStatusesMonthsAndPolicyReplacement() {
+        AttendanceActor intern = new AttendanceActor(internId, AttendanceRole.INTERN);
+        long decisionMentorId = createActiveMentor();
+        AttendanceActor mentor = new AttendanceActor(decisionMentorId, AttendanceRole.MENTOR);
+        var crossMonth = leaves.submit(intern, new LeaveRequestCommand(
+                LocalDate.of(2026, 8, 28), LocalDate.of(2026, 9, 2), "cross month"));
+        var rejected = leaves.submit(intern, new LeaveRequestCommand(
+                LocalDate.of(2026, 8, 24), LocalDate.of(2026, 8, 24), "rejected"));
+        entityManager.flush();
+        TestTransaction.flagForCommit();
+        TestTransaction.end();
+        leaves.reject(mentor, rejected.id());
+        var cancelled = leaves.submit(intern, new LeaveRequestCommand(
+                LocalDate.of(2026, 8, 25), LocalDate.of(2026, 8, 25), "cancelled"));
+        leaves.cancel(intern, cancelled.id());
+        var replacement = policyApplication.schedule(
+                new AttendanceActor(adminId, AttendanceRole.ADMIN), new AttendancePolicyCommand(
+                LocalDate.of(2026, 9, 1), ZoneId.of("UTC"), LocalTime.of(9, 0), LocalTime.of(17, 0),
+                0, 0, 4, BigDecimal.valueOf(0.10), Set.of(
+                        DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY,
+                        DayOfWeek.THURSDAY, DayOfWeek.FRIDAY)));
+
+        LeaveBalance august = leaves.balance(intern, YearMonth.of(2026, 8));
+        LeaveBalance september = leaves.balance(intern, YearMonth.of(2026, 9));
+
+        assertThat(crossMonth.allocations()).extracting(LeaveAllocation::quotaMonth)
+                .containsExactly( LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 1),
+                        LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 1));
+        assertThat(crossMonth.allocations()).allSatisfy(allocation ->
+                assertThat(allocation.monthlyQuotaSnapshot()).isEqualTo(3));
+        assertThat(replacement.policy().monthlyLeaveQuota()).isEqualTo(4);
+        assertThat(august).isEqualTo(new LeaveBalance(YearMonth.of(2026, 8), 2, 3, 1, 2));
+        assertThat(september).isEqualTo(new LeaveBalance(YearMonth.of(2026, 9), 2, 4, 2, 2));
+    }
+
+    @Test
+    void postgresExclusionRejectsOverlappingActiveLeaveRanges() {
+        Instant submittedAt = Instant.parse("2026-08-14T00:00:00Z");
+        assertThatThrownBy(() -> {
+            entityManager.persist(new LeaveRequestEntity(
+                    internId, LocalDate.of(2026, 8, 24), LocalDate.of(2026, 8, 25), "first",
+                    submittedAt, Instant.parse("2026-08-24T01:30:00Z")));
+            entityManager.flush();
+            entityManager.persist(new LeaveRequestEntity(
+                    internId, LocalDate.of(2026, 8, 25), LocalDate.of(2026, 8, 26), "overlap",
+                    submittedAt, Instant.parse("2026-08-25T01:30:00Z")));
+            entityManager.flush();
+        })
+                .isInstanceOf(ConstraintViolationException.class)
+                .hasMessageContaining("ex_leave_requests_no_overlap");
     }
 
     @Test
@@ -1613,6 +1769,101 @@ class AttendancePersistenceIntegrationTest {
                         LocalDate.of(2027, 1, 2)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("366 days");
+    }
+
+    @Test
+    void terminalDateKeepsAttendanceRecordedBeforeInternshipCompletion() {
+        LocalDate terminalDate = LocalDate.of(2026, 8, 20);
+        long terminalIntern = createActiveIntern(
+                "terminal-report-intern@example.test",
+                "INT-REPORT-TERMINAL",
+                LocalDate.of(2026, 8, 1),
+                terminalDate);
+        entityManager.persist(new AttendanceRecordEntity(
+                terminalIntern,
+                terminalDate,
+                entityManager.getReference(AttendancePolicyEntity.class, 1L),
+                Instant.parse("2026-08-20T01:30:00Z"),
+                Instant.parse("2026-08-20T07:30:00Z")));
+        entityManager.flush();
+
+        clock.set(terminalDate.atStartOfDay(ZoneOffset.UTC).toInstant());
+        accounts.completeInternship(
+                terminalIntern, adminId, new InternshipLifecycleGuard(false, 0));
+
+        AttendanceReport report = attendanceReports.query(
+                new AttendanceActor(adminId, AttendanceRole.ADMIN),
+                terminalIntern,
+                terminalDate,
+                terminalDate);
+
+        assertThat(report.days()).singleElement().satisfies(day ->
+                assertThat(day.classification()).isEqualTo(AttendanceReportClassification.PRESENT));
+    }
+
+    @Test
+    void terminalDateWithoutAttendanceDoesNotCreateAbsenceForLeaveOrDayOff() {
+        LocalDate emptyPreTerminalDate = LocalDate.of(2026, 8, 19);
+        LocalDate emptyDate = LocalDate.of(2026, 8, 20);
+        LocalDate leavePreTerminalDate = LocalDate.of(2026, 8, 20);
+        LocalDate leaveDate = LocalDate.of(2026, 8, 21);
+        LocalDate dayOffPreTerminalDate = LocalDate.of(2026, 8, 21);
+        LocalDate dayOffDate = LocalDate.of(2026, 8, 24);
+        long emptyIntern = createActiveIntern(
+                "terminal-empty-intern@example.test", "INT-REPORT-EMPTY", LocalDate.of(2026, 8, 1), emptyDate);
+        long leaveIntern = createActiveIntern(
+                "terminal-leave-intern@example.test", "INT-REPORT-LEAVE", LocalDate.of(2026, 8, 1), leaveDate);
+        long dayOffIntern = createActiveIntern(
+                "terminal-off-intern@example.test", "INT-REPORT-OFF", LocalDate.of(2026, 8, 1), dayOffDate);
+        LeaveRequestEntity leave = approvedRequest(
+                leaveIntern, leaveDate, leaveDate, Instant.parse("2026-08-10T00:00:00Z"),
+                Instant.parse("2026-08-21T01:30:00Z"), adminId, Instant.parse("2026-08-10T01:00:00Z"));
+        entityManager.persist(leave);
+        entityManager.flush();
+        entityManager.persist(allocatedDay(
+                leave, leaveDate, entityManager.getReference(AttendancePolicyEntity.class, 1L), 3));
+        calendar.createManual(new AttendanceActor(adminId, AttendanceRole.ADMIN), dayOffDate, "Closure", true);
+        entityManager.flush();
+
+        clock.set(emptyDate.atStartOfDay(ZoneOffset.UTC).toInstant());
+        accounts.completeInternship(emptyIntern, adminId, new InternshipLifecycleGuard(false, 0));
+        clock.set(leaveDate.atStartOfDay(ZoneOffset.UTC).toInstant());
+        accounts.completeInternship(leaveIntern, adminId, new InternshipLifecycleGuard(false, 0));
+        clock.set(dayOffDate.atStartOfDay(ZoneOffset.UTC).toInstant());
+        accounts.completeInternship(dayOffIntern, adminId, new InternshipLifecycleGuard(false, 0));
+
+        AttendanceReport emptyReport = attendanceReports.query(
+                new AttendanceActor(adminId, AttendanceRole.ADMIN), emptyIntern, emptyPreTerminalDate,
+                emptyDate.plusDays(1));
+        assertThat(emptyReport.days()).extracting(AttendanceReportDay::workDate)
+                .containsExactly(emptyPreTerminalDate, emptyDate);
+        assertThat(emptyReport.days()).extracting(AttendanceReportDay::classification)
+                .containsExactly(AttendanceReportClassification.ABSENT, AttendanceReportClassification.ABSENT);
+        assertThat(emptyReport.expectedWorkdays()).isEqualTo(2);
+
+        AttendanceReport leaveReport = attendanceReports.query(
+                new AttendanceActor(adminId, AttendanceRole.ADMIN), leaveIntern, leavePreTerminalDate,
+                leaveDate.plusDays(1));
+        assertThat(leaveReport.days()).filteredOn(day -> day.workDate().equals(leavePreTerminalDate))
+                .singleElement().extracting(AttendanceReportDay::classification)
+                .isEqualTo(AttendanceReportClassification.ABSENT);
+        assertThat(leaveReport.days()).filteredOn(day -> day.workDate().equals(leaveDate))
+                .singleElement().extracting(AttendanceReportDay::classification)
+                .isEqualTo(AttendanceReportClassification.APPROVED_LEAVE);
+        assertThat(leaveReport.days()).noneMatch(day -> day.workDate().isAfter(leaveDate));
+        assertThat(leaveReport.expectedWorkdays()).isEqualTo(1);
+
+        AttendanceReport dayOffReport = attendanceReports.query(
+                new AttendanceActor(adminId, AttendanceRole.ADMIN), dayOffIntern, dayOffPreTerminalDate,
+                dayOffDate.plusDays(1));
+        assertThat(dayOffReport.days()).filteredOn(day -> day.workDate().equals(dayOffPreTerminalDate))
+                .singleElement().extracting(AttendanceReportDay::classification)
+                .isEqualTo(AttendanceReportClassification.ABSENT);
+        assertThat(dayOffReport.days()).filteredOn(day -> day.workDate().equals(dayOffDate))
+                .singleElement().extracting(AttendanceReportDay::classification)
+                .isEqualTo(AttendanceReportClassification.OFF_DAY);
+        assertThat(dayOffReport.days()).noneMatch(day -> day.workDate().isAfter(dayOffDate));
+        assertThat(dayOffReport.expectedWorkdays()).isEqualTo(1);
     }
 
     @Test

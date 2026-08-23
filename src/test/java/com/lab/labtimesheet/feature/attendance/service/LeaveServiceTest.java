@@ -48,6 +48,7 @@ class LeaveServiceTest {
     private final CalendarApplicationService calendar = mock(CalendarApplicationService.class);
     private final LeaveRequestRepository requests = mock(LeaveRequestRepository.class);
     private final LeaveRequestDayRepository days = mock(LeaveRequestDayRepository.class);
+    private final AttendanceDeadlineService deadlines = mock(AttendanceDeadlineService.class);
     private LeaveService leave;
 
     @BeforeEach
@@ -73,7 +74,8 @@ class LeaveServiceTest {
                 policies,
                 calendar,
                 requests,
-                days);
+                days,
+                deadlines);
     }
 
     @Test

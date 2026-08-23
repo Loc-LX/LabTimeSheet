@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{fragments/layout :: shell(
+          pageTitle='Correction decisions',
+          section='Mentor',
+          activeNav='correctionDecisions',
+          primaryAction=~{} ,
+          content=~{::main})}">
+<body>
+<main>
+    <p class="page-description">Decide missed-checkout corrections before their 24-hour decision window closes; outcomes lock after the window.</p>
+    <p class="alert alert-error" th:if="${error}" role="alert" th:text="${error}"></p>
+    <p class="alert" th:if="${message}" role="status" th:text="${message}"></p>
+
+    <section class="panel">
+        <header class="panel-header"><h2 class="panel-title">Correction decisions</h2></header>
+        <th:block th:if="${#lists.isEmpty(decisions)}"><th:block th:replace="~{fragments/components :: empty('No corrections', 'Intern missed-checkout corrections will appear here.')} "></th:block></th:block>
+        <div class="table-scroll" th:unless="${#lists.isEmpty(decisions)}">
+            <table class="data-table">
+                <caption class="sr-only">Correction decisions</caption>
+                <thead><tr><th scope="col">Intern</th><th scope="col">Date</th><th scope="col">Checkout</th><th scope="col">Status</th><th scope="col">Decision</th></tr></thead>
+                <tbody>
+                <tr th:each="row : ${decisions}">
+                    <td th:text="${row.internDisplayName}">Intern</td>
+                    <td th:text="${row.workDateDisplay}">14/08/2026</td>
+                    <td th:text="${row.proposedCheckoutTimeDisplay}">15:45</td>
+                    <td><span class="badge" th:text="${row.status}">PENDING</span></td>
+                    <td>
+                        <form th:if="${row.status == 'PENDING'}" method="post" th:action="@{/mentor/corrections/{id}/approve(id=${row.id})}" class="inline-actions">
+                            <input class="control control-inline" type="text" name="decisionNote" maxlength="200" placeholder="Optional note">
+                            <button class="button button-primary" type="submit">Approve</button>
+                        </form>
+                        <form th:if="${row.status == 'PENDING'}" method="post" th:action="@{/mentor/corrections/{id}/reject(id=${row.id})}" class="inline-actions">
+                            <button class="button button-secondary" type="submit">Reject</button>
+                        </form>
+                        <form th:if="${row.status != 'PENDING' and row.revertable}" method="post" th:action="@{/mentor/corrections/{id}/revert(id=${row.id})}" class="inline-actions">
+                            <button class="button button-secondary" type="submit">Revert</button>
+                        </form>
+                        <span th:unless="${row.status == 'PENDING' or row.revertable}" class="text-muted" th:text="|Decided at ${#temporals.format(row.decidedAt, 'dd/MM/yyyy HH:mm')}|">Decided</span>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+</main>
+</body>
+</html>

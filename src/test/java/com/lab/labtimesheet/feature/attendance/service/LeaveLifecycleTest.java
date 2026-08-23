@@ -52,6 +52,7 @@ class LeaveLifecycleTest {
     private final CalendarApplicationService calendar = mock(CalendarApplicationService.class);
     private final LeaveRequestRepository requests = mock(LeaveRequestRepository.class);
     private final LeaveRequestDayRepository days = mock(LeaveRequestDayRepository.class);
+    private final AttendanceDeadlineService deadlines = mock(AttendanceDeadlineService.class);
 
     @BeforeEach
     void setUp() {
@@ -80,7 +81,8 @@ class LeaveLifecycleTest {
                 policies,
                 calendar,
                 requests,
-                days);
+                days,
+                deadlines);
     }
 
     private LeaveRequestEntity pendingRequest() {

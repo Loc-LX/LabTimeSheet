@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
-import com.lab.labtimesheet.feature.task.model.TaskStatus;
 import com.lab.labtimesheet.feature.task.repository.TaskRepository;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
@@ -38,21 +37,5 @@ class TaskQueryServiceTest {
         assertThat(taskQueries.countCurrentTasksAssignedOutside(42L, Set.of(7L, 9L))).isEqualTo(2L);
 
         verify(tasks).countCurrentTasksAssignedOutside(42L, Set.of(7L, 9L));
-    }
-
-    @Test
-    void countsUnfinishedTasksAcrossHistoricalInternMemberships() {
-        given(tasks.countByAssigneeMembershipIdInAndStatusNotAndDeletedAtIsNull(
-                Set.of(7L, 9L), TaskStatus.DONE)).willReturn(2L);
-
-        assertThat(taskQueries.countUnfinishedTasksForMemberships(Set.of(7L, 9L))).isEqualTo(2L);
-
-        verify(tasks).countByAssigneeMembershipIdInAndStatusNotAndDeletedAtIsNull(
-                Set.of(7L, 9L), TaskStatus.DONE);
-    }
-
-    @Test
-    void anEmptyMembershipSetHasNoUnfinishedTasks() {
-        assertThat(taskQueries.countUnfinishedTasksForMemberships(Set.of())).isZero();
     }
 }

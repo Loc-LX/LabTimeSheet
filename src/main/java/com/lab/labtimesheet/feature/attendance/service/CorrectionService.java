@@ -4,9 +4,11 @@ import com.lab.labtimesheet.feature.account.service.AccountService;
 import com.lab.labtimesheet.feature.attendance.exception.CorrectionException;
 import com.lab.labtimesheet.feature.attendance.exception.CorrectionRejection;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceRecord;
+import com.lab.labtimesheet.feature.attendance.model.dto.CorrectionDecisionCommand;
 import com.lab.labtimesheet.feature.attendance.model.dto.CorrectionSubmission;
 import com.lab.labtimesheet.feature.attendance.model.dto.CorrectionSubmissionCommand;
 import com.lab.labtimesheet.feature.attendance.model.dto.CorrectionsOverview;
+import com.lab.labtimesheet.feature.attendance.model.dto.MentorCorrectionDecision;
 import com.lab.labtimesheet.feature.attendance.model.entity.AttendanceCorrectionEntity;
 import com.lab.labtimesheet.feature.attendance.model.entity.AttendanceCorrectionEventEntity;
 import com.lab.labtimesheet.feature.attendance.model.entity.AttendanceRecordEntity;
@@ -18,10 +20,12 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZonedDateTime;
+import java.util.List;
 import java.util.Objects;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,12 +39,15 @@ import org.springframework.transaction.annotation.Transactional;
 public class CorrectionService {
 
     private static final long TWENTY_FOUR_HOURS = 24L * 60L * 60L;
+    private static final int CORRECTION_BATCH_SIZE = 100;
 
     private final Clock clock;
     private final AccountService accounts;
     private final AttendanceRecordRepository records;
     private final AttendanceCorrectionRepository corrections;
     private final AttendanceCorrectionEventRepository events;
+    private final CorrectionWindowGuard windowGuard;
+    private final AttendanceDeadlineService deadlines;
 
     /**
      * Submits a missed-checkout correction for the owning Intern in one transaction. The attendance record must
@@ -118,6 +125,7 @@ public class CorrectionService {
         if (!accounts.isEligibleIntern(internId)) {
             throw new CorrectionException(CorrectionRejection.INACTIVE_INTERN);
         }
+        deadlines.expireCorrectionsForIntern(internId, CORRECTION_BATCH_SIZE);
         return new CorrectionsOverview(
                 month,
                 corrections.findByInternUserIdOrderByIdDesc(internId).stream()
@@ -137,6 +145,159 @@ public class CorrectionService {
                 correction.submittedAt(),
                 correction.submissionDeadline(),
                 correction.decisionDeadline());
+    }
+
+    /**
+     * Approves or rejects a pending correction. The decision-window guard runs first in its own committed
+     * transaction, so an expired pending correction is already auto-rejected and locked before this boundary
+     * refuses the mutation with {@link CorrectionRejection#LOCKED}; a locked outcome and a passed deadline are
+     * likewise rejected without appending any Mentor event. Every accepted decision appends one immutable
+     * APPROVED or REJECTED event and persists the deciding Mentor, instant, and note.
+     *
+     * @param mentorId deciding active Mentor account identifier
+     * @param correctionId correction identifier
+     * @param command approved/rejected plus optional decision note
+     * @return the decided correction with its derived presentation flags
+     */
+    @Transactional
+    public MentorCorrectionDecision decide(
+            long mentorId, long correctionId, CorrectionDecisionCommand command) {
+        requireActiveMentor(mentorId);
+        CorrectionDecisionCommand validated = requireCommand(command);
+        Instant now = clock.instant();
+        windowGuard.expire(correctionId);
+        AttendanceCorrectionEntity correction = requireCorrection(correctionId);
+        requireMutable(correction, now);
+        requireStatus(correction, "PENDING");
+        if (validated.approved()) {
+            correction.approve(mentorId, now, validated.decisionNote());
+        } else {
+            correction.reject(mentorId, now, validated.decisionNote());
+        }
+        events.save(new AttendanceCorrectionEventEntity(
+                correctionId,
+                validated.approved() ? "APPROVED" : "REJECTED",
+                "PENDING",
+                validated.approved() ? "APPROVED" : "REJECTED",
+                mentorId,
+                validated.decisionNote(),
+                now));
+        saveAndFlushChecked(correction);
+        return decision(correctionId, correction, now);
+    }
+
+    /**
+     * Reverts a decided correction back to PENDING inside its decision window. The same guard and lock/deadline
+     * boundary applies as for {@link #decide(long, long, CorrectionDecisionCommand)}, and the revert appends one
+     * immutable REOPENED event before clearing the decided fields.
+     *
+     * @param mentorId deciding active Mentor account identifier
+     * @param correctionId correction identifier
+     * @param note optional revert note
+     * @return the reverted correction with its derived presentation flags
+     */
+    @Transactional
+    public MentorCorrectionDecision revert(long mentorId, long correctionId, String note) {
+        requireActiveMentor(mentorId);
+        Instant now = clock.instant();
+        windowGuard.expire(correctionId);
+        AttendanceCorrectionEntity correction = requireCorrection(correctionId);
+        requireMutable(correction, now);
+        if (!"APPROVED".equals(correction.status()) && !"REJECTED".equals(correction.status())) {
+            throw new CorrectionException(CorrectionRejection.INVALID_STATE);
+        }
+        String fromStatus = correction.status();
+        correction.reopen();
+        events.save(new AttendanceCorrectionEventEntity(
+                correctionId, "REOPENED", fromStatus, "PENDING", mentorId, note, now));
+        saveAndFlushChecked(correction);
+        return decision(correctionId, correction, now);
+    }
+
+    /**
+     * Renders the Mentor corrections page: every correction newest-first with derived compliance, lock, and
+     * revertability flags so the page can present the exact allowed actions.
+     *
+     * @return Mentor-facing correction list
+     */
+    @Transactional(readOnly = true)
+    public List<MentorCorrectionDecision> decisions() {
+        deadlines.expireCorrections(CORRECTION_BATCH_SIZE);
+        Instant now = clock.instant();
+        return corrections.findAllByOrderByIdDesc().stream()
+                .map(correction -> decision(correction.id(), correction, now))
+                .toList();
+    }
+
+    private MentorCorrectionDecision decision(
+            long correctionId, AttendanceCorrectionEntity correction, Instant now) {
+        AttendanceRecord record = correction.attendanceRecord().toDomain();
+        Instant scheduledEnd = ZonedDateTime.of(
+                        record.workDate(), record.policy().scheduledEnd(), record.policy().zoneId())
+                .toInstant();
+        boolean decided = !"PENDING".equals(correction.status());
+        boolean locked = correction.lockedAt() != null;
+        return new MentorCorrectionDecision(
+                correctionId,
+                record.internId(),
+                accounts.requireIdentityById(record.internId()).displayName(),
+                record.workDate(),
+                correction.requestedCheckoutAt(),
+                record.policy().zoneId(),
+                correction.status(),
+                correction.decisionDeadline(),
+                correction.lockedAt(),
+                correction.decidedByMentorUserId(),
+                correction.decidedAt(),
+                correction.decisionNote(),
+                record.checkOutAt() != null,
+                !correction.requestedCheckoutAt().isBefore(scheduledEnd),
+                decided && !locked && !now.isAfter(correction.decisionDeadline()));
+    }
+
+    private AttendanceCorrectionEntity requireCorrection(long correctionId) {
+        return corrections.findById(correctionId)
+                .orElseThrow(() -> new CorrectionException(CorrectionRejection.NOT_FOUND));
+    }
+
+    private void requireMutable(AttendanceCorrectionEntity correction, Instant now) {
+        if (correction.lockedAt() != null) {
+            throw new CorrectionException(CorrectionRejection.LOCKED);
+        }
+        if (now.isAfter(correction.decisionDeadline())) {
+            throw new CorrectionException(CorrectionRejection.DECISION_WINDOW_PASSED);
+        }
+    }
+
+    private static void requireStatus(AttendanceCorrectionEntity correction, String expected) {
+        if (!expected.equals(correction.status())) {
+            throw new CorrectionException(CorrectionRejection.INVALID_STATE);
+        }
+    }
+
+    private void requireActiveMentor(long mentorId) {
+        try {
+            accounts.requireActiveMentorId(mentorId);
+        } catch (IllegalArgumentException exception) {
+            throw new CorrectionException(CorrectionRejection.INACTIVE_MENTOR);
+        }
+    }
+
+    private static CorrectionDecisionCommand requireCommand(CorrectionDecisionCommand command) {
+        if (command == null) {
+            throw new CorrectionException(CorrectionRejection.INVALID_REQUEST);
+        }
+        String note = command.decisionNote();
+        return new CorrectionDecisionCommand(
+                command.approved(), note == null ? null : note.strip());
+    }
+
+    private void saveAndFlushChecked(AttendanceCorrectionEntity correction) {
+        try {
+            corrections.saveAndFlush(correction);
+        } catch (ObjectOptimisticLockingFailureException exception) {
+            throw new CorrectionException(CorrectionRejection.CONCURRENT_DECISION);
+        }
     }
 
     private static LocalDate requireWorkDate(CorrectionSubmissionCommand command) {
