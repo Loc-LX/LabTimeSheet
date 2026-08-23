@@ -1,23 +1,19 @@
 package com.lab.labtimesheet.feature.attendance.model.entity;
 
+import com.lab.labtimesheet.feature.attendance.model.CorrectionStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
-/**
- * JPA persistence model for one missed-checkout correction request bound to its attendance record. The attached
- * historical policy remains reachable through the record, so submission deadlines stay anchored to scheduled end.
- */
+/** JPA mapping for one missed-checkout correction and its separate decision deadline. */
 @Entity
 @Table(name = "attendance_corrections")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -27,9 +23,8 @@ public class AttendanceCorrectionEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(fetch = FetchType.EAGER, optional = false)
-    @JoinColumn(name = "attendance_record_id", nullable = false)
-    private AttendanceRecordEntity attendanceRecord;
+    @Column(name = "attendance_record_id", nullable = false)
+    private long attendanceRecordId;
 
     @Column(name = "requested_checkout_at", nullable = false)
     private Instant requestedCheckoutAt;
@@ -65,35 +60,35 @@ public class AttendanceCorrectionEntity {
     private long version;
 
     /**
-     * Creates a pending correction requesting a proposed checkout for the given attendance record.
+     * Creates a pending correction request before its submitted event is appended.
      *
-     * @param attendanceRecord corrected record with no raw checkout
-     * @param requestedCheckoutAt proposed checkout instant on the original work date
-     * @param reason non-blank explanation
-     * @param submittedAt server submission instant
-     * @param submissionDeadline inclusive scheduled-end-plus-24-hours deadline
-     * @param decisionDeadline separate 24-hour decision window end
+     * @param attendanceRecordId raw attendance row with missing checkout
+     * @param requestedCheckoutAt proposed effective checkout instant
+     * @param reason normalized Intern explanation
+     * @param submittedAt server submission timestamp
+     * @param submissionDeadline inclusive scheduled-end-plus-24-hour deadline
+     * @param decisionDeadline separate submitted-plus-24-hour decision deadline
      */
     public AttendanceCorrectionEntity(
-            AttendanceRecordEntity attendanceRecord,
+            long attendanceRecordId,
             Instant requestedCheckoutAt,
             String reason,
             Instant submittedAt,
             Instant submissionDeadline,
             Instant decisionDeadline) {
-        this.attendanceRecord = attendanceRecord;
+        this.attendanceRecordId = attendanceRecordId;
         this.requestedCheckoutAt = requestedCheckoutAt;
         this.reason = reason;
-        this.status = "PENDING";
+        this.status = CorrectionStatus.PENDING.name();
         this.submittedAt = submittedAt;
         this.submissionDeadline = submissionDeadline;
         this.decisionDeadline = decisionDeadline;
     }
 
     /**
-     * Returns the persisted identifier assigned by the database.
+     * Returns persisted correction identifier.
      *
-     * @return correction identifier
+     * @return database identifier
      */
     public long id() {
         if (id == null) {
@@ -103,16 +98,16 @@ public class AttendanceCorrectionEntity {
     }
 
     /**
-     * Returns the corrected attendance record with its permanently attached historical policy.
+     * Returns attached attendance row identifier.
      *
-     * @return attendance record entity
+     * @return raw attendance identifier
      */
-    public AttendanceRecordEntity attendanceRecord() {
-        return attendanceRecord;
+    public long attendanceRecordId() {
+        return attendanceRecordId;
     }
 
     /**
-     * Returns the proposed checkout instant used as effective checkout once approved.
+     * Returns proposed raw-server-equivalent checkout instant.
      *
      * @return proposed checkout instant
      */
@@ -121,98 +116,158 @@ public class AttendanceCorrectionEntity {
     }
 
     /**
-     * Returns the submitted explanation.
+     * Returns normalized submission reason.
      *
-     * @return reason text
+     * @return non-blank reason
      */
     public String reason() {
         return reason;
     }
 
     /**
-     * Returns the current decision state.
+     * Returns current correction state.
      *
-     * @return PENDING, APPROVED, or REJECTED
+     * @return pending, approved, or rejected state
      */
-    public String status() {
-        return status;
+    public CorrectionStatus status() {
+        return CorrectionStatus.valueOf(status);
     }
 
     /**
-     * Returns the server submission instant.
+     * Returns submission instant.
      *
-     * @return submission instant
+     * @return server submission timestamp
      */
     public Instant submittedAt() {
         return submittedAt;
     }
 
     /**
-     * Returns the inclusive submission deadline anchored to scheduled end plus 24 hours.
+     * Returns inclusive submission deadline.
      *
-     * @return submission deadline
+     * @return scheduled-end-plus-24-hour boundary
      */
     public Instant submissionDeadline() {
         return submissionDeadline;
     }
 
     /**
-     * Returns the separate decision-window end, submitted time plus 24 hours.
+     * Returns exclusive decision-window expiry instant.
      *
-     * @return decision deadline
+     * @return submitted-plus-24-hour boundary
      */
     public Instant decisionDeadline() {
         return decisionDeadline;
     }
 
     /**
-     * Records an approval by an active Mentor. The service layer owns the decision-window guard; this mutator only
-     * persists the decided state so the effective-checkout derivation can observe an approved proposal.
+     * Returns Mentor decision actor.
      *
-     * @param mentorUserId deciding Mentor account identifier
-     * @param at server decision instant
-     * @param note optional decision note
-     */
-    public void approve(long mentorUserId, Instant at, String note) {
-        this.status = "APPROVED";
-        this.decidedByMentorUserId = mentorUserId;
-        this.decidedAt = at;
-        this.decisionNote = note;
-    }
-
-    /**
-     * Returns the deciding Mentor account identifier once decided.
-     *
-     * @return deciding Mentor identifier, or {@code null} while pending
+     * @return deciding user identifier, or {@code null} while pending/auto-rejected
      */
     public Long decidedByMentorUserId() {
         return decidedByMentorUserId;
     }
 
     /**
-     * Returns the server decision instant once decided.
+     * Returns Mentor decision instant.
      *
-     * @return decision instant, or {@code null} while pending
+     * @return decision timestamp, or {@code null} while pending
      */
     public Instant decidedAt() {
         return decidedAt;
     }
 
     /**
-     * Returns the optional Mentor decision note.
+     * Returns optional final lock timestamp.
      *
-     * @return decision note, or {@code null} when none was recorded
-     */
-    public String decisionNote() {
-        return decisionNote;
-    }
-
-    /**
-     * Returns the instant when the decided correction became locked after its decision window.
-     *
-     * @return lock instant, or {@code null} while the decision remains mutable
+     * @return lock timestamp after the decision window, or {@code null}
      */
     public Instant lockedAt() {
         return lockedAt;
+    }
+
+    /**
+     * Applies an approval transition without changing the raw attendance row.
+     *
+     * @param mentorUserId active Mentor actor
+     * @param now server decision timestamp
+     * @param note optional decision note
+     */
+    public void approve(long mentorUserId, Instant now, String note) {
+        requireUnlocked();
+        if (status() != CorrectionStatus.PENDING) {
+            throw new IllegalStateException("Only pending correction can be approved");
+        }
+        status = CorrectionStatus.APPROVED.name();
+        decidedByMentorUserId = mentorUserId;
+        decidedAt = now;
+        decisionNote = note;
+    }
+
+    /**
+     * Applies a rejection transition without changing the raw attendance row.
+     *
+     * @param mentorUserId active Mentor actor
+     * @param now server decision timestamp
+     * @param note optional decision note
+     */
+    public void reject(long mentorUserId, Instant now, String note) {
+        requireUnlocked();
+        if (status() != CorrectionStatus.PENDING) {
+            throw new IllegalStateException("Only pending correction can be rejected");
+        }
+        status = CorrectionStatus.REJECTED.name();
+        decidedByMentorUserId = mentorUserId;
+        decidedAt = now;
+        decisionNote = note;
+    }
+
+    /**
+     * Reopens a decision to pending while the separate decision window remains open.
+     *
+     * @param now server transition timestamp used for the surrounding event
+     */
+    public void reopen(Instant now) {
+        requireUnlocked();
+        if (status() == CorrectionStatus.PENDING) {
+            throw new IllegalStateException("Pending correction is already open");
+        }
+        status = CorrectionStatus.PENDING.name();
+        decidedByMentorUserId = null;
+        decidedAt = null;
+        decisionNote = null;
+    }
+
+    /**
+     * Automatically rejects a still-pending correction when the decision deadline expires.
+     *
+     * @param now server expiry timestamp
+     */
+    public void autoReject(Instant now) {
+        requireUnlocked();
+        if (status() != CorrectionStatus.PENDING) {
+            return;
+        }
+        status = CorrectionStatus.REJECTED.name();
+        decidedAt = now;
+        decisionNote = "Decision window expired";
+    }
+
+    /**
+     * Locks an approved/rejected correction after its decision deadline.
+     *
+     * @param now server lock timestamp
+     */
+    public void lock(Instant now) {
+        if (lockedAt == null) {
+            lockedAt = now;
+        }
+    }
+
+    private void requireUnlocked() {
+        if (lockedAt != null) {
+            throw new IllegalStateException("Correction is locked");
+        }
     }
 }

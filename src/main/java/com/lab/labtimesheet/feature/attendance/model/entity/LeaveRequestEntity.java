@@ -7,6 +7,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
+import com.lab.labtimesheet.feature.attendance.model.LeaveStatus;
 import java.time.Instant;
 import java.time.LocalDate;
 import lombok.AccessLevel;
@@ -51,9 +52,6 @@ public class LeaveRequestEntity {
     @Column(name = "decided_at")
     private Instant decidedAt;
 
-    @Column(name = "decision_note")
-    private String decisionNote;
-
     @Column(name = "cancelled_at")
     private Instant cancelledAt;
 
@@ -80,7 +78,17 @@ public class LeaveRequestEntity {
         this.decidedAt = decidedAt;
     }
 
-    private LeaveRequestEntity(
+    /**
+     * Creates a pending leave request before its frozen eligible-day allocations are persisted.
+     *
+     * @param internUserId owning Intern
+     * @param startDate inclusive requested range start
+     * @param endDate inclusive requested range end
+     * @param reason normalized explanation
+     * @param submittedAt server submission timestamp
+     * @param firstCountedStartAt first scheduled workday start that freezes the request
+     */
+    public LeaveRequestEntity(
             long internUserId,
             LocalDate startDate,
             LocalDate endDate,
@@ -91,36 +99,15 @@ public class LeaveRequestEntity {
         this.startDate = startDate;
         this.endDate = endDate;
         this.reason = reason;
-        this.status = "PENDING";
+        this.status = LeaveStatus.PENDING.name();
         this.submittedAt = submittedAt;
         this.firstCountedStartAt = firstCountedStartAt;
     }
 
     /**
-     * Creates a pending leave request reserving quota from submission until a Mentor decision.
+     * Returns the persisted request identifier, failing before the initial flush.
      *
-     * @param internUserId owning Intern account identifier
-     * @param startDate inclusive first local date
-     * @param endDate inclusive last local date
-     * @param reason non-blank human-readable reason
-     * @param submittedAt server submission instant
-     * @param firstCountedStartAt scheduled start of the first counted workday in its policy timezone
-     * @return new pending request
-     */
-    public static LeaveRequestEntity pending(
-            long internUserId,
-            LocalDate startDate,
-            LocalDate endDate,
-            String reason,
-            Instant submittedAt,
-            Instant firstCountedStartAt) {
-        return new LeaveRequestEntity(internUserId, startDate, endDate, reason, submittedAt, firstCountedStartAt);
-    }
-
-    /**
-     * Returns the persisted identifier assigned by the database.
-     *
-     * @return request identifier
+     * @return database identifier
      */
     public long id() {
         if (id == null) {
@@ -132,59 +119,50 @@ public class LeaveRequestEntity {
     /**
      * Returns the owning Intern account identifier.
      *
-     * @return owning Intern identifier
+     * @return Intern identifier
      */
     public long internUserId() {
         return internUserId;
     }
 
     /**
-     * Returns the inclusive first local date.
+     * Returns the inclusive requested range start.
      *
-     * @return inclusive start date
+     * @return first requested local date
      */
     public LocalDate startDate() {
         return startDate;
     }
 
     /**
-     * Returns the inclusive last local date.
+     * Returns the inclusive requested range end.
      *
-     * @return inclusive end date
+     * @return last requested local date
      */
     public LocalDate endDate() {
         return endDate;
     }
 
     /**
-     * Returns the submitted reason.
+     * Returns the normalized reason.
      *
-     * @return reason text
+     * @return non-blank explanation
      */
     public String reason() {
         return reason;
     }
 
     /**
-     * Returns the current decision state.
+     * Returns the current durable leave state.
      *
-     * @return PENDING, APPROVED, REJECTED, or CANCELLED
+     * @return pending, approved, rejected, or cancelled
      */
-    public String status() {
-        return status;
+    public LeaveStatus status() {
+        return LeaveStatus.valueOf(status);
     }
 
     /**
-     * Returns the server submission instant.
-     *
-     * @return submission instant
-     */
-    public Instant submittedAt() {
-        return submittedAt;
-    }
-
-    /**
-     * Returns the scheduled start of the first counted workday, the decision/cancellation boundary.
+     * Returns the first scheduled start that freezes this request.
      *
      * @return first counted start instant
      */
@@ -193,98 +171,114 @@ public class LeaveRequestEntity {
     }
 
     /**
-     * Marks the request approved by an active Mentor before the first counted start.
+     * Returns the submission timestamp.
      *
-     * @param mentorUserId deciding Mentor account identifier
-     * @param at server decision instant
-     * @param note optional decision note
+     * @return server submission instant
      */
-    public void approve(long mentorUserId, Instant at, String note) {
-        this.status = "APPROVED";
-        this.decidedByMentorUserId = mentorUserId;
-        this.decidedAt = at;
-        this.decisionNote = note;
+    public Instant submittedAt() {
+        return submittedAt;
     }
 
     /**
-     * Marks the request rejected by an active Mentor before the first counted start.
+     * Returns the optional Mentor decision actor.
      *
-     * @param mentorUserId deciding Mentor account identifier
-     * @param at server decision instant
-     * @param note optional decision note
-     */
-    public void reject(long mentorUserId, Instant at, String note) {
-        this.status = "REJECTED";
-        this.decidedByMentorUserId = mentorUserId;
-        this.decidedAt = at;
-        this.decisionNote = note;
-    }
-
-    /**
-     * Cancels a pending or approved request before the first counted start, releasing its reservation.
-     *
-     * @param at server cancellation instant
-     */
-    public void cancel(Instant at) {
-        this.status = "CANCELLED";
-        this.cancelledAt = at;
-    }
-
-    /**
-     * Replaces the range and submission facts of a pending request after revalidation; the request keeps its identity.
-     *
-     * @param startDate inclusive new first local date
-     * @param endDate inclusive new last local date
-     * @param reason new non-blank reason
-     * @param submittedAt new server submission instant
-     * @param firstCountedStartAt new first counted workday's scheduled start
-     */
-    public void updateRange(
-            LocalDate startDate,
-            LocalDate endDate,
-            String reason,
-            Instant submittedAt,
-            Instant firstCountedStartAt) {
-        this.startDate = startDate;
-        this.endDate = endDate;
-        this.reason = reason;
-        this.submittedAt = submittedAt;
-        this.firstCountedStartAt = firstCountedStartAt;
-    }
-
-    /**
-     * Returns the deciding Mentor account identifier once decided.
-     *
-     * @return deciding Mentor identifier, or {@code null} while pending or cancelled
+     * @return Mentor identifier, or {@code null} for pending/automatic rejection
      */
     public Long decidedByMentorUserId() {
         return decidedByMentorUserId;
     }
 
     /**
-     * Returns the server decision instant once decided.
+     * Returns the optional Mentor decision timestamp.
      *
-     * @return decision instant, or {@code null} while pending or cancelled
+     * @return decision instant, or {@code null} while pending
      */
     public Instant decidedAt() {
         return decidedAt;
     }
 
     /**
-     * Returns the optional Mentor decision note.
+     * Returns the optional cancellation timestamp.
      *
-     * @return decision note, or {@code null} when none was recorded
-     */
-    public String decisionNote() {
-        return decisionNote;
-    }
-
-    /**
-     * Returns the server cancellation instant once cancelled.
-     *
-     * @return cancellation instant, or {@code null} until cancelled
+     * @return cancellation instant, or {@code null} when not cancelled
      */
     public Instant cancelledAt() {
         return cancelledAt;
+    }
+
+    /**
+     * Replaces the still-pending range before its first counted start.
+     *
+     * @param startDate replacement inclusive range start
+     * @param endDate replacement inclusive range end
+     * @param reason replacement normalized reason
+     * @param firstCountedStartAt replacement first counted start instant
+     */
+    public void edit(LocalDate startDate, LocalDate endDate, String reason, Instant firstCountedStartAt) {
+        this.startDate = startDate;
+        this.endDate = endDate;
+        this.reason = reason;
+        this.firstCountedStartAt = firstCountedStartAt;
+    }
+
+    /**
+     * Applies a Mentor approval inside the decision boundary.
+     *
+     * @param mentorUserId active Mentor actor
+     * @param now server decision timestamp
+     */
+    public void approve(long mentorUserId, Instant now) {
+        requirePending();
+        status = LeaveStatus.APPROVED.name();
+        decidedByMentorUserId = mentorUserId;
+        decidedAt = now;
+    }
+
+    /**
+     * Applies a Mentor rejection inside the decision boundary.
+     *
+     * @param actorUserId active Mentor actor
+     * @param now server decision timestamp
+     */
+    public void reject(long actorUserId, Instant now) {
+        if (status != null && !LeaveStatus.PENDING.name().equals(status)) {
+            throw new IllegalStateException("Only pending leave can be rejected");
+        }
+        status = LeaveStatus.REJECTED.name();
+        decidedByMentorUserId = actorUserId;
+        decidedAt = now;
+    }
+
+    /**
+     * Applies the scheduler/request-time expiry transition without inventing an account foreign key.
+     *
+     * @param now server timestamp at the inclusive first-counted-start boundary
+     */
+    public void autoReject(Instant now) {
+        if (status != null && !LeaveStatus.PENDING.name().equals(status)) {
+            return;
+        }
+        status = LeaveStatus.REJECTED.name();
+        decidedByMentorUserId = null;
+        decidedAt = now;
+    }
+
+    /**
+     * Cancels a pending or approved request before its first counted start.
+     *
+     * @param now server cancellation timestamp
+     */
+    public void cancel(Instant now) {
+        if (!LeaveStatus.PENDING.name().equals(status) && !LeaveStatus.APPROVED.name().equals(status)) {
+            throw new IllegalStateException("Only pending or approved leave can be cancelled");
+        }
+        status = LeaveStatus.CANCELLED.name();
+        cancelledAt = now;
+    }
+
+    private void requirePending() {
+        if (!LeaveStatus.PENDING.name().equals(status)) {
+            throw new IllegalStateException("Only pending leave can be approved");
+        }
     }
 }

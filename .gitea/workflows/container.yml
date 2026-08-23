@@ -205,3 +205,122 @@ jobs:
             --tag "$IMAGE:main" \
             "$IMAGE:sha-${GITEA_SHA}-amd64" \
             "$IMAGE:sha-${GITEA_SHA}-arm64"
+
+  deploy:
+    if: gitea.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED == 'true' && secrets.DEPLOY_HOST != '' && secrets.DEPLOY_USER != '' && secrets.DEPLOY_PRIVATE_KEY != '' && secrets.DEPLOY_KNOWN_HOSTS != ''
+    needs: [verify, amd64]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    env:
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      DEPLOY_PRIVATE_KEY: ${{ secrets.DEPLOY_PRIVATE_KEY }}
+      DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+      GITEA_SHA: ${{ gitea.sha }}
+      IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${{ gitea.sha }}-amd64
+      REMOTE_COMPOSE_ENV: /etc/labtimesheet/compose.env
+      REMOTE_COMPOSE_FILE: /etc/labtimesheet/compose.yaml
+    steps:
+      - name: Prepare SSH trust files
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh_dir="$RUNNER_TEMP/labtimesheet-ssh"
+          install -d -m 700 "$ssh_dir"
+          printf '%s\n' "$DEPLOY_PRIVATE_KEY" > "$ssh_dir/id_ed25519"
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > "$ssh_dir/known_hosts"
+          chmod 600 "$ssh_dir/id_ed25519" "$ssh_dir/known_hosts"
+          printf 'SSH_DIR=%s\n' "$ssh_dir" >> "$GITHUB_ENV"
+
+      - name: Roll out selected immutable SHA and retain rollback image
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$GITEA_SHA" in
+            ''|*[!0-9a-f]*)
+              echo "Gitea commit SHA is not a lowercase hexadecimal value" >&2
+              exit 1
+              ;;
+          esac
+          if [ "${#GITEA_SHA}" -ne 40 ]; then
+            echo "Gitea commit SHA is not a full immutable commit SHA" >&2
+            exit 1
+          fi
+          ssh_opts=(-i "$SSH_DIR/id_ed25519" -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile="$SSH_DIR/known_hosts")
+          ssh "${ssh_opts[@]}" "$DEPLOY_USER@$DEPLOY_HOST" bash -s -- "$REMOTE_COMPOSE_ENV" "$REMOTE_COMPOSE_FILE" "$IMAGE" <<'REMOTE'
+          set -eu
+          compose_env=$1
+          compose_file=$2
+          new_image=$3
+          state_dir="$(dirname "$compose_env")/deploy-state"
+
+          test -f "$compose_env"
+          test -f "$compose_file"
+          mkdir -p "$state_dir"
+          previous_image="$(sed -n 's/^LAB_IMAGE=//p' "$compose_env" | head -n 1)"
+          if ! printf '%s\n' "$previous_image" | grep -Eq ':sha-[0-9a-f]{40}(-amd64)?$'; then
+            echo "remote LAB_IMAGE is not an immutable SHA image" >&2
+            exit 1
+          fi
+          printf '%s\n' "$previous_image" > "$state_dir/previous-image"
+          chmod 600 "$state_dir/previous-image"
+
+          replace_image() {
+            image=$1
+            next_env="${compose_env}.next.$$"
+            awk -v image="$image" '
+              BEGIN { replaced = 0 }
+              /^LAB_IMAGE=/ { print "LAB_IMAGE=" image; replaced = 1; next }
+              { print }
+              END { if (!replaced) exit 42 }
+            ' "$compose_env" > "$next_env"
+            chmod 600 "$next_env"
+            mv "$next_env" "$compose_env"
+          }
+
+          compose() {
+            docker compose --env-file "$compose_env" -f "$compose_file" "$@"
+          }
+
+          wait_for_health() {
+            app_id="$(compose ps -q app)"
+            test -n "$app_id"
+            for attempt in $(seq 1 30); do
+              health="$(docker inspect --format '{{.State.Health.Status}}' "$app_id" 2>/dev/null || true)"
+              if [ "$health" = healthy ]; then
+                return 0
+              fi
+              if [ "$health" = unhealthy ]; then
+                return 1
+              fi
+              sleep 2
+            done
+            return 1
+          }
+
+          docker pull "$new_image"
+          replace_image "$new_image"
+          rollout_ok=true
+          if ! compose up -d --no-build app; then
+            rollout_ok=false
+          elif ! wait_for_health; then
+            rollout_ok=false
+          fi
+          if [ "$rollout_ok" = true ]; then
+            exit 0
+          fi
+
+          echo "selected image failed rollout; attempting retained SHA rollback" >&2
+          replace_image "$previous_image"
+          docker pull "$previous_image"
+          compose up -d --no-build app
+          if wait_for_health; then
+            echo "rollback completed; deployment remains failed" >&2
+          else
+            echo "rollback health check failed" >&2
+          fi
+          exit 1
+          REMOTE

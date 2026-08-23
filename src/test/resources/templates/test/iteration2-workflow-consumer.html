@@ -1,0 +1,9 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<body>
+<div th:replace="~{fragments/workflows :: exitReadiness(${readiness})}"></div>
+<div th:replace="~{fragments/workflows :: transferDrawer('transfer-drawer', ${readiness.canOpenTransfer}, '/projects/7/exit/transfer', 12, ${unfinishedTasks}, ${recipients})}"></div>
+<div th:replace="~{fragments/workflows :: projectHistory(${projectHistory})}"></div>
+<div th:replace="~{fragments/workflows :: adminHistory('Admin setting History', ${adminHistory})}"></div>
+</body>
+</html>

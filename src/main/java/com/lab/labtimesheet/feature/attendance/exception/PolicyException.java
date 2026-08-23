@@ -1,14 +1,12 @@
 package com.lab.labtimesheet.feature.attendance.exception;
 
-/**
- * Signals a rejected attendance-policy scheduling or replacement attempt.
- */
-public class PolicyException extends RuntimeException {
+/** Signals an invalid or unauthorized effective-dated attendance-policy operation. */
+public final class PolicyException extends RuntimeException {
 
     /**
-     * Creates a policy rejection with a human-readable reason.
+     * Creates a policy operation rejection.
      *
-     * @param message stable business message for the rejected attempt
+     * @param message operator-safe explanation
      */
     public PolicyException(String message) {
         super(message);

@@ -2,11 +2,16 @@ package com.lab.labtimesheet.feature.notification.repository;
 
 import java.util.List;
 import java.util.Optional;
+import java.time.Instant;
 
+import com.lab.labtimesheet.feature.notification.model.NotificationEmailStatus;
 import com.lab.labtimesheet.feature.notification.model.entity.NotificationEntity;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 /** Persistence boundary for Platform-owned in-app notification rows. */
 public interface NotificationRepository extends JpaRepository<NotificationEntity, Long> {
@@ -31,6 +36,39 @@ public interface NotificationRepository extends JpaRepository<NotificationEntity
      */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<NotificationEntity> findByIdAndRecipientUserId(long id, long recipientUserId);
+
+    /**
+     * Locks one notification row for a delivery transition.
+     *
+     * @param id notification identifier
+     * @return locked notification, if present
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select n from NotificationEntity n where n.id = :id")
+    Optional<NotificationEntity> findForUpdateById(@Param("id") long id);
+
+    /**
+     * Selects a bounded due-email batch in retry order while locking each row for one worker.
+     *
+     * @param status pending delivery state
+     * @param now server instant used for the due boundary
+     * @param page bounded batch request
+     * @return locked due rows, oldest due first
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select n from NotificationEntity n
+            where n.emailStatus = :status
+              and n.emailNextAttemptAt <= :now
+            order by n.emailNextAttemptAt asc, n.id asc
+            """)
+    List<NotificationEntity> findDueEmailRetries(
+            @Param("status") NotificationEmailStatus status,
+            @Param("now") Instant now,
+            Pageable page);
+
+    /** Returns failed ordinary-email rows for the Admin operational view. */
+    List<NotificationEntity> findByEmailStatusOrderByUpdatedAtDescIdDesc(NotificationEmailStatus status);
 
     /**
      * Counts unread rows for one authenticated recipient.

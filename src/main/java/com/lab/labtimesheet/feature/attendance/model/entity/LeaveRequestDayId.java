@@ -23,6 +23,16 @@ public class LeaveRequestDayId implements Serializable {
     @Column(name = "leave_date", nullable = false)
     private LocalDate leaveDate;
 
+    /** Returns the exact date component of this composite key. */
+    /**
+     * Returns the local date component of this composite key.
+     *
+     * @return allocated leave date
+     */
+    public LocalDate leaveDate() {
+        return leaveDate;
+    }
+
     /**
      * Creates the identity for an already-persisted request and its exact allocated date.
      *

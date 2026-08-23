@@ -10,10 +10,8 @@ import com.lab.labtimesheet.feature.attendance.model.AttendanceRecord;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceRole;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceCurrentState;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceHistoryItem;
-import com.lab.labtimesheet.feature.attendance.model.entity.AttendanceCorrectionEntity;
 import com.lab.labtimesheet.feature.attendance.model.entity.AttendancePolicyEntity;
 import com.lab.labtimesheet.feature.attendance.model.entity.AttendanceRecordEntity;
-import com.lab.labtimesheet.feature.attendance.repository.AttendanceCorrectionRepository;
 import com.lab.labtimesheet.feature.attendance.repository.AttendancePolicyRepository;
 import com.lab.labtimesheet.feature.attendance.repository.AttendanceQueryRepository;
 import com.lab.labtimesheet.feature.attendance.repository.AttendanceRecordRepository;
@@ -21,6 +19,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -41,11 +40,11 @@ public class AttendanceApplicationService {
     private final Clock clock;
     private final AttendancePolicyRepository policyEntities;
     private final AttendanceRecordRepository recordEntities;
-    private final AttendanceCorrectionRepository corrections;
     private final AttendanceQueryRepository queries;
     private final AccountService accounts;
     private final CalendarApplicationService calendar;
     private final AttendanceService attendance;
+    private final AttendanceCorrectionApplicationService corrections;
 
     /**
      * Records the sole server-time check-in for the effective policy-local date.
@@ -129,9 +128,8 @@ public class AttendanceApplicationService {
 
     /**
      * Returns inclusive historical rows newest-first, allowing Interns only their own history while Mentor and Admin
-     * actors may inspect another Intern. DTOs retain raw instants and provide attached-policy local display values.
-     * Violations are derived from the effective checkout: raw checkout when present, otherwise an approved
-     * correction's proposed checkout (ATT-016), so approved corrections clear missing checkout without editing raw.
+     * actors may inspect another Intern. Approved correction proposals are reported as effective checkout values and
+     * violations are recomputed from them; the attached raw attendance row is never mutated.
      *
      * @param actor authenticated Attendance authorization context
      * @param internId target Intern account identifier
@@ -139,7 +137,7 @@ public class AttendanceApplicationService {
      * @param to inclusive last local date
      * @return immutable presentation/reporting history items
      */
-    @Transactional(readOnly = true)
+    @Transactional
     public List<AttendanceHistoryItem> history(
             AttendanceActor actor, long internId, LocalDate from, LocalDate to) {
         if (actor.role() == AttendanceRole.INTERN && actor.userId() != internId) {
@@ -148,23 +146,21 @@ public class AttendanceApplicationService {
         if (from.isAfter(to)) {
             throw new IllegalArgumentException("from must not be after to");
         }
-        return recordEntities.findByInternUserIdAndWorkDateBetweenOrderByWorkDateDesc(internId, from, to)
+        List<AttendanceRecordEntity> recordRows = recordEntities
+                .findByInternUserIdAndWorkDateBetweenOrderByWorkDateDesc(internId, from, to);
+        Map<Long, Instant> effectiveCheckouts = corrections.prepareHistory(recordRows);
+        return recordRows
                 .stream()
-                .map(record -> {
-                    AttendanceRecord domain = record.toDomain();
-                    Instant effective = domain.checkOutAt() != null
-                            ? domain.checkOutAt()
-                            : corrections.findByAttendanceRecordId(record.id())
-                                    .filter(correction -> "APPROVED".equals(correction.status()))
-                                    .map(AttendanceCorrectionEntity::requestedCheckoutAt)
-                                    .orElse(null);
+                .map(entity -> {
+                    AttendanceRecord record = entity.toDomain();
+                    Instant effectiveCheckout = effectiveCheckouts.get(entity.id());
                     return new AttendanceHistoryItem(
-                            domain.workDate(),
-                            domain.checkInAt(),
-                            domain.checkOutAt(),
-                            effective,
-                            domain.policy(),
-                            domain.violations(clock.instant(), effective));
+                            record.workDate(),
+                            record.checkInAt(),
+                            effectiveCheckout,
+                            record.policy(),
+                            record.violations(clock.instant(), effectiveCheckout),
+                            entity.id());
                 })
                 .toList();
     }

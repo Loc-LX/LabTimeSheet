@@ -105,6 +105,18 @@ Current end-to-end checks are guided manual checks:
 4. Follow the scenario written in `docs/tests/e2e/`.
 5. Record the browser, viewport, result, and any boundary that was not tested.
 
+For date-sensitive local E2E journeys, use the deterministic clock handoff. The
+`e2e` profile is grouped with `dev`, so the normal local datasource, Mailpit,
+origin, and security-key configuration remains active:
+
+```bash
+LAB_E2E_START_INSTANT=2026-08-22T02:00:00Z \
+  ./mvnw spring-boot:run -Dspring-boot.run.profiles=e2e
+```
+
+The advancing clock is local-only, starts near the supplied instant, and
+`prod` plus `e2e` is rejected at startup.
+
 Do not record a real browser journey as a web test. Use `docs/tests/e2e/`.
 
 ### Structure and configuration checks

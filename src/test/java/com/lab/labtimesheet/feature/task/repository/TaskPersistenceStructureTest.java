@@ -88,6 +88,16 @@ class TaskPersistenceStructureTest {
     }
 
     @Test
+    void workLogCorrectionLookupUsesAPessimisticWriteLock() throws NoSuchMethodException {
+        var method = TaskWorkLogRepository.class.getMethod(
+                "findLockedByIdAndProjectId", long.class, long.class);
+
+        Lock lock = method.getAnnotation(Lock.class);
+        assertThat(lock).isNotNull();
+        assertThat(lock.value()).isEqualTo(LockModeType.PESSIMISTIC_WRITE);
+    }
+
+    @Test
     void taskBusinessCodeContainsNoDirectJdbcOrSqlImports() throws IOException {
         Path taskSource = Path.of("src/main/java/com/lab/labtimesheet/feature/task");
         try (var sources = Files.walk(taskSource)) {

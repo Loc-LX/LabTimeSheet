@@ -1,47 +1,61 @@
 package com.lab.labtimesheet.feature.project.service;
 
+import com.lab.labtimesheet.feature.account.model.GlobalRole;
 import com.lab.labtimesheet.feature.account.model.dto.AccountIdentity;
+import com.lab.labtimesheet.feature.account.model.dto.InternshipLifecycleGuard;
 import com.lab.labtimesheet.feature.account.service.AccountService;
 import com.lab.labtimesheet.feature.project.exception.ProjectAccessDeniedException;
 import com.lab.labtimesheet.feature.project.model.ProjectStatus;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectDetail;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectActorView;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectDashboardSummary;
+import com.lab.labtimesheet.feature.project.model.dto.ProjectExitRequestHistoryView;
+import com.lab.labtimesheet.feature.project.model.dto.ProjectExitReadinessView;
+import com.lab.labtimesheet.feature.project.model.dto.ProjectHistoryView;
+import com.lab.labtimesheet.feature.project.model.dto.ProjectInvitationHistoryView;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectLeadershipTermView;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectMemberView;
+import com.lab.labtimesheet.feature.project.model.dto.ProjectMembershipIntervalView;
+import com.lab.labtimesheet.feature.project.model.dto.PendingProjectInvitationView;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectSummary;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectTaskContext;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectTaskMemberView;
 import com.lab.labtimesheet.feature.project.model.entity.ProjectEntity;
+import com.lab.labtimesheet.feature.project.repository.ProjectExitRequestRepository;
+import com.lab.labtimesheet.feature.project.repository.ProjectInvitationRepository;
 import com.lab.labtimesheet.feature.project.repository.ProjectRepository;
+import com.lab.labtimesheet.feature.task.service.TaskQueryService;
+import com.lab.labtimesheet.feature.task.service.TaskTransferService;
 import java.util.List;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Cung cấp dữ liệu đọc Project chỉ gồm DTO và có kiểm tra phân quyền cho MVC cùng các feature khác.
+ * Provides authorization-aware, DTO-only Project reads to MVC and other features.
  *
- * <p>Admin xem mọi Project, Mentor chỉ xem Project mình sở hữu, còn Intern chỉ xem Project đang
- * mở khi vẫn đang tham gia. Project đã hoàn tất vẫn hiển thị cho thành viên lịch sử nhưng không
- * cung cấp context Leader hiện tại hoặc thành viên đang hoạt động.
- *
- * <p>Truy vết mã công việc: {@code I1-PRJ-05} bao phủ các truy vấn list/detail/member/leadership;
- * {@code I2-PRJ-06} bổ sung quyền đọc lịch sử của thành viên cũ và Project đã hoàn tất.
+ * <p>Admins inspect all Projects, Mentors inspect only owned Projects, and Interns inspect open
+ * Projects only while currently enrolled. Completed Projects remain visible to historical
+ * members but expose no current Leader or active-member context.
  */
 @Service
 @RequiredArgsConstructor
 public class ProjectQueryService {
 
     private final ProjectRepository projects;
+    private final ProjectExitRequestRepository exitRequests;
+    private final ProjectInvitationRepository invitations;
     private final AccountService accounts;
+    private final TaskQueryService taskQueries;
+    private final TaskTransferService taskTransfers;
 
     /**
-     * Tìm mã người dùng ổn định từ tài khoản đang hoạt động và đã xác thực.
+     * Resolves an active authenticated account to its stable user identifier.
      *
-     * @param email địa chỉ email đã xác thực
-     * @return mã người dùng đang hoạt động
-     * @throws ProjectAccessDeniedException khi không có danh tính đang hoạt động
+     * @param email authenticated email address
+     * @return active user identifier
+     * @throws ProjectAccessDeniedException when no active identity is available
      */
     @Transactional(readOnly = true)
     public long authenticatedUserId(String email) {
@@ -49,11 +63,11 @@ public class ProjectQueryService {
     }
 
     /**
-     * Tìm người thực hiện đang hoạt động và đã xác thực để điều hướng Project theo vai trò.
+     * Resolves the active authenticated actor needed for role-aware Project navigation.
      *
-     * @param email địa chỉ email đã xác thực
-     * @return mã người dùng và vai trò toàn cục bất biến
-     * @throws ProjectAccessDeniedException khi không có danh tính đang hoạt động
+     * @param email authenticated email address
+     * @return user identifier and immutable global role
+     * @throws ProjectAccessDeniedException when no active identity is available
      */
     @Transactional(readOnly = true)
     public ProjectActorView authenticatedActor(String email) {
@@ -69,11 +83,11 @@ public class ProjectQueryService {
     }
 
     /**
-     * [I1-PRJ-05, I2-PRJ-06] Liệt kê Project hiển thị theo vai trò hiện tại và quan hệ của người thực hiện với Project.
-     * Lượt tham gia lịch sử của Intern chỉ cấp quyền xem Project đã hoàn tất.
+     * Lists Projects visible under the actor's current role and Project relationship.
+     * Historical Intern membership grants visibility only to completed Projects.
      *
-     * @param actorUserId mã người dùng đang hoạt động
-     * @return các thông tin tóm tắt đã phân quyền, được sắp xếp
+     * @param actorUserId active actor user identifier
+     * @return ordered authorized summaries
      */
     @Transactional(readOnly = true)
     public List<ProjectSummary> listVisible(long actorUserId) {
@@ -82,13 +96,13 @@ public class ProjectQueryService {
     }
 
     /**
-     * [I1-PRJ-05, I2-PRJ-06] Trả về chi tiết một Project đã phân quyền. Project đã hoàn tất không có Leader hiện tại và
-     * không bao giờ cấp khả năng thay đổi, kể cả cho Mentor sở hữu.
+     * Returns one authorized Project detail. Completed Projects have no current Leader and never
+     * grant mutation capability, including to their owning Mentor.
      *
-     * @param actorUserId mã người dùng đang hoạt động
-     * @param projectId mã Project được yêu cầu
-     * @return chi tiết đã phân quyền
-     * @throws ProjectAccessDeniedException cho cả mã không tồn tại và mã không được phép
+     * @param actorUserId active actor user identifier
+     * @param projectId requested Project identifier
+     * @return authorized detail
+     * @throws ProjectAccessDeniedException for missing and unauthorized identifiers alike
      */
     @Transactional(readOnly = true)
     public ProjectDetail detail(long actorUserId, long projectId) {
@@ -107,12 +121,12 @@ public class ProjectQueryService {
     }
 
     /**
-     * [I1-PRJ-05, I2-PRJ-06] Trả về lịch sử khoảng thời gian thành viên của Project đã phân quyền. Lịch sử Project đã
-     * hoàn tất không đánh dấu thành viên nào là Leader hiện tại vì việc hoàn tất đã đóng nhiệm kỳ cuối.
+     * Returns membership interval history for an authorized Project. Completed history marks no
+     * membership as current Leader because completion closes the final leadership term.
      *
-     * @param actorUserId mã người dùng đang hoạt động
-     * @param projectId mã Project được yêu cầu
-     * @return lịch sử thành viên theo thứ tự trong aggregate
+     * @param actorUserId active actor user identifier
+     * @param projectId requested Project identifier
+     * @return membership history in aggregate order
      */
     @Transactional(readOnly = true)
     public List<ProjectMemberView> members(long actorUserId, long projectId) {
@@ -129,16 +143,72 @@ public class ProjectQueryService {
                         membership.leftAt(),
                         membership.isCurrent()
                                 && leaderUserId != null
-                                && membership.internUserId() == leaderUserId))
+                                && membership.internUserId() == leaderUserId,
+                        membership.addedByUserId(),
+                        membership.removedByMentorUserId()))
                 .toList();
     }
 
     /**
-     * [I1-PRJ-05, I2-PRJ-01, I2-PRJ-06] Trả về các nhiệm kỳ Leader được lưu lại của Project đã phân quyền, nhiệm kỳ mới nhất trước.
+     * Returns every retained membership interval belonging to the authenticated Intern across
+     * Projects. This is the DTO-only source for cross-Project Task work and history queries.
      *
-     * @param actorUserId mã người dùng đang hoạt động
-     * @param projectId mã Project được yêu cầu
-     * @return lịch sử nhiệm kỳ Leader, bao gồm cả nhiệm kỳ đã đóng
+     * <p>Only an active account with the global Intern role may use this boundary. Internship
+     * completion does not erase retained intervals, so this read remains available to an active
+     * completed Intern while mutation eligibility is enforced by the Account boundary.</p>
+     *
+     * @param actorUserId authenticated Intern account identifier
+     * @return immutable interval projections ordered by Project then membership identifier
+     * @throws ProjectAccessDeniedException when the actor is missing, inactive, or not an Intern
+     */
+    @Transactional(readOnly = true)
+    public List<ProjectMembershipIntervalView> membershipIntervals(long actorUserId) {
+        var actor = activeActor(actorUserId);
+        if (!"INTERN".equals(actor.role().name())) {
+            throw new ProjectAccessDeniedException();
+        }
+        return projects.findMembershipIntervalsByInternUserId(actorUserId);
+    }
+
+    /**
+     * Lists pending invitations addressed to the exact authenticated Intern.
+     *
+     * <p>This route does not require existing Project visibility because an invitee is not yet a
+     * member. Active-Intern authorization occurs before reading addressed rows; response mutations
+     * repeat target, Project, term, eligibility, and pending-state checks under lock.</p>
+     *
+     * @param actorUserId authenticated active Intern account
+     * @return newest-first actionable invitations addressed to that Intern
+     * @throws ProjectAccessDeniedException when the actor is inactive or not an Intern
+     */
+    @Transactional(readOnly = true)
+    public List<PendingProjectInvitationView> pendingInvitations(long actorUserId) {
+        var actor = activeActor(actorUserId);
+        if (!"INTERN".equals(actor.role().name())) {
+            throw new ProjectAccessDeniedException();
+        }
+        return invitations.findByInvitedInternUserIdAndStatusOrderByCreatedAtDescIdDesc(
+                        actorUserId, com.lab.labtimesheet.feature.project.model.InvitationStatus.PENDING)
+                .stream()
+                .map(invitation -> {
+                    var project = projects.findById(invitation.projectId())
+                            .orElseThrow(ProjectAccessDeniedException::new);
+                    return new PendingProjectInvitationView(
+                            invitation.id(),
+                            project.id(),
+                            project.name(),
+                            displayName(invitation.issuingLeadershipTerm().internUserId()),
+                            invitation.createdAt());
+                })
+                .toList();
+    }
+
+    /**
+     * Returns retained leadership terms for an authorized Project, newest first.
+     *
+     * @param actorUserId active actor user identifier
+     * @param projectId requested Project identifier
+     * @return leadership history, including closed terms
      */
     @Transactional(readOnly = true)
     public List<ProjectLeadershipTermView> leadership(long actorUserId, long projectId) {
@@ -148,27 +218,156 @@ public class ProjectQueryService {
                         term.id(),
                         displayName(term.internUserId()),
                         term.startedAt(),
-                        term.endedAt()))
+                        term.endedAt(),
+                        term.appointedByMentorUserId(),
+                        term.endedByMentorUserId()))
                 .toList();
     }
 
     /**
-     * [I1-PRJ-04, I2-PRJ-02, I2-PRJ-06] Trả về thông tin Project chỉ gồm DTO mà Task cần khi đọc. Project đang mở gồm lượt tham gia
-     * Leader hiện tại và các thành viên hiện tại đủ điều kiện; Project đã hoàn tất trả Leader null
-     * cùng danh sách thành viên đang hoạt động rỗng nhưng vẫn hiển thị cho thành viên cũ.
+     * Returns one authorized Project History snapshot from retained Project and Task facts.
      *
-     * @param actorUserId mã người dùng đang hoạt động
-     * @param projectId mã Project được yêu cầu
-     * @return context Task đã phân quyền
+     * <p>Open visibility is limited to Admin, the owning Mentor, and current members. A former
+     * member becomes eligible only after Project completion through the same authorization boundary
+     * used by detail and membership reads. Task rows are obtained through the Task DTO service;
+     * this method never imports Task persistence.</p>
+     *
+     * @param actorUserId active authenticated viewer
+     * @param projectId requested Project identifier
+     * @return immutable retained history snapshot
+     * @throws ProjectAccessDeniedException when the viewer is outside the exact AUTH-006 scope
+     */
+    @Transactional(readOnly = true)
+    public ProjectHistoryView history(long actorUserId, long projectId) {
+        var project = visibleProject(actorUserId, projectId);
+        var memberships = project.memberships().stream()
+                .map(membership -> new ProjectMemberView(
+                        membership.id(),
+                        membership.internUserId(),
+                        displayName(membership.internUserId()),
+                        membership.joinedAt(),
+                        membership.leftAt(),
+                        project.status() != ProjectStatus.COMPLETED
+                                && membership.isCurrent()
+                                && project.currentLeader().id().equals(membership.id()),
+                        membership.addedByUserId(),
+                        membership.removedByMentorUserId()))
+                .toList();
+        var leadership = project.leadershipTerms().stream()
+                .sorted((left, right) -> right.startedAt().compareTo(left.startedAt()))
+                .map(term -> new ProjectLeadershipTermView(
+                        term.id(),
+                        displayName(term.internUserId()),
+                        term.startedAt(),
+                        term.endedAt(),
+                        term.appointedByMentorUserId(),
+                        term.endedByMentorUserId()))
+                .toList();
+        var invitationHistory = invitations.findByProject_IdOrderByCreatedAtAscIdAsc(projectId).stream()
+                .map(invitation -> new ProjectInvitationHistoryView(
+                        invitation.id(),
+                        invitation.invitedInternUserId(),
+                        invitation.issuingLeadershipTerm().id(),
+                        invitation.status(),
+                        invitation.acceptedMembership() == null
+                                ? null : invitation.acceptedMembership().id(),
+                        invitation.resolvedAt(),
+                        invitation.resolvedByUserId(),
+                        invitation.resolutionCode(),
+                        invitation.createdAt(),
+                        invitation.updatedAt()))
+                .toList();
+        var exitHistory = exitRequests.findByProject_IdOrderByCreatedAtAscIdAsc(projectId).stream()
+                .map(request -> new ProjectExitRequestHistoryView(
+                        request.id(),
+                        request.targetMembershipId(),
+                        request.requesterMembershipId(),
+                        request.requestType(),
+                        request.reason(),
+                        request.status(),
+                        request.resolutionNote(),
+                        request.resolvedAt(),
+                        request.resolvedByUserId(),
+                        request.createdAt(),
+                        request.updatedAt()))
+                .toList();
+        return new ProjectHistoryView(
+                project.id(),
+                memberships,
+                leadership,
+                invitationHistory,
+                exitHistory,
+                taskQueries.history(projectId));
+    }
+
+    /**
+     * Returns pending-exit readiness facts for an authorized Project viewer.
+     *
+     * <p>The snapshot exposes only retained request IDs, membership IDs, current-Leader status,
+     * and the Task-owned unfinished count. It is informational and cannot replace the locked
+     * approval boundary in {@link ProjectService#approveExit(long, long, String)}.</p>
+     *
+     * @param actorUserId active authenticated viewer
+     * @param projectId requested Project identifier
+     * @return pending requests in stable request order
+     */
+    @Transactional(readOnly = true)
+    public List<ProjectExitReadinessView> exitReadiness(long actorUserId, long projectId) {
+        var project = visibleProject(actorUserId, projectId);
+        var currentLeaderId = project.status() == ProjectStatus.COMPLETED
+                ? null : project.currentLeader().id();
+        return exitRequests.findByProject_IdOrderByCreatedAtAscIdAsc(projectId).stream()
+                .filter(request -> request.isPending())
+                .map(request -> {
+                    boolean leader = currentLeaderId != null
+                            && currentLeaderId.equals(request.targetMembershipId());
+                    long unfinished = taskTransfers.unfinishedCount(projectId, request.targetMembershipId());
+                    return new ProjectExitReadinessView(
+                            request.id(),
+                            request.targetMembershipId(),
+                            leader,
+                            unfinished,
+                            !leader && unfinished == 0);
+                })
+                .toList();
+    }
+
+    /**
+     * Returns the DTO-only Project facts needed for Task reads. Open Projects include the current
+     * Leader membership and active eligible members; completed Projects return a null Leader and
+     * an empty active-member list while remaining visible to former members.
+     *
+     * @param actorUserId active actor user identifier
+     * @param projectId requested Project identifier
+     * @return authorized Task context
      */
     @Transactional(readOnly = true)
     public ProjectTaskContext taskContext(long actorUserId, long projectId) {
         var project = projects.findById(projectId).orElseThrow(ProjectAccessDeniedException::new);
-        return taskContext(actorUserId, project);
+        requireVisibleProject(actorUserId, project);
+        return taskContext(actorUserId, project,
+                exitRequests.findPendingTargetMembershipIdsByProjectId(projectId));
     }
 
-    /** Tạo context Task từ aggregate đã được khóa bởi service thay đổi. */
     ProjectTaskContext taskContext(long actorUserId, ProjectEntity project) {
+        return taskContext(actorUserId, project, Set.of());
+    }
+
+    /**
+     * Maps a Project already locked by the mutation owner into the DTO consumed by Task.
+     *
+     * <p>The caller must acquire the Project write lock before reading the pending target IDs and
+     * retain that lock through the outer transaction. This preserves one stable authorization
+     * snapshot while Task locks its own rows; this mapper does not access Project persistence from
+     * the Task feature.
+     *
+     * @param actorUserId authenticated actor
+     * @param project locked Project aggregate
+     * @param pendingExitMembershipIds pending target IDs read after the Project lock
+     * @return immutable DTO-only Task context
+     */
+    ProjectTaskContext taskContext(
+            long actorUserId, ProjectEntity project, Set<Long> pendingExitMembershipIds) {
         requireVisibleProject(actorUserId, project);
         if (project.status() == ProjectStatus.COMPLETED) {
             return new ProjectTaskContext(
@@ -178,14 +377,16 @@ public class ProjectQueryService {
                     project.startDate(),
                     project.endDate(),
                     null,
-                    List.of());
+                    List.of(),
+                    Set.of());
         }
         var activeMembers = project.memberships().stream()
                 .filter(membership -> membership.isCurrent() && isEligibleIntern(membership.internUserId()))
                 .map(membership -> new ProjectTaskMemberView(
                         membership.id(),
                         membership.internUserId(),
-                        displayName(membership.internUserId())))
+                        displayName(membership.internUserId()),
+                        membership.joinedAt()))
                 .toList();
         var currentLeader = project.currentLeader();
         var currentLeaderMembershipId = activeMembers.stream()
@@ -200,28 +401,16 @@ public class ProjectQueryService {
                 project.startDate(),
                 project.endDate(),
                 currentLeaderMembershipId,
-                activeMembers);
+                activeMembers,
+                pendingExitMembershipIds);
     }
 
     /**
-     * Returns every membership interval identifier of one Intern across all Projects, current and
-     * historical. Consumers use this boundary to aggregate an Intern's own cross-Project daily
-     * totals without importing the membership repository or entity.
+     * Computes role-scoped dashboard counts from current active Project relationships.
+     * Historical memberships never contribute to current Intern or Mentor metrics.
      *
-     * @param internUserId Intern user identifier
-     * @return the Intern's membership interval identifiers
-     */
-    @Transactional(readOnly = true)
-    public List<Long> membershipIdsForIntern(long internUserId) {
-        return projects.findMembershipIdsByInternUserId(internUserId);
-    }
-
-    /**
-     * [I1-PRJ-05, I2-PRJ-06] Tính số liệu dashboard theo vai trò từ các quan hệ Project hiện tại và đang hoạt động.
-     * Lượt tham gia lịch sử không bao giờ góp vào số liệu hiện tại của Intern hoặc Mentor.
-     *
-     * @param actorUserId mã người dùng đang hoạt động
-     * @return số Project đang hoạt động và, với Mentor, số thành viên đang hoạt động đủ điều kiện không trùng
+     * @param actorUserId active actor user identifier
+     * @return active Project count and, for Mentors, distinct eligible active-member count
      */
     @Transactional(readOnly = true)
     public ProjectDashboardSummary dashboardSummary(long actorUserId) {
@@ -243,14 +432,52 @@ public class ProjectQueryService {
         return new ProjectDashboardSummary(activeProjects.size(), distinctActiveMembers);
     }
 
-    /** Tải Project và chỉ trả về sau khi kiểm tra người thực hiện được phép xem. */
+    /**
+     * Previews the Project and Task readiness facts for an Admin-managed Intern terminal action.
+     *
+     * <p>This read snapshot drives explanatory UI only. {@link ProjectService} recomputes the same facts while
+     * retaining Account/profile and Project locks before completing or withdrawing the Intern.</p>
+     *
+     * @param adminUserId active Admin requesting the preview
+     * @param internUserId Intern account being inspected
+     * @return current-Leader and unfinished-Task facts across current Project memberships
+     * @throws ProjectAccessDeniedException when the actor or target shape is unavailable
+     */
+    @Transactional(readOnly = true)
+    public InternshipLifecycleGuard internshipLifecycleGuard(long adminUserId, long internUserId) {
+        if (activeActor(adminUserId).role() != GlobalRole.ADMIN) {
+            throw new ProjectAccessDeniedException();
+        }
+        AccountIdentity intern;
+        try {
+            intern = accounts.requireIdentityById(internUserId);
+        } catch (IllegalArgumentException failure) {
+            throw new ProjectAccessDeniedException();
+        }
+        if (intern.role() != GlobalRole.INTERN) {
+            throw new ProjectAccessDeniedException();
+        }
+        var currentMemberships = projects.findMembershipIntervalsByInternUserId(internUserId).stream()
+                .filter(interval -> interval.leftAt() == null)
+                .toList();
+        boolean currentLeader = currentMemberships.stream().anyMatch(interval -> {
+            var route = projects.findMutationRouteById(interval.projectId())
+                    .orElseThrow(ProjectAccessDeniedException::new);
+            return route.currentLeaderUserId() != null && route.currentLeaderUserId() == internUserId;
+        });
+        long unfinishedTaskCount = currentMemberships.stream()
+                .mapToLong(interval -> taskTransfers.unfinishedCount(
+                        interval.projectId(), interval.membershipId()))
+                .sum();
+        return new InternshipLifecycleGuard(currentLeader, unfinishedTaskCount);
+    }
+
     private ProjectEntity visibleProject(long actorUserId, long projectId) {
         var project = projects.findById(projectId).orElseThrow(ProjectAccessDeniedException::new);
         requireVisibleProject(actorUserId, project);
         return project;
     }
 
-    /** Kiểm tra quyền xem Project theo vai trò và quan hệ thành viên của người thực hiện. */
     private void requireVisibleProject(long actorUserId, ProjectEntity project) {
         var actor = activeActor(actorUserId);
         var visible = "ADMIN".equals(actor.role().name())
@@ -264,7 +491,6 @@ public class ProjectQueryService {
         }
     }
 
-    /** Chọn truy vấn danh sách Project tương ứng với vai trò toàn cục của người thực hiện. */
     private List<ProjectEntity> visibleProjects(AccountIdentity actor, long actorUserId) {
         return switch (actor.role().name()) {
             case "ADMIN" -> projects.findAllByOrderByUpdatedAtDescIdDesc();
@@ -274,7 +500,6 @@ public class ProjectQueryService {
         };
     }
 
-    /** Lấy danh tính Account đang hoạt động hoặc chuyển mọi lỗi nhận diện thành lỗi truy cập chung. */
     private AccountIdentity activeActor(long actorUserId) {
         try {
             var actor = accounts.requireIdentityById(actorUserId);
@@ -287,7 +512,6 @@ public class ProjectQueryService {
         }
     }
 
-    /** Lấy tên hiển thị của Account để đưa vào DTO; không để lộ lỗi tra cứu cho bên ngoài. */
     private String displayName(long userId) {
         try {
             return accounts.requireIdentityById(userId).displayName();
@@ -296,12 +520,10 @@ public class ProjectQueryService {
         }
     }
 
-    /** Kiểm tra nhanh Intern còn đủ điều kiện để xuất hiện trong context Task hay không. */
     private boolean isEligibleIntern(long userId) {
         return accounts.isEligibleIntern(userId);
     }
 
-    /** Chuyển aggregate Project thành dòng tóm tắt chỉ đọc cho trang danh sách. */
     private static ProjectSummary summary(ProjectEntity project) {
         return new ProjectSummary(
                 project.id(),

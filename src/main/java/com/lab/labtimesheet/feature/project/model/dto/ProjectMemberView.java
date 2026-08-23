@@ -3,14 +3,16 @@ package com.lab.labtimesheet.feature.project.model.dto;
 import java.time.Instant;
 
 /**
- * Thông tin thành viên Project hiện tại hoặc trong lịch sử cho các trang hiển thị phía máy chủ đã được phân quyền.
+ * Current or historical Project membership for authorized server-rendered pages.
  *
- * @param membershipId mã ổn định của khoảng thời gian tham gia
- * @param internUserId mã người dùng Intern tham gia
- * @param displayName tên hiển thị hiện tại của Account
- * @param joinedAt thời điểm bắt đầu tham gia, được tính cả thời điểm này
- * @param leftAt thời điểm kết thúc tham gia, hoặc null khi vẫn là thành viên hiện tại
- * @param currentLeader true chỉ khi đây là thành viên Leader hiện tại của Project chưa hoàn tất
+ * @param membershipId stable membership-interval identifier
+ * @param internUserId participating Intern user identifier
+ * @param displayName current Account display name
+ * @param joinedAt inclusive membership start instant
+ * @param leftAt membership end instant, or null while current
+ * @param currentLeader true only for the current open-Project Leader membership
+ * @param addedByUserId account that created the retained membership interval
+ * @param removedByMentorUserId owning Mentor that closed the interval, or null while current
  */
 public record ProjectMemberView(
         long membershipId,
@@ -18,5 +20,7 @@ public record ProjectMemberView(
         String displayName,
         Instant joinedAt,
         Instant leftAt,
-        boolean currentLeader) {
+        boolean currentLeader,
+        long addedByUserId,
+        Long removedByMentorUserId) {
 }

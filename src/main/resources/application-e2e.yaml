@@ -1,0 +1,9 @@
+# Deterministic local browser/E2E profile. It is opt-in and must never be combined with prod.
+spring:
+  config:
+    activate:
+      on-profile: e2e
+
+lab:
+  e2e:
+    start-instant: "${LAB_E2E_START_INSTANT:2026-08-22T02:00:00Z}"

@@ -91,170 +91,80 @@ document.addEventListener('DOMContentLoaded', () => {
     updateSummary();
   });
 
-  document.querySelectorAll('[data-member-dropdown]').forEach((dropdown) => {
-    const trigger = dropdown.querySelector('[data-member-dropdown-trigger]');
-    const menu = dropdown.querySelector('[data-member-dropdown-menu]');
-    const search = dropdown.querySelector('[data-member-dropdown-search]');
-    const valueLabel = dropdown.querySelector('[data-member-dropdown-value]');
-    const empty = dropdown.querySelector('[data-member-dropdown-empty]');
-    const done = dropdown.querySelector('[data-member-dropdown-done]');
-    const form = dropdown.closest('form');
-    const validationAlert = form?.querySelector('[data-member-validation-alert]');
-    const validationError = dropdown.querySelector('[data-member-validation-error]');
-    const options = [...dropdown.querySelectorAll('[data-member-dropdown-option]')];
-    if (!trigger || !menu || !search || !valueLabel || !empty || !done) return;
-
-    // Đóng menu và trả trạng thái trợ năng về nút mở dropdown.
-    const close = () => {
-      menu.hidden = true;
-      trigger.setAttribute('aria-expanded', 'false');
-    };
-
-    // Hiển thị số lượng và tên Intern đang được chọn trong form.
-    const syncSelection = () => {
-      const selected = options
-        .filter((option) => option.querySelector('input').checked)
-        .map((option) => option.querySelector('[data-member-dropdown-label]').textContent.trim());
-      valueLabel.textContent = selected.length === 0
-        ? 'No Interns selected'
-        : `${selected.length} Intern${selected.length === 1 ? '' : 's'} selected: ${selected.join(', ')}`;
-      options.forEach((option) => {
-        option.setAttribute('aria-selected', String(option.querySelector('input').checked));
+  document.querySelectorAll('[data-drawer]').forEach((drawer) => {
+    let opener = null;
+    const close = drawer.querySelector('[data-drawer-close]');
+    const restoreFocus = () => { opener?.focus(); opener = null; };
+    document.querySelectorAll(`[data-drawer-open="${drawer.id}"]`).forEach((trigger) => {
+      trigger.addEventListener('click', () => {
+        opener = trigger;
+        drawer.showModal();
+        close?.focus();
       });
-    };
-
-    // Chỉ lọc các option server đã xác định là Intern đủ điều kiện.
-    const filter = () => {
-      const query = search.value.trim().toLocaleLowerCase();
-      let visible = 0;
-      options.forEach((option) => {
-        const matches = option.dataset.search.toLocaleLowerCase().includes(query);
-        option.hidden = !matches;
-        if (matches) visible += 1;
-      });
-      empty.hidden = visible !== 0;
-    };
-
-    // Khi người dùng chọn lại sau lỗi submit, bỏ trạng thái lỗi cũ trên giao diện.
-    const clearValidation = () => {
-      if (validationAlert) validationAlert.hidden = true;
-      if (validationError) validationError.hidden = true;
-      trigger.removeAttribute('aria-invalid');
-      trigger.removeAttribute('aria-describedby');
-    };
-
-    trigger.addEventListener('click', () => {
-      const opening = menu.hidden;
-      menu.hidden = !opening;
-      trigger.setAttribute('aria-expanded', String(opening));
-      if (opening) {
-        search.value = '';
-        filter();
-        search.focus();
-      }
     });
-    search.addEventListener('input', filter);
-    options.forEach((option) => option.querySelector('input').addEventListener('change', () => {
-      syncSelection();
-      clearValidation();
-    }));
-    done.addEventListener('click', () => {
-      close();
-      trigger.focus();
-    });
-    document.addEventListener('click', (event) => {
-      if (!dropdown.contains(event.target)) close();
-    });
-    document.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape' && !menu.hidden) {
-        close();
-        trigger.focus();
-      }
-    });
-
-    syncSelection();
-    filter();
+    close?.addEventListener('click', () => drawer.close());
+    drawer.addEventListener('cancel', () => restoreFocus());
+    drawer.addEventListener('close', restoreFocus);
   });
 
-  document.querySelectorAll('[data-leader-dropdown]').forEach((dropdown) => {
-    const trigger = dropdown.querySelector('[data-leader-dropdown-trigger]');
-    const menu = dropdown.querySelector('[data-leader-dropdown-menu]');
-    const search = dropdown.querySelector('[data-leader-dropdown-search]');
-    const valueInput = dropdown.querySelector('[data-leader-dropdown-value-input]');
-    const valueLabel = dropdown.querySelector('[data-leader-dropdown-value]');
-    const empty = dropdown.querySelector('[data-leader-dropdown-empty]');
-    const form = dropdown.closest('form');
-    const validationAlert = form?.querySelector('[data-leader-validation-alert]');
-    const validationError = dropdown.querySelector('[data-leader-validation-error]');
-    const options = [...dropdown.querySelectorAll('[data-leader-dropdown-option]')];
-    if (!trigger || !menu || !search || !valueInput || !valueLabel || !empty) return;
+  document.querySelectorAll('form[data-confirm], form[data-transfer-confirm]').forEach((form) => {
+    form.addEventListener('submit', (event) => {
+      let message = form.dataset.confirm;
+      if (form.hasAttribute('data-transfer-confirm')) {
+        const tasks = [...form.querySelectorAll('[name="taskIds"]:checked')];
+        const firstTask = form.querySelector('[name="taskIds"]');
+        if (tasks.length === 0) {
+          event.preventDefault();
+          firstTask?.setCustomValidity('Select at least one unfinished Task');
+          firstTask?.reportValidity();
+          return;
+        }
+        firstTask?.setCustomValidity('');
+        const recipient = form.querySelector('[name="recipientMembershipId"]:checked')
+          ?.closest('label')?.querySelector('span')?.textContent.trim();
+        message = `Transfer ${tasks.length} selected Task${tasks.length === 1 ? '' : 's'} to ${recipient}? This batch commits immediately and remains after later cancellation or rejection.`;
+      }
+      if (!window.confirm(message)) event.preventDefault();
+    });
+  });
 
-    // Đóng danh sách và cập nhật trạng thái trợ năng của nút mở dropdown.
-    const close = () => {
-      menu.hidden = true;
-      trigger.setAttribute('aria-expanded', 'false');
+  document.querySelectorAll('[data-report-chart]').forEach((figure) => {
+    if (typeof window.Chart !== 'function') return;
+    const canvas = figure.querySelector('canvas');
+    const rows = [...figure.querySelectorAll('.chart-data tbody tr')];
+    const labels = rows.map((row) => row.cells[0].textContent.trim());
+    const values = rows.map((row) => Number.parseFloat(row.cells[1].textContent.replace(',', '.')) || 0);
+    const colors = () => {
+      const styles = getComputedStyle(root);
+      return ['--accent', '--muted', '--border'].map((name) => styles.getPropertyValue(name).trim());
     };
-
-    // Đồng bộ tên hiển thị, giá trị hidden gửi về server và option đang chọn.
-    const syncSelection = () => {
-      const initial = options.find((option) => option.dataset.selected === 'true');
-      if (!valueInput.value && initial) valueInput.value = initial.dataset.value;
-      const selected = options.find((option) => option.dataset.value === valueInput.value);
-      valueLabel.textContent = selected?.dataset.label || 'Choose a current member';
-      options.forEach((option) => {
-        option.setAttribute('aria-selected', String(option === selected));
-      });
-    };
-
-    // Lọc theo tên hoặc Student Code, không thay đổi danh sách hợp lệ server đã trả về.
-    const filter = () => {
-      const query = search.value.trim().toLocaleLowerCase();
-      let visible = 0;
-      options.forEach((option) => {
-        const matches = option.dataset.search.toLocaleLowerCase().includes(query);
-        option.hidden = !matches;
-        if (matches) visible += 1;
-      });
-      empty.hidden = visible !== 0;
-    };
-
-    // Khi chọn lại sau một lần submit lỗi, xóa thông báo cũ để giao diện phản ánh lựa chọn mới.
-    const clearValidation = () => {
-      if (validationAlert) validationAlert.hidden = true;
-      if (validationError) validationError.hidden = true;
-      trigger.removeAttribute('aria-invalid');
-      trigger.removeAttribute('aria-describedby');
-    };
-
-    trigger.addEventListener('click', () => {
-      const opening = menu.hidden;
-      menu.hidden = !opening;
-      trigger.setAttribute('aria-expanded', String(opening));
-      if (opening) {
-        search.value = '';
-        filter();
-        search.focus();
+    const [accent, muted, border] = colors();
+    const chart = new window.Chart(canvas, {
+      type: 'line',
+      data: { labels, datasets: [{
+        data: values,
+        borderColor: accent,
+        pointBackgroundColor: accent,
+        tension: 0,
+      }] },
+      options: {
+        animation: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: muted }, grid: { color: border } },
+          y: { beginAtZero: true, ticks: { color: muted }, grid: { color: border } },
+        },
       }
     });
-    search.addEventListener('input', filter);
-    options.forEach((option) => option.addEventListener('click', () => {
-      valueInput.value = option.dataset.value || '';
-      syncSelection();
-      clearValidation();
-      close();
-      trigger.focus();
+    theme?.addEventListener('change', () => requestAnimationFrame(() => {
+      const [nextAccent, nextMuted, nextBorder] = colors();
+      chart.data.datasets[0].borderColor = nextAccent;
+      chart.data.datasets[0].pointBackgroundColor = nextAccent;
+      chart.options.scales.x.ticks.color = nextMuted;
+      chart.options.scales.y.ticks.color = nextMuted;
+      chart.options.scales.x.grid.color = nextBorder;
+      chart.options.scales.y.grid.color = nextBorder;
+      chart.update('none');
     }));
-    document.addEventListener('click', (event) => {
-      if (!dropdown.contains(event.target)) close();
-    });
-    document.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape' && !menu.hidden) {
-        close();
-        trigger.focus();
-      }
-    });
-
-    syncSelection();
-    filter();
   });
 });

@@ -3,16 +3,20 @@ package com.lab.labtimesheet.feature.project.model.dto;
 import java.time.Instant;
 
 /**
- * Khoảng thời gian nhiệm kỳ Leader trong lịch sử của trang Project đã được phân quyền.
+ * Historical leadership interval for an authorized Project page.
  *
- * @param id mã nhiệm kỳ Leader
- * @param leaderName tên hiển thị được lưu lại của Leader
- * @param startedAt thời điểm bắt đầu nhiệm kỳ, được tính cả thời điểm này
- * @param endedAt thời điểm kết thúc nhiệm kỳ, hoặc null khi nhiệm kỳ đang hiện tại
+ * @param id leadership-term identifier
+ * @param leaderName retained Leader display name
+ * @param startedAt inclusive term start instant
+ * @param endedAt term end instant, or null while the term is current
+ * @param appointedByMentorUserId owning Mentor that appointed this term
+ * @param endedByMentorUserId Mentor that closed this term, or null while current
  */
 public record ProjectLeadershipTermView(
         long id,
         String leaderName,
         Instant startedAt,
-        Instant endedAt) {
+        Instant endedAt,
+        long appointedByMentorUserId,
+        Long endedByMentorUserId) {
 }

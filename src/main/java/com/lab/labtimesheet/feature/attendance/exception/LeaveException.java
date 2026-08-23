@@ -1,29 +1,24 @@
 package com.lab.labtimesheet.feature.attendance.exception;
 
-/**
- * Signals a rejected leave request or state lookup with a stable domain reason.
- */
+/** Signals an invalid, unauthorized, overlapping, or expired leave operation. */
 public final class LeaveException extends RuntimeException {
 
-    /** Stable reason preserved for controller and service consumers. */
-    private final LeaveRejection rejection;
-
     /**
-     * Creates an exception for the rejection that callers may safely translate to UI feedback.
+     * Creates a leave operation rejection with operator-safe context.
      *
-     * @param rejection stable reason for refusing the leave operation
+     * @param message safe user-facing failure reason
      */
-    public LeaveException(LeaveRejection rejection) {
-        super(rejection.name());
-        this.rejection = rejection;
+    public LeaveException(String message) {
+        super(message);
     }
 
     /**
-     * Returns the stable rejection reason without exposing persistence failures.
+     * Creates a leave rejection while retaining the persistence cause for diagnostics.
      *
-     * @return leave rejection reason
+     * @param message safe user-facing failure reason
+     * @param cause underlying persistence or concurrency failure
      */
-    public LeaveRejection rejection() {
-        return rejection;
+    public LeaveException(String message, Throwable cause) {
+        super(message, cause);
     }
 }

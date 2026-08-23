@@ -7,7 +7,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.lab.labtimesheet.feature.integration.service.SmtpConfigurationService;
+import com.lab.labtimesheet.feature.notification.model.NotificationType;
+import com.lab.labtimesheet.feature.notification.model.dto.NotificationInbox;
+import com.lab.labtimesheet.feature.notification.model.dto.NotificationInboxItem;
 import com.lab.labtimesheet.feature.reporting.model.dto.DashboardView;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -76,6 +80,16 @@ class DashboardTemplateWebTest {
                 .andExpect(content().string(not(containsString("Create account"))));
     }
 
+    @Test
+    @WithMockUser(username = "intern@example.test", roles = "INTERN")
+    void internTemplateRendersNotificationMenuWhenDashboardSuppliesNotifications() throws Exception {
+        mvc.perform(get("/template-contract/dashboard/intern/notifications"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Review pending exit")))
+                .andExpect(content().string(containsString("href=\"/projects/7/exit\"")))
+                .andExpect(content().string(containsString("aria-label=\"Notifications\"")));
+    }
+
     @Controller
     public static class TemplateController {
 
@@ -100,6 +114,20 @@ class DashboardTemplateWebTest {
                     1,
                     List.of(new DashboardView.AssignedTask(
                             "My real task", "Intern Portal", "IN_PROGRESS", LocalDate.of(2026, 8, 18)))));
+            return "dashboard/intern";
+        }
+
+        @GetMapping("/template-contract/dashboard/intern/notifications")
+        String internNotifications(Model model) {
+            intern(model);
+            model.addAttribute("notifications", new NotificationInbox(List.of(new NotificationInboxItem(
+                    17L,
+                    NotificationType.MEMBERSHIP_EXIT_REQUESTED,
+                    "Review pending exit",
+                    "A membership exit needs review.",
+                    "/projects/7/exit",
+                    Instant.parse("2026-08-21T00:00:00Z"),
+                    false)), 1L));
             return "dashboard/intern";
         }
     }

@@ -1,93 +1,72 @@
 package com.lab.labtimesheet.feature.attendance.repository;
 
-import com.lab.labtimesheet.feature.attendance.model.dto.MonthReservation;
 import com.lab.labtimesheet.feature.attendance.model.entity.LeaveRequestDayEntity;
 import com.lab.labtimesheet.feature.attendance.model.entity.LeaveRequestDayId;
 import java.time.LocalDate;
 import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-/**
- * Spring Data access to frozen quota-consuming leave days.
- */
+/** Spring Data persistence boundary for frozen quota-consuming leave dates. */
 public interface LeaveRequestDayRepository extends JpaRepository<LeaveRequestDayEntity, LeaveRequestDayId> {
 
     /**
-     * Aggregates frozen days per quota month for an Intern, counting only requests that currently reserve quota.
-     * REJECTED and CANCELLED requests release their days because they are excluded from the status filter.
+     * Counts reserved days in one quota month for pending/approved requests.
      *
-     * @param internId owning Intern account identifier
-     * @return one reservation count per quota month that has pending or approved days
+     * @param internId owning Intern
+     * @param quotaMonth first date of the month
+     * @param statuses quota-reserving request states
+     * @return reserved allocation count
      */
     @Query("""
-            select new com.lab.labtimesheet.feature.attendance.model.dto.MonthReservation(
-                day.quotaMonth, count(day))
-            from LeaveRequestDayEntity day
-            join day.request request
-            where request.internUserId = :internId and request.status in ('PENDING', 'APPROVED')
-            group by day.quotaMonth
-            """)
-    List<MonthReservation> countReservedByMonth(@Param("internId") long internId);
-
-    /**
-     * Aggregates frozen days per quota month excluding one request, so an edit can validate its replacement without
-     * counting its own still-reserving days.
-     *
-     * @param internId owning Intern account identifier
-     * @param excludedRequestId request being edited
-     * @return one reservation count per quota month that has pending/approved days outside the excluded request
-     */
-    @Query("""
-            select new com.lab.labtimesheet.feature.attendance.model.dto.MonthReservation(
-                day.quotaMonth, count(day))
-            from LeaveRequestDayEntity day
+            select count(day) from LeaveRequestDayEntity day
             join day.request request
             where request.internUserId = :internId
-              and request.status in ('PENDING', 'APPROVED')
-              and request.id <> :excludedRequestId
-            group by day.quotaMonth
+              and day.quotaMonth = :quotaMonth
+              and request.status in :statuses
             """)
-    List<MonthReservation> countReservedByMonthExcluding(
+    long countReserved(
             @Param("internId") long internId,
-            @Param("excludedRequestId") long excludedRequestId);
+            @Param("quotaMonth") LocalDate quotaMonth,
+            @Param("statuses") List<String> statuses);
 
     /**
-     * Loads an already-persisted request's frozen dates in ascending order.
+     * Counts reserved days while excluding one request during an edit.
      *
-     * @param requestId leave request identifier
-     * @return counted dates, ascending
+     * @param internId owning Intern
+     * @param quotaMonth first date of the month
+     * @param statuses quota-reserving request states
+     * @param excludeId request being edited, or {@code null}
+     * @return reserved allocation count excluding the edited request
      */
     @Query("""
-            select day.id.leaveDate
-            from LeaveRequestDayEntity day
-            where day.request.id = :requestId
-            order by day.id.leaveDate
+            select count(day) from LeaveRequestDayEntity day
+            join day.request request
+            where request.internUserId = :internId
+              and day.quotaMonth = :quotaMonth
+              and request.status in :statuses
+              and (:excludeId is null or request.id <> :excludeId)
             """)
-    List<LocalDate> findLeaveDatesByRequestId(@Param("requestId") long requestId);
+    long countReservedExcluding(
+            @Param("internId") long internId,
+            @Param("quotaMonth") LocalDate quotaMonth,
+            @Param("statuses") List<String> statuses,
+            @Param("excludeId") Long excludeId);
 
     /**
-     * Loads an already-persisted request's frozen day entities in ascending date order.
+     * Loads a request's allocations in date order for the persistence-free view.
      *
      * @param requestId leave request identifier
-     * @return frozen day entities, ascending
+     * @return frozen allocation rows
      */
-    @Query("""
-            select day
-            from LeaveRequestDayEntity day
-            where day.request.id = :requestId
-            order by day.id.leaveDate
-            """)
-    List<LeaveRequestDayEntity> findDaysByRequestId(@Param("requestId") long requestId);
+    @Query("select day from LeaveRequestDayEntity day where day.request.id = :requestId order by day.id.leaveDate asc")
+    List<LeaveRequestDayEntity> findByRequestIdOrderByLeaveDate(@Param("requestId") long requestId);
 
     /**
-     * Deletes a request's frozen days so an edit can replace them atomically inside the same transaction.
+     * Deletes all frozen allocations while a pending request is edited.
      *
      * @param requestId leave request identifier
      */
-    @Modifying
-    @Query("delete from LeaveRequestDayEntity day where day.request.id = :requestId")
-    void deleteAllByRequestId(@Param("requestId") long requestId);
+    void deleteByRequestId(long requestId);
 }

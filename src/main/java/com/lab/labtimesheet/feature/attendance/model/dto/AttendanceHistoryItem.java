@@ -16,21 +16,31 @@ import java.util.List;
  *
  * @param workDate immutable policy-local work date
  * @param checkInAt raw server check-in instant
- * @param checkOutAt raw server checkout instant, or {@code null} when absent
- * @param effectiveCheckOutAt raw checkout when present, otherwise an approved correction's proposed checkout
+ * @param checkOutAt effective checkout instant (approved correction or raw checkout), or {@code null} when absent
  * @param policy historical policy version attached to the row
  * @param violations all applicable violations at query time
+ * @param attendanceRecordId raw row identifier used to open an authorized correction workflow
  */
 public record AttendanceHistoryItem(
         LocalDate workDate,
         Instant checkInAt,
         Instant checkOutAt,
-        Instant effectiveCheckOutAt,
         AttendancePolicy policy,
-        AttendanceViolations violations) {
+        AttendanceViolations violations,
+        long attendanceRecordId) {
 
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("dd/MM/uuuu");
     private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm");
+
+    /** Retains the earlier report/test constructor when no actionable row identifier is needed. */
+    public AttendanceHistoryItem(
+            LocalDate workDate,
+            Instant checkInAt,
+            Instant checkOutAt,
+            AttendancePolicy policy,
+            AttendanceViolations violations) {
+        this(workDate, checkInAt, checkOutAt, policy, violations, 0L);
+    }
 
     /**
      * Formats the business date as {@code dd/MM/yyyy}.
@@ -50,13 +60,13 @@ public record AttendanceHistoryItem(
         return TIME_FORMAT.format(checkInAt.atZone(policy.zoneId()));
     }
 
-/**
-     * Formats the effective checkout in the attached policy timezone or reports {@code Missing} when absent.
+    /**
+     * Formats effective checkout in the attached policy timezone or reports {@code Missing} when absent.
      *
-     * @return presentation-ready effective checkout value
+     * @return presentation-ready local checkout value
      */
     public String checkOutTimeDisplay() {
-        return effectiveCheckOutAt == null ? "Missing" : TIME_FORMAT.format(effectiveCheckOutAt.atZone(policy.zoneId()));
+        return checkOutAt == null ? "Missing" : TIME_FORMAT.format(checkOutAt.atZone(policy.zoneId()));
     }
 
     /**

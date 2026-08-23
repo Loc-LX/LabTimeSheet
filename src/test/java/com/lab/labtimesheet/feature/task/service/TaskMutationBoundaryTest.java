@@ -2,27 +2,32 @@ package com.lab.labtimesheet.feature.task.service;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.lenient;
 
+import com.lab.labtimesheet.feature.account.model.AccountStatus;
+import com.lab.labtimesheet.feature.account.model.GlobalRole;
+import com.lab.labtimesheet.feature.account.model.InternshipStatus;
+import com.lab.labtimesheet.feature.account.model.dto.AccountIdentity;
+import com.lab.labtimesheet.feature.account.model.dto.InternWorkWindow;
 import com.lab.labtimesheet.feature.account.service.AccountService;
 import com.lab.labtimesheet.feature.attendance.service.CalendarApplicationService;
+import com.lab.labtimesheet.feature.notification.service.NotificationService;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectActorView;
+import com.lab.labtimesheet.feature.project.model.dto.ProjectMembershipIntervalView;
+import com.lab.labtimesheet.feature.project.model.dto.ProjectMemberView;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectTaskContext;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectTaskMemberView;
 import com.lab.labtimesheet.feature.project.service.ProjectQueryService;
 import com.lab.labtimesheet.feature.project.service.ProjectService;
-import com.lab.labtimesheet.feature.task.exception.TaskNotFoundException;
-import com.lab.labtimesheet.feature.task.exception.TaskValidationException;
 import com.lab.labtimesheet.feature.task.model.TaskStatus;
 import com.lab.labtimesheet.feature.task.model.dto.CreateTaskCommand;
-import com.lab.labtimesheet.feature.task.model.dto.EditTaskCommand;
+import com.lab.labtimesheet.feature.task.model.dto.TaskWorkLogCandidate;
+import com.lab.labtimesheet.feature.task.model.entity.TaskWorkLog;
 import com.lab.labtimesheet.feature.task.model.entity.Task;
 import com.lab.labtimesheet.feature.task.model.entity.TaskComment;
 import com.lab.labtimesheet.feature.task.repository.TaskCommentRepository;
@@ -34,6 +39,7 @@ import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -45,14 +51,16 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class TaskMutationBoundaryTest {
 
     private static final Instant NOW = Instant.parse("2026-08-15T00:00:00Z");
+    private static final Instant JOINED = Instant.parse("2026-08-01T00:00:00Z");
 
-    @Mock private AccountService accounts;
     @Mock private TaskRepository tasks;
     @Mock private TaskCommentRepository comments;
     @Mock private TaskWorkLogRepository workLogs;
     @Mock private ProjectQueryService projectQueries;
     @Mock private ProjectService projectMutations;
     @Mock private CalendarApplicationService calendar;
+    @Mock private AccountService accounts;
+    @Mock private NotificationService notifications;
 
     private TaskService service;
     private ProjectTaskContext context;
@@ -66,8 +74,9 @@ class TaskMutationBoundaryTest {
                 projectQueries,
                 projectMutations,
                 calendar,
+                Clock.fixed(NOW, ZoneOffset.UTC),
                 accounts,
-                Clock.fixed(NOW, ZoneOffset.UTC));
+                notifications);
         context = new ProjectTaskContext(
                 10L,
                 3L,
@@ -75,9 +84,11 @@ class TaskMutationBoundaryTest {
                 LocalDate.of(2026, 8, 1),
                 LocalDate.of(2026, 8, 31),
                 70L,
-                List.of(new ProjectTaskMemberView(70L, 5L, "Member")));
-        when(projectQueries.authenticatedActor("member@example.test"))
-                .thenReturn(new ProjectActorView(5L, "INTERN"));
+                List.of(new ProjectTaskMemberView(70L, 5L, "Member", JOINED)),
+                java.util.Set.of());
+        when(accounts.requireAccountIdByEmail("member@example.test")).thenReturn(5L);
+        lenient().when(accounts.requireIdentityById(5L)).thenReturn(new AccountIdentity(
+                5L, "member@example.test", "Member", GlobalRole.INTERN, AccountStatus.ACTIVE));
         lenient().when(projectMutations.taskMutationContext(5L, 10L)).thenReturn(context);
     }
 
@@ -90,10 +101,103 @@ class TaskMutationBoundaryTest {
                 "member@example.test",
                 new CreateTaskCommand(10L, 70L, "Task", null, null));
 
-        InOrder order = inOrder(projectMutations, tasks);
+        InOrder order = inOrder(accounts, projectMutations, tasks);
+        order.verify(accounts).requireAccountIdByEmail("member@example.test");
         order.verify(projectMutations).taskMutationContext(5L, 10L);
         order.verify(tasks).saveAndFlush(any(Task.class));
         verify(projectQueries, never()).taskContext(5L, 10L);
+    }
+
+    @Test
+    void createRejectsPendingExitRecipientWithoutWriting() {
+        ProjectTaskContext pending = new ProjectTaskContext(
+                10L,
+                3L,
+                "ACTIVE",
+                LocalDate.of(2026, 8, 1),
+                LocalDate.of(2026, 8, 31),
+                70L,
+                List.of(new ProjectTaskMemberView(70L, 5L, "Member", JOINED)),
+                Set.of(70L));
+        when(projectMutations.taskMutationContext(5L, 10L)).thenReturn(pending);
+
+        assertThatThrownBy(() -> service.create(
+                        "member@example.test",
+                        new CreateTaskCommand(10L, 70L, "Task", null, null)))
+                .isInstanceOf(com.lab.labtimesheet.feature.task.exception.TaskNotFoundException.class);
+
+        verify(tasks, never()).saveAndFlush(any(Task.class));
+    }
+
+    @Test
+    void pendingExitCurrentAssigneeRetainsExistingStatusEditAndDeleteRights() {
+        ProjectTaskContext pending = new ProjectTaskContext(
+                10L,
+                3L,
+                "ACTIVE",
+                LocalDate.of(2026, 8, 1),
+                LocalDate.of(2026, 8, 31),
+                70L,
+                List.of(new ProjectTaskMemberView(70L, 5L, "Member", JOINED)),
+                Set.of(70L));
+        when(projectMutations.taskMutationContext(5L, 10L)).thenReturn(pending);
+        Task task = taskForView(TaskStatus.TODO);
+        when(tasks.findLockedByIdAndProjectIdAndDeletedAtIsNull(25L, 10L))
+                .thenReturn(Optional.of(task));
+        when(tasks.saveAndFlush(task)).thenReturn(task);
+        when(projectQueries.members(5L, 10L)).thenReturn(List.of(
+                new ProjectMemberView(70L, 5L, "Member", JOINED, null, true, 10L, null)));
+
+        service.changeStatus("member@example.test", 10L, 25L, TaskStatus.IN_PROGRESS);
+        service.edit("member@example.test", 10L, 25L, "Updated", "Details", null);
+        service.softDelete("member@example.test", 10L, 25L);
+
+        verify(task).changeStatus(TaskStatus.IN_PROGRESS, NOW);
+        verify(task).updateDefinition("Updated", "Details", null, NOW);
+        verify(task).softDelete(70L, NOW);
+    }
+
+    @Test
+    void pendingExitCurrentAssigneeRetainsExistingWorkLogRight() {
+        LocalDate workDate = LocalDate.of(2026, 8, 14);
+        ProjectTaskContext pending = new ProjectTaskContext(
+                10L,
+                3L,
+                "ACTIVE",
+                LocalDate.of(2026, 8, 1),
+                LocalDate.of(2026, 8, 31),
+                70L,
+                List.of(new ProjectTaskMemberView(70L, 5L, "Member", JOINED)),
+                Set.of(70L));
+        when(projectMutations.taskMutationContext(5L, 10L)).thenReturn(pending);
+        Task task = mock(Task.class);
+        when(task.getAssigneeMembershipId()).thenReturn(70L);
+        TaskWorkLog saved = mock(TaskWorkLog.class);
+        when(tasks.findLockedByIdAndProjectIdAndDeletedAtIsNull(25L, 10L))
+                .thenReturn(Optional.of(task));
+        when(accounts.lockedInternWorkWindow(5L, workDate)).thenReturn(new InternWorkWindow(
+                5L,
+                workDate,
+                LocalDate.of(2026, 8, 1),
+                LocalDate.of(2026, 8, 31),
+                AccountStatus.ACTIVE,
+                InternshipStatus.ACTIVE));
+        when(projectQueries.membershipIntervals(5L)).thenReturn(List.of(
+                new ProjectMembershipIntervalView(10L, 70L, JOINED, null)));
+        when(workLogs.sumMinutesByMembershipIdsAndWorkDate(Set.of(70L), workDate)).thenReturn(0L);
+        when(workLogs.saveAndFlush(any(TaskWorkLog.class))).thenReturn(saved);
+        when(saved.getId()).thenReturn(90L);
+        when(saved.getProjectId()).thenReturn(10L);
+        when(saved.getTaskId()).thenReturn(25L);
+        when(saved.getMembershipId()).thenReturn(70L);
+        when(saved.getWorkDate()).thenReturn(workDate);
+        when(saved.getMinutes()).thenReturn(60);
+        when(saved.getCreatedAt()).thenReturn(NOW);
+        when(saved.getUpdatedAt()).thenReturn(NOW);
+
+        service.addWorkLog("member@example.test", 10L, 25L, workDate, 60, "Existing right");
+
+        verify(workLogs).saveAndFlush(any(TaskWorkLog.class));
     }
 
     @Test
@@ -105,7 +209,8 @@ class TaskMutationBoundaryTest {
 
         service.changeStatus("member@example.test", 10L, 25L, TaskStatus.IN_PROGRESS);
 
-        InOrder order = inOrder(projectMutations, tasks, task);
+        InOrder order = inOrder(accounts, projectMutations, tasks, task);
+        order.verify(accounts).requireAccountIdByEmail("member@example.test");
         order.verify(projectMutations).taskMutationContext(5L, 10L);
         order.verify(tasks).findLockedByIdAndProjectIdAndDeletedAtIsNull(25L, 10L);
         order.verify(task).changeStatus(TaskStatus.IN_PROGRESS, NOW);
@@ -114,6 +219,7 @@ class TaskMutationBoundaryTest {
     @Test
     void commentLocksProjectThenTaskBeforeWriting() {
         Task task = mock(Task.class);
+        when(task.getAssigneeMembershipId()).thenReturn(70L);
         TaskComment saved = mock(TaskComment.class);
         when(tasks.findLockedByIdAndProjectIdAndDeletedAtIsNull(25L, 10L))
                 .thenReturn(Optional.of(task));
@@ -126,173 +232,120 @@ class TaskMutationBoundaryTest {
 
         service.addComment("member@example.test", 10L, 25L, "Comment");
 
-        InOrder order = inOrder(projectMutations, tasks, comments);
+        InOrder order = inOrder(accounts, projectMutations, tasks, comments);
+        order.verify(accounts).requireAccountIdByEmail("member@example.test");
         order.verify(projectMutations).taskMutationContext(5L, 10L);
         order.verify(tasks).findLockedByIdAndProjectIdAndDeletedAtIsNull(25L, 10L);
         order.verify(comments).saveAndFlush(any(TaskComment.class));
+        verify(projectQueries, never()).members(5L, 10L);
     }
 
     @Test
-    void reassignmentRequiresCurrentLeaderInActiveProject() {
-        Task task = taskForView(TaskStatus.IN_PROGRESS);
+    void workLogLocksAccountBeforeReadingDailyTotalAndWriting() {
+        LocalDate workDate = LocalDate.of(2026, 8, 14);
+        Task task = org.mockito.Mockito.mock(Task.class);
+        when(task.getAssigneeMembershipId()).thenReturn(70L);
+        TaskWorkLog saved = org.mockito.Mockito.mock(TaskWorkLog.class);
         when(tasks.findLockedByIdAndProjectIdAndDeletedAtIsNull(25L, 10L))
                 .thenReturn(Optional.of(task));
-        when(tasks.saveAndFlush(task)).thenReturn(task);
-        when(projectQueries.authenticatedActor("member@example.test"))
-                .thenReturn(new ProjectActorView(5L, "INTERN"));
-        when(projectMutations.taskMutationContext(5L, 10L))
-                .thenReturn(context);
+        when(accounts.lockedInternWorkWindow(5L, workDate)).thenReturn(new InternWorkWindow(
+                5L,
+                workDate,
+                LocalDate.of(2026, 8, 1),
+                LocalDate.of(2026, 8, 31),
+                AccountStatus.ACTIVE,
+                InternshipStatus.ACTIVE));
+        when(projectQueries.membershipIntervals(5L)).thenReturn(List.of(
+                new ProjectMembershipIntervalView(10L, 70L, JOINED, null)));
+        when(workLogs.sumMinutesByMembershipIdsAndWorkDate(Set.of(70L), workDate)).thenReturn(0L);
+        when(workLogs.saveAndFlush(any(TaskWorkLog.class))).thenReturn(saved);
+        when(saved.getId()).thenReturn(90L);
+        when(saved.getProjectId()).thenReturn(10L);
+        when(saved.getTaskId()).thenReturn(25L);
+        when(saved.getMembershipId()).thenReturn(70L);
+        when(saved.getWorkDate()).thenReturn(workDate);
+        when(saved.getMinutes()).thenReturn(60);
+        when(saved.getCreatedAt()).thenReturn(NOW);
+        when(saved.getUpdatedAt()).thenReturn(NOW);
 
-        var reassigned = service.reassign("member@example.test", 10L, 25L, 70L);
+        service.addWorkLog(
+                "member@example.test", 10L, 25L, workDate, 60, "Experiment");
 
-        InOrder order = inOrder(projectMutations, tasks, task);
+        InOrder order = inOrder(accounts, projectMutations, projectQueries, tasks, workLogs);
+        order.verify(accounts).requireAccountIdByEmail("member@example.test");
         order.verify(projectMutations).taskMutationContext(5L, 10L);
+        order.verify(accounts).lockedInternWorkWindow(5L, workDate);
+        order.verify(projectQueries).membershipIntervals(5L);
         order.verify(tasks).findLockedByIdAndProjectIdAndDeletedAtIsNull(25L, 10L);
-        order.verify(task).reassign(70L, 70L, NOW);
-        org.assertj.core.api.Assertions.assertThat(reassigned.assigneeMembershipId()).isEqualTo(70L);
+        order.verify(workLogs).sumMinutesByMembershipIdsAndWorkDate(Set.of(70L), workDate);
+        order.verify(workLogs).saveAndFlush(any(TaskWorkLog.class));
     }
 
     @Test
-    void nonLeaderAndNonActiveProjectCannotReassign() {
-        ProjectTaskContext completed = new ProjectTaskContext(
-                10L, 3L, "COMPLETED",
-                LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 31), 70L,
-                List.of(new ProjectTaskMemberView(70L, 5L, "Member")));
-        when(projectMutations.taskMutationContext(5L, 10L)).thenReturn(completed);
+    void workLogRejectsLockedAccountBeforeReadingDailyTotal() {
+        LocalDate workDate = LocalDate.of(2026, 8, 14);
+        when(accounts.lockedInternWorkWindow(5L, workDate)).thenReturn(new InternWorkWindow(
+                5L,
+                workDate,
+                LocalDate.of(2026, 8, 1),
+                LocalDate.of(2026, 8, 31),
+                AccountStatus.LOCKED,
+                InternshipStatus.ACTIVE));
 
-        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
-                        service.reassign("member@example.test", 10L, 25L, 70L))
-                .isInstanceOf(TaskNotFoundException.class);
+        assertThatThrownBy(() -> service.addWorkLog(
+                        "member@example.test", 10L, 25L, workDate, 60, "Blocked"))
+                .isInstanceOf(com.lab.labtimesheet.feature.task.exception.TaskValidationException.class);
 
-        ProjectTaskContext leaderContext = new ProjectTaskContext(
-                10L, 3L, "ACTIVE",
-                LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 31), 71L,
-                List.of(new ProjectTaskMemberView(70L, 5L, "Member")));
-        when(projectMutations.taskMutationContext(5L, 10L)).thenReturn(leaderContext);
-
-        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
-                        service.reassign("member@example.test", 10L, 25L, 70L))
-                .isInstanceOf(TaskNotFoundException.class);
+        verify(projectMutations).taskMutationContext(5L, 10L);
+        verify(tasks, org.mockito.Mockito.never()).findLockedByIdAndProjectIdAndDeletedAtIsNull(25L, 10L);
+        verify(workLogs, org.mockito.Mockito.never())
+                .sumMinutesByMembershipIdsAndWorkDate(any(), any());
+        verify(workLogs, org.mockito.Mockito.never()).saveAndFlush(any(TaskWorkLog.class));
     }
 
     @Test
-    void doneTaskMustBeReopenedBeforeReassignment() {
-        Task task = mock(Task.class);
-        when(tasks.findLockedByIdAndProjectIdAndDeletedAtIsNull(25L, 10L))
-                .thenReturn(Optional.of(task));
-        org.mockito.Mockito.doThrow(new IllegalArgumentException(
-                        "A DONE Task must be reopened before reassignment"))
-                .when(task).reassign(anyLong(), anyLong(), any());
+    void correctionPreReadsDateThenLocksAccountBeforeProjectLogAndTask() {
+        LocalDate workDate = LocalDate.of(2026, 8, 14);
+        TaskWorkLogCandidate candidate = new TaskWorkLogCandidate(90L, 10L, 25L, 70L, workDate);
+        TaskWorkLog locked = org.mockito.Mockito.mock(TaskWorkLog.class);
+        Task task = org.mockito.Mockito.mock(Task.class);
+        when(locked.getProjectId()).thenReturn(10L);
+        when(locked.getTaskId()).thenReturn(25L);
+        when(locked.getMembershipId()).thenReturn(70L);
+        when(locked.getWorkDate()).thenReturn(workDate);
+        when(locked.getId()).thenReturn(90L);
+        when(locked.getMinutes()).thenReturn(120);
+        when(locked.getNote()).thenReturn("Corrected");
+        when(locked.getCreatedAt()).thenReturn(NOW);
+        when(locked.getUpdatedAt()).thenReturn(NOW);
+        when(workLogs.findCandidateByIdAndProjectId(90L, 10L)).thenReturn(Optional.of(candidate));
+        when(workLogs.findLockedByIdAndProjectId(90L, 10L)).thenReturn(Optional.of(locked));
+        when(tasks.findLockedByIdAndProjectIdAndDeletedAtIsNull(25L, 10L)).thenReturn(Optional.of(task));
+        when(accounts.requireAccountIdByEmail("member@example.test")).thenReturn(5L);
+        when(accounts.lockedInternWorkWindow(5L, workDate)).thenReturn(new InternWorkWindow(
+                5L,
+                workDate,
+                LocalDate.of(2026, 8, 1),
+                LocalDate.of(2026, 8, 31),
+                AccountStatus.ACTIVE,
+                InternshipStatus.ACTIVE));
+        when(projectQueries.membershipIntervals(5L)).thenReturn(List.of(
+                new ProjectMembershipIntervalView(10L, 70L, JOINED, null)));
+        when(workLogs.sumMinutesByMembershipIdsAndWorkDate(Set.of(70L), workDate)).thenReturn(120L);
+        when(workLogs.saveAndFlush(locked)).thenReturn(locked);
 
-        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
-                        service.reassign("member@example.test", 10L, 25L, 70L))
-                .isInstanceOf(TaskValidationException.class)
-                .hasMessage("A DONE Task must be reopened before reassignment");
-        verify(task, times(1)).reassign(anyLong(), anyLong(), any());
-    }
+        service.correctWorkLog("member@example.test", 10L, 90L, 60, "Corrected");
 
-    @Test
-    void leaderEditsUnfinishedTaskAndSelfCreatorEditsOwnWhileAssigned() {
-        Task task = taskForView(TaskStatus.IN_PROGRESS);
-        when(tasks.findLockedByIdAndProjectIdAndDeletedAtIsNull(25L, 10L))
-                .thenReturn(Optional.of(task));
-        when(tasks.saveAndFlush(task)).thenReturn(task);
-        when(projectQueries.members(5L, 10L))
-                .thenReturn(List.of(new com.lab.labtimesheet.feature.project.model.dto.ProjectMemberView(
-                        70L, 5L, "Member", Instant.parse("2026-08-01T00:00:00Z"), null, false)));
-
-        service.edit("member@example.test", new EditTaskCommand(10L, 25L, "Retitled", "Notes", null));
-
-        verify(task).edit("Retitled", "Notes", null, NOW);
-    }
-
-    @Test
-    void nonCreatorOrReassignedAwayMemberCannotEditOrDelete() {
-        ProjectTaskContext anotherLeader = new ProjectTaskContext(
-                10L, 3L, "ACTIVE",
-                LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 31), 80L,
-                List.of(new ProjectTaskMemberView(70L, 5L, "Member")));
-        when(projectMutations.taskMutationContext(5L, 10L)).thenReturn(anotherLeader);
-        Task task = mock(Task.class);
-        when(task.getStatus()).thenReturn(TaskStatus.IN_PROGRESS);
-        when(task.getCreatorMembershipId()).thenReturn(80L);
-        when(tasks.findLockedByIdAndProjectIdAndDeletedAtIsNull(25L, 10L))
-                .thenReturn(Optional.of(task));
-
-        assertThatThrownBy(() -> service.edit(
-                        "member@example.test", new EditTaskCommand(10L, 25L, "Retitled", null, null)))
-                .isInstanceOf(TaskNotFoundException.class);
-        assertThatThrownBy(() -> service.softDelete("member@example.test", 10L, 25L))
-                .isInstanceOf(TaskNotFoundException.class);
-        verify(task, never()).edit(any(), any(), any(), any());
-        verify(task, never()).softDelete(anyLong(), any());
-    }
-
-    @Test
-    void doneTaskCannotBeEditedOrSoftDeleted() {
-        Task task = mock(Task.class);
-        when(task.getStatus()).thenReturn(TaskStatus.DONE);
-        when(tasks.findLockedByIdAndProjectIdAndDeletedAtIsNull(25L, 10L))
-                .thenReturn(Optional.of(task));
-
-        assertThatThrownBy(() -> service.edit(
-                        "member@example.test", new EditTaskCommand(10L, 25L, "Retitled", null, null)))
-                .isInstanceOf(TaskNotFoundException.class);
-        assertThatThrownBy(() -> service.softDelete("member@example.test", 10L, 25L))
-                .isInstanceOf(TaskNotFoundException.class);
-        verify(task, never()).edit(any(), any(), any(), any());
-        verify(task, never()).softDelete(anyLong(), any());
-    }
-
-    @Test
-    void leaderSoftDeletesAndEntityRecordsActorAndNow() {
-        Task task = taskForView(TaskStatus.IN_PROGRESS);
-        when(tasks.findLockedByIdAndProjectIdAndDeletedAtIsNull(25L, 10L))
-                .thenReturn(Optional.of(task));
-        when(tasks.saveAndFlush(task)).thenReturn(task);
-        when(projectQueries.members(5L, 10L))
-                .thenReturn(List.of(new com.lab.labtimesheet.feature.project.model.dto.ProjectMemberView(
-                        70L, 5L, "Member", Instant.parse("2026-08-01T00:00:00Z"), null, false)));
-
-        service.softDelete("member@example.test", 10L, 25L);
-
-        verify(task).softDelete(70L, NOW);
-    }
-
-    @Test
-    void historicalDetailsRequireLeaderOrSelfCreatorIncludingDeleted() {
-        Task deleted = taskForView(TaskStatus.DONE);
-        when(deleted.getDeletedAt()).thenReturn(NOW);
-        when(projectQueries.taskContext(5L, 10L)).thenReturn(context);
-        when(projectQueries.members(5L, 10L))
-                .thenReturn(List.of(new com.lab.labtimesheet.feature.project.model.dto.ProjectMemberView(
-                        70L, 5L, "Member", Instant.parse("2026-08-01T00:00:00Z"), null, false)));
-        when(tasks.findByIdAndProjectId(25L, 10L)).thenReturn(Optional.of(deleted));
-        when(comments.findAllByTaskIdOrderByCreatedAtAscIdAsc(25L)).thenReturn(List.of());
-        when(workLogs.findAllByTaskIdAndProjectIdOrderByWorkDateAscIdAsc(25L, 10L)).thenReturn(List.of());
-
-        var historical = service.historicalDetails("member@example.test", 10L, 25L);
-
-        org.assertj.core.api.Assertions.assertThat(historical.deleted()).isTrue();
-        org.assertj.core.api.Assertions.assertThat(historical.canEdit()).isFalse();
-        org.assertj.core.api.Assertions.assertThat(historical.canDelete()).isFalse();
-    }
-
-    @Test
-    void historicalDetailsRejectUnrelatedMember() {
-        ProjectTaskContext anotherLeader = new ProjectTaskContext(
-                10L, 3L, "ACTIVE",
-                LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 31), 80L,
-                List.of(new ProjectTaskMemberView(70L, 5L, "Member")));
-        Task deleted = mock(Task.class);
-        when(deleted.getCreatorMembershipId()).thenReturn(80L);
-        when(projectQueries.authenticatedActor("member@example.test"))
-                .thenReturn(new ProjectActorView(5L, "INTERN"));
-        when(projectQueries.taskContext(5L, 10L)).thenReturn(anotherLeader);
-        when(tasks.findByIdAndProjectId(25L, 10L)).thenReturn(Optional.of(deleted));
-
-        assertThatThrownBy(() -> service.historicalDetails("member@example.test", 10L, 25L))
-                .isInstanceOf(TaskNotFoundException.class);
+        InOrder order = inOrder(workLogs, accounts, projectMutations, projectQueries, tasks);
+        order.verify(workLogs).findCandidateByIdAndProjectId(90L, 10L);
+        order.verify(accounts).requireAccountIdByEmail("member@example.test");
+        order.verify(projectMutations).taskMutationContext(5L, 10L);
+        order.verify(accounts).lockedInternWorkWindow(5L, workDate);
+        order.verify(projectQueries).membershipIntervals(5L);
+        order.verify(workLogs).findLockedByIdAndProjectId(90L, 10L);
+        order.verify(tasks).findLockedByIdAndProjectIdAndDeletedAtIsNull(25L, 10L);
+        order.verify(workLogs).sumMinutesByMembershipIdsAndWorkDate(Set.of(70L), workDate);
+        order.verify(workLogs).saveAndFlush(locked);
     }
 
     private static Task taskForView(TaskStatus status) {

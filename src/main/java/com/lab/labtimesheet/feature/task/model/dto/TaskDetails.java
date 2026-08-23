@@ -7,44 +7,44 @@ import java.util.List;
  *
  * @param task visible non-deleted Task
  * @param comments append-only comment history in creation order
- * @param workLogs dated effort history in work-date order
+ * @param workLogs retained dated effort rows in ascending work-date order
+ * @param actorMembershipId active viewer membership used only to expose author-owned corrections
  * @param canChangeStatus true only for the current assignee of an ACTIVE Project
  * @param canComment true only for an eligible active member or owning Mentor before completion
- * @param canLogWork true only for the current assignee of an ACTIVE Project
- * @param canReassign true only for the current Leader of an ACTIVE Project with an unfinished Task
- * @param canEdit true only for a Leader or self-Task creator of an unfinished non-deleted Task
- * @param canDelete true only for a Leader or self-Task creator of an unfinished non-deleted Task
- * @param deleted true when the Task row is soft-deleted and this is a historical inspection
- * @param actorMembershipId current active membership of the actor, or null when not a member
+ * @param canEdit true for the current Leader or self-created current-assignee unfinished Task
+ * @param canDelete true for the same definition owner as {@code canEdit}
+ * @param canReassign true only for the current Leader on an unfinished Task
+ * @param canLogWork true only for the current assignee on an ACTIVE Project
  */
 public record TaskDetails(
         TaskView task,
         List<TaskCommentView> comments,
-        List<WorkLogView> workLogs,
+        List<TaskWorkLogView> workLogs,
+        Long actorMembershipId,
         boolean canChangeStatus,
         boolean canComment,
-        boolean canLogWork,
-        boolean canReassign,
         boolean canEdit,
         boolean canDelete,
-        boolean deleted,
-        Long actorMembershipId) {
+        boolean canReassign,
+        boolean canLogWork) {
 
     /**
-     * Copies both history lists so view output cannot be modified by a consumer.
+     * Retains the Iteration 1 constructor for callers that do not render definition controls.
      *
-     * @param task visible or historical Task
-     * @param comments append-only comment history in creation order
-     * @param workLogs dated effort history in work-date order
-     * @param canChangeStatus current-assignee ACTIVE status capability
-     * @param canComment active-member or Mentor comment capability
-     * @param canLogWork current-assignee ACTIVE work-log capability
-     * @param canReassign current-Leader ACTIVE unfinished-Task reassignment capability
-     * @param canEdit Leader or self-Task creator definition edit capability
-     * @param canDelete Leader or self-Task creator soft-delete capability
-     * @param deleted historical-inspection indicator for a soft-deleted Task
-     * @param actorMembershipId current active membership of the actor, or null
+     * @param task visible Task
+     * @param comments append-only comments
+     * @param canChangeStatus status capability
+     * @param canComment comment capability
      */
+    public TaskDetails(
+            TaskView task,
+            List<TaskCommentView> comments,
+            boolean canChangeStatus,
+            boolean canComment) {
+        this(task, comments, List.of(), null, canChangeStatus, canComment, false, false, false, false);
+    }
+
+    /** Copies the comment list so historical output cannot be modified by a view consumer. */
     public TaskDetails {
         comments = List.copyOf(comments);
         workLogs = List.copyOf(workLogs);

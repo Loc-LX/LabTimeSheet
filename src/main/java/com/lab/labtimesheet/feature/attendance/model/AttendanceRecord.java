@@ -53,8 +53,8 @@ public record AttendanceRecord(
     }
 
     /**
-     * Classifies violations using the attached policy and an authoritative observation instant, treating the raw
-     * checkout as the effective checkout.
+     * Classifies violations using the attached policy and an authoritative observation instant.
+     * A missing checkout appears only after the inclusive cutoff and never implies early departure.
      *
      * @param observedAt instant at which missing-checkout status is evaluated
      * @return independent violation flags for presentation and reporting
@@ -64,18 +64,16 @@ public record AttendanceRecord(
     }
 
     /**
-     * Classifies violations using the attached policy, an authoritative observation instant, and the derived
-     * effective checkout. Raw checkout always wins; an approved correction's proposed checkout is used only when
-     * raw checkout is absent, so missing checkout clears and early departure may appear without touching the raw row.
+     * Classifies violations with a correction-derived effective checkout while retaining raw checkout separately.
      *
      * @param observedAt instant at which missing-checkout status is evaluated
-     * @param effectiveCheckOutAt raw checkout when present, otherwise an approved correction's proposed checkout
-     * @return independent violation flags for presentation and reporting
+     * @param effectiveCheckoutAt approved correction checkout, or raw checkout
+     * @return effective violation flags
      */
-    public AttendanceViolations violations(Instant observedAt, Instant effectiveCheckOutAt) {
+    public AttendanceViolations violations(Instant observedAt, Instant effectiveCheckoutAt) {
         boolean late = checkInAt.isAfter(scheduledStart().plusSeconds(policy.checkInGraceMinutes() * 60L));
-        boolean missingCheckout = effectiveCheckOutAt == null && observedAt.isAfter(checkoutCutoff());
-        boolean earlyDeparture = effectiveCheckOutAt != null && effectiveCheckOutAt.isBefore(scheduledEnd());
+        boolean missingCheckout = effectiveCheckoutAt == null && observedAt.isAfter(checkoutCutoff());
+        boolean earlyDeparture = effectiveCheckoutAt != null && effectiveCheckoutAt.isBefore(scheduledEnd());
         return new AttendanceViolations(late, earlyDeparture, missingCheckout);
     }
 

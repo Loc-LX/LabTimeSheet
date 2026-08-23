@@ -36,6 +36,60 @@
 <dialog th:fragment="confirmation(id, title, description)" th:id="${id}" th:attr="aria-labelledby=${id + '-title'},aria-describedby=${id + '-description'}"><h2 th:id="${id + '-title'}" th:text="${title}">Confirm</h2><p th:id="${id + '-description'}" th:text="${description}">Consequence</p><form method="dialog"><button class="button" value="cancel">Cancel</button><button class="button button-danger" value="confirm">Confirm</button></form></dialog>
 <section th:fragment="empty(title, description)" class="empty-state"><h2 th:text="${title}">No records</h2><p th:text="${description}">Nothing to show.</p></section>
 <div th:fragment="skeleton(label)" role="status" th:attr="aria-label=${label}"><div class="skeleton"></div></div>
-<div th:fragment="notificationMenu(items)" class="panel notification-menu"><h2 class="panel-title">Notifications</h2><div th:if="${#lists.isEmpty(items)}">No unread notifications.</div><a th:each="item : ${items}" th:href="${item.actionUrl}" th:text="${item.title}">Notification</a></div>
+<section th:fragment="notificationMenu(inbox)" class="panel notification-menu" aria-label="Notifications">
+    <header class="panel-header"><h2 class="panel-title">Notifications <span class="field-help" th:text="|(${inbox.unreadCount} unread)|">(0 unread)</span></h2></header>
+    <div class="notification-list" th:if="${#lists.isEmpty(inbox.notifications)}">No notifications.</div>
+    <ul class="notification-list" th:unless="${#lists.isEmpty(inbox.notifications)}">
+        <li th:each="item : ${inbox.notifications}" th:classappend="${item.read ? '' : ' notification-unread'}">
+            <div class="notification-copy">
+                <a th:if="${item.actionUrl != null}" th:href="${item.actionUrl}" th:text="${item.title}">Notification</a>
+                <span th:unless="${item.actionUrl != null}" th:text="${item.title}">Notification</span>
+                <p th:text="${item.body}">Notification details</p>
+                <time th:datetime="${item.createdAt}" th:text="${#temporals.format(item.createdAt.atZone(T(java.time.ZoneId).of('Asia/Ho_Chi_Minh')), 'dd/MM/yyyy HH:mm')}">21/08/2026 00:00</time>
+            </div>
+            <form th:if="${!item.read}" method="post"
+                  th:action="@{/notifications/{notificationId}/read(notificationId=${item.id})}">
+                <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                <button class="button" type="submit">Mark as read</button>
+            </form>
+        </li>
+    </ul>
+</section>
+<div th:fragment="errorSummary(id, title, issues)" class="alert alert-error error-summary" role="alert"
+     th:id="${id}" th:if="${issues != null and !#lists.isEmpty(issues)}"
+     th:attr="aria-labelledby=${id + '-title'}">
+    <strong th:id="${id + '-title'}" th:text="${title}">Please correct the highlighted fields.</strong>
+    <ul>
+        <li th:each="issue : ${issues}">
+            <a th:if="${issue.field != null}" th:href="${'#' + issue.field}" th:text="${issue.message}">Field error</a>
+            <span th:unless="${issue.field != null}" th:text="${issue.message}">Form error</span>
+        </li>
+    </ul>
+</div>
+<dialog th:fragment="drawer(id, title, description, content)" class="drawer"
+        th:id="${id}" data-drawer th:attr="aria-labelledby=${id + '-title'},aria-describedby=${id + '-description'}">
+    <header class="drawer-header">
+        <div><h2 class="panel-title" th:id="${id + '-title'}" th:text="${title}">Drawer</h2>
+            <p class="field-help" th:id="${id + '-description'}" th:text="${description}">Choose an option.</p></div>
+        <button class="icon-button" type="button" data-drawer-close aria-label="Close drawer" title="Close drawer">×</button>
+    </header>
+    <div class="drawer-body" th:replace="${content}"></div>
+</dialog>
+<figure th:fragment="reportChart(id, title, description, points)" class="report-chart" data-report-chart
+        th:attr="data-chart-id=${id}">
+    <figcaption class="report-chart-caption">
+        <h2 class="panel-title" th:id="${id + '-title'}" th:text="${title}">Report trend</h2>
+        <p class="field-help" th:id="${id + '-description'}" th:text="${description}">Trend description.</p>
+    </figcaption>
+    <div class="chart-frame">
+        <canvas th:id="${id}" role="img" th:attr="aria-labelledby=${id + '-title'},aria-describedby=${id + '-description'}"></canvas>
+    </div>
+    <div class="table-scroll">
+        <table class="data-table chart-data" th:attr="aria-label=${title + ' data'}">
+            <thead><tr><th scope="col">Date</th><th scope="col">Value</th></tr></thead>
+            <tbody><tr th:each="point : ${points}"><th scope="row" th:text="${point.label}">Date</th><td th:text="${point.value}">Value</td></tr></tbody>
+        </table>
+    </div>
+</figure>
 </body>
 </html>
