@@ -93,7 +93,23 @@ class TaskControllerTest {
         given(taskService.details(ACTOR_EMAIL, 10L, 999L)).willThrow(new TaskNotFoundException());
 
         mockMvc.perform(get("/projects/10/tasks/999").with(user(ACTOR_EMAIL)))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isNotFound())
+                .andExpect(view().name("error/generic"))
+                .andExpect(model().attribute("errorTitle", "Task or Project unavailable"))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("TaskNotFoundException"))));
+    }
+
+    @Test
+    void inaccessibleProjectTaskListReturnsGenericNotFoundPage() throws Exception {
+        given(taskService.list(ACTOR_EMAIL, 10L)).willThrow(new TaskNotFoundException());
+
+        mockMvc.perform(get("/projects/10/tasks").with(user(ACTOR_EMAIL)))
+                .andExpect(status().isNotFound())
+                .andExpect(view().name("error/generic"))
+                .andExpect(model().attribute("errorTitle", "Task or Project unavailable"))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(
+                        "not available to you")));
     }
 
     @Test

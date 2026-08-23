@@ -125,15 +125,24 @@ class Iteration2ProjectWorkflowWebTest {
                 List.of(new ProjectExitRequestHistoryView(
                         70L, 41L, 40L, ProjectExitRequestType.LEADER_REMOVAL, "Capacity",
                         ProjectExitRequestStatus.PENDING, null, null, null, now, now)),
-                List.of(new TaskHistoryView(
-                        103L, 30L, 41L, "Completed Task", "Retained", TaskStatus.DONE,
-                        LocalDate.of(2026, 8, 20), 40L, 40L, now, now, now, null, null,
+                        List.of(new TaskHistoryView(
+                                103L, 30L, 41L, "Completed Task", "Retained", TaskStatus.DONE,
+                                LocalDate.of(2026, 8, 20), 40L, 40L, now, now, now, null, null,
                         List.of(new TaskCommentView(1L, 103L, 20L, "Retained comment", now)),
                         List.of(new TaskWorkLogView(
                                 1L, 30L, 103L, 41L, LocalDate.of(2026, 8, 20), 60,
                                 "Retained work", now, now))),
                         unfinishedTask(101L, "Transfer one", now),
-                        unfinishedTask(102L, "Transfer two", now))));
+                        unfinishedTask(102L, "Transfer two", now)),
+                Map.of(
+                        10L, "Mentor1",
+                        20L, "Intern1 (PRJ-SEED-1)",
+                        23L, "Intern2 (PRJ-SEED-2)"),
+                Map.of(
+                        40L, "Intern1 (PRJ-SEED-1)",
+                        41L, "Intern2 (PRJ-SEED-2)",
+                        42L, "Intern3 (PRJ-SEED-3)"),
+                Map.of(60L, "Intern1 (PRJ-SEED-1)")));
         when(accounts.eligibleInternOptions(LocalDate.of(2026, 8, 21))).thenReturn(List.of(
                 new EligibleInternOption(23L, "Invitee", "SV-023",
                         LocalDate.of(2026, 1, 1), LocalDate.of(2026, 12, 31)),
@@ -150,6 +159,8 @@ class Iteration2ProjectWorkflowWebTest {
                     .andExpect(content().string(containsString("Transfer unfinished Tasks")))
                     .andExpect(content().string(containsString("Invite an Intern")))
                     .andExpect(content().string(containsString("Project History")))
+                    .andExpect(content().string(containsString("Intern2 (PRJ-SEED-2)")))
+                    .andExpect(content().string(containsString("Mentor1")))
                     .andExpect(content().string(containsString("20/08/2026 07:00")))
                     .andExpect(content().string(containsString("Completed Task")))
                     .andExpect(content().string(containsString("Retained comment")))

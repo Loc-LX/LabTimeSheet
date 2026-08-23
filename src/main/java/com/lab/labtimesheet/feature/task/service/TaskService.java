@@ -132,10 +132,10 @@ public class TaskService {
     /**
      * Changes an ACTIVE Project Task through one fixed workflow edge.
      *
-     * <p>The transaction locks the Project before the Task row and permits only the current
-     * assignee membership to mutate status. Neither leadership nor a global role substitutes for
-     * assignment authority. A successful change publishes an in-app-only event to the current
-     * Leader, excluding the actor.
+     * <p>The transaction locks the Project before the Task row and permits the owning Mentor or
+     * the current assignee membership to mutate status. Leadership alone does not substitute for
+     * either authority. A successful change publishes an in-app-only event to the current Leader,
+     * excluding the actor.
      *
      * @param actorEmail authenticated account email
      * @param projectId owning Project identifier
@@ -143,7 +143,7 @@ public class TaskService {
      * @param expectedVersion client-observed Task version from the rendered form
      * @param target requested next status
      * @return updated Task projection
-     * @throws TaskNotFoundException when scope, lifecycle, assignment, or identifiers are invalid
+     * @throws TaskNotFoundException when scope, lifecycle, actor authority, or identifiers are invalid
      * @throws TaskValidationException when the requested status edge is forbidden
      */
     @Transactional
@@ -153,15 +153,19 @@ public class TaskService {
         if (!"ACTIVE".equals(access.project().status())) {
             throw new TaskNotFoundException();
         }
-        ProjectTaskMemberView actorMembership = requireActorMembership(
-                access.project(), access.actor().userId());
+        boolean owningMentor = access.actor().userId() == access.project().mentorUserId();
+        ProjectTaskMemberView actorMembership = owningMentor
+                ? null
+                : requireActorMembership(access.project(), access.actor().userId());
         List<NotificationRecipient> leaderRecipients = notificationRecipients(
-                access.project(), actorMembership.userId(),
+                access.project(), access.actor().userId(),
                 access.project().currentLeaderMembershipId() == null
                         ? List.of()
                         : List.of(access.project().currentLeaderMembershipId()));
         Task task = requireLockedTask(projectId, taskId);
-        if (task.getAssigneeMembershipId() != actorMembership.membershipId()) {
+        if (!owningMentor
+                && (actorMembership == null
+                        || task.getAssigneeMembershipId() != actorMembership.membershipId())) {
             throw new TaskNotFoundException();
         }
         requireTaskVersion(task, expectedVersion);
@@ -169,7 +173,7 @@ public class TaskService {
             throw new TaskValidationException("Task status transition is not allowed");
         }
         task.changeStatus(target, clock.instant());
-        TaskView result = view(saveTask(task), actorMembership.displayName());
+        TaskView result = view(saveTask(task), assigneeName(access, task.getAssigneeMembershipId()));
         publish(
                 new NotificationEvent(
                         NotificationType.TASK_STATUS_CHANGED,
@@ -611,9 +615,9 @@ public class TaskService {
     /**
      * Loads one current Task, append-only comments, and server-derived action capabilities.
      *
-     * <p>Status capability requires the ACTIVE Project's current assignee. Comment capability
-     * requires an active member or owning Mentor before completion. Historical completed-Project
-     * readers receive details with no mutation capability.
+     * <p>Status capability requires an ACTIVE Project and either the owning Mentor or the current
+     * assignee. Comment capability requires an active member or owning Mentor before completion.
+     * Historical completed-Project readers receive details with no mutation capability.
      *
      * @param actorEmail authenticated account email
      * @param projectId owning Project identifier
@@ -638,9 +642,11 @@ public class TaskService {
                 .stream()
                 .map(TaskService::view)
                 .toList();
+        boolean owningMentor = access.actor().userId() == access.project().mentorUserId();
         boolean canChangeStatus = "ACTIVE".equals(access.project().status())
-                && actorMembership != null
-                && persistedTask.getAssigneeMembershipId() == actorMembership.membershipId();
+                && (owningMentor
+                        || actorMembership != null
+                                && persistedTask.getAssigneeMembershipId() == actorMembership.membershipId());
         boolean canComment = !"COMPLETED".equals(access.project().status())
                 && (access.actor().userId() == access.project().mentorUserId() || actorMembership != null);
         boolean unfinished = persistedTask.getStatus() != TaskStatus.DONE;
@@ -750,6 +756,14 @@ public class TaskService {
             throw new TaskNotFoundException();
         }
         return member.displayName();
+    }
+
+    private String assigneeName(TaskAccess access, long membershipId) {
+        return access.project().activeMembers().stream()
+                .filter(member -> member.membershipId() == membershipId)
+                .map(ProjectTaskMemberView::displayName)
+                .findFirst()
+                .orElseGet(() -> requireAssigneeName(projectMembers(access), membershipId));
     }
 
     private static ProjectTaskMemberView activeMembership(TaskAccess access) {

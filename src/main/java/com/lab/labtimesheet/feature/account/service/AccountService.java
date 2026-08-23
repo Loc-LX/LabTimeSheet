@@ -596,6 +596,24 @@ public class AccountService {
     }
 
     /**
+     * Reads the non-secret Student Code belonging to an account, when that account has an Intern profile.
+     *
+     * <p>This narrow read keeps Project presentation code from reaching into Account persistence directly.
+     * Deactivated or completed Intern profiles remain readable because their retained Project history still
+     * needs the original Student Code.</p>
+     *
+     * @param userId account identifier
+     * @return Student Code for an Intern profile, or empty for a non-Intern/missing profile
+     */
+    @Transactional(readOnly = true)
+    public Optional<String> studentCodeByUserId(long userId) {
+        if (userId <= 0) {
+            return Optional.empty();
+        }
+        return internProfiles.findById(userId).map(InternProfile::getStudentCode);
+    }
+
+    /**
      * Resolves an account boundary DTO by normalized email regardless of lifecycle state.
      *
      * @param email email address, normalized by trimming and lower-casing

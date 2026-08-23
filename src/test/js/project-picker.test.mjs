@@ -4,6 +4,7 @@ import test from 'node:test';
 import vm from 'node:vm';
 
 class Target {
+  attributes = new Map();
   listeners = new Map();
 
   addEventListener(type, listener) {
@@ -12,6 +13,14 @@ class Target {
 
   dispatch(type) {
     this.listeners.get(type)?.({preventDefault() {}, target: this});
+  }
+
+  getAttribute(name) {
+    return this.attributes.get(name) ?? null;
+  }
+
+  setAttribute(name, value) {
+    this.attributes.set(name, value);
   }
 }
 
@@ -28,14 +37,11 @@ test('picker searches name and student code, summarizes selection, and cancels s
     option('Nguyen An STU-020', 'Nguyen An (STU-020)', firstInput),
     option('Tran Binh STU-021', 'Tran Binh (STU-021)', secondInput),
   ];
-  const dialog = Object.assign(new Target(), {
-    showModal() { this.open = true; },
-    close() { this.open = false; this.dispatch('close'); },
-  });
+  const dropdown = Object.assign(new Target(), {hidden: true});
   const picker = {
     querySelector(selector) {
       return new Map([
-        ['[data-picker-open]', open], ['[data-picker-dialog]', dialog],
+        ['[data-picker-open]', open], ['[data-picker-dialog]', dropdown],
         ['[data-picker-search]', search], ['[data-picker-summary]', summary],
         ['[data-picker-empty]', empty], ['[data-picker-cancel]', cancel],
         ['[data-picker-apply]', apply],
@@ -60,7 +66,8 @@ test('picker searches name and student code, summarizes selection, and cancels s
   ready();
 
   open.dispatch('click');
-  assert.equal(dialog.open, true);
+  assert.equal(dropdown.hidden, false);
+  assert.equal(open.getAttribute('aria-expanded'), 'true');
   assert.equal(search.focused, true);
 
   search.value = 'stu-021';
@@ -74,6 +81,8 @@ test('picker searches name and student code, summarizes selection, and cancels s
   assert.equal(summary.textContent, '1 Intern selected: Tran Binh (STU-021)');
 
   cancel.dispatch('click');
+  assert.equal(dropdown.hidden, true);
+  assert.equal(open.getAttribute('aria-expanded'), 'false');
   assert.equal(secondInput.checked, false);
   assert.equal(summary.textContent, 'No Interns selected');
   assert.equal(open.focused, true);

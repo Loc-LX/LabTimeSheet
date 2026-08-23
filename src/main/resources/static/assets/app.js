@@ -72,7 +72,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.querySelectorAll('[data-intern-picker]').forEach((picker) => {
     const open = picker.querySelector('[data-picker-open]');
-    const dialog = picker.querySelector('[data-picker-dialog]');
+    const dropdown = picker.querySelector('[data-picker-dialog]');
     const search = picker.querySelector('[data-picker-search]');
     const summary = picker.querySelector('[data-picker-summary]');
     const empty = picker.querySelector('[data-picker-empty]');
@@ -80,6 +80,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const apply = picker.querySelector('[data-picker-apply]');
     const options = [...picker.querySelectorAll('[data-picker-option]')];
     let initialSelection = [];
+    let expanded = false;
 
     const inputs = () => options.map((option) => option.querySelector('input'));
     const updateSummary = () => {
@@ -103,23 +104,42 @@ document.addEventListener('DOMContentLoaded', () => {
       inputs().forEach((input, index) => { input.checked = initialSelection[index]; });
       updateSummary();
     };
-
-    inputs().forEach((input) => input.addEventListener('change', updateSummary));
-    search.addEventListener('input', filter);
-    open.addEventListener('click', () => {
+    const close = (restoreSelection = false, restoreFocus = true) => {
+      if (!expanded) return;
+      if (restoreSelection) restore();
+      expanded = false;
+      dropdown.hidden = true;
+      open.setAttribute('aria-expanded', 'false');
+      if (restoreFocus) open.focus();
+    };
+    const show = () => {
       initialSelection = inputs().map((input) => input.checked);
       search.value = '';
       filter();
-      dialog.showModal();
+      expanded = true;
+      dropdown.hidden = false;
+      open.setAttribute('aria-expanded', 'true');
       search.focus();
-    });
+    };
+
+    inputs().forEach((input) => input.addEventListener('change', updateSummary));
+    search.addEventListener('input', filter);
+    open.addEventListener('click', () => expanded ? close(false) : show());
     cancel.addEventListener('click', () => {
-      restore();
-      dialog.close();
+      close(true);
     });
-    dialog.addEventListener('cancel', restore);
-    dialog.addEventListener('close', () => open.focus());
-    apply.addEventListener('click', () => dialog.close());
+    apply.addEventListener('click', () => close(false));
+    document.addEventListener('click', (event) => {
+      if (expanded && !picker.contains(event.target)) close(false, false);
+    });
+    document.addEventListener('keydown', (event) => {
+      if (expanded && event.key === 'Escape') {
+        event.preventDefault();
+        close(true);
+      }
+    });
+    dropdown.hidden = true;
+    open.setAttribute('aria-expanded', 'false');
     updateSummary();
   });
 
@@ -173,6 +193,19 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     });
     activate(tabs.find((tab) => tab.getAttribute('aria-selected') === 'true') || tabs[0]);
+  });
+
+  document.querySelectorAll('[data-history-tasks-toggle]').forEach((toggle) => {
+    const panel = document.getElementById(toggle.getAttribute('aria-controls'));
+    if (!panel) return;
+    toggle.addEventListener('click', () => {
+      const expanded = toggle.getAttribute('aria-expanded') === 'true';
+      toggle.setAttribute('aria-expanded', String(!expanded));
+      panel.hidden = expanded;
+      toggle.textContent = expanded
+        ? 'Show tasks, comments and work logs'
+        : 'Hide tasks, comments and work logs';
+    });
   });
 
   document.querySelectorAll('form[data-confirm], form[data-transfer-confirm]').forEach((form) => {

@@ -88,7 +88,7 @@ class TaskMutationBoundaryTest {
                 70L,
                 List.of(new ProjectTaskMemberView(70L, 5L, "Member", JOINED)),
                 java.util.Set.of());
-        when(accounts.requireAccountIdByEmail("member@example.test")).thenReturn(5L);
+        lenient().when(accounts.requireAccountIdByEmail("member@example.test")).thenReturn(5L);
         lenient().when(accounts.requireIdentityById(5L)).thenReturn(new AccountIdentity(
                 5L, "member@example.test", "Member", GlobalRole.INTERN, AccountStatus.ACTIVE));
         lenient().when(projectMutations.taskMutationContext(5L, 10L)).thenReturn(context);
@@ -216,6 +216,21 @@ class TaskMutationBoundaryTest {
         order.verify(projectMutations).taskMutationContext(5L, 10L);
         order.verify(tasks).findLockedByIdAndProjectIdAndDeletedAtIsNull(25L, 10L);
         order.verify(task).changeStatus(TaskStatus.IN_PROGRESS, NOW);
+    }
+
+    @Test
+    void owningMentorCanChangeStatusForAnyProjectTask() {
+        when(accounts.requireAccountIdByEmail("mentor@example.test")).thenReturn(3L);
+        when(projectMutations.taskMutationContext(3L, 10L)).thenReturn(context);
+        Task task = taskForView(TaskStatus.TODO);
+        when(tasks.findLockedByIdAndProjectIdAndDeletedAtIsNull(25L, 10L))
+                .thenReturn(Optional.of(task));
+        when(tasks.saveAndFlush(task)).thenReturn(task);
+
+        service.changeStatus("mentor@example.test", 10L, 25L, TaskStatus.IN_PROGRESS);
+
+        verify(task).changeStatus(TaskStatus.IN_PROGRESS, NOW);
+        verify(tasks).saveAndFlush(task);
     }
 
     @Test

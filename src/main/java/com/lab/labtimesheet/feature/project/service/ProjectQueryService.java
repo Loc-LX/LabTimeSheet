@@ -22,12 +22,15 @@ import com.lab.labtimesheet.feature.project.model.dto.ProjectSummary;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectTaskContext;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectTaskMemberView;
 import com.lab.labtimesheet.feature.project.model.entity.ProjectEntity;
+import com.lab.labtimesheet.feature.project.model.entity.ProjectLeadershipTermEntity;
 import com.lab.labtimesheet.feature.project.repository.ProjectExitRequestRepository;
 import com.lab.labtimesheet.feature.project.repository.ProjectInvitationRepository;
 import com.lab.labtimesheet.feature.project.repository.ProjectRepository;
 import com.lab.labtimesheet.feature.task.service.TaskQueryService;
 import com.lab.labtimesheet.feature.task.service.TaskTransferService;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
@@ -308,7 +311,8 @@ public class ProjectQueryService {
                         term.appointedByMentorUserId(),
                         term.endedByMentorUserId()))
                 .toList();
-        var invitationHistory = invitations.findByProject_IdOrderByCreatedAtAscIdAsc(projectId).stream()
+        var invitationEntities = invitations.findByProject_IdOrderByCreatedAtAscIdAsc(projectId);
+        var invitationHistory = invitationEntities.stream()
                 .map(invitation -> new ProjectInvitationHistoryView(
                         invitation.id(),
                         invitation.invitedInternUserId(),
@@ -322,7 +326,8 @@ public class ProjectQueryService {
                         invitation.createdAt(),
                         invitation.updatedAt()))
                 .toList();
-        var exitHistory = exitRequests.findByProject_IdOrderByCreatedAtAscIdAsc(projectId).stream()
+        var exitEntities = exitRequests.findByProject_IdOrderByCreatedAtAscIdAsc(projectId);
+        var exitHistory = exitEntities.stream()
                 .map(request -> new ProjectExitRequestHistoryView(
                         request.id(),
                         request.targetMembershipId(),
@@ -336,13 +341,66 @@ public class ProjectQueryService {
                         request.createdAt(),
                         request.updatedAt()))
                 .toList();
+        var taskHistory = taskQueries.history(projectId);
+        Map<Long, String> usernamesByUserId = new LinkedHashMap<>();
+        Map<Long, String> usernamesByMembershipId = new LinkedHashMap<>();
+        Map<Long, String> usernamesByLeadershipTermId = new LinkedHashMap<>();
+        rememberUsername(usernamesByUserId, project.mentorUserId());
+        project.memberships().forEach(membership -> {
+            rememberUsername(usernamesByUserId, membership.internUserId());
+            rememberUsername(usernamesByUserId, membership.addedByUserId());
+            rememberUsername(usernamesByUserId, membership.removedByMentorUserId());
+            rememberMembershipUsername(
+                    project, membership.id(), usernamesByUserId, usernamesByMembershipId);
+        });
+        project.leadershipTerms().forEach(term -> {
+            rememberUsername(usernamesByUserId, term.internUserId());
+            rememberUsername(usernamesByUserId, term.appointedByMentorUserId());
+            rememberUsername(usernamesByUserId, term.endedByMentorUserId());
+            rememberLeadershipTermUsername(
+                    term, usernamesByUserId, usernamesByLeadershipTermId);
+        });
+        invitationEntities.forEach(invitation -> {
+            rememberUsername(usernamesByUserId, invitation.invitedInternUserId());
+            rememberUsername(
+                    usernamesByUserId, invitation.issuingLeadershipTerm().internUserId());
+            rememberUsername(usernamesByUserId, invitation.resolvedByUserId());
+            rememberLeadershipTermUsername(
+                    invitation.issuingLeadershipTerm(),
+                    usernamesByUserId,
+                    usernamesByLeadershipTermId);
+        });
+        exitEntities.forEach(request -> {
+            rememberMembershipUsername(
+                    project, request.targetMembershipId(), usernamesByUserId, usernamesByMembershipId);
+            rememberMembershipUsername(
+                    project, request.requesterMembershipId(), usernamesByUserId, usernamesByMembershipId);
+            rememberUsername(usernamesByUserId, request.resolvedByUserId());
+        });
+        taskHistory.forEach(task -> {
+            rememberMembershipUsername(
+                    project, task.assigneeMembershipId(), usernamesByUserId, usernamesByMembershipId);
+            rememberMembershipUsername(
+                    project, task.creatorMembershipId(), usernamesByUserId, usernamesByMembershipId);
+            rememberMembershipUsername(
+                    project, task.assignerMembershipId(), usernamesByUserId, usernamesByMembershipId);
+            rememberMembershipUsername(
+                    project, task.deletedByMembershipId(), usernamesByUserId, usernamesByMembershipId);
+            task.comments().forEach(comment ->
+                    rememberUsername(usernamesByUserId, comment.authorUserId()));
+            task.workLogs().forEach(workLog -> rememberMembershipUsername(
+                    project, workLog.membershipId(), usernamesByUserId, usernamesByMembershipId));
+        });
         return new ProjectHistoryView(
                 project.id(),
                 memberships,
                 leadership,
                 invitationHistory,
                 exitHistory,
-                taskQueries.history(projectId));
+                taskHistory,
+                usernamesByUserId,
+                usernamesByMembershipId,
+                usernamesByLeadershipTermId);
     }
 
     /**
@@ -579,6 +637,66 @@ public class ProjectQueryService {
             return actor;
         } catch (IllegalArgumentException exception) {
             throw new ProjectAccessDeniedException();
+        }
+    }
+
+    /** Adds one retained account's Project username and optional Intern Student Code to the presentation map. */
+    private void rememberUsername(Map<Long, String> usernamesByUserId, long userId) {
+        if (userId <= 0 || usernamesByUserId.containsKey(userId)) {
+            return;
+        }
+        try {
+            String username = accounts.requireIdentityById(userId).displayName();
+            var studentCode = accounts.studentCodeByUserId(userId);
+            if (studentCode != null && studentCode.isPresent() && !studentCode.get().isBlank()) {
+                username += " (" + studentCode.get() + ")";
+            }
+            usernamesByUserId.put(userId, username);
+        } catch (IllegalArgumentException ignored) {
+            // Retained history must remain renderable even when an old actor is unavailable.
+        }
+    }
+
+    /** Null-safe overload for optional retained actor attribution. */
+    private void rememberUsername(Map<Long, String> usernamesByUserId, Long userId) {
+        if (userId != null) {
+            rememberUsername(usernamesByUserId, userId.longValue());
+        }
+    }
+
+    /** Resolves a retained membership identifier to the participating Intern username. */
+    private void rememberMembershipUsername(
+            ProjectEntity project,
+            Long membershipId,
+            Map<Long, String> usernamesByUserId,
+            Map<Long, String> usernamesByMembershipId) {
+        if (membershipId == null || membershipId <= 0 || usernamesByMembershipId.containsKey(membershipId)) {
+            return;
+        }
+        try {
+            var membership = project.membership(membershipId);
+            rememberUsername(usernamesByUserId, membership.internUserId());
+            String username = usernamesByUserId.get(membership.internUserId());
+            if (username != null) {
+                usernamesByMembershipId.put(membershipId, username);
+            }
+        } catch (RuntimeException ignored) {
+            // A malformed retained reference should never make the authorized history page fail.
+        }
+    }
+
+    /** Resolves a retained leadership term identifier to its Leader username. */
+    private void rememberLeadershipTermUsername(
+            ProjectLeadershipTermEntity term,
+            Map<Long, String> usernamesByUserId,
+            Map<Long, String> usernamesByLeadershipTermId) {
+        if (term == null || term.id() == null || term.id() <= 0) {
+            return;
+        }
+        rememberUsername(usernamesByUserId, term.internUserId());
+        String username = usernamesByUserId.get(term.internUserId());
+        if (username != null) {
+            usernamesByLeadershipTermId.put(term.id(), username);
         }
     }
 

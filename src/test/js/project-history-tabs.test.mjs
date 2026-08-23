@@ -44,6 +44,8 @@ test('project history shows one balanced history section at a time', () => {
   assert.match(template, /history-table-four/);
   assert.match(template, /history-table-five/);
   assert.match(template, /history-table-six/);
+  assert.match(template, /data-history-tasks-toggle/);
+  assert.match(template, /id="history-task-activity"/);
 
   const tabs = [
     tab('memberships', true),
@@ -57,6 +59,10 @@ test('project history shows one balanced history section at a time', () => {
     panel('invitations'),
     panel('exit-decisions'),
   ];
+  const activityToggle = new Target({});
+  activityToggle.setAttribute('aria-expanded', 'false');
+  activityToggle.setAttribute('aria-controls', 'history-task-activity');
+  const activityPanel = Object.assign(new Target({}), {hidden: true});
   const historyTabs = {
     querySelectorAll(selector) {
       if (selector === '[data-history-tab]') return tabs;
@@ -70,8 +76,11 @@ test('project history shows one balanced history section at a time', () => {
     addEventListener(type, listener) { if (type === 'DOMContentLoaded') ready = listener; },
     querySelector() { return null; },
     querySelectorAll(selector) {
-      return selector === '[data-history-tabs]' ? [historyTabs] : [];
+      if (selector === '[data-history-tabs]') return [historyTabs];
+      if (selector === '[data-history-tasks-toggle]') return [activityToggle];
+      return [];
     },
+    getElementById(id) { return id === 'history-task-activity' ? activityPanel : null; },
   };
 
   vm.runInNewContext(readFileSync('src/main/resources/static/assets/app.js', 'utf8'), {
@@ -94,6 +103,13 @@ test('project history shows one balanced history section at a time', () => {
   assert.equal(tabs[2].dispatch('keydown', 'ArrowRight'), true);
   assert.equal(panels[3].hidden, false);
   assert.equal(tabs[3].focused, true);
+
+  activityToggle.dispatch('click');
+  assert.equal(activityPanel.hidden, false);
+  assert.equal(activityToggle.getAttribute('aria-expanded'), 'true');
+  activityToggle.dispatch('click');
+  assert.equal(activityPanel.hidden, true);
+  assert.equal(activityToggle.getAttribute('aria-expanded'), 'false');
 });
 
 function tab(name, selected) {

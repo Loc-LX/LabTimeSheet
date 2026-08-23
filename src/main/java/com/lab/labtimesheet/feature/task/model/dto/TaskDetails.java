@@ -9,7 +9,7 @@ import java.util.List;
  * @param comments append-only comment history in creation order
  * @param workLogs retained dated effort rows in ascending work-date order
  * @param actorMembershipId active viewer membership used only to expose author-owned corrections
- * @param canChangeStatus true only for the current assignee of an ACTIVE Project
+ * @param canChangeStatus true for the owning Mentor or current assignee of an ACTIVE Project
  * @param canComment true only for an eligible active member or owning Mentor before completion
  * @param canEdit true for the current Leader or self-created current-assignee unfinished Task
  * @param canDelete true for the same definition owner as {@code canEdit}

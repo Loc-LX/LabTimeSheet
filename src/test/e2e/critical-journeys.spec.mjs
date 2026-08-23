@@ -89,7 +89,7 @@ test('Iteration 3 setup and critical Admin/Intern/Mentor journeys', async ({ pag
   await page.getByRole('button', { name: 'Choose an eligible Intern' }).click();
   await page.locator('[data-picker-option]').filter({ hasText: intern.displayName })
     .locator('input[type="radio"]').check();
-  await page.getByRole('button', { name: 'Use selection' }).click();
+  await page.getByRole('button', { name: 'Done' }).click();
   await page.getByRole('button', { name: 'Create Project' }).click();
   await expect(page).toHaveURL(/\/projects\/\d+$/);
   const projectId = idFromUrl(page.url(), /\/projects\/(\d+)$/);

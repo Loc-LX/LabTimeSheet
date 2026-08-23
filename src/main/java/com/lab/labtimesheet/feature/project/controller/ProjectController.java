@@ -551,7 +551,8 @@ public class ProjectController {
         var history = pages.history(actor.userId(), projectId);
         Map<Long, String> memberNames = members.stream().collect(Collectors.toUnmodifiableMap(
                 member -> member.membershipId(),
-                member -> member.displayName()));
+                member -> history.usernamesByMembershipId().getOrDefault(
+                        member.membershipId(), member.displayName())));
         boolean currentLeader = members.stream().anyMatch(member -> member.currentLeader()
                 && member.internUserId() == actor.userId());
         Set<Long> pendingTargets = readiness.stream()

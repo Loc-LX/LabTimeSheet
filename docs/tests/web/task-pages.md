@@ -18,7 +18,7 @@ Fifteen `@WebMvcTest` MockMvc invocations render the real Task templates and exe
 
 Unauthenticated list access returns 401 under the current platform security baseline. An authorized empty list returns 200 and contains `N/A`. A denied guessed Task or Project returns 404. A valid create request passes Project 10, assignee membership 7, the supplied fields, and the authenticated email to the service, then redirects to Task 25. Blank title stays on the form with a field error and no write. An invalid due date returns 200 with the message attached to `dueDate`, keeps title, description, assignee, and date, and reloads the permitted choices. Valid status/comment posts redirect to Task 25.
 
-When `canCreate`, `canChangeStatus`, or `canComment` is false, the corresponding control is absent. When true, it is rendered. Both list and detail output the assignee display name. The hand-derived status choices are TODO to IN_PROGRESS/BLOCKED; IN_PROGRESS to BLOCKED/DONE; BLOCKED to TODO/IN_PROGRESS; and DONE to IN_PROGRESS.
+When `canCreate`, `canChangeStatus`, or `canComment` is false, the corresponding control is absent. When true, it is rendered. The owning Mentor and current assignee may change status on an ACTIVE Project; other members cannot. Both list and detail output the assignee display name. The hand-derived status choices are TODO to IN_PROGRESS/BLOCKED; IN_PROGRESS to BLOCKED/DONE; BLOCKED to TODO/IN_PROGRESS; and DONE to IN_PROGRESS.
 
 ## RED
 

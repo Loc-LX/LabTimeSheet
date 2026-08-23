@@ -359,9 +359,16 @@ class TaskCreationIntegrationTest {
                     assertThat(details.canDelete()).isTrue();
                     assertThat(details.canReassign()).isTrue();
                 });
+        assertThat(taskService.details("mentor@example.test", projectId, task.id()).canChangeStatus())
+                .isTrue();
+        assertDeniedAndUnchanged(task,
+                () -> taskService.edit("mentor@example.test", projectId, task.id(), "Denied", null, null));
+        assertDeniedAndUnchanged(task,
+                () -> taskService.softDelete("mentor@example.test", projectId, task.id()));
+        assertDeniedAndUnchanged(task,
+                () -> taskService.reassign("mentor@example.test", projectId, task.id(), leaderMembershipId));
 
         List<String> deniedActors = List.of(
-                "mentor@example.test",
                 "matrix-admin@example.test",
                 "leader@example.test",
                 "matrix-unassigned@example.test",
@@ -382,7 +389,7 @@ class TaskCreationIntegrationTest {
     }
 
     @Test
-    void onlyCurrentAssigneeChangesStatusOnAnActiveProject() {
+    void onlyCurrentAssigneeOrOwningMentorChangesStatusOnAnActiveProject() {
         TaskView task = taskService.create(
                 "member@example.test",
                 new CreateTaskCommand(projectId, memberMembershipId, "Run experiment", null, null));
@@ -407,6 +414,26 @@ class TaskCreationIntegrationTest {
         assertThat(notificationEmailStatuses()).containsExactly("NOT_REQUIRED");
         assertThat(notificationActionUrls()).containsExactly(
                 "/projects/%d/tasks/%d".formatted(projectId, task.id()));
+    }
+
+    @Test
+    void owningMentorCanChangeStatusForAnyTaskOnAnActiveProject() {
+        TaskView task = taskService.create(
+                "member@example.test",
+                new CreateTaskCommand(projectId, memberMembershipId, "Mentor status control", null, null));
+        activateProject();
+
+        TaskView changed = taskService.changeStatus(
+                "mentor@example.test", projectId, task.id(), TaskStatus.IN_PROGRESS);
+
+        assertThat(changed.status()).isEqualTo(TaskStatus.IN_PROGRESS);
+        assertThat(jdbc.sql("select status from tasks where id = :id")
+                .param("id", task.id())
+                .query(String.class)
+                .single()).isEqualTo(TaskStatus.IN_PROGRESS.name());
+        assertThat(notificationRecipientIds()).containsExactly(userId("leader@example.test"));
+        assertThat(notificationTypes()).containsExactly("TASK_STATUS_CHANGED");
+        assertThat(notificationEmailStatuses()).containsExactly("NOT_REQUIRED");
     }
 
     @Test
@@ -578,6 +605,8 @@ class TaskCreationIntegrationTest {
                     assertThat(details.canChangeStatus()).isTrue();
                     assertThat(details.canComment()).isTrue();
                 });
+        assertThat(taskService.details("mentor@example.test", projectId, task.id()).canChangeStatus())
+                .isTrue();
         assertThat(taskService.details("leader@example.test", projectId, task.id()).canChangeStatus())
                 .isFalse();
 
