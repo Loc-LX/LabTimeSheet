@@ -1,28 +1,24 @@
 package com.lab.labtimesheet.feature.attendance.exception;
 
-/**
- * Signals a rejected missed-checkout correction with its stable business outcome.
- */
-public class CorrectionException extends RuntimeException {
-
-    private final CorrectionRejection rejection;
+/** Signals an invalid, unauthorized, stale, or expired missed-checkout correction operation. */
+public final class CorrectionException extends RuntimeException {
 
     /**
-     * Creates an exception carrying the stable rejection reason.
+     * Creates a correction rejection with operator-safe context.
      *
-     * @param rejection business outcome for presentation and tests
+     * @param message safe user-facing failure reason
      */
-    public CorrectionException(CorrectionRejection rejection) {
-        super(rejection.name());
-        this.rejection = rejection;
+    public CorrectionException(String message) {
+        super(message);
     }
 
     /**
-     * Returns the stable business outcome that caused this rejection.
+     * Creates a correction rejection while retaining a persistence cause for diagnostics.
      *
-     * @return rejection reason
+     * @param message safe user-facing failure reason
+     * @param cause underlying persistence or concurrency failure
      */
-    public CorrectionRejection rejection() {
-        return rejection;
+    public CorrectionException(String message, Throwable cause) {
+        super(message, cause);
     }
 }

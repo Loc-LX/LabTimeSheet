@@ -1,6 +1,8 @@
 package com.lab.labtimesheet.feature.attendance.model.entity;
 
 import com.lab.labtimesheet.feature.attendance.model.AttendancePolicy;
+import com.lab.labtimesheet.feature.attendance.model.dto.AttendancePolicyCommand;
+import com.lab.labtimesheet.feature.attendance.model.dto.AttendancePolicyHistoryItem;
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
 import jakarta.persistence.ElementCollection;
@@ -17,6 +19,7 @@ import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneId;
+import java.time.Instant;
 import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.AccessLevel;
@@ -58,8 +61,14 @@ public class AttendancePolicyEntity {
     @Column(name = "violation_penalty", nullable = false)
     private BigDecimal violationPenalty;
 
-    @Column(name = "created_by_user_id", updatable = false)
+    @Column(name = "created_by_user_id")
     private Long createdByUserId;
+
+    @Column(name = "created_at", nullable = false)
+    private Instant createdAt;
+
+    @Column(name = "updated_at", nullable = false)
+    private Instant updatedAt;
 
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(
@@ -72,66 +81,47 @@ public class AttendancePolicyEntity {
     private long version;
 
     /**
-     * Creates a new scheduled policy version from the validated immutable domain policy.
-     * The persistent identifier remains database-generated and the optimistic version starts at zero.
+     * Creates an Admin-authored future policy version before its first persistence flush.
      *
-     * @param policy validated policy values to persist, including configured workdays
-     * @param createdByUserId Admin who scheduled the version
+     * @param command validated policy values
+     * @param actorUserId Admin actor
+     * @param now creation instant
      */
-    public AttendancePolicyEntity(AttendancePolicy policy, long createdByUserId) {
-        this.effectiveFrom = policy.effectiveFrom();
-        this.timezoneName = policy.zoneId().getId();
-        this.scheduledStart = policy.scheduledStart();
-        this.scheduledEnd = policy.scheduledEnd();
-        this.checkInGraceMinutes = policy.checkInGraceMinutes();
-        this.checkoutGraceMinutes = policy.checkoutGraceMinutes();
-        this.monthlyLeaveQuota = policy.monthlyLeaveQuota();
-        this.violationPenalty = policy.violationPenalty();
-        this.isoWeekdays = toIsoWeekdays(policy.workdays());
-        this.createdByUserId = createdByUserId;
+    public AttendancePolicyEntity(AttendancePolicyCommand command, long actorUserId, Instant now) {
+        this.effectiveFrom = command.effectiveFrom();
+        this.timezoneName = command.zoneId().getId();
+        this.scheduledStart = command.scheduledStart();
+        this.scheduledEnd = command.scheduledEnd();
+        this.checkInGraceMinutes = command.checkInGraceMinutes();
+        this.checkoutGraceMinutes = command.checkoutGraceMinutes();
+        this.monthlyLeaveQuota = command.monthlyLeaveQuota();
+        this.violationPenalty = command.violationPenalty();
+        this.isoWeekdays = command.workdays().stream().map(day -> (short) day.getValue()).collect(Collectors.toSet());
+        this.createdByUserId = actorUserId;
+        this.createdAt = now;
+        this.updatedAt = now;
     }
 
     /**
-     * Replaces the content of a scheduled-but-not-yet-effective version while preserving its identifier
-     * and advancing the optimistic version on save.
+     * Replaces an as-yet ineffective version without changing its identity or effective date.
      *
-     * @param policy replacement validated policy values
+     * @param command replacement values; effective date must match the persisted version
+     * @param actorUserId Admin performing the replacement; retained as update attribution only
+     * @param now replacement instant
      */
-    public void update(AttendancePolicy policy) {
-        this.effectiveFrom = policy.effectiveFrom();
-        this.timezoneName = policy.zoneId().getId();
-        this.scheduledStart = policy.scheduledStart();
-        this.scheduledEnd = policy.scheduledEnd();
-        this.checkInGraceMinutes = policy.checkInGraceMinutes();
-        this.checkoutGraceMinutes = policy.checkoutGraceMinutes();
-        this.monthlyLeaveQuota = policy.monthlyLeaveQuota();
-        this.violationPenalty = policy.violationPenalty();
-        this.isoWeekdays = toIsoWeekdays(policy.workdays());
-    }
-
-    /**
-     * Returns the first local business date governed by this version.
-     *
-     * @return effective-from local date
-     */
-    public LocalDate effectiveFrom() {
-        return effectiveFrom;
-    }
-
-    private static Set<Short> toIsoWeekdays(Set<DayOfWeek> workdays) {
-        return workdays.stream()
-                .map(DayOfWeek::getValue)
-                .map(Integer::shortValue)
-                .collect(Collectors.toSet());
-    }
-
-    /**
-     * Returns the optimistic version expected by a subsequent replacement.
-     *
-     * @return current version
-     */
-    public long version() {
-        return version;
+    public void replace(AttendancePolicyCommand command, long actorUserId, Instant now) {
+        if (!effectiveFrom.equals(command.effectiveFrom())) {
+            throw new IllegalArgumentException("An existing policy keeps its effective date");
+        }
+        this.timezoneName = command.zoneId().getId();
+        this.scheduledStart = command.scheduledStart();
+        this.scheduledEnd = command.scheduledEnd();
+        this.checkInGraceMinutes = command.checkInGraceMinutes();
+        this.checkoutGraceMinutes = command.checkoutGraceMinutes();
+        this.monthlyLeaveQuota = command.monthlyLeaveQuota();
+        this.violationPenalty = command.violationPenalty();
+        this.isoWeekdays = command.workdays().stream().map(day -> (short) day.getValue()).collect(Collectors.toSet());
+        this.updatedAt = now;
     }
 
     /**
@@ -154,5 +144,33 @@ public class AttendancePolicyEntity {
                 monthlyLeaveQuota,
                 violationPenalty,
                 workdays);
+    }
+
+    /**
+     * Returns the local date at which this policy becomes effective.
+     *
+     * @return first governed local date
+     */
+    public LocalDate effectiveFrom() {
+        return effectiveFrom;
+    }
+
+    /**
+     * Returns this version's optimistic-lock value.
+     *
+     * @return JPA version
+     */
+    public long version() {
+        return version;
+    }
+
+    /**
+     * Converts the retained policy and non-secret actor metadata into the Admin History projection.
+     *
+     * @return history-safe policy item
+     */
+    public AttendancePolicyHistoryItem toHistory() {
+        return new AttendancePolicyHistoryItem(
+                id, effectiveFrom, toDomain(), createdByUserId, createdAt, updatedAt, version);
     }
 }

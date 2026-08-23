@@ -45,8 +45,8 @@ class SmtpController {
     private final AccountService accounts;
 
     @GetMapping
-    String form(Model model) {
-        return renderForm(model, null);
+    String form(Principal principal, Model model) {
+        return renderForm(model, null, adminId(principal));
     }
 
     @PostMapping("/draft")
@@ -54,7 +54,7 @@ class SmtpController {
             Principal principal, Model model) {
         if (bindingResult.hasErrors()) {
             form.clearPassword();
-            return renderForm(model, form);
+            return renderForm(model, form, adminId(principal));
         }
         try {
             smtp.saveDraft(adminId(principal), form.toDraft());
@@ -62,7 +62,7 @@ class SmtpController {
         } catch (IllegalArgumentException | IllegalStateException validation) {
             bindingResult.reject("smtp.invalid", validation.getMessage());
             form.clearPassword();
-            return renderForm(model, form);
+            return renderForm(model, form, adminId(principal));
         }
     }
 
@@ -70,14 +70,14 @@ class SmtpController {
     String test(@Valid @ModelAttribute("smtpAction") SmtpActionForm action, BindingResult bindingResult,
             Principal principal, Model model) {
         if (bindingResult.hasErrors()) {
-            return renderActionError(model, bindingResult);
+            return renderActionError(model, bindingResult, principal);
         }
         try {
-            smtp.testDraft(action.getDraftId(), adminId(principal), principal.getName());
+            smtp.testDraft(action.getDraftId(), adminId(principal));
             return "redirect:/admin/smtp?tested";
         } catch (IllegalArgumentException | IllegalStateException | MailException failure) {
             bindingResult.reject("smtp.test.failed", TEST_FAILURE_MESSAGE);
-            return renderActionError(model, bindingResult);
+            return renderActionError(model, bindingResult, principal);
         }
     }
 
@@ -85,14 +85,14 @@ class SmtpController {
     String activate(@Valid @ModelAttribute("smtpAction") SmtpActionForm action, BindingResult bindingResult,
             Principal principal, Model model) {
         if (bindingResult.hasErrors()) {
-            return renderActionError(model, bindingResult);
+            return renderActionError(model, bindingResult, principal);
         }
         try {
             smtp.activate(action.getDraftId(), adminId(principal));
             return "redirect:/admin/smtp?activated";
         } catch (IllegalArgumentException | IllegalStateException failure) {
             bindingResult.reject("smtp.activate.failed", ACTIVATION_FAILURE_MESSAGE);
-            return renderActionError(model, bindingResult);
+            return renderActionError(model, bindingResult, principal);
         }
     }
 
@@ -128,8 +128,8 @@ class SmtpController {
         return "redirect:/dashboard";
     }
 
-    private String renderForm(Model model, SmtpForm submittedForm) {
-        var status = smtp.setupStatus();
+    private String renderForm(Model model, SmtpForm submittedForm, long adminId) {
+        var status = smtp.setupStatus(adminId);
         model.addAttribute("smtpStatus", status);
         model.addAttribute("smtpAction", new SmtpActionForm());
         if (submittedForm == null) {
@@ -138,9 +138,9 @@ class SmtpController {
         return "smtp/form";
     }
 
-    private String renderActionError(Model model, BindingResult bindingResult) {
+    private String renderActionError(Model model, BindingResult bindingResult, Principal principal) {
         model.addAttribute("smtpActionError", bindingResult.getAllErrors().getFirst().getDefaultMessage());
-        return renderForm(model, null);
+        return renderForm(model, null, adminId(principal));
     }
 
     private static int deferralStep(HttpSession session) {

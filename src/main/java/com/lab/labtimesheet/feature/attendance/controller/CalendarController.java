@@ -180,7 +180,7 @@ public class CalendarController {
     }
 
     private static AttendanceActor requireAdmin(AttendanceActor actor) {
-        if (actor.role() != AttendanceRole.ADMIN) {
+        if (actor == null || actor.role() != AttendanceRole.ADMIN) {
             throw new AccessDeniedException("Only Admin may manage the global calendar");
         }
         return actor;
