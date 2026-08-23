@@ -162,6 +162,7 @@ class Iteration2ProjectWorkflowWebTest {
                     .andExpect(content().string(containsString("Intern2 (PRJ-SEED-2)")))
                     .andExpect(content().string(containsString("Mentor1")))
                     .andExpect(content().string(containsString("20/08/2026 07:00")))
+                    .andExpect(content().string(containsString("Task activity")))
                     .andExpect(content().string(containsString("Completed Task")))
                     .andExpect(content().string(containsString("Retained comment")))
                     .andExpect(content().string(containsString("Retained work")));

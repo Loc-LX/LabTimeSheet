@@ -178,8 +178,36 @@
   .history-tab[aria-selected="true"] { background: var(--panel); box-shadow: 0 1px 2px rgb(20 25 35 / .08); }
   .history-activity-toggle { margin-top: 1rem; }
   .history-activity { margin-top: 1rem; }
-  .history-activity > h3 { margin: 0 0 .75rem; }
-  .history-activity > .form-panel { margin-top: .75rem; }
+  .history-activity-heading { display: flex; align-items: start; justify-content: space-between; gap: 1rem; margin-bottom: .75rem; }
+  .history-activity-heading h3 { margin: 0; }
+  .history-activity-heading .field-help { margin: .25rem 0 0; }
+  .history-empty { margin: 0; border: 1px dashed var(--border); border-radius: .65rem; padding: 1rem; color: var(--muted); text-align: center; }
+  .history-task-list { overflow: hidden; border: 1px solid var(--border); border-radius: .7rem; background: var(--panel); }
+  .history-task-item + .history-task-item { border-top: 1px solid var(--border); }
+  .history-task-item[open] { background: var(--panel-muted); }
+  .history-task-summary { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 1rem; padding: .75rem 1rem .75rem 2.25rem; cursor: pointer; list-style: none; }
+  .history-task-summary::-webkit-details-marker { display: none; }
+  .history-task-summary::before { position: absolute; top: 50%; left: 1rem; color: var(--muted); content: '›'; font-size: 1.15rem; line-height: 1; transform: translateY(-50%); }
+  .history-task-item[open] .history-task-summary::before { transform: translateY(-50%) rotate(90deg); }
+  .history-task-summary-main { display: grid; min-width: 0; gap: .12rem; grid-column: 1; }
+  .history-task-summary-main strong, .history-task-summary-main span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .history-task-summary-main span, .history-task-updated { color: var(--muted); font-size: .78rem; }
+  .history-task-updated { white-space: nowrap; }
+  .history-task-details { border-top: 1px solid var(--border); padding: .85rem 1rem 1rem; }
+  .history-task-description { margin: 0; color: var(--muted); }
+  .history-task-badges { display: flex; flex: 0 0 auto; flex-wrap: wrap; justify-content: flex-end; gap: .35rem; }
+  .history-task-attribution, .history-task-timeline { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .65rem; margin: .9rem 0 0; }
+  .history-task-attribution > div, .history-task-timeline > div { min-width: 0; border: 1px solid var(--border); border-radius: .5rem; background: var(--panel); padding: .55rem .65rem; }
+  .history-task-attribution dt, .history-task-timeline dt { color: var(--muted); font-size: .72rem; font-weight: 650; }
+  .history-task-attribution dd, .history-task-timeline dd { margin: .12rem 0 0; overflow-wrap: anywhere; font-weight: 650; }
+  .history-task-timeline dd { font-size: .8rem; font-weight: 500; }
+  .history-task-notes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; margin-top: .9rem; }
+  .history-task-notes > section { min-width: 0; border-top: 1px solid var(--border); padding-top: .75rem; }
+  .history-task-notes h5 { margin: 0 0 .45rem; font-size: .78rem; }
+  .history-note { border-left: 3px solid var(--border-strong); padding: .05rem 0 .05rem .6rem; overflow-wrap: anywhere; }
+  .history-note + .history-note { margin-top: .6rem; }
+  .history-note-meta { margin: 0; color: var(--muted); font-size: .76rem; font-weight: 650; }
+  .history-note-body { margin: .18rem 0 0; }
   .history-table { table-layout: fixed; }
   .history-table th, .history-table td { overflow-wrap: anywhere; vertical-align: top; }
   .history-table-four th, .history-table-four td { width: 25%; }
@@ -247,7 +275,9 @@
     .metric-strip, .metric-strip-three { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .metric:nth-child(odd) { border-left: 0; }
     .metric:nth-child(n + 3) { border-top: 1px solid var(--border); }
-    .form-grid-three, .report-filters { grid-template-columns: 1fr; }
+    .form-grid-three, .report-filters, .history-task-attribution, .history-task-timeline, .history-task-notes { grid-template-columns: 1fr; }
+    .history-task-summary { grid-template-columns: minmax(0, 1fr) auto; }
+    .history-task-updated { grid-column: 1 / -1; white-space: normal; }
     .data-table { min-width: 36rem; }
   }
   @media (max-width: 40rem) {

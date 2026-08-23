@@ -58,6 +58,8 @@ class Iteration2TaskWorkflowWebTest {
 
         mvc.perform(get("/projects/10/tasks/25").with(user(EMAIL).roles("INTERN")))
                 .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Back to Tasks")))
+                .andExpect(content().string(containsString("href=\"/projects/10/tasks\"")))
                 .andExpect(content().string(containsString("Edit Task")))
                 .andExpect(content().string(containsString("Reassign")))
                 .andExpect(content().string(containsString("Delete Task")))

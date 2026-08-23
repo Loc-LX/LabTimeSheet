@@ -4,9 +4,10 @@
           pageTitle=${details.task.title},
           section='Projects',
           activeNav='projects',
-          primaryAction=~{},
+          primaryAction=~{::#primary-action},
           content=~{::main})}">
 <body>
+<a id="primary-action" class="button" th:href="@{/projects/{projectId}/tasks(projectId=${projectId})}"><svg class="nav-icon" aria-hidden="true"><use th:href="@{/assets/icons.svg#chevron-left}"></use></svg>Back to Tasks</a>
 <main>
     <p class="page-description" th:text="${details.task.description == null || #strings.isEmpty(details.task.description) ? 'No Task description.' : details.task.description}">Task description.</p>
     <p class="alert alert-error" role="alert" th:if="${taskError}" th:text="${taskError}"></p>
