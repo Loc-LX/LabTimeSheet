@@ -5,6 +5,13 @@ document.addEventListener('DOMContentLoaded', () => {
     try { return localStorage.getItem('labtimesheet-theme') || 'system'; }
     catch (_) { return 'system'; }
   })();
+  const systemPreference = matchMedia('(prefers-color-scheme: dark)');
+  const applyTheme = (preference) => {
+    const dark = preference === 'dark'
+      || (preference === 'system' && systemPreference.matches);
+    root.dataset.theme = dark ? 'dark' : 'light';
+    root.style.colorScheme = dark ? 'dark' : 'light';
+  };
   if (theme) {
     theme.value = stored;
     theme.addEventListener('change', () => {
@@ -15,12 +22,37 @@ document.addEventListener('DOMContentLoaded', () => {
       } catch (_) {
         // Theme still applies for this page when persistence is unavailable.
       }
-      const dark = theme.value === 'dark'
-        || (theme.value === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
-      root.dataset.theme = dark ? 'dark' : 'light';
-      root.style.colorScheme = dark ? 'dark' : 'light';
+      applyTheme(theme.value);
+    });
+    systemPreference.addEventListener?.('change', () => {
+      if (theme.value === 'system') applyTheme('system');
     });
   }
+
+  const roleField = document.querySelector('#role');
+  const roleDependent = document.querySelector('[data-role-dependent]');
+  if (roleField && roleDependent) {
+    const applyRoleFields = () => {
+      const isIntern = roleField.value === 'INTERN';
+      roleDependent.hidden = !isIntern;
+      roleDependent.querySelectorAll('input, select, textarea').forEach((input) => {
+        input.disabled = !isIntern;
+        if (!isIntern) input.value = '';
+      });
+    };
+    roleField.addEventListener('change', applyRoleFields);
+    applyRoleFields();
+  }
+
+  document.querySelectorAll('[data-task-version-toggle]').forEach((taskCheckbox) => {
+    const versionInput = document.querySelector(`[data-task-version-for="${taskCheckbox.value}"]`);
+    if (!versionInput) return;
+    const syncTaskVersion = () => {
+      versionInput.disabled = !taskCheckbox.checked;
+    };
+    taskCheckbox.addEventListener('change', syncTaskVersion);
+    syncTaskVersion();
+  });
 
   let collapsed = false;
   try { collapsed = localStorage.getItem('labtimesheet-sidebar') === 'collapsed'; }

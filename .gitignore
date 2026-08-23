@@ -37,6 +37,7 @@ node_modules/
 
 # Local requirements review artifacts
 /labtimesheet-docs-hub/
-/duong-attendance-iteration-1-code-mastery.md
-/duong-attendance-iteration-1-file-map.md
-/labtimesheet.log
+
+# Playwright output is retained locally for failure inspection and is not source evidence.
+/playwright-report/
+/test-results/

@@ -2,8 +2,12 @@ package com.lab.labtimesheet.feature.account.controller;
 
 import java.security.Principal;
 
+import com.lab.labtimesheet.feature.account.model.AccountStatus;
 import com.lab.labtimesheet.feature.account.model.GlobalRole;
 import com.lab.labtimesheet.feature.account.model.dto.ActivationForm;
+import com.lab.labtimesheet.feature.account.model.dto.AccountAdministrationView;
+import com.lab.labtimesheet.feature.account.model.dto.AccountCorrectionForm;
+import com.lab.labtimesheet.feature.account.model.dto.AccountDirectoryFilter;
 import com.lab.labtimesheet.feature.account.model.dto.CreateAccountForm;
 import com.lab.labtimesheet.feature.account.service.AccountService;
 import com.lab.labtimesheet.feature.project.exception.ProjectAccessDeniedException;
@@ -22,6 +26,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
@@ -38,9 +43,18 @@ class AccountController {
     private final ProjectService projects;
 
     @GetMapping("/admin/accounts")
-    String accountList(Principal principal, Model model) {
+    String accountList(
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) GlobalRole role,
+            Principal principal,
+            Model model) {
         long adminId = accounts.requireActiveAdminId(principal.getName());
-        model.addAttribute("accounts", accounts.administrationViews(adminId));
+        AccountDirectoryFilter filter = new AccountDirectoryFilter(search, role);
+        model.addAttribute("accounts", filter.search().isEmpty() && filter.role() == null
+                ? accounts.administrationViews(adminId)
+                : accounts.administrationViews(adminId, filter));
+        model.addAttribute("accountFilter", filter);
+        model.addAttribute("accountRoles", GlobalRole.values());
         return "accounts/index";
     }
 
@@ -56,6 +70,66 @@ class AccountController {
                         projectQueries.internshipLifecycleGuard(adminId, targetUserId));
             }
             return "accounts/index";
+        } catch (IllegalArgumentException | ProjectAccessDeniedException failure) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+        }
+    }
+
+    /** Opens the Admin-only identity correction form for one non-secret account projection. */
+    @GetMapping("/admin/accounts/{targetUserId}/edit")
+    String accountEdit(@PathVariable long targetUserId, Principal principal, Model model) {
+        long adminId = accounts.requireActiveAdminId(principal.getName());
+        try {
+            var account = accounts.administrationView(targetUserId, adminId);
+            if (account.accountStatus() == AccountStatus.DEACTIVATED) {
+                throw new IllegalArgumentException("Account not editable");
+            }
+            model.addAttribute("selectedAccount", account);
+            model.addAttribute("correctionForm", new AccountCorrectionForm(account));
+            return "accounts/edit";
+        } catch (IllegalArgumentException | ProjectAccessDeniedException failure) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+        }
+    }
+
+    /**
+     * Applies an Admin identity correction through the public Account service and retains safe
+     * input when validation or delivery fails.
+     */
+    @PostMapping("/admin/accounts/{targetUserId}/edit")
+    String accountEdit(
+            @PathVariable long targetUserId,
+            @Valid @ModelAttribute("correctionForm") AccountCorrectionForm form,
+            BindingResult bindingResult,
+            Principal principal,
+            Model model,
+            RedirectAttributes redirectAttributes) {
+        long adminId = accounts.requireActiveAdminId(principal.getName());
+        var account = editableAccount(targetUserId, adminId);
+        model.addAttribute("selectedAccount", account);
+        if (bindingResult.hasErrors()) {
+            return "accounts/edit";
+        }
+        try {
+            accounts.correctAccount(targetUserId, adminId, form.toCorrection());
+            redirectAttributes.addFlashAttribute("message", "Account correction saved");
+            return accountRedirect(targetUserId);
+        } catch (IllegalArgumentException | IllegalStateException failure) {
+            bindingResult.reject("account.correction.invalid", "Account correction could not be completed.");
+            return "accounts/edit";
+        } catch (DataIntegrityViolationException duplicate) {
+            rejectUniquenessViolation(bindingResult, duplicate);
+            return "accounts/edit";
+        }
+    }
+
+    private AccountAdministrationView editableAccount(long targetUserId, long adminId) {
+        try {
+            var account = accounts.administrationView(targetUserId, adminId);
+            if (account.accountStatus() == AccountStatus.DEACTIVATED) {
+                throw new IllegalArgumentException("Account not editable");
+            }
+            return account;
         } catch (IllegalArgumentException | ProjectAccessDeniedException failure) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND);
         }

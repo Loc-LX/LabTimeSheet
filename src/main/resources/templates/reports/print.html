@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <title th:text="${reportKind == 'attendance' ? 'Attendance compliance report' : 'Project and Task report'}">Report</title>
+    <style>
+        @page { size: A4 landscape; margin: 14mm; }
+        body { color: #15171a; font-family: 'Liberation Sans', sans-serif; font-size: 9pt; }
+        h1 { font-size: 17pt; margin: 0 0 5pt; }
+        h2 { font-size: 11pt; margin: 14pt 0 5pt; }
+        p { margin: 3pt 0; }
+        .muted { color: #626a75; }
+        .summary { margin: 9pt 0; }
+        .summary td { padding: 3pt 12pt 3pt 0; }
+        .summary strong { display: block; font-size: 10pt; }
+        table { border-collapse: collapse; width: 100%; }
+        th { background: #eceef1; font-weight: bold; text-align: left; }
+        th, td { border: .5pt solid #858c96; padding: 4pt 5pt; }
+        tr { page-break-inside: avoid; }
+    </style>
+</head>
+<body>
+<section th:if="${reportKind == 'attendance'}">
+    <h1>Attendance compliance report</h1>
+    <p><strong>Intern:</strong> <span th:text="${report.targetName}">Mai Intern</span></p>
+    <p class="muted"><strong>Period:</strong> <span th:text="${#temporals.format(report.from, 'dd/MM/yyyy') + ' – ' + #temporals.format(report.to, 'dd/MM/yyyy')}">01/08/2026 – 31/08/2026</span></p>
+    <table class="summary">
+        <tbody><tr>
+            <td><span class="muted">Expected workdays</span><strong th:text="${report.expectedWorkdays}">0</strong></td>
+            <td><span class="muted">Present workdays</span><strong th:text="${report.presentWorkdays}">0</strong></td>
+            <td><span class="muted">Absent workdays</span><strong th:text="${report.absentWorkdays}">0</strong></td>
+            <td><span class="muted">Attendance rate</span><strong th:text="${report.attendanceRate}">N/A</strong></td>
+            <td><span class="muted">Compliance rate</span><strong th:text="${report.complianceRate}">N/A</strong></td>
+        </tr></tbody>
+    </table>
+    <h2>Attendance detail</h2>
+    <table>
+        <thead><tr><th>Work date</th><th>Check in</th><th>Raw checkout</th><th>Effective checkout</th><th>Schedule</th><th>Result</th><th>Elapsed</th></tr></thead>
+        <tbody>
+        <tr th:each="row : ${report.rows}">
+            <td th:text="${row.workDate}">14/08/2026</td>
+            <td th:text="${row.checkIn}">09:05</td>
+            <td th:text="${row.rawCheckout}">16:00</td>
+            <td th:text="${row.effectiveCheckout}">16:00</td>
+            <td th:text="${row.schedule}">08:30–15:30 (Asia/Ho_Chi_Minh)</td>
+            <td th:text="${row.result}">Present</td>
+            <td th:text="${row.workedMinutes}">415 min</td>
+        </tr>
+        <tr th:if="${#lists.isEmpty(report.rows)}"><td colspan="7">No attendance records in this period</td></tr>
+        </tbody>
+    </table>
+</section>
+<section th:if="${reportKind == 'project-tasks'}">
+    <h1>Project and Task report</h1>
+    <p class="muted">Current readable Tasks grouped by the authorized Project scope.</p>
+    <h2>Filters</h2>
+    <table class="filters">
+        <tbody>
+        <tr><th>Project</th><td th:text="${projectFilterName}">All authorized Projects</td><th>Member</th><td th:text="${memberFilterName}">All current members</td></tr>
+        <tr><th>Status</th><td th:text="${statusFilterName}">All statuses</td><th>Due</th><td th:text="${dueFilterRange}">Any</td></tr>
+        <tr><th>Work</th><td th:text="${workFilterRange}" colspan="3">Any</td></tr>
+        </tbody>
+    </table>
+    <table class="summary">
+        <tbody><tr>
+            <td><span class="muted">Tasks</span><strong th:text="${report.totalTasks}">0</strong></td>
+            <td><span class="muted">Done</span><strong th:text="${report.doneTasks}">0</strong></td>
+            <td><span class="muted">Completion</span><strong th:text="${report.completionRate}">N/A</strong></td>
+            <td><span class="muted">TODO</span><strong th:text="${report.todoTasks}">0</strong></td>
+            <td><span class="muted">In progress</span><strong th:text="${report.inProgressTasks}">0</strong></td>
+            <td><span class="muted">Blocked</span><strong th:text="${report.blockedTasks}">0</strong></td>
+            <td><span class="muted">Logged minutes</span><strong th:text="${report.totalLoggedMinutes}">0</strong></td>
+        </tr></tbody>
+    </table>
+    <div th:if="${report.detailedMemberHours}">
+        <h2>Hours by member</h2>
+        <table>
+            <thead><tr><th>Member</th><th>Logged minutes</th></tr></thead>
+            <tbody><tr th:each="member : ${report.memberHours}"><td th:text="${member.displayName}">Member</td><td th:text="${member.totalMinutes}">0</td></tr></tbody>
+        </table>
+    </div>
+    <h2>Task detail</h2>
+    <table>
+        <thead><tr><th>Project</th><th>Task</th><th>Assignee</th><th>Status</th><th>Due</th><th>Logged minutes</th><th>Created</th></tr></thead>
+        <tbody>
+        <tr th:each="row : ${report.rows}">
+            <td th:text="${row.projectName}">Project</td>
+            <td th:text="${row.title}">Task</td>
+            <td th:text="${row.assigneeName}">Intern</td>
+            <td th:text="${row.status}">TODO</td>
+            <td th:text="${row.dueDate == null ? 'N/A' : #temporals.format(row.dueDate, 'dd/MM/yyyy')}">N/A</td>
+            <td th:text="${row.loggedMinutes}">0</td>
+            <td th:text="${#temporals.format(row.createdAt.atZone(T(java.time.ZoneId).of('Asia/Ho_Chi_Minh')), 'dd/MM/yyyy HH:mm')}">Created</td>
+        </tr>
+        <tr th:if="${#lists.isEmpty(report.rows)}"><td colspan="7">No Tasks match these filters</td></tr>
+        </tbody>
+    </table>
+</section>
+</body>
+</html>

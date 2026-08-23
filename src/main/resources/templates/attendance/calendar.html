@@ -48,7 +48,7 @@
         <div class="table-scroll" th:unless="${#lists.isEmpty(history)}"><table class="data-table">
             <caption class="sr-only">Global Calendar History</caption>
             <thead><tr><th scope="col">Date</th><th scope="col">Name</th><th scope="col">Source</th><th scope="col">Decision</th><th scope="col">Actor</th></tr></thead>
-            <tbody><tr th:each="entry : ${history}"><td th:text="${#temporals.format(entry.calendarDate, 'dd/MM/yyyy')}">Date</td><td th:text="${entry.name}">Name</td><td th:text="${entry.source}">Source</td><td th:text="${entry.dayOff ? 'Day off' : 'Working day'}">Decision</td><td th:text="${entry.updatedByUserId}">Actor</td></tr></tbody>
+            <tbody><tr th:each="entry : ${history}"><td th:text="${#temporals.format(entry.calendarDate, 'dd/MM/yyyy')}">Date</td><td th:text="${entry.name}">Name</td><td th:text="${entry.source == 'HOLIDAY_API' ? 'Holiday API' : 'Custom'}">Source</td><td th:text="${entry.dayOff ? 'Day off' : 'Working day'}">Decision</td><td th:text="|Admin account ${entry.updatedByUserId}|">Actor</td></tr></tbody>
         </table></div>
     </section>
 </main>

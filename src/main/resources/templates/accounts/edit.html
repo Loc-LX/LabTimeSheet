@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{fragments/layout :: shell(
+          pageTitle='Account correction',
+          section='Admin',
+          activeNav='accounts',
+          primaryAction=~{::#primary-action},
+          content=~{::main})}">
+<body>
+<a id="primary-action" class="button" th:href="@{/admin/accounts/{id}(id=${selectedAccount.id})}">Back to account</a>
+<main>
+  <p class="page-description">Correct the login identity or retained Intern profile facts. Role and display name are immutable here.</p>
+  <form class="panel form-panel form-grid" method="post"
+        th:action="@{/admin/accounts/{id}/edit(id=${selectedAccount.id})}" th:object="${correctionForm}">
+    <div class="alert alert-error" th:if="${#fields.hasAnyErrors()}" role="alert">
+      <strong>Please correct the highlighted fields.</strong>
+      <ul><li th:each="fieldError : ${#fields.allErrors()}" th:text="${fieldError}"></li></ul>
+    </div>
+    <div class="field" th:if="${selectedAccount.accountStatus.name() != 'DEACTIVATED'}">
+      <label class="field-label" for="email">Email</label>
+      <input class="control" id="email" th:field="*{email}" type="email" autocomplete="off"
+             th:attr="aria-invalid=${#fields.hasErrors('email')},aria-describedby=${#fields.hasErrors('email') ? 'account-correction-email-error' : null}">
+      <p class="field-error" id="account-correction-email-error" role="alert"
+         th:if="${#fields.hasErrors('email')}" th:errors="*{email}"></p>
+    </div>
+    <fieldset class="form-section" th:if="${selectedAccount.role.name() == 'INTERN' and (selectedAccount.internshipStatus.name() == 'NOT_STARTED' or selectedAccount.internshipStatus.name() == 'ACTIVE')}">
+      <legend>Intern profile correction</legend>
+      <p class="field-help">Only retained Student Code and inclusive internship dates can be corrected.</p>
+      <div class="form-grid form-grid-three">
+        <div class="field">
+          <label class="field-label" for="studentCode">Student code</label>
+          <input class="control" id="studentCode" th:field="*{studentCode}" autocomplete="off"
+                 th:attr="aria-invalid=${#fields.hasErrors('studentCode')},aria-describedby=${#fields.hasErrors('studentCode') ? 'account-correction-student-code-error' : null}">
+          <p class="field-error" id="account-correction-student-code-error" role="alert"
+             th:if="${#fields.hasErrors('studentCode')}" th:errors="*{studentCode}"></p>
+        </div>
+        <div class="field" th:if="${selectedAccount.internshipStatus.name() == 'NOT_STARTED'}"><label class="field-label" for="internshipStart">Internship start</label><input class="control" id="internshipStart" th:field="*{internshipStart}" type="date"></div>
+        <div class="field" th:if="${selectedAccount.internshipStatus.name() == 'NOT_STARTED'}"><label class="field-label" for="internshipEnd">Internship end</label><input class="control" id="internshipEnd" th:field="*{internshipEnd}" type="date"></div>
+      </div>
+    </fieldset>
+    <div class="form-actions"><a class="button" th:href="@{/admin/accounts/{id}(id=${selectedAccount.id})}">Cancel</a><button class="button button-primary" type="submit">Save correction</button></div>
+  </form>
+</main>
+</body>
+</html>

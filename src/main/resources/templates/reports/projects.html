@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{fragments/layout :: shell(
+          pageTitle='Project report',
+          section='Reports',
+          activeNav='reports',
+          primaryAction=~{::#primary-action},
+          content=~{::main})}">
+<body>
+<a id="primary-action" class="button" th:href="@{/projects}">Back to projects</a>
+<main>
+    <p class="page-description" th:text="|Review Task progress and logged hours for ${projectName} in the selected period.|">Review Task progress.</p>
+
+    <form class="panel form-panel filter-form" method="get">
+        <input type="hidden" name="projectId" th:value="${projectId}">
+        <div class="field"><label class="field-label" for="from">From</label><input class="control" id="from" name="from" type="date" th:value="${from}"></div>
+        <div class="field"><label class="field-label" for="to">To</label><input class="control" id="to" name="to" type="date" th:value="${to}"></div>
+        <button class="button" type="submit">Filter</button>
+    </form>
+
+    <section class="panel">
+        <header class="panel-header"><h2 class="panel-title">Summary</h2></header>
+        <div class="metrics">
+            <div class="metric"><div class="metric-label">Completion</div><div class="metric-value"><span th:if="${summary.completionPercentage.present}" th:text="${#numbers.formatPercent(summary.completionPercentage.getAsDouble() / 100.0, 2, 2)}">0%</span><span th:unless="${summary.completionPercentage.present}">N/A</span></div></div>
+            <div class="metric"><div class="metric-label">Logged hours</div><div class="metric-value" th:text="${#numbers.formatDecimal(summary.totalMinutes / 60.0, 1, 2)}">0</div></div>
+            <div class="metric"><div class="metric-label">Blocked tasks</div><div class="metric-value" th:text="${summary.blockedCount}">0</div></div>
+            <div class="metric"><div class="metric-label">Total tasks</div><div class="metric-value" th:text="${summary.progress.total()}">0</div></div>
+        </div>
+    </section>
+
+    <section class="panel" th:if="${chartJson != null}">
+        <header class="panel-header"><h2 class="panel-title">Member hours</h2></header>
+        <div class="chart"><canvas role="img" aria-label="Logged hours per member" th:attr="data-chart=${chartJson}"></canvas></div>
+    </section>
+
+    <section class="panel" th:if="${allowDetail}">
+        <header class="panel-header"><h2 class="panel-title">Member detail</h2></header>
+        <div class="table-scroll"><table class="data-table">
+            <caption>Logged hours per member</caption>
+            <thead><tr><th scope="col">Member</th><th scope="col">Hours</th><th scope="col">Tasks</th></tr></thead>
+            <tbody>
+            <tr th:each="member : ${members}">
+                <td th:text="${member.displayName}"></td>
+                <td th:text="${#numbers.formatDecimal(member.loggedHours(), 1, 2)}"></td>
+                <td th:text="${member.taskCount}"></td>
+            </tr>
+            </tbody>
+        </table></div>
+    </section>
+</main>
+</body>
+</html>

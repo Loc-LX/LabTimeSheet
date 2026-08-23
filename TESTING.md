@@ -93,17 +93,70 @@ Thymeleaf pages, redirects, and error messages without opening a browser.
 
 ### End-to-end checks
 
-End-to-end checks use the running application in a real desktop browser. They
-cover complete journeys such as bootstrap, login, SMTP setup, Projects, Tasks,
-and attendance.
+End-to-end checks use the running application in a real desktop Chromium browser.
+They cover report downloads and the selected Iteration 1/2 regression journeys;
+the credential-gated report journey uses `E2E_EMAIL` and `E2E_PASSWORD` from the
+shell and never stores a password in the repository.
 
-Current end-to-end checks are guided manual checks:
+Install the exact lockfile dependencies and managed Chromium on Windows
+PowerShell:
 
-1. Prepare `.env` by following the main README.
-2. Start PostgreSQL 18.4 and Mailpit.
-3. Run `./mvnw spring-boot:run`.
-4. Follow the scenario written in `docs/tests/e2e/`.
-5. Record the browser, viewport, result, and any boundary that was not tested.
+```powershell
+npm ci
+npx playwright install chromium
+```
+
+On macOS, run the same commands from Terminal:
+
+```bash
+npm ci
+npx playwright install chromium
+```
+
+On Linux or in CI, install the browser's OS dependencies as well:
+
+```bash
+npm ci
+npx playwright install --with-deps chromium
+```
+
+Start PostgreSQL 18.4 and Mailpit using the development instructions, then
+start the Java application with `./mvnw spring-boot:run` (or the IntelliJ
+Spring Boot run configuration documented below). Set `PLAYWRIGHT_BASE_URL` only
+when the app is not at the default `http://127.0.0.1:8080`.
+
+The required headless, headed, UI, smoke, focused, and report commands are:
+
+```bash
+npm run test:e2e
+npm run test:e2e:headed
+npm run test:e2e:ui
+npm run test:e2e:smoke
+npx playwright test src/test/e2e/report-journeys.spec.mjs --project=chromium
+npx playwright show-report
+```
+
+The focused command accepts a file or test title filter, for example:
+
+```bash
+npx playwright test src/test/e2e/report-journeys.spec.mjs --grep "XLSX"
+```
+
+Project/Task XLSX and PDF downloads require complete inclusive due-date and
+work-date ranges, each no longer than 366 days. Invalid, half-open, reversed,
+or overlong ranges are rejected before report dataset construction.
+
+The Playwright configuration uses Chromium with one worker and retains traces
+and screenshots on failures under `test-results/playwright/`; the HTML report is
+under `playwright-report/`. Video capture is disabled to keep the harness
+portable when the optional ffmpeg helper is not installed. No browser extension
+is required.
+
+In IntelliJ, run these commands in the built-in terminal after selecting the
+Java 25 SDK, or create a Node/npm run configuration for the same scripts. The
+Spring Boot configuration remains `Lab Timesheet (dev)` with active `dev`
+profile and the repository root as working directory; start PostgreSQL/Mailpit
+before running the browser command.
 
 For date-sensitive local E2E journeys, use the deterministic clock handoff. The
 `e2e` profile is grouped with `dev`, so the normal local datasource, Mailpit,
