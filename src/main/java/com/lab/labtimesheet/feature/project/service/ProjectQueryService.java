@@ -66,6 +66,8 @@ public class ProjectQueryService {
      * @return active user identifier
      * @throws ProjectAccessDeniedException when no active identity is available
      */
+    // [Lấy ID người đăng nhập]
+    // Chỉ chuyển email thành user ID sau khi authenticatedActor xác nhận account còn active.
     @Transactional(readOnly = true)
     public long authenticatedUserId(String email) {
         return authenticatedActor(email).userId();
@@ -78,9 +80,15 @@ public class ProjectQueryService {
      * @return user identifier and immutable global role
      * @throws ProjectAccessDeniedException when no active identity is available
      */
+    // [Xác thực actor Project]
+    // Luồng xử lý:
+    // 1. Lấy identity theo email đăng nhập.
+    // 2. Từ chối account không tồn tại hoặc không còn ACTIVE.
+    // 3. Trả DTO nhỏ gồm ID và role cho controller dùng tiếp.
     @Transactional(readOnly = true)
     public ProjectActorView authenticatedActor(String email) {
         try {
+            // Mọi màn Project đều bắt đầu bằng việc xác nhận account còn ACTIVE.
             var actor = accounts.requireIdentityByEmail(email);
             if (!"ACTIVE".equals(actor.status().name())) {
                 throw new ProjectAccessDeniedException();
@@ -98,6 +106,8 @@ public class ProjectQueryService {
      * @param actorUserId active actor user identifier
      * @return ordered authorized summaries
      */
+    // [Danh sách Project mặc định]
+    // Dùng trang mặc định để các caller không phân trang vẫn không tải toàn bộ Project.
     @Transactional(readOnly = true)
     public List<ProjectSummary> listVisible(long actorUserId) {
         return listVisible(actorUserId, PageRequest.of(0, PROJECT_LIST_PAGE_SIZE));
@@ -113,6 +123,8 @@ public class ProjectQueryService {
      * @param requestedPage requested page; null or unpaged input uses the first default page
      * @return ordered authorized summaries within the bounded page
      */
+    // [Danh sách Project có phân trang]
+    // Đây là lớp bọc tiện dụng; logic lọc theo role và phân trang nằm ở listPage.
     @Transactional(readOnly = true)
     public List<ProjectSummary> listVisible(long actorUserId, Pageable requestedPage) {
         return listPage(actorUserId, requestedPage).projects();
@@ -127,8 +139,14 @@ public class ProjectQueryService {
      * @param requestedPage requested zero-based Spring page; null or unpaged input uses page zero
      * @return one-based MVC page metadata and authorized summaries
      */
+    // [Tạo trang danh sách Project]
+    // Luồng xử lý:
+    // 1. Kiểm tra actor ACTIVE và giới hạn page size.
+    // 2. Query repository theo role (Admin/Mentor/Intern) để chỉ nhận row hợp lệ.
+    // 3. Chuyển entity thành DTO và giữ metadata có trang trước/sau cho giao diện.
     @Transactional(readOnly = true)
     public ProjectListPage listPage(long actorUserId, Pageable requestedPage) {
+        // Giới hạn kích thước trang trước khi query để màn danh sách không tải toàn bộ Project.
         var actor = activeActor(actorUserId);
         Pageable bounded = boundedPage(requestedPage);
         Slice<ProjectEntity> visiblePage = visibleProjectSlice(actor, actorUserId, bounded);
@@ -152,9 +170,14 @@ public class ProjectQueryService {
      * @return authorized detail
      * @throws ProjectAccessDeniedException for missing and unauthorized identifiers alike
      */
+    // [Lấy chi tiết Project]
+    // Luồng xử lý:
+    // 1. visibleProject áp quyền xem và dùng cùng lỗi cho ID không tồn tại/lỗi quyền.
+    // 2. Project COMPLETED vẫn xem được history nhưng không trả quyền quản lý hay Leader hiện tại.
     @Transactional(readOnly = true)
     public ProjectDetail detail(long actorUserId, long projectId) {
         var project = visibleProject(actorUserId, projectId);
+        // Project đã hoàn thành chỉ để xem lịch sử: không còn Leader hiện tại hoặc quyền quản lý.
         var completed = project.status() == ProjectStatus.COMPLETED;
         return new ProjectDetail(
                 project.id(),
@@ -176,9 +199,15 @@ public class ProjectQueryService {
      * @param projectId requested Project identifier
      * @return membership history in aggregate order
      */
+    // [Lấy thành viên và membership history]
+    // Luồng xử lý:
+    // 1. Xác thực quyền xem Project.
+    // 2. Chuyển mọi membership interval thành DTO, bao gồm member đã rời Project.
+    // 3. Chỉ đánh dấu current Leader khi Project chưa completed.
     @Transactional(readOnly = true)
     public List<ProjectMemberView> members(long actorUserId, long projectId) {
         var project = visibleProject(actorUserId, projectId);
+        // Khi Project hoàn thành, không đánh dấu ai là Leader hiện tại trong dữ liệu lịch sử.
         Long leaderUserId = project.status() == ProjectStatus.COMPLETED
                 ? null
                 : project.currentLeader().internUserId();
@@ -209,6 +238,8 @@ public class ProjectQueryService {
      * @return immutable interval projections ordered by Project then membership identifier
      * @throws ProjectAccessDeniedException when the actor is missing, inactive, or not an Intern
      */
+    // [Lấy membership của Intern]
+    // Intern dùng dữ liệu này để làm việc với Task giữa các Project; không có quyền mutation ở đây.
     @Transactional(readOnly = true)
     public List<ProjectMembershipIntervalView> membershipIntervals(long actorUserId) {
         var actor = activeActor(actorUserId);
@@ -229,6 +260,11 @@ public class ProjectQueryService {
      * @return newest-first actionable invitations addressed to that Intern
      * @throws ProjectAccessDeniedException when the actor is inactive or not an Intern
      */
+    // [Lấy inbox invitation của Intern]
+    // Luồng xử lý:
+    // 1. Chỉ cho account Intern ACTIVE đọc inbox.
+    // 2. Chỉ query invitation PENDING có invitedInternUserId trùng actor.
+    // 3. Bổ sung tên Project và Leader phát hành để UI có thể hiển thị.
     @Transactional(readOnly = true)
     public List<PendingProjectInvitationView> pendingInvitations(long actorUserId) {
         var actor = activeActor(actorUserId);
@@ -239,6 +275,7 @@ public class ProjectQueryService {
                         actorUserId, com.lab.labtimesheet.feature.project.model.InvitationStatus.PENDING)
                 .stream()
                 .map(invitation -> {
+                    // Invitee chưa là member nên chỉ được đọc đúng lời mời mang user ID của họ.
                     var project = projects.findById(invitation.projectId())
                             .orElseThrow(ProjectAccessDeniedException::new);
                     return new PendingProjectInvitationView(
@@ -258,6 +295,8 @@ public class ProjectQueryService {
      * @param projectId requested Project identifier
      * @return leadership history, including closed terms
      */
+    // [Lấy lịch sử Leadership]
+    // Lấy term mới nhất trước nhưng vẫn giữ các term cũ để Project History không mất dữ liệu.
     @Transactional(readOnly = true)
     public List<ProjectLeadershipTermView> leadership(long actorUserId, long projectId) {
         return visibleProject(actorUserId, projectId).leadershipTerms().stream()
@@ -285,8 +324,14 @@ public class ProjectQueryService {
      * @return immutable retained history snapshot
      * @throws ProjectAccessDeniedException when the viewer is outside the exact AUTH-006 scope
      */
+    // [Tạo snapshot Project History]
+    // Luồng xử lý:
+    // 1. Xác thực quyền xem Project trước.
+    // 2. Gom membership, leadership, invitation, exit request và Task history thành một snapshot.
+    // 3. Tạo map username/student code cho mọi actor để UI không phải hiển thị ID nội bộ.
     @Transactional(readOnly = true)
     public ProjectHistoryView history(long actorUserId, long projectId) {
+        // Xác nhận quyền xem trước khi gom các bản ghi đã lưu của Project và Task.
         var project = visibleProject(actorUserId, projectId);
         var memberships = project.memberships().stream()
                 .map(membership -> new ProjectMemberView(
@@ -341,7 +386,9 @@ public class ProjectQueryService {
                         request.createdAt(),
                         request.updatedAt()))
                 .toList();
+        // Project không đọc bảng Task trực tiếp; chỉ nhận DTO history từ Task service.
         var taskHistory = taskQueries.history(projectId);
+        // Tạo các map hiển thị một lần để UI dùng username thay vì ID nội bộ.
         Map<Long, String> usernamesByUserId = new LinkedHashMap<>();
         Map<Long, String> usernamesByMembershipId = new LinkedHashMap<>();
         Map<Long, String> usernamesByLeadershipTermId = new LinkedHashMap<>();
@@ -378,6 +425,7 @@ public class ProjectQueryService {
             rememberUsername(usernamesByUserId, request.resolvedByUserId());
         });
         taskHistory.forEach(task -> {
+            // Thu thập mọi actor xuất hiện trong Task, comment và work log để History không lộ raw ID.
             rememberMembershipUsername(
                     project, task.assigneeMembershipId(), usernamesByUserId, usernamesByMembershipId);
             rememberMembershipUsername(
@@ -414,6 +462,11 @@ public class ProjectQueryService {
      * @param projectId requested Project identifier
      * @return pending requests in stable request order
      */
+    // [Kiểm tra điều kiện duyệt exit]
+    // Luồng xử lý:
+    // 1. Chỉ đọc exit request PENDING của Project đã được phép xem.
+    // 2. Tính các điều kiện hiển thị: target có là Leader và còn Task chưa DONE không.
+    // 3. Kết quả chỉ phục vụ UI; không phải quyết định cuối cùng để approve.
     @Transactional(readOnly = true)
     public List<ProjectExitReadinessView> exitReadiness(long actorUserId, long projectId) {
         var project = visibleProject(actorUserId, projectId);
@@ -422,6 +475,7 @@ public class ProjectQueryService {
         return exitRequests.findByProject_IdOrderByCreatedAtAscIdAsc(projectId).stream()
                 .filter(request -> request.isPending())
                 .map(request -> {
+                    // Readiness chỉ phục vụ giao diện; approveExit sẽ tính lại dưới lock trước khi đổi dữ liệu.
                     boolean leader = currentLeaderId != null
                             && currentLeaderId.equals(request.targetMembershipId());
                     long unfinished = taskTransfers.unfinishedCount(projectId, request.targetMembershipId());
@@ -444,8 +498,14 @@ public class ProjectQueryService {
      * @param projectId requested Project identifier
      * @return authorized Task context
      */
+    // [Tạo Task context từ Project]
+    // Luồng xử lý:
+    // 1. Tải Project và áp quyền xem đúng như các màn Project khác.
+    // 2. Lấy membership đang có exit pending.
+    // 3. Đóng gói thành DTO cho Task service, không truyền entity/repository ra ngoài feature.
     @Transactional(readOnly = true)
     public ProjectTaskContext taskContext(long actorUserId, long projectId) {
+        // Task feature chỉ nhận context đã qua quyền Project, không tự chạm vào entity Project.
         var project = projects.findById(projectId).orElseThrow(ProjectAccessDeniedException::new);
         requireVisibleProject(actorUserId, project);
         return taskContext(actorUserId, project,
@@ -469,10 +529,16 @@ public class ProjectQueryService {
      * @param pendingExitMembershipIds pending target IDs read after the Project lock
      * @return immutable DTO-only Task context
      */
+    // [Tạo Task context khi Project đã khóa]
+    // Luồng xử lý khi Project đã được service mutation lock:
+    // 1. Nếu Project COMPLETED, chỉ trả context lịch sử không có member/Leader hoạt động.
+    // 2. Nếu còn mở, chỉ đưa member hiện tại và còn đủ điều kiện internship vào danh sách Task.
+    // 3. Giữ riêng tập pending exit để Task chặn assignment mới nhưng vẫn đọc được dữ liệu cũ.
     ProjectTaskContext taskContext(
             long actorUserId, ProjectEntity project, Set<Long> pendingExitMembershipIds) {
         requireVisibleProject(actorUserId, project);
         if (project.status() == ProjectStatus.COMPLETED) {
+            // Lịch sử Task vẫn xem được, nhưng không cung cấp member/Leader để tạo mutation mới.
             return new ProjectTaskContext(
                     project.id(),
                     project.mentorUserId(),
@@ -484,6 +550,7 @@ public class ProjectQueryService {
                     Set.of());
         }
         var activeMembers = project.memberships().stream()
+                // Chỉ member còn trong Project và còn đủ điều kiện internship mới được thao tác Task.
                 .filter(membership -> membership.isCurrent() && isEligibleIntern(membership.internUserId()))
                 .map(membership -> new ProjectTaskMemberView(
                         membership.id(),
@@ -515,9 +582,12 @@ public class ProjectQueryService {
      * @param actorUserId active actor user identifier
      * @return active Project count and, for Mentors, distinct eligible active-member count
      */
+    // [Thống kê Project dashboard]
+    // Chọn query thống kê theo role để không dùng chung số liệu của các Project ngoài phạm vi người xem.
     @Transactional(readOnly = true)
     public ProjectDashboardSummary dashboardSummary(long actorUserId) {
         var actor = activeActor(actorUserId);
+        // Mỗi role có một phạm vi thống kê riêng, tránh vô tình đếm Project ngoài quyền xem.
         return switch (actor.role().name()) {
             case "ADMIN" -> new ProjectDashboardSummary(projects.countActiveProjects(), 0L);
             case "MENTOR" -> new ProjectDashboardSummary(
@@ -543,6 +613,11 @@ public class ProjectQueryService {
      * @return current-Leader and unfinished-Task facts across current Project memberships
      * @throws ProjectAccessDeniedException when the actor or target shape is unavailable
      */
+    // [Kiểm tra guard complete/withdraw Intern]
+    // Luồng xử lý:
+    // 1. Chỉ Admin được xem guard này.
+    // 2. Duyệt các membership còn mở của Intern để kiểm tra họ có đang là Leader không.
+    // 3. Cộng Task chưa hoàn tất để UI giải thích vì sao chưa complete/withdraw được.
     @Transactional(readOnly = true)
     public InternshipLifecycleGuard internshipLifecycleGuard(long adminUserId, long internUserId) {
         if (activeActor(adminUserId).role() != GlobalRole.ADMIN) {
@@ -561,6 +636,7 @@ public class ProjectQueryService {
                 .filter(interval -> interval.leftAt() == null)
                 .toList();
         boolean currentLeader = currentMemberships.stream().anyMatch(interval -> {
+            // Kiểm tra từng Project hiện tại vì một Intern không thể complete/withdraw khi còn là Leader.
             var route = projects.findMutationRouteById(interval.projectId())
                     .orElseThrow(ProjectAccessDeniedException::new);
             return route.currentLeaderUserId() != null && route.currentLeaderUserId() == internUserId;
@@ -572,14 +648,22 @@ public class ProjectQueryService {
         return new InternshipLifecycleGuard(currentLeader, unfinishedTaskCount);
     }
 
+    // Tải một Project rồi bắt buộc đi qua cùng hàng rào phân quyền trước khi trả cho bất kỳ query nào.
     private ProjectEntity visibleProject(long actorUserId, long projectId) {
         var project = projects.findById(projectId).orElseThrow(ProjectAccessDeniedException::new);
         requireVisibleProject(actorUserId, project);
         return project;
     }
 
+    // [Kiểm tra quyền xem Project]
+    // Luồng kiểm tra quyền xem:
+    // 1. Admin xem mọi Project.
+    // 2. Mentor chỉ xem Project do mình sở hữu.
+    // 3. Intern xem Project đang tham gia, hoặc Project đã completed mà họ từng tham gia.
     private void requireVisibleProject(long actorUserId, ProjectEntity project) {
         var actor = activeActor(actorUserId);
+        // Admin xem mọi Project; Mentor xem Project sở hữu; Intern chỉ xem Project đang tham gia
+        // hoặc Project đã hoàn thành mà họ từng tham gia.
         var visible = "ADMIN".equals(actor.role().name())
                 || ("MENTOR".equals(actor.role().name()) && project.mentorUserId() == actorUserId)
                 || ("INTERN".equals(actor.role().name())
@@ -591,6 +675,8 @@ public class ProjectQueryService {
         }
     }
 
+    // [Chọn query Project theo role]
+    // Chọn repository query theo role để lọc dữ liệu ngay từ database thay vì lọc sau khi tải hết.
     private Slice<ProjectEntity> visibleProjectSlice(
             AccountIdentity actor, long actorUserId, Pageable pageable) {
         return switch (actor.role().name()) {
@@ -630,6 +716,7 @@ public class ProjectQueryService {
 
     private AccountIdentity activeActor(long actorUserId) {
         try {
+            // Dùng cùng hàng rào ACTIVE cho tất cả query để account đã khóa không đọc được Project.
             var actor = accounts.requireIdentityById(actorUserId);
             if (!"ACTIVE".equals(actor.status().name())) {
                 throw new ProjectAccessDeniedException();
@@ -641,11 +728,14 @@ public class ProjectQueryService {
     }
 
     /** Adds one retained account's Project username and optional Intern Student Code to the presentation map. */
+    // [Chuẩn bị username cho History]
+    // Bổ sung một username vào map History một lần duy nhất; Intern có thêm Student Code nếu tồn tại.
     private void rememberUsername(Map<Long, String> usernamesByUserId, long userId) {
         if (userId <= 0 || usernamesByUserId.containsKey(userId)) {
             return;
         }
         try {
+            // Student code chỉ có với Intern; các role khác chỉ hiển thị username.
             String username = accounts.requireIdentityById(userId).displayName();
             var studentCode = accounts.studentCodeByUserId(userId);
             if (studentCode != null && studentCode.isPresent() && !studentCode.get().isBlank()) {
@@ -665,6 +755,8 @@ public class ProjectQueryService {
     }
 
     /** Resolves a retained membership identifier to the participating Intern username. */
+    // [Đổi membership ID thành username]
+    // Đổi membership ID lịch sử thành username của Intern sở hữu membership đó cho template sử dụng.
     private void rememberMembershipUsername(
             ProjectEntity project,
             Long membershipId,
@@ -686,6 +778,8 @@ public class ProjectQueryService {
     }
 
     /** Resolves a retained leadership term identifier to its Leader username. */
+    // [Đổi leadership term ID thành username]
+    // Đổi leadership term ID lịch sử thành username của Leader trong term đó.
     private void rememberLeadershipTermUsername(
             ProjectLeadershipTermEntity term,
             Map<Long, String> usernamesByUserId,
