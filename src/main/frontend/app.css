@@ -166,8 +166,18 @@
   .data-table th, .data-table td { border-bottom: 1px solid var(--border); padding: .7rem 1rem; }
   .data-table tr:last-child td { border-bottom: 0; }
   .tabs { display: inline-flex; gap: .2rem; border: 1px solid var(--border); border-radius: .55rem; background: var(--panel-muted); padding: .2rem; }
+  .project-tabs { display: flex; width: fit-content; max-width: 100%; margin-bottom: 1rem; }
   .tab { border-radius: .4rem; padding: .4rem .65rem; text-decoration: none; }
   .tab[aria-current="page"] { background: var(--panel); box-shadow: 0 1px 2px rgb(20 25 35 / .08); }
+  .history-tabs { margin-top: 1rem; }
+  .history-tabs-nav { display: flex; width: fit-content; max-width: 100%; flex-wrap: wrap; margin-bottom: 1rem; }
+  .history-tab { color: var(--ink); cursor: pointer; }
+  .history-tab[aria-selected="true"] { background: var(--panel); box-shadow: 0 1px 2px rgb(20 25 35 / .08); }
+  .history-table { table-layout: fixed; }
+  .history-table th, .history-table td { overflow-wrap: anywhere; vertical-align: top; }
+  .history-table-four th, .history-table-four td { width: 25%; }
+  .history-table-five th, .history-table-five td { width: 20%; }
+  .history-table-six th, .history-table-six td { width: 16.6667%; }
   .pagination { display: flex; align-items: center; justify-content: flex-end; gap: .4rem; padding: .8rem 1rem; }
   .skeleton { height: 1rem; border-radius: .35rem; background: var(--panel-muted); animation: pulse 1.5s ease-in-out infinite; }
   .notification-menu { min-width: 18rem; padding: 0; }

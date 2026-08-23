@@ -139,6 +139,42 @@ document.addEventListener('DOMContentLoaded', () => {
     drawer.addEventListener('close', restoreFocus);
   });
 
+  document.querySelectorAll('[data-history-tabs]').forEach((historyTabs) => {
+    const tabs = [...historyTabs.querySelectorAll('[data-history-tab]')];
+    const panels = [...historyTabs.querySelectorAll('[data-history-panel]')];
+    if (tabs.length === 0 || panels.length === 0) return;
+
+    const activate = (tab, moveFocus = false) => {
+      const selected = tab.dataset.historyTab;
+      tabs.forEach((candidate) => {
+        const isSelected = candidate === tab;
+        candidate.setAttribute('aria-selected', String(isSelected));
+        candidate.tabIndex = isSelected ? 0 : -1;
+      });
+      panels.forEach((panel) => {
+        panel.hidden = panel.dataset.historyPanel !== selected;
+      });
+      if (moveFocus) tab.focus();
+    };
+
+    tabs.forEach((tab, index) => {
+      tab.addEventListener('click', () => activate(tab));
+      tab.addEventListener('keydown', (event) => {
+        const previous = index === 0 ? tabs.length - 1 : index - 1;
+        const next = index === tabs.length - 1 ? 0 : index + 1;
+        const targetIndex = event.key === 'Home' ? 0
+          : event.key === 'End' ? tabs.length - 1
+            : event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? previous
+              : event.key === 'ArrowRight' || event.key === 'ArrowDown' ? next
+                : null;
+        if (targetIndex === null) return;
+        event.preventDefault();
+        activate(tabs[targetIndex], true);
+      });
+    });
+    activate(tabs.find((tab) => tab.getAttribute('aria-selected') === 'true') || tabs[0]);
+  });
+
   document.querySelectorAll('form[data-confirm], form[data-transfer-confirm]').forEach((form) => {
     form.addEventListener('submit', (event) => {
       let message = form.dataset.confirm;

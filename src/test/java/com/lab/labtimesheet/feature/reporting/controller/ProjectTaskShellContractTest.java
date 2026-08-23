@@ -34,6 +34,18 @@ class ProjectTaskShellContractTest {
                 .contains("#fields.allErrors()");
     }
 
+    @ParameterizedTest
+    @MethodSource("projectSectionTemplates")
+    void projectSectionsUseTheSharedNavigationDirectlyBelowThePageHeading(String relativeTemplate)
+            throws IOException {
+        String template = Files.readString(TEMPLATES.resolve(relativeTemplate))
+                .replace("\r\n", "\n");
+
+        assertThat(template)
+                .contains("fragments/components :: projectTabs(")
+                .contains("<main>\n    <th:block th:replace=");
+    }
+
     private static Stream<String> projectAndTaskTemplates() {
         return Stream.of(
                 "projects/list.html",
@@ -41,6 +53,7 @@ class ProjectTaskShellContractTest {
                 "projects/detail.html",
                 "projects/members.html",
                 "projects/leadership.html",
+                "projects/workflows.html",
                 "tasks/list.html",
                 "tasks/form.html",
                 "tasks/detail.html");
@@ -48,5 +61,14 @@ class ProjectTaskShellContractTest {
 
     private static Stream<String> projectAndTaskForms() {
         return Stream.of("projects/form.html", "tasks/form.html");
+    }
+
+    private static Stream<String> projectSectionTemplates() {
+        return Stream.of(
+                "projects/detail.html",
+                "projects/members.html",
+                "projects/leadership.html",
+                "projects/workflows.html",
+                "tasks/list.html");
     }
 }
