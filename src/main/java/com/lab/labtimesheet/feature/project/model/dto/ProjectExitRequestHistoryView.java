@@ -14,7 +14,7 @@ import java.time.Instant;
  * @param targetMembershipId membership requested for closure
  * @param requesterMembershipId membership that created the request
  * @param requestType member-leave or leader-removal shape
- * @param reason retained nonblank request reason
+ * @param reasonText retained nonblank request reason text
  * @param status pending or terminal decision state
  * @param resolutionNote optional stored Mentor decision note
  * @param resolvedAt terminal resolution instant, or null while pending
@@ -29,7 +29,7 @@ public record ProjectExitRequestHistoryView(
         long targetMembershipId,
         long requesterMembershipId,
         ProjectExitRequestType requestType,
-        String reason,
+        String reasonText,
         ProjectExitRequestStatus status,
         String resolutionNote,
         Instant resolvedAt,

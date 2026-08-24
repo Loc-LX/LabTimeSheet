@@ -34,6 +34,9 @@ import lombok.NoArgsConstructor;
  */
 // Entity trung tâm đại diện cho một Project và toàn bộ lịch sử thành viên/Leader của nó.
 // ProjectService gọi các method ở đây để giữ business rule gần dữ liệu trước khi Repository lưu xuống database.
+// Đây là aggregate root JPA: ProjectService chỉ cần save root, còn membership/leadership child được cascade theo
+// quan hệ bên dưới. mentorUserId và internUserId là scalar ID có chủ ý, vì Account là feature khác và không được
+// import trực tiếp entity sang Project.
 @Entity
 @Table(name = "projects")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -41,6 +44,7 @@ public class ProjectEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    // ID null trước INSERT; database sinh khóa sau khi INSERT và saveAndFlush() làm giá trị này đọc được.
     private Long id;
 
     @Column(name = "mentor_user_id", nullable = false)
@@ -59,9 +63,12 @@ public class ProjectEntity {
     private LocalDate endDate;
 
     @OneToMany(mappedBy = "project", cascade = CascadeType.ALL)
+    // Cascade để membership hiện tại đầu tiên được INSERT cùng lúc với Project root; các interval cũ về sau vẫn giữ
+    // trong collection để phục vụ history, thay vì xóa vật lý.
     private List<ProjectMembershipEntity> memberships = new ArrayList<>();
 
     @OneToMany(mappedBy = "project", cascade = CascadeType.ALL)
+    // Leadership term cũng là child của aggregate. Term hiện tại có endedAt null; term cũ chỉ được đóng lại.
     private List<ProjectLeadershipTermEntity> leadershipTerms = new ArrayList<>();
 
     @Enumerated(EnumType.STRING)
@@ -81,6 +88,7 @@ public class ProjectEntity {
     private Instant updatedAt;
 
     @Version
+    // Optimistic version giúp Hibernate phát hiện update đồng thời khi một Project đã tồn tại bị sửa bởi request khác.
     private long version;
 
     private ProjectEntity(
@@ -115,6 +123,8 @@ public class ProjectEntity {
     // [Lập kế hoạch Project]
     // Tạo Project ở trạng thái PLANNED cùng membership và Leader đầu tiên,
     // vì Project mới không được phép tồn tại mà chưa có Leader.
+    // Method này là domain factory thuần in-memory: kiểm tra invariant, khởi tạo root/children và trả aggregate
+    // chưa managed. Repository/EntityManager mới là nơi biến object này thành INSERT.
     public static ProjectEntity plan(
             long mentorUserId,
             String name,
@@ -123,19 +133,26 @@ public class ProjectEntity {
             LocalDate endDate,
             ProjectInternEligibility initialLeader,
             Instant at) {
+        // Chặn ID malformed ngay trong domain, kể cả khi factory được gọi ngoài Controller.
         if (mentorUserId <= 0) {
             throw new IllegalArgumentException("Mentor user ID must be positive");
         }
+        // requireText trim/chuẩn hóa tên trước khi gán vào entity; null/blank không được đi tới cột NOT NULL.
         var normalizedName = requireText(name, "Project name is required");
+        // Objects.requireNonNull bảo đảm entity không tạo ra aggregate thiếu dữ liệu bắt buộc; các lỗi này là lỗi
+        // lập trình/invariant, khác với lỗi BindingResult của form.
         Objects.requireNonNull(startDate, "startDate");
         Objects.requireNonNull(endDate, "endDate");
         Objects.requireNonNull(at, "at");
-        // Ngày kết thúc không thể đứng trước ngày bắt đầu.
+        // Ngày kết thúc không thể đứng trước ngày bắt đầu. Đây là lớp domain thứ hai sau @AssertTrue của Web DTO.
         if (endDate.isBefore(startDate)) {
             throw new ProjectRuleViolationException("Project end date must not precede its start date");
         }
+        // initialLeader là snapshot DTO từ AccountService. Factory không query database; Service phải query/lock và
+        // tạo snapshot hợp lệ trước khi gọi tới đây, còn factory chỉ đảm bảo fact được truyền vào không thể null/sai.
         requireEligible(initialLeader);
 
+        // Constructor gán các scalar, status mặc định PLANNED và created/updated cùng một Instant server.
         var project = new ProjectEntity(
                 mentorUserId,
                 normalizedName,
@@ -143,8 +160,11 @@ public class ProjectEntity {
                 startDate,
                 endDate,
                 at);
-        // Leader ban đầu đồng thời phải là một thành viên hiện tại của Project.
+        // Leader ban đầu đồng thời phải là một thành viên hiện tại của Project. addEligibleMember tạo child có
+        // back-reference project; thêm term sau đó dùng đúng membership object để FK membership_id hợp lệ.
         var membership = project.addEligibleMember(initialLeader, mentorUserId, at);
+        // leadershipTerms chưa được save riêng; CascadeType.ALL của root sẽ đưa term này vào persistence context khi
+        // projects.saveAndFlush(project) chạy trong ProjectService.
         project.leadershipTerms.add(new ProjectLeadershipTermEntity(project, membership, at, mentorUserId));
         return project;
     }

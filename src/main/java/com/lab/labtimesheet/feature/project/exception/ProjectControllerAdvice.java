@@ -15,8 +15,10 @@ import org.springframework.web.servlet.ModelAndView;
  * exception message.
  */
 // Bộ xử lý lỗi chung chỉ dành cho ProjectController.
-// Khi Controller hoặc Service ném lỗi Project không được bắt tại form, Spring chuyển tới đây
-// để trả trang lỗi an toàn thay vì lộ ID, trạng thái hoặc chi tiết Project không có quyền xem.
+// Khi handler/controller hoặc Service ném lỗi Project không được bắt tại form, DispatcherServlet chuyển exception
+// qua HandlerExceptionResolver và tìm @ControllerAdvice này. Advice dựng ModelAndView, sau đó ViewResolver/Thymeleaf
+// render error/generic thành HTTP response. Không phải exception nào cũng đến đây: CSRF/filter lỗi xảy ra trước
+// DispatcherServlet, còn lỗi Bean Validation của POST được Controller xử lý bằng BindingResult và trả lại form.
 @ControllerAdvice(assignableTypes = ProjectController.class)
 public class ProjectControllerAdvice {
 
@@ -29,6 +31,8 @@ public class ProjectControllerAdvice {
     // Trả cùng một trang 404 cho cả trường hợp không tồn tại và không có quyền, tránh lộ dữ liệu Project.
     @ExceptionHandler(ProjectAccessDeniedException.class)
     public ModelAndView accessDenied() {
+        // Access denied dùng cùng response 404 với "không tồn tại" để không cho client suy ra Project ID hợp lệ,
+        // owner hay membership. Đây là nhánh fallback cho access lỗi không được Controller xử lý cục bộ.
         return genericError(
                 HttpStatus.NOT_FOUND,
                 "Project unavailable",
@@ -45,6 +49,9 @@ public class ProjectControllerAdvice {
     // Ví dụ dữ liệu vừa bị người khác thay đổi hoặc trạng thái Project không còn phù hợp với thao tác gửi lên.
     @ExceptionHandler(ProjectRuleViolationException.class)
     public ModelAndView conflict() {
+        // Rule violation không còn đủ ngữ cảnh để render lại form (ví dụ Project vừa đổi trạng thái hoặc dữ liệu
+        // stale ở mutation khác) nên trả 409 generic. Riêng create, Controller bắt lỗi known field rule trước để
+        // addFieldError và giữ input; lỗi không map được mới rơi xuống advice này.
         return genericError(
                 HttpStatus.CONFLICT,
                 "Project request could not be completed",
@@ -54,6 +61,8 @@ public class ProjectControllerAdvice {
     // [Dựng model trang lỗi]
     // Đặt HTTP status và dữ liệu mà template error/generic đã thống nhất để render ra trình duyệt.
     private static ModelAndView genericError(HttpStatus status, String title, String message) {
+        // Model chỉ chứa copy an toàn đã định nghĩa sẵn, tuyệt đối không dùng exception.getMessage() vì message có
+        // thể chứa ID/SQL/state nội bộ. ModelAndView giữ status HTTP, tên view logic và attributes cho Thymeleaf.
         var error = new ModelAndView("error/generic");
         error.setStatus(status);
         error.addObject("errorStatus", status.value());

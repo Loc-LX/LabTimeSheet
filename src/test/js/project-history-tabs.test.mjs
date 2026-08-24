@@ -35,34 +35,32 @@ class Target {
 }
 
 test('project history shows one balanced history section at a time', () => {
-  const template = readFileSync('src/main/resources/templates/projects/workflows.html', 'utf8');
+  const template = readFileSync('src/main/resources/templates/projects/history.html', 'utf8');
   assert.match(template, /data-history-tabs/);
   assert.match(template, /data-history-tab="memberships"/);
   assert.match(template, /data-history-tab="leadership"/);
   assert.match(template, /data-history-tab="invitations"/);
   assert.match(template, /data-history-tab="exit-decisions"/);
+  assert.match(template, /data-history-tab="tasks"/);
   assert.match(template, /history-table-four/);
   assert.match(template, /history-table-five/);
   assert.match(template, /history-table-six/);
-  assert.match(template, /data-history-tasks-toggle/);
-  assert.match(template, /id="history-task-activity"/);
+  assert.match(template, /id="history-tasks"/);
 
   const tabs = [
     tab('memberships', true),
     tab('leadership', false),
     tab('invitations', false),
     tab('exit-decisions', false),
+    tab('tasks', false),
   ];
   const panels = [
     panel('memberships'),
     panel('leadership'),
     panel('invitations'),
     panel('exit-decisions'),
+    panel('tasks'),
   ];
-  const activityToggle = new Target({});
-  activityToggle.setAttribute('aria-expanded', 'false');
-  activityToggle.setAttribute('aria-controls', 'history-task-activity');
-  const activityPanel = Object.assign(new Target({}), {hidden: true});
   const historyTabs = {
     querySelectorAll(selector) {
       if (selector === '[data-history-tab]') return tabs;
@@ -77,10 +75,9 @@ test('project history shows one balanced history section at a time', () => {
     querySelector() { return null; },
     querySelectorAll(selector) {
       if (selector === '[data-history-tabs]') return [historyTabs];
-      if (selector === '[data-history-tasks-toggle]') return [activityToggle];
       return [];
     },
-    getElementById(id) { return id === 'history-task-activity' ? activityPanel : null; },
+    getElementById() { return null; },
   };
 
   vm.runInNewContext(readFileSync('src/main/resources/static/assets/app.js', 'utf8'), {
@@ -104,12 +101,9 @@ test('project history shows one balanced history section at a time', () => {
   assert.equal(panels[3].hidden, false);
   assert.equal(tabs[3].focused, true);
 
-  activityToggle.dispatch('click');
-  assert.equal(activityPanel.hidden, false);
-  assert.equal(activityToggle.getAttribute('aria-expanded'), 'true');
-  activityToggle.dispatch('click');
-  assert.equal(activityPanel.hidden, true);
-  assert.equal(activityToggle.getAttribute('aria-expanded'), 'false');
+  tabs[4].dispatch('click');
+  assert.equal(panels[4].hidden, false);
+  assert.equal(panels[3].hidden, true);
 });
 
 function tab(name, selected) {

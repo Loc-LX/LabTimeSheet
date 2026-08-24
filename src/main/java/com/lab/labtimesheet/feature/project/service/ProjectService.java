@@ -83,6 +83,11 @@ public class ProjectService {
      * Atomically creates a planned Mentor-owned Project, eligible initial membership, and first
      * leadership term. {@code saveAndFlush} exposes database invariant violations before commit.
      *
+     * <p>When the MVC Controller invokes this Spring bean, the transaction interceptor runs before
+     * the first line and commits only after this method returns normally. A runtime rule/access
+     * exception or a persistence constraint failure marks the transaction for rollback, so a
+     * partially-created Project, membership, or leadership term is not left behind.</p>
+     *
      * @param actorUserId authenticated active Mentor creating and owning the Project
      * @param command validated creation values
      * @return generated Project identifier
@@ -98,17 +103,24 @@ public class ProjectService {
     // 4. Flush dữ liệu rồi tạo notification membership/leadership trong cùng transaction.
     @Transactional
     public long create(long actorUserId, ProjectCreateCommand command) {
+        // Đây là business date lấy từ Clock của server (timezone cấu hình), không dùng startDate do client gửi để
+        // quyết định "hôm nay". Form đã kiểm tra một phần, nhưng service phải giữ invariant kể cả khi bị gọi từ
+        // test, batch hoặc một HTTP client không dùng giao diện.
         LocalDate today = LocalDate.now(clock);
         if (command.startDate().isBefore(today)) {
             throw new ProjectRuleViolationException("Project start date cannot be in the past");
         }
-        // Khoá cả Mentor và Leader ban đầu trước khi tạo Project để eligibility không đổi giữa chừng.
+        // Khoá cả Mentor và Leader ban đầu trước khi tạo Project để role/status/internship eligibility không đổi
+        // giữa lúc đọc fact và lúc ghi Project. AccountService trả snapshot DTO, không làm lộ Account entity.
         var lockedAccounts = lockAccountsForTargetMutation(
                 List.of(actorUserId, command.initialLeaderUserId()));
+        // Các guard này là authorization/rule ở server: actor phải là Mentor ACTIVE, Leader phải là Intern ACTIVE
+        // và còn nằm trong cửa sổ internship. ID ban đầu chỉ là input, không phải bằng chứng quyền.
         requireActiveMentor(snapshotFor(lockedAccounts, actorUserId));
         var initialLeader = snapshotFor(lockedAccounts, command.initialLeaderUserId());
         requireEligibleInternForProjectTarget(initialLeader);
-        // Entity chịu trách nhiệm tạo membership đầu tiên và term Leader đầu tiên cùng lúc.
+        // Factory domain tạo cả aggregate trong memory: root Project, membership hiện tại và leadership term hiện tại.
+        // Ở thời điểm này chưa có INSERT; các object chỉ trở thành persistent khi root được đưa vào EntityManager.
         var project = ProjectEntity.plan(
                 actorUserId,
                 command.name(),
@@ -117,10 +129,16 @@ public class ProjectService {
                 command.endDate(),
                 projectInternEligibility(initialLeader),
                 clock.instant());
+        // JpaRepository.saveAndFlush() chuyển root sang managed state, cascade ALL xuống hai collection con,
+        // phát INSERT projects trước để có generated ID rồi INSERT memberships/leadership_terms theo foreign key.
+        // Flush chỉ đẩy SQL và kiểm tra constraint sớm; commit thật sự vẫn do transaction interceptor thực hiện.
         long projectId = projects.saveAndFlush(project).id();
-        // Chỉ gửi thông báo sau khi dữ liệu chính đã được flush thành công trong transaction.
+        // Chỉ lập notification sau khi root đã có ID và flush thành công. Notification vẫn ở cùng transaction nên
+        // nếu một bước sau ném runtime exception, mutation và notification cùng rollback; nếu commit thành công,
+        // các event/row notification mới trở thành dữ liệu chính thức.
         notifyMembershipChanged(projectId, "INITIAL_MEMBER_ADDED", List.of(initialLeader.userId()));
         notifyLeadershipChanged(projectId, "INITIAL_LEADER_ASSIGNED", List.of(initialLeader.userId()));
+        // Controller nhận ID này để redirect GET /projects/{projectId} theo PRG, không render trực tiếp từ entity.
         return projectId;
     }
 
@@ -1975,8 +1993,12 @@ public class ProjectService {
     private List<LockedAccountMutationEligibility> lockAccountsForTargetMutation(
             Collection<Long> userIds) {
         try {
+            // AccountService lock theo thứ tự ổn định rồi trả snapshot. ProjectService không tự truy cập
+            // AppUserRepository/InternProfileRepository, nên boundary giữa feature vẫn được giữ nguyên.
             return accounts.lockedAccountMutationEligibility(userIds);
         } catch (IllegalArgumentException exception) {
+            // Lỗi thiếu account/profile hoặc ID malformed không được để lộ persistence detail ra HTTP; ở flow create
+            // nó trở thành lỗi rule an toàn cho form/Controller xử lý.
             throw new ProjectRuleViolationException("Intern is not eligible for Project membership");
         }
     }
@@ -2017,7 +2039,8 @@ public class ProjectService {
     }
 
     private boolean eligibleInternForProjectMutation(LockedAccountMutationEligibility account) {
-        // Cần cả snapshot lifecycle đã lock và eligibility theo ngày hiện tại của Account service.
+        // Cần cả snapshot lifecycle đã lock và eligibility theo ngày hiện tại của Account service. Snapshot bảo vệ
+        // transaction hiện tại; query theo ngày bảo đảm status/date rule thực sự còn hợp lệ tại business date.
         return account.eligibleForProjectMutation()
                 && accounts.isEligibleIntern(account.userId(), LocalDate.now(clock));
     }

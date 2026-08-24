@@ -15,7 +15,13 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-/** Account-feature persistence boundary for Intern lifecycle and eligibility. */
+/**
+ * Account-feature persistence boundary for Intern lifecycle and eligibility.
+ *
+ * <p>Method trong interface là repository query definition. Spring Data tạo proxy lúc startup; khi Service gọi,
+ * proxy dùng JPQL/derived-query metadata để tạo SQL qua Hibernate/JPA. Repository không biết HTTP, Model hay
+ * Thymeleaf.</p>
+ */
 public interface InternProfileRepository extends JpaRepository<InternProfile, Long> {
     /** Returns whether an Intern profile has the requested lifecycle state. */
     boolean existsByUserIdAndInternshipStatus(Long userId, InternshipStatus status);
@@ -34,6 +40,9 @@ public interface InternProfileRepository extends JpaRepository<InternProfile, Lo
      * @param businessDate date that must fall within the inclusive internship range
      * @return eligible Intern selection projections without duplicate profile rows
      */
+    // Query này phục vụ GET /projects/new: JOIN theo userId, lọc role/status/date rồi trả projection cho picker.
+    // Điều kiện start <= businessDate và end >= businessDate giữ cả hai biên ngày. Vì chỉ select các scalar cần
+    // render, Hibernate không cần hydrate đầy đủ hai entity và Controller không đưa persistence object vào HTML.
     @Query("""
             select new com.lab.labtimesheet.feature.account.model.dto.EligibleInternOption(
                 u.id, u.displayName, p.studentCode, p.internshipStartDate, p.internshipEndDate)

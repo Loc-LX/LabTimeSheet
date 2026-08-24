@@ -22,6 +22,7 @@ import lombok.NoArgsConstructor;
  */
 // Entity đại diện cho một khoảng thời gian Intern thuộc Project, không phải bản ghi bị xóa khi Intern rời đi.
 // ProjectEntity tạo và đóng khoảng này để vẫn giữ được lịch sử thành viên và Task cũ.
+// @ManyToOne LAZY giữ FK project_id; child trỏ về aggregate root, còn việc cascade/persist được điều khiển từ root.
 @Entity
 @Table(name = "project_memberships")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -57,6 +58,8 @@ public class ProjectMembershipEntity {
     private long version;
 
     ProjectMembershipEntity(ProjectEntity project, long internUserId, Instant joinedAt, long addedByUserId) {
+        // Constructor package-private chỉ được gọi bởi ProjectEntity, nhờ đó không tạo membership rời aggregate
+        // hoặc thiếu project/actor provenance.
         this.project = project;
         this.internUserId = internUserId;
         this.joinedAt = joinedAt;

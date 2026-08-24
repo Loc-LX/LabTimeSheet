@@ -152,7 +152,11 @@ public class ProjectQueryService {
         // Giới hạn kích thước trang trước khi query để màn danh sách không tải toàn bộ Project.
         var actor = activeActor(actorUserId);
         Pageable bounded = boundedPage(requestedPage);
+        // Từ đây Service chọn đúng repository query theo role. Database đã lọc ownership/membership trước khi
+        // trả row; Controller không nhận danh sách toàn hệ thống để rồi cố lọc bằng template.
         Slice<ProjectEntity> visiblePage = visibleProjectSlice(actor, actorUserId, bounded);
+        // Entity chỉ được dùng nội bộ trong read transaction. Map sang DTO bỏ persistence behavior khỏi Model và
+        // chỉ expose những field mà projects/list.html cần render.
         List<ProjectSummary> summaries = visiblePage.getContent().stream()
                 .map(ProjectQueryService::summary)
                 .toList();
@@ -179,6 +183,8 @@ public class ProjectQueryService {
     // 2. Project COMPLETED vẫn xem được history nhưng không trả quyền quản lý hay Leader hiện tại.
     @Transactional(readOnly = true)
     public ProjectDetail detail(long actorUserId, long projectId) {
+        // Đây là read sau redirect PRG (GET /projects/{projectId}). visibleProject vừa lấy Entity vừa authorize;
+        // cùng một lỗi access được dùng cho ID không tồn tại và ID không thuộc actor.
         var project = visibleProject(actorUserId, projectId);
         // Project đã hoàn thành chỉ để xem lịch sử: không còn Leader hiện tại hoặc quyền quản lý.
         var completed = project.status() == ProjectStatus.COMPLETED;
@@ -652,6 +658,8 @@ public class ProjectQueryService {
     }
 
     // Tải một Project rồi bắt buộc đi qua cùng hàng rào phân quyền trước khi trả cho bất kỳ query nào.
+    // findById() tạo SELECT theo khóa chính; nếu Optional rỗng hoặc requireVisibleProject thất bại, Service ném
+    // ProjectAccessDeniedException để ControllerAdvice trả 404 generic thay vì tiết lộ Project có tồn tại hay không.
     private ProjectEntity visibleProject(long actorUserId, long projectId) {
         var project = projects.findById(projectId).orElseThrow(ProjectAccessDeniedException::new);
         requireVisibleProject(actorUserId, project);
@@ -682,6 +690,8 @@ public class ProjectQueryService {
     // Chọn repository query theo role để lọc dữ liệu ngay từ database thay vì lọc sau khi tải hết.
     private Slice<ProjectEntity> visibleProjectSlice(
             AccountIdentity actor, long actorUserId, Pageable pageable) {
+        // Switch này là điểm nối giữa role đã resolve và query database: Admin lấy all, Mentor lọc mentor_user_id,
+        // Intern đi qua JPQL membership/status. Mọi nhánh đều trả Slice bounded, sau đó listPage map sang DTO.
         return switch (actor.role().name()) {
             case "ADMIN" -> projects.findAllByOrderByUpdatedAtDescIdDesc(pageable);
             case "MENTOR" -> projects.findByMentorUserIdOrderByUpdatedAtDescIdDesc(actorUserId, pageable);
@@ -720,6 +730,8 @@ public class ProjectQueryService {
     private AccountIdentity activeActor(long actorUserId) {
         try {
             // Dùng cùng hàng rào ACTIVE cho tất cả query để account đã khóa không đọc được Project.
+            // AccountService trả identity DTO; QueryService không query AppUserRepository trực tiếp và không đẩy
+            // entity Account vào view. Nếu account bị disable sau lúc login, request hiện tại vẫn bị chặn tại đây.
             var actor = accounts.requireIdentityById(actorUserId);
             if (!"ACTIVE".equals(actor.status().name())) {
                 throw new ProjectAccessDeniedException();
@@ -810,6 +822,8 @@ public class ProjectQueryService {
     }
 
     private static ProjectSummary summary(ProjectEntity project) {
+        // DTO mapping là bước cuối trước Model/Thymeleaf: entity state được chuyển thành dữ liệu bất biến để template
+        // không thể gọi domain mutation hoặc vô tình trigger lazy loading ngoài read boundary.
         return new ProjectSummary(
                 project.id(),
                 project.name(),

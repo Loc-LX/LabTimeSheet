@@ -622,6 +622,9 @@ public class AccountService {
      */
     @Transactional(readOnly = true)
     public AccountIdentity requireIdentityByEmail(String email) {
+        // Principal từ Spring Security chỉ cung cấp tên/email; AccountService là boundary đổi nó thành identity
+        // của hệ thống. Repository chuẩn hóa email và chỉ lấy account đang tồn tại; không load ProjectEntity và
+        // không lock row vì đây mới là bước định danh actor, chưa phải bước authorize/mutate.
         return users.findByNormalizedEmail(BootstrapService.normalizeEmail(email)).map(AccountService::identity)
                 .orElseThrow(() -> new IllegalArgumentException("Account not found"));
     }
@@ -681,9 +684,13 @@ public class AccountService {
      */
     @Transactional(readOnly = true)
     public boolean isEligibleIntern(long userId, LocalDate workDate) {
+        // workDate phải do server/Clock cung cấp, không lấy từ request, để client không thể tự chọn ngày nhằm vượt
+        // qua thời hạn internship. Hai điều kiện ngày dùng <= và >= nên biên start/end đều được tính là hợp lệ.
         if (workDate == null) {
             throw new IllegalArgumentException("Work date is required");
         }
+        // findById() kiểm tra role và account status trong memory sau khi load account; exists... tạo query tồn tại
+        // trên InternProfile, tránh hydrate toàn bộ profile chỉ để quyết định true/false.
         return users.findById(userId)
                 .filter(user -> user.getGlobalRole() == GlobalRole.INTERN)
                 .filter(user -> user.getAccountStatus() == AccountStatus.ACTIVE)
@@ -812,9 +819,14 @@ public class AccountService {
      */
     @Transactional
     public List<LockedAccountMutationEligibility> lockedAccountMutationEligibility(Collection<Long> userIds) {
+        // Đây là read-then-authorize boundary dùng cho mutation. @Transactional giữ các pessimistic locks từ lúc
+        // đọc cho đến khi ProjectService hoàn tất kiểm tra và save, tránh một request khác đổi trạng thái account
+        // ở giữa quyết định và INSERT/UPDATE Project.
         if (userIds == null) {
             throw new IllegalArgumentException("Account IDs are required");
         }
+        // Chuẩn hóa, loại duplicate và sort ID tạo lock order cố định; mọi transaction lock cùng thứ tự sẽ giảm
+        // nguy cơ deadlock khi nhiều request cùng tác động lên một nhóm account.
         List<Long> orderedIds = userIds.stream()
                 .map(id -> {
                     if (id == null || id <= 0) {
@@ -827,6 +839,7 @@ public class AccountService {
                 .toList();
         Map<Long, AppUser> lockedUsers = new LinkedHashMap<>(orderedIds.size());
         for (Long userId : orderedIds) {
+            // findForUpdateById() phát ra SELECT ... FOR UPDATE (tùy dialect), giữ row Account đến cuối transaction.
             AppUser user = users.findForUpdateById(userId)
                     .orElseThrow(() -> new IllegalArgumentException("Account not found"));
             lockedUsers.put(userId, user);
@@ -835,12 +848,16 @@ public class AccountService {
         for (Long userId : orderedIds) {
             AppUser user = lockedUsers.get(userId);
             if (user.getGlobalRole() == GlobalRole.INTERN) {
+                // Chỉ Intern mới có profile cần lock; account được lock trước profile để tất cả caller dùng cùng
+                // thứ tự. Thiếu profile là dữ liệu không nhất quán, vì vậy dừng transaction thay vì đoán trạng thái.
                 lockedProfiles.put(userId, internProfiles.findForUpdateByUserId(userId)
                         .orElseThrow(() -> new IllegalArgumentException("Intern profile not found")));
             }
         }
         Instant now = clock.instant();
         LocalDate currentDate = now.atZone(clock.getZone()).toLocalDate();
+        // Khi account active và hôm nay nằm trong cửa sổ internship, profile NOT_STARTED được chuyển sang ACTIVE
+        // trong cùng transaction. Vì profile đang bị lock, snapshot bên dưới phản ánh quyết định hiện tại.
         for (Map.Entry<Long, InternProfile> entry : lockedProfiles.entrySet()) {
             AppUser user = lockedUsers.get(entry.getKey());
             InternProfile profile = entry.getValue();
@@ -852,6 +869,8 @@ public class AccountService {
             }
         }
         List<LockedAccountMutationEligibility> snapshots = new ArrayList<>(orderedIds.size());
+        // Không trả entity ra feature Project. Snapshot bất biến này là dữ liệu đã lock/đọc, đủ cho rule layer dùng
+        // mà không làm lộ persistence model của Account và không cho caller sửa entity ngoài transaction.
         for (Long userId : orderedIds) {
             AppUser user = lockedUsers.get(userId);
             var internshipStatus = user.getGlobalRole() == GlobalRole.INTERN
@@ -874,9 +893,13 @@ public class AccountService {
      */
     @Transactional(readOnly = true)
     public List<EligibleInternOption> eligibleInternOptions(LocalDate businessDate) {
+        // GET /projects/new gọi read-only query này để render picker. Đây chỉ là danh sách gợi ý tại thời điểm mở form,
+        // không phải reservation và không phải authorization cuối cùng cho POST /projects.
         if (businessDate == null) {
             throw new IllegalArgumentException("Business date is required");
         }
+        // Repository trả constructor projection EligibleInternOption: chỉ lấy các cột cần hiển thị, không load
+        // AppUser/InternProfile entity đầy đủ. POST vẫn gọi requireEligibleIntern/isEligibleIntern để chống stale UI.
         return internProfiles.findEligibleInternOptions(
                 GlobalRole.INTERN, AccountStatus.ACTIVE, InternshipStatus.ACTIVE, businessDate);
     }
@@ -890,6 +913,8 @@ public class AccountService {
      */
     @Transactional(readOnly = true)
     public AccountIdentity requireEligibleIntern(long userId) {
+        // Đây là lớp kiểm tra lại ID initialLeader do client gửi. Danh sách GET có thể cũ hoặc bị chỉnh sửa bằng
+        // DevTools, vì vậy Service không tin hidden/radio value và không dùng dữ liệu từ Model làm authorization.
         if (!isEligibleIntern(userId)) {
             throw new IllegalArgumentException("An active Intern account and internship are required");
         }

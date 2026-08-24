@@ -22,6 +22,7 @@ import lombok.NoArgsConstructor;
  */
 // Entity lưu từng giai đoạn một Intern làm Leader của Project.
 // Đổi Leader không sửa Leader cũ mà đóng term cũ và tạo term mới để lịch sử luôn truy vết được.
+// membership_id liên kết term với đúng interval thành viên; vì vậy Leader luôn phải là current member cùng Project.
 @Entity
 @Table(name = "project_leadership_terms")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -56,6 +57,8 @@ public class ProjectLeadershipTermEntity {
             ProjectMembershipEntity membership,
             Instant startedAt,
             long appointedByMentorUserId) {
+        // Chỉ ProjectEntity tạo term. Service không tự dựng term bằng ID rời, tránh leadership trỏ tới membership
+        // của Project khác hoặc không nằm trong aggregate hiện tại.
         this.project = project;
         this.membership = membership;
         this.startedAt = startedAt;

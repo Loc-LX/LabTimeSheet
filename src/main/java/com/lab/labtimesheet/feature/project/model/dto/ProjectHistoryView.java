@@ -22,8 +22,8 @@ import java.util.Map;
  * @param usernamesByMembershipId Project-only presentation map for retained membership identifiers
  * @param usernamesByLeadershipTermId Project-only presentation map for retained leadership-term identifiers
  */
-// DTO gom các loại lịch sử của Project để Controller đưa vào màn Workflows & History.
-// UI tách membership, leadership, invitation và exit decision thành tab nhưng đều lấy từ object này.
+// DTO gom các loại lịch sử retained cho trang Project History read-only.
+// Workflow chỉ dùng snapshot này nội bộ để resolve attribution và các điều kiện thao tác hiện tại.
 public record ProjectHistoryView(
         long projectId,
         List<ProjectMemberView> memberships,

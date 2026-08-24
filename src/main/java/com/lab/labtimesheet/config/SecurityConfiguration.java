@@ -105,6 +105,12 @@ class SecurityConfiguration {
             SessionRegistry sessionRegistry,
             Environment environment)
             throws Exception {
+        // Mỗi request đi qua SecurityFilterChain trước DispatcherServlet. Vì /projects không nằm trong permitAll
+        // hay /admin/**, nó rơi vào anyRequest().authenticated(): chưa login thì dừng ở security/redirect login,
+        // đã login thì SecurityContext chứa Authentication để Controller nhận Principal.
+        // CSRF protection của Spring Security vẫn bật mặc định vì chain không gọi csrf().disable(). Do đó POST
+        // /projects phải mang CSRF token hợp lệ; request thiếu/sai token bị filter từ chối trước khi ProjectController
+        // được gọi, nên không có ProjectCreateForm, transaction hay INSERT nào được tạo.
         var success = new SavedRequestAwareAuthenticationSuccessHandler();
         success.setDefaultTargetUrl("/");
         success.setAlwaysUseDefaultTargetUrl(false);

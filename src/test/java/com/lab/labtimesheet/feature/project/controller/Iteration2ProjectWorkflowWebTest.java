@@ -2,6 +2,7 @@ package com.lab.labtimesheet.feature.project.controller;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.matchesPattern;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -104,7 +105,7 @@ class Iteration2ProjectWorkflowWebTest {
     }
 
     @Test
-    void currentLeaderSeesPersistentReadinessAndPostsOneAtomicTransferBatch() throws Exception {
+    void currentLeaderSeesActionOnlyWorkflowsAndSeparateReadOnlyHistory() throws Exception {
         ProjectActorView actor = new ProjectActorView(20L, "INTERN");
         when(pages.authenticatedActor("leader@example.test")).thenReturn(actor);
         when(pages.authenticatedUserId("leader@example.test")).thenReturn(20L);
@@ -154,18 +155,27 @@ class Iteration2ProjectWorkflowWebTest {
         try {
             mvc.perform(get("/projects/30/workflows").with(user("leader@example.test").roles("INTERN")))
                     .andExpect(status().isOk())
-                    .andExpect(content().string(containsString("Exit readiness")))
+                    .andExpect(content().string(containsString("Removal readiness")))
                     .andExpect(content().string(containsString("2 unfinished Tasks remain")))
                     .andExpect(content().string(containsString("Transfer unfinished Tasks")))
-                    .andExpect(content().string(containsString("Invite an Intern")))
-                    .andExpect(content().string(containsString("Project History")))
+                    .andExpect(content().string(containsString("Invite Interns")))
                     .andExpect(content().string(containsString("Intern2 (PRJ-SEED-2)")))
+                    .andExpect(content().string(not(containsString("Project History"))))
+                    .andExpect(content().string(not(containsString("Task activity"))));
+
+            mvc.perform(get("/projects/30/history").with(user("leader@example.test").roles("INTERN")))
+                    .andExpect(status().isOk())
+                    .andExpect(content().string(containsString("Project History")))
+                    .andExpect(content().string(containsString("Read-only records")))
                     .andExpect(content().string(containsString("Mentor1")))
+                    .andExpect(content().string(containsString("Capacity")))
                     .andExpect(content().string(containsString("20/08/2026 07:00")))
                     .andExpect(content().string(containsString("Task activity")))
                     .andExpect(content().string(containsString("Completed Task")))
                     .andExpect(content().string(containsString("Retained comment")))
-                    .andExpect(content().string(containsString("Retained work")));
+                    .andExpect(content().string(containsString("Retained work")))
+                    .andExpect(content().string(not(containsString("Issue invitations"))))
+                    .andExpect(content().string(not(containsString("Direct remove"))));
         } finally {
             TimeZone.setDefault(previousZone);
         }
@@ -220,7 +230,7 @@ class Iteration2ProjectWorkflowWebTest {
                         .flashAttr("projectError", "Project state changed")
                         .flashAttr("projectInput", retainedRemoval))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("value=\"Retain this reason\"")))
+                .andExpect(content().string(containsString("Retain this reason</textarea>")))
                 .andExpect(content().string(matchesPattern(
                         "(?s).*<option[^>]*value=\"42\"[^>]*selected=\"selected\"[^>]*>.*")))
                 .andExpect(content().string(containsString("id=\"removal-form-error\"")));

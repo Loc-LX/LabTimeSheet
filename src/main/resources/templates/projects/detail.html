@@ -8,30 +8,97 @@
           content=~{::main})}">
 <body>
 <a id="primary-action" class="button button-primary" th:href="@{/projects/{id}/tasks(id=${project.id})}">View Tasks</a>
-<main>
+<main class="project-overview">
     <th:block th:replace="~{fragments/components :: projectTabs(${project.id}, 'overview')}"></th:block>
-    <p class="page-description" th:text="${project.description == null || #strings.isEmpty(project.description) ? 'No Project description.' : project.description}">Project description.</p>
-    <p class="alert alert-error" role="alert" th:if="${projectError}" th:text="${projectError}"></p>
-    <section class="panel metric-strip" aria-label="Project details">
-        <div class="metric"><div class="metric-label">Status</div><div class="metric-value"><span class="badge" th:classappend="${project.status == 'ACTIVE' ? ' badge-success' : ''}" th:text="${project.status}">PLANNED</span></div></div>
-        <div class="metric"><div class="metric-label">Mentor</div><div class="metric-value" th:text="${project.mentorName}">Mentor</div></div>
-        <div class="metric"><div class="metric-label">Leader</div><div class="metric-value" th:text="${project.leaderName ?: 'No current Leader'}">Leader</div></div>
-        <div class="metric"><div class="metric-label">Project window</div><div class="metric-value" th:text="${#temporals.format(project.startDate, 'dd/MM/yyyy') + ' – ' + #temporals.format(project.endDate, 'dd/MM/yyyy')}">15/08/2026 – 30/09/2026</div></div>
+
+    <section class="project-overview-intro" aria-labelledby="project-overview-heading">
+        <div class="project-overview-intro-copy">
+            <p class="project-overview-kicker">Project overview</p>
+            <h2 class="project-overview-heading" id="project-overview-heading">Project summary</h2>
+            <p class="project-overview-intro-text">A quick view of the project window, ownership, and next actions.</p>
+        </div>
+        <div class="project-overview-status-block">
+            <span class="project-overview-label">Current status</span>
+            <span class="badge project-overview-status"
+                  th:classappend="${project.status == 'ACTIVE' ? ' badge-success' : project.status == 'COMPLETED' ? ' badge-info' : ' badge-warning'}"
+                  th:text="${project.status}">PLANNED</span>
+        </div>
     </section>
-    <form class="inline-actions" th:if="${project.canManage and project.status == 'PLANNED'}" th:action="@{/projects/{id}/activate(id=${project.id})}" method="post">
-        <button class="button button-primary" type="submit">Activate</button>
-    </form>
-    <form class="inline-actions" th:if="${project.canManage and project.status == 'PLANNED'}"
-          th:action="@{/projects/{id}/delete(id=${project.id})}" method="post"
-          data-confirm="Delete this planned Project? Its memberships, invitations, Tasks, and history will be removed.">
-        <button class="button button-danger" type="submit">Delete Project</button>
-    </form>
-    <section class="panel form-panel" th:each="readiness : ${exitReadiness}">
-        <header class="panel-header"><h2 class="panel-title">Exit readiness</h2></header>
-        <p class="field-help" th:if="${readiness.targetIsCurrentLeader}">Appoint a replacement Leader before this exit can be approved.</p>
-        <p class="field-help" th:if="${readiness.unfinishedTaskCount > 0}" th:text="|${readiness.unfinishedTaskCount} unfinished Tasks remain before Mentor decision.|">Unfinished Tasks remain.</p>
-        <p class="field-help" th:if="${readiness.readyForApproval}">Ready for Mentor decision.</p>
-        <a class="button" th:href="@{/projects/{id}/workflows(id=${project.id})}">Open exit workflow</a>
+
+    <p class="alert alert-error project-overview-alert" role="alert" th:if="${projectError}" th:text="${projectError}"></p>
+
+    <section class="project-overview-facts" aria-label="Project details">
+        <article class="project-overview-fact project-overview-fact-window">
+            <p class="project-overview-label">Project window</p>
+            <p class="project-overview-value project-overview-date"
+               th:text="${#temporals.format(project.startDate, 'dd/MM/yyyy') + ' – ' + #temporals.format(project.endDate, 'dd/MM/yyyy')}">15/08/2026 – 30/09/2026</p>
+            <p class="project-overview-hint">Inclusive start and end dates</p>
+        </article>
+        <article class="project-overview-fact">
+            <p class="project-overview-label">Mentor</p>
+            <p class="project-overview-value" th:text="${project.mentorName}">Mentor</p>
+            <p class="project-overview-hint">Project owner</p>
+        </article>
+        <article class="project-overview-fact">
+            <p class="project-overview-label">Leader</p>
+            <p class="project-overview-value" th:text="${project.leaderName ?: 'No current Leader'}">Leader</p>
+            <p class="project-overview-hint">Current project Leader</p>
+        </article>
+    </section>
+
+    <section class="project-overview-description" aria-labelledby="project-description-title">
+        <div class="project-overview-section-heading">
+            <p class="project-overview-kicker">Project context</p>
+            <h2 class="project-overview-section-title" id="project-description-title">Description</h2>
+        </div>
+        <p class="project-overview-description-text" th:text="${project.description == null || #strings.isEmpty(project.description) ? 'No Project description.' : project.description}">Project description.</p>
+    </section>
+
+    <section class="project-overview-actions" aria-labelledby="project-actions-title"
+             th:if="${project.canManage and project.status == 'PLANNED'}">
+        <div class="project-overview-section-heading">
+            <p class="project-overview-kicker">Next step</p>
+            <h2 class="project-overview-section-title" id="project-actions-title">Project actions</h2>
+            <p class="project-overview-section-text">Activate this planned project or remove it before work begins.</p>
+        </div>
+        <div class="project-overview-action-row">
+            <form th:action="@{/projects/{id}/activate(id=${project.id})}" method="post">
+                <button class="button button-primary" type="submit">Activate</button>
+            </form>
+            <form th:action="@{/projects/{id}/delete(id=${project.id})}" method="post"
+                  data-confirm="Delete this planned Project? Its memberships, invitations, Tasks, and history will be removed.">
+                <button class="button button-danger" type="submit">Delete Project</button>
+            </form>
+        </div>
+    </section>
+
+    <section class="project-overview-workflows" aria-labelledby="exit-readiness-title"
+             th:if="${exitReadiness != null and !#lists.isEmpty(exitReadiness)}">
+        <div class="project-overview-section-heading project-overview-workflows-heading">
+            <div>
+                <p class="project-overview-kicker">Pending workflow</p>
+                <h2 class="project-overview-section-title" id="exit-readiness-title">Exit readiness</h2>
+                <p class="project-overview-section-text">Review outstanding intern exit requests before making a Mentor decision.</p>
+            </div>
+            <a class="button" th:href="@{/projects/{id}/workflows(id=${project.id})}">Open workflows</a>
+        </div>
+        <div class="project-overview-request-list">
+            <article class="project-overview-request" th:each="readiness : ${exitReadiness}">
+                <div class="project-overview-request-title">
+                    <div>
+                        <p class="project-overview-label">Intern exit request</p>
+                        <h3>Mentor decision pending</h3>
+                    </div>
+                    <span class="badge" th:classappend="${readiness.readyForApproval ? ' badge-success' : ''}"
+                          th:text="${readiness.readyForApproval ? 'Ready' : 'Needs review'}">Needs review</span>
+                </div>
+                <div class="project-overview-request-status">
+                    <p class="field-help" th:if="${readiness.targetIsCurrentLeader}">Appoint a replacement Leader before this exit can be approved.</p>
+                    <p class="field-help" th:if="${readiness.unfinishedTaskCount > 0}" th:text="|${readiness.unfinishedTaskCount} unfinished Tasks remain before Mentor decision.|">Unfinished Tasks remain.</p>
+                    <p class="field-help" th:if="${readiness.readyForApproval}">Ready for Mentor decision.</p>
+                </div>
+            </article>
+        </div>
     </section>
 </main>
 </body>

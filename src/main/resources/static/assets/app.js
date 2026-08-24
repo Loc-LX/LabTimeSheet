@@ -203,19 +203,6 @@ document.addEventListener('DOMContentLoaded', () => {
     activate(tabs.find((tab) => tab.getAttribute('aria-selected') === 'true') || tabs[0]);
   });
 
-  document.querySelectorAll('[data-history-tasks-toggle]').forEach((toggle) => {
-    const panel = document.getElementById(toggle.getAttribute('aria-controls'));
-    if (!panel) return;
-    toggle.addEventListener('click', () => {
-      const expanded = toggle.getAttribute('aria-expanded') === 'true';
-      toggle.setAttribute('aria-expanded', String(!expanded));
-      panel.hidden = expanded;
-      toggle.textContent = expanded
-        ? 'Show tasks, comments and work logs'
-        : 'Hide tasks, comments and work logs';
-    });
-  });
-
   document.querySelectorAll('form[data-confirm], form[data-transfer-confirm]').forEach((form) => {
     form.addEventListener('submit', (event) => {
       let message = form.dataset.confirm;

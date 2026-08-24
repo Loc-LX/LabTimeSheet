@@ -41,10 +41,17 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 /**
  * Serves authenticated, server-rendered Project pages and binds Project mutation forms.
  *
+ * <p>Every method here is reached through Spring MVC's {@code DispatcherServlet} after the
+ * servlet filter chain has handled the HTTP session, authentication, authorization, and (for
+ * state-changing requests) CSRF checks. The controller is therefore the HTTP boundary: it turns
+ * the authenticated {@link Principal}, path variables, query parameters, and form fields into
+ * feature-service calls, then turns a logical view name or redirect into the HTTP response
+ * rendered by Thymeleaf.</p>
+ *
  * <p>Project services remain the authority for ownership, membership, lifecycle, and
  * transactional validation. Known rule failures are returned to the originating safe view,
  * while authorization failures are left to {@code ProjectControllerAdvice} so identifiers are
- * not disclosed.
+ * not disclosed.</p>
  */
 // Điểm nhận HTTP request của toàn bộ màn hình Project.
 // Controller chỉ lấy dữ liệu từ URL/form, gọi các Project service xử lý nghiệp vụ,
@@ -70,24 +77,38 @@ public class ProjectController {
      * @return the Project list view
      */
     // [Danh sách Project]
+    // DispatcherServlet route: GET /projects -> method này vì class prefix là /projects và
+    // @GetMapping không có suffix. Browser thường đến đây từ navigation hoặc từ redirect sau
+    // một mutation; response cuối cùng là HTML view projects/list, không phải JSON.
     // Luồng xử lý:
-    // 1. Xác định tài khoản đang đăng nhập và role của họ.
-    // 2. Chuẩn hóa số trang từ URL rồi lấy đúng các Project mà role đó được xem.
-    // 3. Gửi danh sách, thông tin phân trang và quyền tạo Project sang giao diện.
+    // 1. SecurityContext cung cấp Principal; controller đưa email vào ProjectQueryService để
+    //    AccountService xác nhận account tồn tại, ACTIVE và lấy userId/role.
+    // 2. page trên URL là one-based, còn PageRequest của Spring Data là zero-based; controller
+    //    chuẩn hóa page rồi service query đúng phạm vi Admin/Mentor/Intern.
+    // 3. QueryService đổi Entity thành DTO ProjectSummary, controller đưa DTO vào Model cùng
+    //    quyền canCreateProject; Thymeleaf dùng Model đó để tạo link /projects/new.
     @GetMapping
     public String list(
             Principal principal,
             @RequestParam(defaultValue = "1") int page,
             Model model) {
-        // Xác định người đang đăng nhập trước để danh sách chỉ chứa Project họ được phép xem.
+        // principal.getName() là identity do Spring Security xác lập từ session, không phải giá trị
+        // do browser gửi trong form. Vì vậy user không thể đổi actor bằng cách sửa parameter.
         var actor = pages.authenticatedActor(principal.getName());
-        // URL dùng số trang bắt đầu từ 1, còn Spring Pageable bắt đầu từ 0.
+        // URL dùng số trang bắt đầu từ 1, còn Spring Pageable bắt đầu từ 0; Math.max cũng ngăn
+        // request page=0 hoặc page âm tạo Pageable bất hợp lệ.
         int requestedPage = Math.max(page, 1);
+        // ProjectQueryService tiếp tục kiểm tra quyền và gọi ProjectRepository. Controller không
+        // tự viết SQL và cũng không đưa toàn bộ Project aggregate vào template.
         ProjectListPage projectPage = pages.listPage(
                 actor.userId(), PageRequest.of(requestedPage - 1, 50));
+        // Model là request-scoped data passed from controller to Thymeleaf. addAttribute không save
+        // dữ liệu; nó chỉ chuẩn bị biến cho lần render HTML hiện tại.
         model.addAttribute("projects", projectPage.projects());
         model.addAttribute("projectPage", projectPage);
+        // Đây chỉ là hint để ẩn/hiện nút ở UI. POST /projects vẫn kiểm tra role lại ở server.
         model.addAttribute("canCreateProject", "MENTOR".equals(actor.role()));
+        // Chuỗi này là logical view name; ThymeleafViewResolver tìm /templates/projects/list.html.
         return "projects/list";
     }
 
@@ -100,18 +121,34 @@ public class ProjectController {
      * @throws ProjectAccessDeniedException when the actor is not an active Mentor
      */
     // [Mở form tạo Project]
+    // DispatcherServlet route: GET /projects/new -> method này. Mapping literal /new cụ thể hơn
+    // mapping /{projectId}, nên chuỗi "new" không bị coi là một projectId.
     // Luồng xử lý:
-    // 1. Kiểm tra người mở form có phải Mentor hay không.
-    // 2. Tạo form trống và tải danh sách Intern đang đủ điều kiện làm Leader ban đầu.
+    // 1. Filter chain đã xác thực session; pages.authenticatedActor tiếp tục đọc Account để
+    //    xác nhận actor còn ACTIVE và có role MENTOR.
+    // 2. Tạo một ProjectCreateForm rỗng trong Model với key projectForm. Đây là object phục vụ
+    //    Thymeleaf binding của request GET, chưa liên quan đến database Project.
+    // 3. Query Account-owned InternProfile projection để lấy các option Initial Leader hợp lệ.
+    // 4. Đưa today vào Model để input date có min client-side; service vẫn kiểm tra lại ngày vì
+    //    người dùng có thể bypass HTML bằng DevTools/Postman.
+    // 5. Return projects/form; DispatcherServlet resolve template và trả HTTP 200 HTML.
     @GetMapping("/new")
     public String createForm(Principal principal, Model model) {
-        // Chỉ Mentor được nhìn thấy và gửi form tạo Project.
+        // Đây là authorization ở application layer. Việc list.html ẩn nút Create không đủ an toàn
+        // vì user vẫn có thể tự gõ GET /projects/new.
         if (!"MENTOR".equals(pages.authenticatedActor(principal.getName()).role())) {
             throw new ProjectAccessDeniedException();
         }
+        // Constructor rỗng gán null cho name/description/startDate/endDate/initialLeaderUserId.
+        // Thymeleaf sẽ lấy object này làm th:object="${projectForm}".
         model.addAttribute("projectForm", new ProjectCreateForm());
+        // Helper gọi AccountService chứ không query trực tiếp từ Controller; options chỉ là dữ liệu
+        // hiển thị, còn eligibility thực sự sẽ được recheck trong ProjectService khi POST.
         model.addAttribute("eligibleInternOptions", eligibleInternOptions());
+        // LocalDate.now(clock) dùng business timezone Asia/Ho_Chi_Minh và tạo min="yyyy-MM-dd"
+        // trong HTML input type=date.
         model.addAttribute("today", LocalDate.now(clock));
+        // Logical view name -> Thymeleaf template /templates/projects/form.html.
         return "projects/form";
     }
 
@@ -125,37 +162,62 @@ public class ProjectController {
      * @return a redirect to the created Project, or the creation form on validation failure
      */
     // [Tạo Project mới]
+    // DispatcherServlet route: POST /projects -> method này vì class prefix /projects kết hợp
+    // @PostMapping không suffix. Browser gửi application/x-www-form-urlencoded gồm name,
+    // description, startDate, endDate và initialLeaderUserId; CSRF token được Spring Security
+    // kiểm tra trước khi DispatcherServlet gọi method.
     // Luồng xử lý:
-    // 1. Chỉ Mentor được phép gửi form tạo Project.
-    // 2. Nếu dữ liệu nhập sai, giữ form và danh sách lựa chọn để người dùng sửa.
-    // 3. Nếu hợp lệ, giao cho ProjectService tạo Project; lỗi nghiệp vụ được trả về đúng ô Leader.
+    // 1. Spring MVC bind request parameters vào @ModelAttribute("projectForm") và convert String
+    //    date/id thành LocalDate/Long; @Valid chạy Bean Validation; BindingResult nhận mọi lỗi.
+    // 2. Controller xác nhận actor ACTIVE/Mentor một lần nữa, không tin role hoặc owner từ browser.
+    // 3. Nếu BindingResult có lỗi, không gọi ProjectService: nạp lại option/today rồi render cùng
+    //    view để th:field giữ input và th:errors/#fields hiển thị lỗi.
+    // 4. Nếu form hợp lệ, form.toCommand() tạo command immutable; actor.userId() được truyền riêng
+    //    làm owner, nên form không thể giả mạo Mentor sở hữu Project.
+    // 5. ProjectService mở transaction, lock Account/Profile, recheck business rule, tạo Entity và
+    //    save cascade qua ProjectRepository. Thành công trả ID, controller trả redirect để browser
+    //    tạo GET /projects/{id} mới theo Post/Redirect/Get.
+    // 6. ProjectRuleViolationException của creation flow được map vào field an toàn; AccessDenied
+    //    đi lên ProjectControllerAdvice để trả response không tiết lộ resource.
     @PostMapping
     public String create(
             Principal principal,
             @Valid @ModelAttribute("projectForm") ProjectCreateForm projectForm,
             BindingResult bindingResult,
             Model model) {
+        // HandlerAdapter của Spring MVC đã tạo projectForm và BindingResult trước khi vào body này.
+        // BindingResult phải đứng ngay sau form parameter để Spring gắn đúng lỗi vào object projectForm.
         var actor = pages.authenticatedActor(principal.getName());
         // Kiểm tra quyền ở server, không dựa vào việc nút tạo Project có bị ẩn ở giao diện hay không.
         if (!"MENTOR".equals(actor.role())) {
             throw new ProjectAccessDeniedException();
         }
         if (bindingResult.hasErrors()) {
-            // Khi dữ liệu form sai, tải lại các Intern hợp lệ để người dùng không phải bắt đầu lại.
+            // Có lỗi binding/Bean Validation thì ProjectService chưa được gọi và không có transaction
+            // ghi Project. projectForm + BindingResult vẫn ở Model tự động, nên Thymeleaf có thể giữ
+            // các giá trị đã nhập và render field-level/global errors.
             model.addAttribute("eligibleInternOptions", eligibleInternOptions());
             model.addAttribute("today", LocalDate.now(clock));
             return "projects/form";
         }
         try {
-            // Service thực hiện toàn bộ kiểm tra nghiệp vụ và trả về ID Project vừa tạo.
+            // toCommand() chỉ chuyển Web DTO thành application command; nó không save và không gọi DB.
+            // actor.userId() lấy từ authenticated Principal, còn initialLeaderUserId là giá trị client
+            // gửi lên và sẽ được ProjectService lock/recheck trước khi được ghi vào membership.
             long projectId = projects.create(actor.userId(), projectForm.toCommand());
+            // "redirect:" là tín hiệu cho Spring tạo RedirectView/HTTP 302 Location. Browser sau đó
+            // gửi GET /projects/{projectId}, tránh refresh POST và hiển thị detail theo read flow mới.
             return "redirect:/projects/" + projectId;
         } catch (ProjectRuleViolationException exception) {
+            // Service rule failure xảy ra sau binding nhưng trước commit hoặc trước khi mutation hoàn
+            // tất. Message được gắn vào field an toàn cho form; không render stack trace.
             String field = exception.getMessage() != null
                     && exception.getMessage().toLowerCase(java.util.Locale.ROOT).contains("date")
                     ? "startDate" : "initialLeaderUserId";
             bindingResult.rejectValue(
                     field, "project.rule.violation", exception.getMessage());
+            // Options phải được query lại vì mỗi request có Model riêng; danh sách có thể đã thay đổi
+            // trong lúc user mở form. Input và BindingResult vẫn được giữ để render lại.
             model.addAttribute("eligibleInternOptions", eligibleInternOptions());
             model.addAttribute("today", LocalDate.now(clock));
             return "projects/form";
@@ -176,7 +238,11 @@ public class ProjectController {
     // 2. Query service tự kiểm tra quyền xem trước khi trả detail và trạng thái exit.
     @GetMapping("/{projectId}")
     public String detail(Principal principal, @PathVariable long projectId, Model model) {
+        // DispatcherServlet đã convert path segment thành long trước khi gọi handler. Controller không tự query
+        // repository: actorId và projectId được chuyển qua QueryService, nơi áp quyền và đổi Entity thành DTO.
         long actorId = actorId(principal);
+        // Hai DTO cùng dùng một actor/project authorization boundary. Model chỉ là dữ liệu cho request render hiện tại;
+        // return name là logical view, ViewResolver sẽ tìm projects/detail.html và Thymeleaf xử lý th:*.
         model.addAttribute("project", pages.detail(actorId, projectId));
         model.addAttribute("exitReadiness", pages.exitReadiness(actorId, projectId));
         return "projects/detail";
@@ -231,19 +297,26 @@ public class ProjectController {
         });
     }
 
-    /**
-     * Renders production-bound invitation, exit, transfer, decision, completion, and retained
-     * Project History controls for the exact authorized viewer.
-     */
-    // [Trang Workflows & History]
-    // Luồng xử lý:
-    // 1. Tạo một model gồm Project, member, invitation, exit, Task history và các quyền hiển thị.
-    // 2. Render một trang workflow duy nhất; mọi thao tác thay đổi dữ liệu vẫn đi qua POST riêng.
+    /** Renders invitation, exit, transfer, decision, and completion workflows for the authorized viewer. */
+    // [Trang Workflows]
+    // History được tách khỏi màn thao tác để người dùng không nhầm dữ liệu read-only với việc cần xử lý.
     @GetMapping("/{projectId}/workflows")
     public String workflows(Principal principal, @PathVariable long projectId, Model model) {
-        // Gom toàn bộ dữ liệu và quyền của màn workflow vào một snapshot trước khi render.
         populateWorkflowModel(principal, projectId, model);
         return "projects/workflows";
+    }
+
+    /** Renders the retained, read-only Project history for the exact authorized viewer. */
+    // [Trang Project History]
+    // Chỉ tải detail và retained history; trang này không nhận bất kỳ form mutation nào.
+    @GetMapping("/{projectId}/history")
+    public String history(Principal principal, @PathVariable long projectId, Model model) {
+        // Đây là GET read-only sau khi DispatcherServlet match route literal /{projectId}/history. QueryService áp
+        // cùng quyền xem trước khi lấy detail/history; controller không cho phép history bypass authorization.
+        long actorId = actorId(principal);
+        model.addAttribute("project", pages.detail(actorId, projectId));
+        model.addAttribute("projectHistory", pages.history(actorId, projectId));
+        return "projects/history";
     }
 
     // [Gửi lời mời vào Project]
@@ -676,8 +749,8 @@ public class ProjectController {
         }
     }
 
-    // [Chuẩn bị dữ liệu Workflows & History]
-    // Luồng chuẩn bị dữ liệu cho trang Workflows & History:
+    // [Chuẩn bị dữ liệu Workflows]
+    // History snapshot vẫn được dùng nội bộ để resolve tên, pending invitation và Task cần transfer.
     // 1. Lấy cùng một actor cho tất cả query để mọi phần trên trang dùng chung phạm vi quyền.
     // 2. Biến history/readiness thành các quyền UI: mời, revoke, transfer, cancel và quyết định exit.
     // 3. Đưa dữ liệu đã chuẩn hóa vào model; template không tự tính rule nghiệp vụ.
@@ -739,7 +812,7 @@ public class ProjectController {
                                     .orElse(ProjectExitRequestType.MEMBER_LEAVE),
                             history.exitRequests().stream()
                                     .filter(request -> request.id() == item.requestId())
-                                    .map(request -> request.reason())
+                                    .map(request -> request.reasonText())
                                     .findFirst()
                                     .orElse("—"),
                             targetUsername,
@@ -833,9 +906,13 @@ public class ProjectController {
             RedirectAttributes redirectAttributes,
             Map<String, ?> safeInput,
             Supplier<?> mutation) {
+        // Đây là protocol chung cho các POST invitation/exit/Task workflow: SecurityFilterChain/DispatcherServlet
+        // đã nhận request, handler đã parse path/form, rồi Supplier gọi ProjectService transaction. Controller không
+        // tự mutate entity; nó chỉ quyết định cách đưa kết quả về UI.
         try {
             // Chỉ service mới thay đổi state; controller chỉ chuẩn hóa phản hồi cho cùng trang workflow.
             mutation.get();
+            // Flash attribute sống qua đúng một redirect GET /workflows; vì vậy refresh trang không submit lại POST.
             redirectAttributes.addFlashAttribute("message", "Project workflow updated");
         } catch (ProjectRuleViolationException exception) {
             // Chỉ giữ lại dữ liệu form an toàn, không đưa ID hoặc trạng thái nội bộ vào flash message.
@@ -844,10 +921,14 @@ public class ProjectController {
                 redirectAttributes.addFlashAttribute("projectInput", safeInput);
             }
         }
+        // AccessDenied/exception ngoài rule không bị nuốt ở đây và sẽ đi lên ProjectControllerAdvice; rule đã biết
+        // thì được flash rồi redirect để GET dựng lại toàn bộ Model/Thymeleaf state.
         return "redirect:/projects/" + projectId + "/workflows";
     }
 
     private String invitationMutation(RedirectAttributes redirectAttributes, Supplier<?> mutation) {
+        // Invitation inbox dùng cùng PRG boundary nhưng đích là /projects/invitations thay vì workflow của một
+        // Project. Supplier vẫn là nơi service mở transaction và kiểm tra invitee/locking.
         try {
             mutation.get();
             redirectAttributes.addFlashAttribute("message", "Invitation response saved");
@@ -939,6 +1020,9 @@ public class ProjectController {
     }
 
     private long actorId(Principal principal) {
+        // Principal.getName() là định danh do SecurityContext cung cấp (trong app là email). QueryService/AccountService
+        // đổi nó thành numeric Account ID để mọi Project service method dùng cùng một actor key; nếu account không còn
+        // tồn tại/ACTIVE, boundary ném ProjectAccessDeniedException trước khi truy cập dữ liệu Project.
         return pages.authenticatedUserId(principal.getName());
     }
 }

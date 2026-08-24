@@ -21,6 +21,9 @@ import org.springframework.data.repository.query.Param;
  */
 // Repository là cổng ProjectService/ProjectQueryService dùng để đọc và ghi bảng projects.
 // Spring Data JPA tự triển khai interface này; các @Query bên dưới là JPQL query trên Entity, không phải SQL thô.
+// JpaRepository đã cung cấp save/saveAndFlush/findById; vì vậy flow create không cần tự viết INSERT SQL. Khi
+// Service gọi saveAndFlush(root), Spring Data chuyển root thành managed entity, Hibernate sinh SQL theo mapping
+// @Table/@Column và transaction quyết định commit/rollback.
 public interface ProjectRepository extends JpaRepository<ProjectEntity, Long> {
 
     /**
@@ -43,7 +46,8 @@ public interface ProjectRepository extends JpaRepository<ProjectEntity, Long> {
      * @return ordered Project slice within the requested page
      */
     // [Danh sách Project cho Admin]
-    // Spring Data tạo query từ tên method; chỉ lấy một Slice để UI không tải toàn bộ database.
+    // Spring Data tạo query từ tên method; chỉ lấy một Slice để UI không tải toàn bộ database. Query này được gọi
+    // từ GET /projects khi actor là ADMIN, sau đó QueryService map Entity thành ProjectSummary trước khi render.
     Slice<ProjectEntity> findAllByOrderByUpdatedAtDescIdDesc(Pageable pageable);
 
     /**
@@ -54,7 +58,15 @@ public interface ProjectRepository extends JpaRepository<ProjectEntity, Long> {
      * @return ordered owned Project slice within the requested page
      */
     // [Danh sách Project của Mentor]
-    // Query theo mentorUserId để Mentor chỉ nhận Project do chính họ sở hữu.
+    // Query theo mentorUserId để Mentor chỉ nhận Project do chính họ sở hữu; filter nằm ngay ở database chứ không
+    // tải toàn bảng rồi lọc bằng Java. Với actorUserId=10 và page size logic là 50, ý nghĩa SQL tương đương:
+    // SELECT *
+    // FROM projects
+    // WHERE mentor_user_id = 10
+    // ORDER BY updated_at DESC, id DESC
+    // LIMIT 50;
+    // Đây là dạng SQL dễ hình dung; Hibernate có thể chọn cột cụ thể và Slice có thể đọc thêm một row (ví dụ LIMIT
+    // 51) để tính hasNext, nhưng điều kiện owner/order vẫn giữ nguyên.
     Slice<ProjectEntity> findByMentorUserIdOrderByUpdatedAtDescIdDesc(
             long mentorUserId, Pageable pageable);
 

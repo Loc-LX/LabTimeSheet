@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{fragments/layout :: shell(
+          pageTitle=${project.name + ' history'},
+          section='Projects',
+          activeNav='projects',
+          primaryAction=~{},
+          content=~{::main})}">
+<body>
+<main class="project-history-page">
+    <th:block th:replace="~{fragments/components :: projectTabs(${project.id}, 'history')}"></th:block>
+
+    <header class="project-section-intro">
+        <div>
+            <p class="project-section-kicker">Read-only records</p>
+            <h2>Project History</h2>
+            <p>Review retained membership, leadership, invitation, exit-decision, and Task activity without mixing records with current workflow actions.</p>
+        </div>
+        <span class="badge">Read only</span>
+    </header>
+
+    <dl class="history-summary" aria-label="History record counts">
+        <div><dt>Memberships</dt><dd th:text="${#lists.size(projectHistory.memberships)}">0</dd></div>
+        <div><dt>Leadership terms</dt><dd th:text="${#lists.size(projectHistory.leadership)}">0</dd></div>
+        <div><dt>Invitations</dt><dd th:text="${#lists.size(projectHistory.invitations)}">0</dd></div>
+        <div><dt>Exit decisions</dt><dd th:text="${#lists.size(projectHistory.exitRequests)}">0</dd></div>
+        <div><dt>Tasks</dt><dd th:text="${#lists.size(projectHistory.tasks)}">0</dd></div>
+    </dl>
+
+    <section class="history-browser" aria-labelledby="history-browser-title">
+        <div class="history-browser-heading">
+            <div>
+                <p class="project-section-kicker">Retained timeline</p>
+                <h2 id="history-browser-title">Browse history</h2>
+            </div>
+            <p>All timestamps use Asia/Ho_Chi_Minh.</p>
+        </div>
+
+        <div class="history-tabs" data-history-tabs>
+            <nav class="tabs history-tabs-nav" role="tablist" aria-label="Project history sections">
+                <button class="tab history-tab" type="button" role="tab" id="history-memberships-tab" aria-selected="true" aria-controls="history-memberships" tabindex="0" data-history-tab="memberships">Memberships</button>
+                <button class="tab history-tab" type="button" role="tab" id="history-leadership-tab" aria-selected="false" aria-controls="history-leadership" tabindex="-1" data-history-tab="leadership">Leadership</button>
+                <button class="tab history-tab" type="button" role="tab" id="history-invitations-tab" aria-selected="false" aria-controls="history-invitations" tabindex="-1" data-history-tab="invitations">Invitations</button>
+                <button class="tab history-tab" type="button" role="tab" id="history-exit-decisions-tab" aria-selected="false" aria-controls="history-exit-decisions" tabindex="-1" data-history-tab="exit-decisions">Exit decisions</button>
+                <button class="tab history-tab" type="button" role="tab" id="history-tasks-tab" aria-selected="false" aria-controls="history-tasks" tabindex="-1" data-history-tab="tasks">Task activity</button>
+            </nav>
+
+            <section class="history-tab-panel" id="history-memberships" role="tabpanel" aria-labelledby="history-memberships-tab" data-history-panel="memberships">
+                <div class="history-panel-heading"><h3>Membership records</h3><p>Who joined or left, and which Mentor performed the change.</p></div>
+                <p class="history-empty" th:if="${#lists.isEmpty(projectHistory.memberships)}">No membership history has been recorded.</p>
+                <div class="table-scroll" th:unless="${#lists.isEmpty(projectHistory.memberships)}">
+                    <table class="data-table history-table history-table-four">
+                        <caption class="sr-only">Retained Project memberships</caption>
+                        <thead><tr><th scope="col">Intern username (Student Code)</th><th scope="col">Joined / left</th><th scope="col">Added by</th><th scope="col">Removed by</th></tr></thead>
+                        <tbody><tr th:each="item : ${projectHistory.memberships}">
+                            <td th:text="${projectHistory.usernamesByUserId[item.internUserId] ?: item.displayName}">Intern</td>
+                            <td th:text="${#temporals.format(item.joinedAt.atZone(T(java.time.ZoneId).of('Asia/Ho_Chi_Minh')), 'dd/MM/yyyy HH:mm') + ' / ' + (item.leftAt == null ? 'current' : #temporals.format(item.leftAt.atZone(T(java.time.ZoneId).of('Asia/Ho_Chi_Minh')), 'dd/MM/yyyy HH:mm'))}">Interval</td>
+                            <td th:text="${projectHistory.usernamesByUserId[item.addedByUserId] ?: 'Unknown username'}">Actor</td>
+                            <td th:text="${item.removedByMentorUserId == null ? '—' : (projectHistory.usernamesByUserId[item.removedByMentorUserId] ?: 'Unknown username')}">Actor</td>
+                        </tr></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="history-tab-panel" id="history-leadership" role="tabpanel" aria-labelledby="history-leadership-tab" data-history-panel="leadership">
+                <div class="history-panel-heading"><h3>Leadership terms</h3><p>Each Leader appointment and the retained term boundary.</p></div>
+                <p class="history-empty" th:if="${#lists.isEmpty(projectHistory.leadership)}">No leadership history has been recorded.</p>
+                <div class="table-scroll" th:unless="${#lists.isEmpty(projectHistory.leadership)}">
+                    <table class="data-table history-table history-table-four">
+                        <caption class="sr-only">Retained Project leadership</caption>
+                        <thead><tr><th scope="col">Leader username (Student Code)</th><th scope="col">Term</th><th scope="col">Appointed by</th><th scope="col">Ended by</th></tr></thead>
+                        <tbody><tr th:each="item : ${projectHistory.leadership}">
+                            <td th:text="${projectHistory.usernamesByLeadershipTermId[item.id] ?: item.leaderName}">Leader</td>
+                            <td th:text="${#temporals.format(item.startedAt.atZone(T(java.time.ZoneId).of('Asia/Ho_Chi_Minh')), 'dd/MM/yyyy HH:mm') + ' / ' + (item.endedAt == null ? 'current' : #temporals.format(item.endedAt.atZone(T(java.time.ZoneId).of('Asia/Ho_Chi_Minh')), 'dd/MM/yyyy HH:mm'))}">Term</td>
+                            <td th:text="${projectHistory.usernamesByUserId[item.appointedByMentorUserId] ?: 'Unknown username'}">Actor</td>
+                            <td th:text="${item.endedByMentorUserId == null ? '—' : (projectHistory.usernamesByUserId[item.endedByMentorUserId] ?: 'Unknown username')}">Actor</td>
+                        </tr></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="history-tab-panel" id="history-invitations" role="tabpanel" aria-labelledby="history-invitations-tab" data-history-panel="invitations">
+                <div class="history-panel-heading"><h3>Invitation records</h3><p>Who was invited, by which Leader term, and how the invitation resolved.</p></div>
+                <p class="history-empty" th:if="${#lists.isEmpty(projectHistory.invitations)}">No invitation history has been recorded.</p>
+                <div class="table-scroll" th:unless="${#lists.isEmpty(projectHistory.invitations)}">
+                    <table class="data-table history-table history-table-five">
+                        <caption class="sr-only">Retained Project invitations</caption>
+                        <thead><tr><th scope="col">Invitee username (Student Code)</th><th scope="col">Issuing Leader</th><th scope="col">Status</th><th scope="col">Created / resolved</th><th scope="col">Resolved by</th></tr></thead>
+                        <tbody><tr th:each="item : ${projectHistory.invitations}">
+                            <td th:text="${projectHistory.usernamesByUserId[item.invitedInternUserId] ?: 'Unknown username'}">Invitee</td>
+                            <td th:text="${projectHistory.usernamesByLeadershipTermId[item.issuingLeadershipTermId] ?: 'Unknown username'}">Term</td>
+                            <td><span class="badge" th:classappend="${item.status.name() == 'ACCEPTED' ? ' badge-success' : item.status.name() == 'PENDING' ? ' badge-warning' : ' badge-danger'}" th:text="${item.status}">Status</span></td>
+                            <td th:text="${#temporals.format(item.createdAt.atZone(T(java.time.ZoneId).of('Asia/Ho_Chi_Minh')), 'dd/MM/yyyy HH:mm') + ' / ' + (item.resolvedAt == null ? 'pending' : #temporals.format(item.resolvedAt.atZone(T(java.time.ZoneId).of('Asia/Ho_Chi_Minh')), 'dd/MM/yyyy HH:mm'))}">Times</td>
+                            <td th:text="${item.resolvedByUserId == null ? (item.resolutionCode ?: 'pending') : (projectHistory.usernamesByUserId[item.resolvedByUserId] ?: 'Unknown username')}">Resolution</td>
+                        </tr></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="history-tab-panel" id="history-exit-decisions" role="tabpanel" aria-labelledby="history-exit-decisions-tab" data-history-panel="exit-decisions">
+                <div class="history-panel-heading"><h3>Exit decisions</h3><p>Intern exit and Leader removal requests with their retained reasons and decisions.</p></div>
+                <p class="history-empty" th:if="${#lists.isEmpty(projectHistory.exitRequests)}">No exit-decision history has been recorded.</p>
+                <div class="table-scroll" th:unless="${#lists.isEmpty(projectHistory.exitRequests)}">
+                    <table class="data-table history-table history-table-six">
+                        <caption class="sr-only">Retained membership exit decisions</caption>
+                        <thead><tr><th scope="col">Target / requester</th><th scope="col">Type</th><th scope="col">Reason</th><th scope="col">Status</th><th scope="col">Created / resolved</th><th scope="col">Decision</th></tr></thead>
+                        <tbody><tr th:each="item : ${projectHistory.exitRequests}">
+                            <td th:text="|${projectHistory.usernamesByMembershipId[item.targetMembershipId] ?: 'Unknown username'} / ${projectHistory.usernamesByMembershipId[item.requesterMembershipId] ?: 'Unknown username'}|">Memberships</td>
+                            <td th:text="${item.requestType}">Type</td>
+                            <td th:text="${item.reasonText}">Reason</td>
+                            <td><span class="badge" th:classappend="${item.status.name() == 'APPROVED' ? ' badge-success' : item.status.name() == 'PENDING' ? ' badge-warning' : ' badge-danger'}" th:text="${item.status}">Status</span></td>
+                            <td th:text="${#temporals.format(item.createdAt.atZone(T(java.time.ZoneId).of('Asia/Ho_Chi_Minh')), 'dd/MM/yyyy HH:mm') + ' / ' + (item.resolvedAt == null ? 'pending' : #temporals.format(item.resolvedAt.atZone(T(java.time.ZoneId).of('Asia/Ho_Chi_Minh')), 'dd/MM/yyyy HH:mm'))}">Times</td>
+                            <td th:text="${(item.resolvedByUserId == null ? 'pending' : (projectHistory.usernamesByUserId[item.resolvedByUserId] ?: 'Unknown username')) + (item.resolutionNote == null ? '' : ' · ' + item.resolutionNote)}">Decision</td>
+                        </tr></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="history-tab-panel" id="history-tasks" role="tabpanel" aria-labelledby="history-tasks-tab" data-history-panel="tasks">
+                <div class="history-panel-heading"><h3>Task activity</h3><p>Retained Task assignments, comments, work logs, and deletion attribution.</p></div>
+                <p class="history-empty" th:if="${#lists.isEmpty(projectHistory.tasks)}">No Task activity has been recorded for this Project.</p>
+                <div class="history-task-list" th:unless="${#lists.isEmpty(projectHistory.tasks)}">
+                    <details th:each="task : ${projectHistory.tasks}" class="history-task-item">
+                        <summary class="history-task-summary">
+                            <span class="history-task-summary-main"><strong th:text="${task.title}">Task title</strong><span th:text="${'Assigned to ' + (projectHistory.usernamesByMembershipId[task.assigneeMembershipId] ?: 'Unknown username')}">Assignee</span></span>
+                            <span class="history-task-badges"><span class="badge" th:classappend="${task.status.name() == 'DONE' ? ' badge-success' : (task.status.name() == 'BLOCKED' ? ' badge-danger' : (task.status.name() == 'IN_PROGRESS' ? ' badge-warning' : ''))}" th:text="${task.status}">TODO</span><span class="badge badge-danger" th:if="${task.deletedAt != null}">Deleted</span></span>
+                            <span class="history-task-updated" th:text="${'Updated ' + #temporals.format(task.updatedAt.atZone(T(java.time.ZoneId).of('Asia/Ho_Chi_Minh')), 'dd/MM/yyyy HH:mm')}">Updated time</span>
+                        </summary>
+                        <div class="history-task-details">
+                            <p class="history-task-description" th:if="${!#strings.isEmpty(task.description)}" th:text="${task.description}">Task description</p>
+                            <dl class="history-task-attribution">
+                                <div><dt>Created by</dt><dd th:text="${projectHistory.usernamesByMembershipId[task.creatorMembershipId] ?: 'Unknown username'}">Creator</dd></div>
+                                <div><dt>Assigned to</dt><dd th:text="${projectHistory.usernamesByMembershipId[task.assigneeMembershipId] ?: 'Unknown username'}">Assignee</dd></div>
+                                <div><dt>Assigned by</dt><dd th:text="${projectHistory.usernamesByMembershipId[task.assignerMembershipId] ?: 'Unknown username'}">Assigner</dd></div>
+                            </dl>
+                            <dl class="history-task-timeline">
+                                <div><dt>Assigned</dt><dd th:text="${#temporals.format(task.assignedAt.atZone(T(java.time.ZoneId).of('Asia/Ho_Chi_Minh')), 'dd/MM/yyyy HH:mm')}">Time</dd></div>
+                                <div><dt>Created</dt><dd th:text="${#temporals.format(task.createdAt.atZone(T(java.time.ZoneId).of('Asia/Ho_Chi_Minh')), 'dd/MM/yyyy HH:mm')}">Time</dd></div>
+                                <div><dt>Last updated</dt><dd th:text="${#temporals.format(task.updatedAt.atZone(T(java.time.ZoneId).of('Asia/Ho_Chi_Minh')), 'dd/MM/yyyy HH:mm')}">Time</dd></div>
+                                <div th:if="${task.deletedAt != null}"><dt>Deleted</dt><dd th:text="${#temporals.format(task.deletedAt.atZone(T(java.time.ZoneId).of('Asia/Ho_Chi_Minh')), 'dd/MM/yyyy HH:mm') + ' by ' + (projectHistory.usernamesByMembershipId[task.deletedByMembershipId] ?: 'Unknown username')}">Time</dd></div>
+                            </dl>
+                            <div class="history-task-notes">
+                                <section th:if="${!#lists.isEmpty(task.comments)}"><h5>Comments</h5><article class="history-note" th:each="comment : ${task.comments}"><p class="history-note-meta" th:text="${(projectHistory.usernamesByUserId[comment.authorUserId] ?: 'Unknown username') + ' · ' + #temporals.format(comment.createdAt.atZone(T(java.time.ZoneId).of('Asia/Ho_Chi_Minh')), 'dd/MM/yyyy HH:mm')}">Author and time</p><p class="history-note-body" th:text="${comment.body}">Comment</p></article></section>
+                                <section th:if="${!#lists.isEmpty(task.workLogs)}"><h5>Work logs</h5><article class="history-note" th:each="log : ${task.workLogs}"><p class="history-note-meta" th:text="${#temporals.format(log.workDate, 'dd/MM/yyyy') + ' · ' + log.minutes + ' minutes'}">Date and minutes</p><p class="history-note-body" th:text="${(projectHistory.usernamesByMembershipId[log.membershipId] ?: 'Unknown username') + (log.note == null ? '' : ' · ' + log.note)}">Work log</p></article></section>
+                            </div>
+                        </div>
+                    </details>
+                </div>
+            </section>
+        </div>
+    </section>
+</main>
+</body>
+</html>

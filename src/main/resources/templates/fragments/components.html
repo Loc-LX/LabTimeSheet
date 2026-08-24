@@ -27,7 +27,8 @@
     <a class="tab" th:href="@{/projects/{id}/members(id=${projectId})}" th:attr="aria-current=${activeSection == 'members'} ? 'page' : null">Members</a>
     <a class="tab" th:href="@{/projects/{id}/leadership(id=${projectId})}" th:attr="aria-current=${activeSection == 'leadership'} ? 'page' : null">Leadership</a>
     <a class="tab" th:href="@{/projects/{id}/tasks(id=${projectId})}" th:attr="aria-current=${activeSection == 'tasks'} ? 'page' : null">Tasks</a>
-    <a class="tab" th:href="@{/projects/{id}/workflows(id=${projectId})}" th:attr="aria-current=${activeSection == 'workflows'} ? 'page' : null">Workflows &amp; History</a>
+    <a class="tab" th:href="@{/projects/{id}/workflows(id=${projectId})}" th:attr="aria-current=${activeSection == 'workflows'} ? 'page' : null">Workflows</a>
+    <a class="tab" th:href="@{/projects/{id}/history(id=${projectId})}" th:attr="aria-current=${activeSection == 'history'} ? 'page' : null">History</a>
 </nav>
 <div th:fragment="table(caption, head, body)" class="table-scroll"><table class="data-table"><caption class="sr-only" th:text="${caption}">Data</caption><thead th:replace="${head}"></thead><tbody th:replace="${body}"></tbody></table></div>
 <nav th:fragment="pagination(previous, next)" class="pagination" aria-label="Pagination"><a class="button" th:if="${previous != null}" th:href="${previous}">Previous</a><a class="button" th:if="${next != null}" th:href="${next}">Next</a></nav>

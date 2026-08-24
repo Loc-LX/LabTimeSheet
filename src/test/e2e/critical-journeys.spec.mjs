@@ -119,9 +119,10 @@ test('Iteration 3 setup and critical Admin/Intern/Mentor journeys', async ({ pag
   await page.getByLabel('Note').fill('Browser-created work log');
   await page.getByRole('button', { name: 'Log work' }).click();
   await expect(page.getByText('Browser-created work log')).toBeVisible();
-  await page.goto(`/projects/${projectId}/workflows`);
+  await page.goto(`/projects/${projectId}/history`);
   await expect(page.getByRole('heading', { name: 'Project History' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: new RegExp(taskTitle) })).toBeVisible();
+  await page.getByRole('tab', { name: 'Task activity' }).click();
+  await expect(page.getByText(taskTitle, { exact: true })).toBeVisible();
   await expect(page.getByText('Browser-created work log')).toBeVisible();
 
   await signIn(page, mentor);
