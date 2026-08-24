@@ -127,6 +127,35 @@
   .panel { border: 1px solid var(--border); border-radius: .75rem; background: var(--panel); box-shadow: 0 10px 28px rgb(20 25 35 / .06); }
   .panel-header { padding: .9rem 1rem; border-bottom: 1px solid var(--border); }
   .panel-title { margin: 0; font-size: 1rem; }
+  .account-detail { display: grid; gap: 1rem; }
+  .account-detail-header { display: flex; align-items: start; justify-content: space-between; gap: 1rem; padding: .2rem 0 0; }
+  .account-detail-name { margin: 0; font-size: 1.3rem; line-height: 1.2; }
+  .account-detail-email { margin: .3rem 0 0; overflow-wrap: anywhere; font-weight: 650; }
+  .account-detail-reference { margin: .25rem 0 0; color: var(--muted); font-size: .78rem; }
+  .account-detail-badges { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: .35rem; }
+  .account-detail-panel { overflow: hidden; }
+  .account-detail-panel .panel-header { display: flex; align-items: start; justify-content: space-between; gap: 1rem; }
+  .account-detail-panel .panel-header .field-help { margin: .25rem 0 0; }
+  .account-fact-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0; }
+  .account-fact-grid-two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .account-fact-grid > div { min-width: 0; padding: 1rem; }
+  .account-fact-grid > div + div { border-left: 1px solid var(--border); }
+  .account-fact-grid dt { color: var(--muted); font-size: .72rem; font-weight: 650; }
+  .account-fact-grid dd { margin: .18rem 0 0; overflow-wrap: anywhere; font-weight: 650; }
+  .account-detail-actions { display: grid; gap: .9rem; border-top: 1px solid var(--border); padding: 1rem; }
+  .account-detail-action-group { display: grid; gap: .45rem; }
+  .account-detail-action-label { margin: 0; color: var(--muted); font-size: .7rem; font-weight: 750; letter-spacing: .06em; text-transform: uppercase; }
+  .account-detail-actions-row { flex-wrap: wrap; margin: 0; }
+  .account-detail-danger { border-top: 1px solid var(--border); padding-top: .9rem; }
+  .account-detail-danger .field-help { margin: .25rem 0 0; }
+  .account-detail-danger form { margin-top: .65rem; }
+  .account-readiness { border-top: 1px solid var(--border); padding: 1rem; }
+  .account-readiness-heading { display: flex; align-items: start; justify-content: space-between; gap: 1rem; }
+  .account-readiness-heading h3 { margin: 0; font-size: .92rem; }
+  .account-readiness-heading .field-help { margin: .25rem 0 0; }
+  .account-readiness .account-fact-grid { margin-top: .9rem; border: 1px solid var(--border); border-radius: .65rem; overflow: hidden; }
+  .account-readiness-alert { margin-bottom: 0; }
+  .account-readiness .account-detail-actions-row { margin-top: .9rem; }
   .metric-strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); overflow: hidden; margin-bottom: 1rem; }
   .metric-strip-three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .metric { min-width: 0; padding: 1rem; }
@@ -276,6 +305,12 @@
     .metric:nth-child(odd) { border-left: 0; }
     .metric:nth-child(n + 3) { border-top: 1px solid var(--border); }
     .form-grid-three, .report-filters, .history-task-attribution, .history-task-timeline, .history-task-notes { grid-template-columns: 1fr; }
+    .account-detail-header { align-items: start; flex-direction: column; }
+    .account-detail-badges { justify-content: flex-start; }
+    .account-fact-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .account-fact-grid-two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .account-fact-grid > div:nth-child(odd) { border-left: 0; }
+    .account-fact-grid > div:nth-child(n + 3) { border-top: 1px solid var(--border); }
     .history-task-summary { grid-template-columns: minmax(0, 1fr) auto; }
     .history-task-updated { grid-column: 1 / -1; white-space: normal; }
     .data-table { min-width: 36rem; }
@@ -288,5 +323,12 @@
     .metric:first-child { border-top: 0; }
     .form-actions, .inline-actions { flex-wrap: wrap; justify-content: stretch; }
     .form-actions .button, .inline-actions .button { flex: 1 1 10rem; }
+    .account-fact-grid { grid-template-columns: 1fr; }
+    .account-fact-grid-two { grid-template-columns: 1fr; }
+    .account-fact-grid > div, .account-fact-grid > div:nth-child(n + 3) { border-top: 1px solid var(--border); border-left: 0; }
+    .account-fact-grid > div:first-child { border-top: 0; }
+    .account-readiness-heading { flex-direction: column; }
+    .account-detail-actions-row form { flex: 1 1 10rem; }
+    .account-detail-actions-row form .button { width: 100%; }
   }
 }
