@@ -25,7 +25,7 @@ class Target {
 }
 
 test('picker searches name and student code, summarizes selection, and cancels safely', () => {
-  const open = Object.assign(new Target(), {focus() { this.focused = true; }});
+  const open = Object.assign(new Target(), {textContent: 'Choose eligible Interns', focus() { this.focused = true; }});
   const cancel = new Target();
   const apply = new Target();
   const search = Object.assign(new Target(), {value: '', focus() { this.focused = true; }});
@@ -92,6 +92,50 @@ test('picker searches name and student code, summarizes selection, and cancels s
   secondInput.dispatch('change');
   apply.dispatch('click');
   assert.equal(secondInput.checked, true);
+});
+
+test('single-select picker puts the selected Intern in the dropdown trigger', () => {
+  const open = Object.assign(new Target(), {textContent: 'Choose an eligible Intern', focus() {}});
+  const cancel = new Target();
+  const apply = new Target();
+  const search = Object.assign(new Target(), {value: '', focus() {}});
+  const summary = {textContent: '', hidden: false};
+  const empty = {hidden: true};
+  const input = Object.assign(new Target(), {checked: false, type: 'radio'});
+  const options = [option('Intern 1 DEMO-INT-1', 'Intern 1 (DEMO-INT-1)', input)];
+  const dropdown = Object.assign(new Target(), {hidden: true});
+  const picker = {
+    querySelector(selector) {
+      return new Map([
+        ['[data-picker-open]', open], ['[data-picker-dialog]', dropdown],
+        ['[data-picker-search]', search], ['[data-picker-summary]', summary],
+        ['[data-picker-empty]', empty], ['[data-picker-cancel]', cancel],
+        ['[data-picker-apply]', apply],
+      ]).get(selector) ?? null;
+    },
+    querySelectorAll(selector) {
+      return selector === '[data-picker-option]' ? options : [];
+    },
+  };
+  let ready;
+  const document = {
+    documentElement: {dataset: {}, style: {}},
+    addEventListener(type, listener) { if (type === 'DOMContentLoaded') ready = listener; },
+    querySelector() { return null; },
+    querySelectorAll(selector) { return selector === '[data-intern-picker]' ? [picker] : []; },
+  };
+  vm.runInNewContext(readFileSync('src/main/resources/static/assets/app.js', 'utf8'), {
+    document,
+    localStorage: {getItem() { return null; }, setItem() {}, removeItem() {}},
+    matchMedia() { return {matches: false}; },
+  });
+  ready();
+
+  input.checked = true;
+  input.dispatch('change');
+
+  assert.equal(open.textContent, 'Intern 1 (DEMO-INT-1)');
+  assert.equal(summary.hidden, true);
 });
 
 function option(searchValue, label, input) {

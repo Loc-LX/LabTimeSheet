@@ -12,21 +12,55 @@
     <p class="alert" role="status" th:if="${message}" th:text="${message}"></p>
     <p class="alert alert-error" role="alert" th:if="${projectError}" th:text="${projectError}"></p>
 
-    <section class="panel form-panel" th:if="${currentLeader}"><header class="panel-header"><h2 class="panel-title">Invite an Intern</h2></header><form class="filter-form" method="post" th:action="@{/projects/{id}/invitations(id=${project.id})}" th:attr="aria-describedby=${projectInput != null and projectInput.kind == 'invitation' and projectError != null ? 'invitation-form-error' : null}"><div class="field"><label class="field-label" for="invitee">Eligible Intern</label><select class="control" id="invitee" name="invitedInternUserId" required><option th:each="option : ${invitationOptions}" th:value="${option.userId}" th:selected="${projectInput != null and projectInput.kind == 'invitation' and projectInput.invitedInternUserId == option.userId.toString()}" th:text="|${option.displayName} (${option.studentCode})|">Intern</option></select></div><span></span><button class="button button-primary" type="submit" th:disabled="${#lists.isEmpty(invitationOptions)}">Issue invitation</button><p class="field-error" id="invitation-form-error" role="alert" th:if="${projectInput != null and projectInput.kind == 'invitation' and projectError != null}" th:text="${projectError}">Invitation error</p></form></section>
+    <section class="panel form-panel" th:if="${currentLeader}">
+        <header class="panel-header"><h2 class="panel-title">Invite an Intern</h2></header>
+        <form class="filter-form" method="post" th:action="@{/projects/{id}/invitations(id=${project.id})}" th:attr="aria-describedby=${projectInput != null and projectInput.kind == 'invitation' and projectError != null ? 'invitation-form-error' : null}">
+            <div class="field picker-field" data-intern-picker>
+                <span class="field-label">Eligible Interns</span>
+                <button class="button picker-trigger" type="button" data-picker-open
+                        th:disabled="${#lists.isEmpty(invitationOptions)}"
+                        aria-haspopup="listbox" aria-expanded="false" aria-controls="invitation-picker-dropdown">Choose eligible Interns</button>
+                <p class="picker-summary" data-picker-summary aria-live="polite">No Interns selected</p>
+                <select class="sr-only" aria-hidden="true" tabindex="-1">
+                    <option th:each="option : ${invitationOptions}" th:value="${option.userId}" th:selected="${projectInput != null and projectInput.kind == 'invitation' and projectInput['invitedInternUserId'] == option.userId.toString()}" th:text="${option.displayName}">Intern</option>
+                </select>
+                <p class="field-help" th:if="${#lists.isEmpty(invitationOptions)}">No eligible Interns are available.</p>
+                <p class="field-error" id="invitation-form-error" role="alert" th:if="${projectInput != null and projectInput.kind == 'invitation' and projectError != null}" th:text="${projectError}">Invitation error</p>
+                <div class="picker-dropdown" id="invitation-picker-dropdown" data-picker-dialog hidden aria-label="Select eligible Interns">
+                    <div class="picker-searchbar">
+                        <label class="sr-only" for="invitation-search">Search by Username or Student Code</label>
+                        <input class="control" id="invitation-search" type="search" autocomplete="off" placeholder="Search by Username or Student Code" aria-label="Search by Username or Student Code" data-picker-search>
+                        <button class="button" type="button" data-picker-cancel>Cancel</button>
+                    </div>
+                    <div class="picker-body"><div class="picker-options" role="listbox" aria-label="Eligible Interns">
+                        <label class="picker-option" data-picker-option th:each="option : ${invitationOptions}" th:attr="data-picker-search=${option.displayName + ' ' + option.studentCode}">
+                            <input type="checkbox" name="invitedInternUserId" th:value="${option.userId}" th:checked="${projectInput != null and projectInput.kind == 'invitation' and (projectInput['invitedInternUserId'] == option.userId.toString() or (projectInput['invitedInternUserIds'] != null and projectInput['invitedInternUserIds'].contains(option.userId.toString())))}">
+                            <span><strong data-picker-label th:text="|${option.displayName} (${option.studentCode})|">Intern (Code)</strong><small th:text="|${#temporals.format(option.internshipStart, 'dd/MM/yyyy')} – ${#temporals.format(option.internshipEnd, 'dd/MM/yyyy')}|">Dates</small></span>
+                        </label>
+                        <p class="picker-empty" data-picker-empty th:hidden="${!#lists.isEmpty(invitationOptions)}">No matching eligible Interns.</p>
+                    </div></div>
+                    <div class="picker-footer"><button class="button button-primary" type="button" data-picker-apply>Done</button></div>
+                </div>
+            </div>
+            <span></span><button class="button button-primary" type="submit" th:disabled="${#lists.isEmpty(invitationOptions)}">Issue invitations</button>
+        </form>
+    </section>
 
     <section class="panel form-panel" th:unless="${#lists.isEmpty(revocableInvitations)}"><header class="panel-header"><h2 class="panel-title">Pending invitations</h2></header><div class="table-scroll"><table class="data-table"><caption class="sr-only">Pending invitations</caption><thead><tr><th scope="col">Invitee username (Student Code)</th><th scope="col">Issued (Asia/Ho_Chi_Minh)</th><th scope="col">Action</th></tr></thead><tbody><tr th:each="invitation : ${revocableInvitations}"><td th:text="${projectHistory.usernamesByUserId[invitation.invitedInternUserId] ?: 'Unknown username'}">Invitee</td><td th:text="${#temporals.format(invitation.createdAt.atZone(T(java.time.ZoneId).of('Asia/Ho_Chi_Minh')), 'dd/MM/yyyy HH:mm')}">Created</td><td><form method="post" th:action="@{/projects/{projectId}/invitations/{id}/revoke(projectId=${project.id},id=${invitation.id})}"><button class="button button-danger" type="submit">Revoke</button></form></td></tr></tbody></table></div></section>
 
     <section class="panel form-panel" th:if="${currentLeader}"><header class="panel-header"><h2 class="panel-title">Request member removal</h2></header><form class="filter-form" method="post" th:action="@{/projects/{id}/exits/removal(id=${project.id})}" th:attr="aria-describedby=${projectInput != null and projectInput.kind == 'removal' and projectError != null ? 'removal-form-error' : null}"><div class="field"><label class="field-label" for="removal-target">Member</label><select class="control" id="removal-target" name="targetMembershipId" required><option th:each="member : ${currentMembers}" th:if="${!member.currentLeader and !pendingTargetMembershipIds.contains(member.membershipId)}" th:value="${member.membershipId}" th:selected="${projectInput != null and projectInput.kind == 'removal' and projectInput.targetMembershipId == member.membershipId.toString()}" th:text="${projectHistory.usernamesByMembershipId[member.membershipId] ?: member.displayName}">Member</option></select></div><div class="field"><label class="field-label" for="removal-reason">Reason</label><input class="control" id="removal-reason" name="reason" maxlength="500" required th:value="${projectInput != null and projectInput.kind == 'removal' ? projectInput.reason : null}"></div><button class="button" type="submit">Request removal</button><p class="field-error" id="removal-form-error" role="alert" th:if="${projectInput != null and projectInput.kind == 'removal' and projectError != null}" th:text="${projectError}">Removal request error</p></form></section>
     <section class="panel form-panel" th:if="${actorMembership != null and !pendingTargetMembershipIds.contains(actorMembership.membershipId)}"><header class="panel-header"><h2 class="panel-title">Request my leave</h2></header><form class="filter-form" method="post" th:action="@{/projects/{id}/exits/leave(id=${project.id})}" th:attr="aria-describedby=${projectInput != null and projectInput.kind == 'leave' and projectError != null ? 'project-leave-form-error' : null}"><div class="field"><label class="field-label" for="leave-reason">Reason</label><input class="control" id="leave-reason" name="reason" maxlength="500" required th:value="${projectInput != null and projectInput.kind == 'leave' ? projectInput.reason : null}"></div><span></span><button class="button" type="submit">Request Project leave</button><p class="field-error" id="project-leave-form-error" role="alert" th:if="${projectInput != null and projectInput.kind == 'leave' and projectError != null}" th:text="${projectError}">Leave request error</p></form></section>
 
-    <section th:each="workflow : ${exitWorkflows}" class="panel form-panel">
-        <header class="panel-header"><h2 class="panel-title">Exit readiness</h2></header>
-        <dl class="account-fact-grid" aria-label="Exit target account details">
+    <section class="panel form-panel" th:if="${!#lists.isEmpty(memberLeaveWorkflows)}">
+        <header class="panel-header"><h2 class="panel-title">Intern Exit Requests <span class="field-help">Requested by the Intern</span></h2></header>
+        <div th:each="workflow : ${memberLeaveWorkflows}" class="workflow-request">
+        <dl class="account-fact-grid workflow-target-facts" aria-label="Exit target account details">
             <div><dt>Username</dt><dd th:text="${workflow.targetName}">Intern2</dd></div>
             <div><dt>Student Code</dt><dd th:text="${workflow.targetStudentCode}">DEMO-INT-2</dd></div>
             <div><dt>Gmail</dt><dd th:text="${workflow.targetEmail}">intern2@gmail.com</dd></div>
         </dl>
-        <div class="exit-readiness-status">
+            <p class="field-help"><strong>Reason:</strong> <span th:text="${workflow.reason}">Reason</span></p>
+            <div class="exit-readiness-status">
             <p class="field-help" th:if="${workflow.replacementRequired}">Appoint a replacement Leader before transferring unfinished Tasks.</p>
             <p class="field-help" th:if="${!workflow.replacementRequired and workflow.unfinishedTaskCount > 0}"
                th:text="|${workflow.unfinishedTaskCount} unfinished Tasks remain before Mentor decision.|">Unfinished Tasks remain.</p>
@@ -42,6 +76,32 @@
                 ${'transfer-' + workflow.requestId}, ${workflow.canOpenTransfer},
                 @{/projects/{projectId}/exits/{id}/transfer(projectId=${project.id},id=${workflow.requestId})},
                 ${workflow.targetMembershipId}, ${unfinishedTasksByMembership[workflow.targetMembershipId]}, ${transferRecipients})}"></div>
+        </div>
+    </section>
+
+    <section class="panel form-panel" th:if="${!#lists.isEmpty(leaderRemovalWorkflows)}">
+        <header class="panel-header"><h2 class="panel-title">Member Removal Requests <span class="field-help">Requested by the Leader</span><span class="sr-only">Exit readiness</span></h2></header>
+        <div th:each="workflow : ${leaderRemovalWorkflows}" class="workflow-request">
+            <dl class="account-fact-grid workflow-target-facts" aria-label="Leave target account details">
+                <div><dt>Username</dt><dd th:text="${workflow.targetName}">Intern</dd></div>
+                <div><dt>Student Code</dt><dd th:text="${workflow.targetStudentCode}">Student Code</dd></div>
+                <div><dt>Gmail</dt><dd th:text="${workflow.targetEmail}">email</dd></div>
+            </dl>
+            <p class="field-help"><strong>Reason:</strong> <span th:text="${workflow.reason}">Reason</span></p>
+            <div class="exit-readiness-status">
+                <p class="field-help" th:if="${workflow.replacementRequired}">Appoint a replacement Leader before transferring unfinished Tasks.</p>
+                <p class="field-help" th:if="${!workflow.replacementRequired and workflow.unfinishedTaskCount > 0}" th:text="|${workflow.unfinishedTaskCount} unfinished Tasks remain before Mentor decision.|">Unfinished Tasks remain.</p>
+                <p class="field-help" th:if="${!workflow.replacementRequired and workflow.unfinishedTaskCount == 0 and workflow.readyForMentorDecision}">Ready for Mentor decision.</p>
+            </div>
+            <div class="inline-actions exit-decision-actions">
+                <form class="exit-decision-form" th:if="${project.canManage}" method="post" th:action="@{/projects/{projectId}/exits/{id}/approve(projectId=${project.id},id=${workflow.requestId})}"><button class="button button-primary" type="submit" th:disabled="${!workflow.readyForMentorDecision}">Approve leave</button></form>
+                <form class="exit-decision-form" th:if="${project.canManage}" method="post" th:action="@{/projects/{projectId}/exits/{id}/reject(projectId=${project.id},id=${workflow.requestId})}"><button class="button button-danger" type="submit">Reject leave</button></form>
+            </div>
+            <div th:replace="~{fragments/workflows :: transferDrawer(
+                    ${'transfer-' + workflow.requestId}, ${workflow.canOpenTransfer},
+                    @{/projects/{projectId}/exits/{id}/transfer(projectId=${project.id},id=${workflow.requestId})},
+                    ${workflow.targetMembershipId}, ${unfinishedTasksByMembership[workflow.targetMembershipId]}, ${transferRecipients})}"></div>
+        </div>
     </section>
 
     <section class="panel form-panel" th:if="${project.canManage and project.status != 'COMPLETED'}"><header class="panel-header"><h2 class="panel-title">Mentor member controls</h2></header><p class="field-help">Manage the current Project members here. Direct removal closes the membership and transfers every unfinished Task atomically to the current or selected replacement Leader. Completing the Project closes its active workflows and makes it read-only.</p><form class="filter-form" method="post" data-confirm="Directly remove this member? Every unfinished Task will transfer atomically to the current or selected replacement Leader." th:each="member : ${currentMembers}" th:action="@{/projects/{projectId}/members/{id}/remove(projectId=${project.id},id=${member.membershipId})}" th:attr="aria-describedby=${projectInput != null and projectInput.kind == 'direct-removal' and projectInput.membershipId == member.membershipId and projectError != null ? 'direct-removal-' + member.membershipId + '-error' : null}"><strong th:text="${projectHistory.usernamesByMembershipId[member.membershipId] ?: member.displayName}">Member</strong><select class="control" name="replacementLeaderUserId" aria-label="Replacement Leader"><option value="">No replacement</option><option th:each="replacement : ${currentMembers}" th:if="${replacement.membershipId != member.membershipId}" th:value="${replacement.internUserId}" th:selected="${projectInput != null and projectInput.kind == 'direct-removal' and projectInput.membershipId == member.membershipId and projectInput.replacementLeaderUserId == replacement.internUserId.toString()}" th:text="${projectHistory.usernamesByMembershipId[replacement.membershipId] ?: replacement.displayName}">Replacement</option></select><button class="button button-danger" type="submit">Direct remove</button><span class="field-error" role="alert" th:id="|direct-removal-${member.membershipId}-error|" th:if="${projectInput != null and projectInput.kind == 'direct-removal' and projectInput.membershipId == member.membershipId and projectError != null}" th:text="${projectError}">Removal error</span></form><form method="post" data-confirm="Complete this Project? Membership and leadership intervals will close, pending workflow records resolve, and the Project becomes read-only." th:action="@{/projects/{id}/complete(id=${project.id})}"><button class="button button-primary" type="submit">Complete Project</button></form></section>

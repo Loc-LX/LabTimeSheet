@@ -74,6 +74,7 @@ class ProjectTaskFormAccessibilityWebTest {
                 .andExpect(content().string(containsString("id=\"name-error\"")))
                 .andExpect(content().string(containsString("aria-describedby=\"endDate-error\"")))
                 .andExpect(content().string(containsString("id=\"endDate-error\"")))
+                .andExpect(content().string(containsString("End date is required")))
                 .andExpect(content().string(containsString("aria-describedby=\"initialLeaderUserId-error\"")))
                 .andExpect(content().string(containsString("id=\"initialLeaderUserId-error\"")));
 
@@ -100,7 +101,8 @@ class ProjectTaskFormAccessibilityWebTest {
                         .param("initialLeaderUserId", "7"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("aria-describedby=\"dateRangeValid-error\"")))
-                .andExpect(content().string(containsString("id=\"dateRangeValid-error\"")));
+                .andExpect(content().string(containsString("id=\"dateRangeValid-error\"")))
+                .andExpect(content().string(containsString("End date must be on or after the Start date")));
     }
 
     @Test

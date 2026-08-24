@@ -15,6 +15,13 @@
   --color-warning: #996000;
   --color-danger: #b42318;
 }
+.workflow-request + .workflow-request { border-top: 1px solid var(--border); margin-top: 1rem; padding-top: 1rem; }
+.workflow-request .field-help strong { color: var(--ink); }
+.workflow-target-facts { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.workflow-target-facts > div { padding: .45rem .7rem; }
+.workflow-target-facts dt, .workflow-target-facts dd { display: inline; }
+.workflow-target-facts dt { margin-right: .35rem; }
+.workflow-target-facts dd { font-size: .9rem; }
 
 :root {
   color-scheme: light;

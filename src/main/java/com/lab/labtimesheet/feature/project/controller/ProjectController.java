@@ -9,6 +9,7 @@ import com.lab.labtimesheet.feature.project.model.dto.ProjectMemberForm;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectMemberView;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectMembersForm;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectExitWorkflowView;
+import com.lab.labtimesheet.feature.project.model.ProjectExitRequestType;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectListPage;
 import com.lab.labtimesheet.feature.project.model.InvitationResponse;
 import com.lab.labtimesheet.feature.task.model.TaskStatus;
@@ -110,6 +111,7 @@ public class ProjectController {
         }
         model.addAttribute("projectForm", new ProjectCreateForm());
         model.addAttribute("eligibleInternOptions", eligibleInternOptions());
+        model.addAttribute("today", LocalDate.now(clock));
         return "projects/form";
     }
 
@@ -141,6 +143,7 @@ public class ProjectController {
         if (bindingResult.hasErrors()) {
             // Khi dữ liệu form sai, tải lại các Intern hợp lệ để người dùng không phải bắt đầu lại.
             model.addAttribute("eligibleInternOptions", eligibleInternOptions());
+            model.addAttribute("today", LocalDate.now(clock));
             return "projects/form";
         }
         try {
@@ -148,10 +151,13 @@ public class ProjectController {
             long projectId = projects.create(actor.userId(), projectForm.toCommand());
             return "redirect:/projects/" + projectId;
         } catch (ProjectRuleViolationException exception) {
-            // Gắn lỗi nghiệp vụ vào ô chọn Leader để hiển thị ngay trên form an toàn.
+            String field = exception.getMessage() != null
+                    && exception.getMessage().toLowerCase(java.util.Locale.ROOT).contains("date")
+                    ? "startDate" : "initialLeaderUserId";
             bindingResult.rejectValue(
-                    "initialLeaderUserId", "project.initialLeader.ineligible", exception.getMessage());
+                    field, "project.rule.violation", exception.getMessage());
             model.addAttribute("eligibleInternOptions", eligibleInternOptions());
+            model.addAttribute("today", LocalDate.now(clock));
             return "projects/form";
         }
     }
@@ -246,15 +252,21 @@ public class ProjectController {
     String issueInvitation(
             Principal principal,
             @PathVariable long projectId,
-            @RequestParam(defaultValue = "") String invitedInternUserId,
+            @RequestParam(name = "invitedInternUserId", required = false) List<String> invitedInternUserIds,
             RedirectAttributes redirectAttributes) {
-        return workflowMutation(projectId, redirectAttributes, Map.of(
-                "kind", "invitation",
-                "invitedInternUserId", invitedInternUserId), () -> {
-            projects.issueInvitation(
-                    actorId(principal),
-                    projectId,
-                    requiredLong(invitedInternUserId, "Choose a valid Intern."));
+        List<String> selected = invitedInternUserIds == null ? List.of() : List.copyOf(invitedInternUserIds);
+        Map<String, Object> safeInput = selected.size() == 1
+                ? Map.of("kind", "invitation", "invitedInternUserId", selected.getFirst())
+                : Map.of("kind", "invitation", "invitedInternUserIds", selected);
+        return workflowMutation(projectId, redirectAttributes, safeInput, () -> {
+            List<Long> ids = selected.stream()
+                    .map(value -> requiredLong(value, "Choose valid Interns."))
+                    .toList();
+            if (ids.size() == 1) {
+                projects.issueInvitation(actorId(principal), projectId, ids.getFirst());
+            } else {
+                projects.issueInvitations(actorId(principal), projectId, ids);
+            }
             return null;
         });
     }
@@ -470,6 +482,33 @@ public class ProjectController {
             return "redirect:/projects/" + projectId;
         } catch (ProjectRuleViolationException exception) {
             // Không redirect khi thất bại để lỗi lifecycle hiện trực tiếp ở trang Project hiện tại.
+            model.addAttribute("project", pages.detail(actorId, projectId));
+            model.addAttribute("projectError", exception.getMessage());
+            return "projects/detail";
+        }
+    }
+
+    /**
+     * Deletes a planned Project draft and returns to the authorized Project list.
+     *
+     * <p>The service rechecks ownership and lifecycle under the Project lock. A concurrent
+     * activation therefore turns this into the same safe detail error used by other lifecycle
+     * mutations instead of allowing an ACTIVE Project to be deleted.</p>
+     *
+     * @param principal authenticated Mentor
+     * @param projectId Project to delete
+     * @param model response model used when deletion is rejected
+     * @return a list redirect after success, or the detail view after a rule failure
+     */
+    // [Xóa Project PLANNED]
+    // Nút xóa chỉ hiện cho Mentor sở hữu bản PLANNED, nhưng service vẫn kiểm tra lại để không tin UI.
+    @PostMapping("/{projectId}/delete")
+    public String delete(Principal principal, @PathVariable long projectId, Model model) {
+        long actorId = actorId(principal);
+        try {
+            projects.delete(actorId, projectId);
+            return "redirect:/projects";
+        } catch (ProjectRuleViolationException exception) {
             model.addAttribute("project", pages.detail(actorId, projectId));
             model.addAttribute("projectError", exception.getMessage());
             return "projects/detail";
@@ -693,6 +732,16 @@ public class ProjectController {
                     return new ProjectExitWorkflowView(
                             item.requestId(),
                             item.targetMembershipId(),
+                            history.exitRequests().stream()
+                                    .filter(request -> request.id() == item.requestId())
+                                    .map(request -> request.requestType())
+                                    .findFirst()
+                                    .orElse(ProjectExitRequestType.MEMBER_LEAVE),
+                            history.exitRequests().stream()
+                                    .filter(request -> request.id() == item.requestId())
+                                    .map(request -> request.reason())
+                                    .findFirst()
+                                    .orElse("—"),
                             targetUsername,
                             targetStudentCode,
                             targetEmail,
@@ -703,6 +752,12 @@ public class ProjectController {
                             // Nút transfer chỉ hiện cho Leader hiện tại, không áp dụng khi chính Leader đang rời Project.
                             currentLeader && !item.targetIsCurrentLeader() && item.unfinishedTaskCount() > 0);
                 })
+                .toList();
+        var memberLeaveWorkflows = exitWorkflows.stream()
+                .filter(workflow -> workflow.requestType() == ProjectExitRequestType.MEMBER_LEAVE)
+                .toList();
+        var leaderRemovalWorkflows = exitWorkflows.stream()
+                .filter(workflow -> workflow.requestType() == ProjectExitRequestType.LEADER_REMOVAL)
                 .toList();
         var unfinishedTasksByMembership = history.tasks().stream()
                 // Task đã xoá và Task DONE không cần chuyển trước khi duyệt exit.
@@ -748,6 +803,8 @@ public class ProjectController {
         model.addAttribute("currentLeader", currentLeader);
         model.addAttribute("actorMembership", actorMembership);
         model.addAttribute("exitWorkflows", exitWorkflows);
+        model.addAttribute("memberLeaveWorkflows", memberLeaveWorkflows);
+        model.addAttribute("leaderRemovalWorkflows", leaderRemovalWorkflows);
         model.addAttribute("pendingTargetMembershipIds", pendingTargets);
         model.addAttribute("unfinishedTasksByMembership", unfinishedTasksByMembership);
         model.addAttribute("transferRecipients", currentMembers.stream()

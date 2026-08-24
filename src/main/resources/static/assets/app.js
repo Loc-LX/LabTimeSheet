@@ -79,6 +79,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const cancel = picker.querySelector('[data-picker-cancel]');
     const apply = picker.querySelector('[data-picker-apply]');
     const options = [...picker.querySelectorAll('[data-picker-option]')];
+    const placeholder = (open.textContent || '').trim();
     let initialSelection = [];
     let expanded = false;
 
@@ -87,6 +88,13 @@ document.addEventListener('DOMContentLoaded', () => {
       const selected = options
         .filter((option) => option.querySelector('input').checked)
         .map((option) => option.querySelector('[data-picker-label]').textContent.trim());
+      const singleSelection = inputs()[0]?.type === 'radio';
+      if (singleSelection) {
+        open.textContent = selected[0] || placeholder;
+        summary.hidden = true;
+      } else {
+        summary.hidden = false;
+      }
       summary.textContent = selected.length === 0
         ? `No Intern${inputs()[0]?.type === 'radio' ? '' : 's'} selected`
         : `${selected.length} Intern${selected.length === 1 ? '' : 's'} selected: ${selected.join(', ')}`;

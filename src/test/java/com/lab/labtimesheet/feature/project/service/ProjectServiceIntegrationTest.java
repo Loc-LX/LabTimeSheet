@@ -243,6 +243,59 @@ class ProjectServiceIntegrationTest {
     }
 
     @Test
+    void ownerCanDeleteAPlannedProjectAndItsOwnedRows() {
+        long mentorId = user("mentor-delete-planned@example.test", "MENTOR");
+        long leaderId = intern("leader-delete-planned@example.test", "I026");
+        long inviteeId = intern("invitee-delete-planned@example.test", "I028");
+        long memberId = intern("member-delete-planned@example.test", "I029");
+        long projectId = createProject(mentorId, leaderId, "Disposable draft");
+        projectService.issueInvitation(leaderId, projectId, inviteeId);
+        projectService.addMember(mentorId, projectId, memberId);
+        projectService.requestOwnLeave(memberId, projectId, "Draft cleanup");
+        long membershipId = membershipId(projectId, leaderId);
+        long taskId = jdbc.queryForObject("""
+                insert into tasks (
+                    project_id, assignee_membership_id, title,
+                    created_by_membership_id, assigned_by_membership_id)
+                values (?, ?, 'Draft task', ?, ?)
+                returning id
+                """, Long.class, projectId, membershipId, membershipId, membershipId);
+        jdbc.update("""
+                insert into task_comments (task_id, author_user_id, body)
+                values (?, ?, 'Draft comment')
+                """, taskId, leaderId);
+        jdbc.update("""
+                insert into task_work_logs (project_id, task_id, membership_id, work_date, minutes)
+                values (?, ?, ?, date '2026-08-20', 30)
+                """, projectId, taskId, membershipId);
+
+        projectService.delete(mentorId, projectId);
+
+        assertEquals(0, count("select count(*) from projects where id = ?", projectId));
+        assertEquals(0, count("select count(*) from project_memberships where project_id = ?", projectId));
+        assertEquals(0, count("select count(*) from project_leadership_terms where project_id = ?", projectId));
+        assertEquals(0, count("select count(*) from project_invitations where project_id = ?", projectId));
+        assertEquals(0, count("select count(*) from project_membership_exit_requests where project_id = ?", projectId));
+        assertEquals(0, count("select count(*) from tasks where project_id = ?", projectId));
+        assertEquals(0, count("select count(*) from task_comments where task_id = ?", taskId));
+        assertEquals(0, count("select count(*) from task_work_logs where project_id = ?", projectId));
+    }
+
+    @Test
+    void activeProjectCannotBeDeletedAndRemainsAvailable() {
+        long mentorId = user("mentor-delete-active@example.test", "MENTOR");
+        long leaderId = intern("leader-delete-active@example.test", "I027");
+        long projectId = createProject(mentorId, leaderId, "Protected active project");
+        projectService.activate(mentorId, projectId);
+
+        assertThrows(ProjectRuleViolationException.class,
+                () -> projectService.delete(mentorId, projectId));
+
+        assertEquals("ACTIVE", text("select status from projects where id = ?", projectId));
+        assertEquals(1, count("select count(*) from projects where id = ?", projectId));
+    }
+
+    @Test
     void adminTerminalReadinessComposesCurrentLeadershipAndUnfinishedTasksBeforeCompletion() {
         long adminId = user("admin-terminal@example.test", "ADMIN");
         long mentorId = user("mentor-terminal@example.test", "MENTOR");

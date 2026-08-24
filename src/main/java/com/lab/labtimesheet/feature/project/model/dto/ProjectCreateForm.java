@@ -13,7 +13,7 @@ import org.springframework.format.annotation.DateTimeFormat;
  *
  * @param name required Project name, limited to the persisted column length
  * @param description optional description
- * @param startDate inclusive Project start date
+ * @param startDate inclusive Project start date; the service rejects dates before today
  * @param endDate inclusive Project end date
  * @param initialLeaderUserId positive eligible Intern user identifier
  */
@@ -22,9 +22,12 @@ import org.springframework.format.annotation.DateTimeFormat;
 public record ProjectCreateForm(
         @NotBlank @Size(max = 160) String name,
         String description,
-        @NotNull @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-        @NotNull @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
-        @NotNull @Positive Long initialLeaderUserId) {
+        @NotNull(message = "Start date is required")
+        @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+        @NotNull(message = "End date is required")
+        @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+        @NotNull(message = "Choose an initial Leader")
+        @Positive(message = "Choose a valid initial Leader") Long initialLeaderUserId) {
 
     /** Creates an empty form for the initial GET request and Thymeleaf binding. */
     public ProjectCreateForm() {
@@ -36,7 +39,7 @@ public record ProjectCreateForm(
      *
      * @return true when either date awaits required-field validation or end is not before start
      */
-    @AssertTrue(message = "End date must not precede start date")
+    @AssertTrue(message = "End date must be on or after the Start date")
     public boolean isDateRangeValid() {
         return startDate == null || endDate == null || !endDate.isBefore(startDate);
     }

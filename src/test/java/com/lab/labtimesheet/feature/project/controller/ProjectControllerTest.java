@@ -409,6 +409,31 @@ class ProjectControllerTest {
 
     @Test
     @WithMockUser(username = "mentor@example.test")
+    void pastStartDateDomainErrorStaysOnStartDateField() throws Exception {
+        when(pages.authenticatedActor("mentor@example.test"))
+                .thenReturn(new ProjectActorView(10L, "MENTOR"));
+        when(projects.create(
+                        10L,
+                        new ProjectCreateCommand(
+                                "Past Project", null, LocalDate.of(2026, 8, 14),
+                                LocalDate.of(2026, 9, 30), 20L)))
+                .thenThrow(new ProjectRuleViolationException("Project start date cannot be in the past"));
+
+        mvc.perform(post("/projects")
+                        .with(csrf())
+                        .param("name", "Past Project")
+                        .param("startDate", "2026-08-14")
+                        .param("endDate", "2026-09-30")
+                        .param("initialLeaderUserId", "20"))
+                .andExpect(status().isOk())
+                .andExpect(view().name("projects/form"))
+                .andExpect(model().attributeHasFieldErrors("projectForm", "startDate"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(containsString("Project start date cannot be in the past")));
+    }
+
+    @Test
+    @WithMockUser(username = "mentor@example.test")
     void missingInitialLeaderReRendersServerFieldError() throws Exception {
         when(pages.authenticatedActor("mentor@example.test"))
                 .thenReturn(new ProjectActorView(10L, "MENTOR"));
@@ -485,6 +510,8 @@ class ProjectControllerTest {
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
                         .string(containsString(">Activate<")))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(containsString(">Delete Project<")))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
                         .string(containsString("2 unfinished Tasks remain")));
 
         when(pages.detail(10L, 30L)).thenReturn(new ProjectDetail(
@@ -501,6 +528,49 @@ class ProjectControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
                         .string(not(containsString(">Activate<"))));
+    }
+
+    @Test
+    @WithMockUser(username = "mentor@example.test")
+    void owningMentorCanDeleteAPlannedProject() throws Exception {
+        when(pages.authenticatedUserId("mentor@example.test")).thenReturn(10L);
+
+        mvc.perform(post("/projects/30/delete").with(csrf()))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/projects"));
+
+        verify(projects).delete(10L, 30L);
+    }
+
+    @Test
+    @WithMockUser(username = "mentor@example.test")
+    void activeProjectDoesNotExposeDeleteAndRejectedDeleteReturnsSafeDetail() throws Exception {
+        when(pages.authenticatedUserId("mentor@example.test")).thenReturn(10L);
+        when(pages.detail(10L, 30L)).thenReturn(new ProjectDetail(
+                30L,
+                "Active Project",
+                null,
+                "ACTIVE",
+                LocalDate.of(2026, 8, 15),
+                LocalDate.of(2026, 9, 30),
+                "Mentor",
+                "Leader",
+                true));
+        when(pages.exitReadiness(10L, 30L)).thenReturn(List.of());
+        doThrow(new ProjectRuleViolationException("Only a planned Project can be deleted"))
+                .when(projects).delete(10L, 30L);
+
+        mvc.perform(get("/projects/30"))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(not(containsString(">Delete Project<"))));
+
+        mvc.perform(post("/projects/30/delete").with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(view().name("projects/detail"))
+                .andExpect(model().attribute("projectError", "Only a planned Project can be deleted"));
+
+        verify(projects).delete(10L, 30L);
     }
 
     @Test

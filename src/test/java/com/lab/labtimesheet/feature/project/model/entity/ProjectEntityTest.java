@@ -60,6 +60,17 @@ class ProjectEntityTest {
     }
 
     @Test
+    void onlyPlannedProjectsCanBeDeletedByTheirOwner() {
+        var project = plannedProject();
+
+        project.requireDeletable(10L);
+        assertThrows(ProjectAccessDeniedException.class, () -> project.requireDeletable(11L));
+
+        project.activate(10L, Set.of(20L), true, CREATED_AT.plusSeconds(60));
+        assertThrows(ProjectRuleViolationException.class, () -> project.requireDeletable(10L));
+    }
+
+    @Test
     void ownerAddsEligibleMembersButNotDuplicateCurrentMemberships() {
         var project = plannedProject();
 

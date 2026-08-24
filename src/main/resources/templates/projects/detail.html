@@ -21,6 +21,11 @@
     <form class="inline-actions" th:if="${project.canManage and project.status == 'PLANNED'}" th:action="@{/projects/{id}/activate(id=${project.id})}" method="post">
         <button class="button button-primary" type="submit">Activate</button>
     </form>
+    <form class="inline-actions" th:if="${project.canManage and project.status == 'PLANNED'}"
+          th:action="@{/projects/{id}/delete(id=${project.id})}" method="post"
+          data-confirm="Delete this planned Project? Its memberships, invitations, Tasks, and history will be removed.">
+        <button class="button button-danger" type="submit">Delete Project</button>
+    </form>
     <section class="panel form-panel" th:each="readiness : ${exitReadiness}">
         <header class="panel-header"><h2 class="panel-title">Exit readiness</h2></header>
         <p class="field-help" th:if="${readiness.targetIsCurrentLeader}">Appoint a replacement Leader before this exit can be approved.</p>

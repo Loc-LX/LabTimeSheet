@@ -35,6 +35,8 @@ import com.lab.labtimesheet.feature.notification.model.dto.NotificationAction;
 import com.lab.labtimesheet.feature.notification.model.dto.NotificationEvent;
 import com.lab.labtimesheet.feature.notification.model.dto.NotificationRecipient;
 import com.lab.labtimesheet.feature.notification.service.NotificationService;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.Collection;
@@ -73,6 +75,10 @@ public class ProjectService {
     private final NotificationService notifications;
     private final Clock clock;
 
+    /** Native aggregate cleanup is kept behind the Project service transaction boundary. */
+    @PersistenceContext
+    private EntityManager entityManager;
+
     /**
      * Atomically creates a planned Mentor-owned Project, eligible initial membership, and first
      * leadership term. {@code saveAndFlush} exposes database invariant violations before commit.
@@ -92,6 +98,10 @@ public class ProjectService {
     // 4. Flush dữ liệu rồi tạo notification membership/leadership trong cùng transaction.
     @Transactional
     public long create(long actorUserId, ProjectCreateCommand command) {
+        LocalDate today = LocalDate.now(clock);
+        if (command.startDate().isBefore(today)) {
+            throw new ProjectRuleViolationException("Project start date cannot be in the past");
+        }
         // Khoá cả Mentor và Leader ban đầu trước khi tạo Project để eligibility không đổi giữa chừng.
         var lockedAccounts = lockAccountsForTargetMutation(
                 List.of(actorUserId, command.initialLeaderUserId()));
@@ -225,14 +235,39 @@ public class ProjectService {
     // 4. Lưu invitation gắn với leadership term hiện tại và gửi notification cho invitee.
     @Transactional
     public long issueInvitation(long actorUserId, long projectId, long invitedInternUserId) {
+        return issueInvitations(actorUserId, projectId, List.of(invitedInternUserId)).getFirst();
+    }
+
+    /**
+     * Issues one atomic batch of invitations from the authenticated current Leader's term.
+     * Every selected Intern is locked and revalidated before any invitation is persisted, so a
+     * stale or ineligible selection rolls back the whole batch.
+     *
+     * @param actorUserId authenticated current Leader
+     * @param projectId mutable Project receiving invitations
+     * @param invitedInternUserIds eligible Intern accounts to invite
+     * @return generated invitation identifiers in submitted order
+     */
+    @Transactional
+    public List<Long> issueInvitations(
+            long actorUserId, long projectId, Collection<Long> invitedInternUserIds) {
+        if (invitedInternUserIds == null || invitedInternUserIds.isEmpty()
+                || invitedInternUserIds.stream().anyMatch(Objects::isNull)
+                || invitedInternUserIds.stream().anyMatch(id -> id <= 0)
+                || invitedInternUserIds.stream().distinct().count() != invitedInternUserIds.size()) {
+            throw new ProjectRuleViolationException("Choose one or more unique Interns.");
+        }
         var route = projectRoute(projectId);
         // Chỉ Leader ghi trong route hiện tại mới có thể bắt đầu thao tác mời.
         if (!Objects.equals(route.currentLeaderUserId(), actorUserId)) {
             throw new ProjectAccessDeniedException();
         }
-        var lockedAccounts = lockAccountsForTargetMutation(List.of(actorUserId, invitedInternUserId));
+        List<Long> selectedIds = List.copyOf(invitedInternUserIds);
+        List<Long> accountIds = new java.util.ArrayList<>();
+        accountIds.add(actorUserId);
+        accountIds.addAll(selectedIds);
+        var lockedAccounts = lockAccountsForTargetMutation(accountIds);
         var actor = snapshotFor(lockedAccounts, actorUserId);
-        var invitee = snapshotFor(lockedAccounts, invitedInternUserId);
         requireEligibleInternForProjectActor(actor);
         var project = lockedProject(projectId);
         // Kiểm tra lại Leader sau lock để không dùng quyền của term đã bị Mentor đổi.
@@ -240,19 +275,23 @@ public class ProjectService {
             throw new ProjectAccessDeniedException();
         }
         requireOpenProject(project);
-        requireEligibleInternForProjectTarget(invitee);
-        if (project.hasCurrentMember(invitedInternUserId)) {
-            throw new ProjectRuleViolationException("Intern is already a current Project member");
+        List<Long> invitationIds = new java.util.ArrayList<>();
+        for (long invitedInternUserId : selectedIds) {
+            var invitee = snapshotFor(lockedAccounts, invitedInternUserId);
+            requireEligibleInternForProjectTarget(invitee);
+            if (project.hasCurrentMember(invitedInternUserId)) {
+                throw new ProjectRuleViolationException("Intern is already a current Project member");
+            }
+            if (invitations.findLockedPending(projectId, invitedInternUserId).isPresent()) {
+                throw new ProjectRuleViolationException("A pending invitation already exists");
+            }
+            // Lời mời lưu kèm leadership term để biết chính xác Leader nào đã phát hành.
+            var invitation = ProjectInvitationEntity.pending(
+                    project, invitee.userId(), project.currentLeadershipTerm(), clock.instant());
+            invitationIds.add(invitations.saveAndFlush(invitation).id());
+            notifyInvitationCreated(invitation);
         }
-        if (invitations.findLockedPending(projectId, invitedInternUserId).isPresent()) {
-            throw new ProjectRuleViolationException("A pending invitation already exists");
-        }
-        // Lời mời lưu kèm leadership term để biết chính xác Leader nào đã phát hành.
-        var invitation = ProjectInvitationEntity.pending(
-                project, invitee.userId(), project.currentLeadershipTerm(), clock.instant());
-        long invitationId = invitations.saveAndFlush(invitation).id();
-        notifyInvitationCreated(invitation);
-        return invitationId;
+        return List.copyOf(invitationIds);
     }
 
     /**
@@ -1374,6 +1413,54 @@ public class ProjectService {
         // Entity kiểm tra status PLANNED, member eligibility và assignee validity trước khi đổi trạng thái.
         project.activate(actorUserId, activeInternUserIds, allTaskAssigneesAreCurrent, clock.instant());
         projects.flush();
+    }
+
+    /**
+     * Deletes an owning Mentor's planned Project draft.
+     *
+     * <p>Project and all project-owned rows are removed atomically in dependency order. The
+     * persistence context is cleared before native child deletes so managed invitation/exit
+     * rows cannot retain references to leadership or membership rows that are about to be
+     * removed. ACTIVE and COMPLETED Projects are rejected before any delete is attempted.</p>
+     *
+     * @param actorUserId authenticated owning Mentor
+     * @param projectId planned Project identifier
+     * @throws ProjectAccessDeniedException when the actor does not own the Project
+     * @throws ProjectRuleViolationException when the Project is not planned
+     */
+    // [Xóa Project PLANNED]
+    // Chỉ bản nháp PLANNED mới được xóa. Project đã ACTIVE/COMPLETED giữ nguyên lịch sử và bị chặn
+    // ngay trong aggregate trước khi purge dữ liệu.
+    @Transactional
+    public void delete(long actorUserId, long projectId) {
+        var locked = lockOwnedProject(actorUserId, projectId);
+        locked.project().requireDeletable(actorUserId);
+        entityManager.flush();
+        entityManager.clear();
+        deleteProjectRows(projectId);
+    }
+
+    /** Removes a planned aggregate in child-to-parent foreign-key order. */
+    private void deleteProjectRows(long projectId) {
+        nativeDelete("""
+                delete from task_comments
+                where task_id in (select id from tasks where project_id = :projectId)
+                """, projectId);
+        nativeDelete("delete from task_work_logs where project_id = :projectId", projectId);
+        nativeDelete("delete from tasks where project_id = :projectId", projectId);
+        nativeDelete(
+                "delete from project_membership_exit_requests where project_id = :projectId",
+                projectId);
+        nativeDelete("delete from project_invitations where project_id = :projectId", projectId);
+        nativeDelete("delete from project_leadership_terms where project_id = :projectId", projectId);
+        nativeDelete("delete from project_memberships where project_id = :projectId", projectId);
+        nativeDelete("delete from projects where id = :projectId", projectId);
+    }
+
+    private void nativeDelete(String sql, long projectId) {
+        entityManager.createNativeQuery(sql)
+                .setParameter("projectId", projectId)
+                .executeUpdate();
     }
 
     // [Khóa Project để mutation]

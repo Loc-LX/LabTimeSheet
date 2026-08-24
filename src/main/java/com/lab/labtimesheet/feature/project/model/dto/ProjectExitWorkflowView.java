@@ -1,5 +1,7 @@
 package com.lab.labtimesheet.feature.project.model.dto;
 
+import com.lab.labtimesheet.feature.project.model.ProjectExitRequestType;
+
 /**
  * Render-ready pending-exit warning and capability snapshot.
  *
@@ -8,6 +10,8 @@ package com.lab.labtimesheet.feature.project.model.dto;
  *
  * @param requestId pending request identifier
  * @param targetMembershipId target membership interval
+ * @param requestType whether the Intern requested own exit or the Leader requested removal
+ * @param reason retained reason supplied with the request
  * @param targetName current display name for the target
  * @param replacementRequired whether the target is still current Leader
  * @param unfinishedTaskCount current unfinished Task count
@@ -20,6 +24,8 @@ package com.lab.labtimesheet.feature.project.model.dto;
 public record ProjectExitWorkflowView(
         long requestId,
         long targetMembershipId,
+        ProjectExitRequestType requestType,
+        String reason,
         String targetName,
         String targetStudentCode,
         String targetEmail,

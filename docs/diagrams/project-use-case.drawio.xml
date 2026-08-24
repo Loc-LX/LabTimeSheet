@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net" modified="2026-08-24T00:00:00.000Z" agent="Codex" version="24.7.17" type="device" compressed="false">
+  <diagram id="project-use-case" name="Project Use Case Diagram">
+    <mxGraphModel dx="1600" dy="1100" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="system-boundary" value="Lab Timesheet - Project Management" style="swimlane;html=1;startSize=36;horizontal=1;rounded=0;collapsible=0;whiteSpace=wrap;fontStyle=1;strokeWidth=2;fillColor=none;swimlaneFillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="220" y="30" width="1150" height="1000" as="geometry" />
+        </mxCell>
+
+        <mxCell id="actor-mentor" value="Mentor" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;" vertex="1" parent="1">
+          <mxGeometry x="55" y="455" width="80" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="actor-intern" value="Intern" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;" vertex="1" parent="1">
+          <mxGeometry x="1435" y="215" width="80" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="actor-leader" value="Project Leader" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;" vertex="1" parent="1">
+          <mxGeometry x="1435" y="660" width="80" height="120" as="geometry" />
+        </mxCell>
+
+        <mxCell id="uc01" value="UC01&lt;br&gt;&lt;b&gt;View Owned Projects&lt;/b&gt;" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;" vertex="1" parent="1">
+          <mxGeometry x="270" y="85" width="250" height="72" as="geometry" />
+        </mxCell>
+        <mxCell id="uc02" value="UC02&lt;br&gt;&lt;b&gt;Create Project&lt;/b&gt;" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;" vertex="1" parent="1">
+          <mxGeometry x="270" y="205" width="250" height="72" as="geometry" />
+        </mxCell>
+        <mxCell id="uc04" value="UC04&lt;br&gt;&lt;b&gt;Add Project Member&lt;/b&gt;" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;" vertex="1" parent="1">
+          <mxGeometry x="270" y="325" width="250" height="72" as="geometry" />
+        </mxCell>
+        <mxCell id="uc05" value="UC05&lt;br&gt;&lt;b&gt;Invite Project Leader&lt;/b&gt;" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;" vertex="1" parent="1">
+          <mxGeometry x="270" y="445" width="250" height="72" as="geometry" />
+        </mxCell>
+        <mxCell id="uc06" value="UC06&lt;br&gt;&lt;b&gt;Revoke Leader Invitation&lt;/b&gt;" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;" vertex="1" parent="1">
+          <mxGeometry x="270" y="565" width="250" height="72" as="geometry" />
+        </mxCell>
+        <mxCell id="uc09" value="UC09&lt;br&gt;&lt;b&gt;Change Project Leader&lt;/b&gt;" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;" vertex="1" parent="1">
+          <mxGeometry x="270" y="685" width="250" height="72" as="geometry" />
+        </mxCell>
+        <mxCell id="uc10" value="UC10&lt;br&gt;&lt;b&gt;Remove Project Leader&lt;/b&gt;" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;" vertex="1" parent="1">
+          <mxGeometry x="270" y="805" width="250" height="72" as="geometry" />
+        </mxCell>
+        <mxCell id="uc11" value="UC11&lt;br&gt;&lt;b&gt;Remove Project Member&lt;/b&gt;" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;" vertex="1" parent="1">
+          <mxGeometry x="270" y="925" width="250" height="72" as="geometry" />
+        </mxCell>
+
+        <mxCell id="uc03" value="UC03&lt;br&gt;&lt;b&gt;View Project Details&lt;/b&gt;" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;" vertex="1" parent="1">
+          <mxGeometry x="590" y="85" width="250" height="72" as="geometry" />
+        </mxCell>
+        <mxCell id="uc14" value="UC14&lt;br&gt;&lt;b&gt;View Pending Exit Requests&lt;/b&gt;" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;" vertex="1" parent="1">
+          <mxGeometry x="590" y="245" width="250" height="72" as="geometry" />
+        </mxCell>
+        <mxCell id="uc15" value="UC15&lt;br&gt;&lt;b&gt;Approve Exit Request&lt;/b&gt;" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;" vertex="1" parent="1">
+          <mxGeometry x="590" y="405" width="250" height="72" as="geometry" />
+        </mxCell>
+        <mxCell id="uc16" value="UC16&lt;br&gt;&lt;b&gt;Reject Exit Request&lt;/b&gt;" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;" vertex="1" parent="1">
+          <mxGeometry x="590" y="565" width="250" height="72" as="geometry" />
+        </mxCell>
+        <mxCell id="uc17" value="UC17&lt;br&gt;&lt;b&gt;Complete Project&lt;/b&gt;" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;" vertex="1" parent="1">
+          <mxGeometry x="590" y="725" width="250" height="72" as="geometry" />
+        </mxCell>
+        <mxCell id="uc18" value="UC18&lt;br&gt;&lt;b&gt;View Project History&lt;/b&gt;" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;" vertex="1" parent="1">
+          <mxGeometry x="590" y="885" width="250" height="72" as="geometry" />
+        </mxCell>
+
+        <mxCell id="uc19" value="UC19&lt;br&gt;&lt;b&gt;View My Projects&lt;/b&gt;" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;" vertex="1" parent="1">
+          <mxGeometry x="990" y="85" width="250" height="72" as="geometry" />
+        </mxCell>
+        <mxCell id="uc07" value="UC07&lt;br&gt;&lt;b&gt;Accept Leader Invitation&lt;/b&gt;" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;" vertex="1" parent="1">
+          <mxGeometry x="990" y="245" width="250" height="72" as="geometry" />
+        </mxCell>
+        <mxCell id="uc08" value="UC08&lt;br&gt;&lt;b&gt;Decline Leader Invitation&lt;/b&gt;" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;" vertex="1" parent="1">
+          <mxGeometry x="990" y="405" width="250" height="72" as="geometry" />
+        </mxCell>
+        <mxCell id="uc12" value="UC12&lt;br&gt;&lt;b&gt;Request Project Exit&lt;/b&gt;" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;" vertex="1" parent="1">
+          <mxGeometry x="990" y="565" width="250" height="72" as="geometry" />
+        </mxCell>
+        <mxCell id="uc13" value="UC13&lt;br&gt;&lt;b&gt;Cancel Exit Request&lt;/b&gt;" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;" vertex="1" parent="1">
+          <mxGeometry x="990" y="725" width="250" height="72" as="geometry" />
+        </mxCell>
+
+        <mxCell id="edge-mentor-uc01" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;startArrow=none;" edge="1" parent="1" source="actor-mentor" target="uc01"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="edge-mentor-uc02" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;startArrow=none;" edge="1" parent="1" source="actor-mentor" target="uc02"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="edge-mentor-uc03" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;startArrow=none;" edge="1" parent="1" source="actor-mentor" target="uc03"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="edge-mentor-uc04" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;startArrow=none;" edge="1" parent="1" source="actor-mentor" target="uc04"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="edge-mentor-uc05" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;startArrow=none;" edge="1" parent="1" source="actor-mentor" target="uc05"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="edge-mentor-uc06" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;startArrow=none;" edge="1" parent="1" source="actor-mentor" target="uc06"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="edge-mentor-uc09" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;startArrow=none;" edge="1" parent="1" source="actor-mentor" target="uc09"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="edge-mentor-uc10" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;startArrow=none;" edge="1" parent="1" source="actor-mentor" target="uc10"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="edge-mentor-uc11" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;startArrow=none;" edge="1" parent="1" source="actor-mentor" target="uc11"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="edge-mentor-uc14" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;startArrow=none;" edge="1" parent="1" source="actor-mentor" target="uc14"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="edge-mentor-uc15" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;startArrow=none;" edge="1" parent="1" source="actor-mentor" target="uc15"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="edge-mentor-uc16" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;startArrow=none;" edge="1" parent="1" source="actor-mentor" target="uc16"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="edge-mentor-uc17" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;startArrow=none;" edge="1" parent="1" source="actor-mentor" target="uc17"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="edge-mentor-uc18" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;startArrow=none;" edge="1" parent="1" source="actor-mentor" target="uc18"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <mxCell id="edge-intern-uc03" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;startArrow=none;" edge="1" parent="1" source="actor-intern" target="uc03"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="edge-intern-uc07" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;startArrow=none;" edge="1" parent="1" source="actor-intern" target="uc07"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="edge-intern-uc08" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;startArrow=none;" edge="1" parent="1" source="actor-intern" target="uc08"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="edge-intern-uc12" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;startArrow=none;" edge="1" parent="1" source="actor-intern" target="uc12"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="edge-intern-uc13" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;startArrow=none;" edge="1" parent="1" source="actor-intern" target="uc13"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="edge-intern-uc18" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;startArrow=none;" edge="1" parent="1" source="actor-intern" target="uc18"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="edge-intern-uc19" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;startArrow=none;" edge="1" parent="1" source="actor-intern" target="uc19"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <mxCell id="edge-leader-uc03" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;startArrow=none;" edge="1" parent="1" source="actor-leader" target="uc03"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="edge-leader-uc12" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;startArrow=none;" edge="1" parent="1" source="actor-leader" target="uc12"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="edge-leader-uc13" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;startArrow=none;" edge="1" parent="1" source="actor-leader" target="uc13"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="edge-leader-uc18" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;startArrow=none;" edge="1" parent="1" source="actor-leader" target="uc18"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="edge-leader-uc19" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;startArrow=none;" edge="1" parent="1" source="actor-leader" target="uc19"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <mxCell id="include-uc10-uc09" value="&amp;lt;&amp;lt;include&amp;gt;&amp;gt;" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;dashed=1;dashPattern=8 8;endArrow=open;endFill=0;" edge="1" parent="1" source="uc10" target="uc09">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="extend-uc15-uc14" value="&amp;lt;&amp;lt;extend&amp;gt;&amp;gt;" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;dashed=1;dashPattern=8 8;endArrow=open;endFill=0;" edge="1" parent="1" source="uc15" target="uc14">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="extend-uc16-uc14" value="&amp;lt;&amp;lt;extend&amp;gt;&amp;gt;" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;dashed=1;dashPattern=8 8;endArrow=open;endFill=0;" edge="1" parent="1" source="uc16" target="uc14">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

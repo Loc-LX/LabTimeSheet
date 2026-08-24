@@ -398,6 +398,23 @@ public class ProjectEntity {
     }
 
     /**
+     * Authorizes deletion of a disposable draft Project.
+     *
+     * <p>Once execution has started, the Project and its retained history are immutable. The
+     * service performs the physical aggregate delete only after this guard succeeds.</p>
+     *
+     * @param actorMentorUserId authenticated owning Mentor
+     * @throws ProjectAccessDeniedException when the actor does not own this Project
+     * @throws ProjectRuleViolationException when the Project is no longer planned
+     */
+    public void requireDeletable(long actorMentorUserId) {
+        requireOwner(actorMentorUserId);
+        if (status != ProjectStatus.PLANNED) {
+            throw new ProjectRuleViolationException("Only a planned Project can be deleted");
+        }
+    }
+
+    /**
      * Checks only open membership intervals.
      *
      * @param internUserId Intern account identifier
