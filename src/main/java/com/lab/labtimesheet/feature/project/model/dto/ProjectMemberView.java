@@ -14,6 +14,8 @@ import java.time.Instant;
  * @param addedByUserId account that created the retained membership interval
  * @param removedByMentorUserId owning Mentor that closed the interval, or null while current
  */
+// DTO một thành viên Project dùng cho bảng Members.
+// Thông tin joined/left được giữ để UI phân biệt thành viên hiện tại với lịch sử đã rời Project.
 public record ProjectMemberView(
         long membershipId,
         long internUserId,

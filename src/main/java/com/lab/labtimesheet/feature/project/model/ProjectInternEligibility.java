@@ -7,6 +7,8 @@ package com.lab.labtimesheet.feature.project.model;
  * @param userId Intern account identifier
  * @param eligible true only when both account and internship are active for the relevant check
  */
+// DTO nội bộ cho biết Intern còn đủ điều kiện tham gia Project tại thời điểm mutation.
+// ProjectService nhận fact này từ AccountService rồi chuyển cho ProjectEntity kiểm tra rule.
 public record ProjectInternEligibility(long userId, boolean eligible) {
 
     /**

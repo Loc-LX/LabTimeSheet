@@ -12,6 +12,8 @@ import java.time.Instant;
  * @param appointedByMentorUserId owning Mentor that appointed this term
  * @param endedByMentorUserId Mentor that closed this term, or null while current
  */
+// DTO một giai đoạn Leader cho tab Leadership/History.
+// Một Intern đổi Leader sẽ có term cũ được đóng và term mới được tạo thay vì ghi đè dữ liệu cũ.
 public record ProjectLeadershipTermView(
         long id,
         String leaderName,

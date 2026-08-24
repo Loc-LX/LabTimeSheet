@@ -25,6 +25,8 @@ import lombok.NoArgsConstructor;
  * <p>Invitations have no expiry. A terminal row preserves the issuing term, response actor, and
  * resolution code so later Project history does not need a synthetic event record.
  */
+// Entity lưu một lời mời Intern vào Project từ lúc tạo đến khi được chấp nhận, từ chối hoặc thu hồi.
+// ProjectService dùng record này để giữ lịch sử lời mời, không xóa dữ liệu đã xử lý.
 @Entity
 @Table(name = "project_invitations")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -93,6 +95,8 @@ public class ProjectInvitationEntity {
      * @param createdAt server creation instant
      * @return unsaved pending invitation
      */
+    // [Tạo lời mời chờ phản hồi]
+    // Lời mời chỉ lưu dữ liệu ban đầu và có trạng thái PENDING; chưa tạo membership cho Intern ở bước này.
     public static ProjectInvitationEntity pending(
             ProjectEntity project,
             long invitedInternUserId,
@@ -222,6 +226,9 @@ public class ProjectInvitationEntity {
      * @param acceptedMembership membership created by acceptance, otherwise null
      * @param at server resolution instant
      */
+    // [Kết thúc lời mời]
+    // Chỉ lời mời PENDING được xử lý một lần. Nếu chấp nhận, acceptedMembership liên kết
+    // lời mời với membership mới để màn hình lịch sử biết Intern đã vào Project từ invitation nào.
     public void resolve(
             InvitationStatus terminalStatus,
             InvitationResolutionCode code,

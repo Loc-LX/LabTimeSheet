@@ -46,12 +46,15 @@ import org.springframework.transaction.annotation.Transactional;
  * Projects only while currently enrolled. Completed Projects remain visible to historical
  * members but expose no current Leader or active-member context.
  */
+// Service chỉ đọc dữ liệu Project cho Controller và các feature khác.
+// Nó kiểm tra quyền theo role trước, sau đó gọi Repository lấy dữ liệu và đổi Entity thành DTO an toàn cho UI.
 @Service
 @RequiredArgsConstructor
 public class ProjectQueryService {
 
     private static final int PROJECT_LIST_PAGE_SIZE = 50;
 
+    // Spring inject các nguồn đọc Project, Account và Task dùng để dựng dữ liệu cho màn hình.
     private final ProjectRepository projects;
     private final ProjectExitRequestRepository exitRequests;
     private final ProjectInvitationRepository invitations;

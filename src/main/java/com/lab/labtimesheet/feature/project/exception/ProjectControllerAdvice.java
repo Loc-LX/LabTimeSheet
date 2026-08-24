@@ -14,6 +14,9 @@ import org.springframework.web.servlet.ModelAndView;
  * {@code errorStatus}, {@code errorTitle}, and {@code errorMessage}; none is populated from the
  * exception message.
  */
+// Bộ xử lý lỗi chung chỉ dành cho ProjectController.
+// Khi Controller hoặc Service ném lỗi Project không được bắt tại form, Spring chuyển tới đây
+// để trả trang lỗi an toàn thay vì lộ ID, trạng thái hoặc chi tiết Project không có quyền xem.
 @ControllerAdvice(assignableTypes = ProjectController.class)
 public class ProjectControllerAdvice {
 
@@ -22,6 +25,8 @@ public class ProjectControllerAdvice {
      *
      * @return the shared generic error view with HTTP 404 and safe copy
      */
+    // [Ẩn Project không được phép truy cập]
+    // Trả cùng một trang 404 cho cả trường hợp không tồn tại và không có quyền, tránh lộ dữ liệu Project.
     @ExceptionHandler(ProjectAccessDeniedException.class)
     public ModelAndView accessDenied() {
         return genericError(
@@ -36,6 +41,8 @@ public class ProjectControllerAdvice {
      *
      * @return the shared generic error view with HTTP 409 and safe copy
      */
+    // [Trả lỗi xung đột nghiệp vụ]
+    // Ví dụ dữ liệu vừa bị người khác thay đổi hoặc trạng thái Project không còn phù hợp với thao tác gửi lên.
     @ExceptionHandler(ProjectRuleViolationException.class)
     public ModelAndView conflict() {
         return genericError(
@@ -44,6 +51,8 @@ public class ProjectControllerAdvice {
                 "Review the Project and try again.");
     }
 
+    // [Dựng model trang lỗi]
+    // Đặt HTTP status và dữ liệu mà template error/generic đã thống nhất để render ra trình duyệt.
     private static ModelAndView genericError(HttpStatus status, String title, String message) {
         var error = new ModelAndView("error/generic");
         error.setStatus(status);

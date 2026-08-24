@@ -9,6 +9,8 @@ import java.util.List;
  *
  * @param internUserIds distinct positive Intern account identifiers selected in the picker
  */
+// Object nhận danh sách Intern được chọn ở màn hình thêm thành viên Project.
+// @NotEmpty và @Positive giúp Controller chặn form trống hoặc ID không hợp lệ trước khi gọi Service.
 public record ProjectMembersForm(@NotEmpty List<@Positive Long> internUserIds) {
 
     /** Creates an empty form for the initial membership page. */

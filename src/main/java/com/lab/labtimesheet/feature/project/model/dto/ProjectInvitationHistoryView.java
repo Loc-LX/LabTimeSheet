@@ -21,6 +21,8 @@ import java.time.Instant;
  * @param createdAt immutable invitation creation instant
  * @param updatedAt latest stored invitation update instant
  */
+// DTO một dòng lịch sử invitation, dùng cho tab Invitations.
+// Các ID account đã được QueryService đổi sang username/student code trước khi trả về UI.
 public record ProjectInvitationHistoryView(
         long id,
         long invitedInternUserId,

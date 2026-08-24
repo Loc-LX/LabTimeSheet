@@ -22,6 +22,8 @@ import java.time.Instant;
  * @param createdAt immutable request creation instant
  * @param updatedAt latest stored request update instant
  */
+// DTO một dòng lịch sử yêu cầu exit, gồm người gửi/đối tượng, trạng thái và quyết định cuối.
+// Dùng cho tab Exit decisions sau khi QueryService kiểm tra người xem có quyền xem Project.
 public record ProjectExitRequestHistoryView(
         long id,
         long targetMembershipId,

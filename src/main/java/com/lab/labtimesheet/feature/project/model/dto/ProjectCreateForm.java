@@ -17,6 +17,8 @@ import org.springframework.format.annotation.DateTimeFormat;
  * @param endDate inclusive Project end date
  * @param initialLeaderUserId positive eligible Intern user identifier
  */
+// Object nhận dữ liệu từ form tạo Project trên trình duyệt.
+// Spring dùng @ModelAttribute để map các ô nhập thành object này trước khi ProjectController gọi Service.
 public record ProjectCreateForm(
         @NotBlank @Size(max = 160) String name,
         String description,

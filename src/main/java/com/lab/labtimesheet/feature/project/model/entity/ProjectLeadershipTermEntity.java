@@ -20,6 +20,8 @@ import lombok.NoArgsConstructor;
  * <p>Changes close the current term and create a new term; completion closes the final term.
  * Historical terms retain the appointing and ending Mentor attribution.
  */
+// Entity lưu từng giai đoạn một Intern làm Leader của Project.
+// Đổi Leader không sửa Leader cũ mà đóng term cũ và tạo term mới để lịch sử luôn truy vết được.
 @Entity
 @Table(name = "project_leadership_terms")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -123,6 +125,9 @@ public class ProjectLeadershipTermEntity {
         return endedAt == null;
     }
 
+    // [Đóng term Leader]
+    // Chỉ ProjectEntity gọi method package-private này khi đổi Leader hoặc hoàn thành Project.
+    // Kết thúc không được sớm hơn lúc bắt đầu và term đã đóng không thể đóng lần nữa.
     Instant end(Instant at, long mentorUserId) {
         if (!isCurrent() || at.isBefore(startedAt)) {
             throw new ProjectRuleViolationException("Leadership term end must follow its start");

@@ -13,6 +13,8 @@ package com.lab.labtimesheet.feature.project.model.dto;
  * @param issuingLeaderUserId Leader account that issued the invitation
  * @param mentorUserId owning Mentor account identifier
  */
+// DTO nội bộ xác định các account cần nhận notification liên quan đến một invitation.
+// Service dùng ID này để gửi thông báo sau khi trạng thái invitation đã được thay đổi thành công.
 public record ProjectInvitationNotificationRoute(
         long projectId,
         long invitedInternUserId,

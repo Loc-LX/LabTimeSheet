@@ -14,6 +14,8 @@ package com.lab.labtimesheet.feature.project.model.dto;
  * @param readyForMentorDecision whether the current snapshot satisfies approval guards
  * @param canOpenTransfer whether the authenticated current Leader may open transfer controls
  */
+// DTO dữ liệu của trang xử lý exit: yêu cầu, tình trạng Task và các thành viên có thể nhận chuyển giao.
+// Controller chỉ render object này; quyết định approve/reject vẫn do ProjectService thực hiện.
 public record ProjectExitWorkflowView(
         long requestId,
         long targetMembershipId,

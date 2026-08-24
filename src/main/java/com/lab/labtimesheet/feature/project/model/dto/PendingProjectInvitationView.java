@@ -11,6 +11,8 @@ import java.time.Instant;
  * @param issuingLeaderName current display name of the retained issuing-term Intern
  * @param createdAt immutable invitation creation instant
  */
+// DTO một lời mời đang chờ phản hồi trong inbox của Intern.
+// UI dùng invitationId để gửi accept/decline, còn thông tin hiển thị đã được QueryService chuẩn bị an toàn.
 public record PendingProjectInvitationView(
         long invitationId,
         long projectId,
