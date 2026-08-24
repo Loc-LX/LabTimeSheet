@@ -38,7 +38,7 @@
                 <p class="field-help" th:id="${id + '-recipient-help'}">Choose one eligible active current member.</p>
                 <label class="checkbox" th:each="recipient : ${recipients}">
                     <input type="radio" name="recipientMembershipId" required th:value="${recipient.membershipId}" th:checked="${projectInput != null and projectInput.kind == 'transfer' and projectInput.sourceMembershipId == sourceMembershipId.toString() and projectInput.recipientMembershipId == recipient.membershipId.toString()}" th:attr="aria-describedby=${id + '-recipient-help'}">
-                    <span th:text="${projectHistory != null and projectHistory.usernamesByMembershipId[recipient.membershipId] != null ? projectHistory.usernamesByMembershipId[recipient.membershipId] : recipient.displayName}">Recipient</span>
+                    <span th:text="${projectHistoryUsernamesByMembershipId != null and projectHistoryUsernamesByMembershipId[recipient.membershipId] != null ? projectHistoryUsernamesByMembershipId[recipient.membershipId] : recipient.displayName}">Recipient</span>
                 </label>
                 <p class="field-help" th:if="${#lists.isEmpty(recipients)}">No eligible recipients are available.</p>
             </fieldset>

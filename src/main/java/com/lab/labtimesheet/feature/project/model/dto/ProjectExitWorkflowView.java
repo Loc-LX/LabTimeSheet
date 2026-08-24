@@ -16,10 +16,13 @@ package com.lab.labtimesheet.feature.project.model.dto;
  */
 // DTO dữ liệu của trang xử lý exit: yêu cầu, tình trạng Task và các thành viên có thể nhận chuyển giao.
 // Controller chỉ render object này; quyết định approve/reject vẫn do ProjectService thực hiện.
+// targetName được dùng làm Username; targetStudentCode và targetEmail được hiển thị riêng để không gộp nhiều loại định danh vào một tiêu đề.
 public record ProjectExitWorkflowView(
         long requestId,
         long targetMembershipId,
         String targetName,
+        String targetStudentCode,
+        String targetEmail,
         boolean replacementRequired,
         long unfinishedTaskCount,
         boolean readyForMentorDecision,

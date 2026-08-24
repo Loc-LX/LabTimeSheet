@@ -20,8 +20,19 @@
     <section class="panel form-panel" th:if="${actorMembership != null and !pendingTargetMembershipIds.contains(actorMembership.membershipId)}"><header class="panel-header"><h2 class="panel-title">Request my leave</h2></header><form class="filter-form" method="post" th:action="@{/projects/{id}/exits/leave(id=${project.id})}" th:attr="aria-describedby=${projectInput != null and projectInput.kind == 'leave' and projectError != null ? 'project-leave-form-error' : null}"><div class="field"><label class="field-label" for="leave-reason">Reason</label><input class="control" id="leave-reason" name="reason" maxlength="500" required th:value="${projectInput != null and projectInput.kind == 'leave' ? projectInput.reason : null}"></div><span></span><button class="button" type="submit">Request Project leave</button><p class="field-error" id="project-leave-form-error" role="alert" th:if="${projectInput != null and projectInput.kind == 'leave' and projectError != null}" th:text="${projectError}">Leave request error</p></form></section>
 
     <section th:each="workflow : ${exitWorkflows}" class="panel form-panel">
-        <header class="panel-header"><h2 class="panel-title" th:text="|Exit readiness · ${workflow.targetName}|">Exit readiness</h2></header>
-        <div th:replace="~{fragments/workflows :: exitReadiness(${workflow})}"></div>
+        <header class="panel-header"><h2 class="panel-title">Exit readiness</h2></header>
+        <dl class="account-fact-grid" aria-label="Exit target account details">
+            <div><dt>Username</dt><dd th:text="${workflow.targetName}">Intern2</dd></div>
+            <div><dt>Student Code</dt><dd th:text="${workflow.targetStudentCode}">DEMO-INT-2</dd></div>
+            <div><dt>Gmail</dt><dd th:text="${workflow.targetEmail}">intern2@gmail.com</dd></div>
+        </dl>
+        <div class="exit-readiness-status">
+            <p class="field-help" th:if="${workflow.replacementRequired}">Appoint a replacement Leader before transferring unfinished Tasks.</p>
+            <p class="field-help" th:if="${!workflow.replacementRequired and workflow.unfinishedTaskCount > 0}"
+               th:text="|${workflow.unfinishedTaskCount} unfinished Tasks remain before Mentor decision.|">Unfinished Tasks remain.</p>
+            <p class="field-help" th:if="${!workflow.replacementRequired and workflow.unfinishedTaskCount == 0 and workflow.readyForMentorDecision}">Ready for Mentor decision.</p>
+            <p class="field-help" th:if="${!workflow.replacementRequired and workflow.unfinishedTaskCount == 0 and !workflow.readyForMentorDecision}">No unfinished Tasks remain.</p>
+        </div>
         <div class="inline-actions exit-decision-actions">
             <form th:if="${cancellableExitIds.contains(workflow.requestId)}" method="post" th:action="@{/projects/{projectId}/exits/{id}/cancel(projectId=${project.id},id=${workflow.requestId})}"><button class="button" type="submit">Cancel request</button></form>
             <form class="exit-decision-form" th:if="${project.canManage}" method="post" data-confirm="Approve this exit? Membership will close; completed transfers and retained history remain." th:action="@{/projects/{projectId}/exits/{id}/approve(projectId=${project.id},id=${workflow.requestId})}" th:attr="aria-describedby=${projectInput != null and projectInput.kind == 'approve' and projectInput.requestId == workflow.requestId and projectError != null ? 'approve-exit-' + workflow.requestId + '-error' : null}"><button class="button button-primary" type="submit" th:disabled="${!workflow.readyForMentorDecision}">Approve exit</button><span class="field-error" role="alert" th:id="|approve-exit-${workflow.requestId}-error|" th:if="${projectInput != null and projectInput.kind == 'approve' and projectInput.requestId == workflow.requestId and projectError != null}" th:text="${projectError}">Approval error</span></form>

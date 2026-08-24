@@ -6,6 +6,7 @@ import com.lab.labtimesheet.feature.project.exception.ProjectAccessDeniedExcepti
 import com.lab.labtimesheet.feature.project.exception.ProjectRuleViolationException;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectCreateForm;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectMemberForm;
+import com.lab.labtimesheet.feature.project.model.dto.ProjectMemberView;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectMembersForm;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectExitWorkflowView;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectListPage;
@@ -660,17 +661,48 @@ public class ProjectController {
                 .map(item -> item.targetMembershipId())
                 .collect(Collectors.toUnmodifiableSet());
         var currentMembers = members.stream().filter(member -> member.leftAt() == null).toList();
+        // Tra cứu thành viên theo membership ID để lấy riêng Username, Mã sinh viên và Gmail cho từng thẻ exit.
+        Map<Long, ProjectMemberView> membersByMembershipId =
+                members.stream().collect(Collectors.toUnmodifiableMap(
+                        member -> member.membershipId(), member -> member));
         var exitWorkflows = readiness.stream()
-                .map(item -> new ProjectExitWorkflowView(
-                        item.requestId(),
-                        item.targetMembershipId(),
-                        memberNames.getOrDefault(item.targetMembershipId(), "Membership " + item.targetMembershipId()),
-                        item.targetIsCurrentLeader(),
-                        item.unfinishedTaskCount(),
-                        // Đây chỉ là điều kiện để hiện quyết định Mentor; service sẽ kiểm tra lại khi bấm nút.
-                        item.readyForApproval(),
-                        // Nút transfer chỉ hiện cho Leader hiện tại, không áp dụng khi chính Leader đang rời Project.
-                        currentLeader && !item.targetIsCurrentLeader() && item.unfinishedTaskCount() > 0))
+                .map(item -> {
+                    var targetMember = membersByMembershipId.get(item.targetMembershipId());
+                    String targetUsername = targetMember == null
+                            ? memberNames.getOrDefault(
+                                    item.targetMembershipId(),
+                                    "Membership " + item.targetMembershipId())
+                            : targetMember.displayName();
+                    String targetStudentCode = "—";
+                    String targetEmail = "—";
+                    if (targetMember != null) {
+                        // AccountService là boundary duy nhất để lấy Gmail và Mã sinh viên; Project không đọc Account repository trực tiếp.
+                        try {
+                            var targetIdentity = accounts.requireIdentityById(targetMember.internUserId());
+                            if (targetIdentity != null) {
+                                targetEmail = targetIdentity.email() == null
+                                        ? "—" : targetIdentity.email();
+                                var studentCode = accounts.studentCodeByUserId(targetMember.internUserId());
+                                targetStudentCode = studentCode == null
+                                        ? "—" : studentCode.orElse("—");
+                            }
+                        } catch (IllegalArgumentException ignored) {
+                            // Giữ thẻ exit hiển thị được nếu account lịch sử đã không còn tồn tại.
+                        }
+                    }
+                    return new ProjectExitWorkflowView(
+                            item.requestId(),
+                            item.targetMembershipId(),
+                            targetUsername,
+                            targetStudentCode,
+                            targetEmail,
+                            item.targetIsCurrentLeader(),
+                            item.unfinishedTaskCount(),
+                            // Đây chỉ là điều kiện để hiện quyết định Mentor; service sẽ kiểm tra lại khi bấm nút.
+                            item.readyForApproval(),
+                            // Nút transfer chỉ hiện cho Leader hiện tại, không áp dụng khi chính Leader đang rời Project.
+                            currentLeader && !item.targetIsCurrentLeader() && item.unfinishedTaskCount() > 0);
+                })
                 .toList();
         var unfinishedTasksByMembership = history.tasks().stream()
                 // Task đã xoá và Task DONE không cần chuyển trước khi duyệt exit.
@@ -725,6 +757,8 @@ public class ProjectController {
         model.addAttribute("revocableInvitations", revocableInvitations);
         model.addAttribute("cancellableExitIds", cancellableExitIds);
         model.addAttribute("projectHistory", history);
+        // Drawer transfer chỉ cần map tên theo membership; tách map giúp fragment dùng được cả với dữ liệu test/list tối giản.
+        model.addAttribute("projectHistoryUsernamesByMembershipId", history.usernamesByMembershipId());
     }
 
     // [Xử lý kết quả thao tác Workflow]
