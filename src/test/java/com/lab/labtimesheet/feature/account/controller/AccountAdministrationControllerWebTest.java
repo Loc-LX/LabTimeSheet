@@ -85,6 +85,30 @@ class AccountAdministrationControllerWebTest {
     }
 
     @Test
+    void accountDetailSeparatesAccessFromBlockedInternLifecycle() throws Exception {
+        AccountAdministrationView intern = intern();
+        when(accounts.requireActiveAdminId(ADMIN_EMAIL)).thenReturn(1L);
+        when(accounts.administrationView(7L, 1L)).thenReturn(intern);
+        when(projectQueries.internshipLifecycleGuard(1L, 7L))
+                .thenReturn(new InternshipLifecycleGuard(true, 2));
+
+        mvc.perform(get("/admin/accounts/7").with(user(ADMIN_EMAIL).roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("class=\"account-detail-header\"")))
+                .andExpect(content().string(containsString("Account ID 7")))
+                .andExpect(content().string(containsString("account-detail-badges")))
+                .andExpect(content().string(containsString("Account access")))
+                .andExpect(content().string(containsString("account-detail-access")))
+                .andExpect(content().string(containsString("Immutable role")))
+                .andExpect(content().string(containsString("Internship lifecycle")))
+                .andExpect(content().string(containsString("account-detail-lifecycle")))
+                .andExpect(content().string(containsString("Terminal-action readiness")))
+                .andExpect(content().string(containsString("Blocked:")))
+                .andExpect(content().string(containsString("currently a Project Leader")))
+                .andExpect(content().string(containsString("2 unfinished Tasks")));
+    }
+
+    @Test
     void adminDirectoryAppliesSearchAndImmutableRoleFilter() throws Exception {
         AccountDirectoryFilter filter = new AccountDirectoryFilter("intern", GlobalRole.INTERN);
         when(accounts.requireActiveAdminId(ADMIN_EMAIL)).thenReturn(1L);
