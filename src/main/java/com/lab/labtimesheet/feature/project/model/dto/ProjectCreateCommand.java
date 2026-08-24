@@ -11,6 +11,8 @@ import java.time.LocalDate;
  * @param endDate inclusive Project end date, not before {@code startDate}
  * @param initialLeaderUserId eligible Intern appointed as the first Leader
  */
+// Command nội bộ chuyển dữ liệu đã hợp lệ từ Controller sang ProjectService.
+// Tách command khỏi form giúp Service không phụ thuộc trực tiếp vào chi tiết giao diện web.
 public record ProjectCreateCommand(
         String name,
         String description,

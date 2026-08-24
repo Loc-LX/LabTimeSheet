@@ -10,6 +10,8 @@ import java.time.Instant;
  * @param displayName current Account display name
  * @param joinedAt inclusive start instant of the retained membership interval
  */
+// DTO thành viên hiện tại dùng làm lựa chọn assignee hoặc người nhận chuyển Task.
+// Chỉ chứa dữ liệu cần cho feature Task, không đưa cả ProjectEntity qua ranh giới feature.
 public record ProjectTaskMemberView(
         long membershipId,
         long userId,

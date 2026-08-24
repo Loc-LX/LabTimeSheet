@@ -16,6 +16,8 @@ import org.springframework.data.repository.query.Param;
 /**
  * Persists retained Project invitation records and their transaction locks.
  */
+// Repository quản lý các dòng invitation của Project.
+// ProjectService dùng các query route trước để biết Account nào cần khóa, sau đó mới khóa invitation khi thay đổi.
 public interface ProjectInvitationRepository extends JpaRepository<ProjectInvitationEntity, Long> {
 
     /**
@@ -24,6 +26,8 @@ public interface ProjectInvitationRepository extends JpaRepository<ProjectInvita
      * @param id invitation identifier
      * @return locked invitation, when present
      */
+    // [Khóa một lời mời]
+    // Khóa dòng invitation đang xử lý để tránh hai thao tác accept/revoke cùng đổi trạng thái PENDING.
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select invitation from ProjectInvitationEntity invitation where invitation.id = :id")
     Optional<ProjectInvitationEntity> findLockedById(@Param("id") long id);
@@ -35,6 +39,8 @@ public interface ProjectInvitationRepository extends JpaRepository<ProjectInvita
      * @param id invitation identifier
      * @return scalar route, or empty when the invitation does not exist
      */
+    // [Lấy route của lời mời]
+    // Chỉ đọc projectId và inviteeId, đủ để ProjectService sắp xếp thứ tự lock trước mutation.
     @Query("""
             select new com.lab.labtimesheet.feature.project.model.dto.ProjectInvitationRoute(
                     invitation.project.id, invitation.invitedInternUserId)
@@ -50,6 +56,8 @@ public interface ProjectInvitationRepository extends JpaRepository<ProjectInvita
      * @param id invitation identifier
      * @return scalar recipient route, or empty when the invitation does not exist
      */
+    // [Lấy người nhận notification của lời mời]
+    // Trả ID invitee, Leader phát hành và Mentor sở hữu để Service gửi thông báo đúng người.
     @Query("""
             select new com.lab.labtimesheet.feature.project.model.dto.ProjectInvitationNotificationRoute(
                     invitation.project.id,
@@ -70,6 +78,8 @@ public interface ProjectInvitationRepository extends JpaRepository<ProjectInvita
      * @param invitedInternUserIds selected Intern account identifiers
      * @return stable scalar recipient routes
      */
+    // [Notification cho các invitation đang chờ trong batch]
+    // Dùng khi thêm nhiều member để các invitee liên quan được lock trước khi Project bị khóa.
     @Query("""
             select new com.lab.labtimesheet.feature.project.model.dto.ProjectInvitationNotificationRoute(
                     invitation.project.id,
@@ -93,6 +103,8 @@ public interface ProjectInvitationRepository extends JpaRepository<ProjectInvita
      * @param projectId owning Project identifier
      * @return stable scalar recipient routes
      */
+    // [Notification cho toàn bộ invitation đang chờ]
+    // Dùng khi lifecycle Project có thể tự thu hồi mọi invitation pending.
     @Query("""
             select new com.lab.labtimesheet.feature.project.model.dto.ProjectInvitationNotificationRoute(
                     invitation.project.id,
@@ -114,6 +126,8 @@ public interface ProjectInvitationRepository extends JpaRepository<ProjectInvita
      * @param invitedInternUserId intended Intern account identifier
      * @return pending invitation, when present
      */
+    // [Tìm và khóa lời mời pending]
+    // Kiểm tra trùng invitation cho đúng Project/Intern và giữ lock đến hết transaction.
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             select invitation
@@ -132,6 +146,8 @@ public interface ProjectInvitationRepository extends JpaRepository<ProjectInvita
      * @param projectId Project identifier
      * @return retained invitation records
      */
+    // [Lịch sử lời mời của Project]
+    // Spring Data query theo tên method và trả cả invitation đã kết thúc để dựng màn History.
     List<ProjectInvitationEntity> findByProject_IdOrderByCreatedAtAscIdAsc(long projectId);
 
     /**
@@ -141,6 +157,8 @@ public interface ProjectInvitationRepository extends JpaRepository<ProjectInvita
      * @param status invitation state, normally pending
      * @return addressed invitation rows in stable newest-first order
      */
+    // [Inbox lời mời của Intern]
+    // Chỉ lấy invitation của chính Intern và trạng thái được truyền vào (thường là PENDING).
     List<ProjectInvitationEntity> findByInvitedInternUserIdAndStatusOrderByCreatedAtDescIdDesc(
             long invitedInternUserId, InvitationStatus status);
 
@@ -150,6 +168,8 @@ public interface ProjectInvitationRepository extends JpaRepository<ProjectInvita
      * @param projectId Project identifier
      * @return pending invitations in stable identifier order
      */
+    // [Khóa lời mời pending khi hoàn thành Project]
+    // ProjectService sẽ resolve/thu hồi các lời mời này cùng transaction hoàn thành Project.
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             select invitation
@@ -167,6 +187,8 @@ public interface ProjectInvitationRepository extends JpaRepository<ProjectInvita
      * @param issuingLeadershipTermId term identifier
      * @return pending invitations issued by that term
      */
+    // [Khóa lời mời do một Leader phát hành]
+    // Khi Leader đổi hoặc bị loại, Service dùng query này để thu hồi lời mời cũ của term đó.
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             select invitation

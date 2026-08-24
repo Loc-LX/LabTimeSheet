@@ -3,6 +3,7 @@ package com.lab.labtimesheet.feature.project.model;
 /**
  * Persisted lifecycle of a Project invitation.
  */
+// Trạng thái của một lời mời vào Project: đang chờ hoặc đã có kết quả cuối.
 public enum InvitationStatus {
     /** Invitation is awaiting the intended Intern's response. */
     PENDING,

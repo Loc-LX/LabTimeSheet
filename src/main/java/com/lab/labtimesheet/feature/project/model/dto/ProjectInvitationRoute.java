@@ -9,6 +9,8 @@ package com.lab.labtimesheet.feature.project.model.dto;
  * @param projectId owning Project identifier
  * @param invitedInternUserId intended Intern account identifier
  */
+// DTO nội bộ chỉ gồm Project và Intern đích của invitation.
+// Dùng để xác định phạm vi và thứ tự lock trước thao tác revoke/respond invitation.
 public record ProjectInvitationRoute(
         long projectId,
         long invitedInternUserId) {

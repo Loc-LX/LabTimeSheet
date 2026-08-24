@@ -20,6 +20,8 @@ import lombok.NoArgsConstructor;
  * <p>Leaving closes the interval; the row and its provenance remain for completed Project and
  * Task history. Current membership is represented by a null {@code leftAt}.
  */
+// Entity đại diện cho một khoảng thời gian Intern thuộc Project, không phải bản ghi bị xóa khi Intern rời đi.
+// ProjectEntity tạo và đóng khoảng này để vẫn giữ được lịch sử thành viên và Task cũ.
 @Entity
 @Table(name = "project_memberships")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -133,6 +135,9 @@ public class ProjectMembershipEntity {
      * @throws IllegalStateException when the interval is already closed
      * @throws IllegalArgumentException when the closure actor or instant is invalid
      */
+    // [Đóng membership]
+    // Đánh dấu thời điểm rời và Mentor thực hiện thay vì xóa dòng dữ liệu.
+    // Nếu thời điểm rời trùng lúc tham gia, tăng thêm một microsecond để khoảng thời gian luôn hợp lệ.
     public void close(Instant at, long mentorUserId) {
         if (!isCurrent()) {
             throw new IllegalStateException("Membership is already closed");

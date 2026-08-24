@@ -15,6 +15,8 @@ import java.time.LocalDate;
  * @param leaderName current Leader display name, or null after completion closes leadership
  * @param canManage whether the viewer is the owner and the Project remains mutable
  */
+// DTO dữ liệu chi tiết Project đã qua kiểm tra quyền xem.
+// ProjectQueryService dùng nó để truyền trạng thái, Leader và thành viên cần thiết sang màn Overview.
 public record ProjectDetail(
         long id,
         String name,

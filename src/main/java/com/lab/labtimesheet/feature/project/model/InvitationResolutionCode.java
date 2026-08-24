@@ -3,6 +3,7 @@ package com.lab.labtimesheet.feature.project.model;
 /**
  * Retained reason explaining why a Project invitation left the pending state.
  */
+// Lý do chi tiết kết thúc invitation để phần History giải thích vì sao invitation không còn PENDING.
 public enum InvitationResolutionCode {
     /** The intended Intern accepted and became a member. */
     INVITEE_ACCEPTED,

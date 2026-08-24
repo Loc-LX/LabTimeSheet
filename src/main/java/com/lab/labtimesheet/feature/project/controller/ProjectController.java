@@ -44,11 +44,15 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
  * while authorization failures are left to {@code ProjectControllerAdvice} so identifiers are
  * not disclosed.
  */
+// Điểm nhận HTTP request của toàn bộ màn hình Project.
+// Controller chỉ lấy dữ liệu từ URL/form, gọi các Project service xử lý nghiệp vụ,
+// rồi trả tên Thymeleaf view hoặc redirect về trình duyệt; không tự query database.
 @Controller
 @RequestMapping("/projects")
 @RequiredArgsConstructor
 public class ProjectController {
 
+    // Spring inject các service cần cho phần hiển thị, thay đổi Project và đọc danh sách Intern.
     private final ProjectQueryService pages;
     private final ProjectService projects;
     private final AccountService accounts;

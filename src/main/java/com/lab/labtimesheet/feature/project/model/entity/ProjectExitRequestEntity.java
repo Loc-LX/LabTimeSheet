@@ -25,6 +25,8 @@ import lombok.NoArgsConstructor;
  * <p>Pending requests do not close the target interval. Completed transfer batches and the
  * request decision remain separate feature-owned facts and are never rewritten here.
  */
+// Entity lưu yêu cầu rời/loại thành viên khỏi Project để Mentor xét duyệt.
+// Việc tạo request không làm Intern rời ngay; ProjectService chỉ đóng membership sau khi approve đúng điều kiện.
 @Entity
 @Table(name = "project_membership_exit_requests")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -102,6 +104,9 @@ public class ProjectExitRequestEntity {
      * @param createdAt server creation instant
      * @return unsaved pending request
      */
+    // [Tạo yêu cầu exit]
+    // Kiểm tra kiểu request khớp với người gửi và người bị tác động trước khi lưu trạng thái PENDING.
+    // Điều này ngăn Intern tự gửi yêu cầu loại một thành viên khác hoặc Mentor tự loại chính mình.
     public static ProjectExitRequestEntity pending(
             ProjectEntity project,
             ProjectMembershipEntity targetMembership,
@@ -252,6 +257,9 @@ public class ProjectExitRequestEntity {
      * @param resolvedByUserId resolving account, nullable for automatic supersession
      * @param at server resolution instant
      */
+    // [Kết thúc yêu cầu exit]
+    // Entity chỉ đổi trạng thái và lưu ghi chú quyết định. Bước đóng membership/transfer Task
+    // nằm ở ProjectService để các thay đổi đó đi trong cùng transaction.
     public void resolve(
             ProjectExitRequestStatus terminalStatus,
             String note,

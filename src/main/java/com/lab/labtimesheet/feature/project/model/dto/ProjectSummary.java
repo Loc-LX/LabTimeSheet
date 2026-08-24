@@ -11,5 +11,7 @@ import java.time.LocalDate;
  * @param startDate inclusive start date
  * @param endDate inclusive end date
  */
+// DTO gọn cho từng dòng ở trang danh sách Project.
+// QueryService tạo từ ProjectEntity để UI không cần nhận toàn bộ membership và lịch sử bên trong Project.
 public record ProjectSummary(long id, String name, String status, LocalDate startDate, LocalDate endDate) {
 }

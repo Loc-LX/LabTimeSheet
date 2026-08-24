@@ -14,6 +14,8 @@ import java.time.Instant;
  * @param joinedAt inclusive membership start instant
  * @param leftAt membership end instant, or null while current
  */
+// DTO nhẹ chỉ mang ID membership và mốc thời gian tham gia/rời Project.
+// QueryService dùng nó để kiểm tra quan hệ lịch sử mà không cần tải toàn bộ ProjectEntity.
 public record ProjectMembershipIntervalView(
         long projectId,
         long membershipId,

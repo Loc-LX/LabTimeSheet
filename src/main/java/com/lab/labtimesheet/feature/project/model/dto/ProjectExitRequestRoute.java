@@ -9,5 +9,7 @@ package com.lab.labtimesheet.feature.project.model.dto;
  * @param projectId owning Project identifier
  * @param requesterUserId immutable Intern account that created the request
  */
+// DTO nội bộ cho route một exit request về Project và người tạo request.
+// Service lấy nó trước để khóa đúng phạm vi dữ liệu trước khi approve, reject hoặc cancel request.
 public record ProjectExitRequestRoute(long projectId, long requesterUserId) {
 }

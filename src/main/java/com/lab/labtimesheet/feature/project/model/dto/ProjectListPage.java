@@ -16,6 +16,8 @@ import java.util.List;
  * @param hasPrevious whether a preceding page exists
  * @param hasNext whether a following page exists
  */
+// DTO chứa một trang danh sách Project và thông tin phân trang cho giao diện.
+// Controller gắn object này vào Model để Thymeleaf hiển thị nút chuyển trang đúng giới hạn.
 public record ProjectListPage(
         List<ProjectSummary> projects,
         int pageNumber,

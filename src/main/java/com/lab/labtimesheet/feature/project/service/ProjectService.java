@@ -56,9 +56,13 @@ import org.springframework.transaction.annotation.Transactional;
  * lock the Project aggregate. Account and Task facts arrive through public feature services;
  * Project never imports their repositories or entities.
  */
+// Service xử lý mọi thay đổi làm thay đổi dữ liệu Project: thành viên, Leader,
+// lời mời, yêu cầu rời Project và vòng đời Project. Controller gọi vào đây;
+// service gọi Repository để lưu dữ liệu và các service khác khi cần kiểm tra Account/Task.
 @Service
 @RequiredArgsConstructor
 public class ProjectService {
+    // Spring inject các cổng truy cập dữ liệu và service liên quan cho transaction Project.
     private final ProjectRepository projects;
     private final ProjectInvitationRepository invitations;
     private final ProjectExitRequestRepository exitRequests;

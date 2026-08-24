@@ -17,6 +17,8 @@ import java.util.Set;
  * @param pendingExitMembershipIds current membership identifiers with a pending exit request;
  *        existing Task rights remain active, but new/self-assignment must exclude them
  */
+// DTO ngữ cảnh quyền của Project chuyển sang feature Task.
+// TaskService dùng dữ liệu này để biết actor có phải Mentor/Leader/member hợp lệ trước khi cho thao tác Task.
 public record ProjectTaskContext(
         long projectId,
         long mentorUserId,
