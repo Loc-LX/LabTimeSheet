@@ -56,6 +56,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -404,10 +405,13 @@ public class TaskService {
         Task task = requireLockedTask(projectId, taskId);
         requireUnfinished(task);
         long previousAssigneeMembershipId = task.getAssigneeMembershipId();
+        // Validate the browser's optimistic snapshot before reporting state-dependent rules such
+        // as an unchanged recipient. A stale request must have one stable conflict outcome even
+        // when another transaction has already assigned the Task to the requested member.
+        requireTaskVersion(task, expectedVersion);
         if (task.getAssigneeMembershipId() == recipient.membershipId()) {
             throw new TaskValidationException("Task is already assigned to that member");
         }
-        requireTaskVersion(task, expectedVersion);
         boolean worked = workLogs.existsByTaskIdAndProjectId(taskId, projectId);
         if (worked && forecastInput == null) {
             throw new TaskValidationException("A remaining-effort forecast is required for a worked Task");
@@ -439,6 +443,76 @@ public class TaskService {
                 new NotificationAction(taskAction(projectId, task.getId()), false),
                 assigneeRecipients);
         return result;
+    }
+
+    /**
+     * Appends a correction successor to the latest forecast for an unfinished current Task.
+     *
+     * <p>Only the current Leader may correct before incoming-assignee work is created. Assignment
+     * facts remain tied to the original context while the lifetime-actual snapshot is refreshed;
+     * the predecessor is never updated. A database uniqueness race is translated to the stable
+     * Task conflict contract.</p>
+     *
+     * @param actorEmail authenticated current-Leader email
+     * @param projectId owning Project identifier
+     * @param taskId Task identifier
+     * @param expectedLatestForecastId client-observed latest forecast identifier
+     * @param remainingMinutes replacement remaining effort in minutes
+     * @param correctionReason mandatory correction reason
+     * @return appended correction forecast view
+     * @throws TaskNotFoundException when authorization or scope is invalid
+     * @throws TaskConflictException when the expected forecast is stale or already superseded
+     * @throws TaskValidationException when correction rules are violated
+     */
+    @Transactional
+    public TaskRemainingEffortForecastView correctForecast(String actorEmail, long projectId, long taskId,
+            long expectedLatestForecastId, Integer remainingMinutes, String correctionReason) {
+        TaskAccess access = requireMutationAccess(actorEmail, projectId);
+        requireOpenProject(access.project());
+        ProjectTaskMemberView actor = requireActorMembership(access.project(), access.actor().userId());
+        if (!Objects.equals(access.project().currentLeaderMembershipId(), actor.membershipId())) {
+            throw new TaskNotFoundException();
+        }
+        Task task = requireLockedTask(projectId, taskId);
+        requireUnfinished(task);
+        TaskRemainingEffortForecast predecessor = forecasts
+                .findByIdAndProjectIdAndTaskId(expectedLatestForecastId, projectId, taskId)
+                .orElseThrow(() -> new TaskConflictException("Forecast changed; reload before correcting", null));
+        if (forecasts.existsBySupersedesForecastId(predecessor.getId())
+                || task.getAssigneeMembershipId() != predecessor.getIncomingMembershipId()
+                || !Objects.equals(task.getAssignedAt(), predecessor.getAssignmentStartedAt())) {
+            throw new TaskConflictException("Forecast changed; reload before correcting", null);
+        }
+        if (workLogs.existsByTaskIdAndProjectIdAndMembershipIdAndCreatedAtGreaterThanEqual(
+                taskId, projectId, predecessor.getIncomingMembershipId(), predecessor.getAssignmentStartedAt())) {
+            throw new TaskValidationException("Forecast correction is closed after incoming work begins");
+        }
+        if (remainingMinutes == null || remainingMinutes < 1 || remainingMinutes > 527040) {
+            throw new TaskValidationException("Remaining effort must be between 1 and 527040 minutes");
+        }
+        String reason = correctionReason == null || correctionReason.isBlank()
+                ? null : correctionReason.strip();
+        if (reason == null) {
+            throw new TaskValidationException("Correction reason is required");
+        }
+        if (reason.length() > 500) {
+            throw new TaskValidationException("Correction reason must not exceed 500 characters");
+        }
+        Instant createdAt = clock.instant();
+        TaskRemainingEffortForecast successor = TaskRemainingEffortForecast.correction(
+                predecessor,
+                actor.membershipId(),
+                remainingMinutes,
+                workLogs.sumMinutesByTaskIdAndProjectId(taskId, projectId),
+                reason,
+                createdAt);
+        try {
+            forecasts.saveAndFlush(successor);
+        } catch (DataIntegrityViolationException exception) {
+            throw new TaskConflictException("Forecast changed; reload before correcting", exception);
+        }
+        Map<Long, ProjectMemberView> members = projectMembers(access);
+        return view(successor, members, false);
     }
 
     /**
@@ -750,10 +824,14 @@ public class TaskService {
         TaskEffortPlanningView effortPlanning = effortPlanning(persistedTask, currentLeader,
                 isOpen(access.project()),
                 projectId, taskId);
-        List<TaskRemainingEffortForecastView> remainingEffortForecasts = forecasts
-                .findAllByProjectIdAndTaskIdOrderByAssignmentStartedAtAscCreatedAtAscIdAsc(projectId, taskId)
-                .stream()
-                .map(forecast -> view(forecast, members))
+        List<TaskRemainingEffortForecast> forecastRows = forecasts
+                .findAllByProjectIdAndTaskIdOrderByAssignmentStartedAtAscCreatedAtAscIdAsc(projectId, taskId);
+        Set<Long> supersededForecastIds = forecastRows.stream()
+                .map(TaskRemainingEffortForecast::getSupersedesForecastId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toUnmodifiableSet());
+        List<TaskRemainingEffortForecastView> remainingEffortForecasts = forecastRows.stream()
+                .map(forecast -> view(forecast, members, supersededForecastIds.contains(forecast.getId())))
                 .toList();
         return new TaskDetails(
                 task, taskComments, taskWorkLogs,
@@ -1088,15 +1166,19 @@ public class TaskService {
     }
 
     private static TaskRemainingEffortForecastView view(
-            TaskRemainingEffortForecast forecast, Map<Long, ProjectMemberView> members) {
+            TaskRemainingEffortForecast forecast,
+            Map<Long, ProjectMemberView> members,
+            boolean superseded) {
         ProjectMemberView incoming = members.get(forecast.getIncomingMembershipId());
         ProjectMemberView leader = members.get(forecast.getForecastingLeaderMembershipId());
         return new TaskRemainingEffortForecastView(
+                forecast.getId() == null ? 0L : forecast.getId(),
                 forecast.getProjectId(), forecast.getTaskId(), forecast.getIncomingMembershipId(),
                 incoming == null ? null : incoming.displayName(),
                 forecast.getForecastingLeaderMembershipId(), leader == null ? null : leader.displayName(),
                 forecast.getAssignmentStartedAt(), forecast.getRemainingMinutes(),
-                forecast.getActualMinutesSnapshot(), forecast.getInitialNote(), forecast.getCreatedAt());
+                forecast.getActualMinutesSnapshot(), forecast.getInitialNote(), forecast.getCreatedAt(),
+                forecast.getCorrectionReason(), forecast.getSupersedesForecastId(), superseded);
     }
 
     private void publish(

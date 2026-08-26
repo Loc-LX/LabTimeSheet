@@ -13,6 +13,8 @@ import com.lab.labtimesheet.feature.project.model.ProjectExitRequestType;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectListPage;
 import com.lab.labtimesheet.feature.project.model.InvitationResponse;
 import com.lab.labtimesheet.feature.task.model.TaskStatus;
+import com.lab.labtimesheet.feature.task.model.dto.RemainingEffortForecastInput;
+import com.lab.labtimesheet.feature.task.exception.TaskValidationException;
 import com.lab.labtimesheet.feature.project.service.ProjectQueryService;
 import com.lab.labtimesheet.feature.project.service.ProjectService;
 import jakarta.validation.Valid;
@@ -416,7 +418,9 @@ public class ProjectController {
      * <p>The browser submits one repeated {@code taskVersions} value per selected Task in the
      * {@code taskId:version} form. The complete pair set is validated at this trust boundary before
      * the immutable map is passed to the Project transaction; a missing, extra, duplicate, or
-     * malformed pair cannot reach Task mutation.</p>
+     * malformed pair cannot reach Task mutation. Worked rows may additionally submit repeated
+     * {@code forecastInputs} values in the {@code taskId:remaining[:note]} form; unworked rows
+     * deliberately omit that value.</p>
      *
      * @param principal authenticated current Leader
      * @param projectId owning Project encoded by the route
@@ -424,6 +428,7 @@ public class ProjectController {
      * @param sourceMembershipId pending-exit source membership input
      * @param taskIds selected Task identifiers
      * @param taskVersionPairs client-observed Task ID/version pairs
+     * @param forecastInputPairs optional worked-Task ID/remaining/note pairs
      * @param recipientMembershipId one eligible recipient membership input
      * @param redirectAttributes originating workflow flash state
      * @return workflow redirect after a successful or rejected Project rule operation
@@ -441,25 +446,46 @@ public class ProjectController {
             @RequestParam(defaultValue = "") String sourceMembershipId,
             @RequestParam(required = false) Set<String> taskIds,
             @RequestParam(name = "taskVersions", required = false) List<String> taskVersionPairs,
+            @RequestParam(name = "forecastInputs", required = false) List<String> forecastInputPairs,
             @RequestParam(defaultValue = "") String recipientMembershipId,
             RedirectAttributes redirectAttributes) {
-        return workflowMutation(projectId, redirectAttributes, Map.of(
-                "kind", "transfer",
-                "requestId", requestId,
-                "sourceMembershipId", sourceMembershipId,
-                "taskIds", taskIds == null ? Set.of() : Set.copyOf(taskIds),
-                "taskVersions", taskVersionPairs == null ? List.of() : List.copyOf(taskVersionPairs),
-                "recipientMembershipId", recipientMembershipId), () -> {
+        Map<String, Object> safeTransferInput = new LinkedHashMap<>();
+        safeTransferInput.put("kind", "transfer");
+        safeTransferInput.put("requestId", requestId);
+        safeTransferInput.put("sourceMembershipId", sourceMembershipId);
+        safeTransferInput.put("taskIds", taskIds == null ? Set.of() : Set.copyOf(taskIds));
+        safeTransferInput.put("taskVersions", taskVersionPairs == null
+                ? List.of() : List.copyOf(taskVersionPairs));
+        if (forecastInputPairs != null && !forecastInputPairs.isEmpty()) {
+            safeTransferInput.put("forecastInputs", List.copyOf(forecastInputPairs));
+        }
+        safeTransferInput.put("recipientMembershipId", recipientMembershipId);
+        return workflowMutation(projectId, redirectAttributes, Map.copyOf(safeTransferInput), () -> {
             // Kiểm tra toàn bộ cặp Task/version từ trình duyệt trước khi gửi sang transaction chuyển việc.
             Set<Long> selectedTaskIds = requiredLongSet(taskIds, "Choose at least one valid Task.");
+            long actorUserId = actorId(principal);
+            long sourceId = requiredLong(sourceMembershipId, "Choose a valid source membership.");
+            Map<Long, Long> expectedVersions = requiredTaskVersions(selectedTaskIds, taskVersionPairs);
+            long recipientId = requiredLong(recipientMembershipId, "Choose a valid recipient membership.");
+            if (forecastInputPairs == null || forecastInputPairs.isEmpty()) {
+                return projects.transferTasks(
+                        actorUserId,
+                        projectId,
+                        requestId,
+                        sourceId,
+                        selectedTaskIds,
+                        expectedVersions,
+                        recipientId);
+            }
             return projects.transferTasks(
-                    actorId(principal),
+                    actorUserId,
                     projectId,
                     requestId,
-                    requiredLong(sourceMembershipId, "Choose a valid source membership."),
+                    sourceId,
                     selectedTaskIds,
-                    requiredTaskVersions(selectedTaskIds, taskVersionPairs),
-                    requiredLong(recipientMembershipId, "Choose a valid recipient membership."));
+                    expectedVersions,
+                    requiredForecastInputs(selectedTaskIds, forecastInputPairs),
+                    recipientId);
         });
     }
 
@@ -914,7 +940,7 @@ public class ProjectController {
             mutation.get();
             // Flash attribute sống qua đúng một redirect GET /workflows; vì vậy refresh trang không submit lại POST.
             redirectAttributes.addFlashAttribute("message", "Project workflow updated");
-        } catch (ProjectRuleViolationException exception) {
+        } catch (ProjectRuleViolationException | TaskValidationException exception) {
             // Chỉ giữ lại dữ liệu form an toàn, không đưa ID hoặc trạng thái nội bộ vào flash message.
             redirectAttributes.addFlashAttribute("projectError", exception.getMessage());
             if (!safeInput.isEmpty()) {
@@ -1000,6 +1026,44 @@ public class ProjectController {
             throw new ProjectRuleViolationException("Submit one version for every selected Task.");
         }
         return Map.copyOf(versions);
+    }
+
+    /**
+     * Parses the optional worked-Task forecast form values at the HTTP boundary.
+     *
+     * <p>Each value is {@code taskId:remainingMinutes[:note]}; splitting at most three parts
+     * keeps colons in a human note intact. The selected-ID and duplicate checks happen before the
+     * immutable map crosses into ProjectService. The service still owns the worked/unworked rule
+     * because only the locked database state can tell whether a selected Task already has work.</p>
+     */
+    private static Map<Long, RemainingEffortForecastInput> requiredForecastInputs(
+            Set<Long> taskIds, List<String> forecastInputPairs) {
+        if (forecastInputPairs == null || forecastInputPairs.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, RemainingEffortForecastInput> forecasts = new LinkedHashMap<>();
+        for (String rawPair : forecastInputPairs) {
+            String[] parts = rawPair == null ? new String[0] : rawPair.strip().split(":", 3);
+            if (parts.length < 2 || parts.length > 3) {
+                throw new ProjectRuleViolationException("Submit valid Task forecast pairs.");
+            }
+            long taskId = parseTransferValue(parts[0], true);
+            int remainingMinutes;
+            try {
+                remainingMinutes = Integer.parseInt(parts[1].strip());
+            } catch (NumberFormatException | NullPointerException exception) {
+                throw new ProjectRuleViolationException("Submit valid Task forecast pairs.");
+            }
+            if (remainingMinutes < 1 || remainingMinutes > 527040
+                    || !taskIds.contains(taskId)
+                    || forecasts.containsKey(taskId)) {
+                throw new ProjectRuleViolationException("Submit one forecast for each worked Task.");
+            }
+            String note = parts.length == 3 ? parts[2].strip() : null;
+            forecasts.put(taskId, new RemainingEffortForecastInput(
+                    remainingMinutes, note == null || note.isBlank() ? null : note));
+        }
+        return Map.copyOf(forecasts);
     }
 
     private static long parseTransferValue(String value, boolean taskId) {

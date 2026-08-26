@@ -183,6 +183,20 @@ class TaskControllerTest {
     }
 
     @Test
+    void forecastCorrectionBindsPredecessorAndReasonThroughPublicService() throws Exception {
+        mockMvc.perform(post("/projects/10/tasks/25/forecasts/44/correct")
+                        .with(user("leader@example.test"))
+                        .with(csrf())
+                        .param("remainingMinutes", "90")
+                        .param("reason", "  scope changed  "))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/projects/10/tasks/25"));
+
+        verify(taskService).correctForecast(
+                "leader@example.test", 10L, 25L, 44L, 90, "  scope changed  ");
+    }
+
+    @Test
     void malformedForecastMinutesRedirectsWithSafeFlashInput() throws Exception {
         mockMvc.perform(post("/projects/10/tasks/25/reassign").with(user(ACTOR_EMAIL)).with(csrf())
                         .param("expectedVersion", "2").param("assigneeMembershipId", "8")

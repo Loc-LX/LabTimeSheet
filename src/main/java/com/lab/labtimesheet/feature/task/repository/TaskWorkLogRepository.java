@@ -5,6 +5,7 @@ import com.lab.labtimesheet.feature.task.model.dto.TaskWorkLogCandidate;
 import com.lab.labtimesheet.feature.task.model.entity.TaskWorkLog;
 import jakarta.persistence.LockModeType;
 import java.time.LocalDate;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -93,6 +94,12 @@ public interface TaskWorkLogRepository extends JpaRepository<TaskWorkLog, Long> 
 
     @Query("select count(log) > 0 from TaskWorkLog log where log.taskId = :taskId and log.projectId = :projectId")
     boolean existsByTaskIdAndProjectId(@Param("taskId") long taskId, @Param("projectId") long projectId);
+
+    /** Detects incoming-assignee work created at or after a forecast assignment instant. */
+    @Query("select count(log) > 0 from TaskWorkLog log where log.taskId = :taskId and log.projectId = :projectId and log.membershipId = :membershipId and log.createdAt >= :createdAt")
+    boolean existsByTaskIdAndProjectIdAndMembershipIdAndCreatedAtGreaterThanEqual(
+            @Param("taskId") long taskId, @Param("projectId") long projectId,
+            @Param("membershipId") long membershipId, @Param("createdAt") Instant createdAt);
 
     /**
      * Returns hand-checkable per-membership effort totals for one Project.

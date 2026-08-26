@@ -30,6 +30,7 @@ import com.lab.labtimesheet.feature.project.repository.ProjectRepository;
 import com.lab.labtimesheet.feature.task.service.TaskQueryService;
 import com.lab.labtimesheet.feature.task.service.TaskTransferResult;
 import com.lab.labtimesheet.feature.task.service.TaskTransferService;
+import com.lab.labtimesheet.feature.task.model.dto.RemainingEffortForecastInput;
 import com.lab.labtimesheet.feature.notification.model.NotificationType;
 import com.lab.labtimesheet.feature.notification.model.dto.NotificationAction;
 import com.lab.labtimesheet.feature.notification.model.dto.NotificationEvent;
@@ -869,6 +870,59 @@ public class ProjectService {
                 sourceMembershipId,
                 taskIds,
                 immutableExpectedTaskVersions,
+                Map.of(),
+                recipientMembershipId);
+    }
+
+    /**
+     * Commits a pending-exit Task batch with both browser Task versions and worked-Task forecasts.
+     *
+     * <p>This is the public Project workflow seam for a mixed batch. The Project boundary checks
+     * request ownership and version-map shape, then carries the immutable forecast map into the
+     * Task service. The Task transaction validates the worked/unworked cardinality and flushes
+     * forecast rows and assignments together, so a stale Task or invalid forecast leaves every
+     * selected Task, forecast, and notification unchanged.</p>
+     *
+     * @param actorUserId authenticated current Leader
+     * @param projectId owning open Project
+     * @param requestId pending exit request from the route
+     * @param sourceMembershipId pending-exit source membership
+     * @param taskIds selected unfinished Task identifiers
+     * @param expectedTaskVersions client-observed version for each selected Task
+     * @param forecastInputs one forecast input for each worked selected Task, and none for
+     *        unworked selected Tasks
+     * @param recipientMembershipId eligible current recipient not pending exit
+     * @return atomic Task transfer result
+     * @throws ProjectAccessDeniedException when the request is outside the Project or source
+     *         membership is not its target
+     * @throws ProjectRuleViolationException when the route snapshot or input maps are invalid
+     */
+    @Transactional
+    public TaskTransferResult transferTasks(
+            long actorUserId,
+            long projectId,
+            long requestId,
+            long sourceMembershipId,
+            Set<Long> taskIds,
+            Map<Long, Long> expectedTaskVersions,
+            Map<Long, RemainingEffortForecastInput> forecastInputs,
+            long recipientMembershipId) {
+        var route = exitRequestRoute(requestId);
+        if (route.projectId() != projectId) {
+            throw new ProjectAccessDeniedException();
+        }
+        Map<Long, Long> immutableExpectedTaskVersions =
+                immutableTaskVersions(taskIds, expectedTaskVersions);
+        Map<Long, RemainingEffortForecastInput> immutableForecastInputs =
+                immutableForecastInputs(taskIds, forecastInputs);
+        return transferTasksInternal(
+                actorUserId,
+                projectId,
+                requestId,
+                sourceMembershipId,
+                taskIds,
+                immutableExpectedTaskVersions,
+                immutableForecastInputs,
                 recipientMembershipId);
     }
 
@@ -890,6 +944,7 @@ public class ProjectService {
                 sourceMembershipId,
                 taskIds,
                 null,
+                Map.of(),
                 recipientMembershipId);
     }
 
@@ -906,6 +961,31 @@ public class ProjectService {
             long sourceMembershipId,
             Set<Long> taskIds,
             Map<Long, Long> expectedTaskVersions,
+            long recipientMembershipId) {
+        return transferTasksInternal(
+                actorUserId,
+                projectId,
+                requestId,
+                sourceMembershipId,
+                taskIds,
+                expectedTaskVersions,
+                Map.of(),
+                recipientMembershipId);
+    }
+
+    // [Chuyển Task nội bộ có forecast]
+    // Luồng transfer chung có version và forecast:
+    // 1. Project khóa workflow và xác nhận route/membership như mọi batch khác.
+    // 2. TaskTransferService kiểm tra từng Task đã worked hay chưa trước khi ghi forecast.
+    // 3. Một transaction flush forecast + assignment + notification, lỗi nào cũng rollback toàn lô.
+    private TaskTransferResult transferTasksInternal(
+            long actorUserId,
+            long projectId,
+            Long requestId,
+            long sourceMembershipId,
+            Set<Long> taskIds,
+            Map<Long, Long> expectedTaskVersions,
+            Map<Long, RemainingEffortForecastInput> forecastInputs,
             long recipientMembershipId) {
         var route = projectRoute(projectId);
         if (!Objects.equals(route.currentLeaderUserId(), actorUserId)) {
@@ -943,7 +1023,7 @@ public class ProjectService {
         }
         var context = queries.taskContext(actorUserId, project, pendingExitMembershipIds);
         // Project chỉ xác thực workflow; Task service mới thực hiện đổi assignee cho cả lô Task.
-        if (expectedTaskVersions == null) {
+        if (expectedTaskVersions == null && forecastInputs.isEmpty()) {
             return taskTransfers.transferBatch(
                     context,
                     leader.id(),
@@ -957,6 +1037,7 @@ public class ProjectService {
                 sourceMembershipId,
                 taskIds,
                 expectedTaskVersions,
+                forecastInputs,
                 recipientMembershipId);
     }
 
@@ -973,6 +1054,17 @@ public class ProjectService {
             throw new ProjectRuleViolationException("Submit one version for every selected Task.");
         }
         return Map.copyOf(expectedTaskVersions);
+    }
+
+    private static Map<Long, RemainingEffortForecastInput> immutableForecastInputs(
+            Set<Long> taskIds, Map<Long, RemainingEffortForecastInput> forecastInputs) {
+        if (forecastInputs == null
+                || forecastInputs.keySet().stream().anyMatch(Objects::isNull)
+                || forecastInputs.keySet().stream().anyMatch(id -> taskIds == null || !taskIds.contains(id))
+                || forecastInputs.entrySet().stream().anyMatch(entry -> entry.getValue() == null)) {
+            throw new ProjectRuleViolationException("Submit forecasts only for selected Tasks.");
+        }
+        return Map.copyOf(forecastInputs);
     }
 
     /**
@@ -1147,6 +1239,13 @@ public class ProjectService {
         if (Objects.equals(locked.initialLeaderUserId(), target.internUserId())
                 && !leader.id().equals(target.id())) {
             throw new ProjectRuleViolationException("Project leadership changed; retry the removal");
+        }
+        if (taskTransfers.workedUnfinishedCount(project.id(), target.id()) > 0) {
+            // Worked unfinished Tasks require a Leader-authored forecast-aware transfer first.
+            // Keep this preflight before leader, membership, request, assignment, or notification
+            // mutation so a direct Mentor removal cannot silently discard forecasting provenance.
+            throw new ProjectRuleViolationException(
+                    "Transfer worked unfinished Tasks with a forecast before removing this member");
         }
         if (leader.id().equals(target.id())) {
             // Khi xóa Leader, phải thay Leader trước để còn người nhận các Task chưa hoàn tất.

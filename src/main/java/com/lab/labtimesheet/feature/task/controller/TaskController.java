@@ -198,6 +198,50 @@ public class TaskController {
         return detailsRedirect(projectId, taskId);
     }
 
+    /**
+     * Appends one Leader-authored correction to the forecast identified by the nested route.
+     *
+     * <p>The predecessor identifier is intentionally part of the URL so a browser replay cannot
+     * silently overwrite whichever forecast happens to be latest. TaskService rechecks the
+     * assignment context, incoming work boundary, current Leader, and append-only successor rule
+     * while holding the Project/Task mutation locks.</p>
+     *
+     * @param authentication authenticated current Leader
+     * @param projectId owning Project identifier
+     * @param taskId unfinished Task identifier
+     * @param forecastId expected predecessor forecast identifier
+     * @param remainingMinutes replacement remaining effort text
+     * @param reason mandatory correction reason
+     * @param redirectAttributes safe validation flash state
+     * @return detail redirect after success or validation rejection
+     */
+    @PostMapping("/projects/{projectId}/tasks/{taskId}/forecasts/{forecastId}/correct")
+    String correctForecast(
+            Authentication authentication,
+            @PathVariable long projectId,
+            @PathVariable long taskId,
+            @PathVariable long forecastId,
+            @RequestParam(required = false) String remainingMinutes,
+            @RequestParam(required = false) String reason,
+            RedirectAttributes redirectAttributes) {
+        try {
+            taskService.correctForecast(
+                    authentication.getName(),
+                    projectId,
+                    taskId,
+                    forecastId,
+                    optionalInt(remainingMinutes, "Enter valid remaining effort minutes."),
+                    reason);
+        } catch (TaskValidationException exception) {
+            redirectAttributes.addFlashAttribute("taskError", exception.getMessage());
+            redirectAttributes.addFlashAttribute("taskForecastCorrectionInput", Map.of(
+                    "forecastId", forecastId,
+                    "remainingMinutes", remainingMinutes == null ? "" : remainingMinutes,
+                    "reason", reason == null ? "" : reason));
+        }
+        return detailsRedirect(projectId, taskId);
+    }
+
     @PostMapping("/projects/{projectId}/tasks/{taskId}/work-logs")
     String addWorkLog(
             Authentication authentication,

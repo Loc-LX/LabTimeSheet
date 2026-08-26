@@ -133,7 +133,7 @@ class Iteration2ProjectWorkflowWebTest {
                         List.of(new TaskWorkLogView(
                                 1L, 30L, 103L, 41L, LocalDate.of(2026, 8, 20), 60,
                                 "Retained work", now, now))),
-                        unfinishedTask(101L, "Transfer one", now),
+                        workedUnfinishedTask(101L, "Transfer one", now),
                         unfinishedTask(102L, "Transfer two", now)),
                 Map.of(
                         10L, "Mentor1",
@@ -158,6 +158,8 @@ class Iteration2ProjectWorkflowWebTest {
                     .andExpect(content().string(containsString("Removal readiness")))
                     .andExpect(content().string(containsString("2 unfinished Tasks remain")))
                     .andExpect(content().string(containsString("Transfer unfinished Tasks")))
+                    .andExpect(content().string(containsString("data-forecast-remaining-for=\"101\"")))
+                    .andExpect(content().string(containsString("name=\"forecastInputs\"")))
                     .andExpect(content().string(containsString("Invite Interns")))
                     .andExpect(content().string(containsString("Intern2 (PRJ-SEED-2)")))
                     .andExpect(content().string(not(containsString("Project History"))))
@@ -341,5 +343,14 @@ class Iteration2ProjectWorkflowWebTest {
                 id, 30L, 41L, title, "Retained", TaskStatus.IN_PROGRESS,
                 LocalDate.of(2026, 8, 21), 40L, 40L, now, now, now, null, null,
                 List.of(), List.of());
+    }
+
+    private static TaskHistoryView workedUnfinishedTask(long id, String title, Instant now) {
+        return new TaskHistoryView(
+                id, 30L, 41L, title, "Retained", TaskStatus.IN_PROGRESS,
+                LocalDate.of(2026, 8, 21), 40L, 40L, now, now, now, null, null,
+                List.of(), List.of(new TaskWorkLogView(
+                        501L, 30L, id, 41L, LocalDate.of(2026, 8, 21), 30,
+                        "Worked before transfer", now, now)));
     }
 }

@@ -19,6 +19,8 @@ import com.lab.labtimesheet.feature.task.exception.TaskConflictException;
 import com.lab.labtimesheet.feature.task.model.TaskStatus;
 import com.lab.labtimesheet.feature.task.model.entity.Task;
 import com.lab.labtimesheet.feature.task.repository.TaskRepository;
+import com.lab.labtimesheet.feature.task.repository.TaskRemainingEffortForecastRepository;
+import com.lab.labtimesheet.feature.task.repository.TaskWorkLogRepository;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -47,6 +49,12 @@ class TaskTransferServiceTest {
 
     @Mock
     private NotificationService notifications;
+
+    @Mock
+    private TaskWorkLogRepository workLogs;
+
+    @Mock
+    private TaskRemainingEffortForecastRepository forecasts;
 
     @BeforeEach
     void setUp() {
@@ -188,13 +196,14 @@ class TaskTransferServiceTest {
     private static Task task(long id) {
         Task task = org.mockito.Mockito.mock(Task.class);
         lenient().when(task.getId()).thenReturn(id);
-        when(task.getAssigneeMembershipId()).thenReturn(71L);
+        lenient().when(task.getAssigneeMembershipId()).thenReturn(71L);
         when(task.getStatus()).thenReturn(TaskStatus.IN_PROGRESS);
         return task;
     }
 
     private TaskTransferService service() {
-        return new TaskTransferService(tasks, Clock.fixed(NOW, ZoneOffset.UTC), accounts, notifications);
+        return new TaskTransferService(
+                tasks, Clock.fixed(NOW, ZoneOffset.UTC), accounts, notifications, workLogs, forecasts);
     }
 
     private void verifyNoNotifications() {
