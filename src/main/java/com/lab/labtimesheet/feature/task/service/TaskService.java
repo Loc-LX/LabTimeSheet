@@ -512,7 +512,7 @@ public class TaskService {
             throw new TaskConflictException("Forecast changed; reload before correcting", exception);
         }
         Map<Long, ProjectMemberView> members = projectMembers(access);
-        return view(successor, members, false);
+        return view(successor, task, members, false);
     }
 
     /**
@@ -831,7 +831,11 @@ public class TaskService {
                 .filter(Objects::nonNull)
                 .collect(Collectors.toUnmodifiableSet());
         List<TaskRemainingEffortForecastView> remainingEffortForecasts = forecastRows.stream()
-                .map(forecast -> view(forecast, members, supersededForecastIds.contains(forecast.getId())))
+                .map(forecast -> view(
+                        forecast,
+                        persistedTask,
+                        members,
+                        supersededForecastIds.contains(forecast.getId())))
                 .toList();
         return new TaskDetails(
                 task, taskComments, taskWorkLogs,
@@ -1167,10 +1171,13 @@ public class TaskService {
 
     private static TaskRemainingEffortForecastView view(
             TaskRemainingEffortForecast forecast,
+            Task task,
             Map<Long, ProjectMemberView> members,
             boolean superseded) {
         ProjectMemberView incoming = members.get(forecast.getIncomingMembershipId());
         ProjectMemberView leader = members.get(forecast.getForecastingLeaderMembershipId());
+        boolean currentAssignment = task.getAssigneeMembershipId() == forecast.getIncomingMembershipId()
+                && Objects.equals(task.getAssignedAt(), forecast.getAssignmentStartedAt());
         return new TaskRemainingEffortForecastView(
                 forecast.getId() == null ? 0L : forecast.getId(),
                 forecast.getProjectId(), forecast.getTaskId(), forecast.getIncomingMembershipId(),
@@ -1178,7 +1185,8 @@ public class TaskService {
                 forecast.getForecastingLeaderMembershipId(), leader == null ? null : leader.displayName(),
                 forecast.getAssignmentStartedAt(), forecast.getRemainingMinutes(),
                 forecast.getActualMinutesSnapshot(), forecast.getInitialNote(), forecast.getCreatedAt(),
-                forecast.getCorrectionReason(), forecast.getSupersedesForecastId(), superseded);
+                forecast.getCorrectionReason(), forecast.getSupersedesForecastId(), superseded,
+                currentAssignment);
     }
 
     private void publish(

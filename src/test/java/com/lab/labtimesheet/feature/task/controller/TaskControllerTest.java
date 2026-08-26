@@ -262,6 +262,36 @@ class TaskControllerTest {
     }
 
     @Test
+    void historicalAssignmentForecastIsNotRenderedAsCurrentOrCorrectable() throws Exception {
+        Instant historicalAssignment = Instant.parse("2026-08-13T10:00:00Z");
+        Instant currentAssignment = Instant.parse("2026-08-14T10:00:00Z");
+        TaskView currentTask = new TaskView(
+                25L, 10L, 9L, "Current member", "Draft", "Notes", TaskStatus.IN_PROGRESS,
+                LocalDate.of(2026, 8, 20), 7L, 7L, currentAssignment, historicalAssignment, 3L);
+        TaskRemainingEffortForecastView historical = new TaskRemainingEffortForecastView(
+                41L, 10L, 25L, 8L, "Former member", 7L, "Leader",
+                historicalAssignment, 90, 60, "handover", historicalAssignment,
+                null, null, false, false);
+        TaskRemainingEffortForecastView current = new TaskRemainingEffortForecastView(
+                42L, 10L, 25L, 9L, "Current member", 7L, "Leader",
+                currentAssignment, 80, 60, "latest", currentAssignment,
+                null, null, false, true);
+        given(taskService.details(ACTOR_EMAIL, 10L, 25L)).willReturn(new TaskDetails(
+                currentTask, List.of(), List.of(), 7L,
+                true, true, true, true, true, true,
+                new TaskEffortPlanningView(null, 60, TaskVarianceState.NOT_ESTIMATED, null, false),
+                List.of(historical, current)));
+
+        mockMvc.perform(get("/projects/10/tasks/25").with(user(ACTOR_EMAIL)))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(">Historical<")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("/forecasts/41/correct"))))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(
+                        "/forecasts/42/correct")));
+    }
+
+    @Test
     void longForecastNoteRedirectsWithSafeRawInput() throws Exception {
         given(taskService.reassign(org.mockito.ArgumentMatchers.eq(ACTOR_EMAIL), org.mockito.ArgumentMatchers.eq(10L),
                 org.mockito.ArgumentMatchers.eq(25L), org.mockito.ArgumentMatchers.eq(2L),

@@ -20,6 +20,8 @@ import java.time.Instant;
  * @param correctionReason normalized mandatory reason for a correction, otherwise {@code null}
  * @param supersedesForecastId predecessor identifier for a correction, otherwise {@code null}
  * @param superseded whether this row has a retained successor
+ * @param currentAssignment whether the row's incoming membership and assignment instant match
+ *        the Task's current assignment
  */
 public record TaskRemainingEffortForecastView(
         long id,
@@ -36,7 +38,8 @@ public record TaskRemainingEffortForecastView(
         Instant createdAt,
         String correctionReason,
         Long supersedesForecastId,
-        boolean superseded) {
+        boolean superseded,
+        boolean currentAssignment) {
 
     /**
      * Compatibility constructor for the original initial-forecast projection.
@@ -59,7 +62,48 @@ public record TaskRemainingEffortForecastView(
         this(0L, projectId, taskId, incomingMembershipId, incomingMemberName,
                 forecastingLeaderMembershipId, forecastingLeaderName, assignmentStartedAt,
                 remainingMinutes, actualMinutesSnapshot, initialNote, createdAt,
-                null, null, false);
+                null, null, false, true);
+    }
+
+    /**
+     * Compatibility constructor for the full correction projection before current-assignment
+     * state became explicit.
+     *
+     * @param projectId owning Project identifier
+     * @param taskId Task identifier
+     * @param incomingMembershipId incoming membership identifier
+     * @param incomingMemberName incoming member display name
+     * @param forecastingLeaderMembershipId forecasting Leader membership identifier
+     * @param forecastingLeaderName forecasting Leader display name
+     * @param assignmentStartedAt assignment instant
+     * @param remainingMinutes remaining effort
+     * @param actualMinutesSnapshot lifetime actual snapshot
+     * @param initialNote optional initial note
+     * @param createdAt row creation instant
+     * @param correctionReason correction reason, when applicable
+     * @param supersedesForecastId predecessor identifier, when applicable
+     * @param superseded whether this row has a successor
+     */
+    public TaskRemainingEffortForecastView(
+            long id,
+            long projectId,
+            long taskId,
+            long incomingMembershipId,
+            String incomingMemberName,
+            long forecastingLeaderMembershipId,
+            String forecastingLeaderName,
+            Instant assignmentStartedAt,
+            int remainingMinutes,
+            long actualMinutesSnapshot,
+            String initialNote,
+            Instant createdAt,
+            String correctionReason,
+            Long supersedesForecastId,
+            boolean superseded) {
+        this(id, projectId, taskId, incomingMembershipId, incomingMemberName,
+                forecastingLeaderMembershipId, forecastingLeaderName, assignmentStartedAt,
+                remainingMinutes, actualMinutesSnapshot, initialNote, createdAt,
+                correctionReason, supersedesForecastId, superseded, !superseded);
     }
 
     /** Returns the derived lifetime actual plus remaining forecast total. */

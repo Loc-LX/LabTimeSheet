@@ -31,6 +31,9 @@ The following public-seam REDs were captured before the corresponding production
 * `TaskWorkLogIntegrationTest#concurrentForecastAwareBatchTransfersAllowOneWinnerWithoutDuplicateHistory`
   initially exposed an unstable assignment validation instead of the explicit stale conflict for
   the losing transaction.
+* `TaskControllerTest#historicalAssignmentForecastIsNotRenderedAsCurrentOrCorrectable` initially
+  rendered every unsuperseded history row as current and exposed a correction form for an old
+  assignment context.
 
 Each RED was followed by the smallest production/test change and a current GREEN rerun. The
 tests exercise `TaskService`, `TaskTransferService`, `ProjectService`, controllers, rendered
@@ -46,6 +49,7 @@ $mvn='C:\Program Files\JetBrains\IntelliJ IDEA 2026.1.4\plugins\maven\lib\maven3
 & $mvn '-Dmaven.repo.local=C:/Users/dookubt/.m2/repository' '-Duser.timezone=Asia/Ho_Chi_Minh' '-Dtest=Iteration2ProjectWorkflowWebTest#currentLeaderSeesActionOnlyWorkflowsAndSeparateReadOnlyHistory' test
 & $mvn '-Dmaven.repo.local=C:/Users/dookubt/.m2/repository' '-Duser.timezone=Asia/Ho_Chi_Minh' '-Dtest=TaskMutationBoundaryTest#staleVersionRejectsBeforeSameRecipientValidation' test
 & $mvn '-Dmaven.repo.local=C:/Users/dookubt/.m2/repository' '-Duser.timezone=Asia/Ho_Chi_Minh' '-Dtest=TaskWorkLogIntegrationTest#concurrentForecastAwareBatchTransfersAllowOneWinnerWithoutDuplicateHistory' test
+& $mvn '-Dmaven.repo.local=C:/Users/dookubt/.m2/repository' '-Duser.timezone=Asia/Ho_Chi_Minh' '-Dtest=TaskControllerTest#historicalAssignmentForecastIsNotRenderedAsCurrentOrCorrectable' test
 ```
 
 These historical invocations are evidence records, not post-fix assertions expected to fail; the
@@ -60,10 +64,11 @@ $env:JAVA_HOME='C:\Program Files\JetBrains\IntelliJ IDEA 2026.1.4\jbr'
 & 'C:\Program Files\JetBrains\IntelliJ IDEA 2026.1.4\plugins\maven\lib\maven3\bin\mvn.cmd' '-Dmaven.repo.local=C:/Users/dookubt/.m2/repository' '-Duser.timezone=Asia/Ho_Chi_Minh' '-Dtest=ProjectControllerTest,Iteration2ProjectWorkflowWebTest,TaskControllerTest,TaskMutationBoundaryTest,TaskTransferServiceTest,ProjectTaskMutationContextTest' test
 ```
 
-Result: exit 0; 99 tests run, 0 failures, 0 errors, and 0 skipped. This includes the public
+Result: exit 0; 100 tests run, 0 failures, 0 errors, and 0 skipped. This includes the public
 manual forecast binding/correction routes, exit-transfer forecast binding and safe validation
 flash, workflow forecast controls, worked/unworked manual atomicity, batch validation and stale
-ordering, and service-level authorization/version checks.
+ordering, service-level authorization/version checks, and the public historical-assignment
+rendering/form boundary.
 
 ## PostgreSQL/Testcontainers verification
 
@@ -74,7 +79,7 @@ $env:JAVA_HOME='C:\Program Files\JetBrains\IntelliJ IDEA 2026.1.4\jbr'
 & 'C:\Program Files\JetBrains\IntelliJ IDEA 2026.1.4\plugins\maven\lib\maven3\bin\mvn.cmd' '-Dmaven.repo.local=C:/Users/dookubt/.m2/repository' '-Duser.timezone=Asia/Ho_Chi_Minh' '-Dtest=TaskWorkLogIntegrationTest,TaskCreationIntegrationTest,ProjectInvitationExitIntegrationTest' test
 ```
 
-Result: exit 0; 96 tests run, 0 failures, 0 errors, and 0 skipped. Testcontainers started
+Result: exit 0; 99 tests run, 0 failures, 0 errors, and 0 skipped. Testcontainers started
 PostgreSQL 18.4 for each Spring integration context and Flyway applied V1 and V2. The run
 proves, against the public database boundary:
 
@@ -83,12 +88,21 @@ proves, against the public database boundary:
   or stale forecast/version inputs;
 * append-only forecast correction successor persistence, latest-history projection, current
   actual snapshot, normalized reason, wrong-context/late-work/unauthorized/superseded rejection;
+* complete multi-assignment chronology: retained unsuperseded rows from older assignment contexts
+  are represented as historical and reject correction, while only the current-assignment row is
+  current and correctable;
+* correction of a retained pre-assignment work log refreshes the next forecast's actual snapshot
+  without closing the correction window; after incoming-assignee work exists, the same historical
+  correction leaves the window closed and the immutable predecessor snapshot unchanged;
 * one-winner behavior for concurrent forecast corrections and concurrent forecast-aware batch
   transfers without duplicate history;
 * direct Mentor-removal rejection before leadership, membership, assignment, request/decision,
   or notification mutation when worked unfinished Tasks remain; and
-* preservation of the existing eligible-unworked automatic transfer after a Leader's worked
-  Tasks have first been forecast-aware transferred.
+* preservation of the existing eligible-unworked automatic transfer after a Leader's worked Task
+  has first been forecast-aware transferred. The exact scenario transfers only the worked Task
+  through the forecast-aware path; the remaining unworked Task stays with the departing Leader
+  until direct removal, then moves automatically to the eligible replacement without a fabricated
+  forecast.
 
 ## Persistence structure verification
 

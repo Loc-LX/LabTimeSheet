@@ -19,6 +19,7 @@ import com.lab.labtimesheet.feature.task.model.entity.TaskWorkLog;
 import com.lab.labtimesheet.feature.task.repository.TaskWorkLogRepository;
 import com.lab.labtimesheet.feature.project.service.ProjectService;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectTaskContext;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
@@ -291,6 +292,51 @@ class TaskWorkLogIntegrationTest {
     }
 
     @Test
+    void historicalAssignmentForecastsRemainChronologicalButOnlyCurrentAssignmentIsCorrectable() {
+        long thirdInternId = insertIntern("worklog-chain-" + fixture.firstProjectId() + "@example.test");
+        long mentorId = jdbc.sql("select mentor_user_id from projects where id = :projectId")
+                .param("projectId", fixture.firstProjectId())
+                .query(Long.class)
+                .single();
+        long thirdMembershipId = insertMembership(fixture.firstProjectId(), thirdInternId, mentorId);
+
+        taskService.addWorkLog(
+                fixture.email(), fixture.firstProjectId(), fixture.firstTaskId(),
+                WORK_DATE, 60, "Original assignment effort");
+        taskService.reassign(
+                fixture.email(), fixture.firstProjectId(), fixture.firstTaskId(),
+                null, fixture.otherMembershipId(), new RemainingEffortForecastInput(90, "First handover"));
+        taskService.reassign(
+                fixture.email(), fixture.firstProjectId(), fixture.firstTaskId(),
+                null, thirdMembershipId, new RemainingEffortForecastInput(80, "Second handover"));
+
+        List<TaskRemainingEffortForecast> history = forecasts
+                .findAllByProjectIdAndTaskIdOrderByAssignmentStartedAtAscCreatedAtAscIdAsc(
+                        fixture.firstProjectId(), fixture.firstTaskId());
+        assertThat(history).hasSize(2);
+        long historicalForecastId = history.get(0).getId();
+        long currentForecastId = history.get(1).getId();
+        var details = taskService.details(
+                fixture.email(), fixture.firstProjectId(), fixture.firstTaskId());
+        assertThat(details.remainingEffortForecasts()).extracting("id")
+                .containsExactly(historicalForecastId, currentForecastId);
+        assertThat(details.remainingEffortForecasts().get(0).currentAssignment()).isFalse();
+        assertThat(details.remainingEffortForecasts().get(0).superseded()).isFalse();
+        assertThat(details.remainingEffortForecasts().get(1).currentAssignment()).isTrue();
+        assertThat(details.remainingEffortForecasts().get(1).superseded()).isFalse();
+
+        assertThatThrownBy(() -> taskService.correctForecast(
+                fixture.email(), fixture.firstProjectId(), fixture.firstTaskId(),
+                historicalForecastId, 70, "Stale assignment correction"))
+                .isInstanceOf(TaskConflictException.class);
+        var correction = taskService.correctForecast(
+                fixture.email(), fixture.firstProjectId(), fixture.firstTaskId(),
+                currentForecastId, 70, "Current assignment correction");
+        assertThat(correction.currentAssignment()).isTrue();
+        assertThat(correction.supersedesForecastId()).isEqualTo(currentForecastId);
+    }
+
+    @Test
     void forecastCorrectionRejectsWrongProjectTaskContextWithoutAppending() {
         long predecessorId = createForecastedTransfer();
 
@@ -316,6 +362,77 @@ class TaskWorkLogIntegrationTest {
                 .hasMessageContaining("closed");
         assertThat(forecasts.findAllByProjectIdAndTaskIdOrderByAssignmentStartedAtAscCreatedAtAscIdAsc(
                 fixture.firstProjectId(), fixture.firstTaskId())).hasSize(1);
+    }
+
+    @Test
+    void correctingPreAssignmentWorkRefreshesSnapshotWithoutClosingForecastWindow() {
+        long predecessorId = createForecastedTransfer();
+        TaskRemainingEffortForecast predecessor = forecasts.findById(predecessorId).orElseThrow();
+        Instant assignmentStartedAt = predecessor.getAssignmentStartedAt();
+        long historicalLogId = workLogs
+                .findAllByTaskIdAndProjectIdOrderByWorkDateAscIdAsc(
+                        fixture.firstTaskId(), fixture.firstProjectId())
+                .getFirst()
+                .getId();
+
+        TaskWorkLogView corrected = taskService.correctWorkLog(
+                fixture.email(), fixture.firstProjectId(), historicalLogId,
+                120, "Corrected before handover");
+        assertThat(corrected.minutes()).isEqualTo(120);
+        assertThat(workLogs.sumMinutesByTaskIdAndProjectId(
+                fixture.firstTaskId(), fixture.firstProjectId())).isEqualTo(120L);
+
+        var correction = taskService.correctForecast(
+                fixture.email(), fixture.firstProjectId(), fixture.firstTaskId(),
+                predecessorId, 80, "Refresh after historical correction");
+        assertThat(correction.incomingMembershipId()).isEqualTo(fixture.otherMembershipId());
+        assertThat(correction.assignmentStartedAt()).isEqualTo(assignmentStartedAt);
+        assertThat(correction.actualMinutesSnapshot()).isEqualTo(120L);
+        assertThat(correction.forecastTotalMinutes()).isEqualTo(200L);
+        var taskAfterCorrection = taskService.details(
+                fixture.email(), fixture.firstProjectId(), fixture.firstTaskId()).task();
+        assertThat(taskAfterCorrection.assigneeMembershipId()).isEqualTo(fixture.otherMembershipId());
+        assertThat(taskAfterCorrection.assignedAt()).isEqualTo(assignmentStartedAt);
+        assertThat(forecasts.findAllByProjectIdAndTaskIdOrderByAssignmentStartedAtAscCreatedAtAscIdAsc(
+                fixture.firstProjectId(), fixture.firstTaskId())).hasSize(2);
+    }
+
+    @Test
+    void correctingPreAssignmentWorkCannotReopenWindowAfterIncomingWorkExists() {
+        long predecessorId = createForecastedTransfer();
+        TaskRemainingEffortForecast predecessor = forecasts.findById(predecessorId).orElseThrow();
+        Instant assignmentStartedAt = predecessor.getAssignmentStartedAt();
+        long historicalLogId = workLogs
+                .findAllByTaskIdAndProjectIdOrderByWorkDateAscIdAsc(
+                        fixture.firstTaskId(), fixture.firstProjectId())
+                .getFirst()
+                .getId();
+        taskService.addWorkLog(
+                fixture.otherEmail(), fixture.firstProjectId(), fixture.firstTaskId(),
+                WORK_DATE, 30, "Incoming work");
+
+        TaskWorkLogView corrected = taskService.correctWorkLog(
+                fixture.email(), fixture.firstProjectId(), historicalLogId,
+                120, "Corrected after handover");
+        assertThat(corrected.minutes()).isEqualTo(120);
+        assertThat(workLogs.sumMinutesByTaskIdAndProjectId(
+                fixture.firstTaskId(), fixture.firstProjectId())).isEqualTo(150L);
+        var taskAfterHistoricalCorrection = taskService.details(
+                fixture.email(), fixture.firstProjectId(), fixture.firstTaskId()).task();
+        assertThat(taskAfterHistoricalCorrection.assigneeMembershipId())
+                .isEqualTo(fixture.otherMembershipId());
+        assertThat(taskAfterHistoricalCorrection.assignedAt()).isEqualTo(assignmentStartedAt);
+        assertThatThrownBy(() -> taskService.correctForecast(
+                fixture.email(), fixture.firstProjectId(), fixture.firstTaskId(),
+                predecessorId, 80, "Late after historical correction"))
+                .isInstanceOf(TaskValidationException.class)
+                .hasMessageContaining("closed");
+        List<TaskRemainingEffortForecast> history = forecasts
+                .findAllByProjectIdAndTaskIdOrderByAssignmentStartedAtAscCreatedAtAscIdAsc(
+                        fixture.firstProjectId(), fixture.firstTaskId());
+        assertThat(history).hasSize(1);
+        assertThat(history.getFirst().getAssignmentStartedAt()).isEqualTo(assignmentStartedAt);
+        assertThat(history.getFirst().getActualMinutesSnapshot()).isEqualTo(60L);
     }
 
     @Test

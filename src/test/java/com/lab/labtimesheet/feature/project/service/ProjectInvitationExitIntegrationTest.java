@@ -785,13 +785,21 @@ class ProjectInvitationExitIntegrationTest {
                 projectId,
                 requestId,
                 leaderMembershipId,
-                Set.of(workedTaskId, unworkedTaskId),
+                Set.of(workedTaskId),
                 Map.of(
-                        workedTaskId, number("select version from tasks where id = ?", workedTaskId),
-                        unworkedTaskId, number("select version from tasks where id = ?", unworkedTaskId)),
+                        workedTaskId, number("select version from tasks where id = ?", workedTaskId)),
                 Map.of(workedTaskId, new RemainingEffortForecastInput(90, "  hand over  ")),
                 replacementMembershipId);
         entityManager.clear();
+
+        assertEquals(replacementMembershipId, number(
+                "select assignee_membership_id from tasks where id = ?", workedTaskId));
+        assertEquals(leaderMembershipId, number(
+                "select assignee_membership_id from tasks where id = ?", unworkedTaskId));
+        assertEquals("PENDING", text(
+                "select status from project_membership_exit_requests where id = ?", requestId));
+        assertEquals(0, count("select count(*) from task_remaining_effort_forecasts "
+                + "where project_id = ? and task_id = ?", projectId, unworkedTaskId));
 
         projects.directRemoveMember(mentorId, projectId, leaderMembershipId, replacementId);
 
@@ -805,6 +813,15 @@ class ProjectInvitationExitIntegrationTest {
                 + "where project_id = ? and task_id = ?", projectId, unworkedTaskId));
         assertEquals(0, count("select count(*) from project_memberships "
                 + "where id = ? and left_at is null", leaderMembershipId));
+        assertEquals(replacementMembershipId, number(
+                "select membership_id from project_leadership_terms "
+                        + "where project_id = ? and ended_at is null", projectId));
+        assertEquals("APPROVED", text(
+                "select status from project_membership_exit_requests where id = ?", requestId));
+        assertEquals(4, count("select count(*) from notifications "
+                + "where notification_type = 'TASK_REASSIGNED' and action_url in (?, ?)",
+                "/projects/" + projectId + "/tasks/" + workedTaskId,
+                "/projects/" + projectId + "/tasks/" + unworkedTaskId));
     }
 
     @Test

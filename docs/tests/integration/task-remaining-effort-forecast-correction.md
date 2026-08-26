@@ -17,7 +17,11 @@ The Project-exit batch path accepts forecast inputs through the controller and
 before saving any forecast or assignment. Direct removal of a Mentor with any worked unfinished
 Task rejects during the preflight, before leadership, membership, assignment, exit request or
 decision, and notification mutation. Once a Leader's worked Tasks are transferred with valid
-forecasts, the existing eligible-unworked automatic-transfer behavior remains available.
+forecasts, the existing eligible-unworked automatic-transfer behavior remains available. The
+covered removal scenario sends only the worked unfinished Task through the forecast-aware
+transfer; the remaining unworked unfinished Task is deliberately left with the departing Leader
+until direct removal and is then moved automatically to the eligible replacement without creating
+a forecast.
 
 All commands below use the same Java 25.0.3 and Maven 3.9.11 executable:
 
@@ -40,6 +44,7 @@ turned GREEN:
 | `ProjectInvitationExitIntegrationTest#directMentorRemovalRejectsWorkedUnfinishedTasksBeforeAnyMutation` | Direct removal completed without the required rule violation. | Worked unfinished count is preflighted and removal rejects with no state mutation. |
 | `TaskMutationBoundaryTest#staleVersionRejectsBeforeSameRecipientValidation` | A stale request could report same-recipient validation first. | Expected Task version is checked before recipient-dependent validation and persistence. |
 | `TaskWorkLogIntegrationTest#concurrentForecastAwareBatchTransfersAllowOneWinnerWithoutDuplicateHistory` | The first race loser surfaced assignment validation rather than a stable stale conflict. | Locked/version-checked transactions yield one winner and one explicit conflict, with one history row. |
+| `TaskControllerTest#historicalAssignmentForecastIsNotRenderedAsCurrentOrCorrectable` | Every unsuperseded forecast was rendered as current and exposed a correction form, including a retained old-assignment row. | Only a forecast matching the Task's current assignee and assignment instant is current/correctable; an older unsuperseded row is rendered Historical and has no correction form. |
 
 The correction, late-work, wrong-context, unauthorized, superseded-predecessor, and concurrent
 correction cases were each added at a public service seam and verified against PostgreSQL. The
@@ -56,6 +61,7 @@ Historical RED invocations (the listed test was run before the corresponding fix
 & $mvn '-Dmaven.repo.local=C:/Users/dookubt/.m2/repository' '-Duser.timezone=Asia/Ho_Chi_Minh' '-Dtest=ProjectInvitationExitIntegrationTest#directMentorRemovalRejectsWorkedUnfinishedTasksBeforeAnyMutation' test
 & $mvn '-Dmaven.repo.local=C:/Users/dookubt/.m2/repository' '-Duser.timezone=Asia/Ho_Chi_Minh' '-Dtest=TaskMutationBoundaryTest#staleVersionRejectsBeforeSameRecipientValidation' test
 & $mvn '-Dmaven.repo.local=C:/Users/dookubt/.m2/repository' '-Duser.timezone=Asia/Ho_Chi_Minh' '-Dtest=TaskWorkLogIntegrationTest#concurrentForecastAwareBatchTransfersAllowOneWinnerWithoutDuplicateHistory' test
+& $mvn '-Dmaven.repo.local=C:/Users/dookubt/.m2/repository' '-Duser.timezone=Asia/Ho_Chi_Minh' '-Dtest=TaskControllerTest#historicalAssignmentForecastIsNotRenderedAsCurrentOrCorrectable' test
 ```
 
 The RED observations and their exact assertion/exception symptoms are the rows above; these
@@ -71,8 +77,8 @@ $env:JAVA_HOME='C:\Program Files\JetBrains\IntelliJ IDEA 2026.1.4\jbr'
 & 'C:\Program Files\JetBrains\IntelliJ IDEA 2026.1.4\plugins\maven\lib\maven3\bin\mvn.cmd' '-Dmaven.repo.local=C:/Users/dookubt/.m2/repository' '-Duser.timezone=Asia/Ho_Chi_Minh' '-Dtest=ProjectControllerTest,Iteration2ProjectWorkflowWebTest,TaskControllerTest,TaskMutationBoundaryTest,TaskTransferServiceTest,ProjectTaskMutationContextTest' test
 ```
 
-Result: exit 0; 99 tests run, 0 failures, 0 errors, and 0 skipped. Relevant class totals were
-`ProjectControllerTest` 32, `Iteration2ProjectWorkflowWebTest` 4, `TaskControllerTest` 27,
+Result: exit 0; 100 tests run, 0 failures, 0 errors, and 0 skipped. Relevant class totals were
+`ProjectControllerTest` 32, `Iteration2ProjectWorkflowWebTest` 4, `TaskControllerTest` 28,
 `TaskMutationBoundaryTest` 25, `TaskTransferServiceTest` 7, and `ProjectTaskMutationContextTest`
 4.
 
@@ -85,9 +91,9 @@ $env:JAVA_HOME='C:\Program Files\JetBrains\IntelliJ IDEA 2026.1.4\jbr'
 & 'C:\Program Files\JetBrains\IntelliJ IDEA 2026.1.4\plugins\maven\lib\maven3\bin\mvn.cmd' '-Dmaven.repo.local=C:/Users/dookubt/.m2/repository' '-Duser.timezone=Asia/Ho_Chi_Minh' '-Dtest=TaskWorkLogIntegrationTest,TaskCreationIntegrationTest,ProjectInvitationExitIntegrationTest' test
 ```
 
-Result: exit 0; 96 tests run, 0 failures, 0 errors, and 0 skipped. The logs identify
+Result: exit 0; 99 tests run, 0 failures, 0 errors, and 0 skipped. The logs identify
 `postgres:18.4`; Flyway validates and applies V1 baseline plus V2 task-effort-planning for each
-context. Surefire totals were `TaskWorkLogIntegrationTest` 20, `TaskCreationIntegrationTest` 40,
+context. Surefire totals were `TaskWorkLogIntegrationTest` 23, `TaskCreationIntegrationTest` 40,
 and `ProjectInvitationExitIntegrationTest` 36.
 
 The database run covers the required correction and reassignment rejection matrix:
@@ -97,14 +103,22 @@ The database run covers the required correction and reassignment rejection matri
 * superseded, wrong-project/task context, post-incoming-work, non-Leader, deleted-task,
   former-member, completed-project, and stale correction attempts append nothing;
 * two concurrent corrections permit one successor and reject one stale loser;
+* after two worked reassignment contexts, the retained forecast chronology remains complete while
+  only the latest current-assignment row is current/correctable; an older unsuperseded row is
+  Historical in the rendered public view and rejects correction at the service boundary;
+* correcting retained pre-assignment work refreshes a later forecast's actual snapshot and leaves
+  its correction window open; after incoming-assignee work exists, correcting that historical log
+  does not reopen the window and does not mutate the predecessor's snapshot;
 * manual and mixed batch worked/unworked transfers are atomic across Task assignment, forecast,
   and notifications, including stale versions and invalid/missing/extra forecast inputs;
 * two concurrent forecast-aware batches produce one winner without duplicate forecast history;
 * direct ordinary-Mentor and current-Leader removal rejects before any leadership, membership,
   assignment, exit request/decision, or notification change when worked unfinished Tasks remain;
   and
-* after forecast-aware Leader transfer, only eligible unworked unfinished Tasks use the existing
-  automatic transfer behavior.
+* after forecast-aware Leader transfer of only the worked unfinished Task, the remaining unworked
+  unfinished Task stays with the removal target until direct Mentor removal, then transfers to the
+  eligible replacement with no forecast fabricated for it; membership, leadership, exit request,
+  and the two-task notification effects are asserted.
 
 ## Known independent broad-suite boundary
 
