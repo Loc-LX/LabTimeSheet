@@ -39,6 +39,8 @@
               th:attr="aria-describedby=${taskReassignInput != null and taskError != null ? 'task-reassign-error' : null}">
             <input type="hidden" name="expectedVersion" th:value="${details.task.version}">
             <div class="field"><label class="field-label" for="task-assignee">Reassign</label><select class="control" id="task-assignee" name="assigneeMembershipId" required><option th:each="assignee : ${assignees}" th:value="${assignee.membershipId}" th:selected="${taskReassignInput != null and taskReassignInput.assigneeMembershipId == assignee.membershipId}" th:text="${assignee.displayName}">Member</option></select></div>
+            <div class="field" th:if="${details.effortPlanning.actualMinutes > 0}"><label class="field-label" for="remaining-minutes">Remaining effort (minutes)</label><input class="control" id="remaining-minutes" name="remainingMinutes" type="number" min="1" max="527040" required th:value="${taskReassignInput == null ? null : taskReassignInput.remainingMinutes}"></div>
+            <div class="field" th:if="${details.effortPlanning.actualMinutes > 0}"><label class="field-label" for="forecast-note">Forecast note</label><input class="control" id="forecast-note" name="forecastNote" maxlength="500" th:value="${taskReassignInput == null ? null : taskReassignInput.forecastNote}"></div>
             <p class="field-error" id="task-reassign-error" role="alert" th:if="${taskReassignInput != null and taskError != null}" th:text="${taskError}">Reassignment error</p><button class="button" type="submit">Reassign</button>
         </form>
         <form th:if="${details.canDelete}" method="post" data-confirm="Delete this Task from active views? Its retained history remains visible and this cannot be undone."
@@ -55,6 +57,14 @@
         <input class="control" id="task-estimate" name="estimatedMinutes" type="number" min="1" max="527040" th:value="${details.effortPlanning.estimatedMinutes}">
         <button class="button button-primary" type="submit">Save estimate</button>
     </form>
+    <section class="panel form-panel" aria-labelledby="forecast-heading">
+        <header class="panel-header"><h2 class="panel-title" id="forecast-heading">Remaining effort forecast</h2></header>
+        <div th:if="${#lists.isEmpty(details.remainingEffortForecasts)}"><th:block th:replace="~{fragments/components :: empty('No Remaining effort forecast', 'A forecast will appear when worked effort is reassigned.')} "></th:block></div>
+        <div class="table-scroll" th:unless="${#lists.isEmpty(details.remainingEffortForecasts)}"><table class="data-table"><caption class="sr-only">Remaining effort forecast history</caption>
+            <thead><tr><th scope="col">Assignment</th><th scope="col">Incoming member</th><th scope="col">Leader</th><th scope="col">Remaining</th><th scope="col">Actual snapshot</th><th scope="col">Note</th></tr></thead>
+            <tbody><tr th:each="forecast : ${details.remainingEffortForecasts}"><td th:text="${#temporals.format(forecast.assignmentStartedAt.atZone(T(java.time.ZoneId).of('Asia/Ho_Chi_Minh')), 'dd/MM/yyyy HH:mm')}">Assignment</td><td th:text="${(forecast.incomingMemberName == null ? 'Membership ' + forecast.incomingMembershipId : forecast.incomingMemberName) + ' (' + forecast.incomingMembershipId + ')'}">Incoming</td><td th:text="${(forecast.forecastingLeaderName == null ? 'Membership ' + forecast.forecastingLeaderMembershipId : forecast.forecastingLeaderName) + ' (' + forecast.forecastingLeaderMembershipId + ')'}">Leader</td><td th:text="${forecast.remainingMinutes + 'm'}">0m</td><td th:text="${forecast.actualMinutesSnapshot + 'm'}">0m</td><td th:text="${forecast.initialNote ?: '—'}">—</td></tr></tbody>
+        </table></div>
+    </section>
     <section class="panel form-panel" aria-labelledby="work-log-heading">
         <header class="panel-header"><h2 class="panel-title" id="work-log-heading">Work logs</h2></header>
         <form class="form-grid form-panel" th:if="${details.canLogWork}" method="post"

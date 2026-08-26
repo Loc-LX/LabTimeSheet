@@ -33,13 +33,18 @@ import com.lab.labtimesheet.feature.task.model.dto.TaskListView;
 import com.lab.labtimesheet.feature.task.model.dto.TaskWorkLogCandidate;
 import com.lab.labtimesheet.feature.task.model.dto.TaskView;
 import com.lab.labtimesheet.feature.task.model.dto.TaskWorkLogView;
+import com.lab.labtimesheet.feature.task.model.dto.TaskRemainingEffortForecastView;
+import com.lab.labtimesheet.feature.task.model.dto.RemainingEffortForecastInput;
 import com.lab.labtimesheet.feature.task.model.entity.Task;
 import com.lab.labtimesheet.feature.task.model.entity.TaskComment;
 import com.lab.labtimesheet.feature.task.model.entity.TaskWorkLog;
+import com.lab.labtimesheet.feature.task.model.entity.TaskRemainingEffortForecast;
 import com.lab.labtimesheet.feature.task.repository.TaskCommentRepository;
 import com.lab.labtimesheet.feature.task.repository.TaskRepository;
 import com.lab.labtimesheet.feature.task.repository.TaskWorkLogRepository;
+import com.lab.labtimesheet.feature.task.repository.TaskRemainingEffortForecastRepository;
 import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -76,6 +81,8 @@ public class TaskService {
     private final Clock clock;
     private final AccountService accounts;
     private final NotificationService notifications;
+
+    private final TaskRemainingEffortForecastRepository forecasts;
 
     /**
      * Creates a TODO Task in a PLANNED or ACTIVE Project.
@@ -379,6 +386,13 @@ public class TaskService {
             long taskId,
             Long expectedVersion,
             long assigneeMembershipId) {
+        return reassign(actorEmail, projectId, taskId, expectedVersion, assigneeMembershipId, null);
+    }
+
+    /** Reassigns manually, requiring an initial forecast when retained work exists. */
+    @Transactional
+    public TaskView reassign(String actorEmail, long projectId, long taskId, Long expectedVersion,
+            long assigneeMembershipId, RemainingEffortForecastInput forecastInput) {
         TaskAccess access = requireMutationAccess(actorEmail, projectId);
         requireOpenProject(access.project());
         ProjectTaskMemberView actorMembership = requireActorMembership(
@@ -394,10 +408,27 @@ public class TaskService {
             throw new TaskValidationException("Task is already assigned to that member");
         }
         requireTaskVersion(task, expectedVersion);
+        boolean worked = workLogs.existsByTaskIdAndProjectId(taskId, projectId);
+        if (worked && forecastInput == null) {
+            throw new TaskValidationException("A remaining-effort forecast is required for a worked Task");
+        }
+        if (!worked && forecastInput != null) {
+            throw new TaskValidationException("An unworked Task cannot receive a forecast");
+        }
+        if (worked) {
+            forecastInput = validateForecastInput(forecastInput);
+        }
+        Instant assignmentStartedAt = clock.instant();
+        if (worked) {
+            forecasts.save(new TaskRemainingEffortForecast(projectId, taskId, recipient.membershipId(),
+                    actorMembership.membershipId(), assignmentStartedAt,
+                    forecastInput.remainingMinutes(), workLogs.sumMinutesByTaskIdAndProjectId(taskId, projectId),
+                    forecastInput.note(), assignmentStartedAt));
+        }
         List<NotificationRecipient> assigneeRecipients = notificationRecipients(
                 access.project(), null,
                 List.of(previousAssigneeMembershipId, recipient.membershipId()));
-        task.reassign(recipient.membershipId(), actorMembership.membershipId(), clock.instant());
+        task.reassign(recipient.membershipId(), actorMembership.membershipId(), assignmentStartedAt);
         TaskView result = view(saveTask(task), recipient.displayName());
         publish(
                 new NotificationEvent(
@@ -687,6 +718,7 @@ public class TaskService {
         TaskView task = view(
                 persistedTask,
                 requireAssigneeName(projectMembers(access), persistedTask.getAssigneeMembershipId()));
+        Map<Long, ProjectMemberView> members = projectMembers(access);
         List<TaskCommentView> taskComments = comments.findAllByTaskIdOrderByCreatedAtAscIdAsc(taskId)
                 .stream()
                 .map(TaskService::view)
@@ -718,11 +750,16 @@ public class TaskService {
         TaskEffortPlanningView effortPlanning = effortPlanning(persistedTask, currentLeader,
                 isOpen(access.project()),
                 projectId, taskId);
+        List<TaskRemainingEffortForecastView> remainingEffortForecasts = forecasts
+                .findAllByProjectIdAndTaskIdOrderByAssignmentStartedAtAscCreatedAtAscIdAsc(projectId, taskId)
+                .stream()
+                .map(forecast -> view(forecast, members))
+                .toList();
         return new TaskDetails(
                 task, taskComments, taskWorkLogs,
                 actorMembership == null ? null : actorMembership.membershipId(),
                 canChangeStatus, canComment,
-                canEdit, canDelete, canReassign, canLogWork, effortPlanning);
+                canEdit, canDelete, canReassign, canLogWork, effortPlanning, remainingEffortForecasts);
     }
 
     /**
@@ -1005,6 +1042,18 @@ public class TaskService {
         }
     }
 
+    private static RemainingEffortForecastInput validateForecastInput(RemainingEffortForecastInput input) {
+        if (input == null || input.remainingMinutes() == null
+                || input.remainingMinutes() < 1 || input.remainingMinutes() > 527040) {
+            throw new TaskValidationException("Remaining effort must be between 1 and 527040 minutes");
+        }
+        String note = input.note() == null || input.note().isBlank() ? null : input.note().strip();
+        if (note != null && note.length() > 500) {
+            throw new TaskValidationException("Forecast note must not exceed 500 characters");
+        }
+        return new RemainingEffortForecastInput(input.remainingMinutes(), note);
+    }
+
     private TaskEffortPlanningView effortPlanning(Task task, boolean currentLeader, boolean projectOpen,
             long projectId, long taskId) {
         Integer estimate = task.getEstimatedMinutes();
@@ -1036,6 +1085,18 @@ public class TaskService {
                 task.getAssignedAt(),
                 task.getCreatedAt(),
                 task.getVersion());
+    }
+
+    private static TaskRemainingEffortForecastView view(
+            TaskRemainingEffortForecast forecast, Map<Long, ProjectMemberView> members) {
+        ProjectMemberView incoming = members.get(forecast.getIncomingMembershipId());
+        ProjectMemberView leader = members.get(forecast.getForecastingLeaderMembershipId());
+        return new TaskRemainingEffortForecastView(
+                forecast.getProjectId(), forecast.getTaskId(), forecast.getIncomingMembershipId(),
+                incoming == null ? null : incoming.displayName(),
+                forecast.getForecastingLeaderMembershipId(), leader == null ? null : leader.displayName(),
+                forecast.getAssignmentStartedAt(), forecast.getRemainingMinutes(),
+                forecast.getActualMinutesSnapshot(), forecast.getInitialNote(), forecast.getCreatedAt());
     }
 
     private void publish(

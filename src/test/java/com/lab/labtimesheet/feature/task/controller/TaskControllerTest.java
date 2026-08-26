@@ -28,7 +28,9 @@ import com.lab.labtimesheet.feature.task.model.dto.TaskCommentView;
 import com.lab.labtimesheet.feature.task.model.dto.TaskDetails;
 import com.lab.labtimesheet.feature.task.model.dto.TaskEffortPlanningView;
 import com.lab.labtimesheet.feature.task.model.dto.TaskListView;
+import com.lab.labtimesheet.feature.task.model.dto.TaskRemainingEffortForecastView;
 import com.lab.labtimesheet.feature.task.model.dto.TaskView;
+import com.lab.labtimesheet.feature.task.model.dto.RemainingEffortForecastInput;
 import com.lab.labtimesheet.feature.task.service.TaskService;
 import com.lab.labtimesheet.feature.integration.service.SmtpConfigurationService;
 import java.time.Instant;
@@ -170,6 +172,40 @@ class TaskControllerTest {
     }
 
     @Test
+    void workedReassignmentBindsForecastInputThroughPublicService() throws Exception {
+        mockMvc.perform(post("/projects/10/tasks/25/reassign").with(user("leader@example.test")).with(csrf())
+                        .param("expectedVersion", "2").param("assigneeMembershipId", "8")
+                        .param("remainingMinutes", "90").param("forecastNote", "  next phase  "))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/projects/10/tasks/25"));
+        verify(taskService).reassign("leader@example.test", 10L, 25L, 2L, 8L,
+                new RemainingEffortForecastInput(90, "  next phase  "));
+    }
+
+    @Test
+    void malformedForecastMinutesRedirectsWithSafeFlashInput() throws Exception {
+        mockMvc.perform(post("/projects/10/tasks/25/reassign").with(user(ACTOR_EMAIL)).with(csrf())
+                        .param("expectedVersion", "2").param("assigneeMembershipId", "8")
+                        .param("remainingMinutes", "oops").param("forecastNote", "note"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(flash().attribute("taskError", "Enter valid remaining effort minutes."))
+                .andExpect(flash().attribute("taskReassignInput", org.hamcrest.Matchers.hasEntry("remainingMinutes", "oops")));
+    }
+
+    @Test
+    void missingForecastMinutesWithNoteRedirectsThroughValidation() throws Exception {
+        given(taskService.reassign(org.mockito.ArgumentMatchers.eq(ACTOR_EMAIL), org.mockito.ArgumentMatchers.eq(10L),
+                org.mockito.ArgumentMatchers.eq(25L), org.mockito.ArgumentMatchers.eq(2L),
+                org.mockito.ArgumentMatchers.eq(8L), any(RemainingEffortForecastInput.class)))
+                .willThrow(new TaskValidationException("Remaining effort must be between 1 and 527040 minutes"));
+        mockMvc.perform(post("/projects/10/tasks/25/reassign").with(user(ACTOR_EMAIL)).with(csrf())
+                        .param("expectedVersion", "2").param("assigneeMembershipId", "8")
+                        .param("forecastNote", "note"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(flash().attribute("taskError", "Remaining effort must be between 1 and 527040 minutes"));
+    }
+
+    @Test
     void forgedMemberEstimateCreateIsSafeNotFoundWithoutRerender() throws Exception {
         given(taskService.create(org.mockito.ArgumentMatchers.eq(ACTOR_EMAIL), any(CreateTaskCommand.class)))
                 .willThrow(new TaskNotFoundException());
@@ -184,11 +220,17 @@ class TaskControllerTest {
     void detailRendersPlanningFactsAndOnlyLeaderControl() throws Exception {
         TaskDetails details = new TaskDetails(task(25L, TaskStatus.TODO), List.of(), List.of(), 7L,
                 true, true, true, true, true, true,
-                new TaskEffortPlanningView(120, 0, TaskVarianceState.PENDING, null, true));
+                new TaskEffortPlanningView(120, 0, TaskVarianceState.PENDING, null, true),
+                List.of(new TaskRemainingEffortForecastView(10L, 25L, 8L, "Incoming",
+                        7L, "Leader", Instant.parse("2026-08-20T02:00:00Z"), 90, 135,
+                        "next phase", Instant.parse("2026-08-20T02:00:00Z"))));
         given(taskService.details(ACTOR_EMAIL, 10L, 25L)).willReturn(details);
         mockMvc.perform(get("/projects/10/tasks/25").with(user(ACTOR_EMAIL)))
                 .andExpect(status().isOk()).andExpect(content().string(org.hamcrest.Matchers.containsString("Pending")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Update estimate")));
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Update estimate")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Remaining effort forecast")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("next phase")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Incoming")));
         given(taskService.details(ACTOR_EMAIL, 10L, 25L)).willReturn(new TaskDetails(
                 task(25L, TaskStatus.DONE), List.of(), List.of(), 7L, false, true, false, false, false, false,
                 new TaskEffortPlanningView(120, 150, TaskVarianceState.VALUE, 30L, false)));
@@ -201,7 +243,26 @@ class TaskControllerTest {
                 task(25L), List.of(), List.of(), 7L, false, true, false, false, false, false,
                 new TaskEffortPlanningView(null, 0, TaskVarianceState.NOT_ESTIMATED, null, false)));
         mockMvc.perform(get("/projects/10/tasks/25").with(user(ACTOR_EMAIL)))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("N/A")));
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("N/A")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("No Remaining effort forecast")));
+    }
+
+    @Test
+    void longForecastNoteRedirectsWithSafeRawInput() throws Exception {
+        given(taskService.reassign(org.mockito.ArgumentMatchers.eq(ACTOR_EMAIL), org.mockito.ArgumentMatchers.eq(10L),
+                org.mockito.ArgumentMatchers.eq(25L), org.mockito.ArgumentMatchers.eq(2L),
+                org.mockito.ArgumentMatchers.eq(8L), any(RemainingEffortForecastInput.class)))
+                .willThrow(new TaskValidationException("Forecast note must not exceed 500 characters"));
+        String note = "x".repeat(501);
+        mockMvc.perform(post("/projects/10/tasks/25/reassign").with(user(ACTOR_EMAIL)).with(csrf())
+                        .param("expectedVersion", "2").param("assigneeMembershipId", "8")
+                        .param("remainingMinutes", "90").param("forecastNote", note))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(flash().attribute("taskError", "Forecast note must not exceed 500 characters"))
+                .andExpect(flash().attribute("taskReassignInput", org.hamcrest.Matchers.allOf(
+                        org.hamcrest.Matchers.hasEntry("assigneeMembershipId", "8"),
+                        org.hamcrest.Matchers.hasEntry("remainingMinutes", "90"),
+                        org.hamcrest.Matchers.hasEntry("forecastNote", note))));
     }
 
     @Test

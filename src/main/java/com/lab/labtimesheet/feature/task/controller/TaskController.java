@@ -8,6 +8,7 @@ import com.lab.labtimesheet.feature.task.model.dto.TaskCreateForm;
 import com.lab.labtimesheet.feature.task.model.dto.TaskDetails;
 import com.lab.labtimesheet.feature.task.model.dto.TaskListView;
 import com.lab.labtimesheet.feature.task.model.dto.TaskView;
+import com.lab.labtimesheet.feature.task.model.dto.RemainingEffortForecastInput;
 import com.lab.labtimesheet.feature.task.service.TaskService;
 import jakarta.validation.Valid;
 import java.util.Arrays;
@@ -175,18 +176,24 @@ public class TaskController {
             @PathVariable long taskId,
             @RequestParam long expectedVersion,
             @RequestParam String assigneeMembershipId,
+            @RequestParam(required = false) String remainingMinutes,
+            @RequestParam(required = false) String forecastNote,
             RedirectAttributes redirectAttributes) {
         try {
-            taskService.reassign(
-                    authentication.getName(),
-                    projectId,
-                    taskId,
-                    expectedVersion,
-                    requiredLong(assigneeMembershipId, "Choose a valid assignee."));
+            long recipient = requiredLong(assigneeMembershipId, "Choose a valid assignee.");
+            Integer parsedRemaining = optionalInt(remainingMinutes, "Enter valid remaining effort minutes.");
+            if (parsedRemaining == null && (forecastNote == null || forecastNote.isBlank())) {
+                taskService.reassign(authentication.getName(), projectId, taskId, expectedVersion, recipient);
+            } else {
+                taskService.reassign(authentication.getName(), projectId, taskId, expectedVersion, recipient,
+                        forecastInput(parsedRemaining, forecastNote));
+            }
         } catch (TaskValidationException exception) {
             redirectAttributes.addFlashAttribute("taskError", exception.getMessage());
             redirectAttributes.addFlashAttribute("taskReassignInput", Map.of(
-                    "assigneeMembershipId", assigneeMembershipId));
+                    "assigneeMembershipId", assigneeMembershipId,
+                    "remainingMinutes", remainingMinutes == null ? "" : remainingMinutes,
+                    "forecastNote", forecastNote == null ? "" : forecastNote));
         }
         return detailsRedirect(projectId, taskId);
     }
@@ -316,6 +323,17 @@ public class TaskController {
         } catch (NumberFormatException exception) {
             throw new TaskValidationException(errorMessage);
         }
+    }
+
+    private static Integer optionalInt(String value, String errorMessage) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return requiredInt(value, errorMessage);
+    }
+
+    private static RemainingEffortForecastInput forecastInput(Integer remainingMinutes, String note) {
+        return new RemainingEffortForecastInput(remainingMinutes, note);
     }
 
     private static long requiredLong(String value, String errorMessage) {
