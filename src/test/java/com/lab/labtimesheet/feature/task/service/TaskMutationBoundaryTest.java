@@ -382,6 +382,24 @@ class TaskMutationBoundaryTest {
         when(workLogs.existsByTaskIdAndProjectIdAndMembershipIdAndCreatedAtGreaterThanEqual(
                 25L, 10L, 70L, NOW)).thenReturn(false);
         when(workLogs.sumMinutesByTaskIdAndProjectId(25L, 10L)).thenReturn(135L);
+        when(projectQueries.authenticatedActor("leader@example.test"))
+                .thenReturn(new ProjectActorView(6L, "INTERN"));
+        when(projectQueries.taskContext(6L, 10L)).thenReturn(context);
+        when(projectQueries.members(6L, 10L)).thenReturn(List.of(
+                new ProjectMemberView(70L, 5L, "Member", JOINED, null, false, 10L, null),
+                new ProjectMemberView(80L, 6L, "Recipient", JOINED, null, true, 10L, null)));
+        when(tasks.findByIdAndProjectIdAndDeletedAtIsNull(25L, 10L)).thenReturn(Optional.of(task));
+        when(comments.findAllByTaskIdOrderByCreatedAtAscIdAsc(25L)).thenReturn(List.of());
+        when(workLogs.findAllByTaskIdAndProjectIdOrderByWorkDateAscIdAsc(25L, 10L)).thenReturn(List.of());
+        when(forecasts.findAllByProjectIdAndTaskIdOrderByAssignmentStartedAtAscCreatedAtAscIdAsc(10L, 25L))
+                .thenReturn(List.of(predecessor));
+
+        assertThat(service.details("leader@example.test", 10L, 25L)
+                .remainingEffortForecasts()).singleElement()
+                .extracting(view -> view.correctionOpen())
+                .isEqualTo(true);
+        verify(workLogs, never()).existsByTaskIdAndProjectIdAndMembershipIdAndCreatedAtGreaterThanEqual(
+                25L, 10L, 70L, NOW);
 
         service.correctForecast("leader@example.test", 10L, 25L, 44L, 90, "  reason  ");
 
@@ -398,6 +416,8 @@ class TaskMutationBoundaryTest {
         assertThat(successor.getInitialNote()).isNull();
         assertThat(successor.getCorrectionReason()).isEqualTo("reason");
         assertThat(successor.getSupersedesForecastId()).isEqualTo(44L);
+        verify(workLogs).existsByTaskIdAndProjectIdAndMembershipIdAndCreatedAtGreaterThanEqual(
+                25L, 10L, 70L, NOW);
         verify(task, never()).reassign(anyLong(), anyLong(), any(Instant.class));
         verify(notifications, never()).publish(any(), any(), any());
     }

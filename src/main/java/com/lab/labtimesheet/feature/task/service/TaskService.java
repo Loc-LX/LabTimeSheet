@@ -512,7 +512,7 @@ public class TaskService {
             throw new TaskConflictException("Forecast changed; reload before correcting", exception);
         }
         Map<Long, ProjectMemberView> members = projectMembers(access);
-        return view(successor, task, members, false);
+        return view(successor, task, members, false, true);
     }
 
     /**
@@ -835,7 +835,8 @@ public class TaskService {
                         forecast,
                         persistedTask,
                         members,
-                        supersededForecastIds.contains(forecast.getId())))
+                        supersededForecastIds.contains(forecast.getId()),
+                        taskWorkLogs))
                 .toList();
         return new TaskDetails(
                 task, taskComments, taskWorkLogs,
@@ -1169,20 +1170,61 @@ public class TaskService {
                 task.getVersion());
     }
 
+    /**
+     * Projects one forecast for the detail read model from the work-log snapshot already loaded
+     * for that Task.
+     *
+     * <p>The correction-window check intentionally stays in memory here. The detail use case has
+     * already loaded every retained log, so querying the repository once per forecast would both
+     * duplicate work and make a history page's query count depend on its forecast count.</p>
+     *
+     * @param forecast persisted immutable forecast row
+     * @param task current Task assignment snapshot
+     * @param members authorized current and historical member names
+     * @param superseded whether a retained successor points at this row
+     * @param taskWorkLogs retained work-log snapshot loaded by the detail use case
+     * @return forecast read model with a snapshot-derived correction state
+     */
     private TaskRemainingEffortForecastView view(
             TaskRemainingEffortForecast forecast,
             Task task,
             Map<Long, ProjectMemberView> members,
-            boolean superseded) {
-        ProjectMemberView incoming = members.get(forecast.getIncomingMembershipId());
-        ProjectMemberView leader = members.get(forecast.getForecastingLeaderMembershipId());
+            boolean superseded,
+            List<TaskWorkLogView> taskWorkLogs) {
         boolean currentAssignment = task.getAssigneeMembershipId() == forecast.getIncomingMembershipId()
                 && Objects.equals(task.getAssignedAt(), forecast.getAssignmentStartedAt());
         boolean correctionOpen = currentAssignment
                 && !superseded
-                && !workLogs.existsByTaskIdAndProjectIdAndMembershipIdAndCreatedAtGreaterThanEqual(
-                        forecast.getTaskId(), forecast.getProjectId(), forecast.getIncomingMembershipId(),
-                        forecast.getAssignmentStartedAt());
+                && taskWorkLogs.stream()
+                        .noneMatch(log -> log.membershipId() == forecast.getIncomingMembershipId()
+                                && !log.createdAt().isBefore(forecast.getAssignmentStartedAt()));
+        return view(forecast, task, members, superseded, correctionOpen);
+    }
+
+    /**
+     * Projects a forecast after a command-side correction-window guard has succeeded.
+     *
+     * <p>Mutation callers must establish {@code correctionOpen} with the repository predicate
+     * while holding their write transaction. The detail caller uses the overload above so it can
+     * reuse its already-loaded work-log snapshot.</p>
+     *
+     * @param forecast persisted immutable forecast row
+     * @param task current Task assignment snapshot
+     * @param members authorized current and historical member names
+     * @param superseded whether a retained successor points at this row
+     * @param correctionOpen whether the caller has proven the correction window is open
+     * @return forecast read model with server-derived assignment state
+     */
+    private TaskRemainingEffortForecastView view(
+            TaskRemainingEffortForecast forecast,
+            Task task,
+            Map<Long, ProjectMemberView> members,
+            boolean superseded,
+            boolean correctionOpen) {
+        ProjectMemberView incoming = members.get(forecast.getIncomingMembershipId());
+        ProjectMemberView leader = members.get(forecast.getForecastingLeaderMembershipId());
+        boolean currentAssignment = task.getAssigneeMembershipId() == forecast.getIncomingMembershipId()
+                && Objects.equals(task.getAssignedAt(), forecast.getAssignmentStartedAt());
         return new TaskRemainingEffortForecastView(
                 forecast.getId() == null ? 0L : forecast.getId(),
                 forecast.getProjectId(), forecast.getTaskId(), forecast.getIncomingMembershipId(),
@@ -1191,7 +1233,7 @@ public class TaskService {
                 forecast.getAssignmentStartedAt(), forecast.getRemainingMinutes(),
                 forecast.getActualMinutesSnapshot(), forecast.getInitialNote(), forecast.getCreatedAt(),
                 forecast.getCorrectionReason(), forecast.getSupersedesForecastId(), superseded,
-                currentAssignment, correctionOpen);
+                currentAssignment, currentAssignment && !superseded && correctionOpen);
     }
 
     private void publish(
