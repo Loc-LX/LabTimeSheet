@@ -171,6 +171,19 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
     List<Task> findAllByProjectIdOrderById(long projectId);
 
     /**
+     * Lists retained Task rows for the selected report-log Task identifiers in stable order.
+     *
+     * <p>The Project predicate is intentional: a public Task report may only hydrate rows proved
+     * by the owning Project-scoped work-log query, even if stale or corrupt identifiers are
+     * supplied by persistence.</p>
+     *
+     * @param projectId owning Project identifier
+     * @param taskIds Task identifiers observed for the selected report date
+     * @return matching retained Tasks, including soft-deleted history
+     */
+    List<Task> findAllByProjectIdAndIdInOrderById(long projectId, Set<Long> taskIds);
+
+    /**
      * Counts current Tasks in a status across the supplied Projects.
      *
      * @param projectIds authorized Project identifiers

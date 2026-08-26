@@ -10,6 +10,7 @@ import com.lab.labtimesheet.feature.attendance.model.AttendanceRecord;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceRole;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceCurrentState;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceHistoryItem;
+import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceReportDateContext;
 import com.lab.labtimesheet.feature.attendance.model.entity.AttendancePolicyEntity;
 import com.lab.labtimesheet.feature.attendance.model.entity.AttendanceRecordEntity;
 import com.lab.labtimesheet.feature.attendance.repository.AttendancePolicyRepository;
@@ -174,6 +175,26 @@ public class AttendanceApplicationService {
     public LocalDate currentBusinessDate() {
         AttendancePolicy policy = timeline().resolve(clock.instant());
         return clock.instant().atZone(policy.zoneId()).toLocalDate();
+    }
+
+    /**
+     * Resolves policy and local calendar context for one report date without reading attendance
+     * rows or filtering Task work.
+     *
+     * @param reportDate selected local business date
+     * @return effective policy/calendar annotation for presentation
+     * @throws IllegalArgumentException when no effective policy exists for the date
+     */
+    @Transactional(readOnly = true)
+    public AttendanceReportDateContext reportDateContext(LocalDate reportDate) {
+        AttendancePolicy policy = timeline().resolve(reportDate);
+        return new AttendanceReportDateContext(
+                reportDate,
+                policy.isWorkday(reportDate),
+                calendar.isGlobalDayOff(reportDate),
+                policy.id(),
+                policy.effectiveFrom(),
+                policy.zoneId());
     }
 
     private AttendancePolicyTimeline timeline() {

@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.lab.labtimesheet.config.TestcontainersConfiguration;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectTaskContext;
 import com.lab.labtimesheet.feature.project.service.ProjectService;
+import com.lab.labtimesheet.feature.reporting.service.DailyProjectWorkReportService;
 import com.lab.labtimesheet.feature.task.exception.TaskNotFoundException;
 import com.lab.labtimesheet.feature.task.exception.TaskConflictException;
 import com.lab.labtimesheet.feature.task.exception.TaskValidationException;
@@ -14,6 +15,7 @@ import com.lab.labtimesheet.feature.task.model.TaskVarianceState;
 import com.lab.labtimesheet.feature.task.model.dto.CreateTaskCommand;
 import com.lab.labtimesheet.feature.task.model.dto.TaskAssigneeChoice;
 import com.lab.labtimesheet.feature.task.model.dto.TaskCommentView;
+import com.lab.labtimesheet.feature.task.model.dto.TaskDailyReportView;
 import com.lab.labtimesheet.feature.task.model.dto.TaskDetails;
 import com.lab.labtimesheet.feature.task.model.dto.TaskEffortPlanningView;
 import com.lab.labtimesheet.feature.task.model.dto.TaskListView;
@@ -64,6 +66,9 @@ class TaskCreationIntegrationTest {
 
     @Autowired
     private TaskQueryService taskQueries;
+
+    @Autowired
+    private DailyProjectWorkReportService dailyReports;
 
     @Autowired
     private TaskDashboardService taskDashboard;
@@ -816,6 +821,49 @@ class TaskCreationIntegrationTest {
         assertThat(progress.done()).isZero();
         assertThat(progress.totalMinutes()).isZero();
         assertThat(progress.completionPercentage()).isEmpty();
+    }
+
+    @Test
+    void dailyReportReadsPostgresRetainedDeletedLogsAndLatestForecastSnapshot() {
+        TaskView worked = taskService.create("leader@example.test", new CreateTaskCommand(
+                projectId, leaderMembershipId, "Daily retained work", "", null));
+        activateProject();
+        taskService.addWorkLog("leader@example.test", projectId, worked.id(),
+                LocalDate.of(2026, 8, 14), 45, "former author");
+        TaskView current = taskService.list("leader@example.test", projectId).tasks().stream()
+                .filter(task -> task.id() == worked.id()).findFirst().orElseThrow();
+        TaskView reassigned = taskService.reassign(
+                "leader@example.test", projectId, worked.id(), current.version(), memberMembershipId,
+                new RemainingEffortForecastInput(90, "handover forecast"));
+        taskService.addWorkLog("member@example.test", projectId, worked.id(),
+                LocalDate.of(2026, 8, 14), 15, "incoming author");
+        softDelete(worked.id());
+
+        List<TaskDailyReportView> report = taskQueries.dailyReport(
+                projectId, LocalDate.of(2026, 8, 14));
+
+        assertThat(report).singleElement().satisfies(task -> {
+            assertThat(task.id()).isEqualTo(worked.id());
+            assertThat(task.assigneeMembershipId()).isEqualTo(memberMembershipId);
+            assertThat(task.deleted()).isTrue();
+            assertThat(task.lifetimeActualMinutes()).isEqualTo(60L);
+            assertThat(task.workLogs()).extracting(log -> log.membershipId())
+                    .containsExactly(leaderMembershipId, memberMembershipId);
+            assertThat(task.latestForecast()).isNotNull();
+            assertThat(task.latestForecast().remainingMinutes()).isEqualTo(90);
+            assertThat(task.latestForecast().actualMinutesSnapshot()).isEqualTo(45L);
+            assertThat(task.latestForecast().forecastTotalMinutes()).isEqualTo(135L);
+        });
+        assertThat(reassigned.assigneeMembershipId()).isEqualTo(memberMembershipId);
+
+        var htmlDataset = dailyReports.build(
+                "mentor@example.test", null, LocalDate.of(2026, 8, 14));
+        assertThat(htmlDataset.projects()).hasSize(1);
+        assertThat(htmlDataset.projects().getFirst().totalMinutes()).isEqualTo(60L);
+        assertThat(htmlDataset.projects().getFirst().members())
+                .extracting(member -> member.membershipId())
+                .containsExactly(leaderMembershipId, memberMembershipId);
+        assertThat(htmlDataset.overallTotalMinutes()).isEqualTo(60L);
     }
 
     @Test

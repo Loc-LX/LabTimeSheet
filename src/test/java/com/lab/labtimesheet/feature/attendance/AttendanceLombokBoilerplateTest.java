@@ -15,6 +15,7 @@ import com.lab.labtimesheet.feature.attendance.model.CorrectionStatus;
 import com.lab.labtimesheet.feature.attendance.model.LeaveStatus;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceCurrentState;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceHistoryItem;
+import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceReportDateContext;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendancePolicyCommand;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendancePolicyHistoryItem;
 import com.lab.labtimesheet.feature.attendance.model.dto.CalendarHistoryItem;
@@ -476,7 +477,12 @@ class AttendanceLombokBoilerplateTest {
                         long.class,
                         LocalDate.class,
                         LocalDate.class),
-                method(Modifier.PUBLIC, "currentBusinessDate", LocalDate.class));
+                method(Modifier.PUBLIC, "currentBusinessDate", LocalDate.class),
+                method(
+                        Modifier.PUBLIC,
+                        "reportDateContext",
+                        AttendanceReportDateContext.class,
+                        LocalDate.class));
         assertMethodSurface(
                 AttendanceCurrentUserService.class,
                 method(Modifier.PUBLIC, "actor", AttendanceActor.class, Principal.class));

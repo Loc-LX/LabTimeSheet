@@ -71,6 +71,25 @@ public interface ProjectRepository extends JpaRepository<ProjectEntity, Long> {
             long mentorUserId, Pageable pageable);
 
     /**
+     * Lists the complete Project catalogue for an Admin report scope.
+     *
+     * <p>This intentionally has no {@link Pageable}: the Daily Project Work Report contract is
+     * an all-authorized scope, whereas the navigation list above remains bounded for interactive
+     * catalogue rendering.</p>
+     *
+     * @return all Projects in the same deterministic order as the bounded catalogue
+     */
+    List<ProjectEntity> findAllByOrderByUpdatedAtDescIdDesc();
+
+    /**
+     * Lists every Project owned by one Mentor for an all-Projects report scope.
+     *
+     * @param mentorUserId owning Mentor account identifier
+     * @return all owned Projects in deterministic update order
+     */
+    List<ProjectEntity> findByMentorUserIdOrderByUpdatedAtDescIdDesc(long mentorUserId);
+
+    /**
      * Projects retained membership intervals for one Intern without hydrating a filtered Project
      * aggregate. The scalar projection prevents a read in an ambient transaction from leaving a
      * partially initialized membership collection for a later authorization or Task-context read.

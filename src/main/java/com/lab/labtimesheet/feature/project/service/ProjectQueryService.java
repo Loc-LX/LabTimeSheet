@@ -134,6 +134,29 @@ public class ProjectQueryService {
     }
 
     /**
+     * Lists the complete Project scope authorized for the Daily Project Work Report.
+     *
+     * <p>The normal navigation method is deliberately capped at 50 rows. Report scope cannot
+     * silently truncate an Admin catalogue or a Mentor's owned Projects, so this producer-owned
+     * seam uses complete role-filtered repository queries and still returns DTOs only. Interns do
+     * not receive the new cross-Project Daily preset.</p>
+     *
+     * @param actorUserId active Admin or Mentor account identifier
+     * @return every authorized Project in deterministic update order
+     * @throws ProjectAccessDeniedException when the actor is inactive, unsupported, or an Intern
+     */
+    @Transactional(readOnly = true)
+    public List<ProjectSummary> listAllVisibleForReport(long actorUserId) {
+        var actor = activeActor(actorUserId);
+        List<ProjectEntity> visible = switch (actor.role().name()) {
+            case "ADMIN" -> projects.findAllByOrderByUpdatedAtDescIdDesc();
+            case "MENTOR" -> projects.findByMentorUserIdOrderByUpdatedAtDescIdDesc(actorUserId);
+            default -> throw new ProjectAccessDeniedException();
+        };
+        return visible.stream().map(ProjectQueryService::summary).toList();
+    }
+
+    /**
      * Lists one bounded page of Projects and exposes whether an authorized continuation exists.
      * The returned page is role-filtered before its rows are mapped to DTOs, and its continuation
      * flags come from the same repository slice rather than from a truncated display collection.
