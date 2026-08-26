@@ -355,6 +355,15 @@ class TaskWorkLogIntegrationTest {
                 fixture.otherEmail(), fixture.firstProjectId(), fixture.firstTaskId(),
                 WORK_DATE, 60, "Incoming work");
 
+        var details = taskService.details(
+                fixture.email(), fixture.firstProjectId(), fixture.firstTaskId());
+        assertThat(details.remainingEffortForecasts()).singleElement()
+                .satisfies(forecast -> {
+                    assertThat(forecast.currentAssignment()).isTrue();
+                    assertThat(forecast.superseded()).isFalse();
+                    assertThat(forecast.correctionOpen()).isFalse();
+                });
+
         assertThatThrownBy(() -> taskService.correctForecast(
                 fixture.email(), fixture.firstProjectId(), fixture.firstTaskId(),
                 predecessorId, 80, "Late correction"))

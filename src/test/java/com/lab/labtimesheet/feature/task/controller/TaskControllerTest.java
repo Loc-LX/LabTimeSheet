@@ -235,9 +235,10 @@ class TaskControllerTest {
         TaskDetails details = new TaskDetails(task(25L, TaskStatus.TODO), List.of(), List.of(), 7L,
                 true, true, true, true, true, true,
                 new TaskEffortPlanningView(120, 0, TaskVarianceState.PENDING, null, true),
-                List.of(new TaskRemainingEffortForecastView(10L, 25L, 8L, "Incoming",
+                List.of(new TaskRemainingEffortForecastView(0L, 10L, 25L, 8L, "Incoming",
                         7L, "Leader", Instant.parse("2026-08-20T02:00:00Z"), 90, 135,
-                        "next phase", Instant.parse("2026-08-20T02:00:00Z"))));
+                        "next phase", Instant.parse("2026-08-20T02:00:00Z"), null, null,
+                        false, true, true)));
         given(taskService.details(ACTOR_EMAIL, 10L, 25L)).willReturn(details);
         mockMvc.perform(get("/projects/10/tasks/25").with(user(ACTOR_EMAIL)))
                 .andExpect(status().isOk()).andExpect(content().string(org.hamcrest.Matchers.containsString("Pending")))
@@ -271,11 +272,11 @@ class TaskControllerTest {
         TaskRemainingEffortForecastView historical = new TaskRemainingEffortForecastView(
                 41L, 10L, 25L, 8L, "Former member", 7L, "Leader",
                 historicalAssignment, 90, 60, "handover", historicalAssignment,
-                null, null, false, false);
+                null, null, false, false, false);
         TaskRemainingEffortForecastView current = new TaskRemainingEffortForecastView(
                 42L, 10L, 25L, 9L, "Current member", 7L, "Leader",
                 currentAssignment, 80, 60, "latest", currentAssignment,
-                null, null, false, true);
+                null, null, false, true, true);
         given(taskService.details(ACTOR_EMAIL, 10L, 25L)).willReturn(new TaskDetails(
                 currentTask, List.of(), List.of(), 7L,
                 true, true, true, true, true, true,
@@ -289,6 +290,27 @@ class TaskControllerTest {
                         org.hamcrest.Matchers.containsString("/forecasts/41/correct"))))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString(
                         "/forecasts/42/correct")));
+    }
+
+    @Test
+    void closedCurrentForecastRemainsCurrentHistoryWithoutCorrectionForm() throws Exception {
+        Instant assignment = Instant.parse("2026-08-14T10:00:00Z");
+        TaskRemainingEffortForecastView closed = new TaskRemainingEffortForecastView(
+                42L, 10L, 25L, 7L, "Current member", 7L, "Leader",
+                assignment, 80, 60, "latest", assignment,
+                null, null, false, true, false);
+        given(taskService.details(ACTOR_EMAIL, 10L, 25L)).willReturn(new TaskDetails(
+                task(25L), List.of(), List.of(), 7L,
+                true, true, true, true, true, true,
+                new TaskEffortPlanningView(null, 60, TaskVarianceState.NOT_ESTIMATED, null, false),
+                List.of(closed)));
+
+        mockMvc.perform(get("/projects/10/tasks/25").with(user(ACTOR_EMAIL)))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(
+                        "Current (correction closed)")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("/forecasts/42/correct"))));
     }
 
     @Test

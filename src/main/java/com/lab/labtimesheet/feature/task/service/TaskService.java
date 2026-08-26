@@ -1169,7 +1169,7 @@ public class TaskService {
                 task.getVersion());
     }
 
-    private static TaskRemainingEffortForecastView view(
+    private TaskRemainingEffortForecastView view(
             TaskRemainingEffortForecast forecast,
             Task task,
             Map<Long, ProjectMemberView> members,
@@ -1178,6 +1178,11 @@ public class TaskService {
         ProjectMemberView leader = members.get(forecast.getForecastingLeaderMembershipId());
         boolean currentAssignment = task.getAssigneeMembershipId() == forecast.getIncomingMembershipId()
                 && Objects.equals(task.getAssignedAt(), forecast.getAssignmentStartedAt());
+        boolean correctionOpen = currentAssignment
+                && !superseded
+                && !workLogs.existsByTaskIdAndProjectIdAndMembershipIdAndCreatedAtGreaterThanEqual(
+                        forecast.getTaskId(), forecast.getProjectId(), forecast.getIncomingMembershipId(),
+                        forecast.getAssignmentStartedAt());
         return new TaskRemainingEffortForecastView(
                 forecast.getId() == null ? 0L : forecast.getId(),
                 forecast.getProjectId(), forecast.getTaskId(), forecast.getIncomingMembershipId(),
@@ -1186,7 +1191,7 @@ public class TaskService {
                 forecast.getAssignmentStartedAt(), forecast.getRemainingMinutes(),
                 forecast.getActualMinutesSnapshot(), forecast.getInitialNote(), forecast.getCreatedAt(),
                 forecast.getCorrectionReason(), forecast.getSupersedesForecastId(), superseded,
-                currentAssignment);
+                currentAssignment, correctionOpen);
     }
 
     private void publish(

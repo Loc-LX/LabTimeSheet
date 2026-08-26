@@ -45,6 +45,7 @@ turned GREEN:
 | `TaskMutationBoundaryTest#staleVersionRejectsBeforeSameRecipientValidation` | A stale request could report same-recipient validation first. | Expected Task version is checked before recipient-dependent validation and persistence. |
 | `TaskWorkLogIntegrationTest#concurrentForecastAwareBatchTransfersAllowOneWinnerWithoutDuplicateHistory` | The first race loser surfaced assignment validation rather than a stable stale conflict. | Locked/version-checked transactions yield one winner and one explicit conflict, with one history row. |
 | `TaskControllerTest#historicalAssignmentForecastIsNotRenderedAsCurrentOrCorrectable` | Every unsuperseded forecast was rendered as current and exposed a correction form, including a retained old-assignment row. | Only a forecast matching the Task's current assignee and assignment instant is current/correctable; an older unsuperseded row is rendered Historical and has no correction form. |
+| `TaskControllerTest#closedCurrentForecastRemainsCurrentHistoryWithoutCorrectionForm` | A current-assignment row remained rendered as current with a correction form after incoming work closed the server-side correction window. | The row remains current history, is explicitly marked correction-closed, and exposes no correction form. |
 
 The correction, late-work, wrong-context, unauthorized, superseded-predecessor, and concurrent
 correction cases were each added at a public service seam and verified against PostgreSQL. The
@@ -62,6 +63,7 @@ Historical RED invocations (the listed test was run before the corresponding fix
 & $mvn '-Dmaven.repo.local=C:/Users/dookubt/.m2/repository' '-Duser.timezone=Asia/Ho_Chi_Minh' '-Dtest=TaskMutationBoundaryTest#staleVersionRejectsBeforeSameRecipientValidation' test
 & $mvn '-Dmaven.repo.local=C:/Users/dookubt/.m2/repository' '-Duser.timezone=Asia/Ho_Chi_Minh' '-Dtest=TaskWorkLogIntegrationTest#concurrentForecastAwareBatchTransfersAllowOneWinnerWithoutDuplicateHistory' test
 & $mvn '-Dmaven.repo.local=C:/Users/dookubt/.m2/repository' '-Duser.timezone=Asia/Ho_Chi_Minh' '-Dtest=TaskControllerTest#historicalAssignmentForecastIsNotRenderedAsCurrentOrCorrectable' test
+& $mvn '-Dmaven.repo.local=C:/Users/dookubt/.m2/repository' '-Duser.timezone=Asia/Ho_Chi_Minh' '-Dtest=TaskControllerTest#closedCurrentForecastRemainsCurrentHistoryWithoutCorrectionForm' test
 ```
 
 The RED observations and their exact assertion/exception symptoms are the rows above; these
@@ -77,8 +79,8 @@ $env:JAVA_HOME='C:\Program Files\JetBrains\IntelliJ IDEA 2026.1.4\jbr'
 & 'C:\Program Files\JetBrains\IntelliJ IDEA 2026.1.4\plugins\maven\lib\maven3\bin\mvn.cmd' '-Dmaven.repo.local=C:/Users/dookubt/.m2/repository' '-Duser.timezone=Asia/Ho_Chi_Minh' '-Dtest=ProjectControllerTest,Iteration2ProjectWorkflowWebTest,TaskControllerTest,TaskMutationBoundaryTest,TaskTransferServiceTest,ProjectTaskMutationContextTest' test
 ```
 
-Result: exit 0; 100 tests run, 0 failures, 0 errors, and 0 skipped. Relevant class totals were
-`ProjectControllerTest` 32, `Iteration2ProjectWorkflowWebTest` 4, `TaskControllerTest` 28,
+Result: exit 0; 101 tests run, 0 failures, 0 errors, and 0 skipped. Relevant class totals were
+`ProjectControllerTest` 32, `Iteration2ProjectWorkflowWebTest` 4, `TaskControllerTest` 29,
 `TaskMutationBoundaryTest` 25, `TaskTransferServiceTest` 7, and `ProjectTaskMutationContextTest`
 4.
 

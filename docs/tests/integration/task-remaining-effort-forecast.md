@@ -34,6 +34,9 @@ The following public-seam REDs were captured before the corresponding production
 * `TaskControllerTest#historicalAssignmentForecastIsNotRenderedAsCurrentOrCorrectable` initially
   rendered every unsuperseded history row as current and exposed a correction form for an old
   assignment context.
+* `TaskControllerTest#closedCurrentForecastRemainsCurrentHistoryWithoutCorrectionForm` initially
+  rendered a current-assignment forecast as current and exposed a correction form after incoming
+  work had already closed the server-side correction window.
 
 Each RED was followed by the smallest production/test change and a current GREEN rerun. The
 tests exercise `TaskService`, `TaskTransferService`, `ProjectService`, controllers, rendered
@@ -50,6 +53,7 @@ $mvn='C:\Program Files\JetBrains\IntelliJ IDEA 2026.1.4\plugins\maven\lib\maven3
 & $mvn '-Dmaven.repo.local=C:/Users/dookubt/.m2/repository' '-Duser.timezone=Asia/Ho_Chi_Minh' '-Dtest=TaskMutationBoundaryTest#staleVersionRejectsBeforeSameRecipientValidation' test
 & $mvn '-Dmaven.repo.local=C:/Users/dookubt/.m2/repository' '-Duser.timezone=Asia/Ho_Chi_Minh' '-Dtest=TaskWorkLogIntegrationTest#concurrentForecastAwareBatchTransfersAllowOneWinnerWithoutDuplicateHistory' test
 & $mvn '-Dmaven.repo.local=C:/Users/dookubt/.m2/repository' '-Duser.timezone=Asia/Ho_Chi_Minh' '-Dtest=TaskControllerTest#historicalAssignmentForecastIsNotRenderedAsCurrentOrCorrectable' test
+& $mvn '-Dmaven.repo.local=C:/Users/dookubt/.m2/repository' '-Duser.timezone=Asia/Ho_Chi_Minh' '-Dtest=TaskControllerTest#closedCurrentForecastRemainsCurrentHistoryWithoutCorrectionForm' test
 ```
 
 These historical invocations are evidence records, not post-fix assertions expected to fail; the
@@ -64,11 +68,11 @@ $env:JAVA_HOME='C:\Program Files\JetBrains\IntelliJ IDEA 2026.1.4\jbr'
 & 'C:\Program Files\JetBrains\IntelliJ IDEA 2026.1.4\plugins\maven\lib\maven3\bin\mvn.cmd' '-Dmaven.repo.local=C:/Users/dookubt/.m2/repository' '-Duser.timezone=Asia/Ho_Chi_Minh' '-Dtest=ProjectControllerTest,Iteration2ProjectWorkflowWebTest,TaskControllerTest,TaskMutationBoundaryTest,TaskTransferServiceTest,ProjectTaskMutationContextTest' test
 ```
 
-Result: exit 0; 100 tests run, 0 failures, 0 errors, and 0 skipped. This includes the public
+Result: exit 0; 101 tests run, 0 failures, 0 errors, and 0 skipped. This includes the public
 manual forecast binding/correction routes, exit-transfer forecast binding and safe validation
 flash, workflow forecast controls, worked/unworked manual atomicity, batch validation and stale
 ordering, service-level authorization/version checks, and the public historical-assignment
-rendering/form boundary.
+rendering/form boundary, including closed current-assignment history without a correction form.
 
 ## PostgreSQL/Testcontainers verification
 
@@ -91,6 +95,8 @@ proves, against the public database boundary:
 * complete multi-assignment chronology: retained unsuperseded rows from older assignment contexts
   are represented as historical and reject correction, while only the current-assignment row is
   current and correctable;
+* the current-assignment row remains visible as history after incoming work begins but its
+  correction-open flag is false, so the public page cannot offer a server-rejected correction;
 * correction of a retained pre-assignment work log refreshes the next forecast's actual snapshot
   without closing the correction window; after incoming-assignee work exists, the same historical
   correction leaves the window closed and the immutable predecessor snapshot unchanged;
