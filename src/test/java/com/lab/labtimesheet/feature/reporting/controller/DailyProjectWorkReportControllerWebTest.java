@@ -165,6 +165,23 @@ class DailyProjectWorkReportControllerWebTest {
         verify(reports).build("mentor@example.test", null, REPORT_DATE.plusDays(1));
     }
 
+    @Test
+    void rendersKeyboardAccessibleDownloadControlsWithSelectedScopeAndDate() throws Exception {
+        given(reports.build(anyString(), any(), any())).willReturn(selectedEmptyReport());
+
+        mvc.perform(get("/reports/daily")
+                        .with(user("mentor@example.test").roles("MENTOR"))
+                        .param("projectId", "42")
+                        .param("reportDate", REPORT_DATE.toString()))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(
+                        "href=\"/reports/daily.xlsx?projectId=42&amp;date=2026-08-20\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(
+                        "href=\"/reports/daily.pdf?projectId=42&amp;date=2026-08-20\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Download XLSX")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Download PDF")));
+    }
+
     private static DailyProjectWorkReportView emptyReport() {
         return new DailyProjectWorkReportView(
                 REPORT_DATE,
@@ -173,6 +190,19 @@ class DailyProjectWorkReportControllerWebTest {
                         ZoneId.of("Asia/Ho_Chi_Minh")),
                 null,
                 null,
+                List.of(),
+                List.of(),
+                0L);
+    }
+
+    private static DailyProjectWorkReportView selectedEmptyReport() {
+        return new DailyProjectWorkReportView(
+                REPORT_DATE,
+                new AttendanceReportDateContext(
+                        REPORT_DATE, true, false, 1L, LocalDate.of(1970, 1, 1),
+                        ZoneId.of("Asia/Ho_Chi_Minh")),
+                42L,
+                "Portal",
                 List.of(),
                 List.of(),
                 0L);

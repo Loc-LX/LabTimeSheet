@@ -14,6 +14,7 @@ import com.lab.labtimesheet.feature.reporting.model.dto.AttendanceReportView;
 import com.lab.labtimesheet.feature.reporting.model.dto.ProjectTaskReportFilter;
 import com.lab.labtimesheet.feature.reporting.model.dto.ProjectTaskReportView;
 import com.lab.labtimesheet.feature.reporting.service.AttendanceReportService;
+import com.lab.labtimesheet.feature.reporting.service.DailyProjectWorkReportService;
 import com.lab.labtimesheet.feature.reporting.service.ProjectTaskReportService;
 import com.lab.labtimesheet.feature.reporting.service.ReportExportService;
 import java.security.Principal;
@@ -46,6 +47,9 @@ class ReportingExportControllerWebTest {
 
     @MockitoBean
     private ProjectTaskReportService projectTaskReports;
+
+    @MockitoBean
+    private DailyProjectWorkReportService dailyReports;
 
     @MockitoBean
     private ReportExportService exports;

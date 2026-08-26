@@ -1,8 +1,11 @@
 package com.lab.labtimesheet.feature.reporting.controller;
 
 import com.lab.labtimesheet.feature.reporting.model.dto.AttendanceReportView;
+import com.lab.labtimesheet.feature.reporting.model.dto.DailyProjectWorkReportView;
 import com.lab.labtimesheet.feature.reporting.model.dto.ProjectTaskReportView;
+import com.lab.labtimesheet.feature.project.exception.ProjectAccessDeniedException;
 import com.lab.labtimesheet.feature.reporting.service.AttendanceReportService;
+import com.lab.labtimesheet.feature.reporting.service.DailyProjectWorkReportService;
 import com.lab.labtimesheet.feature.reporting.service.ProjectTaskReportService;
 import com.lab.labtimesheet.feature.reporting.service.ReportExportService;
 import com.lab.labtimesheet.feature.task.model.TaskStatus;
@@ -34,6 +37,7 @@ public class ReportExportController {
 
     private final AttendanceReportService attendanceReports;
     private final ProjectTaskReportService projectTaskReports;
+    private final DailyProjectWorkReportService dailyReports;
     private final ReportExportService exports;
 
     /**
@@ -140,6 +144,82 @@ public class ReportExportController {
                 dueFrom, dueTo, workFrom, workTo);
         return attachment(exports.projectTaskPdf(report), MediaType.APPLICATION_PDF,
                 projectFilename(".pdf", dueFrom, dueTo, workFrom, workTo));
+    }
+
+    /**
+     * Downloads the authorized Daily Project Work Report as XLSX.
+     *
+     * <p>The report service constructs exactly one immutable DTO using the same optional Project
+     * and local-date inputs as the HTML route. The exporter receives only that DTO and cannot
+     * query or re-evaluate authorization.</p>
+     *
+     * @param authentication authenticated Admin or Mentor
+     * @param projectId optional authorized Project filter
+     * @param date optional ISO local report date
+     * @param reportDate compatibility alias accepted by the HTML route
+     * @return Daily workbook attachment with a date-only deterministic filename
+     */
+    @GetMapping("/daily.xlsx")
+    public ResponseEntity<byte[]> dailyXlsx(
+            Authentication authentication,
+            @RequestParam(required = false) Long projectId,
+            @RequestParam(name = "date", required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @RequestParam(name = "reportDate", required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate reportDate) {
+        DailyProjectWorkReportView report = dailyReport(
+                authentication, projectId, date, reportDate);
+        return attachment(exports.dailyXlsx(report), XLSX,
+                dailyFilename(report.reportDate(), ".xlsx"));
+    }
+
+    /**
+     * Downloads the authorized Daily Project Work Report as print-safe PDF.
+     *
+     * @param authentication authenticated Admin or Mentor
+     * @param projectId optional authorized Project filter
+     * @param date optional ISO local report date
+     * @param reportDate compatibility alias accepted by the HTML route
+     * @return Daily PDF attachment with a date-only deterministic filename
+     */
+    @GetMapping("/daily.pdf")
+    public ResponseEntity<byte[]> dailyPdf(
+            Authentication authentication,
+            @RequestParam(required = false) Long projectId,
+            @RequestParam(name = "date", required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @RequestParam(name = "reportDate", required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate reportDate) {
+        DailyProjectWorkReportView report = dailyReport(
+                authentication, projectId, date, reportDate);
+        return attachment(exports.dailyPdf(report), MediaType.APPLICATION_PDF,
+                dailyFilename(report.reportDate(), ".pdf"));
+    }
+
+    private DailyProjectWorkReportView dailyReport(
+            Authentication authentication, Long projectId, LocalDate date, LocalDate reportDate) {
+        LocalDate requestedDate = mergeDailyDates(date, reportDate);
+        try {
+            return dailyReports.build(authentication.getName(), projectId, requestedDate);
+        } catch (ProjectAccessDeniedException denied) {
+            throw new ResponseStatusException(
+                    HttpStatus.NOT_FOUND, "Project unavailable", denied);
+        } catch (IllegalArgumentException invalid) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, "Report request is invalid", invalid);
+        }
+    }
+
+    private static LocalDate mergeDailyDates(LocalDate date, LocalDate reportDate) {
+        if (date != null && reportDate != null && !date.equals(reportDate)) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, "Report date parameters must match");
+        }
+        return date != null ? date : reportDate;
+    }
+
+    private static String dailyFilename(LocalDate reportDate, String extension) {
+        return "daily-project-work-report-" + reportDate + extension;
     }
 
     private static void validateProjectTaskExportRanges(

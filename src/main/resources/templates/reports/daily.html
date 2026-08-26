@@ -32,6 +32,13 @@
         </div>
     </form>
 
+    <div class="form-actions report-downloads" aria-label="Download Daily Project Work Report">
+        <a class="button button-secondary"
+           th:href="@{/reports/daily.xlsx(projectId=${report.selectedProjectId},date=${report.reportDate})}">Download XLSX</a>
+        <a class="button button-secondary"
+           th:href="@{/reports/daily.pdf(projectId=${report.selectedProjectId},date=${report.reportDate})}">Download PDF</a>
+    </div>
+
     <section class="panel" aria-label="Report date context">
         <header class="panel-header">
             <h2 class="panel-title" th:text="${report.dayContext.label}">Configured attendance workday</h2>
