@@ -36,6 +36,21 @@ Each RED was followed by the smallest production/test change and a current GREEN
 tests exercise `TaskService`, `TaskTransferService`, `ProjectService`, controllers, rendered
 workflow markup, and PostgreSQL persistence rather than only mocking internal collaborators.
 
+Historical RED invocations (each was run before its corresponding fix):
+
+```powershell
+$env:JAVA_HOME='C:\Program Files\JetBrains\IntelliJ IDEA 2026.1.4\jbr'
+$mvn='C:\Program Files\JetBrains\IntelliJ IDEA 2026.1.4\plugins\maven\lib\maven3\bin\mvn.cmd'
+& $mvn '-Dmaven.repo.local=C:/Users/dookubt/.m2/repository' '-Duser.timezone=Asia/Ho_Chi_Minh' '-Dtest=TaskCreationIntegrationTest#workedBatchTransferRequiresAForecastBeforeChangingAnyTask' test
+& $mvn '-Dmaven.repo.local=C:/Users/dookubt/.m2/repository' '-Duser.timezone=Asia/Ho_Chi_Minh' '-Dtest=ProjectControllerTest#exitTransferBindsWorkedTaskForecastInputsAtThePublicBoundary' test
+& $mvn '-Dmaven.repo.local=C:/Users/dookubt/.m2/repository' '-Duser.timezone=Asia/Ho_Chi_Minh' '-Dtest=Iteration2ProjectWorkflowWebTest#currentLeaderSeesActionOnlyWorkflowsAndSeparateReadOnlyHistory' test
+& $mvn '-Dmaven.repo.local=C:/Users/dookubt/.m2/repository' '-Duser.timezone=Asia/Ho_Chi_Minh' '-Dtest=TaskMutationBoundaryTest#staleVersionRejectsBeforeSameRecipientValidation' test
+& $mvn '-Dmaven.repo.local=C:/Users/dookubt/.m2/repository' '-Duser.timezone=Asia/Ho_Chi_Minh' '-Dtest=TaskWorkLogIntegrationTest#concurrentForecastAwareBatchTransfersAllowOneWinnerWithoutDuplicateHistory' test
+```
+
+These historical invocations are evidence records, not post-fix assertions expected to fail; the
+current GREEN commands are the focused and affected commands below.
+
 ## Focused public-boundary verification
 
 Command (Java 25.0.3 and the repository-local IntelliJ Maven 3.9.11 runtime):
@@ -92,8 +107,14 @@ contracts and PostgreSQL migration-backed structure were loaded successfully.
 The explicit `-Duser.timezone=Asia/Ho_Chi_Minh` is required for these integration runs because
 the current test bootstrap otherwise passes the PostgreSQL server the legacy `Asia/Saigon` alias.
 That is an existing test-environment issue, not a forecast rule. The proportionate full-suite
-command used the same Maven and timezone settings and completed with 662 tests, 5 failures, and
-21 errors. The failures were independent baseline issues: the hard-coded `LayerStructureTest`
+command was:
+
+```powershell
+$env:JAVA_HOME='C:\Program Files\JetBrains\IntelliJ IDEA 2026.1.4\jbr'
+& 'C:\Program Files\JetBrains\IntelliJ IDEA 2026.1.4\plugins\maven\lib\maven3\bin\mvn.cmd' '-Dmaven.repo.local=C:/Users/dookubt/.m2/repository' '-Duser.timezone=Asia/Ho_Chi_Minh' test
+```
+
+It completed with 662 tests, 5 failures, and 21 errors. The failures were independent baseline issues: the hard-coded `LayerStructureTest`
 does not allow the existing `model\\dto`/`model\\entity` package layout; several project
 integration tests use start dates now in the past; and reporting/web contexts have their existing
 application-context/date failures. No forecast, reassignment, correction, or direct-removal test

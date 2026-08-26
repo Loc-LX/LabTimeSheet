@@ -19,6 +19,13 @@ Task rejects during the preflight, before leadership, membership, assignment, ex
 decision, and notification mutation. Once a Leader's worked Tasks are transferred with valid
 forecasts, the existing eligible-unworked automatic-transfer behavior remains available.
 
+All commands below use the same Java 25.0.3 and Maven 3.9.11 executable:
+
+```powershell
+$env:JAVA_HOME='C:\Program Files\JetBrains\IntelliJ IDEA 2026.1.4\jbr'
+$mvn='C:\Program Files\JetBrains\IntelliJ IDEA 2026.1.4\plugins\maven\lib\maven3\bin\mvn.cmd'
+```
+
 ## Vertical RED/GREEN cycles
 
 The following historical REDs were captured at the public seam before implementation and then
@@ -38,6 +45,22 @@ The correction, late-work, wrong-context, unauthorized, superseded-predecessor, 
 correction cases were each added at a public service seam and verified against PostgreSQL. The
 tests assert nonmutation through persisted Task, forecast, membership/leadership, exit-state,
 and notification observations; they do not rely solely on mock interaction counts.
+
+Historical RED invocations (the listed test was run before the corresponding fix):
+
+```powershell
+& $mvn '-Dmaven.repo.local=C:/Users/dookubt/.m2/repository' '-Duser.timezone=Asia/Ho_Chi_Minh' '-Dtest=TaskControllerTest#forecastCorrectionBindsPredecessorAndReasonThroughPublicService' test
+& $mvn '-Dmaven.repo.local=C:/Users/dookubt/.m2/repository' '-Duser.timezone=Asia/Ho_Chi_Minh' '-Dtest=ProjectControllerTest#exitTransferBindsWorkedTaskForecastInputsAtThePublicBoundary' test
+& $mvn '-Dmaven.repo.local=C:/Users/dookubt/.m2/repository' '-Duser.timezone=Asia/Ho_Chi_Minh' '-Dtest=ProjectControllerTest#exitTransferRendersTaskForecastValidationThroughTheWorkflowFlashBoundary' test
+& $mvn '-Dmaven.repo.local=C:/Users/dookubt/.m2/repository' '-Duser.timezone=Asia/Ho_Chi_Minh' '-Dtest=TaskCreationIntegrationTest#workedBatchTransferRequiresAForecastBeforeChangingAnyTask' test
+& $mvn '-Dmaven.repo.local=C:/Users/dookubt/.m2/repository' '-Duser.timezone=Asia/Ho_Chi_Minh' '-Dtest=ProjectInvitationExitIntegrationTest#directMentorRemovalRejectsWorkedUnfinishedTasksBeforeAnyMutation' test
+& $mvn '-Dmaven.repo.local=C:/Users/dookubt/.m2/repository' '-Duser.timezone=Asia/Ho_Chi_Minh' '-Dtest=TaskMutationBoundaryTest#staleVersionRejectsBeforeSameRecipientValidation' test
+& $mvn '-Dmaven.repo.local=C:/Users/dookubt/.m2/repository' '-Duser.timezone=Asia/Ho_Chi_Minh' '-Dtest=TaskWorkLogIntegrationTest#concurrentForecastAwareBatchTransfersAllowOneWinnerWithoutDuplicateHistory' test
+```
+
+The RED observations and their exact assertion/exception symptoms are the rows above; these
+historical commands are retained as reproducibility records and are not expected to fail after
+the fixes. The current GREEN commands are the focused and PostgreSQL commands below.
 
 ## Focused public-boundary GREEN
 
@@ -85,8 +108,14 @@ The database run covers the required correction and reassignment rejection matri
 
 ## Known independent broad-suite boundary
 
-The same Java/Maven command run without `-Dtest` completed 662 tests with 5 failures and 21
-errors. These are existing unrelated baselines: `LayerStructureTest` has a hard-coded package
+The broad-suite command was:
+
+```powershell
+& $mvn '-Dmaven.repo.local=C:/Users/dookubt/.m2/repository' '-Duser.timezone=Asia/Ho_Chi_Minh' test
+```
+
+It completed 662 tests with 5 failures and 21 errors. These are existing unrelated baselines:
+`LayerStructureTest` has a hard-coded package
 allowlist that predates the current `model\\dto`/`model\\entity` layout; project lifecycle/query
 tests use fixtures whose start dates are now in the past; and reporting/web contexts contain the
 existing application-context/date failures. No I4-TSK-02 focused or affected test failed.
