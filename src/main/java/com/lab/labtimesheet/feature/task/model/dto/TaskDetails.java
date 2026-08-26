@@ -15,6 +15,7 @@ import java.util.List;
  * @param canDelete true for the same definition owner as {@code canEdit}
  * @param canReassign true only for the current Leader on an unfinished Task
  * @param canLogWork true only for the current assignee on an ACTIVE Project
+ * @param effortPlanning estimate, lifetime actual, DONE-only signed variance, and estimate capability
  */
 public record TaskDetails(
         TaskView task,
@@ -26,7 +27,8 @@ public record TaskDetails(
         boolean canEdit,
         boolean canDelete,
         boolean canReassign,
-        boolean canLogWork) {
+        boolean canLogWork,
+        TaskEffortPlanningView effortPlanning) {
 
     /**
      * Retains the Iteration 1 constructor for callers that do not render definition controls.
@@ -41,7 +43,32 @@ public record TaskDetails(
             List<TaskCommentView> comments,
             boolean canChangeStatus,
             boolean canComment) {
-        this(task, comments, List.of(), null, canChangeStatus, canComment, false, false, false, false);
+        this(task, comments, List.of(), null, canChangeStatus, canComment, false, false, false, false,
+                new TaskEffortPlanningView(null, 0,
+                        com.lab.labtimesheet.feature.task.model.TaskVarianceState.NOT_ESTIMATED,
+                        null, false));
+    }
+
+    /** Compatibility constructor for callers that do not yet supply planning facts.
+     * @param task visible Task
+     * @param comments comment history
+     * @param workLogs retained work logs
+     * @param actorMembershipId viewer membership, when active
+     * @param canChangeStatus status capability
+     * @param canComment comment capability
+     * @param canEdit definition-edit capability
+     * @param canDelete deletion capability
+     * @param canReassign reassignment capability
+     * @param canLogWork work-log capability
+     */
+    public TaskDetails(TaskView task, List<TaskCommentView> comments, List<TaskWorkLogView> workLogs,
+            Long actorMembershipId, boolean canChangeStatus, boolean canComment, boolean canEdit,
+            boolean canDelete, boolean canReassign, boolean canLogWork) {
+        this(task, comments, workLogs, actorMembershipId, canChangeStatus, canComment, canEdit,
+                canDelete, canReassign, canLogWork,
+                new TaskEffortPlanningView(null, 0,
+                        com.lab.labtimesheet.feature.task.model.TaskVarianceState.NOT_ESTIMATED,
+                        null, false));
     }
 
     /** Copies the comment list so historical output cannot be modified by a view consumer. */

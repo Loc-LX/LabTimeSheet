@@ -9,10 +9,12 @@ import com.lab.labtimesheet.feature.project.service.ProjectService;
 import com.lab.labtimesheet.feature.task.exception.TaskNotFoundException;
 import com.lab.labtimesheet.feature.task.exception.TaskValidationException;
 import com.lab.labtimesheet.feature.task.model.TaskStatus;
+import com.lab.labtimesheet.feature.task.model.TaskVarianceState;
 import com.lab.labtimesheet.feature.task.model.dto.CreateTaskCommand;
 import com.lab.labtimesheet.feature.task.model.dto.TaskAssigneeChoice;
 import com.lab.labtimesheet.feature.task.model.dto.TaskCommentView;
 import com.lab.labtimesheet.feature.task.model.dto.TaskDetails;
+import com.lab.labtimesheet.feature.task.model.dto.TaskEffortPlanningView;
 import com.lab.labtimesheet.feature.task.model.dto.TaskListView;
 import com.lab.labtimesheet.feature.task.model.dto.TaskHistoryView;
 import com.lab.labtimesheet.feature.task.model.dto.TaskProjectProgress;
@@ -799,6 +801,74 @@ class TaskCreationIntegrationTest {
         assertThat(progress.done()).isZero();
         assertThat(progress.totalMinutes()).isZero();
         assertThat(progress.completionPercentage()).isEmpty();
+    }
+
+    @Test
+    void leaderEstimateIsVisibleAndLifetimeVarianceIsDerivedFromRetainedLogs() {
+        TaskView task = taskService.create("leader@example.test", new CreateTaskCommand(
+                projectId, memberMembershipId, "Estimated task", "", null, 120));
+        assertThat(taskService.details("member@example.test", projectId, task.id()).effortPlanning())
+                .extracting(TaskEffortPlanningView::estimatedMinutes,
+                        TaskEffortPlanningView::actualMinutes,
+                        TaskEffortPlanningView::varianceState)
+                .containsExactly(120, 0L, TaskVarianceState.PENDING);
+
+        taskService.addWorkLog("member@example.test", projectId, task.id(),
+                LocalDate.of(2026, 8, 20), 150, "Lifetime effort");
+        TaskView current = taskService.list("leader@example.test", projectId).tasks().stream()
+                .filter(candidate -> candidate.id() == task.id()).findFirst().orElseThrow();
+        assertThatThrownBy(() -> taskService.estimate(
+                        "leader@example.test", projectId, task.id(), current.version(), 200))
+                .isInstanceOf(TaskValidationException.class)
+                .hasMessageContaining("cannot change after work");
+        setStatus(task.id(), TaskStatus.DONE);
+        TaskEffortPlanningView planning = taskService.details(
+                "leader@example.test", projectId, task.id()).effortPlanning();
+        assertThat(planning.estimatedMinutes()).isEqualTo(120);
+        assertThat(planning.actualMinutes()).isEqualTo(150);
+        assertThat(planning.varianceState()).isEqualTo(TaskVarianceState.VALUE);
+        assertThat(planning.varianceMinutes()).isEqualTo(30L);
+        assertThat(planning.canEditEstimate()).isFalse();
+        setStatus(task.id(), TaskStatus.IN_PROGRESS);
+        assertThat(taskService.details("leader@example.test", projectId, task.id())
+                .effortPlanning().varianceState()).isEqualTo(TaskVarianceState.PENDING);
+    }
+
+    @Test
+    void estimateBoundsAndMemberForgeryAreRejectedWhileUnestimatedTaskIsNADisplay() {
+        TaskView minimum = taskService.create("leader@example.test", new CreateTaskCommand(
+                projectId, memberMembershipId, "Minimum", "", null, 1));
+        assertThat(taskService.details("leader@example.test", projectId, minimum.id())
+                .effortPlanning().estimatedMinutes()).isEqualTo(1);
+        TaskView maximum = taskService.create("leader@example.test", new CreateTaskCommand(
+                projectId, memberMembershipId, "Maximum", "", null, 527040));
+        assertThat(taskService.details("leader@example.test", projectId, maximum.id())
+                .effortPlanning().estimatedMinutes()).isEqualTo(527040);
+        assertThatThrownBy(() -> taskService.create("leader@example.test", new CreateTaskCommand(
+                        projectId, memberMembershipId, "Too small", "", null, 0)))
+                .isInstanceOf(TaskValidationException.class);
+        assertThatThrownBy(() -> taskService.create("leader@example.test", new CreateTaskCommand(
+                        projectId, memberMembershipId, "Too large", "", null, 527041)))
+                .isInstanceOf(TaskValidationException.class);
+        assertThatThrownBy(() -> taskService.create("member@example.test", new CreateTaskCommand(
+                        projectId, memberMembershipId, "Forged", "", null, 120)))
+                .isInstanceOf(TaskNotFoundException.class);
+        TaskView unestimated = createMemberTask("No estimate");
+        assertThat(taskService.details("member@example.test", projectId, unestimated.id())
+                .effortPlanning().varianceState()).isEqualTo(TaskVarianceState.NOT_ESTIMATED);
+    }
+
+    @Test
+    void leaderCanChangeAndClearEstimateBeforeWork() {
+        TaskView task = taskService.create("leader@example.test", new CreateTaskCommand(
+                projectId, memberMembershipId, "Editable estimate", "", null, 120));
+        TaskView changed = taskService.estimate("leader@example.test", projectId, task.id(), task.version(), 240);
+        assertThat(changed).isNotNull();
+        TaskView current = taskService.list("leader@example.test", projectId).tasks().stream()
+                .filter(candidate -> candidate.id() == task.id()).findFirst().orElseThrow();
+        taskService.estimate("leader@example.test", projectId, task.id(), current.version(), null);
+        assertThat(taskService.details("leader@example.test", projectId, task.id())
+                .effortPlanning().varianceState()).isEqualTo(TaskVarianceState.NOT_ESTIMATED);
     }
 
     @Test

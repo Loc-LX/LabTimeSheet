@@ -12,6 +12,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.model;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.flash;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 
@@ -20,10 +21,12 @@ import com.lab.labtimesheet.feature.task.exception.TaskConflictException;
 import com.lab.labtimesheet.feature.task.exception.TaskValidationException;
 import com.lab.labtimesheet.feature.task.model.TaskProgress;
 import com.lab.labtimesheet.feature.task.model.TaskStatus;
+import com.lab.labtimesheet.feature.task.model.TaskVarianceState;
 import com.lab.labtimesheet.feature.task.model.dto.CreateTaskCommand;
 import com.lab.labtimesheet.feature.task.model.dto.TaskAssigneeChoice;
 import com.lab.labtimesheet.feature.task.model.dto.TaskCommentView;
 import com.lab.labtimesheet.feature.task.model.dto.TaskDetails;
+import com.lab.labtimesheet.feature.task.model.dto.TaskEffortPlanningView;
 import com.lab.labtimesheet.feature.task.model.dto.TaskListView;
 import com.lab.labtimesheet.feature.task.model.dto.TaskView;
 import com.lab.labtimesheet.feature.task.service.TaskService;
@@ -131,6 +134,74 @@ class TaskControllerTest {
         verify(taskService).create(org.mockito.ArgumentMatchers.eq(ACTOR_EMAIL), command.capture());
         assertThat(command.getValue()).isEqualTo(new CreateTaskCommand(
                 10L, 7L, "Draft", "Notes", LocalDate.of(2026, 8, 20)));
+    }
+
+    @Test
+    void leaderCreateFormShowsEstimateButMemberCreateFormDoesNot() throws Exception {
+        given(taskService.assignmentChoices("leader@example.test", 10L)).willReturn(List.of(new TaskAssigneeChoice(7L, "Member")));
+        given(taskService.canSetEstimateOnCreate("leader@example.test", 10L)).willReturn(true);
+        mockMvc.perform(get("/projects/10/tasks/new").with(user("leader@example.test")))
+                .andExpect(status().isOk()).andExpect(content().string(org.hamcrest.Matchers.containsString("estimatedMinutes")));
+        given(taskService.assignmentChoices(ACTOR_EMAIL, 10L)).willReturn(List.of(new TaskAssigneeChoice(7L, "Member")));
+        given(taskService.canSetEstimateOnCreate(ACTOR_EMAIL, 10L)).willReturn(false);
+        mockMvc.perform(get("/projects/10/tasks/new").with(user(ACTOR_EMAIL)))
+                .andExpect(status().isOk()).andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("estimatedMinutes"))));
+    }
+
+    @Test
+    void estimatePostUsesPublicServiceAndMapsValidationToSafeFlash() throws Exception {
+        given(taskService.estimate(ACTOR_EMAIL, 10L, 25L, 4L, 120))
+                .willThrow(new TaskValidationException("A Task estimate cannot change after work is logged."));
+        mockMvc.perform(post("/projects/10/tasks/25/estimate").with(user(ACTOR_EMAIL)).with(csrf())
+                        .param("expectedVersion", "4").param("estimatedMinutes", "120"))
+                .andExpect(status().is3xxRedirection()).andExpect(redirectedUrl("/projects/10/tasks/25"))
+                .andExpect(flash().attribute("taskError", "A Task estimate cannot change after work is logged."));
+        verify(taskService).estimate(ACTOR_EMAIL, 10L, 25L, 4L, 120);
+    }
+
+    @Test
+    void estimatePostConflictUsesExistingConflictContract() throws Exception {
+        given(taskService.estimate(ACTOR_EMAIL, 10L, 25L, 4L, 120))
+                .willThrow(new TaskConflictException("stale", null));
+        mockMvc.perform(post("/projects/10/tasks/25/estimate").with(user(ACTOR_EMAIL)).with(csrf())
+                        .param("expectedVersion", "4").param("estimatedMinutes", "120"))
+                .andExpect(status().isConflict()).andExpect(view().name("error/generic"))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Reload")));
+    }
+
+    @Test
+    void forgedMemberEstimateCreateIsSafeNotFoundWithoutRerender() throws Exception {
+        given(taskService.create(org.mockito.ArgumentMatchers.eq(ACTOR_EMAIL), any(CreateTaskCommand.class)))
+                .willThrow(new TaskNotFoundException());
+        mockMvc.perform(post("/projects/10/tasks").with(user(ACTOR_EMAIL)).with(csrf())
+                        .param("title", "Forged").param("assigneeMembershipId", "7")
+                        .param("estimatedMinutes", "120"))
+                .andExpect(status().isNotFound()).andExpect(view().name("error/generic"));
+        verify(taskService, org.mockito.Mockito.never()).assignmentChoices(ACTOR_EMAIL, 10L);
+    }
+
+    @Test
+    void detailRendersPlanningFactsAndOnlyLeaderControl() throws Exception {
+        TaskDetails details = new TaskDetails(task(25L, TaskStatus.TODO), List.of(), List.of(), 7L,
+                true, true, true, true, true, true,
+                new TaskEffortPlanningView(120, 0, TaskVarianceState.PENDING, null, true));
+        given(taskService.details(ACTOR_EMAIL, 10L, 25L)).willReturn(details);
+        mockMvc.perform(get("/projects/10/tasks/25").with(user(ACTOR_EMAIL)))
+                .andExpect(status().isOk()).andExpect(content().string(org.hamcrest.Matchers.containsString("Pending")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Update estimate")));
+        given(taskService.details(ACTOR_EMAIL, 10L, 25L)).willReturn(new TaskDetails(
+                task(25L, TaskStatus.DONE), List.of(), List.of(), 7L, false, true, false, false, false, false,
+                new TaskEffortPlanningView(120, 150, TaskVarianceState.VALUE, 30L, false)));
+        mockMvc.perform(get("/projects/10/tasks/25").with(user(ACTOR_EMAIL)))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("120m")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("150m")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("+30m")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("Update estimate"))));
+        given(taskService.details(ACTOR_EMAIL, 10L, 25L)).willReturn(new TaskDetails(
+                task(25L), List.of(), List.of(), 7L, false, true, false, false, false, false,
+                new TaskEffortPlanningView(null, 0, TaskVarianceState.NOT_ESTIMATED, null, false)));
+        mockMvc.perform(get("/projects/10/tasks/25").with(user(ACTOR_EMAIL)))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("N/A")));
     }
 
     @Test

@@ -16,6 +16,11 @@
         <div class="metric"><div class="metric-label">Status</div><div class="metric-value"><span class="badge" th:classappend="${details.task.status.name() == 'BLOCKED' ? ' badge-warning' : details.task.status.name() == 'DONE' ? ' badge-success' : ''}" th:text="${details.task.status}">TODO</span></div></div>
         <div class="metric"><div class="metric-label">Due date</div><div class="metric-value" th:text="${details.task.dueDate == null ? 'No due date' : #temporals.format(details.task.dueDate, 'dd/MM/yyyy')}">No due date</div></div>
     </section>
+    <section class="panel metric-strip metric-strip-three" aria-label="Task effort planning">
+        <div class="metric"><div class="metric-label">Estimate</div><div class="metric-value" th:text="${details.effortPlanning.estimatedMinutes == null ? 'N/A' : details.effortPlanning.estimatedMinutes + 'm'}">N/A</div></div>
+        <div class="metric"><div class="metric-label">Lifetime actual</div><div class="metric-value" th:text="${details.effortPlanning.actualMinutes + 'm'}">0m</div></div>
+        <div class="metric"><div class="metric-label">Variance</div><div class="metric-value" th:text="${details.effortPlanning.varianceState.name() == 'VALUE' ? (details.effortPlanning.varianceMinutes > 0 ? '+' : '') + details.effortPlanning.varianceMinutes + 'm' : details.effortPlanning.varianceState.name() == 'PENDING' ? 'Pending' : 'N/A'}">N/A</div></div>
+    </section>
     <section class="panel form-panel" th:if="${details.canEdit or details.canReassign or details.canDelete}">
         <header class="panel-header"><h2 class="panel-title">Task controls</h2></header>
         <form class="form-grid form-panel" th:if="${details.canEdit}" method="post"
@@ -42,6 +47,14 @@
             <button class="button button-danger" type="submit">Delete Task</button>
         </form>
     </section>
+    <form class="panel form-panel filter-form" th:if="${details.effortPlanning.canEditEstimate}" method="post"
+          th:action="@{/projects/{projectId}/tasks/{taskId}/estimate(projectId=${projectId},taskId=${details.task.id})}">
+        <h2 class="panel-title">Update estimate</h2>
+        <input type="hidden" name="expectedVersion" th:value="${details.task.version}">
+        <label class="field-label" for="task-estimate">Estimate (minutes; empty clears)</label>
+        <input class="control" id="task-estimate" name="estimatedMinutes" type="number" min="1" max="527040" th:value="${details.effortPlanning.estimatedMinutes}">
+        <button class="button button-primary" type="submit">Save estimate</button>
+    </form>
     <section class="panel form-panel" aria-labelledby="work-log-heading">
         <header class="panel-header"><h2 class="panel-title" id="work-log-heading">Work logs</h2></header>
         <form class="form-grid form-panel" th:if="${details.canLogWork}" method="post"

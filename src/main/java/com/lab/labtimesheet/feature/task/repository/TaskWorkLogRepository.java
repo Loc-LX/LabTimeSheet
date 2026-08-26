@@ -88,6 +88,12 @@ public interface TaskWorkLogRepository extends JpaRepository<TaskWorkLog, Long> 
     @Query("select coalesce(sum(log.minutes), 0) from TaskWorkLog log where log.projectId = :projectId")
     long sumMinutesByProjectId(@Param("projectId") long projectId);
 
+    @Query("select coalesce(sum(log.minutes), 0) from TaskWorkLog log where log.taskId = :taskId and log.projectId = :projectId")
+    long sumMinutesByTaskIdAndProjectId(@Param("taskId") long taskId, @Param("projectId") long projectId);
+
+    @Query("select count(log) > 0 from TaskWorkLog log where log.taskId = :taskId and log.projectId = :projectId")
+    boolean existsByTaskIdAndProjectId(@Param("taskId") long taskId, @Param("projectId") long projectId);
+
     /**
      * Returns hand-checkable per-membership effort totals for one Project.
      *

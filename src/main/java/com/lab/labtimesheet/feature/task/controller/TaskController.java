@@ -77,9 +77,16 @@ public class TaskController {
                             form.assigneeMembershipId(),
                             form.title(),
                             form.description(),
-                            form.dueDate()));
+                            form.dueDate(),
+                            form.estimatedMinutes()));
         } catch (TaskValidationException exception) {
-            bindingResult.rejectValue("dueDate", "task.dueDate", exception.getMessage());
+            if (exception.getMessage() != null && exception.getMessage().toLowerCase(Locale.ROOT).contains("due date")) {
+                bindingResult.rejectValue("dueDate", "task.dueDate", exception.getMessage());
+            } else if (exception.getMessage() != null && exception.getMessage().toLowerCase(Locale.ROOT).contains("estimate")) {
+                bindingResult.rejectValue("estimatedMinutes", "task.estimatedMinutes", exception.getMessage());
+            } else {
+                bindingResult.reject("task.invalid", exception.getMessage());
+            }
             populateForm(authentication.getName(), projectId, model);
             return "tasks/form";
         }
@@ -129,6 +136,18 @@ public class TaskController {
                     "title", title,
                     "description", description == null ? "" : description,
                     "dueDate", dueDate == null ? "" : dueDate));
+        }
+        return detailsRedirect(projectId, taskId);
+    }
+
+    @PostMapping("/projects/{projectId}/tasks/{taskId}/estimate")
+    String estimate(Authentication authentication, @PathVariable long projectId, @PathVariable long taskId,
+            @RequestParam long expectedVersion, @RequestParam(required = false) Integer estimatedMinutes,
+            RedirectAttributes redirectAttributes) {
+        try {
+            taskService.estimate(authentication.getName(), projectId, taskId, expectedVersion, estimatedMinutes);
+        } catch (TaskValidationException exception) {
+            redirectAttributes.addFlashAttribute("taskError", exception.getMessage());
         }
         return detailsRedirect(projectId, taskId);
     }
@@ -272,6 +291,7 @@ public class TaskController {
     private void populateForm(String actorEmail, long projectId, Model model) {
         model.addAttribute("projectId", projectId);
         model.addAttribute("assignees", taskService.assignmentChoices(actorEmail, projectId));
+        model.addAttribute("canSetEstimate", taskService.canSetEstimateOnCreate(actorEmail, projectId));
     }
 
     private static String detailsRedirect(long projectId, long taskId) {

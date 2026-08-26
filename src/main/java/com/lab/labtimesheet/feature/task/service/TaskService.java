@@ -23,10 +23,12 @@ import com.lab.labtimesheet.feature.task.exception.TaskConflictException;
 import com.lab.labtimesheet.feature.task.exception.TaskValidationException;
 import com.lab.labtimesheet.feature.task.model.TaskProgress;
 import com.lab.labtimesheet.feature.task.model.TaskStatus;
+import com.lab.labtimesheet.feature.task.model.TaskVarianceState;
 import com.lab.labtimesheet.feature.task.model.dto.CreateTaskCommand;
 import com.lab.labtimesheet.feature.task.model.dto.TaskAssigneeChoice;
 import com.lab.labtimesheet.feature.task.model.dto.TaskCommentView;
 import com.lab.labtimesheet.feature.task.model.dto.TaskDetails;
+import com.lab.labtimesheet.feature.task.model.dto.TaskEffortPlanningView;
 import com.lab.labtimesheet.feature.task.model.dto.TaskListView;
 import com.lab.labtimesheet.feature.task.model.dto.TaskWorkLogCandidate;
 import com.lab.labtimesheet.feature.task.model.dto.TaskView;
@@ -105,6 +107,11 @@ public class TaskService {
                 && !Objects.equals(access.project().currentLeaderMembershipId(), actorMembership.membershipId())) {
             throw new TaskNotFoundException();
         }
+        if (command.estimatedMinutes() != null
+                && !Objects.equals(access.project().currentLeaderMembershipId(), actorMembership.membershipId())) {
+            throw new TaskNotFoundException();
+        }
+        validateEstimate(command.estimatedMinutes());
         validateDueDate(access.project(), command.dueDate());
 
         Task task = new Task(
@@ -114,7 +121,7 @@ public class TaskService {
                 trimToNull(command.description()),
                 command.dueDate(),
                 actorMembership.membershipId(),
-                clock.instant());
+                clock.instant(), command.estimatedMinutes());
         TaskView result = view(saveTask(task), assignee.displayName());
         publish(
                 new NotificationEvent(
@@ -262,6 +269,53 @@ public class TaskService {
             String description,
             LocalDate dueDate) {
         return edit(actorEmail, projectId, taskId, null, title, description, dueDate);
+    }
+
+    /**
+     * Determines the server-derived create-time estimate capability.
+     * @param actorEmail authenticated account email
+     * @param projectId Project identifier
+     * @return true only for the current Leader of an open Project
+     * @throws TaskNotFoundException when the Project or actor is outside the authorized scope
+     */
+    @Transactional(readOnly = true)
+    public boolean canSetEstimateOnCreate(String actorEmail, long projectId) {
+        TaskAccess access = requireProjectAccess(actorEmail, projectId);
+        ProjectTaskMemberView actor = requireActorMembership(access.project(), access.actor().userId());
+        return isOpen(access.project())
+                && Objects.equals(access.project().currentLeaderMembershipId(), actor.membershipId());
+    }
+
+    /**
+     * Changes or clears the Leader-owned estimate before the first retained work log.
+     * @param actorEmail authenticated current-Leader email
+     * @param projectId owning Project identifier
+     * @param taskId Task identifier within the Project
+     * @param expectedVersion client-observed Task version
+     * @param estimatedMinutes new estimate, or null to clear it
+     * @return updated Task projection
+     * @throws TaskNotFoundException when authorization or scope is unavailable
+     * @throws TaskConflictException when the expected version is stale
+     * @throws TaskValidationException when bounds, lifecycle, or retained-work rules fail
+     */
+    @Transactional
+    public TaskView estimate(String actorEmail, long projectId, long taskId, Long expectedVersion,
+            Integer estimatedMinutes) {
+        TaskAccess access = requireMutationAccess(actorEmail, projectId);
+        requireOpenProject(access.project());
+        ProjectTaskMemberView actor = requireActorMembership(access.project(), access.actor().userId());
+        if (!Objects.equals(access.project().currentLeaderMembershipId(), actor.membershipId())) {
+            throw new TaskNotFoundException();
+        }
+        validateEstimate(estimatedMinutes);
+        Task task = requireLockedTask(projectId, taskId);
+        requireUnfinished(task);
+        requireTaskVersion(task, expectedVersion);
+        if (workLogs.existsByTaskIdAndProjectId(taskId, projectId)) {
+            throw new TaskValidationException("A Task estimate cannot change after work is logged.");
+        }
+        task.applyEstimatedMinutes(estimatedMinutes, clock.instant());
+        return view(saveTask(task), requireAssigneeName(projectMembers(access), task.getAssigneeMembershipId()));
     }
 
     /**
@@ -661,11 +715,14 @@ public class TaskService {
         boolean canLogWork = "ACTIVE".equals(access.project().status())
                 && actorMembership != null
                 && persistedTask.getAssigneeMembershipId() == actorMembership.membershipId();
+        TaskEffortPlanningView effortPlanning = effortPlanning(persistedTask, currentLeader,
+                isOpen(access.project()),
+                projectId, taskId);
         return new TaskDetails(
                 task, taskComments, taskWorkLogs,
                 actorMembership == null ? null : actorMembership.membershipId(),
                 canChangeStatus, canComment,
-                canEdit, canDelete, canReassign, canLogWork);
+                canEdit, canDelete, canReassign, canLogWork, effortPlanning);
     }
 
     /**
@@ -940,6 +997,28 @@ public class TaskService {
         if (calendar.isGlobalDayOff(dueDate)) {
             throw new TaskValidationException("Due date cannot be a current global day off");
         }
+    }
+
+    private static void validateEstimate(Integer minutes) {
+        if (minutes != null && (minutes < 1 || minutes > 527040)) {
+            throw new TaskValidationException("Estimate must be between 1 and 527040 minutes");
+        }
+    }
+
+    private TaskEffortPlanningView effortPlanning(Task task, boolean currentLeader, boolean projectOpen,
+            long projectId, long taskId) {
+        Integer estimate = task.getEstimatedMinutes();
+        long actual = workLogs.sumMinutesByTaskIdAndProjectId(taskId, projectId);
+        TaskVarianceState state = estimate == null ? TaskVarianceState.NOT_ESTIMATED
+                : task.getStatus() == TaskStatus.DONE ? TaskVarianceState.VALUE : TaskVarianceState.PENDING;
+        Long variance = state == TaskVarianceState.VALUE ? actual - estimate : null;
+        return new TaskEffortPlanningView(estimate, actual, state, variance,
+                projectOpen && currentLeader && isOpenTaskStatus(task)
+                        && !workLogs.existsByTaskIdAndProjectId(taskId, projectId));
+    }
+
+    private static boolean isOpenTaskStatus(Task task) {
+        return task.getStatus() != TaskStatus.DONE && !task.isDeleted();
     }
 
     private static TaskView view(Task task, String assigneeName) {
