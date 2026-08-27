@@ -28,7 +28,8 @@ correction.
 
 - **Requirement IDs:** `RPT-004`, `RPT-005`, `RPT-006`, `RPT-008`, `RPT-011`–`RPT-013`, `AUTH-010`, `UI-019`
 - **Scenario IDs:** `AC-AUTH-008`, `AC-AUTH-009`, `AC-UI-005`, `AC-RPT-002`, `AC-RPT-004`, `AC-RPT-005`
-- **Current implementation commits:** `17be05344ed9f815f1f53a14da978397b723eb2695c758f1908af2bb6b7f744c` (server-derived current-Leader Daily navigation and smart landing); `5b8aa5f7564a2739d7bb93ddd17c9af99ec37d79358ae39ee3525eb7ac4c2ccb` (Admin report boundary and configuration-only dashboard); `fe41091d0938d087ec88c995795bd3adb9fcd82e6e62434cd6bb9c93f03d1b6c` (root request-boundary hardening and focused navigation-advice coverage)
+- **Current implementation commits:** `17be05344ed9f815f1f53a14da978397b723eb2695c758f1908af2bb6b7f744c` (server-derived current-Leader Daily navigation and smart landing); `5b8aa5f7564a2739d7bb93ddd17c9af99ec37d79358ae39ee3525eb7ac4c2ccb` (Admin report boundary and configuration-only dashboard); `fe41091d0938d087ec88c995795bd3adb9fcd82e6e62434cd6bb9c93f03d1b6c` (root request-boundary hardening and focused navigation-advice coverage); `b2178ba9b6abc755c9b4affb9b537c91b7a79aec8b9c688bd4beaef268ca2274` (current-Leader capability check before Attendance date context)
+- **Final verification head:** `b2178ba9b6abc755c9b4affb9b537c91b7a79aec8b9c688bd4beaef268ca2274`
 - **Evidence type:** focused unit, MockMvc, web-integration, and PostgreSQL 18.4/Testcontainers verification
 
 The hand-derived expected result for the correction is:
@@ -68,6 +69,20 @@ compile-level RED with five Admin errors, not a clean isolated runtime RED; no i
 Admin assertion RED was available because the concurrent Leader-Daily compile errors stopped
 test execution.
 
+The b217 authorization-ordering regression supplied the genuine behavioral RED for the final
+hardening step. Before b217, an unqualified Intern requesting `/reports/daily` without `projectId`
+was date-validated before current-Leader capability was checked: past and current dates could reach
+Attendance date context, while a future date returned `400 Report request is invalid` instead of the
+required non-disclosing `404 Project unavailable`. The final regression is
+`DailyProjectWorkReportControllerWebTest#unqualifiedInternIsDeniedBeforeDateContextForPastCurrentAndFutureDates`.
+It covers past, current, and future dates; after b217 all three return `404 Project unavailable` and
+the test verifies that `AttendanceApplicationService.currentBusinessDate()`,
+`ProjectQueryService.listCurrentLeaderProjectsForDailyReport(long)`, and
+`DailyProjectWorkReportService.build(...)` are not invoked. The first post-change run also exposed
+the expected capability lookup more than once because the advice and controller each consult the
+producer; the test retains strict downstream no-interaction checks and uses an at-least-three
+capability assertion for the three requests.
+
 ### Current focused GREEN and affected gates
 
 The first executed Admin correction regression passed all `37/37` tests:
@@ -106,7 +121,7 @@ Tests run: 8, Failures: 0, Errors: 0, Skipped: 0
 BUILD SUCCESS
 ```
 
-The root integrated current-correction gate covered the Leader Daily, Admin, Attendance,
+The pre-b217 root integrated current-correction gate covered the Leader Daily, Admin, Attendance,
 Project/Task, export, dashboard, and retained Q31-R tests:
 
 ```powershell
@@ -118,8 +133,42 @@ Tests run: 77, Failures: 0, Errors: 0, Skipped: 0
 BUILD SUCCESS
 ```
 
-The root PostgreSQL 18.4/Testcontainers gate covered the Admin dashboard, Attendance persistence,
-and the current-Leader replacement/completion producer boundary:
+The final root integrated gate was rerun at b217 HEAD with the NavigationAdvice test and the
+updated controller coverage. `DailyProjectWorkReportControllerWebTest` contained `13` tests in
+this run, and the complete 14-class selection passed `85/85`:
+
+```powershell
+$taskJava='C:\Users\dookubt\.jdks\loom-ea-25-loom+1-11'
+$env:JAVA_HOME=$taskJava
+$maven='C:\Users\dookubt\.m2\wrapper\dists\apache-maven-3.9.16\0daed3be3ebd1c706f0e69e8b07c6b73f5cc4ea3dfce72a8d0ec2e849ca2ddb0\bin\mvn.cmd'
+& $maven `
+  '-Dmaven.repo.local=C:\Users\dookubt\.m2\repository' `
+  '-Duser.timezone=Asia/Ho_Chi_Minh' `
+  '-Dtest=DailyProjectWorkReportControllerWebTest,DailyProjectWorkReportExportControllerWebTest,DailyProjectWorkReportNavigationAdviceTest,ProjectQueryServiceLeaderDailyTest,Q31RDailyProjectWorkReportServiceTest,DailyProjectWorkReportServiceTest,AttendanceReportServiceTest,ProjectTaskReportServiceTest,AttendanceReportControllerWebTest,ProjectTaskReportControllerWebTest,ReportingExportControllerWebTest,DashboardServiceTest,DashboardControllerWebTest,DashboardTemplateWebTest' `
+  test
+```
+
+```text
+ProjectQueryServiceLeaderDailyTest              Tests run: 3, Failures: 0, Errors: 0
+DailyProjectWorkReportControllerWebTest          Tests run: 13, Failures: 0, Errors: 0
+DailyProjectWorkReportNavigationAdviceTest       Tests run: 3, Failures: 0, Errors: 0
+Q31RDailyProjectWorkReportServiceTest            Tests run: 7, Failures: 0, Errors: 0
+DailyProjectWorkReportServiceTest                Tests run: 7, Failures: 0, Errors: 0
+DailyProjectWorkReportExportControllerWebTest    Tests run: 8, Failures: 0, Errors: 0
+AttendanceReportServiceTest                      Tests run: 5, Failures: 0, Errors: 0
+ProjectTaskReportServiceTest                     Tests run: 6, Failures: 0, Errors: 0
+AttendanceReportControllerWebTest                Tests run: 3, Failures: 0, Errors: 0
+ProjectTaskReportControllerWebTest               Tests run: 3, Failures: 0, Errors: 0
+ReportingExportControllerWebTest                 Tests run: 10, Failures: 0, Errors: 0
+DashboardServiceTest                              Tests run: 6, Failures: 0, Errors: 0
+DashboardControllerWebTest                        Tests run: 7, Failures: 0, Errors: 0
+DashboardTemplateWebTest                           Tests run: 4, Failures: 0, Errors: 0
+Tests run: 85, Failures: 0, Errors: 0, Skipped: 0
+BUILD SUCCESS
+```
+
+The final root PostgreSQL 18.4/Testcontainers gate was rerun at b217 HEAD and covered the Admin
+dashboard, Attendance persistence, and current-Leader replacement/completion producer boundary:
 
 ```powershell
 $env:JAVA_HOME='C:\Users\dookubt\.jdks\loom-ea-25-loom+1-11'; & 'C:\Users\dookubt\.m2\wrapper\dists\apache-maven-3.9.16-bin\5grr65jo27hi51sujmtcldfovl\apache-maven-3.9.16\bin\mvn.cmd' '-Dmaven.repo.local=C:\Users\dookubt\.m2\repository' '-Duser.timezone=Asia/Ho_Chi_Minh' '-Dtest=AdminDashboardWebTest,AttendancePersistenceIntegrationTest,ProjectServiceIntegrationTest#dailyReportProjectQueryTracksCurrentLeaderThroughReplacementAndCompletion' test
@@ -133,15 +182,51 @@ Tests run: 51, Failures: 0, Errors: 0, Skipped: 0
 BUILD SUCCESS
 ```
 
+The final root verification also passed `ReportingArchitectureTest`, compilation, and
+`javadoc:javadoc` (with doclint enabled) using the direct Maven executable above. No source, test,
+or generated asset was changed by those checks.
+
+### Live localhost browser verification
+
+The current branch was exercised through the live localhost application in a browser. The observed
+results were:
+
+- At the desktop Admin dashboard, only active accounts, pending activations, and active internships
+  were shown. The sidebar contained no Attendance, Project/Task, or Daily report navigation and the
+  dashboard contained no Active Projects metric or operational Project-work summary.
+- Admin Attendance and Project/Task report requests returned `403 Forbidden`. Admin Daily HTML with
+  malformed or conflicting input, and Daily XLSX/PDF requests with malformed or conflicting aliases,
+  returned the existing non-disclosing `Project unavailable` `404`.
+- The current Leader saw the conditional Daily sidebar entry. With one eligible Project, opening the
+  entry redirected to the locked `/reports/daily?projectId=1` report and exposed the XLSX/PDF links.
+  A current Leader future-date request returned `400`.
+- An ordinary Intern had no Daily sidebar entry, and a future-date guessed landing request returned
+  `404`. A Mentor retained the global Daily sidebar entry.
+- The Daily page was inspected at `1440x900` and `390x844`; no page-level horizontal overflow was
+  observed at the narrow viewport.
+
+Keyboard traversal, a live multi-Project selector, actual XLSX/PDF download payload contents, and a
+clean repository-wide Maven suite remain unverified. The browser observations do not rewrite the
+historical Q31-R test results below.
+
 ### Exact current test methods
 
 The correction's new or materially changed methods are recorded exactly here for traceability:
 
 - `ProjectQueryServiceLeaderDailyTest#listsCurrentLeaderProjectsInProducerSuppliedDeterministicOrder`
 - `ProjectQueryServiceLeaderDailyTest#rejectsNonInternBeforeReadingCurrentLeaderProjects`
+- `ProjectQueryServiceLeaderDailyTest#checksCurrentLeaderCapabilityWithoutLoadingProjectSummaries`
 - `DailyProjectWorkReportControllerWebTest#currentLeaderWithOneEligibleProjectIsRedirectedToLockedReportAndKeepsDate`
 - `DailyProjectWorkReportControllerWebTest#currentLeaderWithMultipleEligibleProjectsGetsOnlyThoseProjectsInAccessibleSelector`
 - `DailyProjectWorkReportControllerWebTest#currentLeaderWithNoEligibleProjectKeepsNonDisclosingUnavailableResponse`
+- `DailyProjectWorkReportControllerWebTest#currentLeaderFutureDateCannotReachRedirectOrSelector`
+- `DailyProjectWorkReportControllerWebTest#adminDailyRouteRemainsNonDisclosingAndInternWithoutLeaderIsDenied` (renamed and updated from the earlier global-sidebar assertion)
+- `DailyProjectWorkReportControllerWebTest#adminIsDeniedBeforeDailyAliasAndTypedValueValidation`
+- `DailyProjectWorkReportControllerWebTest#unqualifiedInternIsDeniedBeforeDateContextForPastCurrentAndFutureDates`
+- `DailyProjectWorkReportExportControllerWebTest#adminIsDeniedBeforeDailyAliasAndTypedValueValidationOrExportPreparation`
+- `DailyProjectWorkReportNavigationAdviceTest#unrelatedInternGetUsesExistsCapabilityWithoutLoadingProjectList`
+- `DailyProjectWorkReportNavigationAdviceTest#mutationsAndExportsDoNotPerformLeaderCapabilityQueries`
+- `DailyProjectWorkReportNavigationAdviceTest#adminAuthorityNeverQueriesLeaderCapabilityEvenIfAnotherRoleIsPresent`
 - `AdminDashboardWebTest#adminDashboardUsesAccountLifecycleSummariesOnly` (renamed from the pre-correction Admin-positive dashboard method)
 - `AdminDashboardWebTest#adminCannotOpenAttendanceOrProjectTaskReportsOrDownloads`
 - `AttendanceReportControllerWebTest#deniesAdminBeforeCallingAttendanceReportService`
@@ -165,25 +250,23 @@ The correction's new or materially changed methods are recorded exactly here for
   remains independently blocked by its stale past-date fixture (`ProjectRuleViolation: Project
   start date cannot be in the past` at line 98), not by the current navigation assertion. Its standalone
   run was `Tests run: 1, Failures: 0, Errors: 1, Skipped: 0`.
-- The normal `npm run test:ui` launcher failed because the Windows npm installation could not find
-  `C:\Users\dookubt\AppData\Roaming\npm\node_modules\npm\bin\npm-cli.js`. The direct CLI workaround
-  `node 'C:\Program Files\nodejs\node_modules\npm\bin\npm-cli.js' run test:ui` ran `20` tests with
-  `17` passing and `3` failing. Those three are the unchanged CRLF-only delivery-contract failures
-  in the container workflow, deployment template, and deterministic E2E clock tests. The frontend
-  build was skipped to preserve the pre-existing dirty generated assets `app.css`,
-  `chart.umd.min.js`, and `icons.svg`.
+- Root's final frontend check used `npm.cmd run test:ui` successfully. It ran `20` tests with `17`
+  passing and `3` failing; those three are the unchanged CRLF-only delivery-contract failures in the
+  container workflow, deployment template, and deterministic E2E clock tests. The frontend build was
+  skipped to preserve the pre-existing dirty generated assets `app.css`, `chart.umd.min.js`, and
+  `icons.svg`.
 - The repository `mvnw` wrapper invocation was not usable in this Windows session. The Maven checks
   above therefore use the installed Maven 3.9.16 `mvn.cmd` directly; this is a command-path
   limitation, not a test omission. The broad repository Maven suite was not rerun after the isolated
   review hardening, so the historical full-suite envelope below must remain separate from the current
   focused gates.
-- No live browser screenshot/render, keyboard traversal, deployed HTTP download, or desktop/narrow
-  viewport inspection was captured in this evidence packet. Unit, MockMvc, and Testcontainers
-  results do not substitute for that visual/external verification.
+- The live browser checks above did not cover keyboard traversal, a live multi-Project selector,
+  actual XLSX/PDF download payload contents, or deployed HTTP behavior. Those external checks remain
+  unverified; unit, MockMvc, and Testcontainers results do not substitute for them.
 
-The `77/77` and `51/51` root gates were observed on the shared current candidate whose source
-snapshot is now captured by root hardening commit
-`fe41091d0938d087ec88c995795bd3adb9fcd82e6e62434cd6bb9c93f03d1b6c`. They are reported as
+The pre-b217 `77/77` comparison and final b217 `85/85`/`51/51` gates were observed on the shared
+current candidate whose final source snapshot is captured by
+`b2178ba9b6abc755c9b4affb9b537c91b7a79aec8b9c688bd4beaef268ca2274`. They are reported as
 observed candidate results, not as a claim that the historical Q31-R commits alone reproduce every
 current result. The current implementation and root-review SHAs are listed above; any later
 source-review commit must be recorded separately.
@@ -365,7 +448,7 @@ git diff --check
 
 No whitespace errors were reported; Git emitted only the existing Windows line-ending conversion warnings.
 
-The normal UI launcher was unavailable on this machine:
+The earlier Q31-R packet historically recorded the normal UI launcher as unavailable on that machine:
 
 ```powershell
 npm run test:ui
@@ -411,6 +494,11 @@ The authorized independent baseline was `684` tests, `5` failures, and `21` erro
 
 ## External-test boundaries
 
-This record proves the service, MVC, exporter-delegation, Project-detail, and PostgreSQL producer boundaries through unit, MockMvc, and Testcontainers tests. It does not prove a live browser screenshot/render, keyboard traversal in a real browser, or a deployed HTTP download. No browser visual QA was performed. The direct UI unit fallback remained `17/20` with the three unrelated CRLF-sensitive baselines, and the frontend build was skipped to preserve the user's dirty generated assets.
+The historical Q31-R packet proved the service, MVC, exporter-delegation, Project-detail, and
+PostgreSQL producer boundaries through unit, MockMvc, and Testcontainers tests; its historical
+run did not prove a live browser screenshot/render, keyboard traversal in a real browser, or a
+deployed HTTP download. The current live localhost observations are recorded in the current
+correction section above. The direct UI result remains `17/20` with the three unrelated CRLF-sensitive
+baselines, and the frontend build was skipped to preserve the user's dirty generated assets.
 
 The report does not claim a clean repository-wide Maven suite: the independent baseline failures/errors remain attributed above, and the broad run was not repeated after the isolated print-wrapper correction. This documentation follow-up introduced no production, test, migration, configuration, generated-asset, push, or merge change; it updates this current evidence record and the I4-UI-03 plan evidence link only.
