@@ -149,12 +149,16 @@ public class ReportExportController {
     /**
      * Downloads the authorized Daily Project Work Report as XLSX.
      *
-     * <p>The report service constructs exactly one immutable DTO using the same optional Project
-     * and local-date inputs as the HTML route. The exporter receives only that DTO and cannot
-     * query or re-evaluate authorization.</p>
+     * <p>The service applies the Daily role scope before constructing exactly one immutable DTO.
+     * An owning Mentor may omit {@code projectId} to include all owned Projects or provide one
+     * owned Project. A current Project Leader must provide the exact {@code projectId} of one
+     * PLANNED or ACTIVE Project that the actor currently leads. The exporter receives only that
+     * DTO and cannot query or re-evaluate authorization.</p>
      *
-     * @param authentication authenticated owning Mentor or current Project Leader
-     * @param projectId optional authorized Project filter
+     * @param authentication authenticated owning Mentor or current Project Leader; other roles
+     *        are rejected
+     * @param projectId optional for an owning Mentor (null selects all owned Projects); mandatory
+     *        exact currently-led PLANNED/ACTIVE Project for a current Project Leader
      * @param date optional ISO local report date
      * @param reportDate compatibility alias accepted by the HTML route
      * @return Daily workbook attachment with a date-only deterministic filename
@@ -176,8 +180,16 @@ public class ReportExportController {
     /**
      * Downloads the authorized Daily Project Work Report as print-safe PDF.
      *
-     * @param authentication authenticated owning Mentor or current Project Leader
-     * @param projectId optional authorized Project filter
+     * <p>The service applies the Daily role scope before constructing exactly one immutable DTO.
+     * An owning Mentor may omit {@code projectId} to include all owned Projects or provide one
+     * owned Project. A current Project Leader must provide the exact {@code projectId} of one
+     * PLANNED or ACTIVE Project that the actor currently leads. The exporter receives only that
+     * DTO and cannot query or re-evaluate authorization.</p>
+     *
+     * @param authentication authenticated owning Mentor or current Project Leader; other roles
+     *        are rejected
+     * @param projectId optional for an owning Mentor (null selects all owned Projects); mandatory
+     *        exact currently-led PLANNED/ACTIVE Project for a current Project Leader
      * @param date optional ISO local report date
      * @param reportDate compatibility alias accepted by the HTML route
      * @return Daily PDF attachment with a date-only deterministic filename

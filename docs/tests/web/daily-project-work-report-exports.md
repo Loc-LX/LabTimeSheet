@@ -4,15 +4,28 @@
 - **Requirement IDs:** `RPT-013`, `AC-RPT-005`, `RPT-001`, `RPT-006`–`RPT-010`, `AC-RPT-001`–`AC-RPT-003`
 - **Scenario IDs:** `AC-RPT-005`
 - **Test class/method:** `com.lab.labtimesheet.feature.reporting.service.DailyProjectWorkReportExportServiceTest`, `com.lab.labtimesheet.feature.reporting.controller.DailyProjectWorkReportExportControllerWebTest`, `com.lab.labtimesheet.feature.reporting.controller.DailyProjectWorkReportControllerWebTest`
-- **Implementation commit:** pending root review; packet intentionally uncommitted
+- **Historical implementation commit:** `4870889415183380a92a03991b94afb62427a6ca6e186e4514391ec1d793f64d`
+
+> **Current Q31-R scope:** This file preserves the I4-UI-02 XLSX/PDF parity evidence and its
+> historical results; its earlier optional/global/Admin wording is superseded. The current Daily
+> contract permits an owning Mentor to export all owned Projects when `projectId` is omitted or
+> one selected owned Project when it is supplied. A current Project Leader may export HTML, XLSX,
+> or PDF only with one exact mandatory `projectId` for a PLANNED or ACTIVE Project that the actor
+> currently leads, entered from Project detail. For that Leader scope, a missing, guessed,
+> other-Project, or completed-Project ID is denied; Admin, ordinary Intern, former Leader, and
+> other-Project Leaders are denied regardless of ID. The historical 32/32 and related parser
+> results below remain factual for the cases they exercised; current authorization evidence is in
+> [`q31-r-daily-report.md`](q31-r-daily-report.md).
 
 ## Protected behavior
 
 The authenticated Daily Project Work Report can be downloaded at `/reports/daily.xlsx` and
-`/reports/daily.pdf` using the same optional Project scope and local report date as the HTML route.
-Each request constructs one authorized immutable `DailyProjectWorkReportView`, and the exporter
-only renders that DTO. The attachment name is deterministic and date-only, and unsupported roles,
-unauthorized Projects, future dates, and malformed dates cannot reach byte rendering.
+`/reports/daily.pdf`. Under the current Q31-R scope, an owning Mentor may omit `projectId` for all
+owned Projects or provide one owned Project; a current Project Leader must provide the exact
+currently-led PLANNED/ACTIVE `projectId`. Each request constructs one authorized immutable
+`DailyProjectWorkReportView`, and the exporter only renders that DTO. The attachment name is
+deterministic and date-only, and unsupported roles, unauthorized Projects, future dates, and
+malformed dates cannot reach byte rendering.
 
 Both formats preserve the independently derived Project → retained author → Task hierarchy,
 repeated work descriptions, current status, soft-deleted Task marker, selected-date minutes,

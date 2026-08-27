@@ -71,11 +71,12 @@ public interface ProjectRepository extends JpaRepository<ProjectEntity, Long> {
             long mentorUserId, Pageable pageable);
 
     /**
-     * Lists the complete Project catalogue for an Admin report scope.
+     * Returns the complete Project catalogue in deterministic update order for unpaged catalogue
+     * consumers, including administrative listings that intentionally need every row.
      *
-     * <p>This intentionally has no {@link Pageable}: the Daily Project Work Report contract is
-     * an all-authorized scope, whereas the navigation list above remains bounded for interactive
-     * catalogue rendering.</p>
+     * <p>The bounded {@link Pageable} overload above serves the normal Admin {@code /projects}
+     * catalogue. This general catalogue query is not a Daily Project Work Report authorization
+     * query; Daily scope is resolved by ProjectQueryService's role-specific methods.</p>
      *
      * @return all Projects in the same deterministic order as the bounded catalogue
      */

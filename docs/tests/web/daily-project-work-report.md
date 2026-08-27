@@ -4,17 +4,29 @@
 - **Requirement IDs:** `RPT-011`, `RPT-012`
 - **Scenario IDs:** `AC-RPT-004`
 - **Test class/method:** `com.lab.labtimesheet.feature.reporting.controller.DailyProjectWorkReportControllerWebTest`
-- **Implementation commit:** pending local commit
+- **Historical implementation commit:** `b70ce241ab85917aae9395ac4ab17e29703d22dac6f0b9ef1bf75710edad4ba4`
+
+> **Current Q31-R scope:** This file preserves the I4-UI-01 HTML evidence and its historical
+> results; its earlier Mentor/Admin wording is superseded. The current Daily contract permits an
+> owning Mentor to request all owned Projects when `projectId` is omitted or one selected owned
+> Project when it is supplied. A current Project Leader may request HTML, XLSX, or PDF only with
+> one exact mandatory `projectId` for a PLANNED or ACTIVE Project that the actor currently leads,
+> entered from Project detail. For that Leader scope, a missing, guessed, other-Project, or
+> completed-Project ID is denied; Admin, ordinary Intern, former Leader, and other-Project Leaders
+> are denied regardless of ID. The historical test counts below remain factual for the cases they
+> exercised; current authorization evidence is in [`q31-r-daily-report.md`](q31-r-daily-report.md).
 
 ## Protected behavior
 
 The active `/reports/daily` HTML route renders an authorized Daily Project Work Report with the
-selected local date context and retained Task-work facts. The page groups rows by historical log
-author, preserves repeated descriptions, visibly labels the current Task status with a
-`Current status:` text label and value, distinguishes selected-date minutes from lifetime actual
-minutes, shows optional planning values neutrally (`N/A`/`Pending`), renders a signed DONE variance,
-and marks soft-deleted Tasks. Unsupported roles and invalid future dates are rejected before a
-report is rendered.
+selected local date context and retained Task-work facts. Under the current Q31-R scope, an owning
+Mentor may omit `projectId` for all owned Projects or provide one owned Project; a current Project
+Leader must provide the exact currently-led PLANNED/ACTIVE `projectId`. The page groups rows by
+historical log author, preserves repeated descriptions, visibly labels the current Task status
+with a `Current status:` text label and value, distinguishes selected-date minutes from lifetime
+actual minutes, shows optional planning values neutrally (`N/A`/`Pending`), renders a signed DONE
+variance, and marks soft-deleted Tasks. Unsupported roles and invalid future dates are rejected
+before a report is rendered.
 
 ## Test method
 
