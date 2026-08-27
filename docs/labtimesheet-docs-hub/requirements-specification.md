@@ -411,7 +411,7 @@ For an applicable Intern/date, classification precedence is:
 | RPT-003 | Project/task reports shall filter by Project, member, Task status, and work-date range and include completion percentage, status counts, current assignees, due dates, logged minutes, and blocked Tasks. |
 | RPT-004 | Admin and active Mentors may view detailed Intern attendance. Interns may view their own history. Project Leaders do not receive another Intern's attendance merely because they lead a Project. |
 | RPT-005 | Admin, owning Mentor, and current Leader may see per-member Project hours. Ordinary members receive aggregate Project progress and hours only. |
-| RPT-006 | Excel and PDF export shall cover only attendance/compliance and project/task reports. Leave, correction, notification, and integration queues remain in-app. |
+| RPT-006 | Excel and PDF export shall cover attendance/compliance, project/task, and Daily Project Work Reports. Leave, correction, notification, and integration queues remain in-app. |
 | RPT-007 | Excel shall use Apache POI XSSF. PDF shall use OpenPDF HTML with a dedicated print-safe Thymeleaf XHTML/CSS template and an embedded Unicode-capable font. Modern Tailwind application CSS shall not be passed directly to the PDF renderer. |
 | RPT-008 | Export operations may be synchronous in v1. They shall enforce bounded date ranges and authorized filters to avoid unbounded memory/response work. |
 | RPT-009 | HTML, Excel, and PDF shall use identical hand-checkable totals. Empty Project progress and zero attendance/compliance denominators shall render `N/A`. |
