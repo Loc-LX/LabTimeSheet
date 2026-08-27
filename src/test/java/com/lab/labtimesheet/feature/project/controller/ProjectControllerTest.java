@@ -430,6 +430,54 @@ class ProjectControllerTest {
     }
 
     @Test
+    @WithMockUser(username = "leader@example.test", roles = "INTERN")
+    void currentLeaderGetsTheProjectDetailDailyReportAction() throws Exception {
+        when(pages.authenticatedUserId("leader@example.test")).thenReturn(20L);
+        when(pages.detail(20L, 30L)).thenReturn(new ProjectDetail(
+                30L,
+                "Intern Portal Refresh",
+                "Portal work",
+                "ACTIVE",
+                LocalDate.of(2026, 8, 15),
+                LocalDate.of(2026, 9, 30),
+                "Mentor",
+                "Current Leader",
+                false,
+                true));
+        when(pages.exitReadiness(20L, 30L)).thenReturn(List.of());
+
+        mvc.perform(get("/projects/30"))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(containsString("Generate Daily Report")))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(containsString("href=\"/reports/daily?projectId=30\"")));
+    }
+
+    @Test
+    @WithMockUser(username = "member@example.test", roles = "INTERN")
+    void ordinaryMemberDoesNotGetTheProjectDetailDailyReportAction() throws Exception {
+        when(pages.authenticatedUserId("member@example.test")).thenReturn(20L);
+        when(pages.detail(20L, 30L)).thenReturn(new ProjectDetail(
+                30L,
+                "Intern Portal Refresh",
+                null,
+                "ACTIVE",
+                LocalDate.of(2026, 8, 15),
+                LocalDate.of(2026, 9, 30),
+                "Mentor",
+                "Current Leader",
+                false,
+                false));
+        when(pages.exitReadiness(20L, 30L)).thenReturn(List.of());
+
+        mvc.perform(get("/projects/30"))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(not(containsString("Generate Daily Report"))));
+    }
+
+    @Test
     @WithMockUser(username = "member@example.test")
     void nonMentorCannotOpenProjectCreationForm() throws Exception {
         when(pages.authenticatedActor("member@example.test"))
@@ -783,6 +831,8 @@ class ProjectControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
                         .string(containsString("No current Leader")))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(not(containsString("Generate Daily Report"))))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
                         .string(not(containsString(">Activate<"))));
         mvc.perform(get("/projects/30/members").with(user(email)))

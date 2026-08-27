@@ -54,6 +54,18 @@
         <p class="project-overview-description-text" th:text="${project.description == null || #strings.isEmpty(project.description) ? 'No Project description.' : project.description}">Project description.</p>
     </section>
 
+    <section class="project-overview-actions" aria-labelledby="daily-report-action-title"
+             th:if="${project.viewerIsCurrentLeader}">
+        <div class="project-overview-section-heading">
+            <p class="project-overview-kicker">Reporting</p>
+            <h2 class="project-overview-section-title" id="daily-report-action-title">Daily Project Work Report</h2>
+            <p class="project-overview-section-text">Review retained Task work for this Project by Report date.</p>
+        </div>
+        <div class="project-overview-action-row">
+            <a class="button button-primary" th:href="@{/reports/daily(projectId=${project.id})}">Generate Daily Report</a>
+        </div>
+    </section>
+
     <section class="project-overview-actions" aria-labelledby="project-actions-title"
              th:if="${project.canManage and project.status == 'PLANNED'}">
         <div class="project-overview-section-heading">

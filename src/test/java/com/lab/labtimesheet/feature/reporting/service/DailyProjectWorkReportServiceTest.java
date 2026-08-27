@@ -113,15 +113,15 @@ class DailyProjectWorkReportServiceTest {
     }
 
     @Test
-    void adminAllProjectsOmitsEmptyProjectButKeepsGlobalDayOffContextAndLogs() {
+    void mentorAllProjectsOmitsEmptyProjectButKeepsGlobalDayOffContextAndLogs() {
         ProjectSummary withWork = project(42L, "Portal");
         ProjectSummary withoutWork = project(43L, "Empty");
         TaskDailyReportView task = new TaskDailyReportView(
                 501L, 42L, 8L, "Prepare handover", TaskStatus.DONE, null, 90L,
                 TaskVarianceState.NOT_ESTIMATED, null, ASSIGNED_AT, ASSIGNED_AT, null,
                 List.of(workLog(101L, 7L, "worked on day off", 90)), null);
-        given(projects.authenticatedActor("admin@example.test"))
-                .willReturn(new ProjectActorView(1L, "ADMIN"));
+        given(projects.authenticatedActor("mentor@example.test"))
+                .willReturn(new ProjectActorView(1L, "MENTOR"));
         given(projects.listAllVisibleForReport(1L)).willReturn(List.of(withWork, withoutWork));
         given(projects.members(1L, 42L)).willReturn(List.of(member(7L, "Mai Intern")));
         given(projects.members(1L, 43L))
@@ -134,7 +134,7 @@ class DailyProjectWorkReportServiceTest {
                         REPORT_DATE, false, true, 2L, LocalDate.of(2026, 1, 1),
                         ZoneId.of("Asia/Ho_Chi_Minh")));
 
-        var view = reports.build("admin@example.test", null, REPORT_DATE);
+        var view = reports.build("mentor@example.test", null, REPORT_DATE);
 
         assertThat(view.projects()).extracting(reportProject -> reportProject.projectId())
                 .containsExactly(42L);

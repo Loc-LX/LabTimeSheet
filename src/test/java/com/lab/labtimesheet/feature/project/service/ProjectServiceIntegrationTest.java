@@ -129,6 +129,56 @@ class ProjectServiceIntegrationTest {
     }
 
     @Test
+    void dailyReportProjectQueryTracksCurrentLeaderThroughReplacementAndCompletion() {
+        long mentorId = user("mentor-daily-query@example.test", "MENTOR");
+        long formerLeaderId = intern("former-daily-query@example.test", "I007");
+        long replacementLeaderId = intern("replacement-daily-query@example.test", "I008");
+        long ordinaryInternId = intern("ordinary-daily-query@example.test", "I015");
+        long otherProjectLeaderId = intern("other-project-daily-query@example.test", "I016");
+        long projectId = createProject(mentorId, formerLeaderId, "Daily query leadership");
+        createProject(mentorId, otherProjectLeaderId, "Other Daily query leadership");
+
+        assertEquals(projectId,
+                projectPages.currentLeaderProjectForDailyReport(formerLeaderId, projectId).id());
+        assertThrows(ProjectAccessDeniedException.class,
+                () -> projectPages.currentLeaderProjectForDailyReport(ordinaryInternId, projectId));
+        assertThrows(ProjectAccessDeniedException.class,
+                () -> projectPages.currentLeaderProjectForDailyReport(otherProjectLeaderId, projectId));
+        assertThrows(ProjectAccessDeniedException.class,
+                () -> projectPages.currentLeaderProjectForDailyReport(formerLeaderId, Long.MAX_VALUE));
+
+        projectService.addMember(mentorId, projectId, replacementLeaderId);
+        projectService.changeLeader(mentorId, projectId, replacementLeaderId);
+        entityManager.clear();
+
+        assertThrows(ProjectAccessDeniedException.class,
+                () -> projectPages.currentLeaderProjectForDailyReport(formerLeaderId, projectId));
+        assertEquals(projectId,
+                projectPages.currentLeaderProjectForDailyReport(replacementLeaderId, projectId).id());
+
+        var completedAt = dbTime(NOW.plusSeconds(60));
+        jdbc.update("""
+                update project_leadership_terms
+                set ended_at = ?, ended_by_mentor_user_id = ?
+                where project_id = ? and ended_at is null
+                """, completedAt, mentorId, projectId);
+        jdbc.update("""
+                update project_memberships
+                set left_at = ?, removed_by_mentor_user_id = ?, updated_at = ?
+                where project_id = ? and left_at is null
+                """, completedAt, mentorId, completedAt, projectId);
+        jdbc.update("""
+                update projects
+                set status = 'COMPLETED', activated_at = ?, completed_at = ?, updated_at = ?
+                where id = ?
+                """, dbTime(NOW.plusSeconds(30)), completedAt, completedAt, projectId);
+        entityManager.clear();
+
+        assertThrows(ProjectAccessDeniedException.class,
+                () -> projectPages.currentLeaderProjectForDailyReport(replacementLeaderId, projectId));
+    }
+
+    @Test
     void listAndDetailQueriesEnforceRoleOwnershipAndMembershipWithoutIdDisclosure() {
         long adminId = user("admin-view@example.test", "ADMIN");
         long mentorId = user("mentor-view@example.test", "MENTOR");
@@ -145,6 +195,8 @@ class ProjectServiceIntegrationTest {
         assertEquals(List.of(projectId), projectPages.listVisible(memberId).stream().map(summary -> summary.id()).toList());
         assertEquals(List.of(), projectPages.listVisible(unrelatedId));
         assertEquals(projectId, projectPages.detail(memberId, projectId).id());
+        assertTrue(projectPages.detail(leaderId, projectId).viewerIsCurrentLeader());
+        assertFalse(projectPages.detail(memberId, projectId).viewerIsCurrentLeader());
         assertEquals("INTERN", projectPages.authenticatedActor("member-view@example.test").role());
         var taskContext = projectService.taskMutationContext(memberId, projectId);
         assertEquals(mentorId, taskContext.mentorUserId());
@@ -220,6 +272,9 @@ class ProjectServiceIntegrationTest {
         assertFalse(ownerDetail.canManage());
         assertFalse(adminDetail.canManage());
         assertFalse(formerMemberDetail.canManage());
+        assertFalse(ownerDetail.viewerIsCurrentLeader());
+        assertFalse(adminDetail.viewerIsCurrentLeader());
+        assertFalse(formerMemberDetail.viewerIsCurrentLeader());
         var taskContext = projectPages.taskContext(memberId, projectId);
         assertEquals("COMPLETED", taskContext.status());
         assertNull(taskContext.currentLeaderMembershipId());

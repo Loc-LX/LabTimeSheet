@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.times;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -77,11 +78,11 @@ class DailyProjectWorkReportExportControllerWebTest {
     void dailyPdfBuildsExactlyOneAuthorizedViewAndReturnsSafeDateFilename() throws Exception {
         DailyProjectWorkReportView report = org.mockito.Mockito.mock(DailyProjectWorkReportView.class);
         given(report.reportDate()).willReturn(REPORT_DATE);
-        given(dailyReports.build("admin@example.test", null, REPORT_DATE)).willReturn(report);
+        given(dailyReports.build("mentor@example.test", null, REPORT_DATE)).willReturn(report);
         given(exports.dailyPdf(report)).willReturn(new byte[] {4, 5, 6});
 
         mvc.perform(get("/reports/daily.pdf")
-                        .with(user("admin@example.test").roles("ADMIN"))
+                        .with(user("mentor@example.test").roles("MENTOR"))
                         .param("reportDate", REPORT_DATE.toString()))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType("application/pdf"))
@@ -89,7 +90,31 @@ class DailyProjectWorkReportExportControllerWebTest {
                         "Content-Disposition",
                         containsString("daily-project-work-report-2026-08-27.pdf")));
 
-        verify(dailyReports).build("admin@example.test", null, REPORT_DATE);
+        verify(dailyReports).build("mentor@example.test", null, REPORT_DATE);
+        verify(exports).dailyPdf(report);
+    }
+
+    @Test
+    void currentLeaderCanUseTheSameAuthorizedDatasetForXlsxAndPdf() throws Exception {
+        DailyProjectWorkReportView report = org.mockito.Mockito.mock(DailyProjectWorkReportView.class);
+        given(report.reportDate()).willReturn(REPORT_DATE);
+        given(dailyReports.build("leader@example.test", 42L, REPORT_DATE)).willReturn(report);
+        given(exports.dailyXlsx(report)).willReturn(new byte[] {1});
+        given(exports.dailyPdf(report)).willReturn(new byte[] {2});
+
+        mvc.perform(get("/reports/daily.xlsx")
+                        .with(user("leader@example.test").roles("INTERN"))
+                        .param("projectId", "42")
+                        .param("date", REPORT_DATE.toString()))
+                .andExpect(status().isOk());
+        mvc.perform(get("/reports/daily.pdf")
+                        .with(user("leader@example.test").roles("INTERN"))
+                        .param("projectId", "42")
+                        .param("date", REPORT_DATE.toString()))
+                .andExpect(status().isOk());
+
+        verify(dailyReports, times(2)).build("leader@example.test", 42L, REPORT_DATE);
+        verify(exports).dailyXlsx(report);
         verify(exports).dailyPdf(report);
     }
 
@@ -124,6 +149,10 @@ class DailyProjectWorkReportExportControllerWebTest {
         mvc.perform(get("/reports/daily.pdf")
                         .with(user("mentor@example.test").roles("MENTOR"))
                         .param("projectId", "999")
+                        .param("date", REPORT_DATE.toString()))
+                .andExpect(status().isNotFound());
+        mvc.perform(get("/reports/daily.xlsx")
+                        .with(user("admin@example.test").roles("ADMIN"))
                         .param("date", REPORT_DATE.toString()))
                 .andExpect(status().isNotFound());
 

@@ -137,23 +137,54 @@ public class ProjectQueryService {
      * Lists the complete Project scope authorized for the Daily Project Work Report.
      *
      * <p>The normal navigation method is deliberately capped at 50 rows. Report scope cannot
-     * silently truncate an Admin catalogue or a Mentor's owned Projects, so this producer-owned
-     * seam uses complete role-filtered repository queries and still returns DTOs only. Interns do
-     * not receive the new cross-Project Daily preset.</p>
+     * silently truncate a Mentor's owned Projects, so this producer-owned seam uses the complete
+     * ownership-filtered query and still returns DTOs only. Admins and Interns do not receive a
+     * global Daily preset.</p>
      *
-     * @param actorUserId active Admin or Mentor account identifier
+     * @param actorUserId active owning Mentor account identifier
      * @return every authorized Project in deterministic update order
-     * @throws ProjectAccessDeniedException when the actor is inactive, unsupported, or an Intern
+     * @throws ProjectAccessDeniedException when the actor is inactive, unsupported, or not a
+     *         Mentor
      */
     @Transactional(readOnly = true)
     public List<ProjectSummary> listAllVisibleForReport(long actorUserId) {
         var actor = activeActor(actorUserId);
-        List<ProjectEntity> visible = switch (actor.role().name()) {
-            case "ADMIN" -> projects.findAllByOrderByUpdatedAtDescIdDesc();
-            case "MENTOR" -> projects.findByMentorUserIdOrderByUpdatedAtDescIdDesc(actorUserId);
-            default -> throw new ProjectAccessDeniedException();
-        };
+        if (actor.role() != GlobalRole.MENTOR) {
+            throw new ProjectAccessDeniedException();
+        }
+        List<ProjectEntity> visible = projects.findByMentorUserIdOrderByUpdatedAtDescIdDesc(actorUserId);
         return visible.stream().map(ProjectQueryService::summary).toList();
+    }
+
+    /**
+     * Returns the one open Project whose stored current leadership belongs to the active Intern.
+     *
+     * <p>This is a producer-owned authorization boundary for the Leader Daily report. The
+     * caller must provide an active Intern identity and an exact Project identifier; membership,
+     * the global role alone, and a guessed identifier never grant access. Completed Projects are
+     * intentionally excluded because completion closes the current leadership term.</p>
+     *
+     * @param actorUserId active authenticated actor identifier
+     * @param projectId exact Project identifier requested by the actor
+     * @return the authorized Project summary
+     * @throws ProjectAccessDeniedException when the actor is not an Intern, the Project is
+     *         missing, completed, or not currently led by the actor
+     */
+    @Transactional(readOnly = true)
+    public ProjectSummary currentLeaderProjectForDailyReport(long actorUserId, long projectId) {
+        var actor = activeActor(actorUserId);
+        if (actor.role() != GlobalRole.INTERN) {
+            throw new ProjectAccessDeniedException();
+        }
+
+        ProjectEntity project = projects.findById(projectId)
+                .orElseThrow(ProjectAccessDeniedException::new);
+        if ((project.status() != ProjectStatus.PLANNED && project.status() != ProjectStatus.ACTIVE)
+                || !project.hasCurrentMember(actorUserId)
+                || project.currentLeader().internUserId() != actorUserId) {
+            throw new ProjectAccessDeniedException();
+        }
+        return summary(project);
     }
 
     /**
@@ -208,9 +239,11 @@ public class ProjectQueryService {
     public ProjectDetail detail(long actorUserId, long projectId) {
         // Đây là read sau redirect PRG (GET /projects/{projectId}). visibleProject vừa lấy Entity vừa authorize;
         // cùng một lỗi access được dùng cho ID không tồn tại và ID không thuộc actor.
+        var actor = activeActor(actorUserId);
         var project = visibleProject(actorUserId, projectId);
         // Project đã hoàn thành chỉ để xem lịch sử: không còn Leader hiện tại hoặc quyền quản lý.
         var completed = project.status() == ProjectStatus.COMPLETED;
+        Long currentLeaderId = completed ? null : project.currentLeader().internUserId();
         return new ProjectDetail(
                 project.id(),
                 project.name(),
@@ -219,8 +252,9 @@ public class ProjectQueryService {
                 project.startDate(),
                 project.endDate(),
                 displayName(project.mentorUserId()),
-                completed ? null : displayName(project.currentLeader().internUserId()),
-                !completed && project.mentorUserId() == actorUserId);
+                currentLeaderId == null ? null : displayName(currentLeaderId),
+                !completed && project.mentorUserId() == actorUserId,
+                !completed && actor.role() == GlobalRole.INTERN && currentLeaderId == actorUserId);
     }
 
     /**

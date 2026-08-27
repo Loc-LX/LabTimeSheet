@@ -83,7 +83,7 @@ endpoints, tables, templates, or test organization.
 | Q28 | A | Ship Daily HTML, XLSX, and PDF together from one authorized dataset without requiring unrelated due-date filters. |
 | Q29 | B | Implement vertically on one isolated `codex/...` feature branch as an explicit exception to normal persistent workstream ownership. |
 | Q30 | A | Amend numbered requirements and acceptance scenarios, add bounded Iteration 4 tracking, and retain the glossary and ADR before production code. |
-| Q31 | A | Mentor gets owned-Projects Daily scope; Admin gets equivalent all-authorized scope; Project Leader keeps existing single-Project reporting only. |
+| Q31-R | A | Mentor keeps owned-Projects Daily scope; the current Leader gets one mandatory currently-led Project; Admin and all other non-Mentor/non-current-Leader actors are denied. |
 | Q32 | A | Establish a clean baseline; stop and request explicit authorization before proceeding past independent baseline failures. |
 | Q33 | A | Implement test-first with focused local commits and an integrated candidate; do not push or merge to `main` without separate authorization. |
 | Q34 | A | Confirm the complete contract and authorize documentation, baseline verification, and test-first implementation on `codex/partial-jira-tempo`. |
@@ -650,7 +650,7 @@ forecast model consumed the earlier contingency.
 Q22-R supersedes the original Q22 delivery boundary. The first delivery includes:
 
 - the complete estimate/actual/variance/forecast slice; and
-- one Daily Project Work Report for the approved Mentor/Admin scopes.
+- one Daily Project Work Report for the approved Mentor and current-Leader scopes.
 
 Weekly and Monthly presets remain deferred. The Daily report reuses the established report and
 authorization model; it must not become a second reporting subsystem.
@@ -681,8 +681,9 @@ claim that logged work occurred during scheduled attendance hours.
 **Approved option:** C — support both scopes.
 
 For a Mentor, the default Daily view covers all Projects currently authorized by ownership and is
-grouped by Project. The Mentor may narrow the report to one owned Project. The equivalent Admin
-scope is finalized by Q31.
+grouped by Project. The Mentor may narrow the report to one owned Project. The current Leader
+scope is finalized by Q31-R and is intentionally one mandatory Project rather than a global
+preset.
 
 In all-Projects mode, Projects with no retained logs for the selected date are omitted so the
 result remains useful. In explicit one-Project mode, an authorized Project with no matching logs
@@ -772,18 +773,28 @@ Before production implementation:
 Chat history and the original attachment are not sufficient implementation authority by
 themselves.
 
-### Q31 — Daily-report role scopes
+### Q31-R — Daily-report role scopes
 
-**Approved option:** A.
+**Approved option:** A — replace the original Admin/Leader scope with the current-Leader slice.
 
-- Mentor: all Projects currently authorized through ownership, with optional one-owned-Project
-  filter.
-- Admin: equivalent all-authorized-Projects view, with optional one-authorized-Project filter.
-- Project Leader: existing single-Project report access remains; no new cross-Project Daily preset.
-- Other users: no scope beyond existing report authorization.
+- Owning Mentor: the Daily Project Work Report covers all owned Projects, with an optional one
+  selected owned-Project filter.
+- Current Project Leader: HTML, XLSX, and PDF are available only for one mandatory Project that
+  the actor currently leads. Access covers PLANNED and ACTIVE Projects, today and permitted past
+  dates, and the whole retained Project history, including work before the current leadership
+  term. The entry point is Project detail, not the global Reports sidebar.
+- Admin, ordinary Interns, former Leaders, Leaders of another Project, completed Projects,
+  missing leader `projectId` requests, and guessed IDs are denied before Attendance context,
+  Task queries, or exporter invocation. Membership, the global `ROLE_INTERN`, or possession of a
+  Project ID alone is insufficient.
+- Leadership replacement transfers access immediately; Project completion ends current-Leader
+  access. The current-Leader authorization uses stored current leadership for the exact Project.
+- Mentor demand is operational communication outside the system. No persisted delegation request,
+  toggle, notification, Daily report artifact, audit event, schema, or migration is introduced.
+- Existing Attendance and Project/Task report scopes remain unchanged.
 
-Every scope is reduced or denied before dataset construction and before any HTML/export renderer.
-Changing the format or guessing identifiers must not bypass authorization.
+Every scope is reduced or denied before Daily dataset construction and before any HTML, XLSX, or
+PDF renderer. Changing the format or guessing identifiers must not bypass authorization.
 
 ### Q32 — Baseline failure gate
 
@@ -937,8 +948,15 @@ A reviewer can use the following checklist against an independent implementation
 - [ ] Compact reports/exports show only the latest applicable forecast and exclude notes/reasons.
 - [ ] No forecast-accuracy metric, percentage, ranking, or color judgment exists.
 - [ ] Daily Mentor scope defaults to all owned Projects and accepts an optional owned-Project filter.
-- [ ] Daily Admin scope defaults to all Admin-authorized Projects and accepts an authorized filter.
-- [ ] Project Leaders do not gain a new cross-Project Daily preset.
+- [ ] A current Project Leader must select one exact currently-led PLANNED or ACTIVE Project and
+      may use the same authorized Daily dataset for HTML, XLSX, and PDF, including whole retained
+      Project history before the current leadership term.
+- [ ] Admins, ordinary Interns, former Leaders, Leaders of another Project, completed Projects,
+      missing `projectId` requests, and guessed IDs are denied before downstream reads.
+- [ ] Project-detail entry is current-Leader-only; no global Daily sidebar entry is shown to Interns.
+- [ ] Leadership replacement transfers Daily access immediately and Project completion ends it.
+- [ ] Mentor demand is out-of-system operational communication with no persisted delegation,
+      toggle, notification, report artifact, audit event, schema, or migration.
 - [ ] Report date defaults to today in `Asia/Ho_Chi_Minh`; future dates are rejected.
 - [ ] Policy non-workdays and global days off annotate but never filter retained Task work.
 - [ ] Work is grouped by retained log author, not current Task assignee.
@@ -973,7 +991,7 @@ A reviewer can use the following checklist against an independent implementation
 | Q5–Q8, Q10, Q13 | `TSK-020`, `DB-013`, `AC-TSK-012` | Optional bounded whole-Task estimate, Leader-only mutation, first-log freeze, no backfill, immutable baseline. |
 | Q9, Q11, Q12, Q14–Q15 | `TSK-021`, `RPT-012`–`RPT-013`, `AC-TSK-012`, `AC-RPT-005` | Lifetime actual, DONE-only signed variance, Pending/N/A, no scoring, lifetime/period separation, output parity. |
 | Q16–Q21 plus removal clarification | `TSK-022`, `DB-013`, `AC-TSK-013`–`AC-TSK-014` | Worked/unworked reassignment rules, immutable snapshot, append-only correction, concurrency rejection, removal atomicity, no accuracy metric. |
-| Q22-R, Q24–Q28, Q31 | `RPT-011`–`RPT-013`, `AC-RPT-004`–`AC-RPT-005`, relevant `RPT-001` and `RPT-006`–`RPT-010` authorization/export rules | Daily role scopes, date/calendar semantics, author grouping, deleted Tasks, empty states, and identical HTML/XLSX/PDF data. |
+| Q22-R, Q24–Q28, Q31-R | `RPT-011`–`RPT-013`, `AC-RPT-004`–`AC-RPT-005`, relevant `RPT-001` and `RPT-006`–`RPT-010` authorization/export rules | Daily Mentor/current-Leader role scopes, date/calendar semantics, author grouping, deleted Tasks, empty states, and identical HTML/XLSX/PDF data. |
 | Q23 | `CONTEXT.md`; ADR 0001 | Stable vocabulary and rationale for preserving baseline versus forecast. |
 | Q29–Q34 | `.agents/PROJECT_PLAN.md`; branch/test evidence | Isolation, documentation-first order, baseline gate, TDD, local-only integration boundary. |
 

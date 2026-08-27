@@ -57,6 +57,8 @@ class DailyProjectWorkReportControllerWebTest {
                 .andExpect(status().isOk())
                 .andExpect(view().name("reports/daily"))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Daily Project Work Report")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(
+                        "href=\"/reports/daily\"")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Report date")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Configured attendance workday")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("No retained Task work")));
@@ -182,6 +184,47 @@ class DailyProjectWorkReportControllerWebTest {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Download PDF")));
     }
 
+    @Test
+    void rendersCurrentLeaderReportWithLockedProjectScopeAndPreservedProjectId() throws Exception {
+        given(reports.build("leader@example.test", 42L, REPORT_DATE)).willReturn(lockedEmptyReport());
+
+        mvc.perform(get("/reports/daily")
+                        .with(user("leader@example.test").roles("INTERN"))
+                        .param("projectId", "42")
+                        .param("reportDate", REPORT_DATE.toString()))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(
+                        "Current Leader scope: one Project")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(
+                        "name=\"projectId\" value=\"42\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("id=\"daily-report-project\""))))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("href=\"/reports/daily\""))))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(
+                        "href=\"/reports/daily.xlsx?projectId=42&amp;date=2026-08-20\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(
+                        "href=\"/reports/daily.pdf?projectId=42&amp;date=2026-08-20\"")));
+    }
+
+    @Test
+    void keepsDailySidebarEntryMentorOnly() throws Exception {
+        given(reports.build("admin@example.test", null, null)).willReturn(emptyReport());
+
+        mvc.perform(get("/reports/daily")
+                        .with(user("admin@example.test").roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("href=\"/reports/daily\""))));
+
+        given(reports.build("intern@example.test", null, null)).willReturn(emptyReport());
+        mvc.perform(get("/reports/daily")
+                        .with(user("intern@example.test").roles("INTERN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("href=\"/reports/daily\""))));
+    }
+
     private static DailyProjectWorkReportView emptyReport() {
         return new DailyProjectWorkReportView(
                 REPORT_DATE,
@@ -206,5 +249,19 @@ class DailyProjectWorkReportControllerWebTest {
                 List.of(),
                 List.of(),
                 0L);
+    }
+
+    private static DailyProjectWorkReportView lockedEmptyReport() {
+        return new DailyProjectWorkReportView(
+                REPORT_DATE,
+                new AttendanceReportDateContext(
+                        REPORT_DATE, true, false, 1L, LocalDate.of(1970, 1, 1),
+                        ZoneId.of("Asia/Ho_Chi_Minh")),
+                42L,
+                "Portal",
+                List.of(),
+                List.of(),
+                0L,
+                true);
     }
 }

@@ -19,6 +19,7 @@ import java.util.List;
  * @param projectOptions complete authorized Project filter options
  * @param projects retained selected-date work grouped by Project
  * @param overallTotalMinutes selected-date total across rendered Projects
+ * @param lockedSingleProject whether the report is restricted to one current-Leader Project
  */
 public record DailyProjectWorkReportView(
         LocalDate reportDate,
@@ -27,7 +28,26 @@ public record DailyProjectWorkReportView(
         String selectedProjectName,
         List<ProjectSummary> projectOptions,
         List<DailyProjectWorkReportProject> projects,
-        long overallTotalMinutes) {
+        long overallTotalMinutes,
+        boolean lockedSingleProject) {
+
+    /**
+     * Backward-compatible constructor for existing all-Projects and Mentor-selected views.
+     *
+     * <p>Only the Daily service can enable the locked mode through the canonical constructor;
+     * callers that do not know the Leader authorization fact remain unlocked by default.</p>
+     */
+    public DailyProjectWorkReportView(
+            LocalDate reportDate,
+            AttendanceReportDateContext dayContext,
+            Long selectedProjectId,
+            String selectedProjectName,
+            List<ProjectSummary> projectOptions,
+            List<DailyProjectWorkReportProject> projects,
+            long overallTotalMinutes) {
+        this(reportDate, dayContext, selectedProjectId, selectedProjectName,
+                projectOptions, projects, overallTotalMinutes, false);
+    }
 
     /** Defensive copies preserve one immutable public report tree. */
     public DailyProjectWorkReportView {

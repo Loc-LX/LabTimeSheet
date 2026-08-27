@@ -153,7 +153,7 @@ public class ReportExportController {
      * and local-date inputs as the HTML route. The exporter receives only that DTO and cannot
      * query or re-evaluate authorization.</p>
      *
-     * @param authentication authenticated Admin or Mentor
+     * @param authentication authenticated owning Mentor or current Project Leader
      * @param projectId optional authorized Project filter
      * @param date optional ISO local report date
      * @param reportDate compatibility alias accepted by the HTML route
@@ -176,7 +176,7 @@ public class ReportExportController {
     /**
      * Downloads the authorized Daily Project Work Report as print-safe PDF.
      *
-     * @param authentication authenticated Admin or Mentor
+     * @param authentication authenticated owning Mentor or current Project Leader
      * @param projectId optional authorized Project filter
      * @param date optional ISO local report date
      * @param reportDate compatibility alias accepted by the HTML route

@@ -43,31 +43,44 @@ public class DailyProjectWorkReportService {
     private final AttendanceApplicationService attendance;
 
     /**
-     * Builds an authorized one-date report for an Admin or Mentor.
+     * Builds an authorized one-date report for an owning Mentor or the current Leader of one
+     * selected open Project. Admins and ordinary/former Interns are denied at this boundary.
      *
      * @param actorEmail authenticated account email
-     * @param projectId optional authorized Project filter
+     * @param projectId optional owned-Project filter for Mentors; mandatory current-Leader Project
+     *        identifier for Interns
      * @param requestedDate selected local Report date, or null for the current business date
      * @return immutable grouped report dataset
-     * @throws ProjectAccessDeniedException when the actor is not an Admin/Mentor or the Project
-     *         filter is outside their authorized Project list
+     * @throws ProjectAccessDeniedException when the actor is not an owning Mentor/current Leader
+     *         or the Project filter is outside their authorized Project scope
      * @throws IllegalArgumentException when the requested date is in the future
      */
     @Transactional(readOnly = true)
     public DailyProjectWorkReportView build(
             String actorEmail, Long projectId, LocalDate requestedDate) {
         ProjectActorView actor = projects.authenticatedActor(actorEmail);
-        if (!"ADMIN".equals(actor.role()) && !"MENTOR".equals(actor.role())) {
+        List<ProjectSummary> projectOptions;
+        ProjectSummary selected;
+        boolean lockedSingleProject;
+        if ("MENTOR".equals(actor.role())) {
+            projectOptions = projects.listAllVisibleForReport(actor.userId());
+            selected = projectId == null
+                    ? null
+                    : projectOptions.stream()
+                            .filter(project -> project.id() == projectId)
+                            .findFirst()
+                            .orElseThrow(ProjectAccessDeniedException::new);
+            lockedSingleProject = false;
+        } else if ("INTERN".equals(actor.role())) {
+            if (projectId == null) {
+                throw new ProjectAccessDeniedException();
+            }
+            selected = projects.currentLeaderProjectForDailyReport(actor.userId(), projectId);
+            projectOptions = List.of(selected);
+            lockedSingleProject = true;
+        } else {
             throw new ProjectAccessDeniedException();
         }
-
-        List<ProjectSummary> projectOptions = projects.listAllVisibleForReport(actor.userId());
-        ProjectSummary selected = projectId == null
-                ? null
-                : projectOptions.stream()
-                        .filter(project -> project.id() == projectId)
-                        .findFirst()
-                        .orElseThrow(ProjectAccessDeniedException::new);
 
         LocalDate today = attendance.currentBusinessDate();
         LocalDate reportDate = requestedDate == null ? today : requestedDate;
@@ -88,7 +101,8 @@ public class DailyProjectWorkReportService {
                 selected == null ? null : selected.name(),
                 projectOptions,
                 reportProjects,
-                reportProjects.stream().mapToLong(DailyProjectWorkReportProject::totalMinutes).sum());
+                reportProjects.stream().mapToLong(DailyProjectWorkReportProject::totalMinutes).sum(),
+                lockedSingleProject);
     }
 
     private DailyProjectWorkReportProject project(

@@ -17,7 +17,14 @@
                    th:value="${report.reportDate}">
             <p class="field-help">Today and past local dates are valid. Future dates are rejected.</p>
         </div>
-        <div class="field">
+        <div class="field" th:if="${report.lockedSingleProject}">
+            <label class="field-label" for="daily-report-project-locked">Project</label>
+            <input class="control" id="daily-report-project-locked" type="text"
+                   th:value="${report.selectedProjectName}" readonly aria-readonly="true">
+            <input type="hidden" name="projectId" th:value="${report.selectedProjectId}">
+            <p class="field-help">Current Leader scope: one Project</p>
+        </div>
+        <div class="field" th:unless="${report.lockedSingleProject}">
             <label class="field-label" for="daily-report-project">Project</label>
             <select class="control" id="daily-report-project" name="projectId">
                 <option value="" th:selected="${report.selectedProjectId == null}">All authorized Projects</option>
@@ -25,7 +32,7 @@
                         th:selected="${report.selectedProjectId != null and report.selectedProjectId == project.id}"
                         th:text="${project.name}">Project</option>
             </select>
-            <p class="field-help">Mentor ownership and Admin authorization are applied before Task reads.</p>
+            <p class="field-help">Authorized Project scope is applied before Task reads.</p>
         </div>
         <div class="field form-actions">
             <button class="button button-primary" type="submit">Apply report</button>

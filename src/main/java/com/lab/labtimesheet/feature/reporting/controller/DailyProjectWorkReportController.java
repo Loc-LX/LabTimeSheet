@@ -23,7 +23,7 @@ public class DailyProjectWorkReportController {
      * Renders the current-business-date report by default, with an optional authorized Project
      * and past/current Report date.
      *
-     * @param authentication authenticated Admin or Mentor
+     * @param authentication authenticated owning Mentor or current Project Leader
      * @param projectId optional authorized Project filter
      * @param reportDate optional local Report date
      * @param dateAlias compatibility alias for links that use {@code date}
