@@ -830,7 +830,7 @@ the 27 August reporting-role clarification is the latest revision of this decisi
   actor currently leads. Access covers `PLANNED` and `ACTIVE` Projects, today and permitted past
   dates, and the whole retained Project history, including work before the current leadership
   term. An active Intern sees a Daily-report entry only when the server confirms that the actor
-  currently leads at least one eligible Project. With one eligible Project the entry may redirect
+  currently leads at least one eligible Project. With one eligible Project the entry redirects
   directly to its locked report; with multiple eligible Projects it opens a selector containing
   only those Projects; with none it returns the non-disclosing `Project unavailable` result. The
   Project-detail `Generate Daily Report` action remains available for the authorized current
