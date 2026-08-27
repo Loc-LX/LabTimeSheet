@@ -5,6 +5,7 @@ import com.lab.labtimesheet.feature.account.model.dto.AccountIdentity;
 import com.lab.labtimesheet.feature.account.model.dto.InternshipLifecycleGuard;
 import com.lab.labtimesheet.feature.account.service.AccountService;
 import com.lab.labtimesheet.feature.project.exception.ProjectAccessDeniedException;
+import com.lab.labtimesheet.feature.project.exception.ProjectRuleViolationException;
 import com.lab.labtimesheet.feature.project.model.ProjectStatus;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectDetail;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectActorView;
@@ -179,9 +180,20 @@ public class ProjectQueryService {
 
         ProjectEntity project = projects.findById(projectId)
                 .orElseThrow(ProjectAccessDeniedException::new);
-        if ((project.status() != ProjectStatus.PLANNED && project.status() != ProjectStatus.ACTIVE)
-                || !project.hasCurrentMember(actorUserId)
-                || project.currentLeader().internUserId() != actorUserId) {
+        if (project.status() != ProjectStatus.PLANNED && project.status() != ProjectStatus.ACTIVE) {
+            throw new ProjectAccessDeniedException();
+        }
+        if (!project.hasCurrentMember(actorUserId)) {
+            throw new ProjectAccessDeniedException();
+        }
+        long currentLeaderId;
+        try {
+            currentLeaderId = project.currentLeader().internUserId();
+        } catch (ProjectRuleViolationException malformedLeadership) {
+            // A broken open-Project invariant is still non-disclosing denial at a read boundary.
+            throw new ProjectAccessDeniedException();
+        }
+        if (currentLeaderId != actorUserId) {
             throw new ProjectAccessDeniedException();
         }
         return summary(project);

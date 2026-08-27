@@ -179,6 +179,23 @@ class ProjectServiceIntegrationTest {
     }
 
     @Test
+    void dailyReportProjectQueryDeniesOpenProjectWithoutCurrentLeadershipTerm() {
+        long mentorId = user("mentor-daily-leaderless@example.test", "MENTOR");
+        long leaderId = intern("leader-daily-leaderless@example.test", "I017");
+        long projectId = createProject(mentorId, leaderId, "Leaderless Daily query");
+
+        jdbc.update("""
+                update project_leadership_terms
+                set ended_at = ?, ended_by_mentor_user_id = ?
+                where project_id = ? and ended_at is null
+                """, dbTime(NOW.plusSeconds(30)), mentorId, projectId);
+        entityManager.clear();
+
+        assertThrows(ProjectAccessDeniedException.class,
+                () -> projectPages.currentLeaderProjectForDailyReport(leaderId, projectId));
+    }
+
+    @Test
     void listAndDetailQueriesEnforceRoleOwnershipAndMembershipWithoutIdDisclosure() {
         long adminId = user("admin-view@example.test", "ADMIN");
         long mentorId = user("mentor-view@example.test", "MENTOR");
