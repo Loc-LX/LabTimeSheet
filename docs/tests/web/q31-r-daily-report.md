@@ -8,15 +8,27 @@
 - **Review/fix commit:** `774ee0bc452c29edb835991e335218ba24be5743aff66ca090b73329cde2f27b` (Harden Q31-R report denial and clean evidence index)
 - **Current verification head:** `f7fb0e2051ad644cb77e8d4fc6178acb5f05d03822f185fbd146a6426d1c230e`, before this documentation-only follow-up
 
-## Approved Q31-R scope and scenarios
+> **Supersession notice — 27 August 2026:** This file preserves the historical Q31-R Daily-report
+> service/controller/export evidence and its exact test results. The latest reporting-role decision
+> supersedes its earlier scope wording: Admin has no dedicated Attendance, Project/Task, or Daily
+> reporting scope, navigation, HTML/XLSX/PDF export, or report dataset; the Admin dashboard is
+> account/configuration-only and has no Active Projects metric. Current Leader Daily navigation is
+> now discoverable for active Interns who currently lead at least one open `PLANNED`/`ACTIVE`
+> Project, with one-Project redirect, multi-Project selector, and no-eligible-Project
+> `Project unavailable` behavior. New Admin-denial and navigation tests are required; the historical
+> Admin Daily denial below does not prove the revised Attendance/Project/Task boundaries or the new
+> sidebar behavior.
 
-Q31-R option A supersedes the earlier Daily-report Admin/Leader wording. The approved scope is:
+## Historical Q31-R scope and scenarios (retained evidence)
+
+Q31-R option A superseded the earlier Daily-report Admin/Leader wording at the time of the recorded
+run. The approved historical scope was:
 
 - An owning Mentor may request the Daily Project Work Report for all owned Projects or one selected owned Project.
 - A current Project Leader may request HTML, XLSX, or PDF only for one mandatory exact `projectId` that the actor currently leads. The Project may be `PLANNED` or `ACTIVE`; the report date may be today or a permitted past date; and the report includes retained Project history from before the current leadership term.
 - The current-Leader entry point is the Project-detail action, not the global Reports sidebar. The global Daily sidebar entry remains Mentor-only.
 - Admins, ordinary Interns, former Leaders, Leaders of another Project, completed Projects, missing `projectId` requests, and guessed Project IDs are denied before Attendance context, Task reads, HTML rendering, or exporter invocation. Membership, `ROLE_INTERN`, or possession of a Project ID is not sufficient.
-- Leadership replacement transfers access immediately; Project completion ends current-Leader access. No persisted delegation request, toggle, notification, Daily-report artifact, audit event, schema, or migration is introduced. Existing Attendance and Project/Task report scopes remain unchanged.
+- Leadership replacement transfers access immediately; Project completion ends current-Leader access. No persisted delegation request, toggle, notification, Daily-report artifact, audit event, schema, or migration is introduced. The historical record said existing Attendance and Project/Task report scopes remained unchanged; that sentence is superseded by the 27 August reporting-role revision above.
 - HTML, XLSX, and PDF continue to consume one already-authorized immutable Daily dataset. The report keeps selected-date minutes separate from lifetime Task actuals, original estimates, latest Remaining effort forecasts, and DONE-only signed variance; valid Task work is never filtered because a date is a non-workday or global day off.
 
 The acceptance scenarios covered by this evidence are `AC-RPT-004` (Mentor all/selected and current-Leader one-project scope, historical retained work, date/calendar context, empty and deleted-work cases, and denial ordering) and `AC-RPT-005` (identical authorized Daily rows, descriptions, statuses, planning values, and totals across HTML, XLSX, and PDF).

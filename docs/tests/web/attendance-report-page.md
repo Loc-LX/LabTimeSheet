@@ -6,6 +6,14 @@
 - **Test class/method:** `src/test/java/.../reporting/controller/AttendanceReportPageWebTest.java` (five cases)
 - **Implementation commit:** pending
 
+> **Supersession notice — 27 August 2026:** This is historical page evidence. Its
+> `Mentor/Admin inspection` wording records the pre-correction contract and is not current
+> authorization. The latest RPT-004 decision removes Admin from Attendance report navigation,
+> HTML, XLSX, PDF, service, and dataset scope; active Intern own-history and active Mentor
+> detailed-Intern behavior remain. The historical fixtures and results below are retained without
+> rewriting them as evidence of the new Admin denial, which requires a separate route/service
+> guard test before target enumeration and export.
+
 ## Protected behavior
 
 The `GET /reports/attendance` page must render the classified period with shared totals (rate and

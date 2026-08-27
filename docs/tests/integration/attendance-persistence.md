@@ -6,6 +6,12 @@
 - **Test class/method:** `com.lab.labtimesheet.feature.attendance.service.AttendancePersistenceIntegrationTest`
 - **Implementation commit:** `8b48e281f7e860af435ae35b16c4edeb139286dc`
 
+> **Supersession notice — 27 August 2026:** The RPT-004 scope wording in this historical
+> evidence predates the reporting-role correction. Admin has no Attendance-report scope under the
+> latest decision; active Mentor detailed-Intern and Intern own-history behavior remain. The
+> persistence and calendar results below are retained as historical evidence and do not prove the
+> revised Admin route/service denial.
+
 ## Protected behavior
 
 PostgreSQL stores server-time punches with the seeded applied-policy foreign key,

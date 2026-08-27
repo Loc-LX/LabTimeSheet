@@ -4,6 +4,7 @@
 |---|---|
 | Status | Approved product and delivery decisions |
 | Decision date | 26 August 2026 (`Asia/Ho_Chi_Minh`) |
+| Latest revision | 27 August 2026 — reporting roles and Admin dashboard |
 | Feature | Local Partial Jira/Tempo capability for Lab Timesheet |
 | Intended reader | Developer or independent specification-compliance review agent |
 | Review target | Observable behavior and invariants, not one reference implementation's structure |
@@ -12,8 +13,11 @@
 
 This document consolidates the approved outcomes of all thirty-four questions from the Partial
 Jira/Tempo grilling session, including the reopened Q8 and Q22 decisions and the implementation
-clarifications approved immediately after Q34. It is intended to let another developer or review
-agent compare an independently implemented feature with the behavior that was actually approved.
+clarifications approved immediately after Q34. The reporting-role and Admin-dashboard revision
+dated 27 August 2026 is the latest explicit clarification and supersedes the earlier Admin
+reporting scope wherever this record or its evidence still describes it. It is intended to let
+another developer or review agent compare an independently implemented feature with the behavior
+that was actually approved.
 
 This is a decision record, not an instruction to copy one particular implementation. A review
 should compare observable behavior, authorization, persistence semantics, historical meaning,
@@ -29,8 +33,8 @@ contradictory.
 
 Use this precedence when reviewing this feature:
 
-1. Later explicit revisions in this record, especially Q8-R, Q22-R, and the post-Q34 direct-removal
-   clarification.
+1. Later explicit revisions in this record, especially Q8-R, Q22-R, the post-Q34 direct-removal
+   clarification, and the 27 August reporting-role/Admin-dashboard clarification.
 2. Numbered requirements in `docs/labtimesheet-docs-hub/requirements-specification.md`.
 3. The remaining approved decisions and clarifications in this record.
 4. Canonical terminology in `CONTEXT.md`.
@@ -43,6 +47,46 @@ Use this precedence when reviewing this feature:
 If the first six sources appear to conflict after applying an explicit later revision, the
 reviewer must report the conflict rather than silently selecting an interpretation. The original
 proposal never overrides an approved decision.
+
+### Latest reporting-role and Admin-dashboard revision
+
+The 27 August 2026 clarification supersedes any earlier Admin-positive reporting rule in this
+record, the numbered requirements, or historical test evidence. Admin is a configuration and
+account-lifecycle role, not an operational reporting role:
+
+- Admin has no Attendance, Project/Task, or Daily Project Work Report scope. This includes the
+  HTML page, XLSX export, PDF export, report navigation entry, service-level dataset, and export
+  service for each family.
+- Attendance-report Admin requests and Project/Task-report Admin requests are rejected as
+  authenticated access-denied responses (`403 Forbidden`) before target or Project option
+  resolution, Attendance/Task/work-log reads, dataset construction, or exporter invocation.
+  The existing non-disclosing `Project unavailable` behavior remains the Daily-report response
+  for Admin requests.
+- The following non-Admin report scopes remain in force: an active Intern sees only their own
+  Attendance report; an active Mentor may inspect authorized Intern Attendance; owning Mentors
+  retain their authorized Project/Task and Daily scopes; current Leaders retain per-member
+  Project/Task detail for Projects they currently lead and may use the Daily report for each
+  currently-led `PLANNED` or `ACTIVE` Project; ordinary members retain aggregate-only Project/Task
+  reporting.
+- The Daily report remains one authorized immutable dataset rendered by HTML, XLSX, and PDF. Its
+  Leader entry is discoverable in role-aware navigation only when the active Intern currently
+  leads at least one eligible Project. With no eligible Project the response is `Project unavailable`;
+  one eligible Project redirects to its locked report; multiple eligible Projects
+  show only an authorized selector. A Leader report request still requires and re-authorizes the
+  exact `projectId`, and a valid selected date survives selection or redirect.
+- The Admin dashboard is account/configuration-only. It retains active-account,
+  pending-activation, and active-internship counts, pending-activation guidance, account creation,
+  and system/configuration notifications. It does not show an Active Projects metric, query
+  Project data solely for a dashboard metric, expose report links, or describe operational
+  Project/Task work. Admin navigation for Accounts, SMTP settings, Attendance Policy, Global
+  Calendar, and Holiday Import remains available.
+- A Mentor's request for additional Daily reporting remains out-of-system operational
+  communication. No persisted delegation request, toggle, notification, report artifact, audit
+  event, schema, or migration is introduced.
+
+Historical evidence that predates this revision remains factual about the behavior it executed;
+it must not be read as proof of the revised Admin denial or Leader-navigation contract. New
+verification must cover the revised boundaries explicitly.
 
 This record specifies behavior, authorization, persistence meaning, history, atomicity, and output
 parity. It does not require another implementation to use the same packages, class names,
@@ -83,7 +127,7 @@ endpoints, tables, templates, or test organization.
 | Q28 | A | Ship Daily HTML, XLSX, and PDF together from one authorized dataset without requiring unrelated due-date filters. |
 | Q29 | B | Implement vertically on one isolated `codex/...` feature branch as an explicit exception to normal persistent workstream ownership. |
 | Q30 | A | Amend numbered requirements and acceptance scenarios, add bounded Iteration 4 tracking, and retain the glossary and ADR before production code. |
-| Q31-R | A | Mentor keeps owned-Projects Daily scope; the current Leader gets one mandatory currently-led Project; Admin and all other non-Mentor/non-current-Leader actors are denied. |
+| Q31-R | A, superseded by 27 August reporting-role revision | Owning Mentors retain all-owned or selected-owned-Project Daily scope; current Leaders receive discoverable Daily scope for each currently-led `PLANNED`/`ACTIVE` Project; Admin has no Attendance, Project/Task, or Daily reporting scope; all other unauthorized contexts remain denied. |
 | Q32 | A | Establish a clean baseline; stop and request explicit authorization before proceeding past independent baseline failures. |
 | Q33 | A | Implement test-first with focused local commits and an integrated candidate; do not push or merge to `main` without separate authorization. |
 | Q34 | A | Confirm the complete contract and authorize documentation, baseline verification, and test-first implementation on `codex/partial-jira-tempo`. |
@@ -210,7 +254,8 @@ The following actors are read-only for this field even when they may view the Ta
 - the current assignee;
 - the Task creator when that creator is not the current Leader;
 - another ordinary Project member;
-- an Admin using an authorized reporting/read surface.
+- an Admin, who is read-only for any retained non-reporting Project/Task view and has no estimate
+  mutation authority.
 
 An ordinary member who creates a self-assigned Task must not gain estimate authority. Hiding the
 field in the browser is insufficient: the application service must reject a forged estimate
@@ -489,7 +534,8 @@ mutation authority:
 
 - current Project Leader: view and conditionally mutate the estimate;
 - owning Mentor: view only;
-- Admin: authorized read-only view;
+- Admin: no dedicated Project/Task report view or export; any retained generic Project read view
+  is read-only;
 - ordinary authorized Project member: view only;
 - unauthorized or guessed-ID requester: no disclosure.
 
@@ -775,26 +821,48 @@ themselves.
 
 ### Q31-R — Daily-report role scopes
 
-**Approved option:** A — replace the original Admin/Leader scope with the current-Leader slice.
+**Approved option:** A — replace the original Admin/Leader scope with the current-Leader slice;
+the 27 August reporting-role clarification is the latest revision of this decision.
 
 - Owning Mentor: the Daily Project Work Report covers all owned Projects, with an optional one
-  selected owned-Project filter.
-- Current Project Leader: HTML, XLSX, and PDF are available only for one mandatory Project that
-  the actor currently leads. Access covers PLANNED and ACTIVE Projects, today and permitted past
+  selected owned-Project filter. The existing global Mentor Reports entry remains available.
+- Current Project Leader: HTML, XLSX, and PDF are available only for one exact Project that the
+  actor currently leads. Access covers `PLANNED` and `ACTIVE` Projects, today and permitted past
   dates, and the whole retained Project history, including work before the current leadership
-  term. The entry point is Project detail, not the global Reports sidebar.
-- Admin, ordinary Interns, former Leaders, Leaders of another Project, completed Projects,
-  missing leader `projectId` requests, and guessed IDs are denied before Attendance context,
-  Task queries, or exporter invocation. Membership, the global `ROLE_INTERN`, or possession of a
-  Project ID alone is insufficient.
-- Leadership replacement transfers access immediately; Project completion ends current-Leader
-  access. The current-Leader authorization uses stored current leadership for the exact Project.
-- Mentor demand is operational communication outside the system. No persisted delegation request,
-  toggle, notification, Daily report artifact, audit event, schema, or migration is introduced.
-- Existing Attendance and Project/Task report scopes remain unchanged.
+  term. An active Intern sees a Daily-report entry only when the server confirms that the actor
+  currently leads at least one eligible Project. With one eligible Project the entry may redirect
+  directly to its locked report; with multiple eligible Projects it opens a selector containing
+  only those Projects; with none it returns the non-disclosing `Project unavailable` result. The
+  Project-detail `Generate Daily Report` action remains available for the authorized current
+  Leader.
+- A current-Leader report request requires `projectId` for HTML, XLSX, and PDF. The report service
+  re-authorizes that exact Project from stored current leadership, active membership, and Project
+  state even when the ID came from a selector. Leadership replacement transfers access
+  immediately; Project completion ends current-Leader access. A valid selected date survives
+  selection or redirection and otherwise defaults to today in `Asia/Ho_Chi_Minh`.
+- Admin is a configuration and account-lifecycle role with no dedicated Attendance, Project/Task,
+  or Daily Project Work Report scope. Admin report navigation is absent, and authenticated Admin
+  requests to the Attendance and Project/Task HTML/XLSX/PDF routes are denied with `403 Forbidden`
+  before target/Project option resolution, Attendance/Task/work-log reads, dataset construction,
+  or exporter invocation. Admin Daily HTML/XLSX/PDF requests retain the non-disclosing `Project
+  unavailable` response. Admin cannot obtain a report dataset through a direct service call or
+  export path.
+- Ordinary Interns, former Leaders, Leaders of another Project, completed Projects, missing
+  `projectId` requests, and guessed IDs remain denied before Attendance context, Task queries, or
+  exporter invocation. Membership, the global `ROLE_INTERN`, or possession of a Project ID alone
+  is insufficient. An Intern who is a current Leader retains that contextual Daily scope, while
+  their Attendance scope remains own history only.
+- The remaining Attendance and Project/Task scopes are preserved: active Interns retain own
+  Attendance, active Mentors retain authorized detailed Intern Attendance, owning Mentors and
+  current Leaders retain authorized Project/Task detail, and ordinary Project members retain
+  aggregate-only Project/Task progress and hours. Admin has no dedicated report scope.
+- Mentor demand for additional Daily reporting is operational communication outside the system.
+  No persisted delegation request, toggle, notification, Daily report artifact, audit event,
+  schema, or migration is introduced.
 
-Every scope is reduced or denied before Daily dataset construction and before any HTML, XLSX, or
-PDF renderer. Changing the format or guessing identifiers must not bypass authorization.
+Every scope is reduced or denied before the relevant report dataset is constructed and before any
+HTML, XLSX, or PDF renderer. Changing the format or guessing identifiers must not bypass
+authorization.
 
 ### Q32 — Baseline failure gate
 
@@ -947,13 +1015,27 @@ A reviewer can use the following checklist against an independent implementation
 - [ ] Task detail/history shows complete chronological forecast/correction provenance.
 - [ ] Compact reports/exports show only the latest applicable forecast and exclude notes/reasons.
 - [ ] No forecast-accuracy metric, percentage, ranking, or color judgment exists.
+- [ ] Active Interns can report only their own Attendance; active Mentors retain authorized
+      detailed Intern Attendance; Admins have no Attendance-report scope.
+- [ ] Owning Mentors and current Leaders retain authorized Project/Task detail; ordinary members
+      retain aggregate-only Project/Task progress and hours; Admins have no Project/Task-report
+      scope or report dataset.
 - [ ] Daily Mentor scope defaults to all owned Projects and accepts an optional owned-Project filter.
-- [ ] A current Project Leader must select one exact currently-led PLANNED or ACTIVE Project and
-      may use the same authorized Daily dataset for HTML, XLSX, and PDF, including whole retained
-      Project history before the current leadership term.
-- [ ] Admins, ordinary Interns, former Leaders, Leaders of another Project, completed Projects,
-      missing `projectId` requests, and guessed IDs are denied before downstream reads.
-- [ ] Project-detail entry is current-Leader-only; no global Daily sidebar entry is shown to Interns.
+- [ ] A current Project Leader can discover one or more exact currently-led PLANNED or ACTIVE
+      Projects through role-aware navigation, then uses one mandatory Project and the same
+      authorized Daily dataset for HTML, XLSX, and PDF, including whole retained Project history
+      before the current leadership term.
+- [ ] Admins have no Daily-report scope and no Daily navigation; Attendance and Project/Task Admin
+      requests are denied before target/Project option resolution, downstream reads, dataset
+      construction, or export, while Daily Admin requests retain non-disclosing `Project unavailable`
+      behavior.
+- [ ] Ordinary Interns without current leadership, former Leaders, Leaders of another Project,
+      completed Projects, missing `projectId` requests, and guessed IDs are denied before
+      downstream reads.
+- [ ] Mentor retains the global Daily entry; the conditional Daily entry is shown to an active
+      Intern only when current leadership exists. One eligible Project redirects, multiple show an
+      authorized selector, and none returns `Project unavailable`; Project-detail entry remains
+      current-Leader-only.
 - [ ] Leadership replacement transfers Daily access immediately and Project completion ends it.
 - [ ] Mentor demand is out-of-system operational communication with no persisted delegation,
       toggle, notification, report artifact, audit event, schema, or migration.
@@ -991,7 +1073,7 @@ A reviewer can use the following checklist against an independent implementation
 | Q5–Q8, Q10, Q13 | `TSK-020`, `DB-013`, `AC-TSK-012` | Optional bounded whole-Task estimate, Leader-only mutation, first-log freeze, no backfill, immutable baseline. |
 | Q9, Q11, Q12, Q14–Q15 | `TSK-021`, `RPT-012`–`RPT-013`, `AC-TSK-012`, `AC-RPT-005` | Lifetime actual, DONE-only signed variance, Pending/N/A, no scoring, lifetime/period separation, output parity. |
 | Q16–Q21 plus removal clarification | `TSK-022`, `DB-013`, `AC-TSK-013`–`AC-TSK-014` | Worked/unworked reassignment rules, immutable snapshot, append-only correction, concurrency rejection, removal atomicity, no accuracy metric. |
-| Q22-R, Q24–Q28, Q31-R | `RPT-011`–`RPT-013`, `AC-RPT-004`–`AC-RPT-005`, relevant `RPT-001` and `RPT-006`–`RPT-010` authorization/export rules | Daily Mentor/current-Leader role scopes, date/calendar semantics, author grouping, deleted Tasks, empty states, and identical HTML/XLSX/PDF data. |
+| Q22-R, Q24–Q28, Q31-R, 27 August reporting-role revision | `RPT-004`–`RPT-013`, `AC-RPT-002`, `AC-RPT-004`–`AC-RPT-005`, relevant `RPT-001` and `RPT-006`–`RPT-010` authorization/export rules | Non-Admin Attendance and Project/Task scopes, Admin denial and denial ordering, Daily Mentor/current-Leader role scopes and discoverable entry, date/calendar semantics, author grouping, deleted Tasks, empty states, and identical HTML/XLSX/PDF data. |
 | Q23 | `CONTEXT.md`; ADR 0001 | Stable vocabulary and rationale for preserving baseline versus forecast. |
 | Q29–Q34 | `.agents/PROJECT_PLAN.md`; branch/test evidence | Isolation, documentation-first order, baseline gate, TDD, local-only integration boundary. |
 

@@ -6,6 +6,13 @@
 - **Test class/method:** `AttendanceReportServiceTest#usesAttendanceOwnedClassificationAndExactAggregateFormulas`, `#rejectsInternDetailTargetOutsideOwnAccountBeforeAttendanceRead`, `#rendersMentorTargetPickerBeforeReadingAttendanceRows`
 - **Implementation commit:** `pending local independent review`
 
+> **Supersession notice — 27 August 2026:** This historical unit record's
+> `Mentor/Admin target selection` wording predates the latest reporting-role decision. RPT-004 now
+> gives detailed Intern Attendance scope to active Mentors only; Admin has no Attendance report
+> navigation, service scope, or dataset. The historical formulas and test results remain factual,
+> while current Admin denial must be proven separately before target resolution and Attendance
+> reads.
+
 ## Protected behavior
 
 Reporting delegates classification, expected-day counts, attendance rate, compliance rate, historical-policy scoring,

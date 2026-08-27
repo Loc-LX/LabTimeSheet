@@ -17,7 +17,7 @@ web
 
 ## Users
 
-- **Admins** operate accounts, internship lifecycles, attendance policy, the global calendar, SMTP, HolidayAPI, and system configuration. They inspect all Project and attendance progress/history read-only but do not perform Mentor or Project Leader work.
+- **Admins** operate accounts, internship lifecycles, attendance policy, the global calendar, SMTP, HolidayAPI, and system configuration. Their dashboard is account/configuration-only; they have no dedicated Attendance, Project/Task, or Daily Project Work Report pages or exports. Any retained generic Project/history read surface remains read-only and does not grant reporting scope.
 - **Mentors** own Projects, directly manage membership and leadership, decide membership exits, monitor Project and Intern progress/history, comment on Tasks, inspect attendance, and decide leave and missed-checkout corrections.
 - **Interns** check in and out, request leave and missed-checkout corrections, respond to their own Project invitations, request/cancel their own Project exit, participate in multiple Projects, create self-assigned Tasks when eligible, perform assigned Tasks, comment, update their own assigned Task status, record Task work, and inspect authorized Project history.
 - A **Project Leader** is an Intern with a current leadership term for one Project. It is contextual authority, never a global account role. The Leader may invite eligible Interns, request a member's removal, manage Task definitions/assignment, and redistribute unfinished Tasks away from a pending exit target in confirmed batches.
@@ -40,7 +40,7 @@ The product joins attendance oversight and Project delivery without pretending t
 - Initial installation uses a one-time first-Admin bootstrap. Later account creation and password recovery depend on a tested SMTP configuration.
 - Admins may preview and import Vietnamese holiday candidates from HolidayAPI, while the stored Admin decision remains authoritative. Manual calendar management remains available.
 - Mentors review global leave and correction queues and separately oversee only the Projects they own.
-- Reports cover attendance/compliance and Project/Task progress in HTML, Excel, and PDF from one shared dataset definition.
+- Reports cover attendance/compliance and Project/Task progress in HTML, Excel, and PDF from one shared dataset definition, with role-scoped access: active Mentors and Interns retain the approved Attendance scopes, owning Mentors/current Leaders retain authorized Project/Task detail, and Admins have no dedicated report scope. Current Leaders can discover Daily reporting only for currently-led open Projects.
 - The authoritative requirements are currently a review draft. Product-context initialization does not authorize application implementation or promote the review DDL into Flyway.
 
 ## Capabilities and Constraints

@@ -6,9 +6,10 @@
 - **Test class/method:** `com.lab.labtimesheet.feature.reporting.controller.DailyProjectWorkReportControllerWebTest`
 - **Historical implementation commit:** `b70ce241ab85917aae9395ac4ab17e29703d22dac6f0b9ef1bf75710edad4ba4`
 
-> **Current Q31-R scope:** This file preserves the I4-UI-01 HTML evidence and its historical
-> results; its earlier Mentor/Admin wording is superseded. The current Daily contract permits an
-> owning Mentor to request all owned Projects when `projectId` is omitted or one selected owned
+> **Historical Q31-R scope (retained evidence):** This file preserves the I4-UI-01 HTML evidence
+> and its historical results; its earlier Mentor/Admin wording is superseded. The historical Daily
+> contract permitted an owning Mentor to request all owned Projects when `projectId` is omitted or
+> one selected owned
 > Project when it is supplied. A current Project Leader may request HTML, XLSX, or PDF only with
 > one exact mandatory `projectId` for a PLANNED or ACTIVE Project that the actor currently leads,
 > entered from Project detail. For that Leader scope, a missing, guessed, other-Project, or
@@ -16,12 +17,20 @@
 > are denied regardless of ID. The historical test counts below remain factual for the cases they
 > exercised; current authorization evidence is in [`q31-r-daily-report.md`](q31-r-daily-report.md).
 
+> **Latest reporting-role revision — 27 August 2026:** Admin has no dedicated Attendance,
+> Project/Task, or Daily report scope, navigation, HTML/XLSX/PDF export, or report dataset; the
+> Admin dashboard is account/configuration-only and has no Active Projects metric. Current-Leader
+> Daily navigation is now conditionally discoverable for active Interns who currently lead one or
+> more open Projects, with one-Project redirect, multi-Project selector, and no-eligible-Project
+> `Project unavailable` behavior. The historical HTML tests above do not prove these new
+> navigation or Admin Attendance/Project/Task denial requirements.
+
 ## Protected behavior
 
-The active `/reports/daily` HTML route renders an authorized Daily Project Work Report with the
-selected local date context and retained Task-work facts. Under the current Q31-R scope, an owning
-Mentor may omit `projectId` for all owned Projects or provide one owned Project; a current Project
-Leader must provide the exact currently-led PLANNED/ACTIVE `projectId`. The page groups rows by
+The historical `/reports/daily` HTML route test renders an authorized Daily Project Work Report
+with the selected local date context and retained Task-work facts. Its historical Q31-R scope let
+an owning Mentor omit `projectId` for all owned Projects or provide one owned Project; a current
+Project Leader had to provide the exact currently-led PLANNED/ACTIVE `projectId`. The page groups rows by
 historical log author, preserves repeated descriptions, visibly labels the current Task status
 with a `Current status:` text label and value, distinguishes selected-date minutes from lifetime
 actual minutes, shows optional planning values neutrally (`N/A`/`Pending`), renders a signed DONE
