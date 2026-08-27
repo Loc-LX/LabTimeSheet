@@ -28,7 +28,7 @@ correction.
 
 - **Requirement IDs:** `RPT-004`, `RPT-005`, `RPT-006`, `RPT-008`, `RPT-011`–`RPT-013`, `AUTH-010`, `UI-019`
 - **Scenario IDs:** `AC-AUTH-008`, `AC-AUTH-009`, `AC-UI-005`, `AC-RPT-002`, `AC-RPT-004`, `AC-RPT-005`
-- **Current implementation commits:** `17be05344ed9f815f1f53a14da978397b723eb2695c758f1908af2bb6b7f744c` (server-derived current-Leader Daily navigation and smart landing); `5b8aa5f7564a2739d7bb93ddd17c9af99ec37d79358ae39ee3525eb7ac4c2ccb` (Admin report boundary and configuration-only dashboard)
+- **Current implementation commits:** `17be05344ed9f815f1f53a14da978397b723eb2695c758f1908af2bb6b7f744c` (server-derived current-Leader Daily navigation and smart landing); `5b8aa5f7564a2739d7bb93ddd17c9af99ec37d79358ae39ee3525eb7ac4c2ccb` (Admin report boundary and configuration-only dashboard); `fe41091d0938d087ec88c995795bd3adb9fcd82e6e62434cd6bb9c93f03d1b6c` (root request-boundary hardening and focused navigation-advice coverage)
 - **Evidence type:** focused unit, MockMvc, web-integration, and PostgreSQL 18.4/Testcontainers verification
 
 The hand-derived expected result for the correction is:
@@ -181,11 +181,12 @@ The correction's new or materially changed methods are recorded exactly here for
   viewport inspection was captured in this evidence packet. Unit, MockMvc, and Testcontainers
   results do not substitute for that visual/external verification.
 
-The `77/77` and `51/51` root gates were observed on the shared current candidate while the root
-review had additional uncommitted Leader-Daily source changes visible in the worktree. They are
-reported as observed candidate results, not as a claim that a clean checkout of either implementation
-commit alone reproduces every current result. The focused implementation commits are the two SHAs
-listed above; the parent/root review must record any later source-review commit separately.
+The `77/77` and `51/51` root gates were observed on the shared current candidate whose source
+snapshot is now captured by root hardening commit
+`fe41091d0938d087ec88c995795bd3adb9fcd82e6e62434cd6bb9c93f03d1b6c`. They are reported as
+observed candidate results, not as a claim that the historical Q31-R commits alone reproduce every
+current result. The current implementation and root-review SHAs are listed above; any later
+source-review commit must be recorded separately.
 
 ## Historical Q31-R scope and scenarios (retained evidence)
 
