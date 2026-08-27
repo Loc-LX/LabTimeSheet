@@ -4,9 +4,10 @@
 - **Requirement IDs:** `RPT-006`–`RPT-013`, with Q31-R authorization centered on `RPT-011`–`RPT-013`
 - **Scenario IDs:** `AC-RPT-004`, `AC-RPT-005`
 - **Test class/method:** `com.lab.labtimesheet.feature.reporting.service.Q31RDailyProjectWorkReportServiceTest`; `com.lab.labtimesheet.feature.reporting.service.DailyProjectWorkReportServiceTest`; `com.lab.labtimesheet.feature.reporting.controller.DailyProjectWorkReportControllerWebTest`; `com.lab.labtimesheet.feature.reporting.controller.DailyProjectWorkReportExportControllerWebTest`; `com.lab.labtimesheet.feature.project.controller.ProjectControllerTest`; `com.lab.labtimesheet.feature.project.service.ProjectServiceIntegrationTest`
-- **Implementation commit:** `756ea6c0ed2faf9c4c53e11ee89a4c9e59ee353d4c3ff7d8b4d4997432dd14cf` (Implement Q31-R Mentor and Leader daily reporting)
-- **Review/fix commit:** `774ee0bc452c29edb835991e335218ba24be5743aff66ca090b73329cde2f27b` (Harden Q31-R report denial and clean evidence index)
+- **Historical implementation commit:** `756ea6c0ed2faf9c4c53e11ee89a4c9e59ee353d4c3ff7d8b4d4997432dd14cf` (Implement Q31-R Mentor and Leader daily reporting)
+- **Historical review/fix commit:** `774ee0bc452c29edb835991e335218ba24be5743aff66ca090b73329cde2f27b` (Harden Q31-R report denial and clean evidence index)
 - **Historical verification head:** `f7fb0e2051ad644cb77e8d4fc6178acb5f05d03822f185fbd146a6426d1c230e`, before the 27 August reporting-role correction
+- **Content-equivalent rewritten commits:** `36b8e0a0c73b9b2bc3ca09aa5f6eaf45a02dadc4774284590a4dd77a28814ea3` (implementation), `9af3602e84c1f56bfd6303c418188ded856b6df9334e340022b40904b7a3f966` (review/fix), and `e321d8c6092b7e0159bbb53b6f9958c676a8a9be98b6ae537938a2fad18e5847` (historical verification tree)
 
 > **Supersession notice — 27 August 2026:** This file preserves the historical Q31-R Daily-report
 > service/controller/export evidence and its exact test results. The latest reporting-role decision
@@ -28,8 +29,8 @@ correction.
 
 - **Requirement IDs:** `RPT-004`, `RPT-005`, `RPT-006`, `RPT-008`, `RPT-011`–`RPT-013`, `AUTH-010`, `UI-019`
 - **Scenario IDs:** `AC-AUTH-008`, `AC-AUTH-009`, `AC-UI-005`, `AC-RPT-002`, `AC-RPT-004`, `AC-RPT-005`
-- **Current implementation commits:** `17be05344ed9f815f1f53a14da978397b723eb2695c758f1908af2bb6b7f744c` (server-derived current-Leader Daily navigation and smart landing); `5b8aa5f7564a2739d7bb93ddd17c9af99ec37d79358ae39ee3525eb7ac4c2ccb` (Admin report boundary and configuration-only dashboard); `fe41091d0938d087ec88c995795bd3adb9fcd82e6e62434cd6bb9c93f03d1b6c` (root request-boundary hardening and focused navigation-advice coverage); `b2178ba9b6abc755c9b4affb9b537c91b7a79aec8b9c688bd4beaef268ca2274` (current-Leader capability check before Attendance date context)
-- **Final verification head:** `b2178ba9b6abc755c9b4affb9b537c91b7a79aec8b9c688bd4beaef268ca2274`
+- **Current rewritten implementation commits:** `4650b8838ed9f5a234bf9e296418dd68bc96b35688e1cabc77b76913af39dce6` (server-derived current-Leader Daily navigation and smart landing); `8429d7833308bb6028236e8fdacabc2140831bf2e8b3c31a16d0694e2f734414` (Admin report boundary and configuration-only dashboard); `f02ce7953561ba0dfd0caff1b40f6b3c2ee9334a075e0b7878d16b20a48dd0a2` (root request-boundary hardening and focused navigation-advice coverage); `cf7083e3b5a8a4de836008248c8396b031e04d5a757c1807a9ba15aefccfeb44` (current-Leader capability check before Attendance date context)
+- **Historical final verification head:** `b2178ba9b6abc755c9b4affb9b537c91b7a79aec8b9c688bd4beaef268ca2274`; its content-equivalent rewritten commit is `cf7083e3b5a8a4de836008248c8396b031e04d5a757c1807a9ba15aefccfeb44`
 - **Evidence type:** focused unit, MockMvc, web-integration, and PostgreSQL 18.4/Testcontainers verification
 
 The hand-derived expected result for the correction is:
@@ -264,12 +265,14 @@ The correction's new or materially changed methods are recorded exactly here for
   actual XLSX/PDF download payload contents, or deployed HTTP behavior. Those external checks remain
   unverified; unit, MockMvc, and Testcontainers results do not substitute for them.
 
-The pre-b217 `77/77` comparison and final b217 `85/85`/`51/51` gates were observed on the shared
-current candidate whose final source snapshot is captured by
+The pre-b217 `77/77` comparison and final b217 `85/85`/`51/51` gates were historically observed on
+the shared candidate whose final source snapshot is captured by
 `b2178ba9b6abc755c9b4affb9b537c91b7a79aec8b9c688bd4beaef268ca2274`. They are reported as
 observed candidate results, not as a claim that the historical Q31-R commits alone reproduce every
-current result. The current implementation and root-review SHAs are listed above; any later
-source-review commit must be recorded separately.
+current result. Its content-equivalent rewritten commit is
+`cf7083e3b5a8a4de836008248c8396b031e04d5a757c1807a9ba15aefccfeb44`; the rewritten final
+candidate is verified separately after the history-map commit. The current implementation and
+root-review SHAs are listed above; any later source-review commit must be recorded separately.
 
 ## Historical Q31-R scope and scenarios (retained evidence)
 
@@ -393,7 +396,7 @@ Tests run: 87, Failures: 0, Errors: 0, Skipped: 0
 BUILD SUCCESS
 ```
 
-The gate covers the Q31-R service/controller/export seams, the existing Daily and Project/Task report paths, exporter delegation, reporting architecture, and the Project-detail navigation contract. The separate focused Project producer integration verification at the current pre-documentation head `f7fb0e2` passed `13/13` against PostgreSQL 18.4 Testcontainers:
+The gate covers the Q31-R service/controller/export seams, the existing Daily and Project/Task report paths, exporter delegation, reporting architecture, and the Project-detail navigation contract. The separate focused Project producer integration verification historically ran at pre-documentation head `f7fb0e2` (content-equivalent rewritten commit `e321d8c`) and passed `13/13` against PostgreSQL 18.4 Testcontainers:
 
 ```powershell
 & $mvn '-Dmaven.repo.local=C:\Users\dookubt\.m2\repository' '-Duser.timezone=Asia/Ho_Chi_Minh' '-Dtest=ProjectServiceIntegrationTest' test

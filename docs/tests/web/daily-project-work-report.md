@@ -5,6 +5,7 @@
 - **Scenario IDs:** `AC-RPT-004`
 - **Test class/method:** `com.lab.labtimesheet.feature.reporting.controller.DailyProjectWorkReportControllerWebTest`
 - **Historical implementation commit:** `b70ce241ab85917aae9395ac4ab17e29703d22dac6f0b9ef1bf75710edad4ba4`
+- **Content-equivalent rewritten commit:** `a5b37e91b5fefcde9d7832fca5090f54d4b271a9f0483c8305138e85a35577c8`
 
 > **Historical Q31-R scope (retained evidence):** This file preserves the I4-UI-01 HTML evidence
 > and its historical results; its earlier Mentor/Admin wording is superseded. The historical Daily

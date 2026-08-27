@@ -5,6 +5,7 @@
 - **Scenario IDs:** `AC-RPT-005`
 - **Test class/method:** `com.lab.labtimesheet.feature.reporting.service.DailyProjectWorkReportExportServiceTest`, `com.lab.labtimesheet.feature.reporting.controller.DailyProjectWorkReportExportControllerWebTest`, `com.lab.labtimesheet.feature.reporting.controller.DailyProjectWorkReportControllerWebTest`
 - **Historical implementation commit:** `4870889415183380a92a03991b94afb62427a6ca6e186e4514391ec1d793f64d`
+- **Content-equivalent rewritten commit:** `51bc22b6293069506570799bd128292ca1ed6a19a8cb990a29eec278260be86b`
 
 > **Historical Q31-R scope (retained evidence):** This file preserves the I4-UI-02 XLSX/PDF parity
 > evidence and its historical results; its earlier optional/global/Admin wording is superseded. The
