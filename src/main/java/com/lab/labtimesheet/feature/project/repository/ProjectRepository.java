@@ -151,6 +151,32 @@ public interface ProjectRepository extends JpaRepository<ProjectEntity, Long> {
     List<Long> findCurrentInternUserIdsByProjectId(@Param("projectId") long projectId);
 
     /**
+     * Lists open Projects whose current leadership term belongs to one Intern.
+     *
+     * <p>The query joins the current leadership term to its current membership and filters the
+     * lifecycle in the database. It is the producer-owned source for conditional Leader Daily
+     * navigation; callers never need to load every Project and infer leadership in a template.</p>
+     *
+     * @param internUserId active Intern account identifier
+     * @return current-led PLANNED/ACTIVE Projects in deterministic update order
+     */
+    @Query("""
+            select distinct project
+            from ProjectEntity project
+            join project.leadershipTerms term
+            join term.membership membership
+            where term.endedAt is null
+              and membership.leftAt is null
+              and membership.internUserId = :internUserId
+              and project.status in (
+                    com.lab.labtimesheet.feature.project.model.ProjectStatus.PLANNED,
+                    com.lab.labtimesheet.feature.project.model.ProjectStatus.ACTIVE)
+            order by project.updatedAt desc, project.id desc
+            """)
+    List<ProjectEntity> findCurrentLeaderProjectsByInternUserId(
+            @Param("internUserId") long internUserId);
+
+    /**
      * Lists Projects visible to an Intern: current memberships in open Projects and historical
      * memberships only after completion.
      *

@@ -8,6 +8,33 @@
           content=~{::main})}">
 <body>
 <main>
+    <section class="panel" th:if="${projectSelection != null}" aria-labelledby="daily-project-selection-title">
+        <header class="panel-header">
+            <h2 class="panel-title" id="daily-project-selection-title">Choose a Project to open its Daily Project Work Report</h2>
+        </header>
+        <p class="page-description">Only Projects you currently lead are available. Task and work-log data is loaded after you choose a Project.</p>
+        <form class="form-grid" method="get" th:action="@{/reports/daily}">
+            <div class="field">
+                <label class="field-label" for="daily-project-selection-date">Report date</label>
+                <input class="control" id="daily-project-selection-date" name="reportDate" type="date"
+                       th:value="${projectSelection.reportDate}">
+                <p class="field-help">Today and past local dates are valid. Future dates are rejected.</p>
+            </div>
+            <div class="field">
+                <label class="field-label" for="daily-project-selection-project">Project</label>
+                <select class="control" id="daily-project-selection-project" name="projectId" required>
+                    <option value="" selected disabled>Choose a Project</option>
+                    <option th:each="project : ${projectSelection.projectOptions}"
+                            th:value="${project.id}" th:text="${project.name}">Project</option>
+                </select>
+            </div>
+            <div class="field form-actions">
+                <button class="button button-primary" type="submit">Open Daily Report</button>
+            </div>
+        </form>
+    </section>
+
+    <th:block th:unless="${projectSelection != null}">
     <p class="page-description">Retained Task work logs for one Report date, grouped by Project and historical log author.</p>
 
     <form class="panel form-grid report-filters" method="get" th:action="@{/reports/daily}">
@@ -119,6 +146,7 @@
             </div>
         </div>
     </section>
+    </th:block>
 </main>
 </body>
 </html>

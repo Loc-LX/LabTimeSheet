@@ -140,6 +140,9 @@ class ProjectServiceIntegrationTest {
 
         assertEquals(projectId,
                 projectPages.currentLeaderProjectForDailyReport(formerLeaderId, projectId).id());
+        assertEquals(List.of(projectId), projectPages.listCurrentLeaderProjectsForDailyReport(formerLeaderId)
+                .stream().map(summary -> summary.id()).toList());
+        assertEquals(List.of(), projectPages.listCurrentLeaderProjectsForDailyReport(ordinaryInternId));
         assertThrows(ProjectAccessDeniedException.class,
                 () -> projectPages.currentLeaderProjectForDailyReport(ordinaryInternId, projectId));
         assertThrows(ProjectAccessDeniedException.class,
@@ -155,6 +158,8 @@ class ProjectServiceIntegrationTest {
                 () -> projectPages.currentLeaderProjectForDailyReport(formerLeaderId, projectId));
         assertEquals(projectId,
                 projectPages.currentLeaderProjectForDailyReport(replacementLeaderId, projectId).id());
+        assertEquals(List.of(projectId), projectPages.listCurrentLeaderProjectsForDailyReport(replacementLeaderId)
+                .stream().map(summary -> summary.id()).toList());
 
         var completedAt = dbTime(NOW.plusSeconds(60));
         jdbc.update("""
@@ -176,6 +181,7 @@ class ProjectServiceIntegrationTest {
 
         assertThrows(ProjectAccessDeniedException.class,
                 () -> projectPages.currentLeaderProjectForDailyReport(replacementLeaderId, projectId));
+        assertEquals(List.of(), projectPages.listCurrentLeaderProjectsForDailyReport(replacementLeaderId));
     }
 
     @Test

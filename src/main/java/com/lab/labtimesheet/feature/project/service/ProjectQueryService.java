@@ -200,6 +200,29 @@ public class ProjectQueryService {
     }
 
     /**
+     * Lists every open Project whose current Leader is the active Intern.
+     *
+     * <p>This producer-owned boundary powers conditional Daily-report navigation. The repository
+     * filters the current leadership term, current membership, and open lifecycle before rows
+     * become DTOs; a former Leader, ordinary member, or completed Project therefore cannot make
+     * the navigation entry appear.</p>
+     *
+     * @param actorUserId active authenticated Intern account identifier
+     * @return authorized current-led Project summaries in deterministic update order
+     * @throws ProjectAccessDeniedException when the actor is inactive or not an Intern
+     */
+    @Transactional(readOnly = true)
+    public List<ProjectSummary> listCurrentLeaderProjectsForDailyReport(long actorUserId) {
+        var actor = activeActor(actorUserId);
+        if (actor.role() != GlobalRole.INTERN) {
+            throw new ProjectAccessDeniedException();
+        }
+        return projects.findCurrentLeaderProjectsByInternUserId(actorUserId).stream()
+                .map(ProjectQueryService::summary)
+                .toList();
+    }
+
+    /**
      * Lists one bounded page of Projects and exposes whether an authorized continuation exists.
      * The returned page is role-filtered before its rows are mapped to DTOs, and its continuation
      * flags come from the same repository slice rather than from a truncated display collection.
