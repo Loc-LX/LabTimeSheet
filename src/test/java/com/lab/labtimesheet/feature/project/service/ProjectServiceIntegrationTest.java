@@ -140,8 +140,10 @@ class ProjectServiceIntegrationTest {
 
         assertEquals(projectId,
                 projectPages.currentLeaderProjectForDailyReport(formerLeaderId, projectId).id());
+        assertTrue(projectPages.hasCurrentLeaderProjectForDailyReport(formerLeaderId));
         assertEquals(List.of(projectId), projectPages.listCurrentLeaderProjectsForDailyReport(formerLeaderId)
                 .stream().map(summary -> summary.id()).toList());
+        assertFalse(projectPages.hasCurrentLeaderProjectForDailyReport(ordinaryInternId));
         assertEquals(List.of(), projectPages.listCurrentLeaderProjectsForDailyReport(ordinaryInternId));
         assertThrows(ProjectAccessDeniedException.class,
                 () -> projectPages.currentLeaderProjectForDailyReport(ordinaryInternId, projectId));
@@ -158,6 +160,8 @@ class ProjectServiceIntegrationTest {
                 () -> projectPages.currentLeaderProjectForDailyReport(formerLeaderId, projectId));
         assertEquals(projectId,
                 projectPages.currentLeaderProjectForDailyReport(replacementLeaderId, projectId).id());
+        assertFalse(projectPages.hasCurrentLeaderProjectForDailyReport(formerLeaderId));
+        assertTrue(projectPages.hasCurrentLeaderProjectForDailyReport(replacementLeaderId));
         assertEquals(List.of(projectId), projectPages.listCurrentLeaderProjectsForDailyReport(replacementLeaderId)
                 .stream().map(summary -> summary.id()).toList());
 
@@ -181,6 +185,7 @@ class ProjectServiceIntegrationTest {
 
         assertThrows(ProjectAccessDeniedException.class,
                 () -> projectPages.currentLeaderProjectForDailyReport(replacementLeaderId, projectId));
+        assertFalse(projectPages.hasCurrentLeaderProjectForDailyReport(replacementLeaderId));
         assertEquals(List.of(), projectPages.listCurrentLeaderProjectsForDailyReport(replacementLeaderId));
     }
 

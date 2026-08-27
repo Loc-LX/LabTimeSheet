@@ -177,6 +177,27 @@ public interface ProjectRepository extends JpaRepository<ProjectEntity, Long> {
             @Param("internUserId") long internUserId);
 
     /**
+     * Checks whether one Intern currently leads at least one open Project without hydrating a
+     * Project or child collection.
+     *
+     * @param internUserId active Intern account identifier
+     * @return true when a current leadership term and membership identify an open Project
+     */
+    @Query("""
+            select count(project) > 0
+            from ProjectEntity project
+            join project.leadershipTerms term
+            join term.membership membership
+            where term.endedAt is null
+              and membership.leftAt is null
+              and membership.internUserId = :internUserId
+              and project.status in (
+                    com.lab.labtimesheet.feature.project.model.ProjectStatus.PLANNED,
+                    com.lab.labtimesheet.feature.project.model.ProjectStatus.ACTIVE)
+            """)
+    boolean existsCurrentLeaderProjectByInternUserId(@Param("internUserId") long internUserId);
+
+    /**
      * Lists Projects visible to an Intern: current memberships in open Projects and historical
      * memberships only after completion.
      *

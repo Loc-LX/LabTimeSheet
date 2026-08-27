@@ -182,4 +182,21 @@ class DailyProjectWorkReportExportControllerWebTest {
 
         verifyNoInteractions(dailyReports, exports);
     }
+
+    @Test
+    void adminIsDeniedBeforeDailyAliasAndTypedValueValidationOrExportPreparation()
+            throws Exception {
+        mvc.perform(get("/reports/daily.xlsx")
+                        .with(user("admin@example.test").roles("ADMIN"))
+                        .param("date", REPORT_DATE.toString())
+                        .param("reportDate", REPORT_DATE.plusDays(1).toString()))
+                .andExpect(status().isNotFound());
+        mvc.perform(get("/reports/daily.pdf")
+                        .with(user("admin@example.test").roles("ADMIN"))
+                        .param("date", "not-a-date")
+                        .param("projectId", "not-a-number"))
+                .andExpect(status().isNotFound());
+
+        verifyNoInteractions(dailyReports, exports);
+    }
 }

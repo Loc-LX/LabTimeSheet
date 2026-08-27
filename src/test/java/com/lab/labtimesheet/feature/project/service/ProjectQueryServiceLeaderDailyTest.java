@@ -68,6 +68,17 @@ class ProjectQueryServiceLeaderDailyTest {
         verify(projects, never()).findCurrentLeaderProjectsByInternUserId(1L);
     }
 
+    @Test
+    void checksCurrentLeaderCapabilityWithoutLoadingProjectSummaries() {
+        given(accounts.requireIdentityById(7L)).willReturn(identity(7L, GlobalRole.INTERN));
+        given(projects.existsCurrentLeaderProjectByInternUserId(7L)).willReturn(true);
+
+        assertThat(queries.hasCurrentLeaderProjectForDailyReport(7L)).isTrue();
+
+        verify(projects).existsCurrentLeaderProjectByInternUserId(7L);
+        verify(projects, never()).findCurrentLeaderProjectsByInternUserId(7L);
+    }
+
     private static AccountIdentity identity(long id, GlobalRole role) {
         return new AccountIdentity(
                 id, "user-" + id + "@example.test", "User " + id, role, AccountStatus.ACTIVE);

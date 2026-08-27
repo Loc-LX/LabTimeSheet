@@ -223,6 +223,25 @@ public class ProjectQueryService {
     }
 
     /**
+     * Checks the current-Leader Daily capability without loading Project summaries.
+     *
+     * <p>The shared layout calls this Boolean producer for ordinary pages. The ordered Project
+     * list remains exclusive to the Daily no-selection landing flow.</p>
+     *
+     * @param actorUserId active authenticated Intern account identifier
+     * @return true when the actor currently leads at least one PLANNED/ACTIVE Project
+     * @throws ProjectAccessDeniedException when the actor is inactive or not an Intern
+     */
+    @Transactional(readOnly = true)
+    public boolean hasCurrentLeaderProjectForDailyReport(long actorUserId) {
+        var actor = activeActor(actorUserId);
+        if (actor.role() != GlobalRole.INTERN) {
+            throw new ProjectAccessDeniedException();
+        }
+        return projects.existsCurrentLeaderProjectByInternUserId(actorUserId);
+    }
+
+    /**
      * Lists one bounded page of Projects and exposes whether an authorized continuation exists.
      * The returned page is role-filtered before its rows are mapped to DTOs, and its continuation
      * flags come from the same repository slice rather than from a truncated display collection.

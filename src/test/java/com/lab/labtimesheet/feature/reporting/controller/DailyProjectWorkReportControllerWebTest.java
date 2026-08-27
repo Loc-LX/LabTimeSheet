@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -13,8 +14,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceReportDateContext;
+import com.lab.labtimesheet.feature.attendance.service.AttendanceApplicationService;
 import com.lab.labtimesheet.feature.integration.service.SmtpConfigurationService;
-import com.lab.labtimesheet.feature.project.exception.ProjectAccessDeniedException;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectActorView;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectSummary;
 import com.lab.labtimesheet.feature.project.service.ProjectQueryService;
@@ -51,6 +52,9 @@ class DailyProjectWorkReportControllerWebTest {
 
     @MockitoBean
     private ProjectQueryService projectQueries;
+
+    @MockitoBean
+    private AttendanceApplicationService attendance;
 
     @MockitoBean
     private SmtpConfigurationService smtpConfiguration;
@@ -147,16 +151,15 @@ class DailyProjectWorkReportControllerWebTest {
 
     @Test
     void mapsUnsupportedRoleToNonDisclosingNotFoundWithoutRenderingDataset() throws Exception {
-        given(reports.build(anyString(), any(), any()))
-                .willThrow(new ProjectAccessDeniedException());
-
         mvc.perform(get("/reports/daily")
                         .with(user("admin@example.test").roles("ADMIN")))
                 .andExpect(status().isNotFound())
                 .andExpect(view().name("error/generic"))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Project unavailable")));
 
-        verify(reports).build("admin@example.test", null, null);
+        verify(reports, org.mockito.Mockito.never()).build(anyString(), any(), any());
+        verify(projectQueries, org.mockito.Mockito.never()).authenticatedActor(anyString());
+        verifyNoInteractions(attendance);
     }
 
     @Test
@@ -215,27 +218,28 @@ class DailyProjectWorkReportControllerWebTest {
     }
 
     @Test
-    void keepsDailySidebarEntryMentorOnly() throws Exception {
-        given(reports.build("admin@example.test", null, null)).willReturn(emptyReport());
-
+    void adminDailyRouteRemainsNonDisclosingAndInternWithoutLeaderIsDenied() throws Exception {
         mvc.perform(get("/reports/daily")
                         .with(user("admin@example.test").roles("ADMIN")))
-                .andExpect(status().isOk())
+                .andExpect(status().isNotFound())
+                .andExpect(view().name("error/generic"))
                 .andExpect(content().string(org.hamcrest.Matchers.not(
                         org.hamcrest.Matchers.containsString("href=\"/reports/daily\""))));
 
-        given(reports.build("intern@example.test", null, null)).willReturn(emptyReport());
         mvc.perform(get("/reports/daily")
                         .with(user("intern@example.test").roles("INTERN")))
                 .andExpect(status().isNotFound())
                 .andExpect(view().name("error/generic"))
                 .andExpect(content().string(org.hamcrest.Matchers.not(
                         org.hamcrest.Matchers.containsString("href=\"/reports/daily\""))));
+
+        verify(reports, org.mockito.Mockito.never()).build(anyString(), any(), any());
     }
 
     @Test
     void currentLeaderWithOneEligibleProjectIsRedirectedToLockedReportAndKeepsDate() throws Exception {
         ProjectSummary project = project(42L, "Portal", "ACTIVE");
+        given(attendance.currentBusinessDate()).willReturn(REPORT_DATE);
         given(projectQueries.authenticatedActor("leader@example.test"))
                 .willReturn(new ProjectActorView(7L, "INTERN"));
         given(projectQueries.listCurrentLeaderProjectsForDailyReport(7L))
@@ -253,6 +257,7 @@ class DailyProjectWorkReportControllerWebTest {
     void currentLeaderWithMultipleEligibleProjectsGetsOnlyThoseProjectsInAccessibleSelector() throws Exception {
         ProjectSummary first = project(42L, "Portal", "ACTIVE");
         ProjectSummary second = project(43L, "Research", "PLANNED");
+        given(attendance.currentBusinessDate()).willReturn(REPORT_DATE);
         given(projectQueries.authenticatedActor("leader@example.test"))
                 .willReturn(new ProjectActorView(7L, "INTERN"));
         given(projectQueries.listCurrentLeaderProjectsForDailyReport(7L))
@@ -275,6 +280,47 @@ class DailyProjectWorkReportControllerWebTest {
                         org.hamcrest.Matchers.containsString("Download XLSX"))));
 
         verify(reports, org.mockito.Mockito.never()).build(anyString(), any(), any());
+    }
+
+    @Test
+    void currentLeaderFutureDateCannotReachRedirectOrSelector() throws Exception {
+        given(attendance.currentBusinessDate()).willReturn(REPORT_DATE);
+        given(projectQueries.authenticatedActor("leader@example.test"))
+                .willReturn(new ProjectActorView(7L, "INTERN"));
+
+        mvc.perform(get("/reports/daily")
+                        .with(user("leader@example.test").roles("INTERN"))
+                        .param("date", REPORT_DATE.plusDays(1).toString()))
+                .andExpect(status().isBadRequest())
+                .andExpect(view().name("error/generic"))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(
+                        "Report request is invalid")));
+
+        verify(projectQueries, org.mockito.Mockito.never())
+                .listCurrentLeaderProjectsForDailyReport(7L);
+        verify(reports, org.mockito.Mockito.never()).build(anyString(), any(), any());
+    }
+
+    @Test
+    void adminIsDeniedBeforeDailyAliasAndTypedValueValidation() throws Exception {
+        mvc.perform(get("/reports/daily")
+                        .with(user("admin@example.test").roles("ADMIN"))
+                        .param("date", REPORT_DATE.toString())
+                        .param("reportDate", REPORT_DATE.plusDays(1).toString()))
+                .andExpect(status().isNotFound())
+                .andExpect(view().name("error/generic"))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(
+                        "Project unavailable")));
+        mvc.perform(get("/reports/daily")
+                        .with(user("admin@example.test").roles("ADMIN"))
+                        .param("date", "not-a-date")
+                        .param("projectId", "not-a-number"))
+                .andExpect(status().isNotFound())
+                .andExpect(view().name("error/generic"))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(
+                        "Project unavailable")));
+
+        verifyNoInteractions(reports, projectQueries, attendance);
     }
 
     @Test

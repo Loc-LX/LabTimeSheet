@@ -160,22 +160,20 @@ public class ReportExportController {
      *
      * @param authentication authenticated owning Mentor or current Project Leader; other roles
      *        are rejected
-     * @param projectId optional for an owning Mentor (null selects all owned Projects); mandatory
-     *        exact currently-led PLANNED/ACTIVE Project for a current Project Leader
-     * @param date optional ISO local report date
-     * @param reportDate compatibility alias accepted by the HTML route
+     * @param projectIdParameter optional for an owning Mentor (null selects all owned Projects);
+     *        mandatory exact currently-led PLANNED/ACTIVE Project for a current Project Leader
+     * @param dateParameter optional ISO local report date
+     * @param reportDateParameter compatibility alias accepted by the HTML route
      * @return Daily workbook attachment with a date-only deterministic filename
      */
     @GetMapping("/daily.xlsx")
     public ResponseEntity<byte[]> dailyXlsx(
             Authentication authentication,
-            @RequestParam(required = false) Long projectId,
-            @RequestParam(name = "date", required = false)
-            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
-            @RequestParam(name = "reportDate", required = false)
-            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate reportDate) {
+            @RequestParam(name = "projectId", required = false) String projectIdParameter,
+            @RequestParam(name = "date", required = false) String dateParameter,
+            @RequestParam(name = "reportDate", required = false) String reportDateParameter) {
         DailyProjectWorkReportView report = dailyReport(
-                authentication, projectId, date, reportDate);
+                authentication, projectIdParameter, dateParameter, reportDateParameter);
         return attachment(exports.dailyXlsx(report), XLSX,
                 dailyFilename(report.reportDate(), ".xlsx"));
     }
@@ -191,30 +189,35 @@ public class ReportExportController {
      *
      * @param authentication authenticated owning Mentor or current Project Leader; other roles
      *        are rejected
-     * @param projectId optional for an owning Mentor (null selects all owned Projects); mandatory
-     *        exact currently-led PLANNED/ACTIVE Project for a current Project Leader
-     * @param date optional ISO local report date
-     * @param reportDate compatibility alias accepted by the HTML route
+     * @param projectIdParameter optional for an owning Mentor (null selects all owned Projects);
+     *        mandatory exact currently-led PLANNED/ACTIVE Project for a current Project Leader
+     * @param dateParameter optional ISO local report date
+     * @param reportDateParameter compatibility alias accepted by the HTML route
      * @return Daily PDF attachment with a date-only deterministic filename
      */
     @GetMapping("/daily.pdf")
     public ResponseEntity<byte[]> dailyPdf(
             Authentication authentication,
-            @RequestParam(required = false) Long projectId,
-            @RequestParam(name = "date", required = false)
-            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
-            @RequestParam(name = "reportDate", required = false)
-            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate reportDate) {
+            @RequestParam(name = "projectId", required = false) String projectIdParameter,
+            @RequestParam(name = "date", required = false) String dateParameter,
+            @RequestParam(name = "reportDate", required = false) String reportDateParameter) {
         DailyProjectWorkReportView report = dailyReport(
-                authentication, projectId, date, reportDate);
+                authentication, projectIdParameter, dateParameter, reportDateParameter);
         return attachment(exports.dailyPdf(report), MediaType.APPLICATION_PDF,
                 dailyFilename(report.reportDate(), ".pdf"));
     }
 
     private DailyProjectWorkReportView dailyReport(
-            Authentication authentication, Long projectId, LocalDate date, LocalDate reportDate) {
-        LocalDate requestedDate = mergeDailyDates(date, reportDate);
+            Authentication authentication,
+            String projectIdParameter,
+            String dateParameter,
+            String reportDateParameter) {
         try {
+            OperationalReportAuthorization.requireDailyReportAccess(authentication);
+            Long projectId = DailyProjectWorkReportRequest.parseProjectId(projectIdParameter);
+            LocalDate requestedDate = DailyProjectWorkReportRequest.mergeDates(
+                    DailyProjectWorkReportRequest.parseDate(dateParameter),
+                    DailyProjectWorkReportRequest.parseDate(reportDateParameter));
             return dailyReports.build(authentication.getName(), projectId, requestedDate);
         } catch (ProjectAccessDeniedException denied) {
             throw new ResponseStatusException(
@@ -223,14 +226,6 @@ public class ReportExportController {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST, "Report request is invalid", invalid);
         }
-    }
-
-    private static LocalDate mergeDailyDates(LocalDate date, LocalDate reportDate) {
-        if (date != null && reportDate != null && !date.equals(reportDate)) {
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST, "Report date parameters must match");
-        }
-        return date != null ? date : reportDate;
     }
 
     private static String dailyFilename(LocalDate reportDate, String extension) {

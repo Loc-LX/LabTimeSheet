@@ -1,5 +1,6 @@
 package com.lab.labtimesheet.feature.reporting.controller;
 
+import com.lab.labtimesheet.feature.project.exception.ProjectAccessDeniedException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 
@@ -27,6 +28,25 @@ final class OperationalReportAuthorization {
                         || "ROLE_INTERN".equals(authority.getAuthority()));
         if (admin || !operationalRole) {
             throw new AccessDeniedException("Operational report access is not available for this role");
+        }
+    }
+
+    /**
+     * Requires the retained Daily-report role scope before request parameters are interpreted.
+     * Daily Admin denials are translated by the existing controller/service adapters to the
+     * non-disclosing {@code Project unavailable} response.
+     *
+     * @param authentication current Spring Security authentication
+     * @throws ProjectAccessDeniedException when the caller is not an owning-Mentor or Intern
+     */
+    static void requireDailyReportAccess(Authentication authentication) {
+        boolean admin = authentication != null && authentication.getAuthorities().stream()
+                .anyMatch(authority -> "ROLE_ADMIN".equals(authority.getAuthority()));
+        boolean dailyRole = authentication != null && authentication.getAuthorities().stream()
+                .anyMatch(authority -> "ROLE_MENTOR".equals(authority.getAuthority())
+                        || "ROLE_INTERN".equals(authority.getAuthority()));
+        if (admin || !dailyRole) {
+            throw new ProjectAccessDeniedException();
         }
     }
 }

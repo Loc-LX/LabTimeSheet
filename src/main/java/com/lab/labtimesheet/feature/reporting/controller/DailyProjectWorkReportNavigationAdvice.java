@@ -4,7 +4,7 @@ import com.lab.labtimesheet.feature.project.exception.ProjectAccessDeniedExcepti
 import com.lab.labtimesheet.feature.project.model.dto.ProjectActorView;
 import com.lab.labtimesheet.feature.project.service.ProjectQueryService;
 import com.lab.labtimesheet.feature.reporting.model.dto.DailyProjectWorkReportNavigation;
-import java.util.List;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.security.core.Authentication;
@@ -26,14 +26,18 @@ public class DailyProjectWorkReportNavigationAdvice {
     private final ObjectProvider<ProjectQueryService> projectQueries;
 
     /**
-     * Supplies only open Projects currently led by the authenticated Intern.
+     * Supplies a Boolean capability for the shared shell. The full ordered Project list is
+     * loaded only by the Daily landing controller, where a selector actually needs it.
      *
      * @param authentication authenticated caller, or null for a public page
+     * @param request current MVC request, used to avoid capability queries for mutations/exports
      * @return immutable navigation capability state
      */
     @ModelAttribute("dailyReportNavigation")
-    public DailyProjectWorkReportNavigation navigation(Authentication authentication) {
-        if (authentication == null || !hasInternAuthority(authentication)) {
+    public DailyProjectWorkReportNavigation navigation(
+            Authentication authentication, HttpServletRequest request) {
+        if (authentication == null || !hasInternAuthority(authentication)
+                || request == null || !isCapabilityRequest(request)) {
             return emptyNavigation();
         }
         ProjectQueryService queries = projectQueries.getIfAvailable();
@@ -46,7 +50,7 @@ public class DailyProjectWorkReportNavigationAdvice {
                 return emptyNavigation();
             }
             return new DailyProjectWorkReportNavigation(
-                    queries.listCurrentLeaderProjectsForDailyReport(actor.userId()));
+                    queries.hasCurrentLeaderProjectForDailyReport(actor.userId()));
         } catch (ProjectAccessDeniedException | IllegalArgumentException denied) {
             // Navigation must fail closed when the active account or Project snapshot is unavailable.
             return emptyNavigation();
@@ -54,10 +58,23 @@ public class DailyProjectWorkReportNavigationAdvice {
     }
 
     private static DailyProjectWorkReportNavigation emptyNavigation() {
-        return new DailyProjectWorkReportNavigation(List.of());
+        return new DailyProjectWorkReportNavigation(false);
+    }
+
+    private static boolean isCapabilityRequest(HttpServletRequest request) {
+        if (!"GET".equalsIgnoreCase(request.getMethod())) {
+            return false;
+        }
+        String path = request.getRequestURI();
+        return path == null || (!path.endsWith(".xlsx") && !path.endsWith(".pdf"));
     }
 
     private static boolean hasInternAuthority(Authentication authentication) {
+        if (authentication.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .anyMatch("ROLE_ADMIN"::equals)) {
+            return false;
+        }
         return authentication.getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority)
                 .anyMatch("ROLE_INTERN"::equals);
