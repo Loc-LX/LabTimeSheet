@@ -14,6 +14,7 @@ import com.lab.labtimesheet.feature.reporting.model.dto.AttendanceReportView;
 import com.lab.labtimesheet.feature.reporting.model.dto.ProjectTaskReportFilter;
 import com.lab.labtimesheet.feature.reporting.model.dto.ProjectTaskReportView;
 import com.lab.labtimesheet.feature.reporting.service.AttendanceReportService;
+import com.lab.labtimesheet.feature.reporting.service.DailyProjectWorkReportService;
 import com.lab.labtimesheet.feature.reporting.service.ProjectTaskReportService;
 import com.lab.labtimesheet.feature.reporting.service.ReportExportService;
 import java.security.Principal;
@@ -46,6 +47,9 @@ class ReportingExportControllerWebTest {
 
     @MockitoBean
     private ProjectTaskReportService projectTaskReports;
+
+    @MockitoBean
+    private DailyProjectWorkReportService dailyReports;
 
     @MockitoBean
     private ReportExportService exports;
@@ -98,6 +102,19 @@ class ReportingExportControllerWebTest {
                 .andExpect(header().string("Content-Disposition", containsString("attachment")))
                 .andExpect(header().string("Content-Disposition", containsString("2026-08-01-to-2026-08-31")))
                 .andExpect(content().contentType("application/pdf"));
+    }
+
+    @Test
+    void deniesAdminBeforeRangeValidationDatasetConstructionOrExport() throws Exception {
+        for (String endpoint : List.of(
+                "/reports/attendance.xlsx", "/reports/attendance.pdf",
+                "/reports/project-tasks.xlsx", "/reports/project-tasks.pdf")) {
+            mvc.perform(get(endpoint)
+                            .with(user("admin@example.test").roles("ADMIN")))
+                    .andExpect(status().isForbidden());
+        }
+
+        verifyNoInteractions(attendanceReports, projectTaskReports, exports);
     }
 
     @ParameterizedTest(name = "rejects {0} for both Project/Task export formats")

@@ -71,6 +71,26 @@ public interface ProjectRepository extends JpaRepository<ProjectEntity, Long> {
             long mentorUserId, Pageable pageable);
 
     /**
+     * Returns the complete Project catalogue in deterministic update order for unpaged catalogue
+     * consumers, including administrative listings that intentionally need every row.
+     *
+     * <p>The bounded {@link Pageable} overload above serves the normal Admin {@code /projects}
+     * catalogue. This general catalogue query is not a Daily Project Work Report authorization
+     * query; Daily scope is resolved by ProjectQueryService's role-specific methods.</p>
+     *
+     * @return all Projects in the same deterministic order as the bounded catalogue
+     */
+    List<ProjectEntity> findAllByOrderByUpdatedAtDescIdDesc();
+
+    /**
+     * Lists every Project owned by one Mentor for an all-Projects report scope.
+     *
+     * @param mentorUserId owning Mentor account identifier
+     * @return all owned Projects in deterministic update order
+     */
+    List<ProjectEntity> findByMentorUserIdOrderByUpdatedAtDescIdDesc(long mentorUserId);
+
+    /**
      * Projects retained membership intervals for one Intern without hydrating a filtered Project
      * aggregate. The scalar projection prevents a read in an ambient transaction from leaving a
      * partially initialized membership collection for a later authorization or Task-context read.
@@ -129,6 +149,53 @@ public interface ProjectRepository extends JpaRepository<ProjectEntity, Long> {
             order by membership.internUserId asc
             """)
     List<Long> findCurrentInternUserIdsByProjectId(@Param("projectId") long projectId);
+
+    /**
+     * Lists open Projects whose current leadership term belongs to one Intern.
+     *
+     * <p>The query joins the current leadership term to its current membership and filters the
+     * lifecycle in the database. It is the producer-owned source for conditional Leader Daily
+     * navigation; callers never need to load every Project and infer leadership in a template.</p>
+     *
+     * @param internUserId active Intern account identifier
+     * @return current-led PLANNED/ACTIVE Projects in deterministic update order
+     */
+    @Query("""
+            select distinct project
+            from ProjectEntity project
+            join project.leadershipTerms term
+            join term.membership membership
+            where term.endedAt is null
+              and membership.leftAt is null
+              and membership.internUserId = :internUserId
+              and project.status in (
+                    com.lab.labtimesheet.feature.project.model.ProjectStatus.PLANNED,
+                    com.lab.labtimesheet.feature.project.model.ProjectStatus.ACTIVE)
+            order by project.updatedAt desc, project.id desc
+            """)
+    List<ProjectEntity> findCurrentLeaderProjectsByInternUserId(
+            @Param("internUserId") long internUserId);
+
+    /**
+     * Checks whether one Intern currently leads at least one open Project without hydrating a
+     * Project or child collection.
+     *
+     * @param internUserId active Intern account identifier
+     * @return true when a current leadership term and membership identify an open Project
+     */
+    @Query("""
+            select count(project) > 0
+            from ProjectEntity project
+            join project.leadershipTerms term
+            join term.membership membership
+            where term.endedAt is null
+              and membership.leftAt is null
+              and membership.internUserId = :internUserId
+              and project.status in (
+                    com.lab.labtimesheet.feature.project.model.ProjectStatus.PLANNED,
+                    com.lab.labtimesheet.feature.project.model.ProjectStatus.ACTIVE)
+            """)
+    boolean existsCurrentLeaderProjectByInternUserId(@Param("internUserId") long internUserId);
 
     /**
      * Lists Projects visible to an Intern: current memberships in open Projects and historical

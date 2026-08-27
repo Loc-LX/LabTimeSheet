@@ -23,21 +23,28 @@ import com.lab.labtimesheet.feature.task.exception.TaskConflictException;
 import com.lab.labtimesheet.feature.task.exception.TaskValidationException;
 import com.lab.labtimesheet.feature.task.model.TaskProgress;
 import com.lab.labtimesheet.feature.task.model.TaskStatus;
+import com.lab.labtimesheet.feature.task.model.TaskVarianceState;
 import com.lab.labtimesheet.feature.task.model.dto.CreateTaskCommand;
 import com.lab.labtimesheet.feature.task.model.dto.TaskAssigneeChoice;
 import com.lab.labtimesheet.feature.task.model.dto.TaskCommentView;
 import com.lab.labtimesheet.feature.task.model.dto.TaskDetails;
+import com.lab.labtimesheet.feature.task.model.dto.TaskEffortPlanningView;
 import com.lab.labtimesheet.feature.task.model.dto.TaskListView;
 import com.lab.labtimesheet.feature.task.model.dto.TaskWorkLogCandidate;
 import com.lab.labtimesheet.feature.task.model.dto.TaskView;
 import com.lab.labtimesheet.feature.task.model.dto.TaskWorkLogView;
+import com.lab.labtimesheet.feature.task.model.dto.TaskRemainingEffortForecastView;
+import com.lab.labtimesheet.feature.task.model.dto.RemainingEffortForecastInput;
 import com.lab.labtimesheet.feature.task.model.entity.Task;
 import com.lab.labtimesheet.feature.task.model.entity.TaskComment;
 import com.lab.labtimesheet.feature.task.model.entity.TaskWorkLog;
+import com.lab.labtimesheet.feature.task.model.entity.TaskRemainingEffortForecast;
 import com.lab.labtimesheet.feature.task.repository.TaskCommentRepository;
 import com.lab.labtimesheet.feature.task.repository.TaskRepository;
 import com.lab.labtimesheet.feature.task.repository.TaskWorkLogRepository;
+import com.lab.labtimesheet.feature.task.repository.TaskRemainingEffortForecastRepository;
 import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -49,6 +56,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -74,6 +82,8 @@ public class TaskService {
     private final Clock clock;
     private final AccountService accounts;
     private final NotificationService notifications;
+
+    private final TaskRemainingEffortForecastRepository forecasts;
 
     /**
      * Creates a TODO Task in a PLANNED or ACTIVE Project.
@@ -105,6 +115,11 @@ public class TaskService {
                 && !Objects.equals(access.project().currentLeaderMembershipId(), actorMembership.membershipId())) {
             throw new TaskNotFoundException();
         }
+        if (command.estimatedMinutes() != null
+                && !Objects.equals(access.project().currentLeaderMembershipId(), actorMembership.membershipId())) {
+            throw new TaskNotFoundException();
+        }
+        validateEstimate(command.estimatedMinutes());
         validateDueDate(access.project(), command.dueDate());
 
         Task task = new Task(
@@ -114,7 +129,7 @@ public class TaskService {
                 trimToNull(command.description()),
                 command.dueDate(),
                 actorMembership.membershipId(),
-                clock.instant());
+                clock.instant(), command.estimatedMinutes());
         TaskView result = view(saveTask(task), assignee.displayName());
         publish(
                 new NotificationEvent(
@@ -265,6 +280,53 @@ public class TaskService {
     }
 
     /**
+     * Determines the server-derived create-time estimate capability.
+     * @param actorEmail authenticated account email
+     * @param projectId Project identifier
+     * @return true only for the current Leader of an open Project
+     * @throws TaskNotFoundException when the Project or actor is outside the authorized scope
+     */
+    @Transactional(readOnly = true)
+    public boolean canSetEstimateOnCreate(String actorEmail, long projectId) {
+        TaskAccess access = requireProjectAccess(actorEmail, projectId);
+        ProjectTaskMemberView actor = requireActorMembership(access.project(), access.actor().userId());
+        return isOpen(access.project())
+                && Objects.equals(access.project().currentLeaderMembershipId(), actor.membershipId());
+    }
+
+    /**
+     * Changes or clears the Leader-owned estimate before the first retained work log.
+     * @param actorEmail authenticated current-Leader email
+     * @param projectId owning Project identifier
+     * @param taskId Task identifier within the Project
+     * @param expectedVersion client-observed Task version
+     * @param estimatedMinutes new estimate, or null to clear it
+     * @return updated Task projection
+     * @throws TaskNotFoundException when authorization or scope is unavailable
+     * @throws TaskConflictException when the expected version is stale
+     * @throws TaskValidationException when bounds, lifecycle, or retained-work rules fail
+     */
+    @Transactional
+    public TaskView estimate(String actorEmail, long projectId, long taskId, Long expectedVersion,
+            Integer estimatedMinutes) {
+        TaskAccess access = requireMutationAccess(actorEmail, projectId);
+        requireOpenProject(access.project());
+        ProjectTaskMemberView actor = requireActorMembership(access.project(), access.actor().userId());
+        if (!Objects.equals(access.project().currentLeaderMembershipId(), actor.membershipId())) {
+            throw new TaskNotFoundException();
+        }
+        validateEstimate(estimatedMinutes);
+        Task task = requireLockedTask(projectId, taskId);
+        requireUnfinished(task);
+        requireTaskVersion(task, expectedVersion);
+        if (workLogs.existsByTaskIdAndProjectId(taskId, projectId)) {
+            throw new TaskValidationException("A Task estimate cannot change after work is logged.");
+        }
+        task.applyEstimatedMinutes(estimatedMinutes, clock.instant());
+        return view(saveTask(task), requireAssigneeName(projectMembers(access), task.getAssigneeMembershipId()));
+    }
+
+    /**
      * Soft-deletes an unfinished Task while retaining the row and deletion attribution.
      *
      * @param actorEmail authenticated account email
@@ -325,6 +387,13 @@ public class TaskService {
             long taskId,
             Long expectedVersion,
             long assigneeMembershipId) {
+        return reassign(actorEmail, projectId, taskId, expectedVersion, assigneeMembershipId, null);
+    }
+
+    /** Reassigns manually, requiring an initial forecast when retained work exists. */
+    @Transactional
+    public TaskView reassign(String actorEmail, long projectId, long taskId, Long expectedVersion,
+            long assigneeMembershipId, RemainingEffortForecastInput forecastInput) {
         TaskAccess access = requireMutationAccess(actorEmail, projectId);
         requireOpenProject(access.project());
         ProjectTaskMemberView actorMembership = requireActorMembership(
@@ -336,14 +405,34 @@ public class TaskService {
         Task task = requireLockedTask(projectId, taskId);
         requireUnfinished(task);
         long previousAssigneeMembershipId = task.getAssigneeMembershipId();
+        // Validate the browser's optimistic snapshot before reporting state-dependent rules such
+        // as an unchanged recipient. A stale request must have one stable conflict outcome even
+        // when another transaction has already assigned the Task to the requested member.
+        requireTaskVersion(task, expectedVersion);
         if (task.getAssigneeMembershipId() == recipient.membershipId()) {
             throw new TaskValidationException("Task is already assigned to that member");
         }
-        requireTaskVersion(task, expectedVersion);
+        boolean worked = workLogs.existsByTaskIdAndProjectId(taskId, projectId);
+        if (worked && forecastInput == null) {
+            throw new TaskValidationException("A remaining-effort forecast is required for a worked Task");
+        }
+        if (!worked && forecastInput != null) {
+            throw new TaskValidationException("An unworked Task cannot receive a forecast");
+        }
+        if (worked) {
+            forecastInput = validateForecastInput(forecastInput);
+        }
+        Instant assignmentStartedAt = clock.instant();
+        if (worked) {
+            forecasts.save(new TaskRemainingEffortForecast(projectId, taskId, recipient.membershipId(),
+                    actorMembership.membershipId(), assignmentStartedAt,
+                    forecastInput.remainingMinutes(), workLogs.sumMinutesByTaskIdAndProjectId(taskId, projectId),
+                    forecastInput.note(), assignmentStartedAt));
+        }
         List<NotificationRecipient> assigneeRecipients = notificationRecipients(
                 access.project(), null,
                 List.of(previousAssigneeMembershipId, recipient.membershipId()));
-        task.reassign(recipient.membershipId(), actorMembership.membershipId(), clock.instant());
+        task.reassign(recipient.membershipId(), actorMembership.membershipId(), assignmentStartedAt);
         TaskView result = view(saveTask(task), recipient.displayName());
         publish(
                 new NotificationEvent(
@@ -354,6 +443,76 @@ public class TaskService {
                 new NotificationAction(taskAction(projectId, task.getId()), false),
                 assigneeRecipients);
         return result;
+    }
+
+    /**
+     * Appends a correction successor to the latest forecast for an unfinished current Task.
+     *
+     * <p>Only the current Leader may correct before incoming-assignee work is created. Assignment
+     * facts remain tied to the original context while the lifetime-actual snapshot is refreshed;
+     * the predecessor is never updated. A database uniqueness race is translated to the stable
+     * Task conflict contract.</p>
+     *
+     * @param actorEmail authenticated current-Leader email
+     * @param projectId owning Project identifier
+     * @param taskId Task identifier
+     * @param expectedLatestForecastId client-observed latest forecast identifier
+     * @param remainingMinutes replacement remaining effort in minutes
+     * @param correctionReason mandatory correction reason
+     * @return appended correction forecast view
+     * @throws TaskNotFoundException when authorization or scope is invalid
+     * @throws TaskConflictException when the expected forecast is stale or already superseded
+     * @throws TaskValidationException when correction rules are violated
+     */
+    @Transactional
+    public TaskRemainingEffortForecastView correctForecast(String actorEmail, long projectId, long taskId,
+            long expectedLatestForecastId, Integer remainingMinutes, String correctionReason) {
+        TaskAccess access = requireMutationAccess(actorEmail, projectId);
+        requireOpenProject(access.project());
+        ProjectTaskMemberView actor = requireActorMembership(access.project(), access.actor().userId());
+        if (!Objects.equals(access.project().currentLeaderMembershipId(), actor.membershipId())) {
+            throw new TaskNotFoundException();
+        }
+        Task task = requireLockedTask(projectId, taskId);
+        requireUnfinished(task);
+        TaskRemainingEffortForecast predecessor = forecasts
+                .findByIdAndProjectIdAndTaskId(expectedLatestForecastId, projectId, taskId)
+                .orElseThrow(() -> new TaskConflictException("Forecast changed; reload before correcting", null));
+        if (forecasts.existsBySupersedesForecastId(predecessor.getId())
+                || task.getAssigneeMembershipId() != predecessor.getIncomingMembershipId()
+                || !Objects.equals(task.getAssignedAt(), predecessor.getAssignmentStartedAt())) {
+            throw new TaskConflictException("Forecast changed; reload before correcting", null);
+        }
+        if (workLogs.existsByTaskIdAndProjectIdAndMembershipIdAndCreatedAtGreaterThanEqual(
+                taskId, projectId, predecessor.getIncomingMembershipId(), predecessor.getAssignmentStartedAt())) {
+            throw new TaskValidationException("Forecast correction is closed after incoming work begins");
+        }
+        if (remainingMinutes == null || remainingMinutes < 1 || remainingMinutes > 527040) {
+            throw new TaskValidationException("Remaining effort must be between 1 and 527040 minutes");
+        }
+        String reason = correctionReason == null || correctionReason.isBlank()
+                ? null : correctionReason.strip();
+        if (reason == null) {
+            throw new TaskValidationException("Correction reason is required");
+        }
+        if (reason.length() > 500) {
+            throw new TaskValidationException("Correction reason must not exceed 500 characters");
+        }
+        Instant createdAt = clock.instant();
+        TaskRemainingEffortForecast successor = TaskRemainingEffortForecast.correction(
+                predecessor,
+                actor.membershipId(),
+                remainingMinutes,
+                workLogs.sumMinutesByTaskIdAndProjectId(taskId, projectId),
+                reason,
+                createdAt);
+        try {
+            forecasts.saveAndFlush(successor);
+        } catch (DataIntegrityViolationException exception) {
+            throw new TaskConflictException("Forecast changed; reload before correcting", exception);
+        }
+        Map<Long, ProjectMemberView> members = projectMembers(access);
+        return view(successor, task, members, false, true);
     }
 
     /**
@@ -633,6 +792,7 @@ public class TaskService {
         TaskView task = view(
                 persistedTask,
                 requireAssigneeName(projectMembers(access), persistedTask.getAssigneeMembershipId()));
+        Map<Long, ProjectMemberView> members = projectMembers(access);
         List<TaskCommentView> taskComments = comments.findAllByTaskIdOrderByCreatedAtAscIdAsc(taskId)
                 .stream()
                 .map(TaskService::view)
@@ -661,11 +821,28 @@ public class TaskService {
         boolean canLogWork = "ACTIVE".equals(access.project().status())
                 && actorMembership != null
                 && persistedTask.getAssigneeMembershipId() == actorMembership.membershipId();
+        TaskEffortPlanningView effortPlanning = effortPlanning(persistedTask, currentLeader,
+                isOpen(access.project()),
+                projectId, taskId);
+        List<TaskRemainingEffortForecast> forecastRows = forecasts
+                .findAllByProjectIdAndTaskIdOrderByAssignmentStartedAtAscCreatedAtAscIdAsc(projectId, taskId);
+        Set<Long> supersededForecastIds = forecastRows.stream()
+                .map(TaskRemainingEffortForecast::getSupersedesForecastId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toUnmodifiableSet());
+        List<TaskRemainingEffortForecastView> remainingEffortForecasts = forecastRows.stream()
+                .map(forecast -> view(
+                        forecast,
+                        persistedTask,
+                        members,
+                        supersededForecastIds.contains(forecast.getId()),
+                        taskWorkLogs))
+                .toList();
         return new TaskDetails(
                 task, taskComments, taskWorkLogs,
                 actorMembership == null ? null : actorMembership.membershipId(),
                 canChangeStatus, canComment,
-                canEdit, canDelete, canReassign, canLogWork);
+                canEdit, canDelete, canReassign, canLogWork, effortPlanning, remainingEffortForecasts);
     }
 
     /**
@@ -942,6 +1119,40 @@ public class TaskService {
         }
     }
 
+    private static void validateEstimate(Integer minutes) {
+        if (minutes != null && (minutes < 1 || minutes > 527040)) {
+            throw new TaskValidationException("Estimate must be between 1 and 527040 minutes");
+        }
+    }
+
+    private static RemainingEffortForecastInput validateForecastInput(RemainingEffortForecastInput input) {
+        if (input == null || input.remainingMinutes() == null
+                || input.remainingMinutes() < 1 || input.remainingMinutes() > 527040) {
+            throw new TaskValidationException("Remaining effort must be between 1 and 527040 minutes");
+        }
+        String note = input.note() == null || input.note().isBlank() ? null : input.note().strip();
+        if (note != null && note.length() > 500) {
+            throw new TaskValidationException("Forecast note must not exceed 500 characters");
+        }
+        return new RemainingEffortForecastInput(input.remainingMinutes(), note);
+    }
+
+    private TaskEffortPlanningView effortPlanning(Task task, boolean currentLeader, boolean projectOpen,
+            long projectId, long taskId) {
+        Integer estimate = task.getEstimatedMinutes();
+        long actual = workLogs.sumMinutesByTaskIdAndProjectId(taskId, projectId);
+        TaskVarianceState state = estimate == null ? TaskVarianceState.NOT_ESTIMATED
+                : task.getStatus() == TaskStatus.DONE ? TaskVarianceState.VALUE : TaskVarianceState.PENDING;
+        Long variance = state == TaskVarianceState.VALUE ? actual - estimate : null;
+        return new TaskEffortPlanningView(estimate, actual, state, variance,
+                projectOpen && currentLeader && isOpenTaskStatus(task)
+                        && !workLogs.existsByTaskIdAndProjectId(taskId, projectId));
+    }
+
+    private static boolean isOpenTaskStatus(Task task) {
+        return task.getStatus() != TaskStatus.DONE && !task.isDeleted();
+    }
+
     private static TaskView view(Task task, String assigneeName) {
         return new TaskView(
                 task.getId(),
@@ -957,6 +1168,72 @@ public class TaskService {
                 task.getAssignedAt(),
                 task.getCreatedAt(),
                 task.getVersion());
+    }
+
+    /**
+     * Projects one forecast for the detail read model from the work-log snapshot already loaded
+     * for that Task.
+     *
+     * <p>The correction-window check intentionally stays in memory here. The detail use case has
+     * already loaded every retained log, so querying the repository once per forecast would both
+     * duplicate work and make a history page's query count depend on its forecast count.</p>
+     *
+     * @param forecast persisted immutable forecast row
+     * @param task current Task assignment snapshot
+     * @param members authorized current and historical member names
+     * @param superseded whether a retained successor points at this row
+     * @param taskWorkLogs retained work-log snapshot loaded by the detail use case
+     * @return forecast read model with a snapshot-derived correction state
+     */
+    private TaskRemainingEffortForecastView view(
+            TaskRemainingEffortForecast forecast,
+            Task task,
+            Map<Long, ProjectMemberView> members,
+            boolean superseded,
+            List<TaskWorkLogView> taskWorkLogs) {
+        boolean currentAssignment = task.getAssigneeMembershipId() == forecast.getIncomingMembershipId()
+                && Objects.equals(task.getAssignedAt(), forecast.getAssignmentStartedAt());
+        boolean correctionOpen = currentAssignment
+                && !superseded
+                && taskWorkLogs.stream()
+                        .noneMatch(log -> log.membershipId() == forecast.getIncomingMembershipId()
+                                && !log.createdAt().isBefore(forecast.getAssignmentStartedAt()));
+        return view(forecast, task, members, superseded, correctionOpen);
+    }
+
+    /**
+     * Projects a forecast after a command-side correction-window guard has succeeded.
+     *
+     * <p>Mutation callers must establish {@code correctionOpen} with the repository predicate
+     * while holding their write transaction. The detail caller uses the overload above so it can
+     * reuse its already-loaded work-log snapshot.</p>
+     *
+     * @param forecast persisted immutable forecast row
+     * @param task current Task assignment snapshot
+     * @param members authorized current and historical member names
+     * @param superseded whether a retained successor points at this row
+     * @param correctionOpen whether the caller has proven the correction window is open
+     * @return forecast read model with server-derived assignment state
+     */
+    private TaskRemainingEffortForecastView view(
+            TaskRemainingEffortForecast forecast,
+            Task task,
+            Map<Long, ProjectMemberView> members,
+            boolean superseded,
+            boolean correctionOpen) {
+        ProjectMemberView incoming = members.get(forecast.getIncomingMembershipId());
+        ProjectMemberView leader = members.get(forecast.getForecastingLeaderMembershipId());
+        boolean currentAssignment = task.getAssigneeMembershipId() == forecast.getIncomingMembershipId()
+                && Objects.equals(task.getAssignedAt(), forecast.getAssignmentStartedAt());
+        return new TaskRemainingEffortForecastView(
+                forecast.getId() == null ? 0L : forecast.getId(),
+                forecast.getProjectId(), forecast.getTaskId(), forecast.getIncomingMembershipId(),
+                incoming == null ? null : incoming.displayName(),
+                forecast.getForecastingLeaderMembershipId(), leader == null ? null : leader.displayName(),
+                forecast.getAssignmentStartedAt(), forecast.getRemainingMinutes(),
+                forecast.getActualMinutesSnapshot(), forecast.getInitialNote(), forecast.getCreatedAt(),
+                forecast.getCorrectionReason(), forecast.getSupersedesForecastId(), superseded,
+                currentAssignment, currentAssignment && !superseded && correctionOpen);
     }
 
     private void publish(

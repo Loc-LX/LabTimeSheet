@@ -1,6 +1,10 @@
 package com.lab.labtimesheet.feature.task.service;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.anyLong;
+import org.mockito.ArgumentCaptor;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
@@ -30,10 +34,13 @@ import com.lab.labtimesheet.feature.task.model.dto.TaskWorkLogCandidate;
 import com.lab.labtimesheet.feature.task.model.entity.TaskWorkLog;
 import com.lab.labtimesheet.feature.task.model.entity.Task;
 import com.lab.labtimesheet.feature.task.model.entity.TaskComment;
+import com.lab.labtimesheet.feature.task.model.entity.TaskRemainingEffortForecast;
 import com.lab.labtimesheet.feature.task.repository.TaskCommentRepository;
 import com.lab.labtimesheet.feature.task.repository.TaskRepository;
 import com.lab.labtimesheet.feature.task.repository.TaskWorkLogRepository;
+import com.lab.labtimesheet.feature.task.repository.TaskRemainingEffortForecastRepository;
 import com.lab.labtimesheet.feature.task.exception.TaskConflictException;
+import com.lab.labtimesheet.feature.task.exception.TaskValidationException;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -44,6 +51,8 @@ import java.util.Set;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InOrder;
 import org.mockito.Mock;
@@ -63,6 +72,7 @@ class TaskMutationBoundaryTest {
     @Mock private CalendarApplicationService calendar;
     @Mock private AccountService accounts;
     @Mock private NotificationService notifications;
+    @Mock private TaskRemainingEffortForecastRepository forecasts;
 
     private TaskService service;
     private ProjectTaskContext context;
@@ -78,7 +88,8 @@ class TaskMutationBoundaryTest {
                 calendar,
                 Clock.fixed(NOW, ZoneOffset.UTC),
                 accounts,
-                notifications);
+                notifications,
+                forecasts);
         context = new ProjectTaskContext(
                 10L,
                 3L,
@@ -216,6 +227,253 @@ class TaskMutationBoundaryTest {
         order.verify(projectMutations).taskMutationContext(5L, 10L);
         order.verify(tasks).findLockedByIdAndProjectIdAndDeletedAtIsNull(25L, 10L);
         order.verify(task).changeStatus(TaskStatus.IN_PROGRESS, NOW);
+    }
+
+    @Test
+    void workedReassignmentWithoutForecastRejectsBeforeAnyMutation() {
+        Task task = leaderTask();
+        when(workLogs.existsByTaskIdAndProjectId(25L, 10L)).thenReturn(true);
+        when(tasks.findLockedByIdAndProjectIdAndDeletedAtIsNull(25L, 10L)).thenReturn(Optional.of(task));
+        assertThatThrownBy(() -> service.reassign("leader@example.test", 10L, 25L, 0L, 80L))
+                .isInstanceOf(com.lab.labtimesheet.feature.task.exception.TaskValidationException.class);
+        verify(task, never()).reassign(anyLong(), anyLong(), any(Instant.class));
+        verify(forecasts, never()).save(any());
+        verify(tasks, never()).saveAndFlush(any());
+        verify(notifications, never()).publish(any(), any(), any());
+    }
+
+    @Test
+    void unworkedReassignmentWithForecastRejectsBeforeAnyMutation() {
+        Task task = leaderTask();
+        when(workLogs.existsByTaskIdAndProjectId(25L, 10L)).thenReturn(false);
+        when(tasks.findLockedByIdAndProjectIdAndDeletedAtIsNull(25L, 10L)).thenReturn(Optional.of(task));
+        assertThatThrownBy(() -> service.reassign("leader@example.test", 10L, 25L, 0L, 80L,
+                        new com.lab.labtimesheet.feature.task.model.dto.RemainingEffortForecastInput(10, "note")))
+                .isInstanceOf(com.lab.labtimesheet.feature.task.exception.TaskValidationException.class);
+        verify(task, never()).reassign(anyLong(), anyLong(), any(Instant.class));
+        verify(forecasts, never()).save(any());
+        verify(tasks, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void workedReassignmentRejectsInvalidForecastBeforeMutation() {
+        Task task = leaderTask();
+        when(workLogs.existsByTaskIdAndProjectId(25L, 10L)).thenReturn(true);
+        when(tasks.findLockedByIdAndProjectIdAndDeletedAtIsNull(25L, 10L)).thenReturn(Optional.of(task));
+        assertThatThrownBy(() -> service.reassign("leader@example.test", 10L, 25L, 0L, 80L,
+                        new com.lab.labtimesheet.feature.task.model.dto.RemainingEffortForecastInput(null, "note")))
+                .isInstanceOf(com.lab.labtimesheet.feature.task.exception.TaskValidationException.class);
+        verify(forecasts, never()).save(any());
+        verify(task, never()).reassign(anyLong(), anyLong(), any(Instant.class));
+    }
+
+    @Test
+    void unworkedReassignmentWithoutForecastPersistsTaskOnly() {
+        Task task = leaderTask();
+        prepareTaskPersistence(task);
+        when(workLogs.existsByTaskIdAndProjectId(25L, 10L)).thenReturn(false);
+        when(tasks.findLockedByIdAndProjectIdAndDeletedAtIsNull(25L, 10L)).thenReturn(Optional.of(task));
+        service.reassign("leader@example.test", 10L, 25L, 0L, 80L);
+        verify(task).reassign(80L, 80L, NOW);
+        verify(tasks).saveAndFlush(task);
+        verify(forecasts, never()).save(any());
+        verify(notifications).publish(any(), any(), any());
+    }
+
+    @Test
+    void workedReassignmentWithForecastPersistsExactSnapshotAndReassignsAtSameInstant() {
+        Task task = leaderTask();
+        prepareTaskPersistence(task);
+        when(workLogs.existsByTaskIdAndProjectId(25L, 10L)).thenReturn(true);
+        when(workLogs.sumMinutesByTaskIdAndProjectId(25L, 10L)).thenReturn(135L);
+        when(tasks.findLockedByIdAndProjectIdAndDeletedAtIsNull(25L, 10L)).thenReturn(Optional.of(task));
+        service.reassign("leader@example.test", 10L, 25L, 0L, 80L,
+                new com.lab.labtimesheet.feature.task.model.dto.RemainingEffortForecastInput(90, "  next phase  "));
+        ArgumentCaptor<TaskRemainingEffortForecast> captor = ArgumentCaptor.forClass(TaskRemainingEffortForecast.class);
+        verify(forecasts).save(captor.capture());
+        TaskRemainingEffortForecast forecast = captor.getValue();
+        assertThat(forecast.getProjectId()).isEqualTo(10L);
+        assertThat(forecast.getTaskId()).isEqualTo(25L);
+        assertThat(forecast.getIncomingMembershipId()).isEqualTo(80L);
+        assertThat(forecast.getForecastingLeaderMembershipId()).isEqualTo(80L);
+        assertThat(forecast.getAssignmentStartedAt()).isEqualTo(NOW);
+        assertThat(forecast.getCreatedAt()).isEqualTo(NOW);
+        assertThat(forecast.getRemainingMinutes()).isEqualTo(90);
+        assertThat(forecast.getActualMinutesSnapshot()).isEqualTo(135L);
+        assertThat(forecast.getInitialNote()).isEqualTo("next phase");
+        verify(task).reassign(80L, 80L, NOW);
+        verify(tasks).saveAndFlush(task);
+        verify(notifications).publish(any(), any(), any());
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {1, 527040})
+    void workedReassignmentAcceptsMinuteBoundsThroughService(int minutes) {
+        Task task = leaderTask();
+        prepareTaskPersistence(task);
+        when(workLogs.existsByTaskIdAndProjectId(25L, 10L)).thenReturn(true);
+        when(workLogs.sumMinutesByTaskIdAndProjectId(25L, 10L)).thenReturn(135L);
+        when(tasks.findLockedByIdAndProjectIdAndDeletedAtIsNull(25L, 10L)).thenReturn(Optional.of(task));
+        service.reassign("leader@example.test", 10L, 25L, 0L, 80L,
+                new com.lab.labtimesheet.feature.task.model.dto.RemainingEffortForecastInput(minutes, null));
+        ArgumentCaptor<TaskRemainingEffortForecast> captor = ArgumentCaptor.forClass(TaskRemainingEffortForecast.class);
+        verify(forecasts).save(captor.capture());
+        assertThat(captor.getValue().getRemainingMinutes()).isEqualTo(minutes);
+    }
+
+    @Test
+    void workedReassignmentRejects501CharNoteBeforeMutation() {
+        Task task = leaderTask();
+        when(workLogs.existsByTaskIdAndProjectId(25L, 10L)).thenReturn(true);
+        when(tasks.findLockedByIdAndProjectIdAndDeletedAtIsNull(25L, 10L)).thenReturn(Optional.of(task));
+        assertThatThrownBy(() -> service.reassign("leader@example.test", 10L, 25L, 0L, 80L,
+                        new com.lab.labtimesheet.feature.task.model.dto.RemainingEffortForecastInput(90, "x".repeat(501))))
+                .isInstanceOf(com.lab.labtimesheet.feature.task.exception.TaskValidationException.class);
+        verify(forecasts, never()).save(any());
+        verify(task, never()).reassign(anyLong(), anyLong(), any(Instant.class));
+        verify(tasks, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void staleVersionRejectsBeforeForecastLookupOrPersistence() {
+        Task task = leaderTask();
+        when(task.getVersion()).thenReturn(4L);
+        when(tasks.findLockedByIdAndProjectIdAndDeletedAtIsNull(25L, 10L)).thenReturn(Optional.of(task));
+        assertThatThrownBy(() -> service.reassign("leader@example.test", 10L, 25L, 3L, 80L,
+                        new com.lab.labtimesheet.feature.task.model.dto.RemainingEffortForecastInput(90, "note")))
+                .isInstanceOf(TaskConflictException.class);
+        verify(workLogs, never()).existsByTaskIdAndProjectId(anyLong(), anyLong());
+        verify(forecasts, never()).save(any());
+        verify(task, never()).reassign(anyLong(), anyLong(), any(Instant.class));
+        verify(tasks, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void staleVersionRejectsBeforeSameRecipientValidation() {
+        Task task = leaderTask();
+        when(task.getAssigneeMembershipId()).thenReturn(80L);
+        when(task.getVersion()).thenReturn(4L);
+        when(tasks.findLockedByIdAndProjectIdAndDeletedAtIsNull(25L, 10L)).thenReturn(Optional.of(task));
+
+        assertThatThrownBy(() -> service.reassign(
+                        "leader@example.test", 10L, 25L, 3L, 80L,
+                        new com.lab.labtimesheet.feature.task.model.dto.RemainingEffortForecastInput(90, "note")))
+                .isInstanceOf(TaskConflictException.class)
+                .hasMessage("Task changed concurrently; reload before trying again");
+        verify(workLogs, never()).existsByTaskIdAndProjectId(anyLong(), anyLong());
+        verify(forecasts, never()).save(any());
+        verify(task, never()).reassign(anyLong(), anyLong(), any(Instant.class));
+        verify(tasks, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void correctionAppendsSuccessorWithImmutableAssignmentFacts() {
+        Task task = leaderTask();
+        when(task.getAssignedAt()).thenReturn(NOW);
+        when(tasks.findLockedByIdAndProjectIdAndDeletedAtIsNull(25L, 10L)).thenReturn(Optional.of(task));
+        TaskRemainingEffortForecast predecessor = mock(TaskRemainingEffortForecast.class);
+        when(predecessor.getId()).thenReturn(44L);
+        when(predecessor.getProjectId()).thenReturn(10L);
+        when(predecessor.getTaskId()).thenReturn(25L);
+        when(predecessor.getIncomingMembershipId()).thenReturn(70L);
+        when(predecessor.getAssignmentStartedAt()).thenReturn(NOW);
+        when(forecasts.findByIdAndProjectIdAndTaskId(44L, 10L, 25L)).thenReturn(Optional.of(predecessor));
+        when(forecasts.existsBySupersedesForecastId(44L)).thenReturn(false);
+        when(workLogs.existsByTaskIdAndProjectIdAndMembershipIdAndCreatedAtGreaterThanEqual(
+                25L, 10L, 70L, NOW)).thenReturn(false);
+        when(workLogs.sumMinutesByTaskIdAndProjectId(25L, 10L)).thenReturn(135L);
+        when(projectQueries.authenticatedActor("leader@example.test"))
+                .thenReturn(new ProjectActorView(6L, "INTERN"));
+        when(projectQueries.taskContext(6L, 10L)).thenReturn(context);
+        when(projectQueries.members(6L, 10L)).thenReturn(List.of(
+                new ProjectMemberView(70L, 5L, "Member", JOINED, null, false, 10L, null),
+                new ProjectMemberView(80L, 6L, "Recipient", JOINED, null, true, 10L, null)));
+        when(tasks.findByIdAndProjectIdAndDeletedAtIsNull(25L, 10L)).thenReturn(Optional.of(task));
+        when(comments.findAllByTaskIdOrderByCreatedAtAscIdAsc(25L)).thenReturn(List.of());
+        when(workLogs.findAllByTaskIdAndProjectIdOrderByWorkDateAscIdAsc(25L, 10L)).thenReturn(List.of());
+        when(forecasts.findAllByProjectIdAndTaskIdOrderByAssignmentStartedAtAscCreatedAtAscIdAsc(10L, 25L))
+                .thenReturn(List.of(predecessor));
+
+        assertThat(service.details("leader@example.test", 10L, 25L)
+                .remainingEffortForecasts()).singleElement()
+                .extracting(view -> view.correctionOpen())
+                .isEqualTo(true);
+        verify(workLogs, never()).existsByTaskIdAndProjectIdAndMembershipIdAndCreatedAtGreaterThanEqual(
+                25L, 10L, 70L, NOW);
+
+        service.correctForecast("leader@example.test", 10L, 25L, 44L, 90, "  reason  ");
+
+        ArgumentCaptor<TaskRemainingEffortForecast> captor = ArgumentCaptor.forClass(TaskRemainingEffortForecast.class);
+        verify(forecasts).saveAndFlush(captor.capture());
+        TaskRemainingEffortForecast successor = captor.getValue();
+        assertThat(successor.getProjectId()).isEqualTo(10L);
+        assertThat(successor.getTaskId()).isEqualTo(25L);
+        assertThat(successor.getIncomingMembershipId()).isEqualTo(70L);
+        assertThat(successor.getForecastingLeaderMembershipId()).isEqualTo(80L);
+        assertThat(successor.getAssignmentStartedAt()).isEqualTo(NOW);
+        assertThat(successor.getActualMinutesSnapshot()).isEqualTo(135L);
+        assertThat(successor.getRemainingMinutes()).isEqualTo(90);
+        assertThat(successor.getInitialNote()).isNull();
+        assertThat(successor.getCorrectionReason()).isEqualTo("reason");
+        assertThat(successor.getSupersedesForecastId()).isEqualTo(44L);
+        verify(workLogs).existsByTaskIdAndProjectIdAndMembershipIdAndCreatedAtGreaterThanEqual(
+                25L, 10L, 70L, NOW);
+        verify(task, never()).reassign(anyLong(), anyLong(), any(Instant.class));
+        verify(notifications, never()).publish(any(), any(), any());
+    }
+
+    @Test
+    void correctionRejectsInvalidReasonLateWorkAndStaleSuccessor() {
+        Task task = leaderTask();
+        when(task.getAssignedAt()).thenReturn(NOW);
+        when(tasks.findLockedByIdAndProjectIdAndDeletedAtIsNull(25L, 10L)).thenReturn(Optional.of(task));
+        TaskRemainingEffortForecast predecessor = mock(TaskRemainingEffortForecast.class);
+        when(predecessor.getId()).thenReturn(44L);
+        when(predecessor.getIncomingMembershipId()).thenReturn(70L);
+        when(predecessor.getAssignmentStartedAt()).thenReturn(NOW);
+        when(forecasts.findByIdAndProjectIdAndTaskId(44L, 10L, 25L)).thenReturn(Optional.of(predecessor));
+        when(forecasts.existsBySupersedesForecastId(44L)).thenReturn(false);
+        when(workLogs.existsByTaskIdAndProjectIdAndMembershipIdAndCreatedAtGreaterThanEqual(
+                25L, 10L, 70L, NOW)).thenReturn(false);
+        assertThatThrownBy(() -> service.correctForecast("leader@example.test", 10L, 25L, 44L, 0, "reason"))
+                .isInstanceOf(TaskValidationException.class);
+        assertThatThrownBy(() -> service.correctForecast("leader@example.test", 10L, 25L, 44L, 90, "  "))
+                .isInstanceOf(TaskValidationException.class);
+        verify(forecasts, never()).saveAndFlush(any());
+    }
+
+    private void prepareTaskPersistence(Task task) {
+        lenient().when(accounts.requireIdentityById(5L)).thenReturn(new AccountIdentity(
+                5L, "member@example.test", "Member", GlobalRole.INTERN, AccountStatus.ACTIVE));
+        lenient().when(accounts.requireIdentityById(6L)).thenReturn(new AccountIdentity(
+                6L, "leader@example.test", "Leader", GlobalRole.INTERN, AccountStatus.ACTIVE));
+        when(tasks.saveAndFlush(task)).thenReturn(task);
+    }
+
+    @Test
+    void nonLeaderCannotCreateForecast() {
+        Task task = leaderTask();
+        when(accounts.requireAccountIdByEmail("member@example.test")).thenReturn(5L);
+        when(projectMutations.taskMutationContext(5L, 10L)).thenReturn(context);
+        assertThatThrownBy(() -> service.reassign("member@example.test", 10L, 25L, 0L, 80L,
+                        new com.lab.labtimesheet.feature.task.model.dto.RemainingEffortForecastInput(10, "n")))
+                .isInstanceOf(com.lab.labtimesheet.feature.task.exception.TaskNotFoundException.class);
+        verify(forecasts, never()).save(any());
+    }
+
+    private Task leaderTask() {
+        context = new ProjectTaskContext(10L, 3L, "ACTIVE", LocalDate.of(2026, 8, 1),
+                LocalDate.of(2026, 8, 31), 80L,
+                List.of(new ProjectTaskMemberView(70L, 5L, "Member", JOINED),
+                        new ProjectTaskMemberView(80L, 6L, "Recipient", JOINED)), Set.of());
+        lenient().when(accounts.requireAccountIdByEmail("leader@example.test")).thenReturn(6L);
+        lenient().when(projectMutations.taskMutationContext(6L, 10L)).thenReturn(context);
+        Task task = mock(Task.class);
+        lenient().when(task.getId()).thenReturn(25L);
+        lenient().when(task.getAssigneeMembershipId()).thenReturn(70L);
+        lenient().when(task.getStatus()).thenReturn(TaskStatus.IN_PROGRESS);
+        lenient().when(task.getVersion()).thenReturn(0L);
+        return task;
     }
 
     @Test

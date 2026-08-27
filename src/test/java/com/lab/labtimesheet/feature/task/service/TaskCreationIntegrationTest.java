@@ -6,24 +6,35 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.lab.labtimesheet.config.TestcontainersConfiguration;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectTaskContext;
 import com.lab.labtimesheet.feature.project.service.ProjectService;
+import com.lab.labtimesheet.feature.reporting.service.DailyProjectWorkReportService;
 import com.lab.labtimesheet.feature.task.exception.TaskNotFoundException;
+import com.lab.labtimesheet.feature.task.exception.TaskConflictException;
 import com.lab.labtimesheet.feature.task.exception.TaskValidationException;
 import com.lab.labtimesheet.feature.task.model.TaskStatus;
+import com.lab.labtimesheet.feature.task.model.TaskVarianceState;
 import com.lab.labtimesheet.feature.task.model.dto.CreateTaskCommand;
 import com.lab.labtimesheet.feature.task.model.dto.TaskAssigneeChoice;
 import com.lab.labtimesheet.feature.task.model.dto.TaskCommentView;
+import com.lab.labtimesheet.feature.task.model.dto.TaskDailyReportView;
 import com.lab.labtimesheet.feature.task.model.dto.TaskDetails;
+import com.lab.labtimesheet.feature.task.model.dto.TaskEffortPlanningView;
 import com.lab.labtimesheet.feature.task.model.dto.TaskListView;
 import com.lab.labtimesheet.feature.task.model.dto.TaskHistoryView;
 import com.lab.labtimesheet.feature.task.model.dto.TaskProjectProgress;
 import com.lab.labtimesheet.feature.task.model.dto.TaskDueDateImpactView;
 import com.lab.labtimesheet.feature.task.model.dto.TaskView;
+import com.lab.labtimesheet.feature.task.model.dto.RemainingEffortForecastInput;
+import com.lab.labtimesheet.feature.task.model.dto.TaskRemainingEffortForecastView;
 import com.lab.labtimesheet.feature.task.model.entity.TaskWorkLog;
+import com.lab.labtimesheet.feature.task.model.entity.TaskRemainingEffortForecast;
+import com.lab.labtimesheet.feature.task.repository.TaskRemainingEffortForecastRepository;
 import com.lab.labtimesheet.feature.task.repository.TaskWorkLogRepository;
 import jakarta.persistence.EntityManager;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.sql.Timestamp;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -57,10 +68,16 @@ class TaskCreationIntegrationTest {
     private TaskQueryService taskQueries;
 
     @Autowired
+    private DailyProjectWorkReportService dailyReports;
+
+    @Autowired
     private TaskDashboardService taskDashboard;
 
     @Autowired
     private TaskWorkLogRepository taskWorkLogs;
+
+    @Autowired
+    private TaskRemainingEffortForecastRepository forecasts;
 
     @Autowired
     private ProjectService projectMutations;
@@ -80,6 +97,11 @@ class TaskCreationIntegrationTest {
         projectId = insertProject(mentorId, "PLANNED");
         leaderMembershipId = insertMembership(projectId, leaderId, mentorId);
         memberMembershipId = insertMembership(projectId, memberId, mentorId);
+        jdbc.sql("update project_memberships set joined_at = :joinedAt where id in (:leader, :member)")
+                .param("joinedAt", Timestamp.from(Instant.parse("2026-08-14T00:00:00Z")))
+                .param("leader", leaderMembershipId)
+                .param("member", memberMembershipId)
+                .update();
         jdbc.sql("""
                         insert into project_leadership_terms
                             (project_id, membership_id, appointed_by_mentor_user_id)
@@ -802,6 +824,214 @@ class TaskCreationIntegrationTest {
     }
 
     @Test
+    void dailyReportReadsPostgresRetainedDeletedLogsAndLatestForecastSnapshot() {
+        TaskView worked = taskService.create("leader@example.test", new CreateTaskCommand(
+                projectId, leaderMembershipId, "Daily retained work", "", null));
+        activateProject();
+        taskService.addWorkLog("leader@example.test", projectId, worked.id(),
+                LocalDate.of(2026, 8, 14), 45, "former author");
+        TaskView current = taskService.list("leader@example.test", projectId).tasks().stream()
+                .filter(task -> task.id() == worked.id()).findFirst().orElseThrow();
+        TaskView reassigned = taskService.reassign(
+                "leader@example.test", projectId, worked.id(), current.version(), memberMembershipId,
+                new RemainingEffortForecastInput(90, "handover forecast"));
+        taskService.addWorkLog("member@example.test", projectId, worked.id(),
+                LocalDate.of(2026, 8, 14), 15, "incoming author");
+        softDelete(worked.id());
+
+        List<TaskDailyReportView> report = taskQueries.dailyReport(
+                projectId, LocalDate.of(2026, 8, 14));
+
+        assertThat(report).singleElement().satisfies(task -> {
+            assertThat(task.id()).isEqualTo(worked.id());
+            assertThat(task.assigneeMembershipId()).isEqualTo(memberMembershipId);
+            assertThat(task.deleted()).isTrue();
+            assertThat(task.lifetimeActualMinutes()).isEqualTo(60L);
+            assertThat(task.workLogs()).extracting(log -> log.membershipId())
+                    .containsExactly(leaderMembershipId, memberMembershipId);
+            assertThat(task.latestForecast()).isNotNull();
+            assertThat(task.latestForecast().remainingMinutes()).isEqualTo(90);
+            assertThat(task.latestForecast().actualMinutesSnapshot()).isEqualTo(45L);
+            assertThat(task.latestForecast().forecastTotalMinutes()).isEqualTo(135L);
+        });
+        assertThat(reassigned.assigneeMembershipId()).isEqualTo(memberMembershipId);
+
+        var htmlDataset = dailyReports.build(
+                "mentor@example.test", null, LocalDate.of(2026, 8, 14));
+        assertThat(htmlDataset.projects()).hasSize(1);
+        assertThat(htmlDataset.projects().getFirst().totalMinutes()).isEqualTo(60L);
+        assertThat(htmlDataset.projects().getFirst().members())
+                .extracting(member -> member.membershipId())
+                .containsExactly(leaderMembershipId, memberMembershipId);
+        assertThat(htmlDataset.overallTotalMinutes()).isEqualTo(60L);
+    }
+
+    @Test
+    void leaderEstimateIsVisibleAndLifetimeVarianceIsDerivedFromRetainedLogs() {
+        TaskView task = taskService.create("leader@example.test", new CreateTaskCommand(
+                projectId, memberMembershipId, "Estimated task", "", null, 120));
+        assertThat(taskService.details("member@example.test", projectId, task.id()).effortPlanning())
+                .extracting(TaskEffortPlanningView::estimatedMinutes,
+                        TaskEffortPlanningView::actualMinutes,
+                        TaskEffortPlanningView::varianceState)
+                .containsExactly(120, 0L, TaskVarianceState.PENDING);
+
+        activateProject();
+        taskService.addWorkLog("member@example.test", projectId, task.id(),
+                LocalDate.of(2026, 8, 14), 150, "Lifetime effort");
+        TaskView current = taskService.list("leader@example.test", projectId).tasks().stream()
+                .filter(candidate -> candidate.id() == task.id()).findFirst().orElseThrow();
+        assertThatThrownBy(() -> taskService.estimate(
+                        "leader@example.test", projectId, task.id(), current.version(), 200))
+                .isInstanceOf(TaskValidationException.class)
+                .hasMessageContaining("cannot change after work");
+        setStatus(task.id(), TaskStatus.DONE);
+        TaskEffortPlanningView planning = taskService.details(
+                "leader@example.test", projectId, task.id()).effortPlanning();
+        assertThat(planning.estimatedMinutes()).isEqualTo(120);
+        assertThat(planning.actualMinutes()).isEqualTo(150);
+        assertThat(planning.varianceState()).isEqualTo(TaskVarianceState.VALUE);
+        assertThat(planning.varianceMinutes()).isEqualTo(30L);
+        assertThat(planning.canEditEstimate()).isFalse();
+        setStatus(task.id(), TaskStatus.IN_PROGRESS);
+        assertThat(taskService.details("leader@example.test", projectId, task.id())
+                .effortPlanning().varianceState()).isEqualTo(TaskVarianceState.PENDING);
+    }
+
+    @Test
+    void estimateBoundsAndMemberForgeryAreRejectedWhileUnestimatedTaskIsNADisplay() {
+        TaskView minimum = taskService.create("leader@example.test", new CreateTaskCommand(
+                projectId, memberMembershipId, "Minimum", "", null, 1));
+        assertThat(taskService.details("leader@example.test", projectId, minimum.id())
+                .effortPlanning().estimatedMinutes()).isEqualTo(1);
+        TaskView maximum = taskService.create("leader@example.test", new CreateTaskCommand(
+                projectId, memberMembershipId, "Maximum", "", null, 527040));
+        assertThat(taskService.details("leader@example.test", projectId, maximum.id())
+                .effortPlanning().estimatedMinutes()).isEqualTo(527040);
+        assertThatThrownBy(() -> taskService.create("leader@example.test", new CreateTaskCommand(
+                        projectId, memberMembershipId, "Too small", "", null, 0)))
+                .isInstanceOf(TaskValidationException.class);
+        assertThatThrownBy(() -> taskService.create("leader@example.test", new CreateTaskCommand(
+                        projectId, memberMembershipId, "Too large", "", null, 527041)))
+                .isInstanceOf(TaskValidationException.class);
+        assertThatThrownBy(() -> taskService.create("member@example.test", new CreateTaskCommand(
+                        projectId, memberMembershipId, "Forged", "", null, 120)))
+                .isInstanceOf(TaskNotFoundException.class);
+        TaskView unestimated = createMemberTask("No estimate");
+        assertThat(taskService.details("member@example.test", projectId, unestimated.id())
+                .effortPlanning().varianceState()).isEqualTo(TaskVarianceState.NOT_ESTIMATED);
+    }
+
+    @Test
+    void leaderCanChangeAndClearEstimateBeforeWork() {
+        TaskView task = taskService.create("leader@example.test", new CreateTaskCommand(
+                projectId, memberMembershipId, "Editable estimate", "", null, 120));
+        TaskView changed = taskService.estimate("leader@example.test", projectId, task.id(), task.version(), 240);
+        assertThat(changed).isNotNull();
+        TaskView current = taskService.list("leader@example.test", projectId).tasks().stream()
+                .filter(candidate -> candidate.id() == task.id()).findFirst().orElseThrow();
+        taskService.estimate("leader@example.test", projectId, task.id(), current.version(), null);
+        assertThat(taskService.details("leader@example.test", projectId, task.id())
+                .effortPlanning().varianceState()).isEqualTo(TaskVarianceState.NOT_ESTIMATED);
+    }
+
+    @Test
+    void workedReassignmentPersistsForecastProvenanceAndSnapshot() {
+        TaskView task = taskService.create("leader@example.test", new CreateTaskCommand(
+                projectId, leaderMembershipId, "Worked transfer", "", null, 120));
+        activateProject();
+        taskService.addWorkLog("leader@example.test", projectId, task.id(),
+                LocalDate.of(2026, 8, 14), 135, "Author A");
+        TaskView current = taskService.list("leader@example.test", projectId).tasks().stream()
+                .filter(candidate -> candidate.id() == task.id()).findFirst().orElseThrow();
+
+        taskService.reassign("leader@example.test", projectId, task.id(), current.version(),
+                memberMembershipId, new RemainingEffortForecastInput(90, "  next phase  "));
+
+        TaskRemainingEffortForecast forecast = forecasts
+                .findAllByProjectIdAndTaskIdOrderByAssignmentStartedAtAscCreatedAtAscIdAsc(projectId, task.id())
+                .stream().findFirst().orElseThrow();
+        assertThat(forecast.getProjectId()).isEqualTo(projectId);
+        assertThat(forecast.getTaskId()).isEqualTo(task.id());
+        assertThat(forecast.getIncomingMembershipId()).isEqualTo(memberMembershipId);
+        assertThat(forecast.getForecastingLeaderMembershipId()).isEqualTo(leaderMembershipId);
+        assertThat(forecast.getRemainingMinutes()).isEqualTo(90);
+        assertThat(forecast.getActualMinutesSnapshot()).isEqualTo(135);
+        assertThat(forecast.getInitialNote()).isEqualTo("next phase");
+        assertThat(forecast.getAssignmentStartedAt()).isEqualTo(forecast.getCreatedAt());
+        TaskDetails reassigned = taskService.details("leader@example.test", projectId, task.id());
+        assertThat(reassigned.task().assigneeMembershipId()).isEqualTo(memberMembershipId);
+        assertThat(reassigned.task().assignedAt()).isEqualTo(forecast.getAssignmentStartedAt());
+    }
+
+    @Test
+    void workedReassignmentAcceptsInclusiveForecastMinuteBounds() {
+        List<TaskView> tasks = List.of(
+                taskService.create("leader@example.test", new CreateTaskCommand(
+                        projectId, memberMembershipId, "Bound 1", "", null, 120)),
+                taskService.create("leader@example.test", new CreateTaskCommand(
+                        projectId, memberMembershipId, "Bound 527040", "", null, 120)));
+        activateProject();
+        int index = 0;
+        for (int minutes : List.of(1, 527040)) {
+            TaskView task = tasks.get(index++);
+            taskService.addWorkLog("member@example.test", projectId, task.id(),
+                    LocalDate.of(2026, 8, 14), 10, "Effort");
+            TaskView current = taskService.list("leader@example.test", projectId).tasks().stream()
+                    .filter(candidate -> candidate.id() == task.id()).findFirst().orElseThrow();
+            taskService.reassign("leader@example.test", projectId, task.id(), current.version(),
+                    leaderMembershipId, new RemainingEffortForecastInput(minutes, null));
+            assertThat(forecasts.findAllByProjectIdAndTaskIdOrderByAssignmentStartedAtAscCreatedAtAscIdAsc(
+                    projectId, task.id()).get(0).getRemainingMinutes()).isEqualTo(minutes);
+        }
+    }
+
+    @Test
+    void unsolicitedForecastOnUnworkedReassignmentDoesNotMutateState() {
+        TaskView task = taskService.create("leader@example.test", new CreateTaskCommand(
+                projectId, memberMembershipId, "Unworked transfer", "", null));
+        long beforeTasks = taskCount();
+        long beforeForecasts = forecasts.count();
+        assertThatThrownBy(() -> taskService.reassign("leader@example.test", projectId, task.id(),
+                task.version(), leaderMembershipId, new RemainingEffortForecastInput(90, "not needed")))
+                .isInstanceOf(TaskValidationException.class);
+        assertThat(taskService.list("leader@example.test", projectId).tasks()).extracting(TaskView::id)
+                .contains(task.id());
+        assertThat(taskCount()).isEqualTo(beforeTasks);
+        assertThat(forecasts.count()).isEqualTo(beforeForecasts);
+        assertThat(taskService.details("leader@example.test", projectId, task.id())
+                .remainingEffortForecasts()).isEmpty();
+    }
+
+    @Test
+    void multiAuthorLifetimeActualAndOriginalEstimateSurviveWorkedReassignment() {
+        TaskView task = taskService.create("leader@example.test", new CreateTaskCommand(
+                projectId, memberMembershipId, "Two authors", "", null, 120));
+        activateProject();
+        taskService.addWorkLog("member@example.test", projectId, task.id(),
+                LocalDate.of(2026, 8, 14), 80, "Author A");
+        TaskView current = taskService.list("leader@example.test", projectId).tasks().stream()
+                .filter(candidate -> candidate.id() == task.id()).findFirst().orElseThrow();
+        taskService.reassign("leader@example.test", projectId, task.id(), current.version(),
+                leaderMembershipId, new RemainingEffortForecastInput(70, null));
+        TaskView afterReassign = taskService.list("leader@example.test", projectId).tasks().stream()
+                .filter(candidate -> candidate.id() == task.id()).findFirst().orElseThrow();
+        taskService.addWorkLog("leader@example.test", projectId, task.id(),
+                LocalDate.of(2026, 8, 14), 70, "Author B");
+        setStatus(task.id(), TaskStatus.DONE);
+
+        TaskDetails details = taskService.details("leader@example.test", projectId, task.id());
+        assertThat(details.effortPlanning().estimatedMinutes()).isEqualTo(120);
+        assertThat(details.effortPlanning().actualMinutes()).isEqualTo(150);
+        assertThat(details.effortPlanning().varianceState()).isEqualTo(TaskVarianceState.VALUE);
+        assertThat(details.effortPlanning().varianceMinutes()).isEqualTo(30L);
+        assertThat(details.remainingEffortForecasts()).singleElement()
+                .extracting(TaskRemainingEffortForecastView::actualMinutesSnapshot)
+                .isEqualTo(80L);
+        assertThat(afterReassign.assigneeMembershipId()).isEqualTo(leaderMembershipId);
+    }
+
+    @Test
     void directTransferAllUnfinishedUsesOrderedIdProjectionAndLeavesDoneTasksUntouched() {
         TaskView first = createMemberTask("First unfinished");
         TaskView second = createMemberTask("Second unfinished");
@@ -846,6 +1076,189 @@ class TaskCreationIntegrationTest {
                 "/projects/%d/tasks/%d".formatted(projectId, first.id()),
                 "/projects/%d/tasks/%d".formatted(projectId, second.id()),
                 "/projects/%d/tasks/%d".formatted(projectId, second.id()));
+    }
+
+    @Test
+    void workedBatchTransferRequiresAForecastBeforeChangingAnyTask() {
+        TaskView task = createMemberTask("Worked batch transfer");
+        activateProject();
+        taskService.addWorkLog("member@example.test", projectId, task.id(),
+                LocalDate.of(2026, 8, 14), 45, "Existing effort");
+        ProjectTaskContext context = projectMutations.taskMutationContext(
+                userId("leader@example.test"), projectId);
+        long notificationsBefore = jdbc.sql("select count(*) from notifications")
+                .query(Long.class)
+                .single();
+
+        assertThatThrownBy(() -> taskTransfers.transferBatch(
+                context,
+                leaderMembershipId,
+                memberMembershipId,
+                Set.of(task.id()),
+                leaderMembershipId))
+                .isInstanceOf(TaskValidationException.class)
+                .hasMessageContaining("forecast");
+
+        assertThat(taskService.details("leader@example.test", projectId, task.id())
+                .task().assigneeMembershipId()).isEqualTo(memberMembershipId);
+        assertThat(forecasts.findAllByProjectIdAndTaskIdOrderByAssignmentStartedAtAscCreatedAtAscIdAsc(
+                projectId, task.id())).isEmpty();
+        assertThat(jdbc.sql("select count(*) from notifications")
+                .query(Long.class)
+                .single()).isEqualTo(notificationsBefore);
+    }
+
+    @Test
+    void mixedBatchTransferPersistsOneWorkedForecastAndLeavesUnworkedHistoryEmpty() {
+        TaskView worked = createMemberTask("Worked mixed batch");
+        TaskView unworked = createMemberTask("Unworked mixed batch");
+        activateProject();
+        taskService.addWorkLog("member@example.test", projectId, worked.id(),
+                LocalDate.of(2026, 8, 14), 45, "Existing effort");
+        TaskView currentWorked = taskService.list("leader@example.test", projectId).tasks().stream()
+                .filter(candidate -> candidate.id() == worked.id()).findFirst().orElseThrow();
+        TaskView currentUnworked = taskService.list("leader@example.test", projectId).tasks().stream()
+                .filter(candidate -> candidate.id() == unworked.id()).findFirst().orElseThrow();
+        ProjectTaskContext context = projectMutations.taskMutationContext(
+                userId("leader@example.test"), projectId);
+        long notificationsBefore = notificationCount();
+
+        TaskTransferResult result = taskTransfers.transferBatch(
+                context,
+                leaderMembershipId,
+                memberMembershipId,
+                Set.of(worked.id(), unworked.id()),
+                Map.of(worked.id(), currentWorked.version(), unworked.id(), currentUnworked.version()),
+                Map.of(worked.id(), new RemainingEffortForecastInput(90, "  next phase  ")),
+                leaderMembershipId);
+
+        assertThat(result.transferredTaskCount()).isEqualTo(2L);
+        assertThat(result.recipientMembershipId()).isEqualTo(leaderMembershipId);
+        assertThat(taskService.details("leader@example.test", projectId, worked.id())
+                .task().assigneeMembershipId()).isEqualTo(leaderMembershipId);
+        assertThat(taskService.details("leader@example.test", projectId, unworked.id())
+                .task().assigneeMembershipId()).isEqualTo(leaderMembershipId);
+        TaskRemainingEffortForecast forecast = forecasts
+                .findAllByProjectIdAndTaskIdOrderByAssignmentStartedAtAscCreatedAtAscIdAsc(
+                        projectId, worked.id())
+                .stream().findFirst().orElseThrow();
+        assertThat(forecast.getIncomingMembershipId()).isEqualTo(leaderMembershipId);
+        assertThat(forecast.getForecastingLeaderMembershipId()).isEqualTo(leaderMembershipId);
+        assertThat(forecast.getRemainingMinutes()).isEqualTo(90);
+        assertThat(forecast.getActualMinutesSnapshot()).isEqualTo(45);
+        assertThat(forecast.getInitialNote()).isEqualTo("next phase");
+        assertThat(forecasts.findAllByProjectIdAndTaskIdOrderByAssignmentStartedAtAscCreatedAtAscIdAsc(
+                projectId, unworked.id())).isEmpty();
+        assertThat(notificationCount()).isEqualTo(notificationsBefore + 4);
+    }
+
+    @Test
+    void mixedBatchMissingWorkedForecastRollsBackEveryAssignmentAndNotification() {
+        TaskView worked = createMemberTask("Missing worked forecast");
+        TaskView unworked = createMemberTask("Missing worked forecast companion");
+        activateProject();
+        taskService.addWorkLog("member@example.test", projectId, worked.id(),
+                LocalDate.of(2026, 8, 14), 45, "Existing effort");
+        TaskView currentWorked = taskService.list("leader@example.test", projectId).tasks().stream()
+                .filter(candidate -> candidate.id() == worked.id()).findFirst().orElseThrow();
+        TaskView currentUnworked = taskService.list("leader@example.test", projectId).tasks().stream()
+                .filter(candidate -> candidate.id() == unworked.id()).findFirst().orElseThrow();
+        ProjectTaskContext context = projectMutations.taskMutationContext(
+                userId("leader@example.test"), projectId);
+        long notificationsBefore = notificationCount();
+
+        assertThatThrownBy(() -> taskTransfers.transferBatch(
+                context,
+                leaderMembershipId,
+                memberMembershipId,
+                Set.of(worked.id(), unworked.id()),
+                Map.of(worked.id(), currentWorked.version(), unworked.id(), currentUnworked.version()),
+                Map.of(),
+                leaderMembershipId))
+                .isInstanceOf(TaskValidationException.class)
+                .hasMessageContaining("forecast");
+
+        assertThat(taskService.details("leader@example.test", projectId, worked.id())
+                .task().assigneeMembershipId()).isEqualTo(memberMembershipId);
+        assertThat(taskService.details("leader@example.test", projectId, unworked.id())
+                .task().assigneeMembershipId()).isEqualTo(memberMembershipId);
+        assertThat(forecasts.findAllByProjectIdAndTaskIdOrderByAssignmentStartedAtAscCreatedAtAscIdAsc(
+                projectId, worked.id())).isEmpty();
+        assertThat(notificationCount()).isEqualTo(notificationsBefore);
+    }
+
+    @Test
+    void mixedBatchForecastForUnworkedTaskRollsBackBeforeAnyWorkedForecastIsSaved() {
+        TaskView worked = createMemberTask("Extra unworked forecast");
+        TaskView unworked = createMemberTask("Extra unworked forecast companion");
+        activateProject();
+        taskService.addWorkLog("member@example.test", projectId, worked.id(),
+                LocalDate.of(2026, 8, 14), 45, "Existing effort");
+        TaskView currentWorked = taskService.list("leader@example.test", projectId).tasks().stream()
+                .filter(candidate -> candidate.id() == worked.id()).findFirst().orElseThrow();
+        TaskView currentUnworked = taskService.list("leader@example.test", projectId).tasks().stream()
+                .filter(candidate -> candidate.id() == unworked.id()).findFirst().orElseThrow();
+        ProjectTaskContext context = projectMutations.taskMutationContext(
+                userId("leader@example.test"), projectId);
+        long notificationsBefore = notificationCount();
+
+        assertThatThrownBy(() -> taskTransfers.transferBatch(
+                context,
+                leaderMembershipId,
+                memberMembershipId,
+                Set.of(worked.id(), unworked.id()),
+                Map.of(worked.id(), currentWorked.version(), unworked.id(), currentUnworked.version()),
+                Map.of(
+                        worked.id(), new RemainingEffortForecastInput(90, "worked"),
+                        unworked.id(), new RemainingEffortForecastInput(30, "not allowed")),
+                leaderMembershipId))
+                .isInstanceOf(TaskValidationException.class)
+                .hasMessageContaining("unworked");
+
+        assertThat(taskService.details("leader@example.test", projectId, worked.id())
+                .task().assigneeMembershipId()).isEqualTo(memberMembershipId);
+        assertThat(taskService.details("leader@example.test", projectId, unworked.id())
+                .task().assigneeMembershipId()).isEqualTo(memberMembershipId);
+        assertThat(forecasts.findAllByProjectIdAndTaskIdOrderByAssignmentStartedAtAscCreatedAtAscIdAsc(
+                projectId, worked.id())).isEmpty();
+        assertThat(notificationCount()).isEqualTo(notificationsBefore);
+    }
+
+    @Test
+    void mixedBatchStaleTaskVersionRollsBackAssignmentsForecastsAndNotifications() {
+        TaskView worked = createMemberTask("Stale mixed batch");
+        TaskView unworked = createMemberTask("Stale mixed batch companion");
+        activateProject();
+        taskService.addWorkLog("member@example.test", projectId, worked.id(),
+                LocalDate.of(2026, 8, 14), 45, "Existing effort");
+        TaskView currentWorked = taskService.list("leader@example.test", projectId).tasks().stream()
+                .filter(candidate -> candidate.id() == worked.id()).findFirst().orElseThrow();
+        TaskView currentUnworked = taskService.list("leader@example.test", projectId).tasks().stream()
+                .filter(candidate -> candidate.id() == unworked.id()).findFirst().orElseThrow();
+        jdbc.sql("update tasks set version = version + 1 where id = :id")
+                .param("id", unworked.id()).update();
+        entityManager.clear();
+        ProjectTaskContext context = projectMutations.taskMutationContext(
+                userId("leader@example.test"), projectId);
+        long notificationsBefore = notificationCount();
+
+        assertThatThrownBy(() -> taskTransfers.transferBatch(
+                context,
+                leaderMembershipId,
+                memberMembershipId,
+                Set.of(worked.id(), unworked.id()),
+                Map.of(worked.id(), currentWorked.version(), unworked.id(), currentUnworked.version()),
+                Map.of(worked.id(), new RemainingEffortForecastInput(90, "stale")),
+                leaderMembershipId))
+                .isInstanceOf(TaskConflictException.class);
+
+        assertThat(taskService.details("leader@example.test", projectId, worked.id())
+                .task().assigneeMembershipId()).isEqualTo(memberMembershipId);
+        assertThat(taskService.details("leader@example.test", projectId, unworked.id())
+                .task().assigneeMembershipId()).isEqualTo(memberMembershipId);
+        assertThat(forecasts.findAllByProjectIdAndTaskIdOrderByAssignmentStartedAtAscCreatedAtAscIdAsc(
+                projectId, worked.id())).isEmpty();
+        assertThat(notificationCount()).isEqualTo(notificationsBefore);
     }
 
     @Test

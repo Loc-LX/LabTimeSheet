@@ -69,13 +69,13 @@ public class AttendanceReportQueryService {
      * Builds one inclusive, oldest-first report for an authenticated actor and target Intern.
      *
      * <p>Intern actors are authorized from their own Account identity before any target lookup and may request only
-     * themselves. Active Mentors and active Admins may inspect any target account whose immutable role is Intern; a
-     * Project Leader remains an Intern at this boundary and therefore gets no cross-user access. Unavailable or
-     * non-Intern targets use the same denied outcome for broad actors. The inclusive range is limited to one calendar
-     * year to keep the server-side read bounded. Historical eligibility comes from the Account-owned activation and
-     * terminal timestamp window, so completion does not remove previously eligible empty workdays. Percentages are exact
-     * two-decimal HALF_UP values; empty metrics and their display helpers represent N/A when no expected workday
-     * remains.</p>
+     * themselves. Active Mentors may inspect any target account whose immutable role is Intern; a Project Leader
+     * remains an Intern at this boundary and therefore gets no cross-user access. Admins are rejected at this
+     * producer boundary before date validation or Attendance reads. Unavailable or non-Intern targets use the same
+     * denied outcome for broad actors. The inclusive range is limited to one calendar year to keep the server-side
+     * read bounded. Historical eligibility comes from the Account-owned activation and terminal timestamp window,
+     * so completion does not remove previously eligible empty workdays. Percentages are exact two-decimal HALF_UP
+     * values; empty metrics and their display helpers represent N/A when no expected workday remains.</p>
      *
      * @param actor authenticated Attendance authorization context
      * @param internId target Intern account identifier
@@ -87,8 +87,8 @@ public class AttendanceReportQueryService {
      */
     @Transactional
     public AttendanceReport query(AttendanceActor actor, long internId, LocalDate from, LocalDate to) {
-        validateRange(from, to);
         authorize(actor, internId);
+        validateRange(from, to);
         InternReportingWindow reportingWindow = accounts.historicalInternReportingWindow(internId).orElse(null);
 
         List<AttendanceRecordEntity> recordRows = records
@@ -261,6 +261,9 @@ public class AttendanceReportQueryService {
         if (actor == null) {
             throw new AccessDeniedException("An attendance actor is required");
         }
+        if (actor.role() == AttendanceRole.ADMIN) {
+            throw new AccessDeniedException("Admins may not access Attendance reports");
+        }
         AccountIdentity identity = accounts.requireIdentityById(actor.userId());
         GlobalRole expectedRole = GlobalRole.valueOf(actor.role().name());
         if (identity.role() != expectedRole) {
@@ -272,11 +275,11 @@ public class AttendanceReportQueryService {
             }
             return;
         }
-        boolean activeBroadActor = (actor.role() == AttendanceRole.MENTOR && identity.role() == GlobalRole.MENTOR
-                || actor.role() == AttendanceRole.ADMIN && identity.role() == GlobalRole.ADMIN)
+        boolean activeBroadActor = actor.role() == AttendanceRole.MENTOR
+                && identity.role() == GlobalRole.MENTOR
                 && identity.status() == AccountStatus.ACTIVE;
         if (!activeBroadActor) {
-            throw new AccessDeniedException("An active Mentor or Admin is required");
+            throw new AccessDeniedException("An active Mentor is required");
         }
         if (internId <= 0) {
             throw new AccessDeniedException("Attendance report target must be an Intern");

@@ -59,7 +59,7 @@ class DashboardControllerWebTest {
 
     @Test
     void adminRendersAdminDashboardForAuthenticatedIdentity() throws Exception {
-        var dashboard = new DashboardView.Admin(2, 1, 1, 3);
+        var dashboard = new DashboardView.Admin(2, 1, 1);
         given(dashboards.admin("admin@example.test")).willReturn(dashboard);
         given(smtpConfiguration.hasActiveConfiguration()).willReturn(false);
 
@@ -78,7 +78,7 @@ class DashboardControllerWebTest {
 
     @Test
     void activeSmtpKeepsAdminDashboardFreeOfTheRestrictedInstallationWarning() throws Exception {
-        var dashboard = new DashboardView.Admin(2, 1, 1, 3);
+        var dashboard = new DashboardView.Admin(2, 1, 1);
         given(dashboards.admin("admin@example.test")).willReturn(dashboard);
         given(smtpConfiguration.hasActiveConfiguration()).willReturn(true);
 
@@ -143,7 +143,7 @@ class DashboardControllerWebTest {
 
     @Test
     void dashboardLoadsRecipientScopedNotificationsAndHeaderAccess() throws Exception {
-        var dashboard = new DashboardView.Admin(2, 1, 1, 3);
+        var dashboard = new DashboardView.Admin(2, 1, 1);
         var identity = new AccountIdentity(
                 9L, "admin@example.test", "Admin", GlobalRole.ADMIN, AccountStatus.ACTIVE);
         var inbox = new NotificationInbox(List.of(new NotificationInboxItem(

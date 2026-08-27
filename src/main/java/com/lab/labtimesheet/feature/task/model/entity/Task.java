@@ -52,6 +52,9 @@ public class Task {
     @Column(name = "due_date")
     private LocalDate dueDate;
 
+    @Column(name = "estimated_minutes")
+    private Integer estimatedMinutes;
+
     @Column(name = "assigned_at", nullable = false)
     private Instant assignedAt;
 
@@ -110,6 +113,23 @@ public class Task {
         this.createdAt = now;
         this.updatedAt = now;
     }
+
+    /** Creates a Task with an optional Leader-provided whole-Task estimate. */
+    public Task(long projectId, long assigneeMembershipId, String title, String description,
+            LocalDate dueDate, long actorMembershipId, Instant now, Integer estimatedMinutes) {
+        this(projectId, assigneeMembershipId, title, description, dueDate, actorMembershipId, now);
+        applyEstimatedMinutes(estimatedMinutes, now);
+    }
+
+    /** Applies an estimate using the caller's injected server clock. */
+    public void applyEstimatedMinutes(Integer estimatedMinutes, Instant now) {
+        if (estimatedMinutes != null && (estimatedMinutes < 1 || estimatedMinutes > 527040)) {
+            throw new IllegalArgumentException("Task estimate must be between 1 and 527040 minutes");
+        }
+        this.estimatedMinutes = estimatedMinutes;
+        this.updatedAt = now;
+    }
+
 
     /**
      * Applies one permitted fixed-graph status transition and advances the update timestamp.

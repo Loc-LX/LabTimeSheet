@@ -8,6 +8,7 @@ import com.lab.labtimesheet.feature.task.model.dto.TaskCreateForm;
 import com.lab.labtimesheet.feature.task.model.dto.TaskDetails;
 import com.lab.labtimesheet.feature.task.model.dto.TaskListView;
 import com.lab.labtimesheet.feature.task.model.dto.TaskView;
+import com.lab.labtimesheet.feature.task.model.dto.RemainingEffortForecastInput;
 import com.lab.labtimesheet.feature.task.service.TaskService;
 import jakarta.validation.Valid;
 import java.util.Arrays;
@@ -77,9 +78,16 @@ public class TaskController {
                             form.assigneeMembershipId(),
                             form.title(),
                             form.description(),
-                            form.dueDate()));
+                            form.dueDate(),
+                            form.estimatedMinutes()));
         } catch (TaskValidationException exception) {
-            bindingResult.rejectValue("dueDate", "task.dueDate", exception.getMessage());
+            if (exception.getMessage() != null && exception.getMessage().toLowerCase(Locale.ROOT).contains("due date")) {
+                bindingResult.rejectValue("dueDate", "task.dueDate", exception.getMessage());
+            } else if (exception.getMessage() != null && exception.getMessage().toLowerCase(Locale.ROOT).contains("estimate")) {
+                bindingResult.rejectValue("estimatedMinutes", "task.estimatedMinutes", exception.getMessage());
+            } else {
+                bindingResult.reject("task.invalid", exception.getMessage());
+            }
             populateForm(authentication.getName(), projectId, model);
             return "tasks/form";
         }
@@ -133,6 +141,18 @@ public class TaskController {
         return detailsRedirect(projectId, taskId);
     }
 
+    @PostMapping("/projects/{projectId}/tasks/{taskId}/estimate")
+    String estimate(Authentication authentication, @PathVariable long projectId, @PathVariable long taskId,
+            @RequestParam long expectedVersion, @RequestParam(required = false) Integer estimatedMinutes,
+            RedirectAttributes redirectAttributes) {
+        try {
+            taskService.estimate(authentication.getName(), projectId, taskId, expectedVersion, estimatedMinutes);
+        } catch (TaskValidationException exception) {
+            redirectAttributes.addFlashAttribute("taskError", exception.getMessage());
+        }
+        return detailsRedirect(projectId, taskId);
+    }
+
     @PostMapping("/projects/{projectId}/tasks/{taskId}/delete")
     String delete(
             Authentication authentication,
@@ -156,18 +176,68 @@ public class TaskController {
             @PathVariable long taskId,
             @RequestParam long expectedVersion,
             @RequestParam String assigneeMembershipId,
+            @RequestParam(required = false) String remainingMinutes,
+            @RequestParam(required = false) String forecastNote,
             RedirectAttributes redirectAttributes) {
         try {
-            taskService.reassign(
-                    authentication.getName(),
-                    projectId,
-                    taskId,
-                    expectedVersion,
-                    requiredLong(assigneeMembershipId, "Choose a valid assignee."));
+            long recipient = requiredLong(assigneeMembershipId, "Choose a valid assignee.");
+            Integer parsedRemaining = optionalInt(remainingMinutes, "Enter valid remaining effort minutes.");
+            if (parsedRemaining == null && (forecastNote == null || forecastNote.isBlank())) {
+                taskService.reassign(authentication.getName(), projectId, taskId, expectedVersion, recipient);
+            } else {
+                taskService.reassign(authentication.getName(), projectId, taskId, expectedVersion, recipient,
+                        forecastInput(parsedRemaining, forecastNote));
+            }
         } catch (TaskValidationException exception) {
             redirectAttributes.addFlashAttribute("taskError", exception.getMessage());
             redirectAttributes.addFlashAttribute("taskReassignInput", Map.of(
-                    "assigneeMembershipId", assigneeMembershipId));
+                    "assigneeMembershipId", assigneeMembershipId,
+                    "remainingMinutes", remainingMinutes == null ? "" : remainingMinutes,
+                    "forecastNote", forecastNote == null ? "" : forecastNote));
+        }
+        return detailsRedirect(projectId, taskId);
+    }
+
+    /**
+     * Appends one Leader-authored correction to the forecast identified by the nested route.
+     *
+     * <p>The predecessor identifier is intentionally part of the URL so a browser replay cannot
+     * silently overwrite whichever forecast happens to be latest. TaskService rechecks the
+     * assignment context, incoming work boundary, current Leader, and append-only successor rule
+     * while holding the Project/Task mutation locks.</p>
+     *
+     * @param authentication authenticated current Leader
+     * @param projectId owning Project identifier
+     * @param taskId unfinished Task identifier
+     * @param forecastId expected predecessor forecast identifier
+     * @param remainingMinutes replacement remaining effort text
+     * @param reason mandatory correction reason
+     * @param redirectAttributes safe validation flash state
+     * @return detail redirect after success or validation rejection
+     */
+    @PostMapping("/projects/{projectId}/tasks/{taskId}/forecasts/{forecastId}/correct")
+    String correctForecast(
+            Authentication authentication,
+            @PathVariable long projectId,
+            @PathVariable long taskId,
+            @PathVariable long forecastId,
+            @RequestParam(required = false) String remainingMinutes,
+            @RequestParam(required = false) String reason,
+            RedirectAttributes redirectAttributes) {
+        try {
+            taskService.correctForecast(
+                    authentication.getName(),
+                    projectId,
+                    taskId,
+                    forecastId,
+                    optionalInt(remainingMinutes, "Enter valid remaining effort minutes."),
+                    reason);
+        } catch (TaskValidationException exception) {
+            redirectAttributes.addFlashAttribute("taskError", exception.getMessage());
+            redirectAttributes.addFlashAttribute("taskForecastCorrectionInput", Map.of(
+                    "forecastId", forecastId,
+                    "remainingMinutes", remainingMinutes == null ? "" : remainingMinutes,
+                    "reason", reason == null ? "" : reason));
         }
         return detailsRedirect(projectId, taskId);
     }
@@ -272,6 +342,7 @@ public class TaskController {
     private void populateForm(String actorEmail, long projectId, Model model) {
         model.addAttribute("projectId", projectId);
         model.addAttribute("assignees", taskService.assignmentChoices(actorEmail, projectId));
+        model.addAttribute("canSetEstimate", taskService.canSetEstimateOnCreate(actorEmail, projectId));
     }
 
     private static String detailsRedirect(long projectId, long taskId) {
@@ -296,6 +367,17 @@ public class TaskController {
         } catch (NumberFormatException exception) {
             throw new TaskValidationException(errorMessage);
         }
+    }
+
+    private static Integer optionalInt(String value, String errorMessage) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return requiredInt(value, errorMessage);
+    }
+
+    private static RemainingEffortForecastInput forecastInput(Integer remainingMinutes, String note) {
+        return new RemainingEffortForecastInput(remainingMinutes, note);
     }
 
     private static long requiredLong(String value, String errorMessage) {

@@ -1,10 +1,10 @@
 package com.lab.labtimesheet.feature.reporting.controller;
 
 import com.lab.labtimesheet.feature.reporting.service.AttendanceReportService;
-import java.security.Principal;
 import java.time.LocalDate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -22,9 +22,9 @@ public class AttendanceReportController {
     private final AttendanceReportService reports;
 
     /**
-     * Renders own Intern scope or an explicitly selected Mentor/Admin detail scope.
+     * Renders own Intern scope or an explicitly selected Mentor detail scope.
      *
-     * @param principal authenticated application identity
+     * @param authentication authenticated application identity and role
      * @param internId optional target Intern for detail scope
      * @param from optional inclusive local start date
      * @param to optional inclusive local end date
@@ -33,12 +33,13 @@ public class AttendanceReportController {
      */
     @GetMapping
     public String report(
-            Principal principal,
+            Authentication authentication,
             @RequestParam(required = false) Long internId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             Model model) {
-        model.addAttribute("report", reports.build(principal, internId, from, to));
+        OperationalReportAuthorization.requireOperationalReportAccess(authentication);
+        model.addAttribute("report", reports.build(authentication, internId, from, to));
         return "reports/attendance";
     }
 }

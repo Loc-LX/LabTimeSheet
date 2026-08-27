@@ -42,11 +42,12 @@ Projects, Tasks, attendance, notifications, and authorized reports. Iterations
 - Effective-dated policy/calendar history, Vietnam HolidayAPI preview/import, leave decisions, missed-checkout corrections/reverts, and deadline schedulers.
 - Server-time check-in and checkout with duplicate, off-day, leave-day, lifecycle, and cutoff rejection.
 - `MISSING_CHECKOUT` classification without a second early-departure violation.
-- Intern history plus authorized Mentor/Admin attendance/compliance reports using the historical applied policy and schedule.
+- Intern own history plus authorized active-Mentor attendance/compliance reports using the historical applied policy and schedule; Admin has no dedicated Attendance-report scope.
 
 ### Desktop UI
 
 - Shared Thymeleaf/Tailwind shell with role-aware navigation and dashboards.
+- Role-scoped reporting navigation: Admin is limited to account/configuration work and has no Attendance, Project/Task, or Daily report pages or exports; current Project Leaders can discover Daily reporting only for currently-led open Projects.
 - Light, dark, and system themes applied before paint.
 - Collapsible desktop sidebar, accessible forms/errors, tables, badges, empty states, and local Lucide icons.
 - Bootstrap, authentication, integration, Project/exit/transfer, Task, policy/calendar, attendance, correction, leave, notification, history, and report pages integrated into the same shell.

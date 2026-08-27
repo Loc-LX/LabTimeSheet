@@ -5,6 +5,13 @@
 - **Test class/method:** `src/test/java/.../reporting/controller/ProjectTaskReportPageWebTest.java` (four cases)
 - **Implementation commit:** pending
 
+> **Supersession notice — 27 August 2026:** This historical page evidence includes an Admin
+> fixture and Admin per-member-detail assertion from the prior RPT-005 contract. The latest
+> reporting-role decision removes Admin from Project/Task report navigation, HTML, XLSX, PDF,
+> service, and dataset scope. Owning Mentors/current Leaders retain authorized detail and
+> ordinary members retain aggregate-only output. The old fixture/results remain factual and are
+> not being relabeled as proof of the revised Admin denial.
+
 ## Protected behavior
 
 The `GET /reports/projects?projectId=..` page must render aggregate progress and logged hours, apply

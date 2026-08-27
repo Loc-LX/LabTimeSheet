@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{fragments/layout :: shell(
+          pageTitle='Daily Project Work Report',
+          section='Reports',
+          activeNav='daily-project-report',
+          primaryAction=~{},
+          content=~{::main})}">
+<body>
+<main>
+    <section class="panel" th:if="${projectSelection != null}" aria-labelledby="daily-project-selection-title">
+        <header class="panel-header">
+            <h2 class="panel-title" id="daily-project-selection-title">Choose a Project to open its Daily Project Work Report</h2>
+        </header>
+        <p class="page-description">Only Projects you currently lead are available. Task and work-log data is loaded after you choose a Project.</p>
+        <form class="form-grid" method="get" th:action="@{/reports/daily}">
+            <div class="field">
+                <label class="field-label" for="daily-project-selection-date">Report date</label>
+                <input class="control" id="daily-project-selection-date" name="reportDate" type="date"
+                       th:value="${projectSelection.reportDate}">
+                <p class="field-help">Today and past local dates are valid. Future dates are rejected.</p>
+            </div>
+            <div class="field">
+                <label class="field-label" for="daily-project-selection-project">Project</label>
+                <select class="control" id="daily-project-selection-project" name="projectId" required>
+                    <option value="" selected disabled>Choose a Project</option>
+                    <option th:each="project : ${projectSelection.projectOptions}"
+                            th:value="${project.id}" th:text="${project.name}">Project</option>
+                </select>
+            </div>
+            <div class="field form-actions">
+                <button class="button button-primary" type="submit">Open Daily Report</button>
+            </div>
+        </form>
+    </section>
+
+    <th:block th:unless="${projectSelection != null}">
+    <p class="page-description">Retained Task work logs for one Report date, grouped by Project and historical log author.</p>
+
+    <form class="panel form-grid report-filters" method="get" th:action="@{/reports/daily}">
+        <div class="field">
+            <label class="field-label" for="daily-report-date">Report date</label>
+            <input class="control" id="daily-report-date" name="reportDate" type="date"
+                   th:value="${report.reportDate}">
+            <p class="field-help">Today and past local dates are valid. Future dates are rejected.</p>
+        </div>
+        <div class="field" th:if="${report.lockedSingleProject}">
+            <label class="field-label" for="daily-report-project-locked">Project</label>
+            <input class="control" id="daily-report-project-locked" type="text"
+                   th:value="${report.selectedProjectName}" readonly aria-readonly="true">
+            <input type="hidden" name="projectId" th:value="${report.selectedProjectId}">
+            <p class="field-help">Current Leader scope: one Project</p>
+        </div>
+        <div class="field" th:unless="${report.lockedSingleProject}">
+            <label class="field-label" for="daily-report-project">Project</label>
+            <select class="control" id="daily-report-project" name="projectId">
+                <option value="" th:selected="${report.selectedProjectId == null}">All authorized Projects</option>
+                <option th:each="project : ${report.projectOptions}" th:value="${project.id}"
+                        th:selected="${report.selectedProjectId != null and report.selectedProjectId == project.id}"
+                        th:text="${project.name}">Project</option>
+            </select>
+            <p class="field-help">Authorized Project scope is applied before Task reads.</p>
+        </div>
+        <div class="field form-actions">
+            <button class="button button-primary" type="submit">Apply report</button>
+        </div>
+    </form>
+
+    <div class="form-actions report-downloads" aria-label="Download Daily Project Work Report">
+        <a class="button button-secondary"
+           th:href="@{/reports/daily.xlsx(projectId=${report.selectedProjectId},date=${report.reportDate})}">Download XLSX</a>
+        <a class="button button-secondary"
+           th:href="@{/reports/daily.pdf(projectId=${report.selectedProjectId},date=${report.reportDate})}">Download PDF</a>
+    </div>
+
+    <section class="panel" aria-label="Report date context">
+        <header class="panel-header">
+            <h2 class="panel-title" th:text="${report.dayContext.label}">Configured attendance workday</h2>
+        </header>
+        <p th:text="|Report date: ${report.reportDate}|">Report date</p>
+        <p class="field-help">Attendance and calendar context is informational only; it does not filter retained Task work or assert attendance.</p>
+    </section>
+
+    <section class="panel metric-strip" aria-label="Daily Project Work Report totals">
+        <div class="metric">
+            <div class="metric-label">Overall logged minutes</div>
+            <div class="metric-value" th:text="${report.overallTotalMinutes}">0</div>
+            <div class="metric-detail">Selected Report date only</div>
+        </div>
+    </section>
+
+    <section class="panel" th:if="${!report.hasRows()}">
+        <th:block th:replace="~{fragments/components :: empty(${report.emptyTitle}, ${report.emptyDescription})}"></th:block>
+    </section>
+
+    <section class="panel" th:each="project : ${report.projects}">
+        <header class="panel-header">
+            <div>
+                <h2 class="panel-title" th:text="${project.projectName}">Project</h2>
+                <p class="field-help" th:text="|Project subtotal: ${project.totalMinutes} minutes|">Project subtotal</p>
+            </div>
+        </header>
+        <div th:each="member : ${project.members}">
+            <h3 class="section-title" th:text="|${member.displayName} — ${member.totalMinutes} minutes|">Member subtotal</h3>
+            <div class="table-scroll">
+                <table class="data-table">
+                    <caption class="sr-only" th:text="|Retained Task work by ${member.displayName}|">Task work</caption>
+                    <thead>
+                    <tr>
+                        <th scope="col">Task</th>
+                        <th scope="col">Current status</th>
+                        <th scope="col">Selected-date logs</th>
+                        <th scope="col">Selected-date minutes</th>
+                        <th scope="col">Lifetime actual minutes</th>
+                        <th scope="col">Original estimate minutes</th>
+                        <th scope="col">Forecast remaining minutes</th>
+                        <th scope="col">Forecast total minutes</th>
+                        <th scope="col">DONE variance</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="task : ${member.tasks}">
+                        <th scope="row">
+                            <span th:text="${task.title}">Task</span>
+                            <span th:if="${task.deleted}" class="field-help"> (Deleted Task; retained log)</span>
+                        </th>
+                        <td>
+                            <span class="field-help">Current status:</span>
+                            <span th:text="${task.status}">IN_PROGRESS</span>
+                        </td>
+                        <td>
+                            <ul class="plain-list">
+                                <li th:each="log : ${task.logs}"
+                                    th:text="|${log.description} (${log.minutes} minutes)|">Description</li>
+                            </ul>
+                        </td>
+                        <td th:text="${task.selectedDateMinutes}">0</td>
+                        <td th:text="${task.lifetimeActualMinutes}">N/A</td>
+                        <td th:text="${task.estimateDisplay}">N/A</td>
+                        <td th:text="${task.forecastRemainingDisplay}">N/A</td>
+                        <td th:text="${task.forecastTotalDisplay}">N/A</td>
+                        <td th:text="${task.varianceDisplay}">Pending</td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+    </th:block>
+</main>
+</body>
+</html>

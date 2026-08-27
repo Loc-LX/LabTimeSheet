@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.lab.labtimesheet.feature.account.service.AccountService;
@@ -16,6 +17,7 @@ import com.lab.labtimesheet.feature.attendance.model.AttendancePolicyFixtures;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceRecord;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceRole;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceCurrentState;
+import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceReportDateContext;
 import com.lab.labtimesheet.feature.attendance.model.entity.AttendancePolicyEntity;
 import com.lab.labtimesheet.feature.attendance.model.entity.AttendanceRecordEntity;
 import com.lab.labtimesheet.feature.attendance.repository.AttendancePolicyRepository;
@@ -44,6 +46,7 @@ class AttendanceApplicationServiceTest {
     private final AttendanceRecordRepository records = mock(AttendanceRecordRepository.class);
     private final AccountService accounts = mock(AccountService.class);
     private final AttendanceCorrectionApplicationService corrections = mock(AttendanceCorrectionApplicationService.class);
+    private final CalendarApplicationService calendar = mock(CalendarApplicationService.class);
     private AttendanceApplicationService attendance;
 
     @BeforeEach
@@ -58,7 +61,7 @@ class AttendanceApplicationServiceTest {
                 records,
                 mock(AttendanceQueryRepository.class),
                 accounts,
-                mock(CalendarApplicationService.class),
+                calendar,
                 new AttendanceService(),
                 corrections);
     }
@@ -73,6 +76,22 @@ class AttendanceApplicationServiceTest {
         assertThat(attendance.currentState(INTERN_ID)).isEqualTo(AttendanceCurrentState.NOT_CHECKED_IN);
         assertThat(attendance.currentState(INTERN_ID)).isEqualTo(AttendanceCurrentState.CHECKED_IN);
         assertThat(attendance.currentState(INTERN_ID)).isEqualTo(AttendanceCurrentState.CHECKED_OUT);
+    }
+
+    @Test
+    void reportsEffectivePolicyAndGlobalCalendarContextWithoutReadingAttendanceRows() {
+        when(calendar.isGlobalDayOff(WORK_DATE)).thenReturn(true);
+
+        AttendanceReportDateContext context = attendance.reportDateContext(WORK_DATE);
+
+        assertThat(context.reportDate()).isEqualTo(WORK_DATE);
+        assertThat(context.configuredWorkday()).isTrue();
+        assertThat(context.globalDayOff()).isTrue();
+        assertThat(context.policyId()).isEqualTo(1L);
+        assertThat(context.policyZoneId().getId()).isEqualTo("Asia/Ho_Chi_Minh");
+        assertThat(context.label()).isEqualTo("Global day off");
+        verify(calendar).isGlobalDayOff(WORK_DATE);
+        verifyNoInteractions(records);
     }
 
     @Test

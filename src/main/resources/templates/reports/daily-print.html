@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <title>Daily Project Work Report</title>
+    <style>
+        @page { size: A4 landscape; margin: 10mm; }
+        body { color: #15171a; font-family: 'Liberation Sans', sans-serif; font-size: 7pt; }
+        h1 { font-size: 17pt; margin: 0 0 5pt; }
+        h2 { font-size: 11pt; margin: 10pt 0 4pt; }
+        h3 { font-size: 9pt; margin: 7pt 0 3pt; }
+        p { margin: 3pt 0; }
+        .muted { color: #626a75; }
+        .summary { margin: 7pt 0; }
+        .summary td { padding: 3pt 12pt 3pt 0; }
+        .summary strong { display: block; font-size: 9pt; }
+        table { border-collapse: collapse; width: 100%; }
+        th { background: #eceef1; font-weight: bold; text-align: left; }
+        th, td { border: .5pt solid #858c96; padding: 3pt 4pt; vertical-align: top; }
+        tr { page-break-inside: avoid; }
+        ul { margin: 0; padding-left: 12pt; }
+        /* Keep the shared table contract without clipping print output. */
+        .table-scroll { overflow: visible; }
+    </style>
+</head>
+<body>
+<h1>Daily Project Work Report</h1>
+<p><strong>Report date:</strong> <span th:text="${report.reportDate}">2026-08-27</span></p>
+<p><strong>Day context:</strong> <span th:text="${report.dayContext.label}">Global day off</span></p>
+<p class="muted"><strong>Project scope:</strong>
+    <span th:text="${report.selectedProject ? report.selectedProjectName : 'All authorized Projects'}">All authorized Projects</span>
+</p>
+<div class="table-scroll">
+    <table class="summary">
+        <tbody><tr>
+            <td><span class="muted">Overall total minutes</span><strong th:text="${report.overallTotalMinutes}">120</strong></td>
+        </tr></tbody>
+    </table>
+</div>
+
+<section th:if="${!report.hasRows}">
+    <h2 th:text="${report.emptyTitle}">No retained Task work for this date</h2>
+    <p th:text="${report.emptyDescription}">No authorized Project has retained Task work logs on this Report date.</p>
+</section>
+
+<section th:each="project : ${report.projects}">
+    <h2 th:text="${project.projectName}">Dự án Hà Nội</h2>
+    <p class="muted" th:text="|Project subtotal: ${project.totalMinutes} minutes|">Project subtotal: 120 minutes</p>
+    <div th:each="member : ${project.members}">
+        <h3 th:text="|${member.displayName} — ${member.totalMinutes} minutes|">Nguyễn Mai — 90 minutes</h3>
+        <div class="table-scroll">
+            <table>
+                <thead><tr>
+                    <th>Task</th><th>Current status</th><th>Task state</th><th>Work descriptions</th>
+                    <th>Selected-date minutes</th><th>Lifetime actual minutes</th>
+                    <th>Original estimate minutes</th><th>Forecast remaining minutes</th>
+                    <th>Forecast total minutes</th><th>DONE variance</th>
+                </tr></thead>
+                <tbody>
+                <tr th:each="task : ${member.tasks}">
+                    <td th:text="${task.title}">Task</td>
+                    <td th:text="${task.status}">IN_PROGRESS</td>
+                    <td th:text="${task.deleted ? 'Deleted Task; retained log' : ''}"></td>
+                    <td>
+                        <ul><li th:each="log : ${task.logs}"
+                                th:text="|${log.description} (${log.minutes} minutes)|">Description</li></ul>
+                    </td>
+                    <td th:text="${task.selectedDateMinutes}">90</td>
+                    <td th:text="${task.lifetimeActualMinutes}">150</td>
+                    <td th:text="${task.estimateDisplay}">480</td>
+                    <td th:text="${task.forecastRemainingDisplay}">120</td>
+                    <td th:text="${task.forecastTotalDisplay}">270</td>
+                    <td th:text="${task.varianceDisplay}">Pending</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+        <p class="muted" th:text="|Member subtotal: ${member.totalMinutes} minutes|">Member subtotal: 90 minutes</p>
+    </div>
+</section>
+</body>
+</html>

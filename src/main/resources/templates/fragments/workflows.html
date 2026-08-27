@@ -26,11 +26,26 @@
             <fieldset class="form-section">
                 <legend>Unfinished Tasks</legend>
                 <p class="field-help" th:id="${id + '-tasks-help'}">Only TODO, IN_PROGRESS, and BLOCKED Tasks can be transferred.</p>
-                <label class="checkbox" th:each="task : ${unfinishedTasks}">
-                    <input type="checkbox" name="taskIds" th:value="${task.id}" th:checked="${projectInput != null and projectInput.kind == 'transfer' and projectInput.sourceMembershipId == sourceMembershipId.toString() and projectInput.taskIds.contains(task.id.toString())}" th:attr="data-task-version-toggle=${task.id},aria-describedby=${id + '-tasks-help'}">
+                <div class="workflow-transfer-task" th:each="task : ${unfinishedTasks}">
+                    <label class="checkbox">
+                        <input type="checkbox" name="taskIds" th:value="${task.id}" th:checked="${projectInput != null and projectInput.kind == 'transfer' and projectInput.sourceMembershipId == sourceMembershipId.toString() and projectInput.taskIds.contains(task.id.toString())}" th:attr="data-task-version-toggle=${task.id},aria-describedby=${id + '-tasks-help'}">
+                        <span th:text="|${task.title} · ${task.status}|">Task · IN_PROGRESS</span>
+                    </label>
                     <input type="hidden" name="taskVersions" th:value="|${task.id}:${task.version}|" disabled th:attr="data-task-version-for=${task.id}">
-                    <span th:text="|${task.title} · ${task.status}|">Task · IN_PROGRESS</span>
-                </label>
+                    <div class="field" th:if="${!#lists.isEmpty(task.workLogs)}">
+                        <label class="field-label" th:for="|${id}-forecast-remaining-${task.id}|">Remaining effort forecast (minutes)</label>
+                        <input class="control" type="number" min="1" max="527040" inputmode="numeric"
+                               th:id="|${id}-forecast-remaining-${task.id}|" disabled
+                               th:attr="data-forecast-remaining-for=${task.id},aria-describedby=${id + '-forecast-help-' + task.id}">
+                        <label class="field-label" th:for="|${id}-forecast-note-${task.id}|">Forecast note (optional)</label>
+                        <input class="control" type="text" maxlength="500"
+                               th:id="|${id}-forecast-note-${task.id}|" disabled
+                               th:attr="data-forecast-note-for=${task.id},aria-describedby=${id + '-forecast-help-' + task.id}">
+                        <input type="hidden" name="forecastInputs" value="" disabled
+                               th:attr="data-forecast-input-for=${task.id}">
+                        <p class="field-help" th:id="|${id}-forecast-help-${task.id}|">A forecast is required because this Task already has work logged.</p>
+                    </div>
+                </div>
                 <p class="field-help" th:if="${#lists.isEmpty(unfinishedTasks)}">No unfinished Tasks are available.</p>
             </fieldset>
             <fieldset class="form-section">

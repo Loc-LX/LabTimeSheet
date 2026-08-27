@@ -1,6 +1,7 @@
 package com.lab.labtimesheet.feature.reporting.controller;
 
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -60,6 +61,15 @@ class AttendanceReportControllerWebTest {
                         .param("to", "2026-08-31"))
                 .andExpect(status().isOk())
                 .andExpect(view().name("reports/attendance"));
+    }
+
+    @Test
+    void deniesAdminBeforeCallingAttendanceReportService() throws Exception {
+        mvc.perform(get("/reports/attendance")
+                        .with(user("admin@example.test").roles("ADMIN")))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(reports);
     }
 
     @Test

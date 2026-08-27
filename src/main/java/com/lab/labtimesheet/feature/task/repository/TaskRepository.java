@@ -111,6 +111,36 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
             long projectId, long assigneeMembershipId, Set<TaskStatus> statuses);
 
     /**
+     * Counts unfinished current Tasks with at least one retained work log.
+     *
+     * <p>The correlated existence check keeps the worked/unworked distinction in the same
+     * Project-scoped query used by the direct-removal guard. The caller holds the Project write
+     * lock while making the decision, so a concurrent work-log append cannot pass the guard after
+     * this count is observed.</p>
+     *
+     * @param projectId owning Project identifier
+     * @param assigneeMembershipId current source assignee membership identifier
+     * @param statuses unfinished status set
+     * @return worked unfinished non-deleted Task count
+     */
+    @Query("""
+            select count(task)
+            from Task task
+            where task.projectId = :projectId
+              and task.assigneeMembershipId = :assigneeMembershipId
+              and task.status in :statuses
+              and task.deletedAt is null
+              and exists (select log.id
+                          from TaskWorkLog log
+                          where log.projectId = task.projectId
+                            and log.taskId = task.id)
+            """)
+    long countWorkedUnfinishedByProjectIdAndAssigneeMembershipIdAndStatusInAndDeletedAtIsNull(
+            @Param("projectId") long projectId,
+            @Param("assigneeMembershipId") long assigneeMembershipId,
+            @Param("statuses") Set<TaskStatus> statuses);
+
+    /**
      * Lists unfinished current Task IDs in stable order for a guarded all-or-nothing transfer.
      *
      * @param projectId owning Project identifier
@@ -139,6 +169,19 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
      * @return retained Task rows
      */
     List<Task> findAllByProjectIdOrderById(long projectId);
+
+    /**
+     * Lists retained Task rows for the selected report-log Task identifiers in stable order.
+     *
+     * <p>The Project predicate is intentional: a public Task report may only hydrate rows proved
+     * by the owning Project-scoped work-log query, even if stale or corrupt identifiers are
+     * supplied by persistence.</p>
+     *
+     * @param projectId owning Project identifier
+     * @param taskIds Task identifiers observed for the selected report date
+     * @return matching retained Tasks, including soft-deleted history
+     */
+    List<Task> findAllByProjectIdAndIdInOrderById(long projectId, Set<Long> taskIds);
 
     /**
      * Counts current Tasks in a status across the supplied Projects.

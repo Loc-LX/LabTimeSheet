@@ -6,6 +6,12 @@
 - **Test class/method:** `com.lab.labtimesheet.feature.reporting.service.ProjectTaskReportFormulasTest`
 - **Implementation commit:** pending
 
+> **Supersession notice — 27 August 2026:** The five-row visibility matrix below records the
+> historical Admin-positive formula contract. The latest RPT-005/AUTH-010 decision removes Admin
+> from Project/Task report scope and per-member hours; owning Mentors and current Leaders retain
+> detail, and ordinary members retain aggregate-only output. Historical test results are kept
+> unchanged and do not prove the revised Admin denial.
+
 ## Protected behavior
 
 The shared Project/Task report dataset must aggregate completion percentage, status counts, blocked

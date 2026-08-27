@@ -135,7 +135,8 @@ class RoleDashboardWebIntegrationTest {
                         "Assigned Tasks</div><div class=\"metric-value\">1")))
                 .andExpect(content().string(containsString("Resolve accessibility review")))
                 .andExpect(content().string(containsString("BLOCKED")))
-                .andExpect(content().string(containsString("20/08/2026")));
+                .andExpect(content().string(containsString("20/08/2026")))
+                .andExpect(content().string(containsString("data-tooltip=\"Daily Project Work Report\"")));
 
         followEveryVisibleNavigationLink("admin@example.test", "ADMIN", true);
         followEveryVisibleNavigationLink("mentor@example.test", "MENTOR", false);
@@ -164,6 +165,10 @@ class RoleDashboardWebIntegrationTest {
             if ("/attendance/requests".equals(path)) {
                 request.andExpect(status().is3xxRedirection())
                         .andExpect(redirectedUrl("/attendance/leave"));
+            } else if ("/reports/daily".equals(path)) {
+                // A single current-led Project is deliberately resolved by the Daily controller
+                // before report rendering, so the conditional Intern navigation is a redirect.
+                request.andExpect(status().is3xxRedirection());
             } else {
                 request.andExpect(status().isOk());
             }

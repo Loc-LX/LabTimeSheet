@@ -6,6 +6,13 @@
 - **Test class/method:** `com.lab.labtimesheet.feature.reporting.service.DashboardServiceTest`, `com.lab.labtimesheet.feature.reporting.controller.DashboardControllerWebTest`, `com.lab.labtimesheet.feature.reporting.controller.AdminDashboardWebTest`, `com.lab.labtimesheet.feature.reporting.controller.RoleDashboardWebIntegrationTest`, `com.lab.labtimesheet.feature.reporting.ReportingArchitectureTest`
 - **Implementation and integration-test commits:** `b1c6b17`, `cbdbd8e`
 
+> **Supersession notice — 27 August 2026:** This dashboard evidence predates the Admin
+> configuration-only revision. Its Admin active-Project metric and corresponding fixture/result
+> are historical and remain factual for the code that was tested; they are not current product
+> behavior. The latest decision removes that metric and its Project query from the Admin dashboard,
+> keeps only active-account, pending-activation, and active-internship counts plus configuration
+> guidance, and requires separate verification that no report-like Project/Task data is queried.
+
 ## Protected behavior
 
 `/dashboard` selects exactly one role template from the authenticated authority, while all displayed data is authorized again from the persisted account identity. Reporting composes public Account, Project, Task, and Attendance service DTOs; it owns no shadow account entity, repository, direct SQL, or business date calculation.

@@ -322,7 +322,35 @@ Exit demonstration:
 - Intern and Mentor Leave/Correction workflows remain separate; monthly Leave balances match frozen reservation data across statuses and months.
 - Full integrated tests pass at the final integration commit.
 
-## 7. Mandatory TDD workflow
+## 7. Iteration 4 — Partial Jira/Tempo vertical slice
+
+This iteration is executed on the single isolated `codex/partial-jira-tempo` branch as an explicit user-approved override to the normal five persistent work-branch split. One **GPT-5.6 Luna subagent at Max reasoning effort** owns all remaining implementation work. The root GPT-5.6 Sol agent is the taskmaster, supervisor, integrator, and reviewer; it shall edit coordination/plan artifacts only and shall not write production code, tests, migrations, templates, or feature evidence on Luna's behalf. Delivery order is schema → Task → Reporting; evidence remains under `docs/tests/integration/`, `docs/tests/web/`, and `docs/tests/e2e/` as applicable.
+
+Iteration 4 uses the following execution and review protocol:
+
+1. Luna first preserves and audits the existing uncommitted `I4-TSK-02` correction slice; it shall not reset, discard, or overwrite that work or unrelated files.
+2. Luna works one bounded vertical packet at a time using the mandatory RED → GREEN workflow, meaningful Javadoc, focused and affected verification, evidence updates, self-review, and a focused local commit. Luna shall not spawn subagents, push, merge, or change shared branches.
+3. After each packet, Luna reports the exact full commit SHA, changed files, RED/GREEN/affected commands and results, evidence paths, limitations, and clean/dirty worktree state to the root agent.
+4. The root agent reviews the immutable packet for specification compliance and code quality against `docs/requirements/partial-jira-tempo-decision-record.md`, the numbered requirements, ADR, and repository standards. The root agent does not implement review fixes.
+5. Critical or Important findings return to the same Luna subagent for a focused test-first fix and scoped re-review. The next packet starts only after the root agent accepts the current packet or records an explicit non-blocking ruling.
+6. After all tracker items are complete, the root agent performs the broad integrated-candidate review and verification assessment. No push or merge to `main` occurs without a separate explicit user instruction.
+
+The 29 unpublished Iteration 4 commits were subsequently replayed to normalize commit subjects.
+Current commit references in the tracker use the rewritten public SHAs. Historical verification
+records retain the original tested SHAs and map them to their content-identical rewritten commits in
+`docs/requirements/partial-jira-tempo-history-rewrite-map.md`; this does not claim that an earlier
+test run occurred on a rewritten SHA.
+
+| ID | Deliverable | Test/evidence emphasis | Status | Owner/date | Result/commit |
+|---|---|---|---|---|---|
+| I4-PLAT-01 | Add nullable whole-Task estimates and append-only Remaining effort forecast persistence. | Fresh PostgreSQL 18.4 Flyway replay and catalog assertions for checks, same-Project FKs, supersession shape, indexes, and no backfill. | `DONE` | GPT-5.6 Luna Max / 2026-08-26 | Current rewritten commit `f9591e3d3d71b0c2252098112e6e875735117da188d4a15f591cc98a9be32aeb`; the focused PostgreSQL 18.4 Flyway verification historically ran at `ab626fe52deb4f8a5d3a72be3eea55c00273ac5fa475fef32ce1c7061fef4901`. Evidence: `docs/tests/integration/task-effort-planning-catalog.md`. |
+| I4-TSK-01 | Add estimate, lifetime actual, and DONE-only variance behavior. | Task application seam, authorization, first-log locking, and hand-derived variance scenarios. | `DONE` | GPT-5.6 Luna Max / 2026-08-26 | Current rewritten commit `9aadf2d38611de4f3bff785a60b38b874ebe3324950f5f5159d392b793c789e6`; Packet-2 and the 35/35 PostgreSQL 18.4 rerun are historically attributed to `83dd9247a7905e08a6c78f449b554a7df4ea2931bd54808a9fcb4c4a2c8f2afd`. Later Packet-3A1 changes are not attributed to that historical commit. Evidence: `docs/tests/integration/task-estimate-effort-variance.md`. |
+| I4-TSK-02 | Add forecast-aware reassignment/correction and direct-removal guard. | Manual/batch/redistribution atomicity, provenance, stale/concurrent correction, and non-mutation denial. | `DONE` | GPT-5.6 Luna Max / 2026-08-27 | Current rewritten head `96ed5a7ce42ff0653345f92584ced4cb2f750a7151a1261925e4a142a8515035`. Root review and the 101/101 focused plus 99/99 PostgreSQL gates historically ran on original head `dd265a3ea64c1094e13ba6ddb2bec8667b22e5972c6c22ea3de65ac51a13850b`, after original implementation/review-fix commits `0dc08ee`, `ed5fe01`, `43aa45b`, and `6801d07`. Evidence: `docs/tests/integration/task-remaining-effort-forecast.md` and `docs/tests/integration/task-remaining-effort-forecast-correction.md`. |
+| I4-UI-01 | Add authorized Daily Project Work Report dataset and HTML presentation. | Mentor/Admin scope, historical retained logs, current status, empty states, date/calendar semantics. | `DONE` | GPT-5.6 Luna Max / 2026-08-27 | Current rewritten commit `a5b37e91b5fefcde9d7832fca5090f54d4b271a9f0483c8305138e85a35577c8`; the 20/20 focused, 49/49 PostgreSQL, compile, Javadoc/doclint, frontend, full Maven, and 17/20 Node UI evidence historically ran at `b70ce241ab85917aae9395ac4ab17e29703d22dac6f0b9ef1bf75710edad4ba4`. The broad baseline remained 5 failures/21 errors with no new failure family. Evidence: `docs/tests/integration/daily-project-work-report.md` and `docs/tests/web/daily-project-work-report.md`. |
+| I4-UI-02 | Add XLSX/PDF Daily export parity and final evidence. | Shared dataset, numeric minutes, Unicode PDF, deterministic filenames, parser-level parity. | `DONE` | GPT-5.6 Luna Max / 2026-08-27 | Current rewritten commit `51bc22b6293069506570799bd128292ca1ed6a19a8cb990a29eec278260be86b`; the 32/32 focused, 77/77 PostgreSQL/Flyway, architecture, compile, Javadoc/doclint, frontend, and frozen broad-run evidence historically ran at `4870889415183380a92a03991b94afb62427a6ca6e186e4514391ec1d793f64d`. The historical broad run had the known 5-failure/21-error baseline plus one Daily print-wrapper failure; its targeted correction returned to only the pre-existing `reports/print.html` failure. Evidence: `docs/tests/web/daily-project-work-report-exports.md`. |
+| I4-UI-03 | Supersede Daily-report authorization with Q31-R Mentor/current-Leader scope across HTML, XLSX, and PDF, then remove the dedicated report scope from Admin. | Mentor all-or-selected owned Projects; current-Leader exact mandatory currently-led PLANNED/ACTIVE Project via Project detail or server-derived conditional Daily navigation; non-current-Leader roles and Project IDs denied. Admin has no Attendance, Project/Task, or Daily report navigation, dataset, or exporter scope; its dashboard remains account/configuration-only. | `DONE` | GPT-5.6 Luna Max / 2026-08-27 | Current rewritten implementation/review commits are `36b8e0a0c73b9b2bc3ca09aa5f6eaf45a02dadc4774284590a4dd77a28814ea3`, `9af3602e84c1f56bfd6303c418188ded856b6df9334e340022b40904b7a3f966`, `4650b8838ed9f5a234bf9e296418dd68bc96b35688e1cabc77b76913af39dce6`, `8429d7833308bb6028236e8fdacabc2140831bf2e8b3c31a16d0694e2f734414`, `f02ce7953561ba0dfd0caff1b40f6b3c2ee9334a075e0b7878d16b20a48dd0a2`, and `cf7083e3b5a8a4de836008248c8396b031e04d5a757c1807a9ba15aefccfeb44`. The genuine pre-fix result and final 85/85 focused, 51/51 PostgreSQL, architecture, compile, Javadoc, live-browser, and 17/20 Node UI evidence remain historically attributed to original `b2178ba9b6abc755c9b4affb9b537c91b7a79aec8b9c688bd4beaef268ca2274`; the final rewritten candidate is verified separately after the history-map commit. Keyboard traversal, a live multi-Project selector, actual download payloads, and a clean broad Maven run remained unverified at that historical snapshot. No push. |
+
+## 8. Mandatory TDD workflow
 
 Every feature follows this sequence:
 
@@ -367,7 +395,7 @@ Every evidence Markdown record must include:
 
 Javadoc is part of production implementation, not a later documentation phase. Every new or materially changed production type and every declared public/protected method shall document its business contract, including non-obvious authorization, transaction/locking, lifecycle/history, unit, timezone, or deadline semantics. Do not add prose that merely repeats names. Iteration 1 alone may retrofit Javadocs after feature implementation is complete; those branch-owned retrofit commits still require affected verification and independent scoped re-review. Every later iteration and turn shall add/update Javadocs during the implementation milestone.
 
-## 8. Branch-level test emphasis
+## 9. Branch-level test emphasis
 
 | Branch | Non-negotiable evidence |
 |---|---|
@@ -377,7 +405,7 @@ Javadoc is part of production implementation, not a later documentation phase. E
 | `work/attendance` | Injected-Clock boundaries, PostgreSQL overlap/uniqueness, policy history, quota concurrency, schedulers and request-time guards. |
 | `work/reports-ui` | MockMvc forms/authorization, accessible rendering, report query totals, XLSX/PDF parsing/parity, critical browser journeys. |
 
-## 9. Iteration handoff protocol
+## 10. Iteration handoff protocol
 
 At each iteration boundary:
 
@@ -406,7 +434,7 @@ Handoff template:
 - Required next owner/action:
 ```
 
-## 10. Global definition of done
+## 11. Global definition of done
 
 A tracker item is complete only when:
 
@@ -423,7 +451,7 @@ A tracker item is complete only when:
 - the final branch head is green;
 - integration does not alter totals, state graphs, or historical meaning.
 
-## 11. Progress log
+## 12. Progress log
 
 Append material coordination events only. Do not duplicate every commit.
 

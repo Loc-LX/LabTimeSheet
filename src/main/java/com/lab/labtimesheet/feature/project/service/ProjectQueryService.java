@@ -5,6 +5,7 @@ import com.lab.labtimesheet.feature.account.model.dto.AccountIdentity;
 import com.lab.labtimesheet.feature.account.model.dto.InternshipLifecycleGuard;
 import com.lab.labtimesheet.feature.account.service.AccountService;
 import com.lab.labtimesheet.feature.project.exception.ProjectAccessDeniedException;
+import com.lab.labtimesheet.feature.project.exception.ProjectRuleViolationException;
 import com.lab.labtimesheet.feature.project.model.ProjectStatus;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectDetail;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectActorView;
@@ -134,6 +135,113 @@ public class ProjectQueryService {
     }
 
     /**
+     * Lists the complete Project scope authorized for the Daily Project Work Report.
+     *
+     * <p>The normal navigation method is deliberately capped at 50 rows. Report scope cannot
+     * silently truncate a Mentor's owned Projects, so this producer-owned seam uses the complete
+     * ownership-filtered query and still returns DTOs only. Admins and Interns do not receive a
+     * global Daily preset.</p>
+     *
+     * @param actorUserId active owning Mentor account identifier
+     * @return every authorized Project in deterministic update order
+     * @throws ProjectAccessDeniedException when the actor is inactive, unsupported, or not a
+     *         Mentor
+     */
+    @Transactional(readOnly = true)
+    public List<ProjectSummary> listAllVisibleForReport(long actorUserId) {
+        var actor = activeActor(actorUserId);
+        if (actor.role() != GlobalRole.MENTOR) {
+            throw new ProjectAccessDeniedException();
+        }
+        List<ProjectEntity> visible = projects.findByMentorUserIdOrderByUpdatedAtDescIdDesc(actorUserId);
+        return visible.stream().map(ProjectQueryService::summary).toList();
+    }
+
+    /**
+     * Returns the one open Project whose stored current leadership belongs to the active Intern.
+     *
+     * <p>This is a producer-owned authorization boundary for the Leader Daily report. The
+     * caller must provide an active Intern identity and an exact Project identifier; membership,
+     * the global role alone, and a guessed identifier never grant access. Completed Projects are
+     * intentionally excluded because completion closes the current leadership term.</p>
+     *
+     * @param actorUserId active authenticated actor identifier
+     * @param projectId exact Project identifier requested by the actor
+     * @return the authorized Project summary
+     * @throws ProjectAccessDeniedException when the actor is not an Intern, the Project is
+     *         missing, completed, or not currently led by the actor
+     */
+    @Transactional(readOnly = true)
+    public ProjectSummary currentLeaderProjectForDailyReport(long actorUserId, long projectId) {
+        var actor = activeActor(actorUserId);
+        if (actor.role() != GlobalRole.INTERN) {
+            throw new ProjectAccessDeniedException();
+        }
+
+        ProjectEntity project = projects.findById(projectId)
+                .orElseThrow(ProjectAccessDeniedException::new);
+        if (project.status() != ProjectStatus.PLANNED && project.status() != ProjectStatus.ACTIVE) {
+            throw new ProjectAccessDeniedException();
+        }
+        if (!project.hasCurrentMember(actorUserId)) {
+            throw new ProjectAccessDeniedException();
+        }
+        long currentLeaderId;
+        try {
+            currentLeaderId = project.currentLeader().internUserId();
+        } catch (ProjectRuleViolationException malformedLeadership) {
+            // A broken open-Project invariant is still non-disclosing denial at a read boundary.
+            throw new ProjectAccessDeniedException();
+        }
+        if (currentLeaderId != actorUserId) {
+            throw new ProjectAccessDeniedException();
+        }
+        return summary(project);
+    }
+
+    /**
+     * Lists every open Project whose current Leader is the active Intern.
+     *
+     * <p>This producer-owned boundary powers conditional Daily-report navigation. The repository
+     * filters the current leadership term, current membership, and open lifecycle before rows
+     * become DTOs; a former Leader, ordinary member, or completed Project therefore cannot make
+     * the navigation entry appear.</p>
+     *
+     * @param actorUserId active authenticated Intern account identifier
+     * @return authorized current-led Project summaries in deterministic update order
+     * @throws ProjectAccessDeniedException when the actor is inactive or not an Intern
+     */
+    @Transactional(readOnly = true)
+    public List<ProjectSummary> listCurrentLeaderProjectsForDailyReport(long actorUserId) {
+        var actor = activeActor(actorUserId);
+        if (actor.role() != GlobalRole.INTERN) {
+            throw new ProjectAccessDeniedException();
+        }
+        return projects.findCurrentLeaderProjectsByInternUserId(actorUserId).stream()
+                .map(ProjectQueryService::summary)
+                .toList();
+    }
+
+    /**
+     * Checks the current-Leader Daily capability without loading Project summaries.
+     *
+     * <p>The shared layout calls this Boolean producer for ordinary pages. The ordered Project
+     * list remains exclusive to the Daily no-selection landing flow.</p>
+     *
+     * @param actorUserId active authenticated Intern account identifier
+     * @return true when the actor currently leads at least one PLANNED/ACTIVE Project
+     * @throws ProjectAccessDeniedException when the actor is inactive or not an Intern
+     */
+    @Transactional(readOnly = true)
+    public boolean hasCurrentLeaderProjectForDailyReport(long actorUserId) {
+        var actor = activeActor(actorUserId);
+        if (actor.role() != GlobalRole.INTERN) {
+            throw new ProjectAccessDeniedException();
+        }
+        return projects.existsCurrentLeaderProjectByInternUserId(actorUserId);
+    }
+
+    /**
      * Lists one bounded page of Projects and exposes whether an authorized continuation exists.
      * The returned page is role-filtered before its rows are mapped to DTOs, and its continuation
      * flags come from the same repository slice rather than from a truncated display collection.
@@ -185,9 +293,11 @@ public class ProjectQueryService {
     public ProjectDetail detail(long actorUserId, long projectId) {
         // Đây là read sau redirect PRG (GET /projects/{projectId}). visibleProject vừa lấy Entity vừa authorize;
         // cùng một lỗi access được dùng cho ID không tồn tại và ID không thuộc actor.
+        var actor = activeActor(actorUserId);
         var project = visibleProject(actorUserId, projectId);
         // Project đã hoàn thành chỉ để xem lịch sử: không còn Leader hiện tại hoặc quyền quản lý.
         var completed = project.status() == ProjectStatus.COMPLETED;
+        Long currentLeaderId = completed ? null : project.currentLeader().internUserId();
         return new ProjectDetail(
                 project.id(),
                 project.name(),
@@ -196,8 +306,9 @@ public class ProjectQueryService {
                 project.startDate(),
                 project.endDate(),
                 displayName(project.mentorUserId()),
-                completed ? null : displayName(project.currentLeader().internUserId()),
-                !completed && project.mentorUserId() == actorUserId);
+                currentLeaderId == null ? null : displayName(currentLeaderId),
+                !completed && project.mentorUserId() == actorUserId,
+                !completed && actor.role() == GlobalRole.INTERN && currentLeaderId == actorUserId);
     }
 
     /**

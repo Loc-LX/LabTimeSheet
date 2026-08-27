@@ -13,11 +13,16 @@ import com.lab.labtimesheet.feature.task.exception.TaskNotFoundException;
 import com.lab.labtimesheet.feature.task.exception.TaskConflictException;
 import com.lab.labtimesheet.feature.task.exception.TaskValidationException;
 import com.lab.labtimesheet.feature.task.model.TaskStatus;
+import com.lab.labtimesheet.feature.task.model.dto.RemainingEffortForecastInput;
 import com.lab.labtimesheet.feature.task.model.entity.Task;
+import com.lab.labtimesheet.feature.task.model.entity.TaskRemainingEffortForecast;
 import com.lab.labtimesheet.feature.task.repository.TaskRepository;
+import com.lab.labtimesheet.feature.task.repository.TaskRemainingEffortForecastRepository;
+import com.lab.labtimesheet.feature.task.repository.TaskWorkLogRepository;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -46,6 +51,8 @@ public class TaskTransferService {
     private final Clock clock;
     private final AccountService accounts;
     private final NotificationService notifications;
+    private final TaskWorkLogRepository workLogs;
+    private final TaskRemainingEffortForecastRepository forecasts;
 
     /**
      * Transfers a selected batch from one source membership to one eligible recipient.
@@ -74,38 +81,120 @@ public class TaskTransferService {
             Set<Long> taskIds,
             Map<Long, Long> expectedTaskVersions,
             long recipientMembershipId) {
+        return transferBatch(
+                project,
+                actorMembershipId,
+                sourceMembershipId,
+                taskIds,
+                expectedTaskVersions,
+                Map.of(),
+                recipientMembershipId);
+    }
+
+    /**
+     * Transfers a selected batch while carrying one optional initial forecast per worked Task.
+     *
+     * <p>A worked Task must have exactly one valid forecast input and an unworked Task must have
+     * none. Inputs are validated for every selected row before any forecast or Task is changed;
+     * the forecast rows and assignments are then flushed in this transaction. A later conflict
+     * rolls back both tables, preserving the all-or-nothing public batch boundary.</p>
+     *
+     * @param project locked Project task context supplied by the Project service
+     * @param actorMembershipId current Leader membership performing the batch
+     * @param sourceMembershipId source membership
+     * @param taskIds selected Task identifiers
+     * @param expectedTaskVersions client-observed version for every selected Task, or null for a
+     *        compatibility caller
+     * @param forecastInputs forecast by selected Task ID; worked rows require one, unworked rows
+     *        reject one
+     * @param recipientMembershipId eligible same-Project recipient membership
+     * @return atomic transfer count and recipient
+     * @throws TaskValidationException when forecast cardinality, bounds, or notes are invalid
+     */
+    @Transactional
+    public TaskTransferResult transferBatch(
+            ProjectTaskContext project,
+            long actorMembershipId,
+            long sourceMembershipId,
+            Set<Long> taskIds,
+            Map<Long, Long> expectedTaskVersions,
+            Map<Long, RemainingEffortForecastInput> forecastInputs,
+            long recipientMembershipId) {
         requireOpenProject(project);
         requireLeader(project, actorMembershipId);
         ProjectTaskMemberView source = requireSource(project, sourceMembershipId);
         ProjectTaskMemberView recipient = requireRecipient(project, recipientMembershipId);
         requireDifferentMemberships(sourceMembershipId, recipient.membershipId());
-        List<NotificationRecipient> notificationRecipients = List.of(
-                notificationRecipient(source), notificationRecipient(recipient));
         if (taskIds == null || taskIds.isEmpty() || taskIds.stream().anyMatch(Objects::isNull)) {
             throw new TaskValidationException("Select at least one unfinished Task");
+        }
+        if (forecastInputs == null
+                || forecastInputs.keySet().stream().anyMatch(Objects::isNull)
+                || forecastInputs.keySet().stream().anyMatch(id -> !taskIds.contains(id))) {
+            throw new TaskValidationException("Forecasts must match the selected Tasks");
         }
 
         List<Task> selected = new ArrayList<>();
         taskIds.stream().sorted().forEach(id -> selected.add(tasks
                 .findLockedByIdAndProjectIdAndDeletedAtIsNull(id, project.projectId())
                 .orElseThrow(TaskNotFoundException::new)));
+        Map<Long, RemainingEffortForecastInput> normalizedForecasts = new LinkedHashMap<>();
         selected.forEach(task -> {
             if (!UNFINISHED.contains(task.getStatus())) {
                 throw new TaskValidationException("Only unfinished Tasks can be transferred");
             }
+            // Check the optimistic snapshot before assignment ownership so a concurrent winner's
+            // reassignment is reported as the stable stale-version conflict, not as a misleading
+            // source-validation failure.
+            requireExpectedVersion(expectedTaskVersions, task);
             if (task.getAssigneeMembershipId() != sourceMembershipId) {
                 throw new TaskValidationException("One or more selected Tasks changed assignment");
             }
-            requireExpectedVersion(expectedTaskVersions, task);
+            RemainingEffortForecastInput input = forecastInputs.get(task.getId());
+            boolean worked = workLogs.existsByTaskIdAndProjectId(task.getId(), project.projectId());
+            if (worked && input == null) {
+                throw new TaskValidationException(
+                        "A remaining-effort forecast is required for every worked Task");
+            }
+            if (!worked && input != null) {
+                throw new TaskValidationException("An unworked Task cannot receive a forecast");
+            }
+            if (worked) {
+                normalizedForecasts.put(task.getId(), validateForecastInput(input));
+            }
         });
+        if (normalizedForecasts.size() != forecastInputs.size()) {
+            throw new TaskValidationException("Forecasts must match the selected Tasks");
+        }
 
         Instant assignedAt = clock.instant();
+        if (!normalizedForecasts.isEmpty()) {
+            List<TaskRemainingEffortForecast> forecastRows = selected.stream()
+                    .filter(task -> normalizedForecasts.containsKey(task.getId()))
+                    .map(task -> {
+                        RemainingEffortForecastInput input = normalizedForecasts.get(task.getId());
+                        return new TaskRemainingEffortForecast(
+                                project.projectId(),
+                                task.getId(),
+                                recipient.membershipId(),
+                                actorMembershipId,
+                                assignedAt,
+                                input.remainingMinutes(),
+                                workLogs.sumMinutesByTaskIdAndProjectId(task.getId(), project.projectId()),
+                                input.note(),
+                                assignedAt);
+                    })
+                    .toList();
+            forecasts.saveAllAndFlush(forecastRows);
+        }
         selected.forEach(task -> task.reassign(recipient.membershipId(), actorMembershipId, assignedAt));
         try {
             tasks.saveAllAndFlush(selected);
         } catch (ObjectOptimisticLockingFailureException conflict) {
             throw new TaskConflictException("Task changed concurrently; reload before trying again", conflict);
         }
+        List<NotificationRecipient> notificationRecipients = List.of(
+                notificationRecipient(source), notificationRecipient(recipient));
         selected.forEach(task -> notifications.publish(
                 new NotificationEvent(
                         NotificationType.TASK_REASSIGNED,
@@ -185,6 +274,31 @@ public class TaskTransferService {
     public long unfinishedCount(long projectId, long sourceMembershipId) {
         return tasks.countByProjectIdAndAssigneeMembershipIdAndStatusInAndDeletedAtIsNull(
                 projectId, sourceMembershipId, UNFINISHED);
+    }
+
+    /**
+     * Counts worked unfinished Tasks for the direct-removal preflight.
+     *
+     * @param projectId owning Project identifier
+     * @param sourceMembershipId membership that would be removed
+     * @return worked unfinished current Task count
+     */
+    @Transactional(readOnly = true)
+    public long workedUnfinishedCount(long projectId, long sourceMembershipId) {
+        return tasks.countWorkedUnfinishedByProjectIdAndAssigneeMembershipIdAndStatusInAndDeletedAtIsNull(
+                projectId, sourceMembershipId, UNFINISHED);
+    }
+
+    private static RemainingEffortForecastInput validateForecastInput(RemainingEffortForecastInput input) {
+        if (input == null || input.remainingMinutes() == null
+                || input.remainingMinutes() < 1 || input.remainingMinutes() > 527040) {
+            throw new TaskValidationException("Remaining effort must be between 1 and 527040 minutes");
+        }
+        String note = input.note() == null || input.note().isBlank() ? null : input.note().strip();
+        if (note != null && note.length() > 500) {
+            throw new TaskValidationException("Forecast note must not exceed 500 characters");
+        }
+        return new RemainingEffortForecastInput(input.remainingMinutes(), note);
     }
 
     private static void requireExpectedVersion(Map<Long, Long> expectedTaskVersions, Task task) {

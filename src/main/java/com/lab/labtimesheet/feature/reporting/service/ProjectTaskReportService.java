@@ -24,6 +24,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -69,9 +70,10 @@ public class ProjectTaskReportService {
      *
      * <p>Due-date and work-date bounds are independent. A work-date filter keeps a current Task
      * only when it has at least one retained work log in the requested inclusive range, and row
-     * minutes include only logs in that range. Admins, visible owning Mentors, and current Leaders
-     * receive member-hour rows; ordinary members receive aggregate totals and no member filter
-     * options even when they guess a membership identifier.</p>
+     * minutes include only logs in that range. Visible owning Mentors and current Leaders receive
+     * member-hour rows; ordinary members receive aggregate totals and no member filter options
+     * even when they guess a membership identifier. Admins have no operational Project/Task-report
+     * scope and are rejected before listing Projects or reading Task data.</p>
      *
      * @param actorEmail authenticated account email
      * @param projectId optional visible Project selection
@@ -82,6 +84,7 @@ public class ProjectTaskReportService {
      * @param workFrom inclusive work-date lower bound
      * @param workTo inclusive work-date upper bound
      * @return authorized report view and redisplay options
+     * @throws AccessDeniedException when the persisted actor has no operational report scope
      * @throws IllegalArgumentException when either date range is reversed
      */
     @Transactional(readOnly = true)
@@ -94,10 +97,11 @@ public class ProjectTaskReportService {
             LocalDate dueTo,
             LocalDate workFrom,
             LocalDate workTo) {
+        ProjectActorView actor = projects.authenticatedActor(actorEmail);
+        requireReportAccess(actor);
         validateRange(dueFrom, dueTo, "dueFrom", "dueTo");
         validateRange(workFrom, workTo, "workFrom", "workTo");
 
-        ProjectActorView actor = projects.authenticatedActor(actorEmail);
         List<ProjectSummary> projectOptions = projects.listVisible(actor.userId());
         if (projectId == null) {
             return new ProjectTaskReportView(
@@ -156,7 +160,7 @@ public class ProjectTaskReportService {
     }
 
     private static boolean canViewMemberHours(ProjectActorView actor, ProjectTaskContext context) {
-        if ("ADMIN".equals(actor.role()) || "MENTOR".equals(actor.role())) {
+        if ("MENTOR".equals(actor.role())) {
             return true;
         }
         return "INTERN".equals(actor.role())
@@ -164,6 +168,12 @@ public class ProjectTaskReportService {
                 && context.activeMembers().stream().anyMatch(member ->
                         member.membershipId() == context.currentLeaderMembershipId()
                                 && member.userId() == actor.userId());
+    }
+
+    private static void requireReportAccess(ProjectActorView actor) {
+        if (actor == null || (!"MENTOR".equals(actor.role()) && !"INTERN".equals(actor.role()))) {
+            throw new AccessDeniedException("Admins may not access Project and Task reports");
+        }
     }
 
     private static boolean matches(

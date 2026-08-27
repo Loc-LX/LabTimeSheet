@@ -2,15 +2,20 @@ package com.lab.labtimesheet.feature.reporting.service;
 
 import com.lab.labtimesheet.feature.reporting.model.dto.AttendanceReportRow;
 import com.lab.labtimesheet.feature.reporting.model.dto.AttendanceReportView;
+import com.lab.labtimesheet.feature.reporting.model.dto.DailyProjectWorkReportMember;
+import com.lab.labtimesheet.feature.reporting.model.dto.DailyProjectWorkReportProject;
+import com.lab.labtimesheet.feature.reporting.model.dto.DailyProjectWorkReportTask;
+import com.lab.labtimesheet.feature.reporting.model.dto.DailyProjectWorkReportView;
 import com.lab.labtimesheet.feature.reporting.model.dto.ProjectTaskReportMemberHours;
 import com.lab.labtimesheet.feature.reporting.model.dto.ProjectTaskReportRow;
 import com.lab.labtimesheet.feature.reporting.model.dto.ProjectTaskReportView;
-import java.time.LocalDate;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
@@ -29,7 +34,7 @@ import org.thymeleaf.spring6.SpringTemplateEngine;
 /**
  * Renders the already-authorized Reporting DTOs into downloadable workbook and PDF bytes.
  *
- * <p>This class deliberately does not query a repository or re-evaluate authorization. The two
+ * <p>This class deliberately does not query a repository or re-evaluate authorization. The
  * report services build one immutable dataset for HTML and this exporter only changes its
  * presentation format, keeping filters, rows, totals, and {@code N/A} values aligned.</p>
  */
@@ -83,13 +88,37 @@ public class ReportExportService {
     }
 
     /**
+     * Creates an XLSX Daily Project Work Report from the already-authorized immutable dataset.
+     *
+     * <p>Minute values and DONE variance values are written as numeric cells. Textual planning
+     * states such as {@code N/A} and {@code Pending} remain text so spreadsheet consumers cannot
+     * mistake an unavailable fact for zero.</p>
+     *
+     * @param report authorized Daily Project Work Report dataset
+     * @return complete Daily XLSX document bytes
+     */
+    public byte[] dailyXlsx(DailyProjectWorkReportView report) {
+        try (Workbook workbook = new XSSFWorkbook(); ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            Sheet sheet = workbook.createSheet("Daily Work");
+            CellStyle heading = headingStyle(workbook);
+            CellStyle title = titleStyle(workbook);
+            CellStyle signedVariance = signedVarianceStyle(workbook);
+            writeDaily(sheet, report, heading, title, signedVariance);
+            workbook.write(output);
+            return output.toByteArray();
+        } catch (IOException exception) {
+            throw new IllegalStateException("Unable to create Daily Project Work workbook", exception);
+        }
+    }
+
+    /**
      * Creates a print-safe attendance PDF using the dedicated XHTML template.
      *
      * @param report authorized attendance dataset also rendered by HTML
      * @return complete PDF document bytes
      */
     public byte[] attendancePdf(AttendanceReportView report) {
-        return pdf("attendance", report);
+        return pdf("reports/print", "attendance", report);
     }
 
     /**
@@ -99,10 +128,20 @@ public class ReportExportService {
      * @return complete PDF document bytes
      */
     public byte[] projectTaskPdf(ProjectTaskReportView report) {
-        return pdf("project-tasks", report);
+        return pdf("reports/print", "project-tasks", report);
     }
 
-    private byte[] pdf(String reportKind, Object report) {
+    /**
+     * Creates a print-safe Daily Project Work Report PDF using its dedicated XHTML template.
+     *
+     * @param report authorized Daily Project Work Report dataset
+     * @return complete Daily PDF document bytes with embedded Unicode-capable font
+     */
+    public byte[] dailyPdf(DailyProjectWorkReportView report) {
+        return pdf("reports/daily-print", "daily", report);
+    }
+
+    private byte[] pdf(String templateName, String reportKind, Object report) {
         Context context = new Context(Locale.ENGLISH);
         context.setVariable("reportKind", reportKind);
         context.setVariable("report", report);
@@ -116,7 +155,7 @@ public class ReportExportService {
             context.setVariable("workFilterRange", dateRange(
                     projectTaskReport.filter().workFrom(), projectTaskReport.filter().workTo()));
         }
-        String markup = templates.process("reports/print", context);
+        String markup = templates.process(templateName, context);
         try (ByteArrayOutputStream output = new ByteArrayOutputStream()) {
             ITextRenderer renderer = new ITextRenderer();
             renderer.getFontResolver().addFont(FONT_RESOURCE, BaseFont.IDENTITY_H, BaseFont.EMBEDDED);
@@ -253,6 +292,108 @@ public class ReportExportService {
         autosize(sheet, columns.length);
     }
 
+    private static void writeDaily(
+            Sheet sheet,
+            DailyProjectWorkReportView report,
+            CellStyle heading,
+            CellStyle title,
+            CellStyle signedVariance) {
+        Row titleRow = sheet.createRow(0);
+        titleRow.createCell(0).setCellValue("Daily Project Work Report");
+        titleRow.getCell(0).setCellStyle(title);
+        sheet.addMergedRegion(new CellRangeAddress(0, 0, 0, 11));
+
+        Row contextRow = sheet.createRow(1);
+        contextRow.createCell(0).setCellValue("Report date");
+        contextRow.createCell(1).setCellValue(report.reportDate().toString());
+        contextRow.createCell(2).setCellValue("Day context");
+        contextRow.createCell(3).setCellValue(report.dayContext().label());
+
+        Row scopeRow = sheet.createRow(2);
+        scopeRow.createCell(0).setCellValue("Project scope");
+        scopeRow.createCell(1).setCellValue(report.selectedProject()
+                ? report.selectedProjectName()
+                : "All authorized Projects");
+        scopeRow.createCell(2).setCellValue("Overall total");
+        scopeRow.createCell(3).setCellValue(report.overallTotalMinutes());
+
+        if (!report.hasRows()) {
+            Row emptyTitle = sheet.createRow(3);
+            emptyTitle.createCell(0).setCellValue(report.emptyTitle());
+            Row emptyDescription = sheet.createRow(4);
+            emptyDescription.createCell(0).setCellValue(report.emptyDescription());
+            emptyDescription.createCell(3).setCellValue(0L);
+            autosize(sheet, 12);
+            return;
+        }
+
+        String[] columns = {
+            "Project", "Author", "Task", "Current status", "Task state", "Work descriptions",
+            "Selected-date minutes", "Lifetime actual minutes", "Original estimate minutes",
+            "Forecast remaining minutes", "Forecast total minutes", "DONE variance"
+        };
+        Row header = sheet.createRow(3);
+        for (int index = 0; index < columns.length; index++) {
+            Cell cell = header.createCell(index);
+            cell.setCellValue(columns[index]);
+            cell.setCellStyle(heading);
+        }
+
+        int rowNumber = 4;
+        for (DailyProjectWorkReportProject project : report.projects()) {
+            for (DailyProjectWorkReportMember member : project.members()) {
+                for (DailyProjectWorkReportTask task : member.tasks()) {
+                    Row row = sheet.createRow(rowNumber++);
+                    row.createCell(0).setCellValue(project.projectName());
+                    row.createCell(1).setCellValue(member.displayName());
+                    row.createCell(2).setCellValue(task.title());
+                    row.createCell(3).setCellValue(task.status().name());
+                    row.createCell(4).setCellValue(task.deleted() ? "Deleted Task; retained log" : "");
+                    row.createCell(5).setCellValue(task.logs().stream()
+                            .map(log -> log.description() + " (" + log.minutes() + " minutes)")
+                            .collect(Collectors.joining("\n")));
+                    row.createCell(6).setCellValue(task.selectedDateMinutes());
+                    row.createCell(7).setCellValue(task.lifetimeActualMinutes());
+                    setOptionalNumber(row, 8, task.estimatedMinutes(), task.estimateDisplay());
+                    if (task.latestForecast() == null) {
+                        row.createCell(9).setCellValue("N/A");
+                        row.createCell(10).setCellValue("N/A");
+                    } else {
+                        row.createCell(9).setCellValue(task.latestForecast().remainingMinutes());
+                        row.createCell(10).setCellValue(task.latestForecast().forecastTotalMinutes());
+                    }
+                    if (task.varianceMinutes() == null) {
+                        row.createCell(11).setCellValue(task.varianceDisplay());
+                    } else {
+                        Cell variance = row.createCell(11);
+                        variance.setCellValue(task.varianceMinutes());
+                        variance.setCellStyle(signedVariance);
+                    }
+                }
+                Row memberTotal = sheet.createRow(rowNumber++);
+                memberTotal.createCell(0).setCellValue("Member subtotal");
+                memberTotal.createCell(1).setCellValue(member.displayName());
+                memberTotal.createCell(2).setCellValue(member.totalMinutes());
+            }
+            Row projectTotal = sheet.createRow(rowNumber++);
+            projectTotal.createCell(0).setCellValue("Project subtotal");
+            projectTotal.createCell(1).setCellValue(project.projectName());
+            projectTotal.createCell(2).setCellValue(project.totalMinutes());
+        }
+        Row overallTotal = sheet.createRow(rowNumber);
+        overallTotal.createCell(0).setCellValue("Overall total");
+        overallTotal.createCell(3).setCellValue(report.overallTotalMinutes());
+        autosize(sheet, columns.length);
+    }
+
+    private static void setOptionalNumber(Row row, int column, Integer value, String emptyValue) {
+        if (value == null) {
+            row.createCell(column).setCellValue(emptyValue);
+        } else {
+            row.createCell(column).setCellValue(value);
+        }
+    }
+
     private static String projectName(ProjectTaskReportView report) {
         return report.projectOptions().stream()
                 .filter(project -> report.filter().projectId() != null
@@ -300,6 +441,12 @@ public class ReportExportService {
         Font font = workbook.createFont();
         font.setBold(true);
         style.setFont(font);
+        return style;
+    }
+
+    private static CellStyle signedVarianceStyle(Workbook workbook) {
+        CellStyle style = workbook.createCellStyle();
+        style.setDataFormat(workbook.createDataFormat().getFormat("+0;-0;0"));
         return style;
     }
 

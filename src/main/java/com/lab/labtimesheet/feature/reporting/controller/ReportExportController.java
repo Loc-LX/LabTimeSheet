@@ -1,12 +1,14 @@
 package com.lab.labtimesheet.feature.reporting.controller;
 
 import com.lab.labtimesheet.feature.reporting.model.dto.AttendanceReportView;
+import com.lab.labtimesheet.feature.reporting.model.dto.DailyProjectWorkReportView;
 import com.lab.labtimesheet.feature.reporting.model.dto.ProjectTaskReportView;
+import com.lab.labtimesheet.feature.project.exception.ProjectAccessDeniedException;
 import com.lab.labtimesheet.feature.reporting.service.AttendanceReportService;
+import com.lab.labtimesheet.feature.reporting.service.DailyProjectWorkReportService;
 import com.lab.labtimesheet.feature.reporting.service.ProjectTaskReportService;
 import com.lab.labtimesheet.feature.reporting.service.ReportExportService;
 import com.lab.labtimesheet.feature.task.model.TaskStatus;
-import java.security.Principal;
 import java.time.LocalDate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -34,12 +36,13 @@ public class ReportExportController {
 
     private final AttendanceReportService attendanceReports;
     private final ProjectTaskReportService projectTaskReports;
+    private final DailyProjectWorkReportService dailyReports;
     private final ReportExportService exports;
 
     /**
      * Downloads the authorization-scoped attendance dataset as XLSX.
      *
-     * @param principal authenticated account
+     * @param authentication authenticated account and role
      * @param internId optional authorized detail target
      * @param from optional inclusive local-date lower bound
      * @param to optional inclusive local-date upper bound
@@ -47,12 +50,13 @@ public class ReportExportController {
      */
     @GetMapping("/attendance.xlsx")
     public ResponseEntity<byte[]> attendanceXlsx(
-            Principal principal,
+            Authentication authentication,
             @RequestParam(required = false) Long internId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        OperationalReportAuthorization.requireOperationalReportAccess(authentication);
         validateOptionalRange(from, to);
-        AttendanceReportView report = attendanceReports.build(principal, internId, from, to);
+        AttendanceReportView report = attendanceReports.build(authentication, internId, from, to);
         validateRange(report.from(), report.to());
         return attachment(exports.attendanceXlsx(report), XLSX,
                 "attendance-report-" + report.from() + "-to-" + report.to() + ".xlsx");
@@ -61,7 +65,7 @@ public class ReportExportController {
     /**
      * Downloads the authorization-scoped attendance dataset as PDF.
      *
-     * @param principal authenticated account
+     * @param authentication authenticated account and role
      * @param internId optional authorized detail target
      * @param from optional inclusive local-date lower bound
      * @param to optional inclusive local-date upper bound
@@ -69,12 +73,13 @@ public class ReportExportController {
      */
     @GetMapping("/attendance.pdf")
     public ResponseEntity<byte[]> attendancePdf(
-            Principal principal,
+            Authentication authentication,
             @RequestParam(required = false) Long internId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        OperationalReportAuthorization.requireOperationalReportAccess(authentication);
         validateOptionalRange(from, to);
-        AttendanceReportView report = attendanceReports.build(principal, internId, from, to);
+        AttendanceReportView report = attendanceReports.build(authentication, internId, from, to);
         validateRange(report.from(), report.to());
         return attachment(exports.attendancePdf(report), MediaType.APPLICATION_PDF,
                 "attendance-report-" + report.from() + "-to-" + report.to() + ".pdf");
@@ -103,6 +108,7 @@ public class ReportExportController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dueTo,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate workFrom,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate workTo) {
+        OperationalReportAuthorization.requireOperationalReportAccess(authentication);
         validateProjectTaskExportRanges(dueFrom, dueTo, workFrom, workTo);
         ProjectTaskReportView report = projectTaskReports.build(
                 authentication.getName(), projectId, memberMembershipId, status,
@@ -134,12 +140,96 @@ public class ReportExportController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dueTo,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate workFrom,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate workTo) {
+        OperationalReportAuthorization.requireOperationalReportAccess(authentication);
         validateProjectTaskExportRanges(dueFrom, dueTo, workFrom, workTo);
         ProjectTaskReportView report = projectTaskReports.build(
                 authentication.getName(), projectId, memberMembershipId, status,
                 dueFrom, dueTo, workFrom, workTo);
         return attachment(exports.projectTaskPdf(report), MediaType.APPLICATION_PDF,
                 projectFilename(".pdf", dueFrom, dueTo, workFrom, workTo));
+    }
+
+    /**
+     * Downloads the authorized Daily Project Work Report as XLSX.
+     *
+     * <p>The service applies the Daily role scope before constructing exactly one immutable DTO.
+     * An owning Mentor may omit {@code projectId} to include all owned Projects or provide one
+     * owned Project. A current Project Leader must provide the exact {@code projectId} of one
+     * PLANNED or ACTIVE Project that the actor currently leads. The exporter receives only that
+     * DTO and cannot query or re-evaluate authorization.</p>
+     *
+     * @param authentication authenticated owning Mentor or current Project Leader; other roles
+     *        are rejected
+     * @param projectIdParameter optional for an owning Mentor (null selects all owned Projects);
+     *        mandatory exact currently-led PLANNED/ACTIVE Project for a current Project Leader
+     * @param dateParameter optional ISO local report date
+     * @param reportDateParameter compatibility alias accepted by the HTML route
+     * @return Daily workbook attachment with a date-only deterministic filename
+     */
+    @GetMapping("/daily.xlsx")
+    public ResponseEntity<byte[]> dailyXlsx(
+            Authentication authentication,
+            @RequestParam(name = "projectId", required = false) String projectIdParameter,
+            @RequestParam(name = "date", required = false) String dateParameter,
+            @RequestParam(name = "reportDate", required = false) String reportDateParameter) {
+        DailyProjectWorkReportView report = dailyReport(
+                authentication, projectIdParameter, dateParameter, reportDateParameter);
+        return attachment(exports.dailyXlsx(report), XLSX,
+                dailyFilename(report.reportDate(), ".xlsx"));
+    }
+
+    /**
+     * Downloads the authorized Daily Project Work Report as print-safe PDF.
+     *
+     * <p>The service applies the Daily role scope before constructing exactly one immutable DTO.
+     * An owning Mentor may omit {@code projectId} to include all owned Projects or provide one
+     * owned Project. A current Project Leader must provide the exact {@code projectId} of one
+     * PLANNED or ACTIVE Project that the actor currently leads. The exporter receives only that
+     * DTO and cannot query or re-evaluate authorization.</p>
+     *
+     * @param authentication authenticated owning Mentor or current Project Leader; other roles
+     *        are rejected
+     * @param projectIdParameter optional for an owning Mentor (null selects all owned Projects);
+     *        mandatory exact currently-led PLANNED/ACTIVE Project for a current Project Leader
+     * @param dateParameter optional ISO local report date
+     * @param reportDateParameter compatibility alias accepted by the HTML route
+     * @return Daily PDF attachment with a date-only deterministic filename
+     */
+    @GetMapping("/daily.pdf")
+    public ResponseEntity<byte[]> dailyPdf(
+            Authentication authentication,
+            @RequestParam(name = "projectId", required = false) String projectIdParameter,
+            @RequestParam(name = "date", required = false) String dateParameter,
+            @RequestParam(name = "reportDate", required = false) String reportDateParameter) {
+        DailyProjectWorkReportView report = dailyReport(
+                authentication, projectIdParameter, dateParameter, reportDateParameter);
+        return attachment(exports.dailyPdf(report), MediaType.APPLICATION_PDF,
+                dailyFilename(report.reportDate(), ".pdf"));
+    }
+
+    private DailyProjectWorkReportView dailyReport(
+            Authentication authentication,
+            String projectIdParameter,
+            String dateParameter,
+            String reportDateParameter) {
+        try {
+            OperationalReportAuthorization.requireDailyReportAccess(authentication);
+            Long projectId = DailyProjectWorkReportRequest.parseProjectId(projectIdParameter);
+            LocalDate requestedDate = DailyProjectWorkReportRequest.mergeDates(
+                    DailyProjectWorkReportRequest.parseDate(dateParameter),
+                    DailyProjectWorkReportRequest.parseDate(reportDateParameter));
+            return dailyReports.build(authentication.getName(), projectId, requestedDate);
+        } catch (ProjectAccessDeniedException denied) {
+            throw new ResponseStatusException(
+                    HttpStatus.NOT_FOUND, "Project unavailable", denied);
+        } catch (IllegalArgumentException invalid) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, "Report request is invalid", invalid);
+        }
+    }
+
+    private static String dailyFilename(LocalDate reportDate, String extension) {
+        return "daily-project-work-report-" + reportDate + extension;
     }
 
     private static void validateProjectTaskExportRanges(

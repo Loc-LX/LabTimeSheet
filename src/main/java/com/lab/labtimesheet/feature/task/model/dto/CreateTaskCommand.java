@@ -10,10 +10,18 @@ import java.time.LocalDate;
  * @param title required Task title
  * @param description optional Task description
  * @param dueDate optional business date constrained by Project dates and the current global calendar
+ * @param estimatedMinutes optional Leader-owned whole-Task estimate in minutes
  */
 public record CreateTaskCommand(
         long projectId,
         long assigneeMembershipId,
         String title,
         String description,
-        LocalDate dueDate) {}
+        LocalDate dueDate,
+        Integer estimatedMinutes) {
+
+    public CreateTaskCommand(long projectId, long assigneeMembershipId, String title,
+            String description, LocalDate dueDate) {
+        this(projectId, assigneeMembershipId, title, description, dueDate, null);
+    }
+}

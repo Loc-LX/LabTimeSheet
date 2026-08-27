@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.lab.labtimesheet.feature.account.model.AccountStatus;
 import com.lab.labtimesheet.feature.account.model.GlobalRole;
@@ -155,6 +156,21 @@ class AttendanceReportServiceTest {
                 LocalDate.of(2026, 8, 1),
                 LocalDate.of(2026, 8, 31)))
                 .isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
+    }
+
+    @Test
+    void rejectsAdminBeforeBusinessDateTargetOrReportResolution() {
+        Principal admin = () -> "admin@example.test";
+        given(currentUsers.actor(admin)).willReturn(new AttendanceActor(1L, AttendanceRole.ADMIN));
+
+        assertThatThrownBy(() -> reports.build(
+                admin,
+                7L,
+                LocalDate.of(2026, 9, 1),
+                LocalDate.of(2026, 8, 1)))
+                .isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
+
+        verifyNoInteractions(attendance, reportQueries, accounts);
     }
 
     @Test

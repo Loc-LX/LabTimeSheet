@@ -1,10 +1,12 @@
 package com.lab.labtimesheet.feature.task.repository;
 
 import com.lab.labtimesheet.feature.task.model.dto.TaskMemberWorkView;
+import com.lab.labtimesheet.feature.task.model.dto.TaskActualMinutesView;
 import com.lab.labtimesheet.feature.task.model.dto.TaskWorkLogCandidate;
 import com.lab.labtimesheet.feature.task.model.entity.TaskWorkLog;
 import jakarta.persistence.LockModeType;
 import java.time.LocalDate;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -34,6 +36,19 @@ public interface TaskWorkLogRepository extends JpaRepository<TaskWorkLog, Long> 
      * @return retained logs
      */
     List<TaskWorkLog> findAllByTaskIdAndProjectIdOrderByWorkDateAscIdAsc(long taskId, long projectId);
+
+    /**
+     * Lists only the selected local date's retained logs for a Project in stable Task/log order.
+     *
+     * <p>Daily reporting uses this Project/date query instead of loading each Task's complete
+     * history. The returned entity rows are immediately converted to the public work-log DTO.</p>
+     *
+     * @param projectId owning Project identifier
+     * @param workDate selected local report date
+     * @return retained logs created for the selected date
+     */
+    List<TaskWorkLog> findAllByProjectIdAndWorkDateOrderByTaskIdAscIdAsc(
+            long projectId, LocalDate workDate);
 
     /**
      * Reads a narrow Project-scoped work-log projection without taking a row lock.
@@ -87,6 +102,38 @@ public interface TaskWorkLogRepository extends JpaRepository<TaskWorkLog, Long> 
      */
     @Query("select coalesce(sum(log.minutes), 0) from TaskWorkLog log where log.projectId = :projectId")
     long sumMinutesByProjectId(@Param("projectId") long projectId);
+
+    @Query("select coalesce(sum(log.minutes), 0) from TaskWorkLog log where log.taskId = :taskId and log.projectId = :projectId")
+    long sumMinutesByTaskIdAndProjectId(@Param("taskId") long taskId, @Param("projectId") long projectId);
+
+    /**
+     * Aggregates lifetime retained effort for every Task in one Project in one database query.
+     *
+     * @param projectId owning Project identifier
+     * @param taskIds selected-date Task identifiers whose lifetime totals are required
+     * @return one immutable total per Task that has retained work
+     */
+    @Query("""
+            select new com.lab.labtimesheet.feature.task.model.dto.TaskActualMinutesView(
+                log.taskId, coalesce(sum(log.minutes), 0))
+            from TaskWorkLog log
+            where log.projectId = :projectId
+              and log.taskId in :taskIds
+            group by log.taskId
+            order by log.taskId
+            """)
+    List<TaskActualMinutesView> sumMinutesByProjectGroupedByTask(
+            @Param("projectId") long projectId,
+            @Param("taskIds") Set<Long> taskIds);
+
+    @Query("select count(log) > 0 from TaskWorkLog log where log.taskId = :taskId and log.projectId = :projectId")
+    boolean existsByTaskIdAndProjectId(@Param("taskId") long taskId, @Param("projectId") long projectId);
+
+    /** Detects incoming-assignee work created at or after a forecast assignment instant. */
+    @Query("select count(log) > 0 from TaskWorkLog log where log.taskId = :taskId and log.projectId = :projectId and log.membershipId = :membershipId and log.createdAt >= :createdAt")
+    boolean existsByTaskIdAndProjectIdAndMembershipIdAndCreatedAtGreaterThanEqual(
+            @Param("taskId") long taskId, @Param("projectId") long projectId,
+            @Param("membershipId") long membershipId, @Param("createdAt") Instant createdAt);
 
     /**
      * Returns hand-checkable per-membership effort totals for one Project.

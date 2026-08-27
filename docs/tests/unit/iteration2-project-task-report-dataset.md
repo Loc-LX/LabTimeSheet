@@ -6,6 +6,13 @@
 - **Test class/method:** `com.lab.labtimesheet.feature.reporting.service.ProjectTaskReportServiceTest`, including `currentLeaderKeepsMemberFilterAndReceivesMemberBreakdown`
 - **Implementation commit:** `96c6cf2866e00062860a0c0b45cb010be6ca30b1`
 
+> **Supersession notice — 27 August 2026:** This historical dataset evidence includes an
+> Admin-positive per-member-hours assertion. The latest RPT-005/AUTH-010 decision removes Admin
+> from Project/Task report scope, Project option lists, report datasets, and per-member hours.
+> Owning-Mentor/current-Leader detail and ordinary-member aggregate behavior remain. The recorded
+> test counts and fixture values below are preserved as historical results and do not establish
+> the revised Admin denial.
+
 ## Protected behavior
 
 The HTML Project/Task dataset must use only authorized Project and Task public services, support Project/member/status/due/work-date filters, include logged minutes and status totals, and expose per-member hours only to Admins, owning Mentors, and current Leaders. Ordinary members retain aggregate progress without a detailed member-hours breakdown.

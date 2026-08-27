@@ -36,7 +36,7 @@ class AdminDashboardWebTest {
 
     @Test
     @WithMockUser(username = "admin@example.test", roles = "ADMIN")
-    void adminDashboardUsesAccountAndProjectServiceSummaries() throws Exception {
+    void adminDashboardUsesAccountLifecycleSummariesOnly() throws Exception {
         bootstrap();
 
         mvc.perform(get("/dashboard"))
@@ -45,11 +45,30 @@ class AdminDashboardWebTest {
                 .andExpect(content().string(containsString("Active accounts</div><div class=\"metric-value\">1")))
                 .andExpect(content().string(containsString("Pending activation</div><div class=\"metric-value\">0")))
                 .andExpect(content().string(containsString("Active internships</div><div class=\"metric-value\">0")))
-                .andExpect(content().string(containsString("Active Projects</div><div class=\"metric-value\">0")))
+                .andExpect(content().string(not(containsString("Active Projects"))))
                 .andExpect(content().string(containsString("Create account")))
                 .andExpect(content().string(containsString("No pending activations")))
                 .andExpect(content().string(not(containsString("Create Project"))))
                 .andExpect(content().string(not(containsString("Check in"))));
+    }
+
+    @Test
+    @WithMockUser(username = "admin@example.test", roles = "ADMIN")
+    void adminCannotOpenAttendanceOrProjectTaskReportsOrDownloads() throws Exception {
+        bootstrap();
+
+        mvc.perform(get("/reports/attendance"))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/reports/attendance.xlsx"))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/reports/attendance.pdf"))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/reports/project-tasks"))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/reports/project-tasks.xlsx"))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/reports/project-tasks.pdf"))
+                .andExpect(status().isForbidden());
     }
 
     @Test

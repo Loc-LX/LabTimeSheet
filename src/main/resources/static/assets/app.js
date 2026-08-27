@@ -46,12 +46,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.querySelectorAll('[data-task-version-toggle]').forEach((taskCheckbox) => {
     const versionInput = document.querySelector(`[data-task-version-for="${taskCheckbox.value}"]`);
-    if (!versionInput) return;
+    const forecastRemaining = document.querySelector(`[data-forecast-remaining-for="${taskCheckbox.value}"]`);
+    const forecastNote = document.querySelector(`[data-forecast-note-for="${taskCheckbox.value}"]`);
+    const forecastInput = document.querySelector(`[data-forecast-input-for="${taskCheckbox.value}"]`);
+    if (!versionInput && !forecastRemaining && !forecastNote && !forecastInput) return;
     const syncTaskVersion = () => {
-      versionInput.disabled = !taskCheckbox.checked;
+      if (versionInput) versionInput.disabled = !taskCheckbox.checked;
+      if (forecastRemaining) forecastRemaining.disabled = !taskCheckbox.checked;
+      if (forecastNote) forecastNote.disabled = !taskCheckbox.checked;
+      if (forecastInput) forecastInput.disabled = !taskCheckbox.checked;
     };
     taskCheckbox.addEventListener('change', syncTaskVersion);
     syncTaskVersion();
+  });
+
+  document.querySelectorAll('form[data-transfer-confirm]').forEach((form) => {
+    form.addEventListener('submit', () => {
+      form.querySelectorAll('[data-forecast-input-for]').forEach((forecastInput) => {
+        const taskId = forecastInput.dataset.forecastInputFor;
+        const remaining = form.querySelector(`[data-forecast-remaining-for="${taskId}"]`);
+        const note = form.querySelector(`[data-forecast-note-for="${taskId}"]`);
+        if (!remaining) return;
+        const remainingValue = remaining.value.trim();
+        const noteValue = note?.value.trim() || '';
+        forecastInput.value = `${taskId}:${remainingValue}${noteValue ? `:${noteValue}` : ''}`;
+      });
+    });
   });
 
   let collapsed = false;

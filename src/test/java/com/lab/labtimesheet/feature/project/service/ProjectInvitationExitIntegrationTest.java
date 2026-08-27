@@ -12,6 +12,7 @@ import com.lab.labtimesheet.feature.project.exception.ProjectRuleViolationExcept
 import com.lab.labtimesheet.feature.project.model.InvitationResponse;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectCreateCommand;
 import com.lab.labtimesheet.feature.task.exception.TaskConflictException;
+import com.lab.labtimesheet.feature.task.model.dto.RemainingEffortForecastInput;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import java.time.Instant;
@@ -691,6 +692,136 @@ class ProjectInvitationExitIntegrationTest {
         assertEquals(targetMembershipId, number(
                 "select assignee_membership_id from tasks where id = ?", doneId));
         assertEquals(0, count("select count(*) from project_memberships where id = ? and left_at is null", targetMembershipId));
+    }
+
+    @Test
+    void directMentorRemovalRejectsWorkedUnfinishedTasksBeforeAnyMutation() {
+        long mentorId = user("mentor-direct-worked-remove@example.test", "MENTOR");
+        long leaderId = intern("leader-direct-worked-remove@example.test", "I177");
+        long targetId = intern("target-direct-worked-remove@example.test", "I178");
+        long projectId = createProject(mentorId, leaderId, "Direct worked removal");
+        projects.addMember(mentorId, projectId, targetId);
+        long leaderMembershipId = membershipId(projectId, leaderId);
+        long targetMembershipId = membershipId(projectId, targetId);
+        long taskId = insertTask(projectId, targetMembershipId, leaderMembershipId,
+                "Worked unfinished", "IN_PROGRESS");
+        jdbc.update("""
+                insert into task_work_logs
+                    (project_id, task_id, membership_id, work_date, minutes, created_at, updated_at)
+                values (?, ?, ?, date '2026-08-20', 45, ?, ?)
+                """, projectId, taskId, targetMembershipId,
+                java.sql.Timestamp.from(NOW), java.sql.Timestamp.from(NOW));
+        MutationState before = mutationState(projectId);
+
+        assertThrows(ProjectRuleViolationException.class,
+                () -> projects.directRemoveMember(mentorId, projectId, targetMembershipId, null));
+
+        assertEquals(before, mutationState(projectId));
+        assertEquals(targetMembershipId, number(
+                "select assignee_membership_id from tasks where id = ?", taskId));
+        assertEquals(1, count("select count(*) from project_memberships where id = ? and left_at is null",
+                targetMembershipId));
+        assertEquals(leaderMembershipId, number(
+                "select membership_id from project_leadership_terms where project_id = ? and ended_at is null",
+                projectId));
+    }
+
+    @Test
+    void directMentorRemovalOfCurrentLeaderRejectsWorkedTasksBeforeLeadershipMutation() {
+        long mentorId = user("mentor-direct-worked-leader@example.test", "MENTOR");
+        long leaderId = intern("leader-direct-worked-leader@example.test", "I179");
+        long replacementId = intern("replacement-direct-worked-leader@example.test", "I180");
+        long projectId = createProject(mentorId, leaderId, "Direct worked Leader removal");
+        projects.addMember(mentorId, projectId, replacementId);
+        long leaderMembershipId = membershipId(projectId, leaderId);
+        long taskId = insertTask(projectId, leaderMembershipId, leaderMembershipId,
+                "Worked Leader task", "IN_PROGRESS");
+        jdbc.update("""
+                insert into task_work_logs
+                    (project_id, task_id, membership_id, work_date, minutes, created_at, updated_at)
+                values (?, ?, ?, date '2026-08-20', 45, ?, ?)
+                """, projectId, taskId, leaderMembershipId,
+                java.sql.Timestamp.from(NOW), java.sql.Timestamp.from(NOW));
+        MutationState before = mutationState(projectId);
+        entityManager.clear();
+
+        assertThrows(ProjectRuleViolationException.class,
+                () -> projects.directRemoveMember(mentorId, projectId, leaderMembershipId, replacementId));
+
+        assertEquals(before, mutationState(projectId));
+        assertEquals(leaderMembershipId, number(
+                "select membership_id from project_leadership_terms where project_id = ? and ended_at is null",
+                projectId));
+        assertEquals(leaderMembershipId, number(
+                "select assignee_membership_id from tasks where id = ?", taskId));
+    }
+
+    @Test
+    void directLeaderRemovalAutoTransfersOnlyRemainingUnworkedTasksAfterForecastAwareTransfer() {
+        long mentorId = user("mentor-direct-forecast-leader@example.test", "MENTOR");
+        long leaderId = intern("leader-direct-forecast-leader@example.test", "I181");
+        long replacementId = intern("replacement-direct-forecast-leader@example.test", "I182");
+        long projectId = createProject(mentorId, leaderId, "Direct forecast Leader removal");
+        projects.addMember(mentorId, projectId, replacementId);
+        long leaderMembershipId = membershipId(projectId, leaderId);
+        long replacementMembershipId = membershipId(projectId, replacementId);
+        long workedTaskId = insertTask(projectId, leaderMembershipId, leaderMembershipId,
+                "Forecasted Leader task", "IN_PROGRESS");
+        long unworkedTaskId = insertTask(projectId, leaderMembershipId, leaderMembershipId,
+                "Unworked Leader task", "TODO");
+        jdbc.update("""
+                insert into task_work_logs
+                    (project_id, task_id, membership_id, work_date, minutes, created_at, updated_at)
+                values (?, ?, ?, date '2026-08-20', 45, ?, ?)
+                """, projectId, workedTaskId, leaderMembershipId,
+                java.sql.Timestamp.from(NOW), java.sql.Timestamp.from(NOW));
+        long requestId = projects.requestOwnLeave(leaderId, projectId, "Transfer before removal");
+        entityManager.clear();
+
+        projects.changeLeader(mentorId, projectId, replacementId);
+        entityManager.clear();
+        projects.transferTasks(
+                replacementId,
+                projectId,
+                requestId,
+                leaderMembershipId,
+                Set.of(workedTaskId),
+                Map.of(
+                        workedTaskId, number("select version from tasks where id = ?", workedTaskId)),
+                Map.of(workedTaskId, new RemainingEffortForecastInput(90, "  hand over  ")),
+                replacementMembershipId);
+        entityManager.clear();
+
+        assertEquals(replacementMembershipId, number(
+                "select assignee_membership_id from tasks where id = ?", workedTaskId));
+        assertEquals(leaderMembershipId, number(
+                "select assignee_membership_id from tasks where id = ?", unworkedTaskId));
+        assertEquals("PENDING", text(
+                "select status from project_membership_exit_requests where id = ?", requestId));
+        assertEquals(0, count("select count(*) from task_remaining_effort_forecasts "
+                + "where project_id = ? and task_id = ?", projectId, unworkedTaskId));
+
+        projects.directRemoveMember(mentorId, projectId, leaderMembershipId, replacementId);
+
+        assertEquals(replacementMembershipId, number(
+                "select assignee_membership_id from tasks where id = ?", workedTaskId));
+        assertEquals(replacementMembershipId, number(
+                "select assignee_membership_id from tasks where id = ?", unworkedTaskId));
+        assertEquals(1, count("select count(*) from task_remaining_effort_forecasts "
+                + "where project_id = ? and task_id = ?", projectId, workedTaskId));
+        assertEquals(0, count("select count(*) from task_remaining_effort_forecasts "
+                + "where project_id = ? and task_id = ?", projectId, unworkedTaskId));
+        assertEquals(0, count("select count(*) from project_memberships "
+                + "where id = ? and left_at is null", leaderMembershipId));
+        assertEquals(replacementMembershipId, number(
+                "select membership_id from project_leadership_terms "
+                        + "where project_id = ? and ended_at is null", projectId));
+        assertEquals("APPROVED", text(
+                "select status from project_membership_exit_requests where id = ?", requestId));
+        assertEquals(4, count("select count(*) from notifications "
+                + "where notification_type = 'TASK_REASSIGNED' and action_url in (?, ?)",
+                "/projects/" + projectId + "/tasks/" + workedTaskId,
+                "/projects/" + projectId + "/tasks/" + unworkedTaskId));
     }
 
     @Test
