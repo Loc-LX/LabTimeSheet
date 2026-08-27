@@ -242,6 +242,7 @@ class DailyProjectWorkReportControllerWebTest {
         given(attendance.currentBusinessDate()).willReturn(REPORT_DATE);
         given(projectQueries.authenticatedActor("leader@example.test"))
                 .willReturn(new ProjectActorView(7L, "INTERN"));
+        given(projectQueries.hasCurrentLeaderProjectForDailyReport(7L)).willReturn(true);
         given(projectQueries.listCurrentLeaderProjectsForDailyReport(7L))
                 .willReturn(List.of(project));
 
@@ -260,6 +261,7 @@ class DailyProjectWorkReportControllerWebTest {
         given(attendance.currentBusinessDate()).willReturn(REPORT_DATE);
         given(projectQueries.authenticatedActor("leader@example.test"))
                 .willReturn(new ProjectActorView(7L, "INTERN"));
+        given(projectQueries.hasCurrentLeaderProjectForDailyReport(7L)).willReturn(true);
         given(projectQueries.listCurrentLeaderProjectsForDailyReport(7L))
                 .willReturn(List.of(first, second));
 
@@ -287,6 +289,7 @@ class DailyProjectWorkReportControllerWebTest {
         given(attendance.currentBusinessDate()).willReturn(REPORT_DATE);
         given(projectQueries.authenticatedActor("leader@example.test"))
                 .willReturn(new ProjectActorView(7L, "INTERN"));
+        given(projectQueries.hasCurrentLeaderProjectForDailyReport(7L)).willReturn(true);
 
         mvc.perform(get("/reports/daily")
                         .with(user("leader@example.test").roles("INTERN"))
@@ -327,6 +330,7 @@ class DailyProjectWorkReportControllerWebTest {
     void currentLeaderWithNoEligibleProjectKeepsNonDisclosingUnavailableResponse() throws Exception {
         given(projectQueries.authenticatedActor("leader@example.test"))
                 .willReturn(new ProjectActorView(7L, "INTERN"));
+        given(projectQueries.hasCurrentLeaderProjectForDailyReport(7L)).willReturn(false);
         given(projectQueries.listCurrentLeaderProjectsForDailyReport(7L))
                 .willReturn(List.of());
 
@@ -336,6 +340,35 @@ class DailyProjectWorkReportControllerWebTest {
                 .andExpect(view().name("error/generic"))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Project unavailable")));
 
+        verify(reports, org.mockito.Mockito.never()).build(anyString(), any(), any());
+    }
+
+    @Test
+    void unqualifiedInternIsDeniedBeforeDateContextForPastCurrentAndFutureDates()
+            throws Exception {
+        given(attendance.currentBusinessDate()).willReturn(REPORT_DATE);
+        given(projectQueries.authenticatedActor("intern@example.test"))
+                .willReturn(new ProjectActorView(7L, "INTERN"));
+        given(projectQueries.hasCurrentLeaderProjectForDailyReport(7L)).willReturn(false);
+        given(projectQueries.listCurrentLeaderProjectsForDailyReport(7L))
+                .willReturn(List.of());
+
+        for (LocalDate requestedDate : List.of(
+                REPORT_DATE.minusDays(1), REPORT_DATE, REPORT_DATE.plusDays(1))) {
+            mvc.perform(get("/reports/daily")
+                            .with(user("intern@example.test").roles("INTERN"))
+                            .param("date", requestedDate.toString()))
+                    .andExpect(status().isNotFound())
+                    .andExpect(view().name("error/generic"))
+                    .andExpect(content().string(org.hamcrest.Matchers.containsString(
+                            "Project unavailable")));
+        }
+
+        verify(projectQueries, org.mockito.Mockito.atLeast(3))
+                .hasCurrentLeaderProjectForDailyReport(7L);
+        verify(projectQueries, org.mockito.Mockito.never())
+                .listCurrentLeaderProjectsForDailyReport(7L);
+        verify(attendance, org.mockito.Mockito.never()).currentBusinessDate();
         verify(reports, org.mockito.Mockito.never()).build(anyString(), any(), any());
     }
 

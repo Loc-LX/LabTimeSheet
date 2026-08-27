@@ -52,8 +52,13 @@ public class DailyProjectWorkReportController {
                 DailyProjectWorkReportRequest.parseDate(dateAliasParameter),
                 DailyProjectWorkReportRequest.parseDate(reportDateParameter));
         if (projectId == null && hasRole(authentication, "ROLE_INTERN")) {
+            ProjectActorView actor = currentLeaderActor(authentication);
+            if (!projects.hasCurrentLeaderProjectForDailyReport(actor.userId())) {
+                throw new ProjectAccessDeniedException();
+            }
             validateRequestedDate(requestedDate);
-            List<ProjectSummary> eligibleProjects = currentLeaderProjects(authentication);
+            List<ProjectSummary> eligibleProjects =
+                    projects.listCurrentLeaderProjectsForDailyReport(actor.userId());
             if (eligibleProjects.isEmpty()) {
                 throw new ProjectAccessDeniedException();
             }
@@ -69,12 +74,12 @@ public class DailyProjectWorkReportController {
         return "reports/daily";
     }
 
-    private List<ProjectSummary> currentLeaderProjects(Authentication authentication) {
+    private ProjectActorView currentLeaderActor(Authentication authentication) {
         ProjectActorView actor = projects.authenticatedActor(authentication.getName());
         if (actor == null || !"INTERN".equals(actor.role())) {
             throw new ProjectAccessDeniedException();
         }
-        return projects.listCurrentLeaderProjectsForDailyReport(actor.userId());
+        return actor;
     }
 
     private void validateRequestedDate(LocalDate requestedDate) {
