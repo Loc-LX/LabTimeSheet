@@ -1,6 +1,7 @@
 package com.lab.labtimesheet.feature.reporting.controller;
 
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -54,6 +55,15 @@ class ProjectTaskReportControllerWebTest {
                         .with(user("mentor@example.test").roles("MENTOR")))
                 .andExpect(status().isOk())
                 .andExpect(view().name("reports/project-tasks"));
+    }
+
+    @Test
+    void deniesAdminBeforeCallingProjectTaskReportService() throws Exception {
+        mvc.perform(get("/reports/project-tasks")
+                        .with(user("admin@example.test").roles("ADMIN")))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(reports);
     }
 
     @Test

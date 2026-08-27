@@ -16,10 +16,9 @@ public sealed interface DashboardView {
      * @param activeAccounts active account count
      * @param pendingActivations accounts awaiting activation
      * @param activeInternships active internship count
-     * @param activeProjects active Projects visible to an Admin
      */
     record Admin(long activeAccounts, long pendingActivations,
-                 long activeInternships, long activeProjects) implements DashboardView {
+                 long activeInternships) implements DashboardView {
     }
 
     /**

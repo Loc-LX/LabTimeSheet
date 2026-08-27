@@ -25,7 +25,9 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>This service owns no persistence mapping or business-date calculation. Account lifecycle and
  * role are revalidated from persisted identity data, while Project, Task, and Attendance retain
- * ownership of their query scope, ordering, and attendance-policy business date.
+ * ownership of their query scope, ordering, and attendance-policy business date. The Admin
+ * projection is deliberately limited to account-lifecycle counts and does not query operational
+ * Project, Task, or Attendance data.
  */
 @Service
 @Transactional(readOnly = true)
@@ -43,19 +45,17 @@ public class DashboardService {
      * <p>Counts are zero when the corresponding feature has no matching records.
      *
      * @param email authenticated account email
-     * @return account lifecycle counts and the Admin-visible active Project count
+     * @return account lifecycle counts
      * @throws DashboardAccessDeniedException when the persisted account is missing, inactive, or
      *     not an Admin
      */
     public DashboardView.Admin admin(String email) {
-        AccountIdentity admin = activeAccount(email, GlobalRole.ADMIN);
+        activeAccount(email, GlobalRole.ADMIN);
         AccountSummary accountSummary = accounts.summary();
-        ProjectDashboardSummary projectSummary = projects.dashboardSummary(admin.id());
         return new DashboardView.Admin(
                 accountSummary.activeAccounts(),
                 accountSummary.pendingActivations(),
-                accountSummary.activeInternships(),
-                projectSummary.activeProjectCount());
+                accountSummary.activeInternships());
     }
 
     /**

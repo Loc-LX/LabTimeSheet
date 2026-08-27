@@ -104,6 +104,19 @@ class ReportingExportControllerWebTest {
                 .andExpect(content().contentType("application/pdf"));
     }
 
+    @Test
+    void deniesAdminBeforeRangeValidationDatasetConstructionOrExport() throws Exception {
+        for (String endpoint : List.of(
+                "/reports/attendance.xlsx", "/reports/attendance.pdf",
+                "/reports/project-tasks.xlsx", "/reports/project-tasks.pdf")) {
+            mvc.perform(get(endpoint)
+                            .with(user("admin@example.test").roles("ADMIN")))
+                    .andExpect(status().isForbidden());
+        }
+
+        verifyNoInteractions(attendanceReports, projectTaskReports, exports);
+    }
+
     @ParameterizedTest(name = "rejects {0} for both Project/Task export formats")
     @MethodSource("invalidProjectTaskExportRanges")
     void rejectsInvalidProjectTaskExportRangesBeforeDatasetConstruction(

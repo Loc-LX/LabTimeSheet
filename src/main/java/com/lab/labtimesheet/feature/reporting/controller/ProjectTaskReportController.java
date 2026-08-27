@@ -46,6 +46,7 @@ public class ProjectTaskReportController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate workFrom,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate workTo,
             Model model) {
+        OperationalReportAuthorization.requireOperationalReportAccess(authentication);
         model.addAttribute("report", reports.build(
                 authentication.getName(), projectId, memberMembershipId, status, dueFrom, dueTo, workFrom, workTo));
         model.addAttribute("statuses", List.of(TaskStatus.values()));

@@ -1554,8 +1554,9 @@ class AttendancePersistenceIntegrationTest {
         entityManager.persist(correction);
         entityManager.flush();
 
+        long reportMentorId = createActiveMentor();
         AttendanceReport report = attendanceReports.query(
-                new AttendanceActor(adminId, AttendanceRole.ADMIN),
+                new AttendanceActor(reportMentorId, AttendanceRole.MENTOR),
                 internId,
                 holidayDate,
                 absentDate);
@@ -1650,7 +1651,12 @@ class AttendancePersistenceIntegrationTest {
         }
         entityManager.flush();
 
-        AttendanceReport report = attendanceReports.query(admin, internId, firstWorkday, lastWorkday);
+        long reportMentorId = createActiveMentor();
+        AttendanceReport report = attendanceReports.query(
+                new AttendanceActor(reportMentorId, AttendanceRole.MENTOR),
+                internId,
+                firstWorkday,
+                lastWorkday);
 
         assertThat(report.days()).filteredOn(day ->
                         day.classification() == AttendanceReportClassification.APPROVED_LEAVE)
@@ -1735,7 +1741,9 @@ class AttendancePersistenceIntegrationTest {
                 Instant.parse("2026-10-01T17:00:00Z")));
         entityManager.flush();
 
-        AttendanceReport report = attendanceReports.query(admin, internId, date, date);
+        long reportMentorId = createActiveMentor();
+        AttendanceReport report = attendanceReports.query(
+                new AttendanceActor(reportMentorId, AttendanceRole.MENTOR), internId, date, date);
 
         assertThat(report.days()).singleElement().satisfies(day -> {
             assertThat(day.late()).isTrue();
@@ -1746,8 +1754,9 @@ class AttendancePersistenceIntegrationTest {
 
     @Test
     void attendanceReportUsesExplicitNaForZeroExpectedWorkdays() {
+        long reportMentorId = createActiveMentor();
         AttendanceReport report = attendanceReports.query(
-                new AttendanceActor(adminId, AttendanceRole.ADMIN),
+                new AttendanceActor(reportMentorId, AttendanceRole.MENTOR),
                 internId,
                 LocalDate.of(2026, 8, 15),
                 LocalDate.of(2026, 8, 16));
@@ -1763,7 +1772,7 @@ class AttendancePersistenceIntegrationTest {
                         AttendanceReportClassification.OFF_DAY,
                         AttendanceReportClassification.OFF_DAY);
         assertThatThrownBy(() -> attendanceReports.query(
-                        new AttendanceActor(adminId, AttendanceRole.ADMIN),
+                        new AttendanceActor(reportMentorId, AttendanceRole.MENTOR),
                         internId,
                         LocalDate.of(2026, 1, 1),
                         LocalDate.of(2027, 1, 2)))
@@ -1791,8 +1800,9 @@ class AttendancePersistenceIntegrationTest {
         accounts.completeInternship(
                 terminalIntern, adminId, new InternshipLifecycleGuard(false, 0));
 
+        long reportMentorId = createActiveMentor();
         AttendanceReport report = attendanceReports.query(
-                new AttendanceActor(adminId, AttendanceRole.ADMIN),
+                new AttendanceActor(reportMentorId, AttendanceRole.MENTOR),
                 terminalIntern,
                 terminalDate,
                 terminalDate);
@@ -1832,8 +1842,9 @@ class AttendancePersistenceIntegrationTest {
         clock.set(dayOffDate.atStartOfDay(ZoneOffset.UTC).toInstant());
         accounts.completeInternship(dayOffIntern, adminId, new InternshipLifecycleGuard(false, 0));
 
+        long reportMentorId = createActiveMentor();
         AttendanceReport emptyReport = attendanceReports.query(
-                new AttendanceActor(adminId, AttendanceRole.ADMIN), emptyIntern, emptyPreTerminalDate,
+                new AttendanceActor(reportMentorId, AttendanceRole.MENTOR), emptyIntern, emptyPreTerminalDate,
                 emptyDate.plusDays(1));
         assertThat(emptyReport.days()).extracting(AttendanceReportDay::workDate)
                 .containsExactly(emptyPreTerminalDate, emptyDate);
@@ -1842,7 +1853,7 @@ class AttendancePersistenceIntegrationTest {
         assertThat(emptyReport.expectedWorkdays()).isEqualTo(2);
 
         AttendanceReport leaveReport = attendanceReports.query(
-                new AttendanceActor(adminId, AttendanceRole.ADMIN), leaveIntern, leavePreTerminalDate,
+                new AttendanceActor(reportMentorId, AttendanceRole.MENTOR), leaveIntern, leavePreTerminalDate,
                 leaveDate.plusDays(1));
         assertThat(leaveReport.days()).filteredOn(day -> day.workDate().equals(leavePreTerminalDate))
                 .singleElement().extracting(AttendanceReportDay::classification)
@@ -1854,7 +1865,7 @@ class AttendancePersistenceIntegrationTest {
         assertThat(leaveReport.expectedWorkdays()).isEqualTo(1);
 
         AttendanceReport dayOffReport = attendanceReports.query(
-                new AttendanceActor(adminId, AttendanceRole.ADMIN), dayOffIntern, dayOffPreTerminalDate,
+                new AttendanceActor(reportMentorId, AttendanceRole.MENTOR), dayOffIntern, dayOffPreTerminalDate,
                 dayOffDate.plusDays(1));
         assertThat(dayOffReport.days()).filteredOn(day -> day.workDate().equals(dayOffPreTerminalDate))
                 .singleElement().extracting(AttendanceReportDay::classification)
@@ -1867,7 +1878,7 @@ class AttendancePersistenceIntegrationTest {
     }
 
     @Test
-    void attendanceReportEnforcesOwnInternScopeAndAllowsActiveMentorAndAdmin() {
+    void attendanceReportEnforcesOwnInternScopeAndDeniesAdmin() {
         long mentor = createActiveMentor();
         long otherIntern = createActiveIntern(
                 "second-report-intern@example.test",
@@ -1883,9 +1894,10 @@ class AttendancePersistenceIntegrationTest {
         assertThat(attendanceReports.query(
                         new AttendanceActor(mentor, AttendanceRole.MENTOR), internId, from, to).internId())
                 .isEqualTo(internId);
-        assertThat(attendanceReports.query(
-                new AttendanceActor(adminId, AttendanceRole.ADMIN), otherIntern, from, to).internId())
-                .isEqualTo(otherIntern);
+        assertThatThrownBy(() -> attendanceReports.query(
+                new AttendanceActor(adminId, AttendanceRole.ADMIN), otherIntern, from, to))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessage("Admins may not access Attendance reports");
     }
 
     @Test
@@ -1908,7 +1920,7 @@ class AttendancePersistenceIntegrationTest {
             assertThatThrownBy(() -> attendanceReports.query(
                             new AttendanceActor(adminId, AttendanceRole.ADMIN), unavailableTarget, from, to))
                     .isInstanceOf(AccessDeniedException.class)
-                    .hasMessage("Attendance report target must be an Intern");
+                    .hasMessage("Admins may not access Attendance reports");
         }
     }
 

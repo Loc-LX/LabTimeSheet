@@ -47,6 +47,9 @@ class DashboardTemplateWebTest {
                 .andExpect(content().string(containsString("System overview")))
                 .andExpect(content().string(containsString("Active accounts</div><div class=\"metric-value\">3")))
                 .andExpect(content().string(containsString("Create account")))
+                .andExpect(content().string(not(containsString("Active Projects"))))
+                .andExpect(content().string(not(containsString("active Project work"))))
+                .andExpect(content().string(not(containsString("Read-only Admin scope"))))
                 .andExpect(content().string(not(containsString("Create Project"))))
                 .andExpect(content().string(not(containsString("Check in"))));
     }
@@ -95,7 +98,7 @@ class DashboardTemplateWebTest {
 
         @GetMapping("/template-contract/dashboard/admin")
         String admin(Model model) {
-            model.addAttribute("dashboard", new DashboardView.Admin(3, 1, 2, 1));
+            model.addAttribute("dashboard", new DashboardView.Admin(3, 1, 2));
             return "dashboard/admin";
         }
 

@@ -124,6 +124,15 @@ class SecurityConfiguration {
                                 "/actuator/health", "/actuator/health/**")
                         .permitAll()
                         .requestMatchers("/admin/**").hasRole("ADMIN")
+                        // Operational reports are intentionally outside the Admin configuration role. Keep
+                        // this boundary ahead of any authenticated fallback so a direct report URL cannot
+                        // reach a controller or exporter under an Admin session.
+                        .requestMatchers(
+                                "/reports/attendance", "/reports/attendance/**",
+                                "/reports/attendance.xlsx", "/reports/attendance.pdf",
+                                "/reports/project-tasks", "/reports/project-tasks/**",
+                                "/reports/project-tasks.xlsx", "/reports/project-tasks.pdf")
+                        .hasAnyRole("MENTOR", "INTERN")
                         .anyRequest().authenticated())
                 .headers(headers -> {
                     headers.referrerPolicy(policy -> policy.policy(ReferrerPolicy.NO_REFERRER));

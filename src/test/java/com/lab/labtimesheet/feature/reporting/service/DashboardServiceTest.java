@@ -42,16 +42,15 @@ class DashboardServiceTest {
     }
 
     @Test
-    void adminDashboardCombinesAccountAndProjectSummaries() {
+    void adminDashboardContainsOnlyAccountLifecycleSummaries() {
         given(accounts.requireIdentityByEmail("admin@example.test"))
                 .willReturn(identity(1L, "Admin", GlobalRole.ADMIN, AccountStatus.ACTIVE));
         given(accounts.summary()).willReturn(new AccountSummary(8, 2, 3));
-        given(projects.dashboardSummary(1L)).willReturn(new ProjectDashboardSummary(4, 0));
 
         assertThat(dashboards.admin("admin@example.test"))
-                .isEqualTo(new DashboardView.Admin(8, 2, 3, 4));
+                .isEqualTo(new DashboardView.Admin(8, 2, 3));
 
-        verifyNoInteractions(tasks, attendance);
+        verifyNoInteractions(projects, tasks, attendance);
     }
 
     @Test

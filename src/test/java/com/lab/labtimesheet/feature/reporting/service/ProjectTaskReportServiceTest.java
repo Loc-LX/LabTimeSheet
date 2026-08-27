@@ -1,8 +1,10 @@
 package com.lab.labtimesheet.feature.reporting.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.lab.labtimesheet.feature.project.model.dto.ProjectActorView;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectDetail;
@@ -92,6 +94,27 @@ class ProjectTaskReportServiceTest {
         assertThat(view.rows()).isEmpty();
         assertThat(view.completionRate()).isEqualTo("N/A");
         assertThat(view.projectOptions()).isEmpty();
+    }
+
+    @Test
+    void rejectsAdminBeforeDateValidationProjectListingOrTaskReads() {
+        given(projects.authenticatedActor("admin@example.test"))
+                .willReturn(new ProjectActorView(1L, "ADMIN"));
+
+        assertThatThrownBy(() -> reports.build(
+                "admin@example.test",
+                null,
+                null,
+                null,
+                LocalDate.of(2026, 9, 1),
+                LocalDate.of(2026, 8, 1),
+                LocalDate.of(2026, 9, 1),
+                LocalDate.of(2026, 8, 1)))
+                .isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
+
+        verifyNoInteractions(tasks, taskQueries);
+        org.mockito.Mockito.verify(projects).authenticatedActor("admin@example.test");
+        org.mockito.Mockito.verifyNoMoreInteractions(projects);
     }
 
     @Test

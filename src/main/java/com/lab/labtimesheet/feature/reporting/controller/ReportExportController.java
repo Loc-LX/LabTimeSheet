@@ -9,7 +9,6 @@ import com.lab.labtimesheet.feature.reporting.service.DailyProjectWorkReportServ
 import com.lab.labtimesheet.feature.reporting.service.ProjectTaskReportService;
 import com.lab.labtimesheet.feature.reporting.service.ReportExportService;
 import com.lab.labtimesheet.feature.task.model.TaskStatus;
-import java.security.Principal;
 import java.time.LocalDate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -43,7 +42,7 @@ public class ReportExportController {
     /**
      * Downloads the authorization-scoped attendance dataset as XLSX.
      *
-     * @param principal authenticated account
+     * @param authentication authenticated account and role
      * @param internId optional authorized detail target
      * @param from optional inclusive local-date lower bound
      * @param to optional inclusive local-date upper bound
@@ -51,12 +50,13 @@ public class ReportExportController {
      */
     @GetMapping("/attendance.xlsx")
     public ResponseEntity<byte[]> attendanceXlsx(
-            Principal principal,
+            Authentication authentication,
             @RequestParam(required = false) Long internId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        OperationalReportAuthorization.requireOperationalReportAccess(authentication);
         validateOptionalRange(from, to);
-        AttendanceReportView report = attendanceReports.build(principal, internId, from, to);
+        AttendanceReportView report = attendanceReports.build(authentication, internId, from, to);
         validateRange(report.from(), report.to());
         return attachment(exports.attendanceXlsx(report), XLSX,
                 "attendance-report-" + report.from() + "-to-" + report.to() + ".xlsx");
@@ -65,7 +65,7 @@ public class ReportExportController {
     /**
      * Downloads the authorization-scoped attendance dataset as PDF.
      *
-     * @param principal authenticated account
+     * @param authentication authenticated account and role
      * @param internId optional authorized detail target
      * @param from optional inclusive local-date lower bound
      * @param to optional inclusive local-date upper bound
@@ -73,12 +73,13 @@ public class ReportExportController {
      */
     @GetMapping("/attendance.pdf")
     public ResponseEntity<byte[]> attendancePdf(
-            Principal principal,
+            Authentication authentication,
             @RequestParam(required = false) Long internId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        OperationalReportAuthorization.requireOperationalReportAccess(authentication);
         validateOptionalRange(from, to);
-        AttendanceReportView report = attendanceReports.build(principal, internId, from, to);
+        AttendanceReportView report = attendanceReports.build(authentication, internId, from, to);
         validateRange(report.from(), report.to());
         return attachment(exports.attendancePdf(report), MediaType.APPLICATION_PDF,
                 "attendance-report-" + report.from() + "-to-" + report.to() + ".pdf");
@@ -107,6 +108,7 @@ public class ReportExportController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dueTo,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate workFrom,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate workTo) {
+        OperationalReportAuthorization.requireOperationalReportAccess(authentication);
         validateProjectTaskExportRanges(dueFrom, dueTo, workFrom, workTo);
         ProjectTaskReportView report = projectTaskReports.build(
                 authentication.getName(), projectId, memberMembershipId, status,
@@ -138,6 +140,7 @@ public class ReportExportController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dueTo,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate workFrom,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate workTo) {
+        OperationalReportAuthorization.requireOperationalReportAccess(authentication);
         validateProjectTaskExportRanges(dueFrom, dueTo, workFrom, workTo);
         ProjectTaskReportView report = projectTaskReports.build(
                 authentication.getName(), projectId, memberMembershipId, status,
