@@ -240,7 +240,13 @@ Implementation commit:
 756ea6c Implement Q31-R Mentor and Leader daily reporting
 ```
 
-The evidence report is intentionally added as the follow-up local commit after this implementation
+Evidence report commit:
+
+```text
+64a1c98 Document Q31-R task evidence
+```
+
+The evidence report was intentionally added as a follow-up local commit after the implementation
 commit. Neither commit was pushed or merged.
 
 ## Self-review
