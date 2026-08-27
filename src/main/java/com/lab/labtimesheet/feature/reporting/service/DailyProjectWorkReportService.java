@@ -93,12 +93,6 @@ public class DailyProjectWorkReportService {
 
     private DailyProjectWorkReportProject project(
             long actorUserId, ProjectSummary project, LocalDate reportDate) {
-        Map<Long, ProjectMemberView> membersById = projects.members(actorUserId, project.id()).stream()
-                .collect(Collectors.toMap(
-                        ProjectMemberView::membershipId,
-                        member -> member,
-                        (first, ignored) -> first,
-                        LinkedHashMap::new));
         Map<Long, Map<Long, AuthorTask>> logsByAuthorAndTask = new LinkedHashMap<>();
         for (TaskDailyReportView task : taskQueries.dailyReport(project.id(), reportDate)) {
             List<TaskWorkLogView> selectedLogs = task.workLogs().stream()
@@ -110,6 +104,16 @@ public class DailyProjectWorkReportService {
                     .logs()
                     .add(log));
         }
+        if (logsByAuthorAndTask.isEmpty()) {
+            return new DailyProjectWorkReportProject(project.id(), project.name(), List.of(), 0L);
+        }
+
+        Map<Long, ProjectMemberView> membersById = projects.members(actorUserId, project.id()).stream()
+                .collect(Collectors.toMap(
+                        ProjectMemberView::membershipId,
+                        member -> member,
+                        (first, ignored) -> first,
+                        LinkedHashMap::new));
 
         List<DailyProjectWorkReportMember> reportMembers = logsByAuthorAndTask.entrySet().stream()
                 .map(entry -> {

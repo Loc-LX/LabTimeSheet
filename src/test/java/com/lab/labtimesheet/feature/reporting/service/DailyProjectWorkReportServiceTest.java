@@ -9,6 +9,7 @@ import static org.mockito.Mockito.never;
 
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceReportDateContext;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceApplicationService;
+import com.lab.labtimesheet.feature.project.exception.ProjectRuleViolationException;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectActorView;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectMemberView;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectSummary;
@@ -123,7 +124,8 @@ class DailyProjectWorkReportServiceTest {
                 .willReturn(new ProjectActorView(1L, "ADMIN"));
         given(projects.listAllVisibleForReport(1L)).willReturn(List.of(withWork, withoutWork));
         given(projects.members(1L, 42L)).willReturn(List.of(member(7L, "Mai Intern")));
-        given(projects.members(1L, 43L)).willReturn(List.of());
+        given(projects.members(1L, 43L))
+                .willThrow(new ProjectRuleViolationException("Project has no current Leader"));
         given(taskQueries.dailyReport(42L, REPORT_DATE)).willReturn(List.of(task));
         given(taskQueries.dailyReport(43L, REPORT_DATE)).willReturn(List.of());
         given(attendance.currentBusinessDate()).willReturn(REPORT_DATE);
@@ -140,6 +142,7 @@ class DailyProjectWorkReportServiceTest {
         assertThat(view.dayContext().label()).isEqualTo("Global day off");
         verify(taskQueries).dailyReport(42L, REPORT_DATE);
         verify(taskQueries).dailyReport(43L, REPORT_DATE);
+        verify(projects, never()).members(1L, 43L);
     }
 
     @Test
@@ -148,7 +151,8 @@ class DailyProjectWorkReportServiceTest {
         given(projects.authenticatedActor("mentor@example.test"))
                 .willReturn(new ProjectActorView(2L, "MENTOR"));
         given(projects.listAllVisibleForReport(2L)).willReturn(List.of(project));
-        given(projects.members(2L, 42L)).willReturn(List.of(member(7L, "Mai Intern")));
+        given(projects.members(2L, 42L))
+                .willThrow(new ProjectRuleViolationException("Project has no current Leader"));
         given(taskQueries.dailyReport(42L, REPORT_DATE)).willReturn(List.of());
         given(attendance.currentBusinessDate()).willReturn(REPORT_DATE);
         given(attendance.reportDateContext(REPORT_DATE)).willReturn(
@@ -164,6 +168,7 @@ class DailyProjectWorkReportServiceTest {
         assertThat(view.projects().getFirst().members()).isEmpty();
         assertThat(view.hasRows()).isFalse();
         assertThat(view.emptyTitle()).contains("Project");
+        verify(projects, never()).members(2L, 42L);
     }
 
     @Test
