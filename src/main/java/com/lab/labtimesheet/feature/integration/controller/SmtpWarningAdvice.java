@@ -1,6 +1,8 @@
 package com.lab.labtimesheet.feature.integration.controller;
 
 import com.lab.labtimesheet.feature.integration.service.SmtpConfigurationService;
+import jakarta.servlet.DispatcherType;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.ControllerAdvice;
@@ -16,7 +18,17 @@ class SmtpWarningAdvice {
     private final SmtpConfigurationService smtp;
 
     @ModelAttribute("smtpRestricted")
-    boolean smtpRestricted() {
+    boolean smtpRestricted(HttpServletRequest request) {
+        if (isErrorRequest(request)) {
+            return false;
+        }
         return !smtp.hasActiveConfiguration();
+    }
+
+    private static boolean isErrorRequest(HttpServletRequest request) {
+        String contextPath = request.getContextPath();
+        String errorPath = (contextPath == null ? "" : contextPath) + "/error";
+        return request.getDispatcherType() == DispatcherType.ERROR
+                || errorPath.equals(request.getRequestURI());
     }
 }

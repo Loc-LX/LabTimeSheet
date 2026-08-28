@@ -4,6 +4,7 @@ import com.lab.labtimesheet.feature.project.exception.ProjectAccessDeniedExcepti
 import com.lab.labtimesheet.feature.project.model.dto.ProjectActorView;
 import com.lab.labtimesheet.feature.project.service.ProjectQueryService;
 import com.lab.labtimesheet.feature.reporting.model.dto.DailyProjectWorkReportNavigation;
+import jakarta.servlet.DispatcherType;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.ObjectProvider;
@@ -37,7 +38,7 @@ public class DailyProjectWorkReportNavigationAdvice {
     public DailyProjectWorkReportNavigation navigation(
             Authentication authentication, HttpServletRequest request) {
         if (authentication == null || !hasInternAuthority(authentication)
-                || request == null || !isCapabilityRequest(request)) {
+                || request == null || isErrorRequest(request) || !isCapabilityRequest(request)) {
             return emptyNavigation();
         }
         ProjectQueryService queries = projectQueries.getIfAvailable();
@@ -67,6 +68,13 @@ public class DailyProjectWorkReportNavigationAdvice {
         }
         String path = request.getRequestURI();
         return path == null || (!path.endsWith(".xlsx") && !path.endsWith(".pdf"));
+    }
+
+    private static boolean isErrorRequest(HttpServletRequest request) {
+        String contextPath = request.getContextPath();
+        String errorPath = (contextPath == null ? "" : contextPath) + "/error";
+        return request.getDispatcherType() == DispatcherType.ERROR
+                || errorPath.equals(request.getRequestURI());
     }
 
     private static boolean hasInternAuthority(Authentication authentication) {

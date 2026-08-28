@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security"
+      th:fragment="shell(pageTitle, eyebrow, message)">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title th:text="${pageTitle + ' · Lab Timesheet'}">Lab Timesheet</title>
+    <link rel="icon" th:href="@{/assets/icons.svg}" type="image/svg+xml">
+    <script th:src="@{/assets/theme.js}"></script>
+    <link rel="stylesheet" th:href="@{/assets/app.css}">
+    <script defer th:src="@{/assets/app.js}"></script>
+</head>
+<body>
+<div class="auth-shell">
+    <header class="auth-header">
+        <a class="brand" th:href="@{/}">
+            <span class="brand-mark" aria-hidden="true">LT</span>
+            <strong>Lab Timesheet</strong>
+        </a>
+        <div class="theme-field auth-theme">
+            <label class="sr-only" for="theme-preference">Theme</label>
+            <select id="theme-preference" data-theme-select aria-label="Theme">
+                <option value="light">Light</option>
+                <option value="dark">Dark</option>
+                <option value="system">System</option>
+            </select>
+        </div>
+    </header>
+    <main class="auth-main">
+        <section class="auth-card" aria-labelledby="error-title">
+            <p class="auth-eyebrow" th:text="${eyebrow}">Error</p>
+            <h1 id="error-title" class="page-title" th:text="${pageTitle}">Request could not be completed</h1>
+            <p class="page-description" th:text="${message}">The request could not be completed.</p>
+            <nav class="inline-actions" aria-label="Recovery actions">
+                <a sec:authorize="isAnonymous()" class="button button-primary" th:href="@{/login}">Sign in</a>
+                <a sec:authorize="isAuthenticated()" class="button button-primary" th:href="@{/dashboard}">Return to dashboard</a>
+            </nav>
+        </section>
+    </main>
+</div>
+</body>
+</html>
