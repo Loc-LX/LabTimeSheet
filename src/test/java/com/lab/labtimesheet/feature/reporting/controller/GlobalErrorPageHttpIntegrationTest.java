@@ -5,10 +5,12 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.lab.labtimesheet.config.TestcontainersConfiguration;
 import com.lab.labtimesheet.feature.account.service.BootstrapService;
 import com.lab.labtimesheet.feature.integration.service.SmtpConfigurationService;
+import com.lab.labtimesheet.feature.project.service.ProjectQueryService;
 import java.net.CookieManager;
 import java.net.CookiePolicy;
 import java.net.URI;
@@ -54,6 +56,9 @@ class GlobalErrorPageHttpIntegrationTest {
     @MockitoSpyBean
     private SmtpConfigurationService smtpConfiguration;
 
+    @MockitoSpyBean
+    private ProjectQueryService projectQueries;
+
     @BeforeEach
     void initializeApplication() {
         bootstrap.bootstrap("admin@example.test", "Admin", "correct horse battery staple");
@@ -61,7 +66,7 @@ class GlobalErrorPageHttpIntegrationTest {
 
     @AfterEach
     void resetSmtpConfigurationSpy() {
-        reset(smtpConfiguration);
+        reset(smtpConfiguration, projectQueries);
     }
 
     @Test
@@ -109,28 +114,33 @@ class GlobalErrorPageHttpIntegrationTest {
 
     @Test
     void embeddedContainerRedispatchesRoleDenialToSafe403Html() throws Exception {
+        doThrow(new IllegalStateException("navigation-query-secret"))
+                .when(projectQueries).authenticatedActor("intern");
+
         HttpResponse<String> response = get(
                 "/test-errors/role-denied",
-                basicCredentials("mentor", "correct horse battery staple"));
+                basicCredentials("intern", "correct horse battery staple"));
 
         assertThat(response.statusCode()).isEqualTo(403);
         assertThat(response.headers().firstValue("Content-Type"))
                 .hasValueSatisfying(contentType -> assertThat(contentType).startsWith("text/html"));
         assertThat(response.body()).contains("You do not have access to this page");
         assertThat(response.body()).contains("Return to dashboard");
-        assertThat(response.body()).doesNotContain("Sign in", "anonymousUser", "mentor");
+        assertThat(response.body()).doesNotContain("Sign in", "anonymousUser", "intern");
+        verifyNoInteractions(projectQueries);
     }
 
     @Test
     void embeddedContainerKeepsJsonNegotiationNonHtml() throws Exception {
         HttpResponse<String> response = get(
-                "/test-errors/unknown-resource?submitted=json-secret-value", null, "application/json");
+                "/test-errors/secret-resource?submitted=json-secret-value", null, "application/json");
 
         assertThat(response.statusCode()).isEqualTo(404);
         assertThat(response.headers().firstValue("Content-Type"))
                 .hasValueSatisfying(contentType -> assertThat(contentType).startsWith("application/json"));
         assertThat(response.body()).doesNotContain(
-                "<html", "Lab Timesheet", "Page not found", "Something went wrong");
+                "<html", "Lab Timesheet", "Page not found", "Something went wrong",
+                "/test-errors/secret-resource", "json-secret-value");
     }
 
     private HttpResponse<String> get(String path) throws Exception {
@@ -215,12 +225,12 @@ class GlobalErrorPageHttpIntegrationTest {
             if (!supports(authentication.getClass())) {
                 return null;
             }
-            if ("mentor".equals(authentication.getName())
+            if ("intern".equals(authentication.getName())
                     && "correct horse battery staple".equals(authentication.getCredentials())) {
                 return UsernamePasswordAuthenticationToken.authenticated(
-                        "mentor",
+                        "intern",
                         null,
-                        java.util.List.of(new SimpleGrantedAuthority("ROLE_MENTOR")));
+                        java.util.List.of(new SimpleGrantedAuthority("ROLE_INTERN")));
             }
             throw new BadCredentialsException("Unsupported test credentials");
         }

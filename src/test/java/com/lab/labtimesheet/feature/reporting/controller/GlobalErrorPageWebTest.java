@@ -25,16 +25,12 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.stereotype.Controller;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.ui.Model;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.ResponseStatus;
 
 @WebMvcTest(GlobalErrorPageWebTest.ErrorProbeController.class)
 @AutoConfigureMockMvc
@@ -151,7 +147,7 @@ class GlobalErrorPageWebTest {
                         .accept(MediaType.APPLICATION_JSON)
                         .requestAttr(RequestDispatcher.ERROR_STATUS_CODE, 404)
                         .requestAttr(RequestDispatcher.ERROR_REQUEST_URI,
-                                "/missing-resource?submitted=json-secret-value")
+                                "/missing-resource/secret-resource?submitted=json-secret-value")
                         .requestAttr(RequestDispatcher.ERROR_EXCEPTION,
                                 new IllegalStateException(
                                         "json-exception-secret; java.lang.IllegalStateException; "
@@ -162,7 +158,9 @@ class GlobalErrorPageWebTest {
                 .andExpect(content().string(not(containsString("Lab Timesheet"))))
                 .andExpect(content().string(not(containsString("Page not found"))))
                 .andExpect(content().string(not(containsString("json-exception-secret"))))
-                .andExpect(content().string(not(containsString("SELECT * FROM smtp_configurations"))));
+                .andExpect(content().string(not(containsString("SELECT * FROM smtp_configurations"))))
+                .andExpect(content().string(not(containsString("/missing-resource/secret-resource"))))
+                .andExpect(content().string(not(containsString("json-secret-value"))));
     }
 
     @Test
@@ -222,12 +220,5 @@ class GlobalErrorPageWebTest {
 
     @Controller
     static class ErrorProbeController {
-
-        @GetMapping("/error-probe")
-        @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
-        String probe(Model model) {
-            model.addAttribute("untrusted", "not used");
-            return "error-probe";
-        }
     }
 }
