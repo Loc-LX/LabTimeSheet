@@ -17,10 +17,13 @@
     "test:e2e:smoke": "playwright test --grep @smoke"
   },
   "devDependencies": {
-    "@playwright/test": "1.55.0",
+    "@playwright/test": "^1.62.1",
     "@tailwindcss/cli": "4.3.3",
     "chart.js": "4.5.1",
     "lucide-static": "1.27.0",
     "tailwindcss": "4.3.3"
+  },
+  "allowScripts": {
+    "@parcel/watcher@2.5.1": true
   }
 }

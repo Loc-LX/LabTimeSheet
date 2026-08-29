@@ -19,7 +19,7 @@ import org.springframework.web.server.ResponseStatusException;
 @Controller
 @RequestMapping("/bootstrap")
 @RequiredArgsConstructor(access = AccessLevel.PACKAGE)
-class BootstrapController {
+class  BootstrapController {
     private final BootstrapService bootstrap;
 
     @GetMapping

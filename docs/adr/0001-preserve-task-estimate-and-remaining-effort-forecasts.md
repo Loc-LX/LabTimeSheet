@@ -1,3 +1,0 @@
-# Preserve the Task estimate and record remaining-effort forecasts
-
-The original Task estimate remains the immutable whole-Task planning baseline after the first work log. When an unfinished Task with retained work is reassigned, the current Project Leader records an append-only Remaining effort forecast with the actual-effort snapshot and reassignment context; this preserves both original planning variance and the latest delivery forecast without overwriting history. We rejected replacing the baseline because it would compare lifetime multi-author effort with the latest assignee context, and rejected per-assignment estimates because the product does not retain assignment periods and does not use estimates to evaluate individual Interns.
