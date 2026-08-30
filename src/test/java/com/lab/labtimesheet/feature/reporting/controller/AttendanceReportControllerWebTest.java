@@ -1,7 +1,6 @@
 package com.lab.labtimesheet.feature.reporting.controller;
 
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -64,12 +63,31 @@ class AttendanceReportControllerWebTest {
     }
 
     @Test
-    void deniesAdminBeforeCallingAttendanceReportService() throws Exception {
+    void rendersAttendanceReportForAnAuthenticatedAdmin() throws Exception {
+        given(reports.build(
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.isNull()))
+                .willReturn(new AttendanceReportView(
+                        0L,
+                        "Select an Intern",
+                        LocalDate.of(2026, 8, 1),
+                        LocalDate.of(2026, 8, 31),
+                        false,
+                        List.of(),
+                        0,
+                        0,
+                        0,
+                        "N/A",
+                        "N/A",
+                        List.of(),
+                        List.of()));
+
         mvc.perform(get("/reports/attendance")
                         .with(user("admin@example.test").roles("ADMIN")))
-                .andExpect(status().isForbidden());
-
-        verifyNoInteractions(reports);
+                .andExpect(status().isOk())
+                .andExpect(view().name("reports/attendance"));
     }
 
     @Test

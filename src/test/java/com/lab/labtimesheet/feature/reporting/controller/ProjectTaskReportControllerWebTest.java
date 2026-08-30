@@ -67,6 +67,15 @@ class ProjectTaskReportControllerWebTest {
     }
 
     @Test
+    void adminAuthorityTakesPrecedenceOverAnAdditionalInternAuthority() throws Exception {
+        mvc.perform(get("/reports/project-tasks")
+                        .with(user("admin@example.test").roles("ADMIN", "INTERN")))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(reports);
+    }
+
+    @Test
     void rendersFilterControlsAndExplicitNaForAnEmptyAuthorizedScope() throws Exception {
         given(reports.build(
                 org.mockito.ArgumentMatchers.anyString(),

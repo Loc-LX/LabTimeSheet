@@ -31,8 +31,14 @@
     </form>
     <p class="field-help" role="status" th:text="${report.ownScope ? 'Own scope · ' + report.targetName : 'Detail scope · ' + report.targetName}">Own scope</p>
     <div class="inline-actions report-downloads" aria-label="Download attendance report">
-        <a class="button" th:href="@{/reports/attendance.xlsx(internId=${report.ownScope ? null : report.targetInternId},from=${report.from},to=${report.to})}">Download XLSX</a>
-        <a class="button" th:href="@{/reports/attendance.pdf(internId=${report.ownScope ? null : report.targetInternId},from=${report.from},to=${report.to})}">Download PDF</a>
+        <a class="button" th:if="${report.targetInternId > 0}"
+           th:href="@{/reports/attendance.xlsx(internId=${report.targetInternId},from=${report.from},to=${report.to})}">Download XLSX</a>
+        <a class="button" th:unless="${report.targetInternId > 0}"
+           th:href="@{/reports/attendance.xlsx(from=${report.from},to=${report.to})}">Download XLSX</a>
+        <a class="button" th:if="${report.targetInternId > 0}"
+           th:href="@{/reports/attendance.pdf(internId=${report.targetInternId},from=${report.from},to=${report.to})}">Download PDF</a>
+        <a class="button" th:unless="${report.targetInternId > 0}"
+           th:href="@{/reports/attendance.pdf(from=${report.from},to=${report.to})}">Download PDF</a>
     </div>
     <section class="panel metric-strip" aria-label="Attendance report summary">
         <div class="metric"><div class="metric-label">Expected workdays</div><div class="metric-value" th:text="${report.expectedWorkdays}">0</div><div class="metric-detail">Excludes leave and days off</div></div>

@@ -1878,7 +1878,7 @@ class AttendancePersistenceIntegrationTest {
     }
 
     @Test
-    void attendanceReportEnforcesOwnInternScopeAndDeniesAdmin() {
+    void attendanceReportEnforcesOwnInternScopeAndAllowsActiveMentorAndAdmin() {
         long mentor = createActiveMentor();
         long otherIntern = createActiveIntern(
                 "second-report-intern@example.test",
@@ -1894,10 +1894,9 @@ class AttendancePersistenceIntegrationTest {
         assertThat(attendanceReports.query(
                         new AttendanceActor(mentor, AttendanceRole.MENTOR), internId, from, to).internId())
                 .isEqualTo(internId);
-        assertThatThrownBy(() -> attendanceReports.query(
-                new AttendanceActor(adminId, AttendanceRole.ADMIN), otherIntern, from, to))
-                .isInstanceOf(AccessDeniedException.class)
-                .hasMessage("Admins may not access Attendance reports");
+        assertThat(attendanceReports.query(
+                new AttendanceActor(adminId, AttendanceRole.ADMIN), otherIntern, from, to).internId())
+                .isEqualTo(otherIntern);
     }
 
     @Test
@@ -1920,7 +1919,7 @@ class AttendancePersistenceIntegrationTest {
             assertThatThrownBy(() -> attendanceReports.query(
                             new AttendanceActor(adminId, AttendanceRole.ADMIN), unavailableTarget, from, to))
                     .isInstanceOf(AccessDeniedException.class)
-                    .hasMessage("Admins may not access Attendance reports");
+                    .hasMessage("Attendance report target must be an Intern");
         }
     }
 

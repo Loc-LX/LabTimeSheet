@@ -16,6 +16,8 @@ import org.springframework.core.env.Profiles;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.core.Ordered;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.authorization.AuthorityAuthorizationManager;
+import org.springframework.security.authorization.AuthorizationManagers;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.DelegatingPasswordEncoder;
 import org.springframework.security.crypto.password.NoOpPasswordEncoder;
@@ -124,15 +126,18 @@ class SecurityConfiguration {
                                 "/actuator/health", "/actuator/health/**")
                         .permitAll()
                         .requestMatchers("/admin/**").hasRole("ADMIN")
-                        // Operational reports are intentionally outside the Admin configuration role. Keep
-                        // this boundary ahead of any authenticated fallback so a direct report URL cannot
-                        // reach a controller or exporter under an Admin session.
                         .requestMatchers(
                                 "/reports/attendance", "/reports/attendance/**",
-                                "/reports/attendance.xlsx", "/reports/attendance.pdf",
+                                "/reports/attendance.xlsx", "/reports/attendance.pdf")
+                        .hasAnyRole("ADMIN", "MENTOR", "INTERN")
+                        // Project/Task reports remain outside the Admin configuration role. Keep this boundary
+                        // ahead of the authenticated fallback so direct URLs cannot bypass that role split.
+                        .requestMatchers(
                                 "/reports/project-tasks", "/reports/project-tasks/**",
                                 "/reports/project-tasks.xlsx", "/reports/project-tasks.pdf")
-                        .hasAnyRole("MENTOR", "INTERN")
+                        .access(AuthorizationManagers.allOf(
+                                AuthorityAuthorizationManager.hasAnyRole("MENTOR", "INTERN"),
+                                AuthorizationManagers.not(AuthorityAuthorizationManager.hasRole("ADMIN"))))
                         .anyRequest().authenticated())
                 .headers(headers -> {
                     headers.referrerPolicy(policy -> policy.policy(ReferrerPolicy.NO_REFERRER));

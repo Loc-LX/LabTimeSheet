@@ -30,9 +30,7 @@ import org.springframework.stereotype.Service;
  *
  * <p>Target selection is never trusted from the browser: the Attendance current-user service
  * resolves the actor, and the Attendance report query rechecks scope before returning historical
- * classifications and formulas. Reporting only formats that immutable producer result. Admins
- * have no operational Attendance-report scope and are rejected before date/default or target
- * resolution.</p>
+ * classifications and formulas. Reporting only formats that immutable producer result.</p>
  */
 @Service
 @RequiredArgsConstructor
@@ -50,7 +48,7 @@ public class AttendanceReportService {
      * Builds an inclusive attendance report for the authenticated actor.
      *
      * @param principal authenticated application principal
-     * @param requestedInternId optional detail target; required for Mentor detail scope
+     * @param requestedInternId optional detail target; required for Mentor/Admin detail scope
      * @param requestedFrom optional inclusive local start date
      * @param requestedTo optional inclusive local end date
      * @return authorized render-ready report dataset
@@ -63,9 +61,6 @@ public class AttendanceReportService {
             LocalDate requestedFrom,
             LocalDate requestedTo) {
         AttendanceActor actor = currentUsers.actor(principal);
-        if (actor.role() == AttendanceRole.ADMIN) {
-            throw new AccessDeniedException("Admins may not access Attendance reports");
-        }
         LocalDate to = requestedTo == null ? attendance.currentBusinessDate() : requestedTo;
         LocalDate from = requestedFrom == null ? to.withDayOfMonth(1) : requestedFrom;
         if (from.isAfter(to)) {

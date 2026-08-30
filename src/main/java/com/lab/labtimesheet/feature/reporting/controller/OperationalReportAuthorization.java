@@ -15,7 +15,23 @@ final class OperationalReportAuthorization {
     }
 
     /**
-     * Requires an authenticated Mentor or Intern for Attendance and Project/Task reports.
+     * Requires an authenticated Admin, Mentor, or Intern for Attendance reports.
+     *
+     * @param authentication current Spring Security authentication
+     * @throws AccessDeniedException when the caller is missing or has no Attendance-report role
+     */
+    static void requireAttendanceReportAccess(Authentication authentication) {
+        boolean allowedRole = authentication != null && authentication.getAuthorities().stream()
+                .anyMatch(authority -> "ROLE_ADMIN".equals(authority.getAuthority())
+                        || "ROLE_MENTOR".equals(authority.getAuthority())
+                        || "ROLE_INTERN".equals(authority.getAuthority()));
+        if (!allowedRole) {
+            throw new AccessDeniedException("Attendance report access is not available for this role");
+        }
+    }
+
+    /**
+     * Requires an authenticated Mentor or Intern for Project/Task reports.
      *
      * @param authentication current Spring Security authentication
      * @throws AccessDeniedException when the caller is missing or has no operational report role

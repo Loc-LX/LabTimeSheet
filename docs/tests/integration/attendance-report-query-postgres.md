@@ -6,12 +6,9 @@
 - **Test class/method:** `com.lab.labtimesheet.feature.attendance.service.AttendancePersistenceIntegrationTest#attendanceReportUsesClassificationPrecedenceAndApprovedEffectiveCheckout`; `#attendanceReportMatchesAcAtt006DenominatorAndHistoricalPenalty`; `#attendanceReportUsesExplicitNaForZeroExpectedWorkdays`; `#attendanceReportEnforcesOwnInternScopeAndAllowsActiveMentorAndAdmin`; `#attendanceReportPreservesFourDecimalPenaltyBeforeFinalRounding`; `#attendanceReportNormalizesTargetGuessesAcrossActorScopes`
 - **Implementation commit:** `2fbbf0e84d9a0dab4ebd046e9f99432baa506c53`
 
-> **Supersession notice — 27 August 2026:** The `...AllowsActiveMentorAndAdmin` method and
-> the Admin-positive wording below are historical evidence of the earlier Attendance producer
-> contract. The latest RPT-004 decision removes Admin from Attendance report scope and requires
-> the report/controller boundary to deny Admin before target lookup, Attendance reads, dataset
-> construction, and export. Intern own-history and active-Mentor detailed-Intern behavior remain;
-> the recorded PostgreSQL results are preserved and do not claim to test the revised Admin denial.
+> **Reporting-role correction — 29 August 2026:** The active-Admin detailed-Intern producer
+> contract and `...AllowsActiveMentorAndAdmin` regression are current again. The 27 August Admin
+> Attendance denial was accidental; Admin Project/Task and Daily report scope remains denied.
 
 ## Protected behavior
 

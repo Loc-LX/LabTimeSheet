@@ -8,12 +8,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.lab.labtimesheet.config.TestcontainersConfiguration;
 import com.lab.labtimesheet.feature.account.service.BootstrapService;
+import com.lab.labtimesheet.feature.reporting.service.ProjectTaskReportService;
+import com.lab.labtimesheet.feature.reporting.service.ReportExportService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,6 +30,12 @@ class AdminDashboardWebTest {
 
     private final MockMvc mvc;
     private final BootstrapService bootstrap;
+
+    @MockitoBean
+    private ProjectTaskReportService projectTaskReports;
+
+    @MockitoBean
+    private ReportExportService exports;
 
     @Autowired
     AdminDashboardWebTest(MockMvc mvc, BootstrapService bootstrap) {
@@ -48,27 +57,59 @@ class AdminDashboardWebTest {
                 .andExpect(content().string(not(containsString("Active Projects"))))
                 .andExpect(content().string(containsString("Create account")))
                 .andExpect(content().string(containsString("No pending activations")))
+                .andExpect(content().string(containsString("Attendance reports")))
                 .andExpect(content().string(not(containsString("Create Project"))))
                 .andExpect(content().string(not(containsString("Check in"))));
     }
 
     @Test
     @WithMockUser(username = "admin@example.test", roles = "ADMIN")
-    void adminCannotOpenAttendanceOrProjectTaskReportsOrDownloads() throws Exception {
+    void adminCanOpenAndDownloadAttendanceReportsButNotProjectTaskReports() throws Exception {
         bootstrap();
 
         mvc.perform(get("/reports/attendance"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isOk())
+                .andExpect(content().string(not(containsString("internId=0"))))
+                .andExpect(content().string(containsString("/reports/attendance.xlsx?from=")))
+                .andExpect(content().string(containsString("/reports/attendance.pdf?from=")));
         mvc.perform(get("/reports/attendance.xlsx"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isOk());
         mvc.perform(get("/reports/attendance.pdf"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isOk());
         mvc.perform(get("/reports/project-tasks"))
                 .andExpect(status().isForbidden());
         mvc.perform(get("/reports/project-tasks.xlsx"))
                 .andExpect(status().isForbidden());
         mvc.perform(get("/reports/project-tasks.pdf"))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(username = "admin@example.test", roles = {"ADMIN", "INTERN"})
+    void adminPrecedenceDeniesMalformedProjectTaskHtmlAndExportsBeforeBinding() throws Exception {
+        bootstrap();
+
+        for (String endpoint : new String[] {
+                "/reports/project-tasks",
+                "/reports/project-tasks.xlsx",
+                "/reports/project-tasks.pdf"}) {
+            mvc.perform(get(endpoint).param("dueFrom", "not-a-date"))
+                    .andExpect(status().isForbidden());
+        }
+
+        org.mockito.Mockito.verifyNoInteractions(projectTaskReports, exports);
+    }
+
+    @Test
+    @WithMockUser(username = "admin@example.test", roles = {"ADMIN", "INTERN"})
+    void adminPrecedenceKeepsAttendanceNavigationAndHidesOperationalReports() throws Exception {
+        bootstrap();
+
+        mvc.perform(get("/dashboard"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Attendance reports")))
+                .andExpect(content().string(not(containsString("Project and Task reports"))))
+                .andExpect(content().string(not(containsString("Daily Project Work Report"))));
     }
 
     @Test

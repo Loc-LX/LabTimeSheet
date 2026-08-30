@@ -11,7 +11,7 @@ import java.util.List;
  * <p>The Attendance feature owns raw rows, leave, eligibility, and calendar queries, so it is the
  * only feature able to classify dates into {@link AttendanceReportDay} rows. Scope is enforced here,
  * mirroring {@code AttendanceApplicationService.history}: Interns receive only their own rows, while
- * active Mentor actors may target any Intern.
+ * active Mentor and Admin actors may target any Intern.
  */
 public interface AttendanceReportDataProvider {
 
@@ -24,7 +24,7 @@ public interface AttendanceReportDataProvider {
      * @param to inclusive last local date
      * @return classified day rows in ascending date order
      * @throws org.springframework.security.access.AccessDeniedException when the actor may not
-     *     inspect the target Intern, including an Admin actor
+     *     inspect the target Intern
      */
     List<AttendanceReportDay> reportDays(AttendanceActor actor, long targetInternId, LocalDate from, LocalDate to);
 }

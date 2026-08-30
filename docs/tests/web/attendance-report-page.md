@@ -6,13 +6,10 @@
 - **Test class/method:** `src/test/java/.../reporting/controller/AttendanceReportPageWebTest.java` (five cases)
 - **Implementation commit:** pending
 
-> **Supersession notice — 27 August 2026:** This is historical page evidence. Its
-> `Mentor/Admin inspection` wording records the pre-correction contract and is not current
-> authorization. The latest RPT-004 decision removes Admin from Attendance report navigation,
-> HTML, XLSX, PDF, service, and dataset scope; active Intern own-history and active Mentor
-> detailed-Intern behavior remain. The historical fixtures and results below are retained without
-> rewriting them as evidence of the new Admin denial, which requires a separate route/service
-> guard test before target enumeration and export.
+> **Reporting-role correction — 29 August 2026:** Active Admin detailed-Intern Attendance scope,
+> navigation, HTML, XLSX, PDF, service, and dataset access are restored. The 27 August Admin
+> Attendance removal was accidental. Intern own-history and active Mentor behavior remain, while
+> Admin Project/Task and Daily report scope remains denied.
 
 ## Protected behavior
 
@@ -25,11 +22,13 @@ UI-017, RPT-001, RPT-009).
 ## Test method
 
 `@WebMvcTest(AttendanceReportController.class)` with the real `AttendanceReportService` imported
-(`@Import`) so the page runs the actual formulas, and `@MockitoBean` for the dataset boundary
-(`AttendanceReportDataProvider`), the attendance current-user and application services, and SMTP
-status. Each request uses the MockMvc security test user post-processor for the role. The
-`AttendanceReportDataProvider` is resolved through an `ObjectProvider`; when no provider bean exists
-the page must return `404` instead of fabricating rows (integration gate for the Attendance branch).
+(`@Import`) so the page runs the actual target checks, date defaults, DTO-to-row mapping, aggregate
+display, and trend mapping. The MVC slice mocks the Attendance current-user/application services,
+the Attendance-owned `AttendanceReportQueryService`, `AccountService`, and SMTP status. Each
+request uses the MockMvc security test user post-processor for its role. The query and account
+mocks are public feature seams: the service asks the query boundary for one immutable
+`AttendanceReport`, then reloads the target identity and formats it for Thymeleaf; it does not
+mock the service or an obsolete reporting-owned provider.
 
 ## Hand-derived expected results
 
@@ -41,10 +40,63 @@ the page must return `404` instead of fabricating rows (integration gate for the
   rate 2/2 = `1.0` → `100.00%`; compliance (0.5 + 1.0)/2 = `0.75` → `75.00%`; day table shows the
   violation badges; no Intern punch actions.
 - Fixture C (only off-days): expected workdays 0 → rate and compliance render `N/A`.
-- Intern requesting another intern's id → `403 Forbidden`, provider never invoked.
+- Intern requesting another intern's id → `403 Forbidden`, Attendance query never invoked.
 - No filter params → defaults to first-of-month through the attendance business date.
 
-## RED
+## Current 29 August 2026 verification
+
+The current page slice passed after aligning its MVC mocks and fixtures with the real imported
+`AttendanceReportService`:
+
+```powershell
+$env:JAVA_HOME='C:\Program Files\JetBrains\IntelliJ IDEA 2026.1.4\jbr'; & 'C:\Program Files\JetBrains\IntelliJ IDEA 2026.1.4\plugins\maven\lib\maven3\bin\mvn.cmd' '-Dmaven.repo.local=C:/Users/dookubt/.m2/repository' '-Duser.timezone=Asia/Ho_Chi_Minh' '-Dtest=AttendanceReportPageWebTest' test
+```
+
+```text
+Tests run: 5, Failures: 0, Errors: 0, Skipped: 0
+BUILD SUCCESS
+```
+
+The full-context Admin dashboard/security slice also passed. It proves the empty Admin selection
+renders XLSX/PDF links without `internId=0`, both omitted-target export URLs return `200`, mixed
+`ADMIN`+`INTERN` malformed Project/Task HTML/XLSX/PDF requests return `403` before report/export
+interactions, and the combined-role dashboard shows Attendance while hiding Project/Task and Daily
+navigation:
+
+```powershell
+$env:JAVA_HOME='C:\Program Files\JetBrains\IntelliJ IDEA 2026.1.4\jbr'; & 'C:\Program Files\JetBrains\IntelliJ IDEA 2026.1.4\plugins\maven\lib\maven3\bin\mvn.cmd' '-Dmaven.repo.local=C:/Users/dookubt/.m2/repository' '-Duser.timezone=Asia/Ho_Chi_Minh' '-Dtest=AdminDashboardWebTest' test
+```
+
+```text
+Tests run: 6, Failures: 0, Errors: 0, Skipped: 0
+BUILD SUCCESS
+```
+
+The direct query-service identity-gate slice passed both new negative cases: a persisted
+non-ACTIVE Admin and an Admin actor whose persisted immutable role is different are denied before
+target identity resolution and before Attendance, correction, policy, leave, or calendar reads:
+
+```powershell
+$env:JAVA_HOME='C:\Program Files\JetBrains\IntelliJ IDEA 2026.1.4\jbr'; & 'C:\Program Files\JetBrains\IntelliJ IDEA 2026.1.4\plugins\maven\lib\maven3\bin\mvn.cmd' '-Dmaven.repo.local=C:/Users/dookubt/.m2/repository' '-Duser.timezone=Asia/Ho_Chi_Minh' '-Dtest=AttendanceReportQueryServiceAuthorizationTest' test
+```
+
+```text
+Tests run: 2, Failures: 0, Errors: 0, Skipped: 0
+BUILD SUCCESS
+```
+
+The complete 29 August scoped command and final aggregate result are recorded after the final
+verification run. The selected classes include this page slice, the Admin dashboard/security
+slice, the new query-service identity-gate slice, Attendance persistence/query tests, Attendance
+HTML/export/controller seams, and the retained negative Project/Task and Daily guards.
+
+## Historical 27 August 2026 provider-era evidence
+
+The following RED/GREEN, affected-suite, and external-boundary record is retained verbatim as
+historical evidence. Its old provider/ObjectProvider seam and result counts describe the earlier
+implementation and must not be read as the current production method.
+
+### RED
 
 **Command**
 
@@ -62,7 +114,7 @@ cannot find symbol: class AttendanceReportController
 
 The tests fail to compile because no report page or dataset boundary existed.
 
-## GREEN
+### GREEN
 
 **Command**
 
@@ -78,7 +130,7 @@ Tests run: 9, Failures: 0, Errors: 0, Skipped: 0
 BUILD SUCCESS
 ```
 
-## Affected suite
+### Affected suite
 
 **Command and result**
 
@@ -91,7 +143,7 @@ BUILD SUCCESS
 Includes the `@SpringBootTest` reporting integration tests (full context boots with the
 `ObjectProvider` integration gate) and the template source contract covering the new table pages.
 
-## External-test boundaries
+### External-test boundaries
 
 This test proves the server-rendered page contract (scope, totals, `N/A`, filters, chart JSON)
 against the mocked dataset boundary. It does not verify the Attendance feature's classification feed

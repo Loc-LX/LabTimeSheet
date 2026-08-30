@@ -21,7 +21,7 @@ import java.util.List;
  * @param absentWorkdays expected days without an attendance row
  * @param attendanceRate formatted present/expected percentage, or {@code N/A}
  * @param complianceRate formatted historical-policy score percentage, or {@code N/A}
- * @param targetOptions authorized target choices for Mentor detail scope
+ * @param targetOptions authorized target choices for Mentor/Admin detail scope
  * @param trend equivalent data points for the optional chart enhancement
  */
 public record AttendanceReportView(

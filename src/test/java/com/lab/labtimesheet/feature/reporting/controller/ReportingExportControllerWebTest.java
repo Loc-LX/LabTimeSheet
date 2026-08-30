@@ -74,6 +74,7 @@ class ReportingExportControllerWebTest {
                 nullable(LocalDate.class), nullable(LocalDate.class), nullable(LocalDate.class), nullable(LocalDate.class)))
                 .willReturn(projectTasks);
         given(exports.attendanceXlsx(any())).willReturn(new byte[] {1});
+        given(exports.attendancePdf(any())).willReturn(new byte[] {1});
         given(exports.projectTaskPdf(any())).willReturn(new byte[] {1});
     }
 
@@ -105,16 +106,31 @@ class ReportingExportControllerWebTest {
     }
 
     @Test
-    void deniesAdminBeforeRangeValidationDatasetConstructionOrExport() throws Exception {
-        for (String endpoint : List.of(
-                "/reports/attendance.xlsx", "/reports/attendance.pdf",
-                "/reports/project-tasks.xlsx", "/reports/project-tasks.pdf")) {
+    void adminCanDownloadAttendanceReportInBothFormats() throws Exception {
+        mvc.perform(get("/reports/attendance.xlsx")
+                        .with(user("admin@example.test").roles("ADMIN"))
+                        .param("from", "2026-08-01")
+                        .param("to", "2026-08-31"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
+        mvc.perform(get("/reports/attendance.pdf")
+                        .with(user("admin@example.test").roles("ADMIN"))
+                        .param("from", "2026-08-01")
+                        .param("to", "2026-08-31"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType("application/pdf"));
+    }
+
+    @Test
+    void adminCannotDownloadProjectTaskReports() throws Exception {
+        for (String endpoint : List.of("/reports/project-tasks.xlsx", "/reports/project-tasks.pdf")) {
             mvc.perform(get(endpoint)
                             .with(user("admin@example.test").roles("ADMIN")))
                     .andExpect(status().isForbidden());
         }
 
-        verifyNoInteractions(attendanceReports, projectTaskReports, exports);
+        verifyNoInteractions(projectTaskReports);
     }
 
     @ParameterizedTest(name = "rejects {0} for both Project/Task export formats")

@@ -54,7 +54,7 @@ public class ReportExportController {
             @RequestParam(required = false) Long internId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
-        OperationalReportAuthorization.requireOperationalReportAccess(authentication);
+        OperationalReportAuthorization.requireAttendanceReportAccess(authentication);
         validateOptionalRange(from, to);
         AttendanceReportView report = attendanceReports.build(authentication, internId, from, to);
         validateRange(report.from(), report.to());
@@ -77,7 +77,7 @@ public class ReportExportController {
             @RequestParam(required = false) Long internId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
-        OperationalReportAuthorization.requireOperationalReportAccess(authentication);
+        OperationalReportAuthorization.requireAttendanceReportAccess(authentication);
         validateOptionalRange(from, to);
         AttendanceReportView report = attendanceReports.build(authentication, internId, from, to);
         validateRange(report.from(), report.to());

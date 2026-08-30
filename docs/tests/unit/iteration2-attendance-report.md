@@ -3,15 +3,12 @@
 - **Test type:** Unit
 - **Requirement IDs:** `I2-UI-03`, `RPT-001`, `RPT-002`, `RPT-003`, `RPT-004`
 - **Scenario IDs:** `AC-ATT-006`, `AC-ATT-007`, `AC-RPT-001`, `AC-RPT-002`
-- **Test class/method:** `AttendanceReportServiceTest#usesAttendanceOwnedClassificationAndExactAggregateFormulas`, `#rejectsInternDetailTargetOutsideOwnAccountBeforeAttendanceRead`, `#rendersMentorTargetPickerBeforeReadingAttendanceRows`
+- **Test class/method:** `AttendanceReportServiceTest#usesAttendanceOwnedClassificationAndExactAggregateFormulas`, `#rejectsInternDetailTargetOutsideOwnAccountBeforeAttendanceRead`, `#buildsSelectedInternReportForAdmin`, `#rendersMentorTargetPickerBeforeReadingAttendanceRows`
 - **Implementation commit:** `pending local independent review`
 
-> **Supersession notice — 27 August 2026:** This historical unit record's
-> `Mentor/Admin target selection` wording predates the latest reporting-role decision. RPT-004 now
-> gives detailed Intern Attendance scope to active Mentors only; Admin has no Attendance report
-> navigation, service scope, or dataset. The historical formulas and test results remain factual,
-> while current Admin denial must be proven separately before target resolution and Attendance
-> reads.
+> **Reporting-role correction — 29 August 2026:** Active Admin detailed-Intern Attendance scope is
+> restored. The 27 August Admin Attendance denial was accidental; Admin Project/Task and Daily
+> report scope remains denied. Historical formula results below remain factual.
 
 ## Protected behavior
 

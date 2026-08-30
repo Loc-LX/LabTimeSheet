@@ -22,7 +22,7 @@ public class AttendanceReportController {
     private final AttendanceReportService reports;
 
     /**
-     * Renders own Intern scope or an explicitly selected Mentor detail scope.
+     * Renders own Intern scope or an explicitly selected Mentor/Admin detail scope.
      *
      * @param authentication authenticated application identity and role
      * @param internId optional target Intern for detail scope
@@ -38,7 +38,7 @@ public class AttendanceReportController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             Model model) {
-        OperationalReportAuthorization.requireOperationalReportAccess(authentication);
+        OperationalReportAuthorization.requireAttendanceReportAccess(authentication);
         model.addAttribute("report", reports.build(authentication, internId, from, to));
         return "reports/attendance";
     }

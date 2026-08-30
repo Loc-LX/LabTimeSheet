@@ -18,13 +18,13 @@
 > results below remain factual for the cases they exercised; current authorization evidence is in
 > [`q31-r-daily-report.md`](q31-r-daily-report.md).
 
-> **Latest reporting-role revision — 27 August 2026:** Admin has no dedicated Attendance,
-> Project/Task, or Daily report scope, navigation, HTML/XLSX/PDF export, or report dataset; the
-> Admin dashboard is account/configuration-only and has no Active Projects metric. Current-Leader
-> Daily navigation is now conditionally discoverable for active Interns who currently lead one or
-> more open Projects, with one-Project redirect, multi-Project selector, and no-eligible-Project
-> `Project unavailable` behavior. The historical export tests above do not prove these new
-> navigation or Admin Attendance/Project/Task denial requirements.
+> **Latest reporting-role revision — 29 August 2026:** Admin retains detailed-Intern Attendance
+> report navigation, HTML, XLSX/PDF export, and dataset scope, but has no dedicated Project/Task or
+> Daily report scope. The Admin dashboard remains account/configuration-only with no Active Projects
+> metric. Current-Leader Daily navigation is now conditionally discoverable for active Interns who
+> currently lead one or more open Projects, with one-Project redirect, multi-Project selector, and
+> no-eligible-Project `Project unavailable` behavior. The historical export tests above do not prove
+> these new navigation or Admin Project/Task denial requirements.
 
 ## Protected behavior
 

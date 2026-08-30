@@ -9,6 +9,46 @@
 - **Historical verification head:** `f7fb0e2051ad644cb77e8d4fc6178acb5f05d03822f185fbd146a6426d1c230e`, before the 27 August reporting-role correction
 - **Content-equivalent rewritten commits:** `36b8e0a0c73b9b2bc3ca09aa5f6eaf45a02dadc4774284590a4dd77a28814ea3` (implementation), `9af3602e84c1f56bfd6303c418188ded856b6df9334e340022b40904b7a3f966` (review/fix), and `e321d8c6092b7e0159bbb53b6f9958c676a8a9be98b6ae537938a2fad18e5847` (historical verification tree)
 
+## Current 29 August 2026 verification
+
+This additive subsection records the current Attendance restoration and the final review fixes. It
+does not rewrite the 27 August command lines, method names, counts, or observations retained below.
+
+The current checks cover active Admin Attendance HTML/XLSX/PDF access, Admin Project/Task and Daily
+denials, mixed `ADMIN`+`INTERN` precedence before malformed Project/Task parameter binding, combined-role
+navigation, empty Admin Attendance selection links without `internId=0`, and direct persisted Admin
+identity gates before Attendance reads. The complete scoped command is:
+
+```powershell
+$env:JAVA_HOME='C:\Program Files\JetBrains\IntelliJ IDEA 2026.1.4\jbr'; & 'C:\Program Files\JetBrains\IntelliJ IDEA 2026.1.4\plugins\maven\lib\maven3\bin\mvn.cmd' '-Dmaven.repo.local=C:/Users/dookubt/.m2/repository' '-Duser.timezone=Asia/Ho_Chi_Minh' '-Dtest=AttendanceReportPageWebTest,AttendanceReportControllerWebTest,ReportingExportControllerWebTest,AttendanceReportServiceTest,AttendanceReportQueryServiceAuthorizationTest,AttendancePersistenceIntegrationTest,AdminDashboardWebTest,DashboardControllerWebTest,DashboardTemplateWebTest,AttendanceTemplateIntegrationTest,ProjectTaskReportControllerWebTest,DailyProjectWorkReportControllerWebTest,DailyProjectWorkReportExportControllerWebTest,DailyProjectWorkReportNavigationAdviceTest,Q31RDailyProjectWorkReportServiceTest,DailyProjectWorkReportServiceTest,ProjectQueryServiceLeaderDailyTest,UiContractWebTest' test
+```
+
+```text
+Tests run: 146, Failures: 0, Errors: 0, Skipped: 0
+BUILD SUCCESS
+```
+
+The selected-class Surefire reports are under `target/surefire-reports/`; the aggregate above is
+the current 18-class result after adding the two-test `AttendanceReportQueryServiceAuthorizationTest`
+and the two mixed-role/empty-selection tests in `AdminDashboardWebTest`.
+
+The focused Windows path-separator check that was previously recorded as a baseline failure was
+rerun with the current implementation:
+
+```powershell
+$env:JAVA_HOME='C:\Program Files\JetBrains\IntelliJ IDEA 2026.1.4\jbr'; & 'C:\Program Files\JetBrains\IntelliJ IDEA 2026.1.4\plugins\maven\lib\maven3\bin\mvn.cmd' '-Dmaven.repo.local=C:/Users/dookubt/.m2/repository' '-Duser.timezone=Asia/Ho_Chi_Minh' '-Dtest=LayerStructureTest' test
+```
+
+```text
+Tests run: 1, Failures: 0, Errors: 0, Skipped: 0
+BUILD SUCCESS
+```
+
+This current result supersedes only the old LayerStructureTest Windows path-separator failure;
+the historical observation itself remains unchanged below.
+
+## Historical 27 August 2026 evidence
+
 > **Supersession notice — 27 August 2026:** This file preserves the historical Q31-R Daily-report
 > service/controller/export evidence and its exact test results. The latest reporting-role decision
 > supersedes its earlier scope wording: Admin has no dedicated Attendance, Project/Task, or Daily
@@ -20,7 +60,7 @@
 > evidence is recorded in the current section below; the historical Admin Daily denial below does
 > not prove the revised Attendance/Project/Task boundaries or the new sidebar behavior.
 
-## Current 27 August 2026 evidence — Reporting Role Correction
+### Current 27 August 2026 evidence — Reporting Role Correction
 
 This additive section records the current Reporting Role Correction evidence. It supersedes only
 the old Admin-positive reporting scope; the historical Q31-R scenarios and their exact results

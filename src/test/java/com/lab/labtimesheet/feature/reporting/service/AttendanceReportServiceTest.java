@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.lab.labtimesheet.feature.account.model.AccountStatus;
 import com.lab.labtimesheet.feature.account.model.GlobalRole;
@@ -159,18 +158,30 @@ class AttendanceReportServiceTest {
     }
 
     @Test
-    void rejectsAdminBeforeBusinessDateTargetOrReportResolution() {
+    void buildsSelectedInternReportForAdmin() {
         Principal admin = () -> "admin@example.test";
-        given(currentUsers.actor(admin)).willReturn(new AttendanceActor(1L, AttendanceRole.ADMIN));
+        AttendanceActor actor = new AttendanceActor(1L, AttendanceRole.ADMIN);
+        LocalDate from = LocalDate.of(2026, 8, 1);
+        LocalDate to = LocalDate.of(2026, 8, 31);
+        given(currentUsers.actor(admin)).willReturn(actor);
+        given(accounts.requireIdentityById(7L))
+                .willReturn(identity(7L, "Mai Intern", GlobalRole.INTERN));
+        given(reportQueries.query(actor, 7L, from, to))
+                .willReturn(new AttendanceReport(
+                        7L,
+                        from,
+                        to,
+                        List.of(),
+                        0,
+                        0,
+                        Optional.empty(),
+                        Optional.empty()));
 
-        assertThatThrownBy(() -> reports.build(
-                admin,
-                7L,
-                LocalDate.of(2026, 9, 1),
-                LocalDate.of(2026, 8, 1)))
-                .isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
+        var view = reports.build(admin, 7L, from, to);
 
-        verifyNoInteractions(attendance, reportQueries, accounts);
+        assertThat(view.targetInternId()).isEqualTo(7L);
+        assertThat(view.targetName()).isEqualTo("Mai Intern");
+        assertThat(view.ownScope()).isFalse();
     }
 
     @Test
