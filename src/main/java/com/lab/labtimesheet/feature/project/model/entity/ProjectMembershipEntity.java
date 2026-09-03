@@ -57,13 +57,13 @@ public class ProjectMembershipEntity {
     @Version
     private long version;
 
+    // Tạo row project_memberships — chỉ gọi từ ProjectEntity (package-private).
     ProjectMembershipEntity(ProjectEntity project, long internUserId, Instant joinedAt, long addedByUserId) {
-        // Constructor package-private chỉ được gọi bởi ProjectEntity, nhờ đó không tạo membership rời aggregate
-        // hoặc thiếu project/actor provenance.
         this.project = project;
         this.internUserId = internUserId;
         this.joinedAt = joinedAt;
         this.addedByUserId = addedByUserId;
+        // Membership mới là "current" vì leftAt mặc định null; updatedAt bắt đầu bằng joinedAt.
         this.updatedAt = joinedAt;
     }
 
@@ -138,8 +138,7 @@ public class ProjectMembershipEntity {
      * @throws IllegalStateException when the interval is already closed
      * @throws IllegalArgumentException when the closure actor or instant is invalid
      */
-    // [Đóng membership]
-    // Đánh dấu thời điểm rời và Mentor thực hiện thay vì xóa dòng dữ liệu.
+    // Đánh dấu thành viên rời project (ghi leftAt, không xóa dòng).
     // Nếu thời điểm rời trùng lúc tham gia, tăng thêm một microsecond để khoảng thời gian luôn hợp lệ.
     public void close(Instant at, long mentorUserId) {
         if (!isCurrent()) {

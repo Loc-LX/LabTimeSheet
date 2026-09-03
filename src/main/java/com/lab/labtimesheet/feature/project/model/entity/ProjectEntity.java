@@ -32,11 +32,7 @@ import lombok.NoArgsConstructor;
  * terminal and closes current intervals; history is retained rather than reassigned or deleted.
  * Mutation methods enforce aggregate rules independently of browser control visibility.
  */
-// Entity trung tâm đại diện cho một Project và toàn bộ lịch sử thành viên/Leader của nó.
-// ProjectService gọi các method ở đây để giữ business rule gần dữ liệu trước khi Repository lưu xuống database.
-// Đây là aggregate root JPA: ProjectService chỉ cần save root, còn membership/leadership child được cascade theo
-// quan hệ bên dưới. mentorUserId và internUserId là scalar ID có chủ ý, vì Account là feature khác và không được
-// import trực tiếp entity sang Project.
+// Aggregate root: Project + Membership + LeadershipTerm. save root → JPA cascade INSERT các bảng con.
 @Entity
 @Table(name = "projects")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -44,7 +40,6 @@ public class ProjectEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    // ID null trước INSERT; database sinh khóa sau khi INSERT và saveAndFlush() làm giá trị này đọc được.
     private Long id;
 
     @Column(name = "mentor_user_id", nullable = false)
@@ -63,12 +58,11 @@ public class ProjectEntity {
     private LocalDate endDate;
 
     @OneToMany(mappedBy = "project", cascade = CascadeType.ALL)
-    // Cascade để membership hiện tại đầu tiên được INSERT cùng lúc với Project root; các interval cũ về sau vẫn giữ
-    // trong collection để phục vụ history, thay vì xóa vật lý.
+    // cascade=ALL: save Project root sẽ persist ProjectMembershipEntity mới trong list này.
     private List<ProjectMembershipEntity> memberships = new ArrayList<>();
 
     @OneToMany(mappedBy = "project", cascade = CascadeType.ALL)
-    // Leadership term cũng là child của aggregate. Term hiện tại có endedAt null; term cũ chỉ được đóng lại.
+    // LeadershipTerm tham chiếu Membership nên Hibernate sắp thứ tự INSERT theo foreign key dependency.
     private List<ProjectLeadershipTermEntity> leadershipTerms = new ArrayList<>();
 
     @Enumerated(EnumType.STRING)
@@ -88,7 +82,6 @@ public class ProjectEntity {
     private Instant updatedAt;
 
     @Version
-    // Optimistic version giúp Hibernate phát hiện update đồng thời khi một Project đã tồn tại bị sửa bởi request khác.
     private long version;
 
     private ProjectEntity(
@@ -120,11 +113,8 @@ public class ProjectEntity {
      * @param at server mutation instant used for all initial records
      * @return new unsaved planned aggregate
      */
-    // [Lập kế hoạch Project]
-    // Tạo Project ở trạng thái PLANNED cùng membership và Leader đầu tiên,
-    // vì Project mới không được phép tồn tại mà chưa có Leader.
-    // Method này là domain factory thuần in-memory: kiểm tra invariant, khởi tạo root/children và trả aggregate
-    // chưa managed. Repository/EntityManager mới là nơi biến object này thành INSERT.
+    // === CREATE PROJECT | Entity.plan ===
+    // Chức năng: dựng Project PLANNED + membership Leader + leadership term trong memory (chưa INSERT DB).
     public static ProjectEntity plan(
             long mentorUserId,
             String name,
@@ -133,26 +123,23 @@ public class ProjectEntity {
             LocalDate endDate,
             ProjectInternEligibility initialLeader,
             Instant at) {
-        // Chặn ID malformed ngay trong domain, kể cả khi factory được gọi ngoài Controller.
         if (mentorUserId <= 0) {
             throw new IllegalArgumentException("Mentor user ID must be positive");
         }
-        // requireText trim/chuẩn hóa tên trước khi gán vào entity; null/blank không được đi tới cột NOT NULL.
+        // Validate lại ở domain boundary để factory vẫn an toàn nếu caller không phải MVC/@Valid.
         var normalizedName = requireText(name, "Project name is required");
-        // Objects.requireNonNull bảo đảm entity không tạo ra aggregate thiếu dữ liệu bắt buộc; các lỗi này là lỗi
-        // lập trình/invariant, khác với lỗi BindingResult của form.
         Objects.requireNonNull(startDate, "startDate");
         Objects.requireNonNull(endDate, "endDate");
         Objects.requireNonNull(at, "at");
-        // Ngày kết thúc không thể đứng trước ngày bắt đầu. Đây là lớp domain thứ hai sau @AssertTrue của Web DTO.
+        // Invariant domain: Project không thể kết thúc trước ngày bắt đầu.
         if (endDate.isBefore(startDate)) {
             throw new ProjectRuleViolationException("Project end date must not precede its start date");
         }
-        // initialLeader là snapshot DTO từ AccountService. Factory không query database; Service phải query/lock và
-        // tạo snapshot hợp lệ trước khi gọi tới đây, còn factory chỉ đảm bảo fact được truyền vào không thể null/sai.
+        // Service đã check Account state; Entity vẫn yêu cầu value object xác nhận eligibility.
         requireEligible(initialLeader);
 
-        // Constructor gán các scalar, status mặc định PLANNED và created/updated cùng một Instant server.
+        // Chỉ new object trong memory. Constructor private buộc caller dùng plan() để không tạo Project thiếu Leader.
+        // description blank được normalize thành null; status đã khởi tạo mặc định PLANNED ở field phía trên.
         var project = new ProjectEntity(
                 mentorUserId,
                 normalizedName,
@@ -160,13 +147,9 @@ public class ProjectEntity {
                 startDate,
                 endDate,
                 at);
-        // Leader ban đầu đồng thời phải là một thành viên hiện tại của Project. addEligibleMember tạo child có
-        // back-reference project; thêm term sau đó dùng đúng membership object để FK membership_id hợp lệ.
         var membership = project.addEligibleMember(initialLeader, mentorUserId, at);
-        // leadershipTerms chưa được save riêng; CascadeType.ALL của root sẽ đưa term này vào persistence context khi
-        // projects.saveAndFlush(project) chạy trong ProjectService.
         project.leadershipTerms.add(new ProjectLeadershipTermEntity(project, membership, at, mentorUserId));
-        return project;
+        return project; // INSERT DB xảy ra ở ProjectService khi gọi projects.saveAndFlush
     }
 
     /**
@@ -177,8 +160,7 @@ public class ProjectEntity {
      * @param at server join instant
      * @return newly created membership interval
      */
-    // [Thêm thành viên trực tiếp]
-    // Chỉ Mentor sở hữu Project được thêm Intern đủ điều kiện; mỗi Intern chỉ có một membership đang hiệu lực.
+    // Mentor sở hữu thêm Intern đủ điều kiện; mỗi Intern chỉ có một membership đang hiệu lực trong Project.
     public ProjectMembershipEntity addMember(
             long actorMentorUserId, ProjectInternEligibility intern, Instant at) {
         requireOwner(actorMentorUserId);
@@ -200,9 +182,7 @@ public class ProjectEntity {
      * @param at server effective instant
      * @return replacement membership and adjacent-term effective instant
      */
-    // [Chuẩn bị đổi Leader]
-    // Đóng term Leader cũ trước. ProjectService sẽ flush thay đổi này rồi mới mở term mới
-    // để database không có hai Leader hiện tại cùng lúc.
+    // Mentor đóng term Leader cũ trước; Intern thay thế phải đang là thành viên và chưa là Leader.
     public ProjectLeaderChange prepareLeaderChange(
             long actorMentorUserId, ProjectInternEligibility intern, Instant at) {
         requireOwner(actorMentorUserId);
@@ -226,8 +206,7 @@ public class ProjectEntity {
      * @param actorMentorUserId authenticated owning Mentor
      * @param change prepared replacement from this transaction
      */
-    // [Hoàn tất đổi Leader]
-    // Chỉ tạo term mới sau khi xác nhận term cũ đã đóng; nhờ đó lịch sử Leader luôn nối tiếp nhau.
+    // Sau khi term cũ đã đóng, Mentor mở term Leader mới để luôn chỉ có một Leader hiện tại.
     public void completeLeaderChange(long actorMentorUserId, ProjectLeaderChange change) {
         requireOwner(actorMentorUserId);
         Objects.requireNonNull(change, "change");
@@ -247,9 +226,6 @@ public class ProjectEntity {
      * @param allTaskAssigneesAreCurrent true when every non-deleted Task points to a current membership
      * @param at server activation instant
      */
-    // [Kích hoạt Project]
-    // Project chỉ chuyển từ PLANNED sang ACTIVE khi còn ít nhất một Intern active,
-    // Leader active và mọi Task hiện tại vẫn được gán cho một thành viên hiện tại.
     public void activate(
             long actorMentorUserId,
             Set<Long> activeInternUserIds,
@@ -271,7 +247,7 @@ public class ProjectEntity {
         if (!allTaskAssigneesAreCurrent) {
             throw new ProjectRuleViolationException("Every current Task assignee must be an active Project member");
         }
-        status = ProjectStatus.ACTIVE;
+        status = ProjectStatus.ACTIVE; // PLANNED → ACTIVE
         activatedAt = at;
         updatedAt = at;
     }
@@ -368,9 +344,7 @@ public class ProjectEntity {
      * @throws ProjectAccessDeniedException when the actor does not own this Project
      * @throws ProjectRuleViolationException when the Project is not active or has no current Leader
      */
-    // [Hoàn thành Project]
-    // Đóng term Leader và toàn bộ membership đang mở nhưng giữ lại các dòng lịch sử,
-    // sau đó chuyển trạng thái Project thành COMPLETED để chặn thay đổi tiếp theo.
+    // Mentor đóng Leader và mọi membership đang mở, giữ lịch sử, rồi chuyển sang COMPLETED — không cho sửa tiếp.
     public void complete(long actorMentorUserId, Instant at) {
         requireOwner(actorMentorUserId);
         Objects.requireNonNull(at, "at");
@@ -378,7 +352,6 @@ public class ProjectEntity {
             throw new ProjectRuleViolationException("Only an active Project can be completed");
         }
         var endedAt = currentLeadershipTerm().end(at, actorMentorUserId);
-        // Stream chỉ chọn membership còn hiệu lực để đóng; lịch sử đã đóng không bị sửa lại.
         memberships.stream()
                 .filter(ProjectMembershipEntity::isCurrent)
                 .forEach(membership -> membership.close(endedAt, actorMentorUserId));
@@ -411,8 +384,7 @@ public class ProjectEntity {
      * @param actorMentorUserId authenticated Mentor identifier
      * @throws ProjectAccessDeniedException when the actor does not own this Project
      */
-    // [Kiểm tra Mentor sở hữu]
-    // Service dùng method này trước các thao tác chỉ dành cho Mentor quản lý Project.
+    // Chỉ Mentor sở hữu Project mới được gọi các thao tác quản lý; người khác nhận lỗi từ chối không tiết lộ chi tiết.
     public void authorizeOwner(long actorMentorUserId) {
         requireOwner(actorMentorUserId);
     }
@@ -463,8 +435,6 @@ public class ProjectEntity {
      * @return current Leader membership
      * @throws ProjectRuleViolationException when the open-Project Leader invariant is absent
      */
-    // [Lấy Leader hiện tại]
-    // Leader được suy ra từ leadership term đang mở, không lưu thành một cột riêng để giữ lịch sử chính xác.
     public ProjectMembershipEntity currentLeader() {
         return currentMembership(currentLeadershipTerm().internUserId());
     }
@@ -475,10 +445,7 @@ public class ProjectEntity {
      * @return current leadership term
      * @throws ProjectRuleViolationException when an open Project has no current Leader
      */
-    // [Lấy term Leader hiện tại]
-    // Tìm term chưa có thời điểm kết thúc; nếu không có thì Project đang sai invariant và phải dừng xử lý.
     public ProjectLeadershipTermEntity currentLeadershipTerm() {
-        // Chỉ có một term không có endedAt được xem là Leader hiện tại.
         return leadershipTerms.stream()
                 .filter(ProjectLeadershipTermEntity::isCurrent)
                 .findFirst()
@@ -503,8 +470,6 @@ public class ProjectEntity {
      * @return matching membership, current or historical
      * @throws ProjectRuleViolationException when the identifier is outside this Project
      */
-    // [Tìm membership theo ID]
-    // Chỉ chấp nhận membership thuộc chính Project này để tránh dùng nhầm ID từ Project khác.
     public ProjectMembershipEntity membership(long membershipId) {
         return memberships.stream()
                 .filter(candidate -> candidate.id() != null && candidate.id() == membershipId)
@@ -519,8 +484,7 @@ public class ProjectEntity {
      * @param at server join instant
      * @return newly created current membership
      */
-    // [Nhận lời mời vào Project]
-    // Khi Intern đồng ý invitation, Entity tạo membership mới. Eligibility của Account đã được Service kiểm tra trước đó.
+    // Intern đồng ý lời mời thì được thêm membership mới; Service đã kiểm tra đủ điều kiện trước đó.
     public ProjectMembershipEntity acceptMembership(long internUserId, Instant at) {
         requireMutable();
         if (internUserId <= 0 || at == null || hasCurrentMember(internUserId)) {
@@ -537,13 +501,13 @@ public class ProjectEntity {
     private ProjectMembershipEntity addEligibleMember(
             long internUserId, long addedByUserId, Instant at) {
         var membership = new ProjectMembershipEntity(this, internUserId, at, addedByUserId);
-        memberships.add(membership);
+        memberships.add(membership); // cascade khi save Project root
+        // Mutation aggregate cập nhật timestamp root cùng thời điểm membership bắt đầu.
         updatedAt = at;
         return membership;
     }
 
     private ProjectMembershipEntity currentMembership(long internUserId) {
-        // Lambda lọc đúng Intern và chỉ lấy interval chưa rời Project.
         return memberships.stream()
                 .filter(membership -> membership.internUserId() == internUserId && membership.isCurrent())
                 .findFirst()
@@ -552,14 +516,12 @@ public class ProjectEntity {
     }
 
     private void requireOwner(long actorMentorUserId) {
-        // Không tiết lộ thông tin Project cho Mentor không phải chủ sở hữu.
         if (mentorUserId != actorMentorUserId) {
             throw new ProjectAccessDeniedException();
         }
     }
 
     private void requireMutable() {
-        // COMPLETED là trạng thái cuối; lịch sử sau khi hoàn thành chỉ được đọc.
         if (status == ProjectStatus.COMPLETED) {
             throw new ProjectRuleViolationException("Completed Projects are read-only");
         }

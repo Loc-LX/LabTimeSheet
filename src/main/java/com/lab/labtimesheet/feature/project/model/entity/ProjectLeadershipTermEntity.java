@@ -52,16 +52,17 @@ public class ProjectLeadershipTermEntity {
     @Column(name = "ended_by_mentor_user_id")
     private Long endedByMentorUserId;
 
+    // Tạo row project_leadership_terms — kỳ Leader hiện tại (endedAt=null).
     ProjectLeadershipTermEntity(
             ProjectEntity project,
             ProjectMembershipEntity membership,
             Instant startedAt,
             long appointedByMentorUserId) {
-        // Chỉ ProjectEntity tạo term. Service không tự dựng term bằng ID rời, tránh leadership trỏ tới membership
-        // của Project khác hoặc không nằm trong aggregate hiện tại.
+        // project -> FK project_id; membership -> FK membership_id; startedAt dùng cùng clock.instant với root.
         this.project = project;
         this.membership = membership;
         this.startedAt = startedAt;
+        // Lưu Mentor đã bổ nhiệm Leader để audit. Term mới hiện tại vì endedAt mặc định null.
         this.appointedByMentorUserId = appointedByMentorUserId;
     }
 
@@ -128,8 +129,7 @@ public class ProjectLeadershipTermEntity {
         return endedAt == null;
     }
 
-    // [Đóng term Leader]
-    // Chỉ ProjectEntity gọi method package-private này khi đổi Leader hoặc hoàn thành Project.
+    // Kết thúc kỳ làm Leader (ghi endedAt) trước khi bổ nhiệm Leader mới.
     // Kết thúc không được sớm hơn lúc bắt đầu và term đã đóng không thể đóng lần nữa.
     Instant end(Instant at, long mentorUserId) {
         if (!isCurrent() || at.isBefore(startedAt)) {

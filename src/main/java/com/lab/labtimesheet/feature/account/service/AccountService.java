@@ -818,6 +818,8 @@ public class AccountService {
      *         missing
      */
     @Transactional
+    // === CREATE PROJECT | lock account ===
+    // Chức năng: SELECT FOR UPDATE app_user + intern_profile → trả snapshot eligibility (gọi từ ProjectService.create).
     public List<LockedAccountMutationEligibility> lockedAccountMutationEligibility(Collection<Long> userIds) {
         // Đây là read-then-authorize boundary dùng cho mutation. @Transactional giữ các pessimistic locks từ lúc
         // đọc cho đến khi ProjectService hoàn tất kiểm tra và save, tránh một request khác đổi trạng thái account
@@ -892,15 +894,13 @@ public class AccountService {
      * @throws IllegalArgumentException when {@code businessDate} is {@code null}
      */
     @Transactional(readOnly = true)
+    // === CREATE PROJECT | dropdown Intern ===
+    // Chức năng: lọc Intern ACTIVE trong kỳ thực tập → gọi Repo query JPQL.
     public List<EligibleInternOption> eligibleInternOptions(LocalDate businessDate) {
-        // GET /projects/new gọi read-only query này để render picker. Đây chỉ là danh sách gợi ý tại thời điểm mở form,
-        // không phải reservation và không phải authorization cuối cùng cho POST /projects.
         if (businessDate == null) {
             throw new IllegalArgumentException("Business date is required");
         }
-        // Repository trả constructor projection EligibleInternOption: chỉ lấy các cột cần hiển thị, không load
-        // AppUser/InternProfile entity đầy đủ. POST vẫn gọi requireEligibleIntern/isEligibleIntern để chống stale UI.
-        return internProfiles.findEligibleInternOptions(
+        return internProfiles.findEligibleInternOptions( // → Repo: InternProfileRepository
                 GlobalRole.INTERN, AccountStatus.ACTIVE, InternshipStatus.ACTIVE, businessDate);
     }
 

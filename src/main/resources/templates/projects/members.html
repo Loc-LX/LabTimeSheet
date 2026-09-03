@@ -1,4 +1,7 @@
 <!doctype html>
+<!-- === ADD MEMBER | members.html ===
+     GET: populateMembersModel → Query.detail + Query.members + dropdown Intern
+     POST: ProjectController.addMembers → ProjectService.addMembers -->
 <html lang="en" xmlns:th="http://www.thymeleaf.org"
       th:replace="~{fragments/layout :: shell(
           pageTitle=${project.name + ' members'},
@@ -9,12 +12,16 @@
 <body>
 <main>
     <th:block th:replace="~{fragments/components :: projectTabs(${project.id}, 'members')}"></th:block>
+
+    <!-- Bảng thành viên: ${members} từ Query.members -->
     <section class="panel form-panel" th:if="${#lists.isEmpty(members)}"><th:block th:replace="~{fragments/components :: empty('No membership history', 'Project members will appear here.')} "></th:block></section>
     <section class="panel form-panel" th:unless="${#lists.isEmpty(members)}">
         <div class="table-scroll"><table class="data-table"><caption class="sr-only">Membership history</caption><thead><tr><th scope="col">Intern</th><th scope="col">Joined</th><th scope="col">Left</th><th scope="col">Role</th></tr></thead>
             <tbody><tr th:each="member : ${members}"><td th:text="${member.displayName}">Intern</td><td th:text="${#temporals.format(member.joinedAt.atZone(T(java.time.ZoneId).of('Asia/Ho_Chi_Minh')), 'dd/MM/yyyy HH:mm')}">Joined</td><td th:text="${member.leftAt == null ? 'Current' : #temporals.format(member.leftAt.atZone(T(java.time.ZoneId).of('Asia/Ho_Chi_Minh')), 'dd/MM/yyyy HH:mm')}">Current</td><td><span class="badge" th:classappend="${member.currentLeader ? ' badge-success' : ''}" th:text="${member.currentLeader ? 'Leader' : 'Member'}">Member</span></td></tr></tbody>
         </table></div>
     </section>
+
+    <!-- Form thêm Intern: chỉ Mentor (project.canManage) | POST → addMembers -->
     <form class="panel form-panel form-grid" th:if="${project.canManage}" method="post" th:action="@{/projects/{id}/members(id=${project.id})}" th:object="${projectMembersForm}">
         <div class="alert alert-error" role="alert" th:if="${#fields.hasAnyErrors()}"><strong>Member selection could not be saved.</strong><ul><li th:each="fieldError : ${#fields.allErrors()}" th:text="${fieldError}">Selection error</li></ul></div>
         <div class="field picker-field" data-intern-picker>

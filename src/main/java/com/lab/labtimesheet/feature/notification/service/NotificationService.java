@@ -101,17 +101,22 @@ public class NotificationService {
      * @throws IllegalArgumentException when a self-Task marker conflicts with the event
      */
     @Transactional(propagation = Propagation.MANDATORY)
+    // Ghi notification trong cùng transaction caller (Create Project gọi từ ProjectService sau save).
     public int publish(
             NotificationEvent event, NotificationAction action, Collection<NotificationRecipient> recipients) {
+        // Fail fast nếu caller truyền thiếu contract; Objects.requireNonNull ném NullPointerException và rollback.
         Objects.requireNonNull(event, "event");
         Objects.requireNonNull(action, "action");
         Objects.requireNonNull(recipients, "recipients");
         validateSelfTaskShape(event, action);
         if (action.selfTask() || recipients.isEmpty()) {
+            // Create Project không phải selfTask và có initial Leader, nên bình thường không return ở đây.
             return 0;
         }
 
+        // Một user có thể xuất hiện nhiều vai; deduplicate đảm bảo mỗi event chỉ tạo một row/user.
         Map<Long, NotificationRecipient> distinctRecipients = deduplicate(recipients);
+        // Event type quyết định có cần email hay chỉ in-app; SMTP unavailable không làm fail Project creation.
         boolean emailDesignated = event.type().emailDesignated();
         boolean smtpAvailable = emailDesignated && mailDelivery.isAvailable();
         Instant now = clock.instant();
@@ -122,6 +127,7 @@ public class NotificationService {
                 : NotificationEmailStatus.NOT_REQUIRED;
 
         List<NotificationEntity> saved = distinctRecipients.values().stream()
+                // Mỗi recipient -> một NotificationEntity chưa persist, giữ action URL /projects/{id}.
                 .map(recipient -> NotificationEntity.create(
                         recipient.userId(), event.type(), event.title(), body, action.actionUrl(), emailStatus,
                         smtpAvailable ? recipient.email() : null,
@@ -130,9 +136,11 @@ public class NotificationService {
                         smtpAvailable ? now : null,
                         now))
                 .toList();
+        // saveAll ghi in-app notification trong transaction hiện tại; flush làm lỗi DB xuất hiện trước khi return.
         notifications.saveAll(saved);
         notifications.flush();
         if (smtpAvailable) {
+            // Chỉ schedule gửi email SAU COMMIT; SMTP I/O không được rollback Project đã lưu thành công.
             scheduleDelivery(saved.stream().map(NotificationEntity::getId).toList());
         }
         return saved.size();

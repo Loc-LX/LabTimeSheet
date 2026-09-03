@@ -95,8 +95,7 @@ public class ProjectInvitationEntity {
      * @param createdAt server creation instant
      * @return unsaved pending invitation
      */
-    // [Tạo lời mời chờ phản hồi]
-    // Lời mời chỉ lưu dữ liệu ban đầu và có trạng thái PENDING; chưa tạo membership cho Intern ở bước này.
+    // Tạo lời mời mới ở trạng thái chờ (chưa thêm Intern vào project).
     public static ProjectInvitationEntity pending(
             ProjectEntity project,
             long invitedInternUserId,
@@ -226,9 +225,7 @@ public class ProjectInvitationEntity {
      * @param acceptedMembership membership created by acceptance, otherwise null
      * @param at server resolution instant
      */
-    // [Kết thúc lời mời]
-    // Chỉ lời mời PENDING được xử lý một lần. Nếu chấp nhận, acceptedMembership liên kết
-    // lời mời với membership mới để màn hình lịch sử biết Intern đã vào Project từ invitation nào.
+    // Đóng lời mời (chấp nhận/từ chối/thu hồi); nếu chấp nhận thì gắn với membership mới.
     public void resolve(
             InvitationStatus terminalStatus,
             InvitationResolutionCode code,

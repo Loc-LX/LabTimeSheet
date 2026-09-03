@@ -19,11 +19,8 @@ import org.springframework.data.repository.query.Param;
  * <p>Consumers outside the Project feature use Project services and DTOs rather than this
  * repository or its JPA entities.
  */
-// Repository là cổng ProjectService/ProjectQueryService dùng để đọc và ghi bảng projects.
-// Spring Data JPA tự triển khai interface này; các @Query bên dưới là JPQL query trên Entity, không phải SQL thô.
-// JpaRepository đã cung cấp save/saveAndFlush/findById; vì vậy flow create không cần tự viết INSERT SQL. Khi
-// Service gọi saveAndFlush(root), Spring Data chuyển root thành managed entity, Hibernate sinh SQL theo mapping
-// @Table/@Column và transaction quyết định commit/rollback.
+// === CREATE PROJECT | persist ===
+// Chức năng: saveAndFlush(project) kế thừa JpaRepository — cascade INSERT projects + memberships + leadership_terms.
 public interface ProjectRepository extends JpaRepository<ProjectEntity, Long> {
 
     /**
@@ -33,8 +30,7 @@ public interface ProjectRepository extends JpaRepository<ProjectEntity, Long> {
      * @param id Project identifier
      * @return the locked aggregate, or empty when the identifier does not exist
      */
-    // [Khóa Project trước khi thay đổi]
-    // PESSIMISTIC_WRITE khóa dòng Project trong transaction để hai request không cùng sửa membership/Leader.
+    // Khóa một project trước khi sửa — tránh hai người cùng đổi membership/Leader lúc một.
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select project from ProjectEntity project where project.id = :id")
     Optional<ProjectEntity> findLockedById(@Param("id") long id);
@@ -45,9 +41,7 @@ public interface ProjectRepository extends JpaRepository<ProjectEntity, Long> {
      * @param pageable page and maximum result size
      * @return ordered Project slice within the requested page
      */
-    // [Danh sách Project cho Admin]
-    // Spring Data tạo query từ tên method; chỉ lấy một Slice để UI không tải toàn bộ database. Query này được gọi
-    // từ GET /projects khi actor là ADMIN, sau đó QueryService map Entity thành ProjectSummary trước khi render.
+    // Danh sách project cho Admin (trang list.html khi role = ADMIN).
     Slice<ProjectEntity> findAllByOrderByUpdatedAtDescIdDesc(Pageable pageable);
 
     /**
@@ -57,16 +51,7 @@ public interface ProjectRepository extends JpaRepository<ProjectEntity, Long> {
      * @param pageable page and maximum result size
      * @return ordered owned Project slice within the requested page
      */
-    // [Danh sách Project của Mentor]
-    // Query theo mentorUserId để Mentor chỉ nhận Project do chính họ sở hữu; filter nằm ngay ở database chứ không
-    // tải toàn bảng rồi lọc bằng Java. Với actorUserId=10 và page size logic là 50, ý nghĩa SQL tương đương:
-    // SELECT *
-    // FROM projects
-    // WHERE mentor_user_id = 10
-    // ORDER BY updated_at DESC, id DESC
-    // LIMIT 50;
-    // Đây là dạng SQL dễ hình dung; Hibernate có thể chọn cột cụ thể và Slice có thể đọc thêm một row (ví dụ LIMIT
-    // 51) để tính hasNext, nhưng điều kiện owner/order vẫn giữ nguyên.
+    // Danh sách project của một Mentor (trang list.html khi role = MENTOR).
     Slice<ProjectEntity> findByMentorUserIdOrderByUpdatedAtDescIdDesc(
             long mentorUserId, Pageable pageable);
 
@@ -100,8 +85,7 @@ public interface ProjectRepository extends JpaRepository<ProjectEntity, Long> {
      * @param internUserId authenticated Intern account identifier
      * @return immutable interval projections ordered by Project and membership identifier
      */
-    // [Lịch sử membership của một Intern]
-    // Chỉ trả DTO gồm ID và mốc thời gian, không tải cả Project aggregate; QueryService dùng để kiểm tra quyền lịch sử.
+    // Intern đã tham gia những project nào, từ lúc nào đến lúc nào (dùng khi kiểm tra điều kiện rời thực tập).
     @Query("""
             select new com.lab.labtimesheet.feature.project.model.dto.ProjectMembershipIntervalView(
                     project.id, membership.id, membership.joinedAt, membership.leftAt)
@@ -121,8 +105,7 @@ public interface ProjectRepository extends JpaRepository<ProjectEntity, Long> {
      * @param projectId Project identifier
      * @return scalar route, or empty when the Project does not exist
      */
-    // [Route cho mutation Project]
-    // Lấy ID Mentor và Leader hiện tại trước khi lock để ProjectService khóa Account theo thứ tự an toàn.
+    // Lấy Mentor và Leader hiện tại trước khi Service khóa tài khoản liên quan.
     @Query("""
             select new com.lab.labtimesheet.feature.project.model.dto.ProjectMutationRoute(
                     project.id, project.mentorUserId, term.membership.internUserId)
@@ -139,8 +122,7 @@ public interface ProjectRepository extends JpaRepository<ProjectEntity, Long> {
      * @param projectId Project identifier
      * @return current Intern account identifiers in stable order
      */
-    // [Danh sách thành viên hiện tại]
-    // Chỉ lấy user ID có leftAt null; Service dùng danh sách này để kiểm tra eligibility trước mutation.
+    // Danh sách Intern đang còn trong project (chưa rời).
     @Query("""
             select membership.internUserId
             from ProjectMembershipEntity membership
@@ -205,8 +187,7 @@ public interface ProjectRepository extends JpaRepository<ProjectEntity, Long> {
      * @param pageable page and maximum result size
      * @return ordered visible Project slice without duplicate rows within the requested page
      */
-    // [Project Intern được xem]
-    // Intern chỉ xem Project đang tham gia, hoặc Project đã hoàn thành mà họ từng là thành viên.
+    // Danh sách project Intern được xem (đang tham gia hoặc đã hoàn thành từng tham gia).
     @Query("""
             select distinct project from ProjectEntity project
             join project.memberships membership
@@ -222,8 +203,7 @@ public interface ProjectRepository extends JpaRepository<ProjectEntity, Long> {
      *
      * @return complete active-Project total
      */
-    // [Đếm Project active toàn hệ thống]
-    // Dùng cho dashboard Admin nên chỉ trả một số đếm, không tải danh sách Project.
+    // Đếm project đang ACTIVE toàn hệ thống (dashboard Admin).
     @Query("""
             select count(project)
             from ProjectEntity project
@@ -237,8 +217,7 @@ public interface ProjectRepository extends JpaRepository<ProjectEntity, Long> {
      * @param mentorUserId owning Mentor account identifier
      * @return complete active-Project total for the Mentor
      */
-    // [Đếm Project active của Mentor]
-    // Dùng cho dashboard Mentor, giới hạn theo người sở hữu Project.
+    // Đếm project ACTIVE của một Mentor (dashboard Mentor).
     @Query("""
             select count(project)
             from ProjectEntity project
@@ -255,8 +234,7 @@ public interface ProjectRepository extends JpaRepository<ProjectEntity, Long> {
      * @param mentorUserId owning Mentor account identifier
      * @return distinct current-member account identifiers in stable order
      */
-    // [Lấy Intern đang thuộc các Project active của Mentor]
-    // distinct loại trùng khi một Intern cùng tham gia nhiều Project; AccountService kiểm tra trạng thái tiếp theo.
+    // Intern đang thuộc các project ACTIVE của Mentor (không trùng nếu cùng người ở nhiều project).
     @Query("""
             select distinct membership.internUserId
             from ProjectEntity project
@@ -276,8 +254,7 @@ public interface ProjectRepository extends JpaRepository<ProjectEntity, Long> {
      * @param internUserId Intern account identifier
      * @return complete active-Project total for the Intern
      */
-    // [Đếm Project active của Intern]
-    // distinct project.id tránh đếm lặp nếu dữ liệu lịch sử có nhiều membership của cùng Intern.
+    // Đếm project ACTIVE mà Intern đang tham gia (dashboard Intern).
     @Query("""
             select count(distinct project.id)
             from ProjectEntity project
