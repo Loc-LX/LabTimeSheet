@@ -90,6 +90,7 @@ document.addEventListener('DOMContentLoaded', () => {
     catch (_) { /* Collapse still works for this page. */ }
   });
 
+  // [DROPDOWN Leader] B7: JS chỉ mở popup + lọc theo tên/mã SV trên trình duyệt; danh sách đã render sẵn từ server
   document.querySelectorAll('[data-intern-picker]').forEach((picker) => {
     const open = picker.querySelector('[data-picker-open]');
     const dropdown = picker.querySelector('[data-picker-dialog]');

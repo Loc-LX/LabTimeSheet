@@ -1,4 +1,9 @@
 <!doctype html>
+<!--
+  === DETAIL PROJECT | detail.html ===
+  GET: ProjectController.detail → Query.detail + exitReadiness
+  POST Activate/Delete: ProjectService.activate / delete
+-->
 <html lang="en" xmlns:th="http://www.thymeleaf.org"
       th:replace="~{fragments/layout :: shell(
           pageTitle=${project.name},

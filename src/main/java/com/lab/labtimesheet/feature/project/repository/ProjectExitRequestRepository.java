@@ -14,8 +14,7 @@ import org.springframework.data.repository.query.Param;
 /**
  * Persists retained Project membership-exit requests and their transaction locks.
  */
-// Repository lưu yêu cầu rời/loại thành viên và các query phục vụ duyệt yêu cầu.
-// Service luôn dùng dữ liệu route hoặc write lock từ đây để tránh xử lý sai Project hay xử lý đồng thời.
+// Lưu/đọc yêu cầu rời hoặc bị loại khỏi project — Service gọi khi xử lý workflows.
 public interface ProjectExitRequestRepository extends JpaRepository<ProjectExitRequestEntity, Long> {
 
     /**
@@ -24,8 +23,7 @@ public interface ProjectExitRequestRepository extends JpaRepository<ProjectExitR
      * @param id request identifier
      * @return locked request, when present
      */
-    // [Khóa yêu cầu exit]
-    // Giữ lock trên request cho đến khi transaction hoàn tất để nó chỉ được quyết định một lần.
+    // Khóa một yêu cầu exit đang duyệt/hủy.
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select request from ProjectExitRequestEntity request where request.id = :id")
     Optional<ProjectExitRequestEntity> findLockedById(@Param("id") long id);
@@ -37,8 +35,7 @@ public interface ProjectExitRequestRepository extends JpaRepository<ProjectExitR
      * @param id exit-request identifier
      * @return scalar route, or empty when the request does not exist
      */
-    // [Lấy route của yêu cầu exit]
-    // Chỉ trả projectId và requesterId để Service khóa đúng Account trước khi đọc request đầy đủ.
+    // Yêu cầu exit thuộc project nào, ai là người gửi.
     @Query("""
             select new com.lab.labtimesheet.feature.project.model.dto.ProjectExitRequestRoute(
                     request.project.id, request.requesterMembership.internUserId)
@@ -53,8 +50,7 @@ public interface ProjectExitRequestRepository extends JpaRepository<ProjectExitR
      * @param targetMembershipId target membership identifier
      * @return pending request, when present
      */
-    // [Tìm yêu cầu pending của membership]
-    // Một target membership không thể có hai yêu cầu đang chờ; query kèm lock giúp Service kiểm tra điều này.
+    // Thành viên này đã có yêu cầu rời đang chờ chưa (mỗi người chỉ một yêu cầu pending).
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             select request
@@ -72,8 +68,7 @@ public interface ProjectExitRequestRepository extends JpaRepository<ProjectExitR
      * @param projectId Project identifier
      * @return pending target membership identifiers, empty when none are pending
      */
-    // [Danh sách membership đang có yêu cầu exit]
-    // Chỉ trả ID target để ProjectService kiểm tra nhanh trước khi thay đổi thành viên/Leader.
+    // Các thành viên đang có yêu cầu exit chờ duyệt (hiển thị trên workflows).
     @Query("""
             select request.targetMembership.id
             from ProjectExitRequestEntity request
@@ -91,8 +86,7 @@ public interface ProjectExitRequestRepository extends JpaRepository<ProjectExitR
      * @param projectId Project identifier
      * @return pending requester account identifiers
      */
-    // [Người gửi các yêu cầu pending]
-    // Lấy user ID để Service khóa đúng Account khi một lifecycle mutation có thể tự kết thúc request.
+    // Ai đã gửi các yêu cầu exit đang chờ (để gửi thông báo đúng người).
     @Query("""
             select request.requesterMembership.internUserId
             from ProjectExitRequestEntity request
@@ -108,8 +102,7 @@ public interface ProjectExitRequestRepository extends JpaRepository<ProjectExitR
      * @param projectId Project identifier
      * @return retained request records
      */
-    // [Lịch sử yêu cầu exit của Project]
-    // Spring Data trả cả request đã quyết định để QueryService hiển thị tab Exit decisions.
+    // Toàn bộ yêu cầu exit của project (tab History).
     List<ProjectExitRequestEntity> findByProject_IdOrderByCreatedAtAscIdAsc(long projectId);
 
     /**
@@ -118,8 +111,7 @@ public interface ProjectExitRequestRepository extends JpaRepository<ProjectExitR
      * @param projectId Project identifier
      * @return pending requests
      */
-    // [Khóa tất cả yêu cầu pending của Project]
-    // Dùng khi hoàn thành Project hoặc thao tác lifecycle cần supersede các request đang chờ.
+    // Khóa mọi yêu cầu exit đang chờ khi kết thúc project.
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             select request

@@ -17,24 +17,15 @@ import org.springframework.format.annotation.DateTimeFormat;
  * @param endDate inclusive Project end date
  * @param initialLeaderUserId positive eligible Intern user identifier
  */
-// DTO của tầng Web, đại diện cho đúng payload mà form HTML gửi lên endpoint POST /projects.
-// Đây chưa phải ProjectEntity: object này chỉ sống trong request hiện tại, được Spring MVC tạo ra,
-// bind dữ liệu từ các input có name tương ứng, rồi chạy Bean Validation trước khi Controller gọi Service.
+// === CREATE PROJECT | Form DTO ===
+// Chức năng: nhận 5 field từ form.html; @Valid kiểm tra hình dạng; toCommand() chuyển sang Service.
 public record ProjectCreateForm(
-        // @NotBlank loại chuỗi null/rỗng/toàn khoảng trắng; @Size phải đồng bộ với giới hạn cột projects.name.
-        // Lỗi của component này được đưa vào BindingResult và Thymeleaf đọc bằng *{name} / #fields.hasErrors('name').
         @NotBlank @Size(max = 160) String name,
-        // Description là tùy chọn ở Web DTO; ProjectEntity/Service sẽ tiếp tục normalize trước khi lưu.
         String description,
-        // Browser gửi date dưới dạng chuỗi ISO yyyy-MM-dd. @DateTimeFormat yêu cầu Spring đổi chuỗi đó thành LocalDate.
-        // @NotNull đảm bảo lỗi thiếu ngày là lỗi field-level, trước khi logic date range chạy.
         @NotNull(message = "Start date is required")
         @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-        // End date cũng được convert/bind như startDate; quan hệ end >= start được kiểm tra ở isDateRangeValid().
         @NotNull(message = "End date is required")
         @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
-        // Form chỉ gửi ID của Intern được chọn, không gửi cả Account/InternProfile entity.
-        // @Positive chặn ID âm/0 ở lớp Web; Service vẫn phải query và re-check eligibility vì client không đáng tin.
         @NotNull(message = "Choose an initial Leader")
         @Positive(message = "Choose a valid initial Leader") Long initialLeaderUserId) {
 
@@ -73,6 +64,6 @@ public record ProjectCreateForm(
      * @return command giữ nguyên dữ liệu đã submit để Controller truyền vào Service
      */
     public ProjectCreateCommand toCommand() {
-        return new ProjectCreateCommand(name, description, startDate, endDate, initialLeaderUserId);
+        return new ProjectCreateCommand(name, description, startDate, endDate, initialLeaderUserId); // → ProjectService.create
     }
 }

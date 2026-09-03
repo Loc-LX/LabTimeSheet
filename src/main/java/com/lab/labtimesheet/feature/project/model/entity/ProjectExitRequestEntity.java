@@ -104,8 +104,7 @@ public class ProjectExitRequestEntity {
      * @param createdAt server creation instant
      * @return unsaved pending request
      */
-    // [Tạo yêu cầu exit]
-    // Kiểm tra kiểu request khớp với người gửi và người bị tác động trước khi lưu trạng thái PENDING.
+    // Tạo yêu cầu rời hoặc bị loại — chờ Mentor duyệt, thành viên vẫn ở lại project.
     // Điều này ngăn Intern tự gửi yêu cầu loại một thành viên khác hoặc Mentor tự loại chính mình.
     public static ProjectExitRequestEntity pending(
             ProjectEntity project,
@@ -257,9 +256,7 @@ public class ProjectExitRequestEntity {
      * @param resolvedByUserId resolving account, nullable for automatic supersession
      * @param at server resolution instant
      */
-    // [Kết thúc yêu cầu exit]
-    // Entity chỉ đổi trạng thái và lưu ghi chú quyết định. Bước đóng membership/transfer Task
-    // nằm ở ProjectService để các thay đổi đó đi trong cùng transaction.
+    // Đóng yêu cầu exit (duyệt/từ chối/hủy); việc rời project thật do ProjectService làm tiếp.
     public void resolve(
             ProjectExitRequestStatus terminalStatus,
             String note,

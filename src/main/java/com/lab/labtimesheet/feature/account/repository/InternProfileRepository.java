@@ -40,9 +40,8 @@ public interface InternProfileRepository extends JpaRepository<InternProfile, Lo
      * @param businessDate date that must fall within the inclusive internship range
      * @return eligible Intern selection projections without duplicate profile rows
      */
-    // Query này phục vụ GET /projects/new: JOIN theo userId, lọc role/status/date rồi trả projection cho picker.
-    // Điều kiện start <= businessDate và end >= businessDate giữ cả hai biên ngày. Vì chỉ select các scalar cần
-    // render, Hibernate không cần hydrate đầy đủ hai entity và Controller không đưa persistence object vào HTML.
+    // === CREATE PROJECT | query dropdown ===
+    // Chức năng: JOIN app_user + intern_profile, lọc Intern eligible, trả DTO cho form.html.
     @Query("""
             select new com.lab.labtimesheet.feature.account.model.dto.EligibleInternOption(
                 u.id, u.displayName, p.studentCode, p.internshipStartDate, p.internshipEndDate)
@@ -56,6 +55,7 @@ public interface InternProfileRepository extends JpaRepository<InternProfile, Lo
             order by u.displayName asc, p.studentCode asc, u.id asc
             """)
     List<EligibleInternOption> findEligibleInternOptions(
+            // Bốn @Param khớp bốn placeholder có dấu ':' trong JPQL bên trên.
             @Param("globalRole") GlobalRole globalRole,
             @Param("accountStatus") AccountStatus accountStatus,
             @Param("internshipStatus") InternshipStatus internshipStatus,

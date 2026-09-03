@@ -1,12 +1,7 @@
 <!doctype html>
-<!--
-    Đây là template server-rendered cho cả hai nhánh của flow tạo Project:
-    (1) GET /projects/new: Controller đẩy projectForm rỗng + eligibleInternOptions + today vào Model;
-    (2) POST /projects: nếu lỗi validation/rule, Controller đẩy lại projectForm đã bind cùng BindingResult để
-        Thymeleaf giữ dữ liệu cũ và hiển thị lỗi; nếu thành công, Controller redirect sang GET /projects/{id}.
-    Thymeleaf xử lý các thuộc tính th:* trên server rồi trả HTML hoàn chỉnh cho browser, không phải browser tự hiểu th:*
-    như một framework client-side.
--->
+<!-- === CREATE PROJECT | form.html ===
+     GET: createForm() nạp projectForm + eligibleInternOptions
+     POST action=/projects → ProjectController.create → ProjectService.create -->
 <html lang="en" xmlns:th="http://www.thymeleaf.org"
       th:replace="~{fragments/layout :: shell(
           pageTitle='Create Project',
@@ -16,38 +11,24 @@
           content=~{::main})}">
 <body>
 <main>
-    <!-- Nội dung mô tả chỉ là phần hiển thị; các rule bảo mật/membership vẫn phải được kiểm tra ở server. -->
     <p class="page-description">Define the initial Project window and Leader. Membership changes remain server-authorized.</p>
-    <!--
-        th:object="${projectForm}" đặt binding root của form. Vì vậy th:field="*{name}" sẽ sinh ra name="name",
-        value hiện tại và id phù hợp; khi POST, Spring MVC dùng đúng name đó để bind ngược vào ProjectCreateForm.
-        th:action tạo URL /projects; method=post biến thao tác này thành state-changing request.
-    -->
+
+    <!-- POST → ProjectController.create | th:object bind với projectForm trong Model -->
     <form class="panel form-panel form-grid create-project-form" method="post" th:action="@{/projects}" th:object="${projectForm}">
-        <!--
-            Khi @Valid thất bại, BindingResult được đặt cạnh projectForm trong Model. #fields.hasAnyErrors()
-            kiểm tra BindingResult đó; #fields.allErrors() lặp qua lỗi field/object và th:text in message đã resolve.
-            Nếu Controller trả lại cùng view, block này hiển thị thay vì làm mất dữ liệu người dùng đã nhập.
-        -->
+
+        <!-- @Valid lỗi: render lại form, chưa gọi Service -->
         <div class="alert alert-error" role="alert" th:if="${#fields.hasAnyErrors()}">
             <strong>Please correct the highlighted fields.</strong>
             <ul><li th:each="fieldError : ${#fields.allErrors()}" th:text="${fieldError}">Validation error</li></ul>
         </div>
-        <!--
-            th:field="*{name}" vừa đọc giá trị cũ để render vừa tạo metadata binding cho POST.
-            required/maxlength là client-side hint giúp UX; @NotBlank/@Size ở ProjectCreateForm mới là validation
-            có giá trị bảo mật ở server. th:errors lấy lỗi của đúng field từ BindingResult.
-        -->
+
         <div class="field">
             <label class="field-label" for="name">Name</label>
             <input class="control" id="name" th:field="*{name}" required maxlength="160" th:attr="aria-invalid=${#fields.hasErrors('name')},aria-describedby=${#fields.hasErrors('name') ? 'name-error' : null}">
             <p class="field-error" id="name-error" role="alert" th:if="${#fields.hasErrors('name')}" th:errors="*{name}">Name error</p>
         </div>
-        <!--
-            Leader picker chỉ là UI chọn một ID. th:each render danh sách projection không chứa entity persistence;
-            radio th:field="*{initialLeaderUserId}" mới là input được submit. Tên/student code/ngày chỉ để người dùng
-            nhìn và search; client có thể sửa value, nên ProjectService vẫn re-query và kiểm tra eligibility.
-        -->
+
+        <!-- Dropdown Intern: ${eligibleInternOptions} từ createForm → AccountService → InternProfileRepository -->
         <div class="field picker-field" data-intern-picker>
             <span class="field-label">Initial Leader</span>
             <button class="button picker-trigger" type="button" data-picker-open
@@ -66,6 +47,7 @@
                 <div class="picker-body">
                     <div class="picker-options" role="listbox" aria-label="Eligible Interns">
                         <label class="picker-option" data-picker-option th:each="option : ${eligibleInternOptions}" th:attr="data-picker-search=${option.displayName + ' ' + option.studentCode}">
+                            <!-- Submit chỉ gửi userId; Service kiểm tra lại khi POST -->
                             <input type="radio" th:field="*{initialLeaderUserId}" th:value="${option.userId}">
                             <span><strong data-picker-label th:text="|${option.displayName} (${option.studentCode})|">Intern (Code)</strong><small th:text="|${#temporals.format(option.internshipStart, 'dd/MM/yyyy')} – ${#temporals.format(option.internshipEnd, 'dd/MM/yyyy')}|">Dates</small></span>
                         </label>
@@ -75,25 +57,30 @@
                 <div class="picker-footer"><button class="button button-primary" type="button" data-picker-apply>Done</button></div>
             </div>
         </div>
-        <!-- Description là field tùy chọn; th:field vẫn giữ lại nội dung nếu POST quay lại do lỗi. -->
+
         <div class="field">
             <label class="field-label" for="description">Description</label>
             <textarea class="control" id="description" rows="5" th:field="*{description}"></textarea>
         </div>
-        <!--
-            input type=date gửi yyyy-MM-dd. th:attr min=${today} chỉ ngăn lựa chọn hiển thị ngày quá khứ ở browser;
-            ProjectService dùng Clock/business date để kiểm tra lại vì request có thể được gửi bằng curl hoặc sửa DOM.
-            Lỗi dateRangeValid là object-level error được hiển thị dưới endDate.
-        -->
+
         <div class="form-grid form-grid-two">
-            <div class="field"><label class="field-label" for="startDate">Start date</label><input class="control" id="startDate" type="date" th:field="*{startDate}" required th:attr="min=${today},aria-invalid=${#fields.hasErrors('startDate')},aria-describedby=${#fields.hasErrors('startDate') ? 'startDate-error' : null}"><p class="field-error" id="startDate-error" role="alert" th:if="${#fields.hasErrors('startDate')}" th:errors="*{startDate}">Start date error</p></div>
-            <div class="field"><label class="field-label" for="endDate">End date</label><input class="control" id="endDate" type="date" th:field="*{endDate}" required th:attr="aria-invalid=${#fields.hasErrors('endDate') or #fields.hasErrors('dateRangeValid')},aria-describedby=${#fields.hasErrors('endDate') ? 'endDate-error' : (#fields.hasErrors('dateRangeValid') ? 'dateRangeValid-error' : null)}"><p class="field-error" id="endDate-error" role="alert" th:if="${#fields.hasErrors('endDate')}" th:errors="*{endDate}">End date error</p><p class="field-error" id="dateRangeValid-error" role="alert" th:if="${#fields.hasErrors('dateRangeValid')}" th:errors="*{dateRangeValid}">Date range error</p></div>
+            <div class="field">
+                <label class="field-label" for="startDate">Start date</label>
+                <input class="control" id="startDate" type="date" th:field="*{startDate}" required th:attr="min=${today},aria-invalid=${#fields.hasErrors('startDate')},aria-describedby=${#fields.hasErrors('startDate') ? 'startDate-error' : null}">
+                <p class="field-error" id="startDate-error" role="alert" th:if="${#fields.hasErrors('startDate')}" th:errors="*{startDate}">Start date error</p>
+            </div>
+            <div class="field">
+                <label class="field-label" for="endDate">End date</label>
+                <input class="control" id="endDate" type="date" th:field="*{endDate}" required th:attr="aria-invalid=${#fields.hasErrors('endDate') or #fields.hasErrors('dateRangeValid')},aria-describedby=${#fields.hasErrors('endDate') ? 'endDate-error' : (#fields.hasErrors('dateRangeValid') ? 'dateRangeValid-error' : null)}">
+                <p class="field-error" id="endDate-error" role="alert" th:if="${#fields.hasErrors('endDate')}" th:errors="*{endDate}">End date error</p>
+                <p class="field-error" id="dateRangeValid-error" role="alert" th:if="${#fields.hasErrors('dateRangeValid')}" th:errors="*{dateRangeValid}">Date range error</p>
+            </div>
         </div>
-        <!--
-            Cancel chỉ là GET điều hướng. Submit tạo POST; browser không biết transaction hay repository, nó chỉ nhận
-            response redirect/error từ server. JavaScript picker (nếu có) chỉ hỗ trợ mở/chọn UI, không thay thế server.
-        -->
-        <div class="form-actions"><a class="button" th:href="@{/projects}">Cancel</a><button class="button button-primary" type="submit">Create Project</button></div>
+
+        <div class="form-actions">
+            <a class="button" th:href="@{/projects}">Cancel</a>
+            <button class="button button-primary" type="submit">Create Project</button>
+        </div>
     </form>
 </main>
 </body>

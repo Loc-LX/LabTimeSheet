@@ -1,4 +1,7 @@
 <!doctype html>
+<!-- === WORKFLOWS | workflows.html ===
+     GET: populateWorkflowModel (exit, invitation, transfer, approve...)
+     POST: mọi form → ProjectController.workflowMutation → ProjectService -->
 <html lang="en" xmlns:th="http://www.thymeleaf.org"
       th:replace="~{fragments/layout :: shell(
           pageTitle=${project.name + ' workflows'},
@@ -10,7 +13,7 @@
 <main class="project-workflow-page">
     <th:block th:replace="~{fragments/components :: projectTabs(${project.id}, 'workflows')}"></th:block>
 
-    <header class="project-section-intro">
+  <header class="project-section-intro">
         <div>
             <p class="project-section-kicker">Action center</p>
             <h2>Project Workflows</h2>
@@ -63,6 +66,7 @@
                     </div>
                 </div>
                 <div class="workflow-request-actions">
+                    <!-- POST cancelExit | approveExit | rejectExit → ProjectController -->
                     <form th:if="${cancellableExitIds.contains(workflow.requestId)}" method="post" th:action="@{/projects/{projectId}/exits/{id}/cancel(projectId=${project.id},id=${workflow.requestId})}"><button class="button" type="submit">Cancel request</button></form>
                     <form class="exit-decision-form" th:if="${project.canManage}" method="post" data-confirm="Approve this exit? Membership will close; completed transfers and retained history remain." th:action="@{/projects/{projectId}/exits/{id}/approve(projectId=${project.id},id=${workflow.requestId})}" th:attr="aria-describedby=${projectInput != null and projectInput.kind == 'approve' and projectInput.requestId == workflow.requestId and projectError != null ? 'approve-exit-' + workflow.requestId + '-error' : null}"><button class="button button-primary" type="submit" th:disabled="${!workflow.readyForMentorDecision}">Approve exit</button><span class="field-error" role="alert" th:id="|approve-exit-${workflow.requestId}-error|" th:if="${projectInput != null and projectInput.kind == 'approve' and projectInput.requestId == workflow.requestId and projectError != null}" th:text="${projectError}">Approval error</span></form>
                     <form class="exit-decision-form" th:if="${project.canManage}" method="post" th:action="@{/projects/{projectId}/exits/{id}/reject(projectId=${project.id},id=${workflow.requestId})}" th:attr="aria-describedby=${projectInput != null and projectInput.kind == 'reject' and projectInput.requestId == workflow.requestId and projectError != null ? 'reject-exit-' + workflow.requestId + '-error' : null}"><button class="button button-danger" type="submit">Reject exit</button><span class="field-error" role="alert" th:id="|reject-exit-${workflow.requestId}-error|" th:if="${projectInput != null and projectInput.kind == 'reject' and projectInput.requestId == workflow.requestId and projectError != null}" th:text="${projectError}">Rejection error</span></form>
@@ -116,6 +120,7 @@
         <div class="workflow-form-grid">
             <section class="workflow-form-card" th:if="${currentLeader}">
                 <div class="workflow-form-heading"><div><h3>Invite Interns</h3><p>Send one invitation batch to multiple eligible Interns.</p></div></div>
+                <!-- POST issueInvitation → ProjectController.issueInvitation → ProjectService -->
                 <form class="workflow-form" method="post" th:action="@{/projects/{id}/invitations(id=${project.id})}" th:attr="aria-describedby=${projectInput != null and projectInput.kind == 'invitation' and projectError != null ? 'invitation-form-error' : null}">
                     <div class="field picker-field" data-intern-picker>
                         <span class="field-label">Eligible Interns</span>
