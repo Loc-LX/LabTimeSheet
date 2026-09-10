@@ -41,3 +41,6 @@ node_modules/
 # Playwright output is retained locally for failure inspection and is not source evidence.
 /playwright-report/
 /test-results/
+
+# Reference material kept locally, not part of the product
+*.pdf
