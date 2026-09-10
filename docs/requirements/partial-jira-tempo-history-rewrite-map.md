@@ -1,0 +1,62 @@
+# Partial Jira/Tempo history rewrite map
+
+## Purpose
+
+The unpublished Iteration 4 branch was replayed from
+`b6b6ca8c184220997070597fd7dc0b8b0d7c54a012c28f66d932baa8ac3c86f0` to replace 21
+non-Conventional Commit subjects. The other eight subjects were retained. Authors, author dates,
+commit order, and commit content were preserved.
+
+This map separates two kinds of reference:
+
+- **Historical evidence SHA:** the original unpublished commit on which a recorded test or review
+  actually ran. Evidence records keep these SHAs so they do not imply a rerun that did not occur.
+- **Rewritten public SHA:** the content-equivalent commit in the rewritten branch history. Current
+  tracker and implementation references use these SHAs.
+
+`git range-diff main..backup/codex-partial-jira-tempo-pre-convention-rewrite
+main..codex/partial-jira-tempo` established the ordered correspondence. For every replayed pair,
+`git rev-parse <commit>^{tree}` returned the same tree ID. Before this mapping document was added,
+both 29-commit heads had the identical final tree
+`ba9d5074ce204d8efe3eb7102e5efaeabac87a4f31e8aa4170b43421cc71253c`.
+
+## Full old-to-rewritten map
+
+| # | Historical unpublished SHA | Rewritten public SHA | Common tree ID |
+|---:|---|---|---|
+| 1 | `a5c7cb888c054b264aef90430c6c21f1d8edc942304ebf47a625cc063b164256` | `2bc5e2afb401e817d3091714d292b59ba846cbfd5cc26e58601d6d82670b9086` | `212fa6d64c10a1bab3f4430edc39093bbec43cf10ed805eaadd8bf0515c8adce` |
+| 2 | `ab626fe52deb4f8a5d3a72be3eea55c00273ac5fa475fef32ce1c7061fef4901` | `f9591e3d3d71b0c2252098112e6e875735117da188d4a15f591cc98a9be32aeb` | `88364bd35393a19fab6e4b6ef6cb1747abd232defb774aa4f047c6e0aebe1316` |
+| 3 | `83dd9247a7905e08a6c78f449b554a7df4ea2931bd54808a9fcb4c4a2c8f2afd` | `9aadf2d38611de4f3bff785a60b38b874ebe3324950f5f5159d392b793c789e6` | `03a7102fc88bd531bcd835cc1ecaf6be8a091964e593af2ea3e6ec6335a4ee20` |
+| 4 | `a833ae793870528d1f2b354e9d7c3baa5f2a1aa92eed43b7aab499b175f5066e` | `c15152521fbd1d09dffa13707ebf11d1fecbe178c2bb5fd9ff48d2c05eb567bb` | `48ac143ac07ba3ba649b3a7661f658f3ed9c7e30babd9f729f57d5a94edabcce` |
+| 5 | `0dc08ee398105f59157e4810095eb1b4c0d8c8c65196a57cb9519e09d2a86390` | `eb1978bbcda1d7c2128f8f7d7452ba5dcc75b0c994ee2ec2daefca9fd99bd2ed` | `191e5f02e22bfb8a9e0dd6ed43b3826e21271f3d00d346c6cbe4db3724dd8a81` |
+| 6 | `ed5fe015be7514e6eb246d74a609235ab7dcb3e50da5fab66853b013c871dedd` | `91f3fe5703d4a49d2ec251a4a04753f70b8f8f0cf941ec884255983f1a2cbbf2` | `73e1b9cc53f3bf56dc3c8066d497a071fe20780db6d26a3b4e4360ecdbb1cdcc` |
+| 7 | `43aa45bf6069c8f9c13e7cf51b444c2b7aff01d1e61cc4a4b09935181eb7a18c` | `e8de70e1915ef65c64fcc808c1517df5f94078b2994d96e26a95fe020653c932` | `39a4bd3b15cf084baabd0b132efa19e40c99c35cbfebbe0d12a378ce08928395` |
+| 8 | `6801d0766737076cd14f66bf93a4c04a1d6b1f7eb47d646e22baa7e33202f5ad` | `e9e08414f75702be6d649bb3e92e428ba6005d5a0be0f79f40defe27c8020484` | `5e8f92db59099d8632458a17160b0cfa49455991cff437fb55bd1567084db57d` |
+| 9 | `dd265a3ea64c1094e13ba6ddb2bec8667b22e5972c6c22ea3de65ac51a13850b` | `96ed5a7ce42ff0653345f92584ced4cb2f750a7151a1261925e4a142a8515035` | `51c408d3513fec41467f7406053c487d992e49cbf653ebde450beea339c8e901` |
+| 10 | `b70ce241ab85917aae9395ac4ab17e29703d22dac6f0b9ef1bf75710edad4ba4` | `a5b37e91b5fefcde9d7832fca5090f54d4b271a9f0483c8305138e85a35577c8` | `89bc56654eb350b9c65c38abff00bc84ba015e8e1d9fa8d13867066e7ddf57fe` |
+| 11 | `4870889415183380a92a03991b94afb62427a6ca6e186e4514391ec1d793f64d` | `51bc22b6293069506570799bd128292ca1ed6a19a8cb990a29eec278260be86b` | `092e873c417d35a99847fca1481a379ccfface7da81807efd7591f04e4e688ea` |
+| 12 | `381d92278cb709845f0dc77748decd0be343b58a943b82661baac7714d9ca9c4` | `96977eada7a9614fb1b6de1b7ffc265719dae78407e8dac2942c6ab2565a165d` | `65898b096596195b918937f0ed16441803caed46b11302c681a6c14d651a7487` |
+| 13 | `ef130981a74fabe4177d3892b4af2a77ca2957f5f2861a822efdcf1108cdf9dd` | `933a88b2b425a3fc5df5f25ed889561944389fb5fadb42b01c51dfc69f24e13b` | `e941e1843956bea26aa0ead4eb115e1779a2cd64040849d155846a262bcc7468` |
+| 14 | `756ea6c0ed2faf9c4c53e11ee89a4c9e59ee353d4c3ff7d8b4d4997432dd14cf` | `36b8e0a0c73b9b2bc3ca09aa5f6eaf45a02dadc4774284590a4dd77a28814ea3` | `faf989365771bb200b819f8581f26042faa5b40c3824d91e96fc40dcb0114134` |
+| 15 | `64a1c98749af85ac70e758e2ca8e1ca9031c632eb745756d9d931de692772430` | `4496e15bfac00efc9d16717df93ceab17fb6734ccbc713dbffdb4f2bb3f23a8f` | `001e60586a84c077185c069a4a8516b5f0013c654ec66c234a9d54f61fd432fa` |
+| 16 | `9512239718f02a8dcab3d8402ca3af90944746f9244a15a11522c7535e916a21` | `2e1c9deb04f122f4c6788dc7052a4253b8783bc57a6c1e14e08ef578b5e7ecfe` | `9c8f73665427282f5639ee09a21eceea835e87c68a52ae350d97fc7e580517d0` |
+| 17 | `774ee0bc452c29edb835991e335218ba24be5743aff66ca090b73329cde2f27b` | `9af3602e84c1f56bfd6303c418188ded856b6df9334e340022b40904b7a3f966` | `2bd4bf10ca1a1c28fcab5bcce4b78c8ea83bcf88d6944f8c9bf4199bf98f1816` |
+| 18 | `76dc0f3bd1e4fde5ce456daed322f5e6adc085cdeeb272ab9024d90d02386a2f` | `5ae91f6e83ebe45b936e40dd12367d785a080e2c130ce0c07c335807f3cf9ed9` | `16bab62413dd3393e977ec86e12d8dc8b8c5261b0c1eb310016e6c42e7649583` |
+| 19 | `f7fb0e2051ad644cb77e8d4fc6178acb5f05d03822f185fbd146a6426d1c230e` | `e321d8c6092b7e0159bbb53b6f9958c676a8a9be98b6ae537938a2fad18e5847` | `b6748318af3d1e82c7e9b5fd7d7fda45e891f30cde5eed8fb84e0b1cf6402a5d` |
+| 20 | `0df9a096c9db3fd28dbfdcaab0ed81f45d1080de691cc786df95a9d05ebd2c11` | `c1e348652c3c2e1a91fd6f55e31a9ad752c3cf7f452e1eb8eb38ac9eaef0354c` | `4aaae0aa12783baf61fbad902dd8c697e39f3f48c4e337f542058c97ba8f1f86` |
+| 21 | `7888402e41cf424e1dc33e40b8b207639bec04b2ceeebbe62b5a47c8a045232a` | `8a6c9a09268829b545c8abbb5af3c83b675136c28dbdaa47da6c65f3f496158b` | `b3a2c0f4144bc978c653a6502137c8a9e3c584151298d288474973df7bfee2ef` |
+| 22 | `0a8fec4e10b42e863cfed7a2531e409c370530262ffd86389c4b4c506540743d` | `6fa4b1a0f46c7d80724a2881e5475dffa9da29b4a5b6720e6b03fa48797a42ba` | `1604c09b77f92fb2c7b0440a7c6abca1b734cd6327d77996a997536a65b4d36d` |
+| 23 | `3c096c94f6a2b9e0ea609ae06c2a5429856f19f6ad04d696739e89243ef313c1` | `97bdb0a1d57ed3d4501f078003893d7744a3280689ed6d312b752e8fcb6084d8` | `03cc38fac91e0ae80593ae99de52e508d1b2d9ca4e51a6b7822573ea6aa62a4e` |
+| 24 | `17be05344ed9f815f1f53a14da978397b723eb2695c758f1908af2bb6b7f744c` | `4650b8838ed9f5a234bf9e296418dd68bc96b35688e1cabc77b76913af39dce6` | `94da6c8790a74cdc0facb4dc6af0a87dd5895adcc659e717175cc1d9988f7756` |
+| 25 | `5b8aa5f7564a2739d7bb93ddd17c9af99ec37d79358ae39ee3525eb7ac4c2ccb` | `8429d7833308bb6028236e8fdacabc2140831bf2e8b3c31a16d0694e2f734414` | `bf5072e9f6d054dd701a0adf9e192411e9f1c1b748f49be4106e1fd82ced94e9` |
+| 26 | `fe41091d0938d087ec88c995795bd3adb9fcd82e6e62434cd6bb9c93f03d1b6c` | `f02ce7953561ba0dfd0caff1b40f6b3c2ee9334a075e0b7878d16b20a48dd0a2` | `6c91ab313df2cf0c84be90d9c227e6859e09715ff58f54711e60ecc4dfb477ae` |
+| 27 | `c82f87f4e1355acaf677c9513885951df975cab4dda23eebdfcc007190e98f83` | `0633558253645a890fc5f78e9eb44fcec3a27c7ff6149928ae31d3da6a3de877` | `e0ef6efcca50d5b6f946dad2b1837efcea4222459b554d5581d78ea2f4aac97a` |
+| 28 | `b2178ba9b6abc755c9b4affb9b537c91b7a79aec8b9c688bd4beaef268ca2274` | `cf7083e3b5a8a4de836008248c8396b031e04d5a757c1807a9ba15aefccfeb44` | `629c348491b55d5a9230c3b6152038241828968d91ec54af4026fea540d49ac7` |
+| 29 | `fb83f56d01fb3d17b114d86ad8e4cba1170a816d47d20326af1104438cb505e9` | `83585af7b3f2d7bd7a830b6ddb955ddf8021232c41581d339043381a3003e93a` | `ba9d5074ce204d8efe3eb7102e5efaeabac87a4f31e8aa4170b43421cc71253c` |
+
+## Evidence interpretation
+
+Existing test records continue to name their original historical SHA. Those results were not
+retrospectively moved to the rewritten SHA. The rewritten candidate is verified separately after
+this mapping is committed; that new verification establishes the exact final candidate rather than
+altering the meaning of the older evidence.
