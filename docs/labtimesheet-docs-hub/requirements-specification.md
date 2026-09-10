@@ -11,8 +11,17 @@
 | Product language | English |
 | Business timezone | `Asia/Ho_Chi_Minh` |
 | Database baseline | PostgreSQL 18.4, 23 application tables |
-| Companion DDL | [`database-schema.sql`](database-schema.sql) |
+| Companion DDL | `database-schema.sql`, not tracked in this repository |
 | Review state | Not approved for implementation |
+
+> **Companion files.** This document was authored in a separate documentation
+> repository and copied here on 26 August 2026. Its companion `database-schema.sql`
+> and the three `assets/ui-reference-*.png` images stayed behind and have never
+> been tracked in this repository, so the links to them below do not resolve.
+> The live schema is [`V1__baseline.sql`](../../src/main/resources/db/migration/V1__baseline.sql)
+> plus [`V2__add_task_effort_planning.sql`](../../src/main/resources/db/migration/V2__add_task_effort_planning.sql),
+> which together create twenty-four tables; §19.4 below carries the physical
+> table diagram. Ask the document owner for the reference images if you need them.
 
 ## 1. Authority, purpose, and scope
 
