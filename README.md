@@ -53,6 +53,7 @@ layouts stay best effort; desktop is the supported target.
 | How do I run and write tests | [TESTING.md](TESTING.md) |
 | How do I deploy | [DEPLOYMENT.md](DEPLOYMENT.md) |
 | What is planned and who owns it | [`.agents/PROJECT_PLAN.md`](.agents/PROJECT_PLAN.md) |
+| Which test protects which rule | [`docs/traceability.md`](docs/traceability.md) |
 | What evidence backs a behavior | [`docs/tests/`](docs/tests/README.md) |
 | Rules for AI agents working here | [AGENTS.md](AGENTS.md), [CLAUDE.md](CLAUDE.md) |
 
