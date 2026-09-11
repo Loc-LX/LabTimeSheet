@@ -43,7 +43,7 @@ right-hand column can be changed without any test turning red.
 
 ## Rules no test protects
 
-These 37 rules describe behaviour a test could assert, and none does.
+These 37 rules describe behavior a test could assert, and none does.
 Each is a place where the code can drift away from the requirement without
 anything failing.
 

@@ -16,8 +16,28 @@ unapproved and no test written against the affected rule is authoritative.
 3. The affected numbered rules are edited to match.
 4. Anything that contradicts the answer, in code or in tests, is then a defect.
 
-A decision recorded here outranks the current behaviour of the application. Where
+A decision recorded here outranks the current behavior of the application. Where
 they disagree, the application is wrong.
+
+## Where these stand
+
+| | Question | Answer | Rules it changes |
+|---|---|---|---|
+| D1 | Admin access to detailed Intern attendance | Permitted | `RPT-004`, `RPT-011` |
+| D2 | External issue tracker in scope | Excluded; report presets deferred | `GOV-015` |
+| D3 | A separate document per feature | One canonical location per rule | `GOV-016` |
+| D4 | Exact version pinning for test tooling | Range is enough; action still open | `ARC-004` |
+| D5 | The recovered appendices | Edited, not kept as written | Appendices C–F |
+
+Four of the five are settled by adopting what was already built or already
+decided, rather than by a fresh judgement about the business. That was a
+deliberate choice, and the reasoning was that the instructor will test the
+product, and that a problem found then can be fixed because the documentation is
+now structured well enough to carry the change.
+
+For that to hold, every decision below states what reversing it would cost. Read
+those costs as the price of the choice, not as a formality. Without them,
+"we can fix it later" is a hope rather than a plan.
 
 ## D1. May an Admin see one Intern's detailed attendance?
 
@@ -62,10 +82,10 @@ Three facts worth weighing before answering.
 | B. Admin may not see it. | `RPT-004` and `RPT-011` revert, the permission matrix changes, and the reporting code and its tests must be changed to deny Admin. |
 
 **Decision:** A. Admin may view detailed Intern attendance, on the same footing
-as an active Mentor. The shipped behaviour is adopted as the rule.
+as an active Mentor. The shipped behavior is adopted as the rule.
 
 This knowingly overrides the 27 August 2026 written ruling quoted above. The
-stated reasoning is that the behaviour is already built, and that reversing it
+stated reasoning is that the behavior is already built, and that reversing it
 later carries low risk because Admin holds no Project, Task, or Daily report
 scope and the change would be confined to the reporting feature.
 
@@ -100,7 +120,7 @@ Report cover the same ground without any external service. Iteration 4 was calle
 `GOV-015` draws the boundary of that partial slice. Its source is a decision
 record removed from the working tree in commit `d5b1754` and still readable at
 `d5b1754^`. Question 1 of that record was answered "build local Jira/Tempo-inspired
-behaviour; do not integrate with external Jira or Tempo APIs".
+behavior; do not integrate with external Jira or Tempo APIs".
 
 One correction belongs with this question. `GOV-015` says the product "shall not
 offer Weekly or Monthly report presets". The record does not say that. Answer
@@ -116,9 +136,28 @@ rule as written is stronger than the decision behind it.
 | B. Confirm the exclusion as written. | Weekly and Monthly presets become forbidden rather than postponed, which is a new decision, not the recorded one. |
 | C. Withdraw it. | `GOV-015` is deleted. External integration becomes unanswered rather than answered no. |
 
-**Decision:**
-**Decided by:**
-**Date:**
+**Decision:** A. The exclusion holds, and the Weekly and Monthly clause is
+softened from forbidden to deferred.
+
+`GOV-015` is rewritten as two clauses of different force.
+
+- **Prohibited in v1.** No integration with external Jira or Tempo APIs, no mirroring of issues, sprints, or story points, no Tempo accounts or synchronization, and no `SUBMITTED` state with a Leader acceptance and rejection workflow. Any of these requires a new numbered rule and a recorded decision.
+- **Deferred, not promised.** Weekly and Monthly report presets are outside the v1 acceptance scope and are deferred for later consideration. Deferral is not a commitment to build them.
+
+This is not a fresh judgement. It restates the prior team's answer to question 1
+of the 26 August 2026 decision record, "build local Jira/Tempo-inspired
+behavior; do not integrate with external Jira or Tempo APIs". That record is no
+longer in the working tree and is readable at `d5b1754^`.
+
+The search that confirms it: across the whole codebase the words Jira and Tempo
+appear once, in a comment on line 1 of `V2__add_task_effort_planning.sql` naming
+the feature. No client, no credential, no dependency. The rule describes what
+exists rather than choosing something new.
+
+**Decided by:** the prior team, 26 August 2026, question 1. The split between
+prohibited and deferred was settled by Loc-LX.
+
+**Date:** 2026-09-11
 
 ## D3. Does a future feature get its own specification document?
 
@@ -140,9 +179,36 @@ numbered rule that describes how people work should be one the team agreed to.
 | A. Keep it as a numbered rule. | The layering is enforceable through review, and a feature document that claims precedence is a defect. |
 | B. Move it out of the numbered rules. | It becomes guidance in the contributing guide, and nothing in the specification prevents the pattern recurring. |
 
-**Decision:**
-**Decided by:**
-**Date:**
+**Decision:** Neither option as written. `GOV-016` is replaced by a shorter rule
+that says what actually matters, and the layering mechanics move to the
+contributing guide.
+
+The replacement text:
+
+> Every requirement has exactly one canonical location, and a change in business
+> behavior updates that location. A new feature is documented in the same form as
+> the features already documented: numbered rules under an applicable prefix, and
+> acceptance scenarios in section 20. Splitting the specification across separate
+> documents is an organizational choice made when it helps, never a goal, and no
+> separate document overrides the canonical location of a rule.
+
+Two things are deliberately different from the rule it replaces. It no longer
+describes a parent-child document hierarchy, which was machinery for a problem
+the project does not have. And it states the test a reader can apply by eye: open
+the new feature's rules and check that they carry a prefix and an acceptance
+scenario, exactly as the effort-planning feature did with `TSK-020` through
+`TSK-022`, `DB-013`, and `RPT-011` through `RPT-013`.
+
+Per-feature specification files are **deferred, not rejected**. The rules split
+cleanly by feature, 150 feature-owned against 119 that cross every feature, and
+the seven feature groups match the seven code packages exactly. When that split
+is made, each feature file inherits the cross-cutting rules by reference and
+never restates them, and a check asserts that every one of the 269 identifiers
+appears in exactly one file.
+
+**Decided by:** Loc-LX.
+
+**Date:** 2026-09-11
 
 ## D4. Must test tooling versions be pinned exactly?
 
@@ -165,9 +231,31 @@ mismatch is why the pipeline on `main` fails.
 | A. Pin test tooling exactly. | A new numbered rule states the pinning policy, and `package.json` is corrected to the asserted version. |
 | B. A compatible range is enough. | The assertion has no requirement behind it and is retired. |
 
-**Decision:**
-**Decided by:**
-**Date:**
+**Decision:** B in principle. A compatible range is sufficient for test tooling.
+The version actually used is recorded by each test run rather than asserted as an
+equality inside a test.
+
+The action that follows is **not** decided and is not a documentation change.
+Correcting one assertion would fix that assertion and prove nothing about the
+rest of the pipeline, so the change is handled separately with its own
+verification. Four things have to be established first.
+
+1. Why `1.55.0` was pinned, and whether any behavior depended on it.
+2. What the upgrade to `^1.62.1` changed. It was made inside commit `73df96b`, whose subject is `chore: remove redundant docs files` and which also deleted the requirements specification. The version change has no recorded reason of its own.
+3. What the lockfile resolves to now.
+4. An actual run, not an inference from the assertion.
+
+One consequence is already visible. The recording place used to be the
+hand-written evidence files under `docs/tests/`, which are slated for removal.
+Recording per run therefore has to mean the pipeline prints the resolved version,
+not that a person types it into a file afterwards.
+
+Until the investigation closes, this stays the open question in section 22.3,
+with an owner rather than an answer.
+
+**Decided by:** Loc-LX for the principle. The action is unassigned and open.
+
+**Date:** 2026-09-11
 
 ## D5. Do the recovered appendices stay in the baseline?
 
@@ -197,9 +285,27 @@ date.
 | B. Keep them as they are. | The reader gets the flows and the screen list, and must respect the staleness warning. |
 | C. Remove them. | The document shrinks to the numbered rules and the acceptance catalogue, and the use-case flows and message catalogue exist nowhere. |
 
-**Decision:**
-**Decided by:**
-**Date:**
+**Decision:** A, edited rather than kept. Keeping stale text because a previous
+author wanted it is not a reason. A "non-normative" label lowers a section's
+authority; it does not make its content true, and it leaves the reader to work
+out which paragraphs still apply. Whatever is wrong or duplicated is removed, and
+whatever survives is checked against the code.
+
+Each appendix was measured before this was decided.
+
+| Appendix | Lines | Finding | Action |
+|---|---:|---|---|
+| C, use-case specifications | 350 | Fourteen use cases. Nothing covers the Daily Project Work Report or Task effort planning, and the Admin reporting scope predates D1. | Update in place. Correct Admin scope, and either add the two missing flows or state plainly that they are uncovered. |
+| D, screen inventory | 95 | Forty-eight screen identifiers. Forty-five appear nowhere in `src/`, and none resolves to a route: `admin-users` against the real `/admin/accounts`, `intern-leave` against the real `/leave`. | Rewrite anchored to real routes, verified against the controllers. A row a reader cannot follow is removed. |
+| E, desktop mockups | 589 | Fifty entries repeating Appendix D's own fields, each ending in a note that the image is held in another repository. | Delete. It duplicates a 95-line table, and the part that was not duplication is not in this repository. |
+| F, business rules and messages | 34 | Currently accurate; both checkable claims match `ATT-009` and `ATT-010`. But it restates numbered rules in different words, which is a second canonical location and is what D3 now forbids. | Delete the business-rules half. Keep the message families only where they state something no `ERR` rule states. |
+
+The appendices go from roughly 1 071 lines to roughly 450, and every remaining
+line can be checked against the code or against a numbered rule.
+
+**Decided by:** Loc-LX.
+
+**Date:** 2026-09-11
 
 ## Decided without escalation
 

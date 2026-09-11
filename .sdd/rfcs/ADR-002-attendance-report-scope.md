@@ -44,7 +44,7 @@ and configuration guidance only.
    admits `ROLE_ADMIN`, the shared layout exposes the Attendance report link to
    `hasAnyRole('ADMIN','MENTOR','INTERN')`, and `AttendanceReportQueryService` documents Admin and
    Mentor as holding the same target scope. `README.md` and `PRODUCT.md` describe the same
-   behaviour. Only the deleted requirements document dissented.
+   behavior. Only the deleted requirements document dissented.
 3. The position is not novel. It restores what the 17 August SRS already specified, so this is the
    team reverting its own 27 August change rather than code diverging from an approved rule.
 4. Correcting the document is the smaller and safer change. The opposite choice would require
