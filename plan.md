@@ -440,20 +440,10 @@ Handoff template:
 
 ## 11. Global definition of done
 
-A tracker item is complete only when:
-
-- the numbered requirement and acceptance behavior are satisfied;
-- the test existed and failed for the intended reason before production code;
-- focused and affected suites pass;
-- authorization and negative cases are covered where applicable;
-- PostgreSQL-specific rules are tested against PostgreSQL, not H2;
-- concurrency/deadline/history behavior has proportionate evidence;
-- UI behavior uses server-side authorization and shared fragments;
-- documentation/evidence paths are recorded in this tracker;
-- new or changed production types and public/protected methods have accurate Javadoc created during implementation (Iteration 1 retrofit exception only);
-- no unrelated files or another branch's ownership area were changed without coordination;
-- the final branch head is green;
-- integration does not alter totals, state graphs, or historical meaning.
+The list lives in
+[`.sdd/constitution.md`](.sdd/constitution.md), under Layer 3, Definition of
+done. It was kept in both places until 11 September 2026 and the two copies had
+already diverged, so this tracker now points at the one that binds.
 
 ## 12. Progress log
 

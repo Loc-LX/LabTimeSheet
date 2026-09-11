@@ -41,34 +41,63 @@ Three layers, from strictest to most negotiable:
 | ID | Rule | Enforced by |
 |---|---|---|
 | `GOV-004` | Attendance time and Task work time are separate domains. Neither proves nor derives the other. | No single test. Upheld by keeping `attendance_records` and `task_work_logs` in separate features with no shared read path. |
-| `GOV-005` | Historical business results must not change because an Admin later edits workdays, schedule, grace, quota, penalty, or the calendar. | `AttendancePersistenceIntegrationTest` |
-| `GOV-011` | Business dates resolve in the attendance policy version's timezone. Persisted instants are `timestamptz` and treated as UTC. | `ApplicationTimeZoneIntegrationTest` |
-| `GOV-012` | Server time is authoritative for check-in, checkout, submission, decision, activation, expiry, and lifecycle timestamps. Browser timestamps are never trusted. | `AttendanceServiceTest` |
-| `GOV-013` | Mutable aggregate updates are transactional and use optimistic locking. Quota, daily work totals, bootstrap, and transfer workflows serialize further. | Covered per workflow in the concurrency evidence under `docs/tests/integration/`. |
+| `GOV-005` | Historical business results must not change because an Admin later edits workdays, schedule, grace, quota, penalty, or the calendar. | `AttendancePersistenceIntegrationTest#approvedLeaveBlocksOnlyItsFrozenAllocatedDates`, `#calendarDayOffBlocksCheckInAndPastEventsAreImmutable` |
+| `GOV-011` | Business dates resolve in the attendance policy version's timezone. Persisted instants are `timestamptz` and treated as UTC. | `ApplicationTimeZoneIntegrationTest` covers alias canonicalization before startup only; resolution against the policy version is a gap |
+| `GOV-012` | Server time is authoritative for check-in, checkout, submission, decision, activation, expiry, and lifecycle timestamps. Browser timestamps are never trusted. | `AttendanceServiceTest#exactCheckInGraceBoundaryIsOnTimeAndFirstLaterInstantIsLate`, `#checkoutIsInclusiveAtCutoffAndCannotBeOverwritten` |
+| `GOV-013` | Mutable aggregate updates are transactional and use optimistic locking. Quota, daily work totals, bootstrap, and transfer workflows serialize further. | `BootstrapIntegrationTest#concurrentBootstrapCreatesExactlyOneAdminAndPermanentlyCloses`, `AccountRecoveryLockOrderIntegrationTest#concurrentAccountFirstConsumptionAndIssuanceComplete` |
 | `GOV-014` | Historical records are retained behind restrictive foreign keys and lifecycle or soft-delete fields. Normal UI operations never physically delete accounts, Projects, memberships, or Tasks. | No single test. Enforced by schema constraints in `V1__baseline.sql`. |
 
 ### Security
 
 | ID | Rule | Enforced by |
 |---|---|---|
-| `SEC-001` | Session authentication, server-side authorization, object ownership checks, CSRF protection, Bean Validation, and output escaping are always on. | `BootstrapIntegrationTest` |
-| `SEC-002` | Passwords are 12 to 128 characters and use the delegating adaptive encoder. No composition rules. | `AccountActivationIntegrationTest` |
-| `SEC-003` | Activation and reset tokens use cryptographically secure random bytes. Only the 32-byte SHA-256 hash is stored. | `AccountRecoveryIntegrationTest` |
-| `SEC-004` | Activation tokens expire after 24 hours, reset tokens after 30 minutes. Issuing a token invalidates the older one. | `AccountRecoveryIntegrationTest` |
-| `SEC-005` | Login and password-reset responses are generic and never reveal whether an email exists, is pending, or is locked. | `AccountRecoveryLockOrderIntegrationTest` |
-| `SEC-006` | Login throttling keys on normalized email plus source IP. Five failures in 15 minutes create a 15-minute throttle; a success clears it. | `LoginThrottleTest` |
-| `SEC-008` | Redirect targets are allow-listed and local. State-changing endpoints reject open redirects and user-supplied class names. | `SecurityResponseIntegrationTest` |
-| `SEC-009` | Error pages never expose stack traces, SQL, secrets, internal IDs from unauthorized records, or existence signals. | `UserActionTokenCleanupIntegrationTest`, `SecurityResponseIntegrationTest` |
-| `SEC-010` | Production requires an HTTPS public base URL and explicit trusted-proxy configuration before it is considered ready. | `ProductionReadinessTest` |
-| `SEC-011` | Production enables HSTS, `Secure` and `HttpOnly` session cookies, `SameSite=Strict`, and strict origin checks. | `ProductionReadinessTest` |
-| `SEC-012` | Forwarded headers are trusted only on an explicitly enabled and constrained proxy path. | `TrustedForwardedHeaderFilterTest` |
-| `SEC-014` | Production startup fails when the master key, public origin, datasource, or proxy policy is absent or unsafe. | `ProductionReadinessTest` |
+| `SEC-001` | Session authentication, server-side authorization, object ownership checks, CSRF protection, Bean Validation, and output escaping are always on. | no single test; see the note below |
+| `SEC-002` | Passwords are 12 to 128 characters and use the delegating adaptive encoder. No composition rules. | `PasswordResetIntegrationTest#resetPostRejectsPasswordsOutsideTheTwelveToOneTwentyEightCharacterBounds` |
+| `SEC-003` | Activation and reset tokens use cryptographically secure random bytes. Only the 32-byte SHA-256 hash is stored. | `PasswordResetIntegrationTest#resetTokenPersistsOnlyItsHashExpiresExclusivelyAndIsSingleUse` |
+| `SEC-004` | Activation tokens expire after 24 hours, reset tokens after 30 minutes. Issuing a token invalidates the older one. | `PasswordResetIntegrationTest#resetTokenExpiresAtExactlyThirtyMinutes`, `AccountRecoveryIntegrationTest#resendInvalidatesPriorActivationTokenBeforeSendingFreshLink` |
+| `SEC-005` | Login and password-reset responses are generic and never reveal whether an email exists, is pending, or is locked. | `PasswordResetIntegrationTest#forgotPostUsesOneGenericResponseForActivePendingLockedAndUnknownAccounts`, `PasswordRecoveryWebIntegrationTest` |
+| `SEC-006` | Login throttling keys on normalized email plus source IP. Five failures in 15 minutes create a 15-minute throttle; a success clears it. | `LoginThrottleTest#fiveFailuresWithinFifteenMinutesThrottleTheSixthAttempt` |
+| `SEC-008` | Redirect targets are allow-listed and local. State-changing endpoints reject open redirects and user-supplied class names. | `NotificationActionContractTest#acceptsOnlySafeRelativeApplicationRoutes`, `OriginEnforcementFilterTest#mismatchedOriginIsRejectedForStateChangingRequests` |
+| `SEC-009` | Error pages never expose stack traces, SQL, secrets, internal IDs from unauthorized records, or existence signals. | `SharedErrorTemplateWebTest` |
+| `SEC-010` | Production requires an HTTPS public base URL and explicit trusted-proxy configuration before it is considered ready. | `ProductionReadinessTest#productionOriginIsCanonicalAndRejectsBracketedIpv6Loopback` |
+| `SEC-011` | Production responses carry HSTS, a restrictive content policy, frame denial, and referrer suppression. Session cookies are `Secure`, `HttpOnly`, `SameSite=Strict`. | referrer only, in `SecurityResponseIntegrationTest#authenticationAndActivationResponsesDoNotSendReferrers`; the rest is a gap |
+| `SEC-012` | Forwarded headers are trusted only on an explicitly enabled and constrained proxy path. | `TrustedForwardedHeaderFilterTest#untrustedSocketWithForwardedHeadersIsRejectedBeforeHeaderAdaptation` |
+| `SEC-014` | Production startup fails when the master key, public origin, datasource, or proxy policy is absent or unsafe. | `ProductionReadinessTest#unsafeProductionInputsFailWithoutEchoingSecrets` |
+
+`SEC-001` is too broad for one test. `SecurityConfiguration` builds the filter
+chain, and every `*WebTest` that asserts a denial exercises one slice of it. No
+test asserts the rule as a whole, so treat the row as a description of intent
+rather than a claim of coverage.
+
+`SEC-011` is the sharpest gap on this page. `AC-SEC-008` fixes exact directive
+values for `Strict-Transport-Security`, the content policy, frame ancestors, and
+the cookie attributes, and no test reads a single one of them back. The headers
+are configured in `SecurityConfiguration`; nothing proves they survive a change
+to it.
 
 ### Secrets
 
-Secrets never enter the repository. SMTP and HolidayAPI credentials are
-Admin-managed and encrypted with a deployment-provided master key. The tracked
-`.env.example` holds placeholders only; the real `.env` is git-ignored.
+| ID | Rule | Enforced by |
+|---|---|---|
+| `OPS-004` | Committed examples hold placeholders only. Real `.env` files, private run configurations, and master keys stay untracked. | `.gitignore` and `.dockerignore`; no test reads the example files back |
+
+SMTP and HolidayAPI credentials are Admin-managed and encrypted with a
+deployment-provided master key.
+
+### Supply chain
+
+Application security and delivery security are different problems, and the rules
+above only cover the first.
+
+| ID | Rule | Enforced by |
+|---|---|---|
+| `OPS-012` | Only `main` publishes an image to the registry, and every publication carries the immutable commit SHA tag. A moving `main` tag is a convenience alias only. | the `gitea.ref == 'refs/heads/main'` conditions and the `sha-${GITEA_SHA}` tags in `.gitea/workflows/container.yml` |
+| `OPS-016` | The workflow uses the `vars` and `secrets` contexts and does not treat a job environment as a security boundary. | reading the workflow; nothing checks it |
+| `OPS-017` | Runner access to a Docker socket is limited to trusted repositories and operators. Untrusted fork code never receives publication or deployment secrets. | runner configuration outside this repository; nothing here can prove it |
+
+`OPS-016` and `OPS-017` are the weakest rows on this page. Both describe how the
+runner is configured, and a repository cannot verify its own runner. They are
+stated so that a reviewer knows to ask, not because anything here enforces them.
 
 ---
 
@@ -76,14 +105,22 @@ Admin-managed and encrypted with a deployment-provided master key. The tracked
 
 | ID | Rule | Enforced by |
 |---|---|---|
-| `ARC-001` | One server-rendered modular monolith on Java 25 and Spring Boot 4.1.0. | `ApplicationTimeZoneIntegrationTest` boots the real context |
-| `ARC-002` | Backend uses Maven, Spring MVC, Security, Data JPA, Bean Validation, Thymeleaf, Spring Mail, and Flyway. | `pom.xml`, `ReportingDependencyContractTest` |
+| `ARC-001` | One server-rendered modular monolith on Java 25 and Spring Boot 4.1.0. | the build refuses to compile on another version; no test asserts the shape |
+| `ARC-002` | Backend uses Maven, Spring MVC, Security, Data JPA, Bean Validation, Thymeleaf, Spring Mail, and Flyway. | `ReportingDependencyContractTest` covers the reporting libraries only |
 | `ARC-003` | PostgreSQL 18.4 is the database family for production, development, and integration tests. PostgreSQL-specific rules are tested against PostgreSQL, never H2. | Testcontainers configuration in `TestcontainersConfiguration` |
-| `ARC-004` | The UI toolchain pins Node 24 LTS and Tailwind CSS 4, uses `npm ci`, and commits the lockfile. | `UiContractWebTest` |
+| `ARC-004` | The UI toolchain pins Node 24 LTS and Tailwind CSS 4, uses `npm ci`, and commits the lockfile. Test-tool versions are not pinned by assertion; each run records the version it used. | the `Set up Node 24`, `npm ci`, and `Verify generated assets are committed` steps of `.gitea/workflows/verify.yml` |
 | `ARC-005` | `LabtimesheetApplication` stays in the root package. Shared wiring lives in `config`. Business code groups under `feature.<name>` for `account`, `attendance`, `integration`, `notification`, `project`, `reporting`, and `task`, each adding only the layer subpackages it needs. Tests mirror those packages. | `LayerStructureTest`, `AttendanceLayerStructureTest` |
 | `ARC-006` | Controllers bind validated DTOs and delegate to services; services use repositories and entities. A feature may call another feature's service contract and DTOs but never its repositories or entities. No business SQL. Flyway and schema verification are the only direct-SQL boundary. | `LayerStructureTest` |
-| `ARC-007` | Flyway is the sole production schema authority. JPA schema generation is validation-only outside disposable tests. | `ProjectPersistenceStructureTest` |
-| `ARC-008` | The reviewed design DDL is a baseline, adapted into Flyway migrations rather than executed directly. | `PlatformFoundationTest` |
+| `ARC-007` | Flyway is the sole production schema authority. JPA schema generation is validation-only outside disposable tests. | `PlatformFoundationTest#flywayCreatesApprovedPostgresCatalog` |
+| `ARC-008` | The reviewed design DDL is a baseline, adapted into Flyway migrations rather than executed directly. | `PlatformFoundationTest#flywayCreatesApprovedPostgresCatalog` |
+
+### Delivery
+
+| ID | Rule | Enforced by |
+|---|---|---|
+| `OPS-011` | A trusted repository-scoped runner verifies Maven tests, PostgreSQL and Flyway integration, and the frontend build before anything is published. | the job steps in `.gitea/workflows/verify.yml` |
+| `OPS-013` | The pipeline stops at build and publish. It does not connect to an unprovisioned production host. | the deployment job is gated on `DEPLOY_ENABLED` |
+| `OPS-014` | The SSH deployment job is a dormant template, active only on `main` and only when the repository variable enables it. | the same gate, plus `GOV-010` naming it as not yet active |
 
 ### Excluded by decision
 
@@ -123,13 +160,27 @@ document overrides the canonical location of a rule.
 | `TST-005` | A tracked Markdown evidence file is created with the first failing test, under `docs/tests/<type>/`. | None |
 | `TST-006` | Evidence directories are exactly `unit`, `integration`, `web`, and `e2e`. One file covers one feature, not one Java class. | None |
 | `TST-007` | Evidence records requirement IDs, protected behavior, preconditions, the automated class and method, hand-derived expected results, and commands run. | None |
+| `TST-008` | Evidence is updated on the same branch as its tests and implementation. A Markdown claim never replaces executable CI evidence. | None |
 | `TST-009` | Human prose and simple configuration do not receive artificial unit tests. Their evidence is the smallest executable validation. | This rule is itself the documented exception to `TST-001` |
 | `TST-010` | A milestone is committed only when evidence is current, narrow and affected suites are green, and no unexplained error or warning remains. | None |
+| `GOV-006` | A feature absent from the specification needs a new reviewed decision. Adjacent scope is never silently authorized. | None |
+| `OPS-019` | Shared build, migration, security, navigation, and base-template files have one named owner at a time. | None |
+
+`TST-008` is the rule that the errors in this document's own enforcement columns
+violated: a Markdown claim that a test protects a rule is not evidence that it
+does. Three rows named a class that exists and tests something else, which is
+exactly the failure `TST-008` describes, committed by the document that indexes
+it.
 
 ### Definition of done
 
-A tracked item is `DONE` only when all of the following hold. The list is
-maintained in [`plan.md`](../plan.md).
+**This is the canonical list.** It used to live in `plan.md` and be copied here,
+and the copy had already drifted: it said `public methods` where the original said
+`public/protected methods`, and it had dropped the Iteration 1 exception
+altogether. That is `GOV-016` broken by the document that states it, so the list
+moved here and the tracker now points at it.
+
+A tracked item is `DONE` only when all of the following hold.
 
 - The numbered requirement and its acceptance behavior are satisfied.
 - The test existed and failed for the intended reason before production code.
@@ -139,8 +190,8 @@ maintained in [`plan.md`](../plan.md).
 - Concurrency, deadline, and history behavior has proportionate evidence.
 - UI behavior uses server-side authorization and shared fragments.
 - Documentation and evidence paths are recorded in the tracker.
-- New or changed production types and public methods carry accurate Javadoc written during implementation.
-- No unrelated files or another branch's ownership area were changed without coordination.
+- New or changed production types and public or protected methods carry accurate Javadoc written during implementation. The Iteration 1 retrofit is the only exception.
+- No unrelated files or another branch's ownership area were changed without coordination, which is `OPS-019`.
 - The final branch head is green.
 - Integration does not alter totals, state graphs, or historical meaning.
 
@@ -197,13 +248,34 @@ and the superseded wording was left in place rather than rewritten, which is
 
 ## Known enforcement gaps
 
-Two Layer 1 rules have no dedicated automated test.
+Every row above was checked against the test it names on 11 September 2026. Three
+named a class that exists and tests something else, and six more overstated how
+much their test covers. Those rows were corrected; the gaps they were hiding are
+listed here.
 
-- `GOV-004` relies on the two domains staying in separate features with no shared read path. A test asserting that no reporting query joins attendance to work logs would close this.
-- `GOV-014` relies on schema constraints in `V1__baseline.sql`. A test asserting that no repository exposes a hard-delete method for accounts, Projects, memberships, or Tasks would close this.
+A constitution that claims enforcement it does not have is worse than one that
+names its own gaps, and worse still when the claim survives because the class
+name looks plausible.
 
-Listing them is deliberate. A constitution that claims enforcement it does not
-have is worse than one that names its own gaps.
+| Rule | What is missing | What would close it |
+|---|---|---|
+| `SEC-011` | No test reads back any security header. `AC-SEC-008` fixes exact values for HSTS, the content policy, frame ancestors, and the cookie attributes, and none is asserted. | One web test that inspects the response headers against `AC-SEC-008`. |
+| `SEC-001` | The rule is broader than any single test. Slices are covered by the denial assertions scattered through the web tests. | Accept it as an intent statement, or narrow it into rules that can each be asserted. |
+| `GOV-004` | Relies on the two domains staying in separate features with no shared read path. | A test asserting that no reporting query joins attendance to work logs. |
+| `GOV-011` | The cited test only canonicalizes a timezone alias before startup. Nothing asserts that a business date resolves against the applicable policy version's timezone. | A test that sets a JVM default different from the policy timezone and checks the resulting business date. |
+| `GOV-014` | Relies on schema constraints in `V1__baseline.sql`. | A test asserting that no repository exposes a hard-delete method for accounts, Projects, memberships, or Tasks. |
+| `ARC-001` | The build fails on the wrong Java version, which proves the version and not the architecture. | An architecture test asserting the module shape, alongside `LayerStructureTest`. |
+| `ARC-002` | `ReportingDependencyContractTest` covers the reporting libraries only. | Extend it to the rest of the declared stack, or accept the narrower claim. |
+| `OPS-016`, `OPS-017` | Both describe runner configuration. A repository cannot verify its own runner. | An operator confirms it outside this repository; nothing here can. |
+
+### A defect found while checking these
+
+`.gitea/workflows/container.yml` line 264 guards a rollback by requiring the
+previous image tag to match `:sha-[0-9a-f]{40}`. This repository uses SHA-256
+object names, so its commit identifiers are 64 characters and no legitimate tag
+this pipeline produces can satisfy that pattern. The deployment job is dormant
+behind `DEPLOY_ENABLED`, so the guard has never run. It is recorded here rather
+than fixed, because it is a pipeline change and not a documentation one.
 
 ## Provenance
 

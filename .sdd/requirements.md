@@ -15,7 +15,7 @@
 | Review state | Not approved for implementation |
 | Normative rules | 269 in sections 1–22 |
 | Acceptance coverage | 252 rules carry a §20 scenario; 17 governance and coordination rules are declared without one |
-| Spec quality gate | 12 of 12 checks pass; one open question is recorded in §22.3 |
+| Spec quality gate | 12 of 12 checks pass; no open question remains |
 
 > **Spec quality gate.** The twelve-point specification review has been run against this
 > document and passes: business context present, happy and error paths described, every
@@ -146,7 +146,7 @@ behind it only postponed them.
 | ARC-001 | The application shall be one server-rendered modular monolith using Java 25 and Spring Boot 4.1.0. |
 | ARC-002 | The backend shall use Maven, Spring MVC, Spring Security, Spring Data JPA, Bean Validation, Thymeleaf, Spring Mail, and Flyway. |
 | ARC-003 | PostgreSQL 18.4 shall be the production, development, and integration-test database family. Tests exercising PostgreSQL-specific constraints shall use PostgreSQL rather than H2. |
-| ARC-004 | The UI toolchain shall pin Node 24 LTS and Tailwind CSS 4, use `npm ci`, and commit the npm lockfile when implementation begins. |
+| ARC-004 | The UI toolchain shall pin Node 24 LTS and Tailwind CSS 4, use `npm ci`, and commit the npm lockfile when implementation begins. Test tooling shall be constrained to a compatible range rather than pinned by assertion, and each verification run shall record the version it actually resolved. A test shall not assert equality against a tool version, because that encodes a decision in a place no decision record can reach. |
 | ARC-005 | `LabtimesheetApplication` shall remain in the root package `com.lab.labtimesheet`. Shared application wiring shall live in `config`. Business code shall be grouped below `feature.<name>` for `account`, `integration`, `project`, `task`, `attendance`, `notification`, and `reporting`; each feature shall add only the layer subpackages it needs from `controller`, `model`, `model.dto`, `model.entity`, `repository`, `service`, and `exception`. Tests shall mirror those feature/layer packages. Thymeleaf templates and built static assets shall remain under `src/main/resources/templates` and `src/main/resources/static`. |
 | ARC-006 | Within a feature, MVC controllers shall bind validated DTOs and delegate business transactions to services; services shall use Spring Data JPA repositories and model entities/value objects. A feature may call another feature's service contract and DTOs but shall not reach into that feature's repository or JPA entities. Business services shall not contain direct SQL. Flyway/schema/catalog verification is the only approved direct-SQL boundary, and the application shall not introduce network boundaries, empty utility/core packages, or one-implementation abstraction layers. |
 | ARC-007 | Flyway shall be the sole production schema authority. JPA schema generation shall be validation-only outside disposable tests. |
@@ -1272,7 +1272,7 @@ header both pass. Passing them is not approval.
 ### 22.2 What approval requires
 
 - The holder of the highest applicable authority in §1.1 accepts the rule set, the acceptance catalogue, and the declared exclusions.
-- The open question in §22.3 is answered.
+- The open question in §22.3 is answered. Closed on 11 September 2026.
 - The Iteration 3 integrated review runs and its exit demonstration passes.
 
 Until that happens the review state in the header stays as it is. A document may
@@ -1282,15 +1282,19 @@ with authority can close that gap.
 ### 22.3 Open questions
 
 An open question means the specification cannot yet answer something an implementer
-needs. One is outstanding.
+needs. None is outstanding.
 
-| # | Question | Why it is open | Blocked by it |
+| # | Question | Answer | Closed |
 |---:|---|---|---|
-| OQ-1 | Does this product require exact version pinning for test tooling, or is a compatible range sufficient? | `ARC-004` pins Node and Tailwind and says nothing about the test toolchain. A committed contract test asserts an exact Playwright version that `package.json` no longer matches, so one of the two encodes a decision nobody recorded. | Resolving the failing UI contract test, and therefore any branch policy that requires a green pipeline. |
+| OQ-1 | Does this product require exact version pinning for test tooling, or is a compatible range sufficient? | A compatible range is sufficient. Each verification run records the version it resolved, and no test asserts equality against a tool version. `ARC-004` now states this. | 11 September 2026 |
 
-Answering OQ-1 means either adding a requirement that states the pinning rule, or
-retiring the assertion that has no requirement behind it. Choosing which is a
-decision under §1.1, not an editing choice.
+Closing OQ-1 settles the specification question and does not by itself repair the
+pipeline. `src/test/js/playwright-contract.test.mjs` still asserts equality
+against `1.55.0` while `package.json` declares `^1.62.1`, and that assertion now
+contradicts `ARC-004`. Removing it is an ordinary defect fix with its own
+verification, not a specification change, and it needs the four checks recorded
+under D4 in the decision record: why the pin existed, what the upgrade altered,
+what the lockfile resolves to, and an actual run rather than an inference.
 
 ## Appendix A. Implementation dependency notes
 
