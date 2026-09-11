@@ -28,16 +28,29 @@ they disagree, the application is wrong.
 | D3 | A separate document per feature | One canonical location per rule | `GOV-016` |
 | D4 | Exact version pinning for test tooling | Range is enough; action still open | `ARC-004` |
 | D5 | The recovered appendices | Edited, not kept as written | Appendices C–F |
+| D6 | Which HTTP status a denial returns | **open** | `AUTH-002`, `SEC-009` |
+| D7 | Valid range of the monthly leave quota | **open** | `ATT-001` |
+| D8 | Naming the invitation resolution codes | **open** | `PRJ-019`, `DB-011` |
+| D9 | Stating the SMTP port range | **open** | `INT-001`–`INT-003` |
 
-Four of the five are settled by adopting what was already built or already
+D1 through D5 came from reading the specification against its own history. D6
+through D9 came from the audit described at the end of this page, which read the
+269 rules against the schema, the permission matrix, and the situations the
+existing tests had actually encountered.
+
+Four of the first five were settled by adopting what was already built or already
 decided, rather than by a fresh judgement about the business. That was a
 deliberate choice, and the reasoning was that the instructor will test the
 product, and that a problem found then can be fixed because the documentation is
 now structured well enough to carry the change.
 
-For that to hold, every decision below states what reversing it would cost. Read
-those costs as the price of the choice, not as a formality. Without them,
-"we can fix it later" is a hope rather than a plan.
+For that to hold, every decision below states what reversing it would cost, and
+every open one states the assumption that would be used if nobody answers. Read
+those as the price of the choice, not as a formality. Without them, "we can fix
+it later" is a hope rather than a plan.
+
+**D6 is the one to read first.** It is the only open item that may already put
+the specification and the code in conflict, rather than merely leaving a gap.
 
 ## D1. May an Admin see one Intern's detailed attendance?
 
@@ -306,6 +319,156 @@ line can be checked against the code or against a numbered rule.
 **Decided by:** Loc-LX.
 
 **Date:** 2026-09-11
+
+## D6. Which HTTP status does a denial return?
+
+**Affects** `AUTH-002`, `AUTH-011`, `SEC-009`, and every rule that says a request
+is denied.
+
+The specification states no HTTP status code anywhere in its 269 rules. It
+describes outcomes in words: "the authenticated access-denied response", "a
+non-disclosing response", "denied before downstream reads".
+
+The test suite makes 345 assertions about status.
+
+| Asserted | Times |
+|---|---:|
+| `isOk` | 182 |
+| `is3xxRedirection` | 98 |
+| `isNotFound` | 26 |
+| `isForbidden` | 24 |
+| `isBadRequest` | 7 |
+| `isConflict` | 5 |
+| `isUnauthorized` | 3 |
+
+So 345 assertions encode a contract that no rule states. Changing a denial from
+`403` to `404` would break twenty-four tests and violate nothing.
+
+`AUTH-002` is where the ambiguity is written down. It says a guessed identifier
+"shall produce an access-denied **or** not-found result". Either is permitted, and
+nothing says which applies where, so each endpoint chose on its own.
+
+This matters beyond tidiness. `SEC-009` forbids "existence distinctions useful
+for enumeration", and `403 Forbidden` is precisely such a distinction: it tells
+the caller the record exists and they may not have it, where `404` does not.
+Twenty-four endpoints answer `403` today. Either `SEC-009` does not mean what it
+says, or some of those endpoints contradict it.
+
+**Options**
+
+| Option | Consequence |
+|---|---|
+| A. State the mapping as a rule: which condition returns which status, with `404` for anything a caller is not entitled to know exists. | The strictest reading of `SEC-009`. Some current `403` responses become defects and change. |
+| B. State the mapping as a rule, keeping today's split between `403` and `404`. | Nothing in the code changes. `SEC-009` gains an explicit carve-out saying `403` on an authorized-route-unauthorized-record is acceptable. |
+| C. Leave it unstated. | The 345 assertions keep encoding an unwritten decision, and the next person to touch a controller cannot tell whether they are fixing a bug or breaking a contract. |
+
+**If forced to assume**, B: it matches shipped behavior and needs no code change.
+The assumption is worth naming because it weakens `SEC-009`, and weakening a
+security rule by assumption is the kind of thing that should be visible.
+
+**Decision:**
+**Decided by:**
+**Date:**
+
+## D7. What is the valid range of the monthly leave quota?
+
+**Affects** `ATT-001`.
+
+`attendance_policy_versions` enforces `monthly_leave_quota BETWEEN 0 AND 31`.
+`ATT-001` lists the monthly leave quota among the fields a policy version stores
+and states no bound for it.
+
+The comparison that makes this a gap rather than an oversight: the same rule set
+does bound the neighbouring field. Grace minutes are pinned to "an integer from 0
+through 720 minutes". Quota is not.
+
+An Admin who enters 50 is refused by the database with a constraint error, and no
+document explains why, because no document says 31 is the ceiling.
+
+**Options**
+
+| Option | Consequence |
+|---|---|
+| A. State `0` through `31` in `ATT-001`, matching the schema. | The document explains the refusal. 31 is defensible as the longest month. |
+| B. State a smaller business ceiling. | The schema stays valid, and the application gains a stricter check above it. A quota near 31 means an Intern may be absent every workday, which may not be intended. |
+
+**If forced to assume**, A: describe what is enforced rather than invent a
+business limit nobody stated.
+
+**Decision:**
+**Decided by:**
+**Date:**
+
+## D8. Should the invitation resolution codes be named?
+
+**Affects** `PRJ-019`, `DB-011`.
+
+`project_invitations` constrains its resolution code to seven values:
+`INVITEE_ACCEPTED`, `INVITEE_DECLINED`, `INVITER_REVOKED`, `MENTOR_REVOKED`,
+`LEADER_CHANGED`, `PROJECT_COMPLETED`, `MENTOR_DIRECT_ADD`.
+
+The specification names one of them, `MENTOR_DIRECT_ADD`, in `PRJ-017`.
+
+The behavior is covered. `PRJ-019` says losing leadership, Project completion, or
+invitee ineligibility revokes unusable pending invitations without deleting them,
+and `PRJ-014` says completion revokes pending invitations. What is missing is the
+mapping from each situation to the value that gets stored.
+
+`PRJ-011` and the Project History rules keep resolved invitations visible. A
+history view showing a stored code therefore shows a value the specification
+never defines.
+
+**Options**
+
+| Option | Consequence |
+|---|---|
+| A. Enumerate the seven codes in `DB-011` with the situation that produces each. | A reader of Project History can interpret what they see. The list must be updated whenever the schema adds a value. |
+| B. Leave the behavior statement as the specification and treat codes as an implementation detail. | Then no history surface may display a raw code, which is a constraint worth stating rather than assuming. |
+
+**If forced to assume**, A.
+
+**Decision:**
+**Decided by:**
+**Date:**
+
+## D9. Should the SMTP port range be stated?
+
+**Affects** `INT-001` through `INT-003`.
+
+`smtp_configurations` enforces `port BETWEEN 1 AND 65535`. No rule states it.
+
+This is the smallest item on the page and is listed only because the audit found
+it. The range is the whole valid TCP port space, so it constrains nothing a
+caller would reasonably attempt.
+
+**Options**
+
+| Option | Consequence |
+|---|---|
+| A. State it with the other SMTP field rules. | Complete, at the cost of a rule that carries no business judgement. |
+| B. Record that generic data-type validation is not specified as business rules, and apply that consistently. | Shorter specification, and one stated reason covering every similar constraint instead of a rule for each. |
+
+**If forced to assume**, B.
+
+**Decision:**
+**Decided by:**
+**Date:**
+
+## What the audit checked and found sound
+
+Listing what passed matters as much as what failed, because a reader otherwise
+cannot tell how much of the rule set was examined.
+
+- **Internal contradiction.** A term-overlap sweep across all 269 rules produced 96 candidate pairs where one rule grants and another withholds. The highest-scoring pairs were read; each turned out to be complementary rather than contradictory. `PRJ-007` and `TSK-019` both describe a former Leader's retained assignee rights from different angles.
+- **Numeric bounds.** Every other bound in the schema is stated with its subject in the rules: passwords 12 through 128, grace 0 through 720, daily work 1 through 1440, a Task estimate 1 through 527040, a token hash of exactly 32 bytes, an encryption nonce of 12.
+- **Actors.** The section 5.2 permission matrix was compared against the rules that name a role. No rule grants a capability the matrix withholds.
+- **State and timestamp coherence.** Thirty-seven schema constraints require a status and its timestamp to agree, such as a `LOCKED` account having a lock time. Each follows from a lifecycle rule the specification already states.
+
+The audit could not check one of the six failure kinds the playbook names.
+A domain error is a rule that is internally consistent, testable, and simply
+wrong about what the laboratory wants. Nothing in the repository can detect that,
+which is why section 22.2 still requires a person to accept the rule set.
+
 
 ## Decided without escalation
 
