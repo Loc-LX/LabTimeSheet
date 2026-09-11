@@ -331,14 +331,14 @@ Iteration 4 uses the following execution and review protocol:
 1. Luna first preserves and audits the existing uncommitted `I4-TSK-02` correction slice; it shall not reset, discard, or overwrite that work or unrelated files.
 2. Luna works one bounded vertical packet at a time using the mandatory RED → GREEN workflow, meaningful Javadoc, focused and affected verification, evidence updates, self-review, and a focused local commit. Luna shall not spawn subagents, push, merge, or change shared branches.
 3. After each packet, Luna reports the exact full commit SHA, changed files, RED/GREEN/affected commands and results, evidence paths, limitations, and clean/dirty worktree state to the root agent.
-4. The root agent reviews the immutable packet for specification compliance and code quality against `docs/requirements/partial-jira-tempo-decision-record.md`, the numbered requirements, ADR, and repository standards. The root agent does not implement review fixes.
+4. The root agent reviews the immutable packet for specification compliance and code quality against `docs/requirements/decisions/partial-jira-tempo-decision-record.md`, the numbered requirements, ADR, and repository standards. The root agent does not implement review fixes.
 5. Critical or Important findings return to the same Luna subagent for a focused test-first fix and scoped re-review. The next packet starts only after the root agent accepts the current packet or records an explicit non-blocking ruling.
 6. After all tracker items are complete, the root agent performs the broad integrated-candidate review and verification assessment. No push or merge to `main` occurs without a separate explicit user instruction.
 
 The 29 unpublished Iteration 4 commits were subsequently replayed to normalize commit subjects.
 Current commit references in the tracker use the rewritten public SHAs. Historical verification
 records retain the original tested SHAs and map them to their content-identical rewritten commits in
-`docs/requirements/partial-jira-tempo-history-rewrite-map.md`; this does not claim that an earlier
+`docs/requirements/decisions/partial-jira-tempo-history-rewrite-map.md`; this does not claim that an earlier
 test run occurred on a rewritten SHA.
 
 | ID | Deliverable | Test/evidence emphasis | Status | Owner/date | Result/commit |

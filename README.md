@@ -43,11 +43,11 @@ layouts stay best effort; desktop is the supported target.
 | What must always be true of this system | [CONSTITUTION.md](CONSTITUTION.md) |
 | How do I set up and contribute | [CONTRIBUTING.md](CONTRIBUTING.md) |
 | What is the product and who are its users | [PRODUCT.md](PRODUCT.md) |
-| What do the domain terms mean | [CONTEXT.md](CONTEXT.md) |
+| What do the domain terms mean | [`docs/glossary.md`](docs/glossary.md) |
 | What are the numbered requirements | [`docs/requirements/requirements-specification.md`](docs/requirements/requirements-specification.md) |
 | Why was a decision made | [`docs/adr/`](docs/adr/) |
-| Which libraries and versions, and why | [TECH_STACK.md](TECH_STACK.md) |
-| What are the UI design tokens | [DESIGN.md](DESIGN.md) |
+| Which libraries and versions, and why | [`docs/architecture/tech-stack.md`](docs/architecture/tech-stack.md) |
+| What are the UI design tokens | [`docs/architecture/design-system.md`](docs/architecture/design-system.md) |
 | How do I run the app locally | [DEVELOPMENT.md](DEVELOPMENT.md) |
 | How do I run and write tests | [TESTING.md](TESTING.md) |
 | How do I deploy | [DEPLOYMENT.md](DEPLOYMENT.md) |
@@ -159,7 +159,7 @@ through environment variables.
 - Flyway owns the schema and Hibernate validates it with `ddl-auto=validate`.
 
 Version-by-version detail and the reason each library was chosen are in
-[TECH_STACK.md](TECH_STACK.md).
+[`docs/architecture/tech-stack.md`](docs/architecture/tech-stack.md).
 
 ## Testing
 
