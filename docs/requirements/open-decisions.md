@@ -32,11 +32,21 @@ settle a business rule, and it should not have been.
 | Why it says that | The shipped code implements it, and the change was made to stop the document contradicting the product. |
 | What the earlier text said | Admins have no Attendance-report scope or report dataset. |
 
-The rule has moved three times, and no written reason survives for any of the
-moves. [ADR 0002](../adr/0002-admin-attendance-report-scope.md) reconstructs the
+The rule has moved three times.
+[ADR 0002](../adr/0002-admin-attendance-report-scope.md) reconstructs the
 sequence from commits: granted on 17 August 2026, the specification carrying it
 deleted on 20 August, withdrawn on 27 August, the specification deleted again on
 29 August, restored on 30 August.
+
+The two most recent moves are not equally documented, and the asymmetry runs
+against the current wording.
+
+| Move | What supports it |
+|---|---|
+| 27 August, withdrawn | A dated written ruling in the Partial Jira/Tempo decision record: "Admin is a configuration and account-lifecycle role, not an operational reporting role." It names the HTML page, both exports, the navigation entry, the dataset, and the export service, and specifies a `403` before any read. |
+| 30 August, restored | Commit `684e13c`, subject `fix(reporting): restore admin attendance reports`, with no message body and no accompanying record. |
+
+The written ruling is on the side of denial. The code is on the side of access.
 
 Three facts worth weighing before answering.
 
@@ -51,9 +61,22 @@ Three facts worth weighing before answering.
 | A. Admin may see it. | The specification stays as written. No code changes. |
 | B. Admin may not see it. | `RPT-004` and `RPT-011` revert, the permission matrix changes, and the reporting code and its tests must be changed to deny Admin. |
 
-**Decision:**
-**Decided by:**
-**Date:**
+**Decision:** A. Admin may view detailed Intern attendance, on the same footing
+as an active Mentor. The shipped behaviour is adopted as the rule.
+
+This knowingly overrides the 27 August 2026 written ruling quoted above. The
+stated reasoning is that the behaviour is already built, and that reversing it
+later carries low risk because Admin holds no Project, Task, or Daily report
+scope and the change would be confined to the reporting feature.
+
+The reversal cost, should it be taken later, is: revert `684e13c`, amend
+`RPT-004`, `RPT-011`, the section 5.2 permission matrix, the section 15.2 page
+map, and `AC-RPT-002`, and change `PRODUCT.md` and `README.md`.
+
+**Decided by:** Loc-LX, primary implementor, highest rank in the `GOV-001`
+authority order in the absence of the instructor.
+
+**Date:** 2026-09-11
 
 ## D2. Is the external issue tracker permanently out of scope?
 
@@ -64,17 +87,34 @@ Tempo, will not mirror issues, sprints, or story points, will not add a
 `SUBMITTED` Task state with Leader acceptance and rejection, will not offer
 Weekly or Monthly report presets, and will not perform continuous replanning.
 
-That rule was written from a decision record which has since been removed from
-the repository, so nothing now supports it except this sentence. If the exclusion
-is real it belongs in the specification. If it was one person's working note it
-should not be a numbered rule.
+Jira is a commercial issue tracker. Teams file work as issues, group them into
+sprints, size them in story points, and move them across a board. Tempo is a
+time-tracking add-on for Jira: people log hours against Jira issues and it
+produces timesheets and reports, often with a submit-and-approve step.
+
+Lab Timesheet already does a narrow version of both natively. Tasks with a single
+assignee, an estimate in minutes, dated work logs, and the Daily Project Work
+Report cover the same ground without any external service. Iteration 4 was called
+"Partial Jira/Tempo" for that reason: a deliberately partial, local reimplementation.
+
+`GOV-015` draws the boundary of that partial slice. Its source is a decision
+record removed from the working tree in commit `d5b1754` and still readable at
+`d5b1754^`. Question 1 of that record was answered "build local Jira/Tempo-inspired
+behaviour; do not integrate with external Jira or Tempo APIs".
+
+One correction belongs with this question. `GOV-015` says the product "shall not
+offer Weekly or Monthly report presets". The record does not say that. Answer
+Q22-R defers them: "First delivery includes one Daily Project Work Report; Weekly
+and Monthly presets are deferred." Deferred and forbidden are different, and the
+rule as written is stronger than the decision behind it.
 
 **Options**
 
 | Option | Consequence |
 |---|---|
-| A. Confirm the exclusion. | `GOV-015` stays. Any future integration needs a new rule and a recorded decision. |
-| B. Withdraw it. | `GOV-015` is deleted and the question of external integration is simply unanswered rather than answered no. |
+| A. Confirm the exclusion, and soften the Weekly and Monthly clause to deferred. | `GOV-015` stays and matches its source. Integration needs a new rule; the extra report presets need only a plan. |
+| B. Confirm the exclusion as written. | Weekly and Monthly presets become forbidden rather than postponed, which is a new decision, not the recorded one. |
+| C. Withdraw it. | `GOV-015` is deleted. External integration becomes unanswered rather than answered no. |
 
 **Decision:**
 **Decided by:**
