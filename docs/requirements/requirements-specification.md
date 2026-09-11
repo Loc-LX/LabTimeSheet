@@ -13,9 +13,9 @@
 | Database baseline | PostgreSQL 18.4, 24 application tables |
 | Companion DDL | `database-schema.sql`, not tracked in this repository |
 | Review state | Not approved for implementation |
-| Normative rules | 268 in sections 1–22 |
-| Acceptance coverage | 252 rules carry a §20 scenario; 16 governance and coordination rules are declared without one |
-| Spec quality gate | 12 of 12 checks pass, last run 11 September 2026 |
+| Normative rules | 269 in sections 1–22 |
+| Acceptance coverage | 252 rules carry a §20 scenario; 17 governance and coordination rules are declared without one |
+| Spec quality gate | 12 of 12 checks pass; one open question is recorded in §22.3 |
 
 > **Spec quality gate.** The twelve-point specification review has been run against this
 > document and passes: business context present, happy and error paths described, every
@@ -239,7 +239,7 @@ Legend: **Yes** = permitted within the stated scope; **Own** = own Project or ow
 | AUTH-007 | Admin project access shall be read-only and shall not imply commenting, membership, leadership, Task, or status authority. |
 | AUTH-008 | Mentor Task access shall permit view, comment, and read retained Task history but shall forbid manual create, assign, reassign, edit, soft-delete, and status change. The automatic transfer performed by direct Mentor removal is a guarded Project-domain operation, not Mentor Task-management authority. |
 | AUTH-009 | Active Project members may view every non-deleted Task, assignee, status, aggregate progress, comment thread, and authorized Project History entry in that Project and may add comments to any non-deleted Task while the Project remains open. |
-| AUTH-010 | Per-member task-hour breakdowns shall be limited to the owning Mentor for owned Projects and the current Leader for a Project they currently lead. Ordinary members receive aggregate Project totals only; Admin has no Project/Task-report scope or report dataset. |
+| AUTH-010 | Per-member task-hour visibility is defined by `RPT-005`. This entry exists so that authorization-model readers reach that rule; it adds nothing of its own. |
 | AUTH-011 | Invitation, membership-exit, exit-transfer batch, self-Task, Task-definition, and history-read operations shall authorize from the authenticated user, owning Project, active membership, pending-exit state, issuing/current leadership term, Task creator/current assignee, and aggregate state inside the transaction or read boundary. Guessed cross-Project or stale identifiers shall not disclose protected records or cause partial changes. |
 
 ## 6. Project, membership, and leadership
@@ -296,7 +296,7 @@ Legend: **Yes** = permitted within the stated scope; **Own** = own Project or ow
 | TSK-014 | Work date shall not be in the future, shall fall within Project dates, and shall fall within the logging member's membership interval. |
 | TSK-015 | An Intern's combined Task work across all Projects shall not exceed 1440 minutes on one local date. Validation shall serialize on that Intern to prevent concurrent over-allocation. |
 | TSK-016 | The log author may correct their own log while the Project is active and they remain a member, even if the Task was subsequently reassigned. Other users shall not edit the log. |
-| TSK-017 | Global days off shall not prevent voluntary comments, status changes, or Task work logs. Task work shall never create, amend, or imply attendance. |
+| TSK-017 | Day-off effects on Task activity are defined by `CAL-009`, and the separation of Task work from attendance by `GOV-004`. This entry exists so that Task-domain readers reach those rules; it adds nothing of its own. |
 | TSK-018 | Member self-Task creation shall set creator, assignment actor, and assignee to the authenticated membership in one transaction. It shall not create a self-notification. The current Leader's broader creation authority shall remain Project-scoped. |
 | TSK-019 | Task definition authorization shall use current stored context: the Leader may manage any unfinished Task, while an eligible member creator may manage only an unfinished Task still assigned to them. Pending exit prevents new/self-assignment without removing existing assignee rights. Reassignment away removes creator control without changing historical creator attribution; assignment back restores it only when creator/current-assignee equality and current eligibility both hold. |
 | TSK-020 | A Task may have one optional whole-Task estimate in integer minutes from 1 through 527040. Only the current Project Leader may set, replace, or clear it before the first retained work log; after that log the estimate is immutable. Estimate mutation is separate from ordinary Task editing and is rejected for other actors. |
@@ -447,7 +447,7 @@ For an applicable Intern/date, classification precedence is:
 | ID | Requirement |
 |---|---|
 | SEC-010 | Production shall require an HTTPS public base URL/origin and explicit trusted-proxy configuration before startup is considered ready. |
-| SEC-011 | Production shall enable HSTS with `includeSubDomains`, `preload`, and a max age of 31 536 000 seconds; `Secure` and `HttpOnly` session cookies; `SameSite=Strict`; strict configured-origin checks; a Content-Security-Policy of `default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'`; and a `Referrer-Policy` of `no-referrer` in every profile. |
+| SEC-011 | Production responses shall carry security headers that force HTTPS for at least one year including subdomains, restrict every resource, form target, and base URI to the application itself, forbid the application from being framed, and suppress referrer disclosure. Session cookies shall be `Secure`, `HttpOnly`, and `SameSite=Strict`, and configured-origin checks shall be strict. The exact directive values are fixed by `AC-SEC-008`. |
 | SEC-012 | Forwarded headers shall be trusted only when the deployment explicitly enables and constrains the known reverse-proxy path. Arbitrary client-forwarded headers shall not define scheme, host, or source IP. |
 | SEC-013 | Dev/test may use HTTP, localhost origins, `SameSite=Lax`, and no HSTS or Secure-cookie requirement. These relaxations shall be activated only by dev/test profile state and shall not be silently inherited by production. |
 | SEC-014 | Production readiness shall fail when the master key, public origin, datasource, or explicit proxy policy required by production is absent or malformed. SMTP may remain absent, but the application shall remain visibly restricted as specified. |
@@ -1071,13 +1071,13 @@ erDiagram
 
 These scenarios define reviewable behavior. During implementation, each scenario shall map to one or more TDD evidence files and automated tests at the narrowest useful layer.
 
-**Rules with no system-level acceptance criterion.** Sixteen requirements govern how the team
+**Rules with no system-level acceptance criterion.** Seventeen requirements govern how the team
 works rather than how the system behaves, so no scenario can assert them and none is written.
 They are listed here so that a reader can tell a deliberate exclusion from an oversight.
 
 | Group | IDs | Why no scenario |
 |---|---|---|
-| Governance | `GOV-001`, `GOV-002`, `GOV-003`, `GOV-005`–`GOV-010`, `GOV-012`, `GOV-014`, `GOV-015` | Authority order, terminology, scope discipline, non-goals, and retention intent. These bind the people writing requirements and code; an automated scenario cannot observe them. `GOV-004`, `GOV-011`, and `GOV-013` describe system behavior and are covered by `AC-ATT-*`, `AC-GOV-001`, and `AC-GOV-002`. |
+| Governance | `GOV-001`, `GOV-002`, `GOV-003`, `GOV-005`–`GOV-010`, `GOV-012`, `GOV-014`–`GOV-016` | Authority order, terminology, scope discipline, non-goals, and retention intent. These bind the people writing requirements and code; an automated scenario cannot observe them. `GOV-004`, `GOV-011`, and `GOV-013` describe system behavior and are covered by `AC-ATT-*`, `AC-GOV-001`, and `AC-GOV-002`. |
 | Coordination | `OPS-018`–`OPS-021` | Baseline publication, file ownership, branch naming, integration order, and commit discipline. Enforced by review and by branch policy, not by the running application. |
 
 Excluding them is a choice, not a gap. Writing a scenario for a rule that no test can observe
@@ -1184,6 +1184,7 @@ produces ceremony without protection.
 | AC-SEC-002 | SEC-002–SEC-005 | Password is 11, 12, 128, then 129 characters; reset email is unknown | Only 12 and 128 pass length validation; response for unknown email remains generic. |
 | AC-SEC-003 | SEC-006–SEC-007 | Same normalized email/IP fails login five times inside window | Sixth attempt is throttled for 15 minutes; restart may clear throttle but does not unlock a manually locked account. |
 | AC-SEC-004 | SEC-010–SEC-014 | Production starts without public origin/master key or with untrusted forwarded headers | Readiness/startup fails for missing required config; client headers cannot spoof origin/scheme/IP. |
+| AC-SEC-008 | SEC-011 | Production responses are inspected for security headers | `Strict-Transport-Security` carries `max-age=31536000`, `includeSubDomains`, and `preload`; `Content-Security-Policy` is `default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'`; `Referrer-Policy` is `no-referrer` in every profile; the session cookie carries `Secure`, `HttpOnly`, and `SameSite=Strict`. |
 | AC-SEC-005 | SEC-013 | Dev/test run over localhost HTTP | Session works with Lax/no-HSTS profile while hashing, CSRF, validation, and authorization remain active. |
 | AC-UI-001 | UI-001–UI-007 | First visit follows dark OS, user selects Light, then selects System | No initial theme flash; local override behaves as selected; no account preference row is written. |
 | AC-UI-002 | UI-002–UI-004 | Sidebar is collapsed and restored on a supported desktop viewport | Desktop becomes an icon rail, the state persists locally, and all authorized navigation remains keyboard-accessible. Mobile behavior is not part of this acceptance gate. |
@@ -1242,19 +1243,45 @@ produces ceremony without protection.
 
 ## 22. Review and implementation gate
 
-Approval requires all of the following:
+This section described a gate for a system that had not been built. Four iterations
+have since shipped, so it now states what approval means for a specification that
+documents a working product.
 
-- The primary implementor accepts the 260 numbered requirements, 23-table baseline, companion DDL, and restored conceptual/physical ELK Mermaid diagrams.
-- `database-schema.sql` applies to an empty PostgreSQL 18.4 database and passes the documented integrity probes.
-- Both Mermaid blocks render with ELK, and the physical diagram matches every table, column, and named foreign key in the DDL.
-- No unresolved requirement is silently delegated to the implementation team.
+### 22.1 What this document currently holds
 
-Until that review occurs:
+| Measure | Value |
+|---|---:|
+| Normative rules, sections 1–22 | 269 |
+| Rules with a §20 acceptance scenario | 252 |
+| Rules declared without one, with reason | 17 |
+| Acceptance scenarios | 126 |
+| Flyway application tables | 24 |
 
-- do not promote the DDL into Flyway;
-- do not treat the current scaffold as conforming merely because it compiles;
-- do not create the five implementation branches;
-- do not publish an image or deploy the service.
+The specification quality review in §20 and the twelve-point gate recorded in the
+header both pass. Passing them is not approval.
+
+### 22.2 What approval requires
+
+- The holder of the highest applicable authority in §1.1 accepts the rule set, the acceptance catalogue, and the declared exclusions.
+- The open question in §22.3 is answered.
+- The Iteration 3 integrated review runs and its exit demonstration passes.
+
+Until that happens the review state in the header stays as it is. A document may
+satisfy every mechanical check and still be wrong about the business; only a person
+with authority can close that gap.
+
+### 22.3 Open questions
+
+An open question means the specification cannot yet answer something an implementer
+needs. One is outstanding.
+
+| # | Question | Why it is open | Blocked by it |
+|---:|---|---|---|
+| OQ-1 | Does this product require exact version pinning for test tooling, or is a compatible range sufficient? | `ARC-004` pins Node and Tailwind and says nothing about the test toolchain. A committed contract test asserts an exact Playwright version that `package.json` no longer matches, so one of the two encodes a decision nobody recorded. | Resolving the failing UI contract test, and therefore any branch policy that requires a green pipeline. |
+
+Answering OQ-1 means either adding a requirement that states the pinning rule, or
+retiring the assertion that has no requirement behind it. Choosing which is a
+decision under §1.1, not an editing choice.
 
 ## Appendix A. Implementation dependency notes
 
