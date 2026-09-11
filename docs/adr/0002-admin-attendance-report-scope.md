@@ -3,7 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-08-30 (recorded 2026-09-10)
 - **Supersedes:** the Attendance portion of the 27 August 2026 reporting-role revision in
-  `docs/labtimesheet-docs-hub/requirements-specification.md`
+  `docs/requirements/requirements-specification.md`
 - **Requirements touched:** `RPT-004`, `RPT-011`, `AUTH-010` context, §5.2 permission matrix,
   §15.2 role-oriented page map, `AC-RPT-002`
 

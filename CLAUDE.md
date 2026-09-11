@@ -131,9 +131,12 @@ rewriting it.
 restored. The code is correct and the ADR explains why. Do not "fix" the code to
 match older wording.
 
-**Folder names have lied before.** `docs/requirements/` currently holds decision
-records, while the actual requirements sit in `docs/labtimesheet-docs-hub/`.
-Verify a path before trusting its name.
+**Folder names have lied before.** The specification used to sit in
+`docs/labtimesheet-docs-hub/`, named after the external repository it was copied
+from, while `docs/requirements/` held only decision records. It now lives at
+`docs/requirements/requirements-specification.md`, with those decision records
+under `docs/requirements/decisions/`. Some evidence records still cite the old
+path; they are dated records and are left as written.
 
 ## Useful commands
 

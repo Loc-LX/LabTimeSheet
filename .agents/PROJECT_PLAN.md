@@ -2,8 +2,8 @@
 
 **Artifact purpose:** Local agent coordination and progress tracking  
 **Implementation branches:** `work/platform`, `work/projects`, `work/tasks`, `work/attendance`, `work/reports-ui`  
-**Requirements authority:** `labtimesheet-docs-hub/requirements-specification.md`  
-**SRS:** `labtimesheet-docs-hub/software-requirements-specification.md`  
+**Requirements authority:** [`docs/requirements/requirements-specification.md`](../docs/requirements/requirements-specification.md), tracked in this repository since 10 September 2026  
+**SRS:** `labtimesheet-docs-hub/software-requirements-specification.md`, generated in the separate documentation repository and not tracked here  
 **Current status:** Iterations 1 and 2 implemented and locally verified; Iteration 3 producer reviews and Reports/UI consumer candidate are complete locally, with final integrated review pending coordination. Candidate `ba1682ef6e295beb7ddc435abf9f39df759f5d27` consumes the reviewed Platform/Projects/Tasks/Attendance heads and advancing-clock merge; post-review parity evidence and managed report-download rerun are green.
 
 This file divides the approved product scope across three iterations and five persistent work branches. It is a coordination artifact, not an alternative requirements source. When this plan and a numbered requirement disagree, the numbered requirement wins.

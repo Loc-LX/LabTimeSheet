@@ -35,7 +35,7 @@ Use this precedence when reviewing this feature:
 
 1. Later explicit revisions in this record, especially Q8-R, Q22-R, the post-Q34 direct-removal
    clarification, and the 27 August reporting-role/Admin-dashboard clarification.
-2. Numbered requirements in `docs/labtimesheet-docs-hub/requirements-specification.md`.
+2. Numbered requirements in `docs/requirements/requirements-specification.md`.
 3. The remaining approved decisions and clarifications in this record.
 4. Canonical terminology in `CONTEXT.md`.
 5. The estimate/forecast rationale in

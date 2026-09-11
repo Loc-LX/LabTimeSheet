@@ -10,7 +10,7 @@ Read three things, in this order. It takes about twenty minutes and saves days.
 
 1. [README.md](README.md) for what the system does and where documentation lives.
 2. [CONSTITUTION.md](CONSTITUTION.md) for the rules that are not negotiable.
-3. The section of [`docs/labtimesheet-docs-hub/requirements-specification.md`](docs/labtimesheet-docs-hub/requirements-specification.md) covering the area you will touch.
+3. The section of [`docs/requirements/requirements-specification.md`](docs/requirements/requirements-specification.md) covering the area you will touch.
 
 Two ideas are worth internalizing early. Attendance and Task work are separate
 domains and neither proves the other. Historical results must not change when

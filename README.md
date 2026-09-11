@@ -44,7 +44,7 @@ layouts stay best effort; desktop is the supported target.
 | How do I set up and contribute | [CONTRIBUTING.md](CONTRIBUTING.md) |
 | What is the product and who are its users | [PRODUCT.md](PRODUCT.md) |
 | What do the domain terms mean | [CONTEXT.md](CONTEXT.md) |
-| What are the numbered requirements | [`docs/labtimesheet-docs-hub/requirements-specification.md`](docs/labtimesheet-docs-hub/requirements-specification.md) |
+| What are the numbered requirements | [`docs/requirements/requirements-specification.md`](docs/requirements/requirements-specification.md) |
 | Why was a decision made | [`docs/adr/`](docs/adr/) |
 | Which libraries and versions, and why | [TECH_STACK.md](TECH_STACK.md) |
 | What are the UI design tokens | [DESIGN.md](DESIGN.md) |

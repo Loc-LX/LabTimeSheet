@@ -66,10 +66,9 @@ The product joins attendance oversight and Project delivery without pretending t
 
 ## Evidence on Hand
 
-- `labtimesheet-docs-hub/requirements-specification.md` is the authoritative requirements review draft.
-- `labtimesheet-docs-hub/database-schema.sql` is the companion PostgreSQL design baseline, not yet a production migration.
-- `labtimesheet-docs-hub/assets/ui-reference-light.png`, `ui-reference-dark-shell.png`, and `ui-reference-dark-dashboard.png` are the supplied visual references.
-- The repository contains an early Spring Boot scaffold matching the recorded Java/Spring/Maven direction but no implemented product interface yet.
+- `docs/requirements/requirements-specification.md` is the authoritative requirements draft, tracked in this repository since 10 September 2026 and carrying 267 numbered IDs.
+- The companion `database-schema.sql` and the `assets/ui-reference-*.png` visual references remain in the separate documentation repository and are not tracked here. The live schema is the Flyway migration set under `src/main/resources/db/migration`, which creates twenty-four tables.
+- The repository contains the implemented product. All tracked deliverables for Iterations 1 through 4 are marked `DONE` in `.agents/PROJECT_PLAN.md`; only the Iteration 3 integrated review remains.
 - No production data, customer testimonials, adoption metrics, institutional endorsements, or performance claims are available. Future design work must not fabricate them.
 
 ## Product Principles

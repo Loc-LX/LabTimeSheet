@@ -6,7 +6,7 @@
 | Status | `LOCKED` |
 | Applies to | every developer, every AI agent, every pull request |
 | Amendment | requires a new ADR under [`docs/adr/`](docs/adr/) and the `GOV-001` authority order |
-| Full rule text | [`docs/labtimesheet-docs-hub/requirements-specification.md`](docs/labtimesheet-docs-hub/requirements-specification.md) |
+| Full rule text | [`docs/requirements/requirements-specification.md`](docs/requirements/requirements-specification.md) |
 
 This document is an index, not a copy. Each row names a rule that already exists
 in the requirements specification, states how strictly it binds, and names the
