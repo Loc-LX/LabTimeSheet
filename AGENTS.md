@@ -32,15 +32,26 @@ Check these before assuming anything. When two disagree, the higher row wins.
 
 ## 3. Scope
 
-### You may
+The full permission list is the AI agent policy in
+[`.sdd/constitution.md`](.sdd/constitution.md). The short form:
 
-- Read anything in the repository.
-- Edit `src/`, `docs/`, and the root Markdown files.
+### You may, without asking
+
+- Read and search anything tracked.
 - Run `./mvnw test`, `./mvnw spring-boot:run`, `npm ci`, `npm run build`, `npm run test:ui`, and read-only `git` commands.
-- Create a repair branch under the naming rule in section 4.
+
+Investigation needs no permission and is usually what makes a proposal worth
+approving.
+
+### You must agree a plan before
+
+Changing any file, including documentation. Name the files, say how to undo it,
+then wait. A question is not permission: "what does this folder do" asks for an
+answer, not for the folder to be tidied.
 
 ### You must not
 
+- Delete a file, commit, push, add or upgrade a dependency, or change the schema without the maintainer saying so for that specific action.
 - Commit or push without the user asking. Never commit to `main`.
 - Edit or delete a Flyway migration that has already been applied. Add a new one.
 - Change or delete files under `docs/tests/`. They are dated records of what was run.

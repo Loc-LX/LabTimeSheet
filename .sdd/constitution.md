@@ -3,10 +3,21 @@
 | Field | Value |
 |---|---|
 | Version | 1.0.0 |
-| Status | `LOCKED` |
+| Status | `DRAFT`, awaiting sign-off |
 | Applies to | every developer, every AI agent, every pull request |
+| Maintainer | Loc-LX |
+| Supervisor | not yet assigned |
+| Signed by | — |
+| Last updated | 2026-09-11 |
 | Amendment | requires a new ADR under [`.sdd/rfcs/`](rfcs) and the `GOV-001` authority order |
 | Full rule text | [`.sdd/requirements.md`](requirements.md) |
+
+**Status is `DRAFT` on purpose.** The playbook makes a signed constitution the
+first milestone of week one, and the risk it names for skipping it is a team
+working to several conventions at once. This project reached iteration four
+before the document existed, so the signature is outstanding rather than early.
+It becomes `LOCKED` when the maintainer accepts the rules below; until then a
+rule here describes current practice rather than agreed law.
 
 This document is an index, not a copy. Each row names a rule that already exists
 in the requirements specification, states how strictly it binds, and names the
@@ -84,13 +95,20 @@ sprints, or story points. Adding any of them needs a new ADR, not a pull request
 
 `GOV-015` adds the Task effort-planning boundary: no external Jira or Tempo
 integration, no Jira mirroring, no Tempo accounts or synchronization, no
-`SUBMITTED` Leader acceptance workflow, no Weekly or Monthly report presets, and
-no continuous replanning unrelated to worked reassignment.
+`SUBMITTED` Leader acceptance workflow, and no continuous replanning unrelated to
+worked reassignment.
 
-`GOV-016` governs the documents themselves. The requirements specification is the
-system-wide layer. A later feature is not appended to it; it gets its own document
-naming the specification as parent, inheriting without restating, recording only
-what it adds, and never claiming precedence over it.
+Weekly and Monthly report presets are **deferred, not excluded**. They sit
+outside the v1 acceptance scope and may be built later, which needs a numbered
+requirement and an acceptance scenario rather than an ADR. The distinction is
+recorded because `GOV-015` once forbade them while the decision behind it only
+postponed them.
+
+`GOV-016` governs the documents themselves: every requirement has exactly one
+canonical location, a change in business behavior updates that location, and a
+new feature is documented in the same form as the features already there. A split
+across separate documents is an organizational choice, never a goal, and no split
+document overrides the canonical location of a rule.
 
 ---
 
@@ -127,6 +145,40 @@ maintained in [`plan.md`](../plan.md).
 - Integration does not alter totals, state graphs, or historical meaning.
 
 ---
+
+## AI agent policy
+
+An agent working here holds narrower permission than a developer, because it acts
+faster than a person can read what it did.
+
+**Allowed without asking.** Reading and searching any tracked file. Running
+`./mvnw test`, `./mvnw spring-boot:run`, `npm ci`, `npm run build`,
+`npm run test:ui`, the GitNexus commands, and read-only git. Investigation is
+always allowed and is usually what makes a proposal worth approving.
+
+**Requires the maintainer's agreement first.** Any change to any file, including
+documentation. Specifically and without exception: deleting a file, editing this
+constitution, committing, pushing to any branch, adding or upgrading a
+dependency, and changing the database schema.
+
+A question from the maintainer is not permission. "What does this folder do" asks
+for an answer, not for the folder to be tidied.
+
+**Must do.**
+
+- State the plan, name the files it will change, say how to undo it, then stop and wait.
+- When the specification does not answer something the work needs, list what is unclear, state the assumption that would be made, say what that assumption changes, and stop. Do not pick an interpretation quietly.
+- Name the rule identifiers a change touches, so the reviewer can check the change against the rule rather than against the diff.
+- Never read or print `.env`.
+
+**Never read `.env`.** The committed `.env.example` files hold placeholders only
+under `OPS-004`; the real file holds a database password and the AES-256 master
+key.
+
+This section exists because the rule was broken before it was written. During the
+September 2026 documentation work an agent deleted a duplicated skills directory
+while the maintainer was still asking what the directory was for. The deletion
+was correct and the timing was not, and no written rule forbade it at the time.
 
 ## Amendment
 

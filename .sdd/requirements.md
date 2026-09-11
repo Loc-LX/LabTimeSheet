@@ -83,7 +83,7 @@ When statements conflict, use this precedence from highest to lowest:
 | GOV-004 | Attendance time and task work time shall remain separate domains; neither proves or derives the other. |
 | GOV-005 | Historical business results shall not change merely because an Admin later changes global workdays, schedule, check-in grace, checkout grace, quota, penalty, or calendar configuration. |
 | GOV-006 | Features not specified here require a new reviewed decision; this draft does not silently authorize adjacent scope. |
-| GOV-016 | This document is the system-wide layer: the rules that hold across every feature, plus the contracts between features. A later feature shall not be appended to it. A feature that needs its own specification shall get a separate document that names this one as its parent, inherits these rules without restating them, and records only what it adds. No such document may claim precedence over this one; where they disagree, the `GOV-001` order decides and the outcome is recorded as an ADR. |
+| GOV-016 | Every requirement shall have exactly one canonical location, and a change in business behavior shall update that location. A new feature shall be documented in the same form as the features already documented: numbered rules under an applicable prefix, and acceptance scenarios in §20. Splitting the specification across separate documents is an organizational choice made when it helps, never a goal, and no separate document shall override the canonical location of a rule. |
 
 ### 1.2 Product objective
 
@@ -102,7 +102,15 @@ The system supports a university laboratory or internship program in four connec
 | GOV-008 | v1 shall not include project-level days off, multiple task assignees, unconditional self-service Project joining/leaving, task dependencies, epics, sprints, story points, labels, watchers, reactions, attachments, nested subtasks, or burndown charts. Authenticated invitation acceptance and Mentor-approved exit requests are the only member-initiated boundary workflows. |
 | GOV-009 | v1 shall not persist generic domain events, login-attempt history, daily calendar materializations, or task-assignment history. Narrow correction and leadership history are retained because current requirements depend on them. |
 | GOV-010 | Automatic SSH deployment is not active until the deployment VM and its secrets exist; the workflow contains only a disabled template. |
-| GOV-015 | The Task effort-planning slice shall remain local to this product. v1 shall not integrate with external Jira or Tempo, shall not mirror Jira issues, sprints, or story points, shall not hold Tempo accounts or synchronization, shall not add a `SUBMITTED` state or a Leader acceptance and rejection Task workflow, shall not offer Weekly or Monthly report presets, and shall not perform continuous replanning unrelated to worked reassignment. Any of these requires a new numbered requirement and a recorded decision. |
+| GOV-015 | The Task effort-planning slice shall remain local to this product. v1 shall not integrate with external Jira or Tempo, shall not mirror Jira issues, sprints, or story points, shall not hold Tempo accounts or synchronization, shall not add a `SUBMITTED` state or a Leader acceptance and rejection Task workflow, and shall not perform continuous replanning unrelated to worked reassignment. Any of these requires a new numbered requirement and a recorded decision. |
+
+**Deferred, which is not the same as excluded.** Weekly and Monthly report
+presets sit outside the v1 acceptance scope and are postponed for later
+consideration. The rules above forbid their subjects; this paragraph does not.
+Deferral is equally not a promise: building one later needs a numbered
+requirement and an acceptance scenario like any other feature. The distinction is
+recorded because `GOV-015` previously forbade these presets while the decision
+behind it only postponed them.
 
 ## 2. Terminology and system-wide rules
 

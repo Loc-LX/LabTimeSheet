@@ -114,6 +114,12 @@ test proves only that the code agrees with itself.
 One file covers one cohesive feature, not one Java class. Name every requirement
 ID it protects.
 
+> **Under review.** A proposal would replace this step with rule identifiers
+> written into the test class itself, so that the trace survives a rename and can
+> be read back mechanically. It is not adopted, because `TST-005` and `TST-007`
+> require the Markdown file and `AC-TST-001` checks for it. Changing it is an
+> amendment under `GOV-001`, needing an ADR, not an edit to this guide.
+
 ### 4. Green
 
 Write the minimum production code that passes. Add Javadoc to new or changed
