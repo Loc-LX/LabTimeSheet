@@ -259,7 +259,7 @@ verification. Four things have to be established first.
 4. An actual run, not an inference from the assertion.
 
 One consequence is already visible. The recording place used to be the
-hand-written evidence files under `docs/tests/`, which are slated for removal.
+hand-written evidence files under `docs/tests/`, removed by `ADR-004`.
 Recording per run therefore has to mean the pipeline prints the resolved version,
 not that a person types it into a file afterwards.
 

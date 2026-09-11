@@ -54,7 +54,6 @@ layouts stay best effort; desktop is the supported target.
 | How do I deploy | [DEPLOYMENT.md](DEPLOYMENT.md) |
 | What is planned and who owns it | [`plan.md`](plan.md) |
 | Which test protects which rule | [`.sdd/reviews/traceability.md`](.sdd/reviews/traceability.md) |
-| What evidence backs a behavior | [`docs/tests/`](docs/tests/README.md) |
 | Rules for AI agents working here | [AGENTS.md](AGENTS.md), [CLAUDE.md](CLAUDE.md) |
 
 The requirements document carries 269 numbered rules in sections 1 through 22. It
@@ -182,9 +181,10 @@ tables and 56 foreign keys, and 7 of 7 UI contract tests. Migration `V2` has
 since added a twenty-fourth table for Task effort planning, so that table count
 is a record of the gate rather than a current figure.
 
-Every behavior test has a companion Markdown record under
-[`docs/tests/`](docs/tests/README.md). [TESTING.md](TESTING.md) covers the
-required TDD cycle, evidence format, and common failures.
+A test names the numbered requirements it protects in its own Javadoc, and the
+current mapping is in
+[`.sdd/reviews/traceability.md`](.sdd/reviews/traceability.md).
+[TESTING.md](TESTING.md) covers the required TDD cycle and the common failures.
 
 ## Continuous integration and production containers
 

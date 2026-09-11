@@ -23,7 +23,7 @@ Before editing production code, an agent shall:
 
 1. Read the applicable numbered requirements and acceptance scenarios.
 2. Claim one bounded tracker item by setting its status to `IN_PROGRESS` and recording owner/date.
-3. Identify the test level and evidence file that will protect the behavior.
+3. Identify the test level and the class that will protect the behavior.
 4. Write and run the failing test before production code.
 5. Confirm the test fails because the required behavior is missing, not because the test or environment is broken.
 
@@ -31,7 +31,7 @@ When completing an item, the agent shall record:
 
 - the exact RED command and expected failure;
 - the exact GREEN and affected-suite commands;
-- the evidence Markdown path under `docs/tests/`;
+- the test class and method, and the requirement identifiers it names;
 - the implementation commit or final local commit SHA;
 - any remaining limitation that is explicitly allowed by the requirements.
 
@@ -361,13 +361,13 @@ Every feature follows this sequence:
 1. Select a requirement and acceptance scenario.
 2. Write the smallest behavioral test.
 3. Run it and confirm the intended RED failure.
-4. Record the RED command/result in the appropriate evidence file.
+4. Name the requirement identifiers in the test Javadoc, with the break it catches and the hand-derived expected value.
 5. Write the minimum production code required for GREEN and add its meaningful Javadoc in the same implementation milestone.
 6. Run the focused test.
 7. Run the affected module/integration/web suite.
 8. Refactor without weakening assertions.
 9. Run the affected suite again.
-10. Record final commands/results and commit SHA.
+10. Report the final commands, results, and commit SHA.
 
 Recommended history:
 
@@ -378,28 +378,14 @@ feat(attendance): enforce inclusive check-in grace boundary [GREEN]
 
 The RED and GREEN commits may be pushed together after the branch head is green. The failing historical commit proves test-first order without leaving the remote branch intentionally broken.
 
-Required evidence locations:
+The trace lives in the test source, not in a separate document. See
+[`.sdd/rfcs/ADR-004-test-evidence-moves-into-the-test.md`](.sdd/rfcs/ADR-004-test-evidence-moves-into-the-test.md)
+for why, and [`.sdd/reviews/traceability.md`](.sdd/reviews/traceability.md) for
+the mapping of the classes that predate the rule.
 
-| Test level | Evidence directory |
-|---|---|
-| Unit/state/calculation | `docs/tests/unit/` |
-| PostgreSQL/module integration | `docs/tests/integration/` |
-| MockMvc/Thymeleaf/security web behavior | `docs/tests/web/` |
-| Cross-module/browser journey | `docs/tests/e2e/` |
-
-Every evidence Markdown record must include:
-
-- requirement and scenario IDs;
-- protected behavior and why it matters;
-- test method and hand-derived expected result;
-- exact RED command and relevant failure;
-- exact GREEN and affected-suite commands/results;
-- external dependency or environment boundaries;
-- final commit SHA when available.
-
-Javadoc is part of production implementation, not a later documentation phase. Every new or materially changed production type and every declared public/protected method shall document its business contract, including non-obvious authorization, transaction/locking, lifecycle/history, unit, timezone, or deadline semantics. Do not add prose that merely repeats names. Iteration 1 alone may retrofit Javadocs after feature implementation is complete; those branch-owned retrofit commits still require affected verification and independent scoped re-review. Every later iteration and turn shall add/update Javadocs during the implementation milestone.
-
-## 9. Branch-level test emphasis
+Evidence paths cited in the tracker rows below point at files removed by that
+decision. They are dated records of what was run and stay as written; the files
+they name are reachable in git history.
 
 | Branch | Non-negotiable evidence |
 |---|---|

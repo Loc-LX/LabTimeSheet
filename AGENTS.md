@@ -26,7 +26,7 @@ Check these before assuming anything. When two disagree, the higher row wins.
 | What the system must do | [`.sdd/requirements.md`](.sdd/requirements.md), 269 numbered rules |
 | Why a decision was made | [`.sdd/rfcs/`](.sdd/rfcs) |
 | What is planned, and its status | [`plan.md`](plan.md) |
-| What behavior is already proven | [`docs/tests/`](docs/tests/README.md), 155 evidence records |
+| What behavior is already proven | [`.sdd/reviews/traceability.md`](.sdd/reviews/traceability.md), rule to test class |
 
 `plan.md` is the only live plan. Do not trust any other copy.
 
@@ -54,7 +54,7 @@ answer, not for the folder to be tidied.
 - Delete a file, commit, push, add or upgrade a dependency, or change the schema without the maintainer saying so for that specific action.
 - Commit or push without the user asking. Never commit to `main`.
 - Edit or delete a Flyway migration that has already been applied. Add a new one.
-- Change or delete files under `docs/tests/`. They are dated records of what was run.
+- Weaken a rule trace in a test, or remove the requirement identifiers it names.
 - Read or print `.env`, or move any secret into a tracked file.
 - Weaken or delete an assertion to make a test pass.
 - Rename a symbol with find-and-replace. Use the rename tool that understands the call graph.
@@ -78,11 +78,11 @@ it is not optional.
 1. Pick a numbered requirement and its acceptance scenario.
 2. Write the smallest behavioral test for it.
 3. Run it. Confirm it fails for the intended reason, not a compile error you did not expect.
-4. Record the RED command and result in an evidence file under `docs/tests/<unit|integration|web|e2e>/`.
+4. Name the numbered requirements the test protects in its Javadoc, with the observable break and the hand-derived expected value.
 5. Write the minimum production code for GREEN, with Javadoc on new or changed public and protected members in the same step.
 6. Run the focused test, then the affected module, integration, or web suite.
 7. Refactor without weakening assertions, then run the affected suite again.
-8. Record the final commands, results, and commit SHA in the same evidence file.
+8. Report the commands you ran and their results, including the resolved tool versions.
 
 Test PostgreSQL-specific behavior against PostgreSQL through Testcontainers,
 never H2. Use real components at the boundary under test; fake only SMTP and

@@ -114,7 +114,7 @@ being upgraded into incompatible combinations.
 | Node built-in test runner | Frontend asset and workflow contract tests | The required JavaScript checks run without adding another test framework. |
 | Playwright | Automated desktop-browser end-to-end journeys | Playwright provides repeatable Chromium-based tests for bootstrap, login, role navigation, Projects, Tasks, attendance, and accessibility-sensitive workflows required by the instructor. |
 | Manual Edge/Chrome journeys | Exploratory and final visual checks | Manual checks still catch layout, focus, contrast, and real-browser integration issues that focused automated tests may not explain clearly. |
-| Markdown evidence records | RED/GREEN and affected-suite evidence under `docs/tests/` | Each feature change remains traceable to requirements, commands, expected results, and test boundaries. |
+| Javadoc rule traces | The numbered requirements a test protects, named in the test source | The trace survives a rename and is read back mechanically, so the report of untested rules is generated rather than maintained. See `ADR-004`. |
 
 ## 9. Reporting technologies
 

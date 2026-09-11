@@ -8,7 +8,7 @@
 | Maintainer | Loc-LX |
 | Supervisor | not yet assigned |
 | Signed by | — |
-| Last updated | 2026-09-11 |
+| Last updated | 2026-09-12 |
 | Amendment | requires a new ADR under [`.sdd/rfcs/`](rfcs) and the `GOV-001` authority order |
 | Full rule text | [`.sdd/requirements.md`](requirements.md) |
 
@@ -30,7 +30,7 @@ Three layers, from strictest to most negotiable:
 |---|---|---|
 | 1 | Never violated. A breach is a defect regardless of deadline. | None |
 | 2 | Architectural boundary. | Approved ADR only |
-| 3 | Engineering standard. | Documented reason in the evidence record |
+| 3 | Engineering standard. | Documented reason in the change itself |
 
 ---
 
@@ -157,9 +157,9 @@ document overrides the canonical location of a rule.
 | `TST-002` | Production behavior written before its failing test is discarded and reimplemented from the failing test. | None |
 | `TST-003` | Each test names the observable break it catches and derives expected values independently, never mirroring production code. | None |
 | `TST-004` | Real components are used at the relevant boundary. Only slow or external dependencies such as SMTP and HolidayAPI are faked. | Documented reason |
-| `TST-005` | A tracked Markdown evidence file is created with the first failing test, under `docs/tests/<type>/`. | None |
-| `TST-006` | Evidence directories are exactly `unit`, `integration`, `web`, and `e2e`. One file covers one feature, not one Java class. | None |
-| `TST-007` | Evidence records requirement IDs, protected behavior, preconditions, the automated class and method, hand-derived expected results, and commands run. | None |
+| `TST-005` | Each test names, in its own source, the numbered requirements it protects. | None |
+| `TST-006` | One test class covers one cohesive behavior, not one production class. Test packages mirror the feature packages they exercise. | None |
+| `TST-007` | The trace records the requirement and scenario identifiers, the observable break, and the hand-derived expected result. | None |
 | `TST-008` | Evidence is updated on the same branch as its tests and implementation. A Markdown claim never replaces executable CI evidence. | None |
 | `TST-009` | Human prose and simple configuration do not receive artificial unit tests. Their evidence is the smallest executable validation. | This rule is itself the documented exception to `TST-001` |
 | `TST-010` | A milestone is committed only when evidence is current, narrow and affected suites are green, and no unexplained error or warning remains. | None |

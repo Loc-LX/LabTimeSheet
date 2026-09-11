@@ -195,7 +195,7 @@ LAB_E2E_START_INSTANT=2026-08-22T02:00:00Z \
 The advancing clock is local-only, starts near the supplied instant, and
 `prod` plus `e2e` is rejected at startup.
 
-Do not record a real browser journey as a web test. Use `docs/tests/e2e/`.
+Do not record a real browser journey as a web test. Put it under `src/test/e2e`.
 
 ### Structure and configuration checks
 
@@ -258,41 +258,38 @@ Maven test reports are written to `target/surefire-reports/`.
 TDD means writing the test before writing the production behavior.
 
 1. Choose the requirement and acceptance-scenario IDs.
-2. Copy the matching template from `docs/tests/unit`, `integration`, `web`, or `e2e`.
-3. Write the smallest test that proves the missing behavior.
+2. Write the smallest test that proves the missing behavior.
+3. Name those identifiers in the test Javadoc, with the break it catches and the hand-derived expected value.
 4. Run that test and confirm it fails for the expected reason. This is **RED**.
-5. Record the exact command and useful failure output in the evidence file.
-6. Write the minimum production code and its Javadoc. Do not add unrelated work.
-7. Run the same test again. It must pass. This is **GREEN**.
-8. Run the affected feature tests, then the full suite when the milestone is complete.
-9. Refactor only while the tests stay green.
-10. Update the evidence file and commit the complete milestone.
+5. Write the minimum production code and its Javadoc. Do not add unrelated work.
+6. Run the same test again. It must pass. This is **GREEN**.
+7. Run the affected feature tests, then the full suite when the milestone is complete.
+8. Refactor only while the tests stay green.
+9. Commit the complete milestone.
 
 If the first test fails because Docker is stopped, a class name is wrong, or the
 test setup is broken, that is not a valid RED. Fix the environment or test first.
 
-## 6. Evidence records
+## 6. Recording what a test protects
 
-Every behavior test needs one Markdown record in the matching directory:
+A test names the numbered requirements it protects, in its own source:
 
-```text
-docs/tests/unit/
-docs/tests/integration/
-docs/tests/web/
-docs/tests/e2e/
+```java
+/**
+ * Protects {@code ATT-009}, {@code ATT-010}.
+ *
+ * <p>Under default policy, 09:00:00 is on time and 09:00:00.001 is late;
+ * checkout through 16:00:00 succeeds and the first later instant is rejected.
+ */
 ```
 
-Keep every heading from `_TEMPLATE.md`. Record:
+Record the identifiers, the observable production break, and how the expected
+result was derived. Derive it from the specification, not from what the code
+returns.
 
-- requirement and scenario IDs;
-- the behavior being protected;
-- how the expected result was calculated;
-- exact RED and GREEN commands and results;
-- the affected-suite result;
-- anything the test did not prove.
-
-One record may cover a closely related parameterized scenario set. A written
-claim never replaces a test command and result.
+A written claim never replaces a test command and its result. That is `TST-008`,
+and it is the reason the Markdown evidence records were removed: see
+[`.sdd/rfcs/ADR-004-test-evidence-moves-into-the-test.md`](.sdd/rfcs/ADR-004-test-evidence-moves-into-the-test.md).
 
 ## 7. Testing best practices
 
@@ -303,7 +300,7 @@ claim never replaces a test command and result.
 - Use the project's injectable `Clock`; do not make tests depend on the real current time.
 - Keep each test independent. Do not rely on another test running first.
 - Use real Spring and database components at the boundary being tested. Mock only external services such as SMTP or HolidayAPI when appropriate.
-- Never put real passwords, API keys, activation links, or reset links in test code or evidence.
+- Never put real passwords, API keys, activation links, or reset links in test code or test output.
 - Do not remove assertions, catch errors, or disable security simply to make a test pass.
 - Run the focused test first so feedback is fast, then run the broader suite before committing.
 - Give tests names that describe the rule and expected result.
@@ -318,7 +315,7 @@ The separate container workflow runs only when manually dispatched or when
 Manual runs do not publish; only a push to `main` publishes.
 
 Run focused and affected tests locally before pushing. CI is the shared
-confirmation, not a substitute for local RED and GREEN evidence.
+confirmation, not a substitute for a local RED and GREEN run.
 
 ## 8. Common problems
 

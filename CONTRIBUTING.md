@@ -90,35 +90,37 @@ Pick a numbered requirement and its acceptance scenario. Write the smallest test
 that would catch the real break. Run it and confirm it fails for the reason you
 intended, not because of a typo or a missing import.
 
-Copy the failing command and its output into an evidence file.
+Keep the exact command and its output; the run records them, not a file you write afterwards.
 
-### 3. Evidence
+### 3. Trace
 
-Copy the `_TEMPLATE.md` from the directory matching your test type and keep
-every heading:
+Name the numbered requirements the test protects, in the test itself:
 
-| Directory | For |
-|---|---|
-| `docs/tests/unit/` | isolated state, calculation, domain behavior |
-| `docs/tests/integration/` | PostgreSQL, Flyway, repository, transaction, module integration |
-| `docs/tests/web/` | MockMvc, Thymeleaf, validation, security |
-| `docs/tests/e2e/` | cross-module, browser, full journeys |
+```java
+/**
+ * Protects {@code ATT-009}, {@code ATT-010}.
+ *
+ * <p>Under default policy, 09:00:00 is on time and 09:00:00.001 is late;
+ * checkout through 16:00:00 succeeds and the first later instant is rejected.
+ */
+```
 
-Required headings: protected behavior, test method, hand-derived expected
-result, RED, GREEN, affected suite, external-test boundaries.
+Record three things: the identifiers, the observable production break the test
+catches, and the expected value. Derive that value by hand from
+[the specification](.sdd/requirements.md) before looking at what the code
+produces. A test written from the implementation proves only that the code agrees
+with itself.
 
-Copy commands and output exactly. "Passed locally" is not evidence. Derive the
-expected value by hand rather than by reading what the code produces, or the
-test proves only that the code agrees with itself.
+The trace lives in the source so that it moves under a rename and can be read
+back mechanically, which is what makes the report of untested rules generated
+rather than maintained.
 
-One file covers one cohesive feature, not one Java class. Name every requirement
-ID it protects.
-
-> **Under review.** A proposal would replace this step with rule identifiers
-> written into the test class itself, so that the trace survives a rename and can
-> be read back mechanically. It is not adopted, because `TST-005` and `TST-007`
-> require the Markdown file and `AC-TST-001` checks for it. Changing it is an
-> amendment under `GOV-001`, needing an ADR, not an edit to this guide.
+This replaced a Markdown evidence file per feature. The measurements behind the
+change are in
+[`.sdd/rfcs/ADR-004-test-evidence-moves-into-the-test.md`](.sdd/rfcs/ADR-004-test-evidence-moves-into-the-test.md).
+Eighty-eight existing classes predate the rule and carry no identifiers yet;
+until they are back-filled their mapping lives in
+[`.sdd/reviews/traceability.md`](.sdd/reviews/traceability.md).
 
 ### 4. Green
 
@@ -129,7 +131,6 @@ then the affected module, integration, or web suite.
 ### 5. Refactor
 
 Improve the code without weakening any assertion. Run the affected suite again.
-Record the final commands, results, and commit SHA in the evidence file.
 
 ### 6. Commit
 
@@ -146,9 +147,9 @@ Types in use: `feat`, `fix`, `docs`, `test`, `refactor`, `perf`, `chore`.
 Scopes in use: `platform`, `projects`, `tasks`, `attendance`, `reporting`,
 `web`, `seed`.
 
-Commit the evidence file together with its test and implementation, on the same
-branch. A milestone is committable only when evidence is current, narrow and
-affected suites are green, and no unexplained warning remains.
+Commit the test and its implementation together on the same branch. A milestone
+is committable only when the narrow and affected suites are green and no
+unexplained warning remains.
 
 ### 7. Review
 
@@ -161,12 +162,12 @@ merges, never forced.
 - Production code written before its failing test. It is discarded and redone from the test.
 - A weakened or deleted assertion used to make a suite pass.
 - A PostgreSQL-specific behavior tested against H2.
-- A missing or vague evidence record.
+- A test whose expected value was read off the implementation rather than derived from the specification.
 - A new dependency, framework, or datastore without an ADR.
 - Cross-feature repository or entity access. `LayerStructureTest` catches this.
 - Business SQL inside a service.
 - An edit to an already-applied Flyway migration. Add a new migration instead.
-- A change to files under `docs/tests/` other than adding your own record. Those are dated records of what was run.
+- A test that names no requirement identifier, or names one it does not actually exercise.
 
 ## Changing a rule or a requirement
 
@@ -186,9 +187,8 @@ is a worked example.
 
 Agents operating in this repository follow [AGENTS.md](AGENTS.md) and read
 [CLAUDE.md](CLAUDE.md) for context. The same standards apply to their output as
-to yours: a test that failed first, an evidence record, Javadoc, and an
-independent review. An agent saying a task is complete is not evidence; a green
-suite and a filled-in evidence record are.
+to yours: a test that failed first, a rule trace, Javadoc, and an independent
+review. An agent saying a task is complete is not evidence; a green suite is.
 
 ## Getting oriented
 

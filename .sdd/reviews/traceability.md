@@ -7,6 +7,17 @@ which test class, and which rules are protected by nothing.
 Test classes live under `src/test/java`. A rule with no class in the
 right-hand column can be changed without any test turning red.
 
+**This table is a snapshot, and it will go stale.** It was extracted from 150
+Markdown evidence records on 11 September 2026, one day before
+[`ADR-004`](../rfcs/ADR-004-test-evidence-moves-into-the-test.md) removed them.
+The rule it replaced them with, `TST-005`, puts the identifiers in the test
+source, where they can be read back mechanically and a table like this one is
+generated rather than maintained.
+
+Eighty-eight classes predate that rule and carry no identifiers. Until they are
+back-filled, this file is the only mapping for them and nothing detects it
+drifting from the tests. Treat a row here as a claim to verify, not a fact.
+
 ## Coverage
 
 | | Count |

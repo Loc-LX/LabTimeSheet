@@ -597,21 +597,28 @@ Gitea references: [variables](https://docs.gitea.com/1.24/usage/actions/actions-
 | TST-002 | Production behavior written before its failing test shall be discarded and reimplemented from the failing test; tests written only after implementation do not satisfy TDD. |
 | TST-003 | Each test shall name the observable production break it catches and derive expected values independently. Tests shall not merely mirror private implementation or assert that a mock was called. |
 | TST-004 | Real components shall be used at the relevant boundary. Mock or fake only slow/external dependencies such as SMTP or HolidayAPI, with complete realistic response shapes. |
-| TST-005 | A tracked Markdown evidence file shall be created with the first failing test for each feature or medium milestone under `docs/tests/<test-type>/`. |
-| TST-006 | Valid test-type directories shall be `unit`, `integration`, `web`, and `e2e`. One Markdown file shall cover one feature, not one Java test class or one entire test category. |
-| TST-007 | Evidence shall record requirement/scenario IDs, protected behavior, preconditions, automated class/method, hand-derived expected result, exact RED command and failure summary, exact GREEN/regression commands/results, and unavoidable external stubs. |
-| TST-008 | Evidence shall be updated on the same development branch as its tests and implementation. A Markdown claim shall not replace executable CI evidence. |
+| TST-005 | Each automated test shall name, in its own source, the numbered requirements it protects. The trace shall live with the test so that it survives a rename and can be read back mechanically. |
+| TST-006 | One test class shall cover one cohesive behavior rather than one production class or one entire test category. Test packages shall mirror the feature packages they exercise. |
+| TST-007 | The trace shall record the requirement and scenario identifiers, the observable production break the test catches, and the hand-derived expected result. |
+| TST-008 | A verification run shall record its own commands, results, and resolved tool versions. A written claim shall never replace an executable run. |
 | TST-009 | Human prose and simple configuration shall not receive artificial unit tests. Their evidence shall be the smallest executable validation, such as migration replay, `docker compose config`, workflow validation, or container health smoke test. |
 | TST-010 | A medium milestone may be committed only when its evidence is current, narrow and affected suites are green, and no unexplained error or warning remains. |
 
-Evidence path convention:
+Trace convention. The rules a test protects are named in the test source, so the
+trace moves with the class and can be read back mechanically:
 
-```text
-docs/tests/unit/<feature>-test-cases.md
-docs/tests/integration/<feature>-test-cases.md
-docs/tests/web/<feature>-test-cases.md
-docs/tests/e2e/<feature>-test-cases.md
+```java
+/**
+ * Protects {@code ATT-009}, {@code ATT-010}.
+ *
+ * <p>Under default policy, 09:00:00 is on time and 09:00:00.001 is late;
+ * checkout through 16:00:00 succeeds and the first later instant is rejected.
+ */
 ```
+
+This replaced a convention of one Markdown file per feature under `docs/tests/`.
+The reasoning, and the measurements behind it, are in
+[`rfcs/ADR-004-test-evidence-moves-into-the-test.md`](rfcs/ADR-004-test-evidence-moves-into-the-test.md).
 
 ## 18. Five-owner implementation split
 
@@ -1248,7 +1255,7 @@ produces ceremony without protection.
 | AC-OPS-003 | OPS-005–OPS-009 | App runs through bundled Compose and against external PostgreSQL | Same non-root image becomes healthy in both topologies with no embedded database assumption. |
 | AC-OPS-004 | OPS-011–OPS-017 | A work branch, pull request, `main` push, and manual container dispatch occur while deployment is disabled | Every pull request and push verifies; work branches and pull requests do not schedule container builds; manual dispatch verifies then builds without publishing; `main` verifies then builds and publishes SHA/main image tags; SSH is skipped and receives no deployment secrets. |
 | AC-OPS-005 | OPS-014–OPS-016 | Future operator enables deployment with all secrets | Job selects immutable SHA, verifies known host, rolls Compose, checks health, and records previous SHA for rollback. |
-| AC-TST-001 | TST-001–TST-010 | Contributor implements a feature | Evidence file and failing test precede production code; RED/GREEN commands are reproducible; milestone is not green without affected suites. |
+| AC-TST-001 | TST-001–TST-010 | Contributor implements a feature | A failing test naming the requirements it protects precedes production code; the run records its own commands, results, and tool versions; the milestone is not green without affected suites. |
 | AC-DB-001 | DB-003–DB-012 | Both review DDL files replay and their catalog metadata is compared with the physical Mermaid block | Each database has exactly 24 tables; the 23 baseline tables and their 56 named foreign keys match the diagram entity and FK names, and the twenty-fourth is verified against `DB-013` rather than against the diagram. |
 | AC-DB-004 | DB-001 | Catalog metadata for every application table is read back after a clean Flyway replay | Identity keys are generated `BIGINT`; local business dates are `date`; schedule times are `time`; every instant column is `timestamptz`; no PostgreSQL enum type exists, and every state column is `varchar` with a check constraint. |
 | AC-DB-005 | DB-002 | `btree_gist` is queried after replay, then one Intern is given a pending leave range and a second overlapping range is inserted directly by SQL | The extension is present; the second insert is refused by the exclusion constraint; a non-overlapping range for the same Intern and an overlapping range for a different Intern both succeed. |
