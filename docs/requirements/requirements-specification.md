@@ -10,9 +10,21 @@
 | Audience | Primary implementor, five-person student team, instructor/reviewer |
 | Product language | English |
 | Business timezone | `Asia/Ho_Chi_Minh` |
-| Database baseline | PostgreSQL 18.4, 23 application tables |
+| Database baseline | PostgreSQL 18.4, 24 application tables |
 | Companion DDL | `database-schema.sql`, not tracked in this repository |
 | Review state | Not approved for implementation |
+| Normative rules | 268 in sections 1–22 |
+| Acceptance coverage | 252 rules carry a §20 scenario; 16 governance and coordination rules are declared without one |
+| Spec quality gate | 12 of 12 checks pass, last run 11 September 2026 |
+
+> **Spec quality gate.** The twelve-point specification review has been run against this
+> document and passes: business context present, happy and error paths described, every
+> behavioral rule carrying a testable acceptance scenario, no vague wording, edge cases named,
+> no internal contradiction, naming matching the codebase, stack and security constraints
+> stated, out-of-scope defined, and no unresolved specification question.
+>
+> Passing the gate is not approval. Approval belongs to the authority order in §1.1, and the
+> review state above stays unchanged until the holder of that authority records it.
 
 > **Companion files.** This document was authored in a separate documentation
 > repository and copied here on 26 August 2026. Its companion `database-schema.sql`
@@ -89,6 +101,7 @@ The system supports a university laboratory or internship program in four connec
 | GOV-008 | v1 shall not include project-level days off, multiple task assignees, unconditional self-service Project joining/leaving, task dependencies, epics, sprints, story points, labels, watchers, reactions, attachments, nested subtasks, or burndown charts. Authenticated invitation acceptance and Mentor-approved exit requests are the only member-initiated boundary workflows. |
 | GOV-009 | v1 shall not persist generic domain events, login-attempt history, daily calendar materializations, or task-assignment history. Narrow correction and leadership history are retained because current requirements depend on them. |
 | GOV-010 | Automatic SSH deployment is not active until the deployment VM and its secrets exist; the workflow contains only a disabled template. |
+| GOV-015 | The Task effort-planning slice shall remain local to this product. v1 shall not integrate with external Jira or Tempo, shall not mirror Jira issues, sprints, or story points, shall not hold Tempo accounts or synchronization, shall not add a `SUBMITTED` state or a Leader acceptance and rejection Task workflow, shall not offer Weekly or Monthly report presets, and shall not perform continuous replanning unrelated to worked reassignment. Any of these requires a new numbered requirement and a recorded decision. |
 
 ## 2. Terminology and system-wide rules
 
@@ -433,7 +446,7 @@ For an applicable Intern/date, classification precedence is:
 | ID | Requirement |
 |---|---|
 | SEC-010 | Production shall require an HTTPS public base URL/origin and explicit trusted-proxy configuration before startup is considered ready. |
-| SEC-011 | Production shall enable HSTS, `Secure` and `HttpOnly` session cookies, `SameSite=Strict`, strict configured-origin checks, and appropriate content/security headers. |
+| SEC-011 | Production shall enable HSTS with `includeSubDomains`, `preload`, and a max age of 31 536 000 seconds; `Secure` and `HttpOnly` session cookies; `SameSite=Strict`; strict configured-origin checks; a Content-Security-Policy of `default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'`; and a `Referrer-Policy` of `no-referrer` in every profile. |
 | SEC-012 | Forwarded headers shall be trusted only when the deployment explicitly enables and constrains the known reverse-proxy path. Arbitrary client-forwarded headers shall not define scheme, host, or source IP. |
 | SEC-013 | Dev/test may use HTTP, localhost origins, `SameSite=Lax`, and no HSTS or Secure-cookie requirement. These relaxations shall be activated only by dev/test profile state and shall not be silently inherited by production. |
 | SEC-014 | Production readiness shall fail when the master key, public origin, datasource, or explicit proxy policy required by production is absent or malformed. SMTP may remain absent, but the application shall remain visibly restricted as specified. |
@@ -525,7 +538,7 @@ Primary UI dependency references:
 | ID | Requirement |
 |---|---|
 | OPS-005 | A multi-stage Docker build shall compile frontend assets and the Spring Boot artifact, then run on a minimal Java 25 runtime as a non-root user. |
-| OPS-006 | The application image shall expose liveness and readiness health endpoints. Readiness shall require initialized runtime dependencies appropriate to the active profile, not SMTP availability. |
+| OPS-006 | The application image shall expose liveness and readiness health endpoints. Readiness shall require the datasource to be reachable and the Flyway migration set to have completed; it shall not require SMTP or HolidayAPI availability. |
 | OPS-007 | Recommended production Compose shall run the application plus a pinned PostgreSQL 18.4 service with health-gated startup and a persistent named volume. |
 | OPS-008 | The same application image shall support an externally managed PostgreSQL database through datasource URL, username, and password environment values without starting a bundled database. |
 | OPS-009 | Production configuration shall include datasource, application master key, public base URL/origin, and explicit proxy policy. SMTP and HolidayAPI credentials shall remain Admin-console configuration. |
@@ -1057,6 +1070,18 @@ erDiagram
 
 These scenarios define reviewable behavior. During implementation, each scenario shall map to one or more TDD evidence files and automated tests at the narrowest useful layer.
 
+**Rules with no system-level acceptance criterion.** Sixteen requirements govern how the team
+works rather than how the system behaves, so no scenario can assert them and none is written.
+They are listed here so that a reader can tell a deliberate exclusion from an oversight.
+
+| Group | IDs | Why no scenario |
+|---|---|---|
+| Governance | `GOV-001`, `GOV-002`, `GOV-003`, `GOV-005`–`GOV-010`, `GOV-012`, `GOV-014`, `GOV-015` | Authority order, terminology, scope discipline, non-goals, and retention intent. These bind the people writing requirements and code; an automated scenario cannot observe them. `GOV-004`, `GOV-011`, and `GOV-013` describe system behavior and are covered by `AC-ATT-*`, `AC-GOV-001`, and `AC-GOV-002`. |
+| Coordination | `OPS-018`–`OPS-021` | Baseline publication, file ownership, branch naming, integration order, and commit discipline. Enforced by review and by branch policy, not by the running application. |
+
+Excluding them is a choice, not a gap. Writing a scenario for a rule that no test can observe
+produces ceremony without protection.
+
 ### 20.1 Bootstrap, accounts, and authorization
 
 | Scenario | Requirements | Given / when | Expected result |
@@ -1176,6 +1201,30 @@ These scenarios define reviewable behavior. During implementation, each scenario
 | AC-OPS-005 | OPS-014–OPS-016 | Future operator enables deployment with all secrets | Job selects immutable SHA, verifies known host, rolls Compose, checks health, and records previous SHA for rollback. |
 | AC-TST-001 | TST-001–TST-010 | Contributor implements a feature | Evidence file and failing test precede production code; RED/GREEN commands are reproducible; milestone is not green without affected suites. |
 | AC-DB-001 | DB-003–DB-012 | Both review DDL files replay and their catalog metadata is compared with the physical Mermaid block | Each database has exactly 23 tables and 56 named foreign keys; both catalogs and all diagram entity/FK names match. |
+| AC-DB-004 | DB-001 | Catalog metadata for every application table is read back after a clean Flyway replay | Identity keys are generated `BIGINT`; local business dates are `date`; schedule times are `time`; every instant column is `timestamptz`; no PostgreSQL enum type exists, and every state column is `varchar` with a check constraint. |
+| AC-DB-005 | DB-002 | `btree_gist` is queried after replay, then one Intern is given a pending leave range and a second overlapping range is inserted directly by SQL | The extension is present; the second insert is refused by the exclusion constraint; a non-overlapping range for the same Intern and an overlapping range for a different Intern both succeed. |
+| AC-CAL-005 | CAL-001 | A Mentor and an Intern each attempt to create and to edit a global calendar event, and a client attempts to attach a calendar override to one Project | All non-Admin attempts are refused before any write; no schema path or endpoint accepts a project-scoped calendar override; Admin succeeds for both a custom and an imported event. |
+| AC-INT-005 | INT-001 | SMTP settings are supplied through deployment environment variables while none is configured in the Admin console, then an Admin edits SMTP in the console | The environment values are ignored and SMTP remains unconfigured; the console edit is the only change that takes effect, and it is stored through the application rather than requiring direct database editing. |
+| AC-NOT-006 | NOT-001 | An event designated for email and an event not designated for email each fire while SMTP is unavailable | Both create an in-app record for the intended recipient; only the email-designated event records a delivery attempt; neither loses its in-app record because delivery failed. |
+| AC-PRJ-014 | PRJ-002 | An owning Mentor completes a Project, then attempts to move it back to `ACTIVE` or `PLANNED`, and a direct request attempts the same transition | Both attempts are refused; the Project remains `COMPLETED`; no state column value outside `PLANNED`, `ACTIVE`, and `COMPLETED` can be written. |
+| AC-TSK-015 | TSK-002 | One Intern is an active member of two Projects and is made current assignee of Tasks in both, then of a second Task in the first Project | Every assignment succeeds; each Task keeps exactly one current assignee; the Intern's assignment count is not capped by Project membership. |
+| AC-GOV-001 | GOV-011 | The server runs with a JVM default timezone other than the policy timezone, an Intern checks in, and the attendance row is read back | The business date is derived from the applicable policy version's timezone rather than the JVM default; the persisted instant is `timestamptz` and reads back as the same moment in UTC. |
+| AC-GOV-002 | GOV-013 | Two clients concurrently submit leave that would exceed the monthly quota, and separately two clients concurrently log Task work on the same Intern and date | Exactly one leave request commits within quota and the other fails with an explicit conflict; the daily work total never exceeds 1 440 minutes and no partial row survives either race. |
+| AC-ATT-008 | ATT-018 | An Intern checks in, the Admin completes the internship later the same local date, and the Intern attempts a second check-in the next workday | The already-recorded attendance row for the terminal date is retained unchanged and still appears in reports; the next-day check-in is refused because the lifecycle is terminal. |
+| AC-DB-003 | DB-013 | SQL probes insert a Task estimate of 0, one of 527 041, a forecast whose Task and membership belong to different Projects, a forecast with negative lifetime-actual, and an attempt to update an existing forecast row | Each is rejected by a constraint; estimates accept `NULL` and the inclusive bounds 1 and 527 040; forecasts accept inserts only, and no derived total column exists on any table. |
+| AC-INT-004 | INT-010 | An operator inspects a stored SMTP and a stored HolidayAPI cipher envelope | Each envelope carries key-version metadata alongside the ciphertext; no rotation or external secret-store endpoint exists in the application. |
+| AC-NOT-005 | NOT-009 | Intern A and Intern B each hold unread notifications; A requests the list and unread count, then marks one notification read twice | A sees only A's notifications and A's count; the second mark-read returns the same state as the first and does not change the count further; B's list and count are unaffected. |
+| AC-OPS-006 | OPS-010 | An operator replaces the application container while the named volume or external database is retained, then performs a documented restore | Data survives container replacement, and the restore procedure reproduces the database independently of the container lifecycle; documentation states that container replacement is not a backup. |
+| AC-SEC-006 | SEC-008 | A state-changing request supplies an absolute external redirect target, a second supplies a user-chosen class name, and a third supplies an arbitrary template path | All three are refused before the mutation; the response redirects only to an allow-listed local path and never to the supplied value. |
+| AC-SEC-007 | SEC-009 | An unauthenticated client requests a record that does not exist and then one that exists but belongs to another user; a controller then throws an unexpected exception | Both record requests produce the same non-disclosing response, so existence cannot be inferred; the exception page shows no stack trace, SQL, secret, or internal identifier. |
+| AC-ARC-001 | ARC-001–ARC-008 | The architecture and persistence structure suites run against the compiled application | Package layout, layer subpackages, mirrored test packages, the absence of cross-feature repository and entity imports, the absence of business SQL in services, and Flyway-only schema authority are each asserted by an automated structural test rather than by review. |
+| AC-ERR-001 | ERR-001 | An Intern submits a Task work log with 0 minutes and a blank note | The same form redisplays with the submitted values retained, a field error on minutes, and an error summary; `task_work_logs` gains no row and the Task's daily total is unchanged. |
+| AC-ERR-002 | ERR-002 | A Mentor loads an exit request, a second actor approves it, then the first Mentor submits the stale form | The stale submission is rejected with a reload invitation; the first decision stands unmodified; no second `project_membership_exit_requests` transition and no duplicate notification. |
+| AC-ERR-003 | ERR-003 | A correction is submitted at the exact instant its submission deadline passes, with the deadline check and the insert in one transaction | Either the correction commits with its deadline satisfied or the whole transaction rolls back; no correction row exists whose recorded deadline had already passed at commit time. |
+| AC-ERR-004 | ERR-004 | A scheduled worker runs, is interrupted, and is invoked again over the same window | Each affected row transitions once and each recipient receives one notification; the second invocation finds nothing left to do and processes no more than its bounded batch size. |
+| AC-ERR-005 | ERR-005 | SMTP and HolidayAPI are both unreachable, then an Intern checks in, a Mentor opens an attendance report, and an Admin attempts to create an account | Check-in and the report succeed from local data; account creation is blocked before token creation with an actionable message naming the unavailable dependency. |
+| AC-ERR-006 | ERR-006 | An XLSX export fails midway through writing the workbook | The response reports the failure rather than a truncated file; no report artifact is persisted; the workbook stream and any temporary file are closed, verified by the absence of leaked handles after the request. |
+| AC-ERR-007 | ERR-007 | The application starts against a database whose Flyway migration fails | Readiness reports down and stays down; no request is served against the partially migrated schema; the failure names the migration that stopped. |
 | AC-DB-002 | DB-011–DB-012 | SQL probes attempt duplicate pending invitations/exits, cross-Project references, invalid request participants, and unsupported resolution combinations | PostgreSQL rejects each invalid row while valid accepted/revoked/superseded and approved/rejected/cancelled histories commit. |
 
 ## 21. Failure handling and observable behavior

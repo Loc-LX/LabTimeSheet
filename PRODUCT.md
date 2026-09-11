@@ -71,6 +71,23 @@ The product joins attendance oversight and Project delivery without pretending t
 - The repository contains the implemented product. All tracked deliverables for Iterations 1 through 4 are marked `DONE` in `.agents/PROJECT_PLAN.md`; only the Iteration 3 integrated review remains.
 - No production data, customer testimonials, adoption metrics, institutional endorsements, or performance claims are available. Future design work must not fabricate them.
 
+## Assumptions
+
+Each item below is believed true but has not been confirmed with the instructor or
+product owner. Each is a risk if it turns out false, and the consequence column
+says what breaks. Confirm or retire them rather than letting them stay implicit;
+every one of the first four has already caused a real failure.
+
+| # | Assumption | Consequence if false |
+|---:|---|---|
+| A1 | Development and verification happen on macOS. | 104 of 155 evidence records embed `/Users/sechmachine` paths and 124 embed `/opt/homebrew`. On another platform they cannot be reproduced, and `./mvnw test` needs `-Duser.timezone=Asia/Ho_Chi_Minh` before PostgreSQL will accept the JVM default. |
+| A2 | The separate `labtimesheet-docs-hub` repository stays reachable. | The design DDL and the reference and mockup images live only there. The specification names them and cannot render them. |
+| A3 | Test fixtures may hold fixed future dates. | Three integration classes seed `LocalDate.of(2026, 8, 1)` and now fail with `Project start date cannot be in the past`. Any fixed date eventually expires. |
+| A4 | A single operator drives the multi-branch iteration workflow. | The orchestration skill the evidence cites is not on `main`, and the Iteration 2 ledgers reference 65 commits that do not exist in this repository. |
+| A5 | The programme runs on one server in one timezone. | `GOV-011` resolves business dates in the policy timezone and `SEC-007` keeps login throttle state in memory. Neither survives multi-node deployment. |
+| A6 | Interns hold at most one internship at a time. | `intern_profiles` carries one lifecycle per account; a second concurrent internship has no representation. |
+| A7 | The instructor or product owner is available to decide requirement conflicts. | `GOV-001` puts the primary implementor at the top of the authority order. With nobody in that role, a requirement conflict has no tiebreaker and stalls. |
+
 ## Product Principles
 
 1. **Authorization follows stored context.** Global role alone is insufficient; ownership, membership, leadership, assignment, lifecycle, and record scope determine access.

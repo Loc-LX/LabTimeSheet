@@ -44,6 +44,7 @@ layouts stay best effort; desktop is the supported target.
 | How do I set up and contribute | [CONTRIBUTING.md](CONTRIBUTING.md) |
 | What is the product and who are its users | [PRODUCT.md](PRODUCT.md) |
 | What do the domain terms mean | [`docs/glossary.md`](docs/glossary.md) |
+| What do we assume but have not confirmed | [PRODUCT.md](PRODUCT.md), Assumptions |
 | What are the numbered requirements | [`docs/requirements/requirements-specification.md`](docs/requirements/requirements-specification.md) |
 | Why was a decision made | [`docs/adr/`](docs/adr/) |
 | Which libraries and versions, and why | [`docs/architecture/tech-stack.md`](docs/architecture/tech-stack.md) |
