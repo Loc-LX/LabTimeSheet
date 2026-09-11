@@ -116,27 +116,20 @@ English.
 
 ## Things learned the hard way
 
-**There were two project plans.** The root `PROJECT_PLAN.md` stopped being
-updated on 21 August 2026 and showed all 31 Iteration 3 items as `TODO` while
-the work was finished. It has been deleted. `.agents/PROJECT_PLAN.md` is the
-live one and knows about Iteration 4.
+**There is exactly one plan.** `.agents/PROJECT_PLAN.md`. A duplicate once sat
+at the repository root, drifted, and misreported finished work as `TODO`. Do not
+recreate it.
 
-**The requirements were deleted twice by accident**, once by a botched revert of
-a merge on 20 August 2026 and once by a `chore: remove redundant docs files`
-commit on 29 August 2026. They were restored on 10 September 2026. If the
-requirements file is missing again, recover it from history rather than
-rewriting it.
+**The requirements have been lost twice and recovered from git both times.** If
+the specification is missing, recover it from history rather than rewriting it.
 
-**Admin Attendance report scope changed three times.** Granted, withdrawn,
-restored. The code is correct and the ADR explains why. Do not "fix" the code to
-match older wording.
+**Admin Attendance report scope has changed more than once.** The code is
+correct and [`docs/adr/0002-admin-attendance-report-scope.md`](docs/adr/0002-admin-attendance-report-scope.md)
+explains why. Do not "fix" the code to match older wording.
 
-**Folder names have lied before.** The specification used to sit in
-`docs/labtimesheet-docs-hub/`, named after the external repository it was copied
-from, while `docs/requirements/` held only decision records. It now lives at
-`docs/requirements/requirements-specification.md`, with those decision records
-under `docs/requirements/decisions/`. Some evidence records still cite the old
-path; they are dated records and are left as written.
+**Verify a path before trusting its name.** The specification lives at
+`docs/requirements/requirements-specification.md`. Some evidence records cite an
+older location; they are dated records and are left as written.
 
 ## Useful commands
 

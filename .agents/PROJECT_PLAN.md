@@ -232,7 +232,7 @@ Exit demonstration:
 - Ordinary domain actions retain in-app notifications when SMTP is unavailable.
 - Full integrated tests pass at the iteration integration commit.
 
-Taskmaster exit result (2026-08-21): `DONE` at local `main` integration commit `c4f039663f86370b865df036e1756338529e47c9`, whose parents are verified base `58a087b118cc955748d7df1aa47d2bbc3ca0371b` and independently approved candidate `f334f13594de49f4b34318d8a3e8bc0556a8063d`. Exact producer heads `3bc7824ab87d6ecac2464fb0b4ed1600b55f5ea9`, `265fdab44091d378fe023146f2b60f4ef0f39125`, `ea5f8ce6788abf7cb47343dcf32ab5da1b31f2d7`, and `b37cf5f47e7eb7f15674adc617047e54001a98ac` remain ancestors in required order through accepted implementation `b761290e0bb586f1a9242b52a2c669ff1f4b888f`. Exact post-merge record tree `600e5fda478f1893d386f32fbf7db3ba19228cff` passed PostgreSQL 18.4 Java 444/444, architecture/Flyway 13/13 with 23 tables/56 foreign keys, Node 24 build/UI 7/7, compile/doclint, 260-ID/14-use-case parity, all 30 Iteration 2 rows `DONE`, and real Java aggregate/liveness/readiness checks. The six tracked summaries live under `docs/iterations/iteration-2/git-ledgers/`, and exact commands/results are in the companion merge-readiness evidence. No push is authorized.
+Taskmaster exit result (2026-08-21): `DONE` at local `main` integration commit `c4f039663f86370b865df036e1756338529e47c9`, whose parents are verified base `58a087b118cc955748d7df1aa47d2bbc3ca0371b` and independently approved candidate `f334f13594de49f4b34318d8a3e8bc0556a8063d`. Exact producer heads `3bc7824ab87d6ecac2464fb0b4ed1600b55f5ea9`, `265fdab44091d378fe023146f2b60f4ef0f39125`, `ea5f8ce6788abf7cb47343dcf32ab5da1b31f2d7`, and `b37cf5f47e7eb7f15674adc617047e54001a98ac` remain ancestors in required order through accepted implementation `b761290e0bb586f1a9242b52a2c669ff1f4b888f`. Exact post-merge record tree `600e5fda478f1893d386f32fbf7db3ba19228cff` passed PostgreSQL 18.4 Java 444/444, architecture/Flyway 13/13 with 23 tables/56 foreign keys, Node 24 build/UI 7/7, compile/doclint, 260-ID/14-use-case parity, all 30 Iteration 2 rows `DONE`, and real Java aggregate/liveness/readiness checks. Exact commands and results are in the companion merge-readiness evidence. No push is authorized.
 
 ## 6. Iteration 3 — Hardening, reports, and delivery readiness
 
@@ -331,14 +331,14 @@ Iteration 4 uses the following execution and review protocol:
 1. Luna first preserves and audits the existing uncommitted `I4-TSK-02` correction slice; it shall not reset, discard, or overwrite that work or unrelated files.
 2. Luna works one bounded vertical packet at a time using the mandatory RED → GREEN workflow, meaningful Javadoc, focused and affected verification, evidence updates, self-review, and a focused local commit. Luna shall not spawn subagents, push, merge, or change shared branches.
 3. After each packet, Luna reports the exact full commit SHA, changed files, RED/GREEN/affected commands and results, evidence paths, limitations, and clean/dirty worktree state to the root agent.
-4. The root agent reviews the immutable packet for specification compliance and code quality against `docs/requirements/decisions/partial-jira-tempo-decision-record.md`, the numbered requirements, ADR, and repository standards. The root agent does not implement review fixes.
+4. The root agent reviews the immutable packet for specification compliance and code quality against the numbered requirements, ADR, and repository standards. The root agent does not implement review fixes.
 5. Critical or Important findings return to the same Luna subagent for a focused test-first fix and scoped re-review. The next packet starts only after the root agent accepts the current packet or records an explicit non-blocking ruling.
 6. After all tracker items are complete, the root agent performs the broad integrated-candidate review and verification assessment. No push or merge to `main` occurs without a separate explicit user instruction.
 
 The 29 unpublished Iteration 4 commits were subsequently replayed to normalize commit subjects.
 Current commit references in the tracker use the rewritten public SHAs. Historical verification
 records retain the original tested SHAs and map them to their content-identical rewritten commits in
-`docs/requirements/decisions/partial-jira-tempo-history-rewrite-map.md`; this does not claim that an earlier
+`docs/history/commit-map-iteration-4.md`; this does not claim that an earlier
 test run occurred on a rewritten SHA.
 
 | ID | Deliverable | Test/evidence emphasis | Status | Owner/date | Result/commit |

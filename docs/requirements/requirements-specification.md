@@ -83,6 +83,7 @@ When statements conflict, use this precedence from highest to lowest:
 | GOV-004 | Attendance time and task work time shall remain separate domains; neither proves or derives the other. |
 | GOV-005 | Historical business results shall not change merely because an Admin later changes global workdays, schedule, check-in grace, checkout grace, quota, penalty, or calendar configuration. |
 | GOV-006 | Features not specified here require a new reviewed decision; this draft does not silently authorize adjacent scope. |
+| GOV-016 | This document is the system-wide layer: the rules that hold across every feature, plus the contracts between features. A later feature shall not be appended to it. A feature that needs its own specification shall get a separate document that names this one as its parent, inherits these rules without restating them, and records only what it adds. No such document may claim precedence over this one; where they disagree, the `GOV-001` order decides and the outcome is recorded as an ADR. |
 
 ### 1.2 Product objective
 
