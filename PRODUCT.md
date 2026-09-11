@@ -41,7 +41,7 @@ The product joins attendance oversight and Project delivery without pretending t
 - Admins may preview and import Vietnamese holiday candidates from HolidayAPI, while the stored Admin decision remains authoritative. Manual calendar management remains available.
 - Mentors review global leave and correction queues and separately oversee only the Projects they own.
 - Reports cover attendance/compliance and Project/Task progress in HTML, Excel, and PDF from one shared dataset definition, with role-scoped access: active Mentors and Admins may inspect detailed Intern Attendance, Interns retain own-Attendance scope, and owning Mentors/current Leaders retain authorized Project/Task detail. Admins have no Project/Task or Daily report scope. Current Leaders can discover Daily reporting only for currently-led open Projects.
-- The authoritative requirements are currently a review draft. Product-context initialization does not authorize application implementation or promote the review DDL into Flyway.
+- The authoritative requirements are `docs/requirements/requirements-specification.md`. They document a system that is built: four iterations have shipped and the schema lives in Flyway. The document has passed its own quality gate but has not been formally approved, and one open question remains in its §22.3.
 
 ## Capabilities and Constraints
 
@@ -66,7 +66,7 @@ The product joins attendance oversight and Project delivery without pretending t
 
 ## Evidence on Hand
 
-- `docs/requirements/requirements-specification.md` is the authoritative requirements draft, tracked in this repository since 10 September 2026 and carrying 267 numbered IDs.
+- `docs/requirements/requirements-specification.md` is the authoritative requirements draft, tracked in this repository and carrying 269 numbered rules.
 - The companion `database-schema.sql` and the `assets/ui-reference-*.png` visual references remain in the separate documentation repository and are not tracked here. The live schema is the Flyway migration set under `src/main/resources/db/migration`, which creates twenty-four tables.
 - The repository contains the implemented product. All tracked deliverables for Iterations 1 through 4 are marked `DONE` in `.agents/PROJECT_PLAN.md`; only the Iteration 3 integrated review remains.
 - No production data, customer testimonials, adoption metrics, institutional endorsements, or performance claims are available. Future design work must not fabricate them.

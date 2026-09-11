@@ -34,8 +34,8 @@ If you use OrbStack and Testcontainers cannot find Docker, set:
 export DOCKER_HOST=unix:///Users/your-name/.orbstack/run/docker.sock
 ```
 
-Replace `your-name` with your macOS account name. Docker Desktop users normally
-do not need this setting.
+Replace `your-name` with your macOS account name. This applies to OrbStack on
+macOS only; Docker Desktop users on any platform normally do not need it.
 
 Tests use temporary PostgreSQL 18.4 containers. They do not use the development
 database, Mailpit, or the local `.env` file.
@@ -50,6 +50,31 @@ From the repository root, run:
 
 The first run may take longer because Docker downloads PostgreSQL and
 Testcontainers support images. A successful run ends with `BUILD SUCCESS`.
+
+### Running on Windows or Linux
+
+The suite was developed on macOS and carries one platform assumption. On a JVM
+whose default timezone resolves to the legacy alias `Asia/Saigon`, which is what
+Windows reports for Vietnam, PostgreSQL refuses the connection with
+`invalid value for parameter "TimeZone"` and most integration tests fail before
+they run. `LabtimesheetApplication.main` normalizes the alias, but Spring test
+contexts never call `main`.
+
+Until that is fixed in the test setup, pass the business timezone explicitly:
+
+```bash
+./mvnw test -DargLine="-Duser.timezone=Asia/Ho_Chi_Minh"
+```
+
+Two further conditions apply on any platform. Docker needs free space on the
+drive holding its storage; a full drive puts the container metadata store into
+read-only mode and every Testcontainers start fails with
+`Could not create/start container`. And three integration classes seed fixed
+calendar dates that have now passed, so they fail with
+`Project start date cannot be in the past` regardless of platform.
+
+Background and measurements are in
+[`docs/adr/0003-verification-authority-and-windows-test-environment.md`](docs/adr/0003-verification-authority-and-windows-test-environment.md).
 
 Frontend assets have a separate check:
 

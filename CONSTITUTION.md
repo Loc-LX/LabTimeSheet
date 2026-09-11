@@ -82,6 +82,16 @@ engine, or persisted `Report` entity; no project-level days off, multiple Task
 assignees, unconditional self-service Project joining, Task dependencies, epics,
 sprints, or story points. Adding any of them needs a new ADR, not a pull request.
 
+`GOV-015` adds the Task effort-planning boundary: no external Jira or Tempo
+integration, no Jira mirroring, no Tempo accounts or synchronization, no
+`SUBMITTED` Leader acceptance workflow, no Weekly or Monthly report presets, and
+no continuous replanning unrelated to worked reassignment.
+
+`GOV-016` governs the documents themselves. The requirements specification is the
+system-wide layer. A later feature is not appended to it; it gets its own document
+naming the specification as parent, inheriting without restating, recording only
+what it adds, and never claiming precedence over it.
+
 ---
 
 ## Layer 3 — Engineering standards

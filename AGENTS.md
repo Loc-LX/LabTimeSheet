@@ -23,7 +23,7 @@ Check these before assuming anything. When two disagree, the higher row wins.
 | Question | Authority |
 |---|---|
 | What must always be true | [CONSTITUTION.md](CONSTITUTION.md) |
-| What the system must do | [`docs/requirements/requirements-specification.md`](docs/requirements/requirements-specification.md), 267 numbered IDs |
+| What the system must do | [`docs/requirements/requirements-specification.md`](docs/requirements/requirements-specification.md), 269 numbered rules |
 | Why a decision was made | [`docs/adr/`](docs/adr/) |
 | What is planned, and its status | [`.agents/PROJECT_PLAN.md`](.agents/PROJECT_PLAN.md) |
 | What behavior is already proven | [`docs/tests/`](docs/tests/README.md), 155 evidence records |

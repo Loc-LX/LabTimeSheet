@@ -640,7 +640,7 @@ erDiagram
 
 ### 19.2 Physical table inventory
 
-The approved schema contains **23 tables**. The earlier 21-table baseline was superseded by explicit invitation and membership-exit history.
+The schema contains **24 tables**. The earlier 21-table baseline was superseded by explicit invitation and membership-exit history, and migration `V2` added the Remaining effort forecast table required by `DB-013`.
 
 | # | Table | Responsibility | Retention |
 |---:|---|---|---|
@@ -667,6 +667,7 @@ The approved schema contains **23 tables**. The earlier 21-table baseline was su
 | 21 | `leave_requests` | Inclusive request range/current decision | Permanent history |
 | 22 | `leave_request_days` | Frozen quota-consuming dates | Permanent history |
 | 23 | `notifications` | In-app record and non-secret email retry state | Retained by future explicit policy |
+| 24 | `task_remaining_effort_forecasts` | Append-only Remaining effort forecasts per Task reassignment | Permanent history |
 
 ### 19.3 Integrity boundary
 
@@ -681,7 +682,7 @@ The approved schema contains **23 tables**. The earlier 21-table baseline was su
 | DB-007 | Application transactions shall enforce role compatibility, state graphs, ownership, exact-one live Leader, invitation eligibility/resolution, pending-exit assignment exclusion, atomic transfer batches, approval readiness, direct-removal automatic transfer, self-Task versus Leader authority, active membership, Project completion, policy immutability, calendar cutoff, due-date validation, leave quota, and daily work-minute total. Existing retained rows supply authorized history views; no generic audit or Task-assignment-history table shall be introduced. |
 | DB-008 | Leave quota and daily work-minute validation shall lock the affected Intern profile before reading reservations/totals and writing the new state. |
 | DB-009 | The DDL seed shall create the `1970-01-01` policy and ISO workdays 1 through 5. |
-| DB-010 | The physical Mermaid database diagram and SQL shall describe the same 23 tables, columns, and 56 foreign-key relationships. The DDL is authoritative for composite/partial uniqueness, checks, exclusions, triggers, and lifecycle enforcement that Mermaid cannot express. |
+| DB-010 | The physical Mermaid database diagram and SQL shall describe the same tables, columns, and foreign-key relationships. The diagram in §19.4 covers the 23 tables of the initial baseline; `task_remaining_effort_forecasts`, added by migration `V2`, is specified by `DB-013` and is not yet drawn. The DDL is authoritative for composite/partial uniqueness, checks, exclusions, triggers, and lifecycle enforcement that Mermaid cannot express. |
 | DB-011 | `project_invitations` shall preserve Project, intended Intern, issuing leadership term, status, optional accepted membership, resolution code/actor/time, and optimistic version. Partial uniqueness and same-Project composite foreign keys shall prevent duplicate pending invitations and cross-Project provenance. |
 | DB-012 | `project_membership_exit_requests` shall preserve Project, requester/target memberships, request type/reason, status, optional decision details, and optimistic version. The schema shall enforce same-Project participants, request-type participant shape, and one pending request per target; Task actor columns shall use generic membership names. |
 | DB-013 | Task estimates shall be nullable whole-Task integer minutes constrained to 1..527040 with no backfill. Remaining-effort forecasts shall be append-only rows with same-Project Task/membership references, reassignment timestamp, remaining minutes, nonnegative lifetime-actual snapshot, optional initial note, correction reason/supersession shape, linear successors, and indexes for Task history/latest lookup. Derived forecast totals shall not be persisted. |
@@ -1202,7 +1203,7 @@ produces ceremony without protection.
 | AC-OPS-004 | OPS-011–OPS-017 | A work branch, pull request, `main` push, and manual container dispatch occur while deployment is disabled | Every pull request and push verifies; work branches and pull requests do not schedule container builds; manual dispatch verifies then builds without publishing; `main` verifies then builds and publishes SHA/main image tags; SSH is skipped and receives no deployment secrets. |
 | AC-OPS-005 | OPS-014–OPS-016 | Future operator enables deployment with all secrets | Job selects immutable SHA, verifies known host, rolls Compose, checks health, and records previous SHA for rollback. |
 | AC-TST-001 | TST-001–TST-010 | Contributor implements a feature | Evidence file and failing test precede production code; RED/GREEN commands are reproducible; milestone is not green without affected suites. |
-| AC-DB-001 | DB-003–DB-012 | Both review DDL files replay and their catalog metadata is compared with the physical Mermaid block | Each database has exactly 23 tables and 56 named foreign keys; both catalogs and all diagram entity/FK names match. |
+| AC-DB-001 | DB-003–DB-012 | Both review DDL files replay and their catalog metadata is compared with the physical Mermaid block | Each database has exactly 24 tables; the 23 baseline tables and their 56 named foreign keys match the diagram entity and FK names, and the twenty-fourth is verified against `DB-013` rather than against the diagram. |
 | AC-DB-004 | DB-001 | Catalog metadata for every application table is read back after a clean Flyway replay | Identity keys are generated `BIGINT`; local business dates are `date`; schedule times are `time`; every instant column is `timestamptz`; no PostgreSQL enum type exists, and every state column is `varchar` with a check constraint. |
 | AC-DB-005 | DB-002 | `btree_gist` is queried after replay, then one Intern is given a pending leave range and a second overlapping range is inserted directly by SQL | The extension is present; the second insert is refused by the exclusion constraint; a non-overlapping range for the same Intern and an overlapping range for a different Intern both succeed. |
 | AC-CAL-005 | CAL-001 | A Mentor and an Intern each attempt to create and to edit a global calendar event, and a client attempts to attach a calendar override to one Project | All non-Admin attempts are refused before any write; no schema path or endpoint accepts a project-scoped calendar override; Admin succeeds for both a custom and an imported event. |
