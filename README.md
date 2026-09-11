@@ -43,7 +43,7 @@ layouts stay best effort; desktop is the supported target.
 | What must always be true of this system | [`.sdd/constitution.md`](.sdd/constitution.md) |
 | How do I set up and contribute | [CONTRIBUTING.md](CONTRIBUTING.md) |
 | What is the product and who are its users | [`.sdd/product.md`](.sdd/product.md) |
-| What do the domain terms mean | [`.sdd/constraints/glossary.md`](.sdd/constraints/glossary.md) |
+| What do the domain terms mean | [`.sdd/requirements.md`](.sdd/requirements.md), section 2 |
 | What do we assume but have not confirmed | [`.sdd/product.md`](.sdd/product.md), Assumptions |
 | What are the numbered requirements | [`.sdd/requirements.md`](.sdd/requirements.md) |
 | Why was a decision made | [`.sdd/rfcs/`](.sdd/rfcs) |
