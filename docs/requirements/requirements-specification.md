@@ -16,8 +16,9 @@
 
 > **Companion files.** This document was authored in a separate documentation
 > repository and copied here on 26 August 2026. Its companion `database-schema.sql`
-> and the three `assets/ui-reference-*.png` images stayed behind and have never
-> been tracked in this repository, so the links to them below do not resolve.
+> and the `assets/` images stayed behind and have never been tracked in this
+> repository. Every image embed below is therefore written as a named reference
+> rather than a link, so nothing renders as a broken image.
 > The live schema is [`V1__baseline.sql`](../../src/main/resources/db/migration/V1__baseline.sql)
 > plus [`V2__add_task_effort_planning.sql`](../../src/main/resources/db/migration/V2__add_task_effort_planning.sql),
 > which together create twenty-four tables; §19.4 below carries the physical
@@ -461,11 +462,11 @@ For an applicable Intern/date, classification precedence is:
 
 The following supplied screenshots are visual-direction references. Their example branding/content and surrounding documentation-site chrome are not product requirements.
 
-![Light dashboard and sidebar reference](assets/ui-reference-light.png)
+> **Reference image not tracked here:** `ui-reference-light.png` — Light dashboard and sidebar reference. Held in the documentation repository; ask the document owner for the image.
 
-![Dark sidebar/shell reference](assets/ui-reference-dark-shell.png)
+> **Reference image not tracked here:** `ui-reference-dark-shell.png` — Dark sidebar/shell reference. Held in the documentation repository; ask the document owner for the image.
 
-![Dark dashboard reference](assets/ui-reference-dark-dashboard.png)
+> **Reference image not tracked here:** `ui-reference-dark-dashboard.png` — Dark dashboard reference. Held in the documentation repository; ask the document owner for the image.
 
 | ID | Requirement |
 |---|---|
@@ -1235,3 +1236,1100 @@ Validation performed on 14 August 2026 established the review artifacts below. T
 | SRS and links | Deterministic regeneration produced exactly 14 use cases and 48 unchanged mockup embeds; every local Markdown target resolves. |
 | UI assets | All three reference PNGs are byte-identical to the supplied screenshots. The 48 mockup images and protected screen/render sources retain their pre-update hashes. |
 | Git hygiene | `git diff --check` passed, and `git check-ignore -v` resolved this hub through the root `/labtimesheet-docs-hub/` rule. No hub artifact was staged or committed. |
+
+
+---
+
+# Recovered appendices
+
+> **Provenance and currency.** Appendices C through F are recovered from
+> `docs/software-requirements-specification.md`, the detailed SRS added on 17 August 2026
+> in commit `0430718` and deleted on 20 August 2026 by an unexplained revert of a merge
+> in commit `66f0da4`. All 260 requirement IDs in that document are present in this one,
+> so nothing normative was lost; what was lost is the elaboration reproduced below.
+> Content is unchanged except that image embeds are written as named references,
+> because the image files live in the documentation repository and are not tracked here.
+>
+> **These appendices predate Iterations 3 and 4 and are explanatory, not normative.**
+> Where they disagree with sections 1 through 22 above, those sections win. Known gaps:
+>
+> - No use case covers the Daily Project Work Report, added in Iteration 4. See `RPT-011` through `RPT-013`.
+> - No use case or screen covers Task estimates and Remaining effort forecasts, added in Iteration 4. See `TSK-020` through `TSK-022` and `DB-013`.
+> - Appendix D lists 48 screens against 43 non-fragment templates in `src/main/resources/templates` today; the Iteration 3 screen split for Policy, Calendar, Holiday Import, SMTP, Leave, and Corrections is not reflected.
+> - Admin reporting scope in these appendices predates the 27 August withdrawal and the 30 August restoration. The current rule is `RPT-004` plus `docs/adr/0002-admin-attendance-report-scope.md`.
+>
+> They are kept because they are the only written record of the use-case flows, the screen
+> inventory with access rules, the desktop layout intent, and the system message catalogue.
+> Update them when a future iteration re-derives them; do not treat silence here as scope.
+
+## Appendix C. Use-case specifications
+
+
+#### 5.1 UC-01 — Initialize the installation
+
+| Field | Specification |
+|---|---|
+| Primary actor(s) | First Admin (installer) |
+| Trigger | The uninitialized installation is opened on a private interface. |
+| Preconditions | No bootstrap has completed; the singleton system state is uninitialized. |
+| Postconditions | Exactly one first Admin exists and bootstrap cannot be reopened. |
+| Traced requirements | ACC-001–ACC-007, INT-001–INT-003, SEC-001 |
+
+**Main success flow**
+
+1. Enter the first Admin identity and password.
+2. Optionally configure and test an SMTP draft.
+3. If SMTP is deferred, pass through five distinct warning screens in order.
+4. Submit the final bootstrap action.
+5. Create the first Admin and close bootstrap atomically.
+6. Enter the initialized Admin workspace.
+
+**Alternatives and exceptions**
+
+- A competing bootstrap submission loses the atomic race and cannot create another first Admin.
+- An SMTP test failure leaves the draft inactive and allows correction.
+- Before the fifth warning, the user may go back or configure SMTP but may not finish the deferral.
+
+#### 5.2 UC-02 — Activate, authenticate, and recover an account
+
+| Field | Specification |
+|---|---|
+| Primary actor(s) | Admin-created user |
+| Trigger | A user receives an activation link, signs in, or requests password recovery. |
+| Preconditions | The account and token state permit the selected action. |
+| Postconditions | The user has a valid authorized session, or the attempt fails without changing protected state. |
+| Traced requirements | ACC-009–ACC-018, NOT-005–NOT-008, SEC-002–SEC-010 |
+
+**Main success flow**
+
+1. Open a single-use activation or reset link.
+2. Set a policy-compliant password before token expiry.
+3. Sign in with normalized email and password.
+4. Open only the workspace and records permitted by role and context.
+5. Manage profile, password, sessions, and local theme preference.
+
+**Alternatives and exceptions**
+
+- Expired, used, invalidated, or superseded tokens fail without revealing secret data.
+- Five failed sign-ins in 15 minutes produce a 15-minute temporary throttle.
+- Password recovery delivery is unavailable without active SMTP.
+- Locked, deactivated, withdrawn, or otherwise ineligible users cannot obtain normal write access.
+
+#### 5.3 UC-03 — Administer accounts and internship lifecycle
+
+| Field | Specification |
+|---|---|
+| Primary actor(s) | Admin |
+| Trigger | An Admin creates an account or changes account/internship lifecycle state. |
+| Preconditions | The Admin is active; SMTP is active for non-bootstrap account creation. |
+| Postconditions | Account and internship state change transactionally while historical attribution remains. |
+| Traced requirements | ACC-008–ACC-025, AUTH-001–AUTH-002 |
+
+**Main success flow**
+
+1. Choose immutable global role and enter identity fields.
+2. For an Intern, enter unique student code and internship dates.
+3. Create a pending account and deliver a 24-hour activation link.
+4. Inspect activation, account, session, membership, leadership, and unfinished-task context.
+5. Lock, unlock, deactivate, complete, or withdraw only when guards pass.
+
+**Alternatives and exceptions**
+
+- Failed activation delivery retains the pending account, invalidates the token, and exposes explicit resend.
+- Completion or withdrawal is blocked while the Intern is a Leader or owns unfinished Tasks.
+- Completed Interns retain read-only historical access; withdrawn Interns lose normal authentication.
+
+#### 5.4 UC-04 — Configure policy, calendar, and integrations
+
+| Field | Specification |
+|---|---|
+| Primary actor(s) | Admin |
+| Trigger | An Admin changes future attendance policy, global calendar, SMTP, or HolidayAPI configuration. |
+| Preconditions | The Admin is active and has the deployment-provided encryption master key available to the application. |
+| Postconditions | New decisions use the new effective configuration; historical calculations remain stable. |
+| Traced requirements | ATT-001–ATT-006, CAL-001–CAL-009, INT-001–INT-008 |
+
+**Main success flow**
+
+1. Create a draft integration revision or future policy version.
+2. Preview the effect of the change.
+3. Test integration drafts before activation.
+4. For HolidayAPI, preview VN holidays and explicitly select/import local rows.
+5. Create or edit future global calendar events and decide which are days off.
+6. Activate or schedule the reviewed revision.
+
+**Alternatives and exceptions**
+
+- Effective policy versions and past calendar events are immutable.
+- A failed integration test cannot replace the working active revision.
+- Manual calendar entry remains available without HolidayAPI.
+- Existing frozen leave allocations are disclosed but not rewritten.
+
+#### 5.5 UC-05 — Manage a Project, membership, and leadership
+
+| Field | Specification |
+|---|---|
+| Primary actor(s) | Owning Mentor |
+| Trigger | A Mentor creates or manages an owned Project. |
+| Preconditions | The Mentor is active and owns the Project for every operation after creation. |
+| Postconditions | Intervals and historical attribution remain intact; a completed Project is terminal and read-only. |
+| Traced requirements | PRJ-001–PRJ-022, AUTH-003–AUTH-011 |
+
+**Main success flow**
+
+1. Create a PLANNED Project, initial Leader membership, and first leadership term atomically.
+2. Directly add eligible active Intern members when needed.
+3. Keep exactly one current Leader throughout PLANNED and ACTIVE.
+4. Activate the Project when membership, Leader, dates, and assignees are valid.
+5. Inspect Task progress and comment without changing Task definitions or status.
+6. Decide membership exits through the approved transfer workflow.
+7. Complete the Project only after every non-deleted Task is DONE.
+
+**Alternatives and exceptions**
+
+- Leadership reassignment leaves the former Leader’s Task assignments unchanged.
+- Removing a member with unfinished Tasks requires assisted reassignment to the current Leader.
+- Removing or approving leave for the current Leader requires a replacement first.
+- Project completion revokes pending invitations and supersedes pending exit requests.
+
+#### 5.6 UC-06 — Manage Tasks as current Project Leader
+
+| Field | Specification |
+|---|---|
+| Primary actor(s) | Current Project Leader |
+| Trigger | The current Leader creates, edits, assigns, reassigns, or soft-deletes a Task. |
+| Preconditions | The Leader has a current leadership term and active membership in a non-completed Project. |
+| Postconditions | The Task definition or assignment changes without falsifying creator or assignee-controlled history. |
+| Traced requirements | TSK-001–TSK-019, AUTH-004–AUTH-011 |
+
+**Main success flow**
+
+1. Create or edit a Task with one active same-Project assignee.
+2. Choose an optional due date inside Project dates and not on a current global day off.
+3. Reassign an unfinished Task while preserving creator, status, comments, and work logs.
+4. Inspect status counts, progress, logged minutes, and per-member work.
+
+**Alternatives and exceptions**
+
+- A DONE Task must be reopened by its current assignee before reassignment.
+- A stale leadership term or guessed Project/Task identifier is denied.
+- Soft deletion removes the Task from current lists and progress but preserves history.
+
+#### 5.7 UC-07 — Perform assigned Project work
+
+| Field | Specification |
+|---|---|
+| Primary actor(s) | Current Task assignee; active Project member; owning Mentor for comments only |
+| Trigger | A user opens a Task, comments, changes assigned status, or records work. |
+| Preconditions | The Project and membership/context authorize the selected action. |
+| Postconditions | Task creator, status, comments, and work logs retain separate, attributable history. |
+| Traced requirements | TSK-007–TSK-019 |
+
+**Main success flow**
+
+1. View every non-deleted Task and comment in an authorized Project.
+2. As an active member, optionally create a Task assigned only to self.
+3. As current assignee, follow the fixed Task status graph.
+4. As current assignee, add a dated 1–1440 minute work entry.
+5. As an active member, Leader, or owning Mentor, append a Task comment.
+6. View aggregate progress appropriate to the user’s authorization.
+
+**Alternatives and exceptions**
+
+- The daily total across all Projects cannot exceed 1440 minutes.
+- Task work on a global day off is allowed and never creates attendance.
+- A former assignee may correct their own earlier log while the Project is active and membership remains current.
+
+#### 5.8 UC-08 — Check in and check out
+
+| Field | Specification |
+|---|---|
+| Primary actor(s) | Active Intern |
+| Trigger | An eligible Intern starts or ends an attendance day. |
+| Preconditions | The local date is an eligible workday, not a global day off, and not covered by approved leave. |
+| Postconditions | One immutable raw attendance record represents the date; reports derive authorized metrics from it. |
+| Traced requirements | ATT-007–ATT-018 |
+
+**Main success flow**
+
+1. Open My attendance.
+2. Submit check-in; the server records its own instant and attached historical policy.
+3. Submit checkout at most once through that policy’s inclusive scheduled-end-plus-checkout-grace cutoff; the server records its own instant.
+4. View derived classification and metrics.
+
+**Alternatives and exceptions**
+
+- Duplicate, off-day, leave-covered, ineligible-lifecycle, or uninitialized requests are rejected.
+- Exactly scheduled start plus check-in grace is on time; any later instant is late.
+- Under defaults, checkout at 16:00:00 succeeds and the first later instant is rejected.
+- After cutoff with no effective checkout, the record has only MISSING_CHECKOUT; normal checkout stays closed and cannot change raw checkout.
+
+#### 5.9 UC-09 — Correct a missed checkout
+
+| Field | Specification |
+|---|---|
+| Primary actor(s) | Intern (submitter); any active Mentor (decision maker) |
+| Trigger | An Intern with MISSING_CHECKOUT proposes a checkout, or a Mentor reviews the request. |
+| Preconditions | The attendance row has a check-in and no raw checkout; its attached-policy checkout cutoff has passed; the submission deadline remains open. |
+| Postconditions | The request/event history explains the effective attendance result while preserving the raw record. |
+| Traced requirements | COR-001–COR-009 |
+
+**Main success flow**
+
+1. After the checkout cutoff, submit one proposed checkout through the inclusive scheduled-end-plus-24-hours deadline.
+2. Start a separate 24-hour Mentor decision window.
+3. A Mentor approves or rejects the request.
+4. Within the same decision window, a Mentor may revert a decided request to pending.
+5. After the window, lock the final state and derive effective checkout without overwriting raw data.
+
+**Alternatives and exceptions**
+
+- A correction before or at the checkout cutoff is rejected because normal checkout remains available.
+- The submission deadline stays anchored to scheduled end, not checkout grace; under defaults it is 15:30 the next day.
+- The scheduler and request-time guard both auto-reject expired pending requests.
+- Expired decided requests lock and cannot be reverted.
+- Concurrent decisions serialize so only a valid current transition wins.
+
+#### 5.10 UC-10 — Request and decide leave
+
+| Field | Specification |
+|---|---|
+| Primary actor(s) | Active Intern; any active Mentor |
+| Trigger | An Intern requests/cancels leave, or a Mentor decides a pending request. |
+| Preconditions | The date range is valid, non-overlapping, within internship dates, and before the first counted workday’s scheduled start. |
+| Postconditions | The request and frozen day allocations preserve historical quota and attendance meaning. |
+| Traced requirements | LEV-001–LEV-012 |
+
+**Main success flow**
+
+1. Enter an inclusive full-day range and reason.
+2. Freeze eligible workdays, policies, quota months, and counted-day snapshots.
+3. Reserve monthly quota for pending and approved days.
+4. A Mentor approves or rejects before the boundary.
+5. Allow approved cancellation only before the same boundary.
+
+**Alternatives and exceptions**
+
+- Global days off and non-workdays do not consume quota.
+- Cross-month requests reserve each month independently.
+- Pending requests auto-reject at the boundary.
+- Overlapping pending/approved ranges and exhausted quota are rejected transactionally.
+
+#### 5.11 UC-11 — Receive and manage notifications
+
+| Field | Specification |
+|---|---|
+| Primary actor(s) | Authenticated user; notification worker |
+| Trigger | A domain event requires an in-app notification and possibly email. |
+| Preconditions | The domain transaction is valid; email eligibility depends on active SMTP. |
+| Postconditions | The in-app record remains authoritative for delivery visibility; email cannot roll back the domain action. |
+| Traced requirements | NOT-001–NOT-008 |
+
+**Main success flow**
+
+1. Commit the domain action and its in-app notification atomically.
+2. Render non-secret email content from the same event context.
+3. Attempt email through the active SMTP revision.
+4. Retry ordinary email at the configured bounded schedule.
+5. Let the recipient read and mark the in-app notification.
+
+**Alternatives and exceptions**
+
+- Without SMTP, the domain action still succeeds and email state is UNAVAILABLE.
+- Activation/reset emails do not use ordinary queued retry because links are secret and short-lived.
+- After the final ordinary retry, email state becomes terminal failure.
+
+#### 5.12 UC-12 — Review and export reports
+
+| Field | Specification |
+|---|---|
+| Primary actor(s) | Admin; Mentor; authorized Intern/Leader for their own/current scope |
+| Trigger | A user opens a report or requests Excel/PDF export. |
+| Preconditions | The user is authorized for every row in the requested dataset. |
+| Postconditions | HTML, XLSX, and PDF expose identical authorized totals without persisting a Report entity. |
+| Traced requirements | RPT-001–RPT-010, AUTH-010 |
+
+**Main success flow**
+
+1. Choose date, Project, member, or status filters.
+2. Build one authorized report dataset.
+3. Render HTML totals and accessible chart/table alternatives.
+4. Export the same dataset to XLSX or PDF.
+5. Compare totals and no-data behavior across formats.
+
+**Alternatives and exceptions**
+
+- Zero denominators render N/A.
+- Ordinary members cannot see per-member work breakdowns.
+- Unauthorized identifiers fail without leaking record existence.
+
+#### 5.13 UC-13 — Respond to a Project invitation
+
+| Field | Specification |
+|---|---|
+| Primary actor(s) | Current Project Leader; invited Intern; owning Mentor |
+| Trigger | A Leader invites an eligible Intern, or the intended Intern opens their pending invitation. |
+| Preconditions | The Project is PLANNED or ACTIVE, the issuing leadership term is current, and the invitee is an active eligible Intern with no active membership in that Project. |
+| Postconditions | The invitation reaches one terminal state with retained provenance; acceptance creates at most one active membership. |
+| Traced requirements | AUTH-011, PRJ-017–PRJ-019, NOT-010, UI-019, DB-011 |
+
+**Main success flow**
+
+1. The current Leader creates one pending invitation for the eligible Intern.
+2. The system commits an in-app notification and attempts ordinary email when SMTP is available.
+3. The intended Intern authenticates and opens the invitation response page.
+4. The Intern accepts or declines explicitly.
+5. Acceptance locks and rechecks invitation, Project, issuing leadership, eligibility, and current membership before creating exactly one membership.
+
+**Alternatives and exceptions**
+
+- The issuing Leader may revoke an invitation they issued; the owning Mentor may revoke any Project invitation.
+- Mentor direct-add wins by creating membership and marking the pending invitation SUPERSEDED.
+- Leadership change, Project completion, or invitee ineligibility makes the invitation unusable while retaining history.
+- A concurrent loser receives a safe conflict and no duplicate membership.
+
+#### 5.14 UC-14 — Request and decide Project membership exit
+
+| Field | Specification |
+|---|---|
+| Primary actor(s) | Current Leader; current Project member; owning Mentor |
+| Trigger | A Leader requests another member’s removal, a member asks to leave, or the owning Mentor decides the request. |
+| Preconditions | Requester and target have active memberships in the same PLANNED or ACTIVE Project; no pending request already targets that membership. |
+| Postconditions | Approved exit changes membership only after safe transfer; every request and original attribution remains historical. |
+| Traced requirements | AUTH-011, PRJ-020–PRJ-022, NOT-010, UI-019, DB-012 |
+
+**Main success flow**
+
+1. Create a pending request with the correct type and a nonblank reason.
+2. Keep membership, leadership, assignments, and rights unchanged while pending.
+3. Allow the requester to cancel, or the owning Mentor to approve or reject.
+4. On approval, lock the request, target membership, Project leadership, and unfinished Tasks.
+5. Move unfinished Tasks to the current Leader, or atomically appoint a replacement and move them there when the Leader leaves.
+6. Close membership/leadership intervals and resolve the request in the same transaction.
+
+**Alternatives and exceptions**
+
+- Reject and cancel change only the request.
+- Direct Mentor removal resolves a matching pending request as APPROVED.
+- Project completion marks unresolved requests SUPERSEDED.
+- Optimistic or authorization conflict leaves every membership and historical row unchanged.
+
+## Appendix D. Screen authorization and inventory
+
+
+The mockup inventory is a review aid, not a promise that every table row, label, or secondary action will use the illustrative wording. Authorization and business rules come from the numbered requirements.
+
+#### 9.1 Bootstrap and access
+
+Installation, activation, authentication, recovery, notifications, and self-service security.
+
+| Screen ID | Screen | Authorized context | Principal action(s) | Requirements |
+|---|---|---|---|---|
+| `bootstrap-first-admin` | Create the first Admin | Installer / first Admin, only before initialization | Create Admin | ACC-001–ACC-007, INT-001–INT-003 |
+| `bootstrap-smtp` | Configure email delivery | Installer / first Admin, only before initialization | Defer SMTP; Test configuration | ACC-001–ACC-007, INT-001–INT-003 |
+| `bootstrap-defer-1` | New accounts cannot be onboarded | Installer / first Admin, only before initialization | Continue anyway; Configure SMTP | ACC-001–ACC-007, INT-001–INT-003 |
+| `bootstrap-defer-2` | Activation links cannot be resent | Installer / first Admin, only before initialization | Continue anyway; Configure SMTP | ACC-001–ACC-007, INT-001–INT-003 |
+| `bootstrap-defer-3` | Password recovery will be unavailable | Installer / first Admin, only before initialization | Continue anyway; Configure SMTP | ACC-001–ACC-007, INT-001–INT-003 |
+| `bootstrap-defer-4` | Workflow email delivery will be reduced | Installer / first Admin, only before initialization | Continue anyway; Configure SMTP | ACC-001–ACC-007, INT-001–INT-003 |
+| `bootstrap-defer-5` | Acknowledge restricted installation | Installer / first Admin, only before initialization | Finish without SMTP; Return to SMTP | ACC-001–ACC-007, INT-001–INT-003 |
+| `bootstrap-complete` | Lab Timesheet is ready | Installer / first Admin, only before initialization | Continue to sign in | ACC-001–ACC-007, INT-001–INT-003 |
+| `sign-in` | Sign in to Lab Timesheet | Unauthenticated user with valid route/token context | Sign in | SEC-002–SEC-010 |
+| `activate-account` | Activate your account | Unauthenticated user with valid route/token context | Activate account | ACC-009–ACC-016, NOT-006–NOT-008 |
+| `forgot-password` | Reset your password | Unauthenticated user with valid route/token context | Send reset link | ACC-018, NOT-006–NOT-008, SEC-003–SEC-006 |
+| `reset-password` | Choose a new password | Unauthenticated user with valid route/token context | Save new password | ACC-018, NOT-006–NOT-008, SEC-003–SEC-006 |
+| `notifications` | Notifications | Authenticated eligible user; own data only | Mark all as read | NOT-001–NOT-010 |
+| `profile-security` | Profile and security | Authenticated eligible user; own data only | Save changes | ACC-017–ACC-018, UI-003, SEC-003 |
+
+#### 9.2 Admin
+
+System-level accounts, configuration, integrations, calendar, cross-system visibility, and operational status.
+
+| Screen ID | Screen | Authorized context | Principal action(s) | Requirements |
+|---|---|---|---|---|
+| `admin-dashboard` | System overview | Active Admin | Create account | ACC-007–ACC-025, INT-001–INT-008, OPS-001–OPS-004 |
+| `admin-users` | Accounts and internships | Active Admin | Create account | ACC-008–ACC-025 |
+| `admin-account-create` | Create account | Active Admin | Create and send activation | ACC-008–ACC-025 |
+| `admin-user-detail` | Mai Linh | Active Admin | Lock account | ACC-008–ACC-025 |
+| `admin-smtp` | SMTP configuration | Active Admin | Create draft | INT-001–INT-006, NOT-003 |
+| `admin-holiday-api` | HolidayAPI integration | Active Admin | Test draft | CAL-001–CAL-009, INT-007–INT-008 |
+| `admin-policy-versions` | Attendance policies | Active Admin | Schedule policy | ATT-001–ATT-006 |
+| `admin-policy-form` | Schedule attendance policy | Active Admin | Schedule version | ATT-001–ATT-006 |
+| `admin-calendar` | Global calendar | Active Admin | Add custom day off | CAL-001–CAL-009, INT-007–INT-008 |
+| `admin-holiday-import` | Preview Vietnamese holidays | Active Admin | Import 3 selected | CAL-001–CAL-009, INT-007–INT-008 |
+| `admin-projects` | All Projects | Active Admin | View/filter the authorized dataset | PRJ-001–PRJ-022, AUTH-003–AUTH-011 |
+| `admin-project-detail` | Intern Portal Refresh | Active Admin | View/filter the authorized dataset | PRJ-001–PRJ-022, AUTH-003–AUTH-011 |
+| `admin-reports` | Reports and exports | Active Admin | Export PDF; Export Excel | RPT-001–RPT-010 |
+| `admin-system-status` | System status | Active Admin | View/filter the authorized dataset | OPS-001–OPS-010, INT-001–INT-008 |
+
+#### 9.3 Mentor
+
+Owned-Project administration plus global attendance, leave, and correction decisions.
+
+| Screen ID | Screen | Authorized context | Principal action(s) | Requirements |
+|---|---|---|---|---|
+| `mentor-dashboard` | Good morning, Minh | Any active Mentor within the stated attendance/decision scope | Review 5 requests | AUTH-003, PRJ-015–PRJ-022, ATT-007–ATT-018, COR-001–COR-009, LEV-001–LEV-012 |
+| `mentor-projects` | Owned Projects | Any active Mentor; creator becomes owning Mentor | Create Project | PRJ-001–PRJ-022, AUTH-003–AUTH-011 |
+| `mentor-project-form` | Create Project | Any active Mentor; creator becomes owning Mentor | Create Project | PRJ-001–PRJ-022, AUTH-003–AUTH-011 |
+| `mentor-project-detail` | Intern Portal Refresh | Owning Mentor for the selected Project | Complete Project | PRJ-001–PRJ-022, AUTH-003–AUTH-011 |
+| `mentor-membership` | Membership and leadership | Owning Mentor for the selected Project | Add member | PRJ-001–PRJ-022, AUTH-003–AUTH-011 |
+| `mentor-task-detail` | PDF export template | Owning Mentor for the selected Project | Add comment | TSK-001–TSK-019, AUTH-004–AUTH-011 |
+| `mentor-leave` | Leave decisions | Any active Mentor within the stated attendance/decision scope | Approve selected | LEV-001–LEV-012 |
+| `mentor-corrections` | Missed-checkout corrections | Any active Mentor within the stated attendance/decision scope | View/filter the authorized dataset | COR-001–COR-009 |
+| `mentor-attendance` | Intern attendance | Any active Mentor within the stated attendance/decision scope | Export PDF; Export Excel | ATT-007–ATT-018, RPT-001–RPT-004 |
+| `mentor-reports` | Project reports | Owning Mentor for the selected Project | Export PDF; Export Excel | RPT-001–RPT-010 |
+
+#### 9.4 Intern and Leader
+
+Daily attendance, leave, assigned work, membership visibility, and contextual Leader controls.
+
+| Screen ID | Screen | Authorized context | Principal action(s) | Requirements |
+|---|---|---|---|---|
+| `intern-dashboard` | Today | Active Intern; own or current-membership scope | Check in | ATT-007–ATT-018, LEV-001–LEV-012, PRJ-003–PRJ-022, TSK-001–TSK-019, NOT-001–NOT-010 |
+| `intern-attendance` | My attendance | Active Intern; own or current-membership scope | Check out | ATT-007–ATT-018, RPT-001–RPT-004 |
+| `intern-corrections` | Missing-checkout correction | Active Intern; own or current-membership scope | Submit correction | COR-001–COR-009 |
+| `intern-leave` | My leave | Active Intern; own or current-membership scope | Request leave | LEV-001–LEV-012 |
+| `intern-projects` | My Projects | Active Intern; own or current-membership scope | View/filter the authorized dataset | PRJ-001–PRJ-022, AUTH-003–AUTH-011 |
+| `intern-project-detail` | Intern Portal Refresh | Active Intern; own or current-membership scope | View/filter the authorized dataset | PRJ-001–PRJ-022, AUTH-003–AUTH-011 |
+| `intern-tasks` | Assigned Tasks | Active Intern; own or current-membership scope | View/filter the authorized dataset | TSK-001–TSK-019, AUTH-004–AUTH-011 |
+| `intern-task-detail` | Responsive shell | Active Intern; own or current-membership scope | Change status; Log work | TSK-001–TSK-019, AUTH-004–AUTH-011 |
+| `leader-task-manager` | Project Tasks | Current Leader of the selected non-completed Project | Create Task | TSK-001–TSK-019, AUTH-004–AUTH-011 |
+| `leader-task-form` | Create Task | Current Leader of the selected non-completed Project | Create Task | TSK-001–TSK-019, AUTH-004–AUTH-011 |
+
+#### 9.5 Required workflows without dedicated mockups
+
+These desktop workflows are normative even though the existing 48-image set is not regenerated:
+
+| Workflow | Authorized context | Required actions | Requirements |
+|---|---|---|---|
+| Project invitation list/form | Current Leader; owning Mentor may inspect/revoke | List pending/history; invite eligible Intern; revoke permitted invitation | AUTH-011, PRJ-017–PRJ-019, UI-019 |
+| Invitation response | Intended authenticated Intern | Inspect Project/inviter; accept or decline; show terminal/conflict result | AUTH-011, PRJ-018–PRJ-019, UI-019 |
+| Leader removal request | Current Leader | Choose another current member; enter nonblank reason; submit/cancel | PRJ-020–PRJ-022, UI-019 |
+| Member leave request | Current member, including Leader | Enter nonblank reason; submit/cancel; show replacement warning for Leader | PRJ-020–PRJ-022, UI-019 |
+| Pending exit decision | Owning Mentor | Inspect requester/target/tasks; approve with required replacement/transfer, or reject | AUTH-011, PRJ-020–PRJ-022, UI-019 |
+
+The mockups remain illustrative visual references only. They do not remove these pages or override the numbered workflow, field, validation, authorization, or persistence rules.
+
+## Appendix E. Desktop light-mode UI mockups
+
+
+All mockups are **desktop only**, rendered at 1365×900 in light mode. No mobile mockups are included. Mobile/tablet implementation is best-effort and not a supported product target. The dark-theme requirement remains normative, but its implementation will be reviewed separately against the supplied reference images.
+
+#### 10.1 Bootstrap and access
+
+##### UI-01 — Create the first Admin
+
+**Screen ID:** `bootstrap-first-admin`  
+**Access:** Installer / first Admin, only before initialization  
+**Purpose:** This one-time setup closes permanently after the account is created.  
+**Principal action(s):** Create Admin  
+**Requirement trace:** ACC-001–ACC-007, INT-001–INT-003
+
+> **Mockup not tracked here:** `bootstrap-first-admin.png` — Create the first Admin. Held in the documentation repository; ask the document owner for the image.
+
+*Illustrative desktop mockup. Labels, example names, dates, counts, and values are review data rather than production fixtures.*
+
+##### UI-02 — Configure email delivery
+
+**Screen ID:** `bootstrap-smtp`  
+**Access:** Installer / first Admin, only before initialization  
+**Purpose:** Test SMTP now so onboarding and password recovery work immediately.  
+**Principal action(s):** Defer SMTP; Test configuration  
+**Requirement trace:** ACC-001–ACC-007, INT-001–INT-003
+
+> **Mockup not tracked here:** `bootstrap-smtp.png` — Configure email delivery. Held in the documentation repository; ask the document owner for the image.
+
+*Illustrative desktop mockup. Labels, example names, dates, counts, and values are review data rather than production fixtures.*
+
+##### UI-03 — New accounts cannot be onboarded
+
+**Screen ID:** `bootstrap-defer-1`  
+**Access:** Installer / first Admin, only before initialization  
+**Purpose:** Without tested SMTP, Admin, Mentor, and Intern account creation remains blocked.  
+**Principal action(s):** Continue anyway; Configure SMTP  
+**Requirement trace:** ACC-001–ACC-007, INT-001–INT-003
+
+> **Mockup not tracked here:** `bootstrap-defer-1.png` — New accounts cannot be onboarded. Held in the documentation repository; ask the document owner for the image.
+
+*Illustrative desktop mockup. Labels, example names, dates, counts, and values are review data rather than production fixtures.*
+
+##### UI-04 — Activation links cannot be resent
+
+**Screen ID:** `bootstrap-defer-2`  
+**Access:** Installer / first Admin, only before initialization  
+**Purpose:** Pending users cannot receive a replacement activation link until SMTP is active.  
+**Principal action(s):** Continue anyway; Configure SMTP  
+**Requirement trace:** ACC-001–ACC-007, INT-001–INT-003
+
+> **Mockup not tracked here:** `bootstrap-defer-2.png` — Activation links cannot be resent. Held in the documentation repository; ask the document owner for the image.
+
+*Illustrative desktop mockup. Labels, example names, dates, counts, and values are review data rather than production fixtures.*
+
+##### UI-05 — Password recovery will be unavailable
+
+**Screen ID:** `bootstrap-defer-3`  
+**Access:** Installer / first Admin, only before initialization  
+**Purpose:** Users who forget their password cannot receive a reset link.  
+**Principal action(s):** Continue anyway; Configure SMTP  
+**Requirement trace:** ACC-001–ACC-007, INT-001–INT-003
+
+> **Mockup not tracked here:** `bootstrap-defer-3.png` — Password recovery will be unavailable. Held in the documentation repository; ask the document owner for the image.
+
+*Illustrative desktop mockup. Labels, example names, dates, counts, and values are review data rather than production fixtures.*
+
+##### UI-06 — Workflow email delivery will be reduced
+
+**Screen ID:** `bootstrap-defer-4`  
+**Access:** Installer / first Admin, only before initialization  
+**Purpose:** Leave, correction, membership, leadership, and Task events still create in-app notifications, but no email is sent.  
+**Principal action(s):** Continue anyway; Configure SMTP  
+**Requirement trace:** ACC-001–ACC-007, INT-001–INT-003
+
+> **Mockup not tracked here:** `bootstrap-defer-4.png` — Workflow email delivery will be reduced. Held in the documentation repository; ask the document owner for the image.
+
+*Illustrative desktop mockup. Labels, example names, dates, counts, and values are review data rather than production fixtures.*
+
+##### UI-07 — Acknowledge restricted installation
+
+**Screen ID:** `bootstrap-defer-5`  
+**Access:** Installer / first Admin, only before initialization  
+**Purpose:** Major account and recovery features will remain unavailable until an Admin activates a tested SMTP revision.  
+**Principal action(s):** Finish without SMTP; Return to SMTP  
+**Requirement trace:** ACC-001–ACC-007, INT-001–INT-003
+
+> **Mockup not tracked here:** `bootstrap-defer-5.png` — Acknowledge restricted installation. Held in the documentation repository; ask the document owner for the image.
+
+*Illustrative desktop mockup. Labels, example names, dates, counts, and values are review data rather than production fixtures.*
+
+##### UI-08 — Lab Timesheet is ready
+
+**Screen ID:** `bootstrap-complete`  
+**Access:** Installer / first Admin, only before initialization  
+**Purpose:** The first Admin was created and the one-time bootstrap route is now closed.  
+**Principal action(s):** Continue to sign in  
+**Requirement trace:** ACC-001–ACC-007, INT-001–INT-003
+
+> **Mockup not tracked here:** `bootstrap-complete.png` — Lab Timesheet is ready. Held in the documentation repository; ask the document owner for the image.
+
+*Illustrative desktop mockup. Labels, example names, dates, counts, and values are review data rather than production fixtures.*
+
+##### UI-09 — Sign in to Lab Timesheet
+
+**Screen ID:** `sign-in`  
+**Access:** Unauthenticated user with valid route/token context  
+**Purpose:** Use the email address associated with your account.  
+**Principal action(s):** Sign in  
+**Requirement trace:** SEC-002–SEC-010
+
+> **Mockup not tracked here:** `sign-in.png` — Sign in to Lab Timesheet. Held in the documentation repository; ask the document owner for the image.
+
+*Illustrative desktop mockup. Labels, example names, dates, counts, and values are review data rather than production fixtures.*
+
+##### UI-10 — Activate your account
+
+**Screen ID:** `activate-account`  
+**Access:** Unauthenticated user with valid route/token context  
+**Purpose:** Choose your password before the 24-hour activation link expires.  
+**Principal action(s):** Activate account  
+**Requirement trace:** ACC-009–ACC-016, NOT-006–NOT-008
+
+> **Mockup not tracked here:** `activate-account.png` — Activate your account. Held in the documentation repository; ask the document owner for the image.
+
+*Illustrative desktop mockup. Labels, example names, dates, counts, and values are review data rather than production fixtures.*
+
+##### UI-11 — Reset your password
+
+**Screen ID:** `forgot-password`  
+**Access:** Unauthenticated user with valid route/token context  
+**Purpose:** We will send a single-use reset link if the account is eligible.  
+**Principal action(s):** Send reset link  
+**Requirement trace:** ACC-018, NOT-006–NOT-008, SEC-003–SEC-006
+
+> **Mockup not tracked here:** `forgot-password.png` — Reset your password. Held in the documentation repository; ask the document owner for the image.
+
+*Illustrative desktop mockup. Labels, example names, dates, counts, and values are review data rather than production fixtures.*
+
+##### UI-12 — Choose a new password
+
+**Screen ID:** `reset-password`  
+**Access:** Unauthenticated user with valid route/token context  
+**Purpose:** This reset link expires 30 minutes after it was issued.  
+**Principal action(s):** Save new password  
+**Requirement trace:** ACC-018, NOT-006–NOT-008, SEC-003–SEC-006
+
+> **Mockup not tracked here:** `reset-password.png` — Choose a new password. Held in the documentation repository; ask the document owner for the image.
+
+*Illustrative desktop mockup. Labels, example names, dates, counts, and values are review data rather than production fixtures.*
+
+##### UI-13 — Notifications
+
+**Screen ID:** `notifications`  
+**Access:** Authenticated eligible user; own data only  
+**Purpose:** Account, attendance, request, membership, and Task events in one place.  
+**Principal action(s):** Mark all as read  
+**Requirement trace:** NOT-001–NOT-010
+
+> **Mockup not tracked here:** `notifications.png` — Notifications. Held in the documentation repository; ask the document owner for the image.
+
+*Illustrative desktop mockup. Labels, example names, dates, counts, and values are review data rather than production fixtures.*
+
+##### UI-14 — Profile and security
+
+**Screen ID:** `profile-security`  
+**Access:** Authenticated eligible user; own data only  
+**Purpose:** Manage your profile, password, active sessions, and local theme preference.  
+**Principal action(s):** Save changes  
+**Requirement trace:** ACC-017–ACC-018, UI-003, SEC-003
+
+> **Mockup not tracked here:** `profile-security.png` — Profile and security. Held in the documentation repository; ask the document owner for the image.
+
+*Illustrative desktop mockup. Labels, example names, dates, counts, and values are review data rather than production fixtures.*
+
+#### 10.2 Admin
+
+##### UI-15 — System overview
+
+**Screen ID:** `admin-dashboard`  
+**Access:** Active Admin  
+**Purpose:** Account readiness, internship activity, integrations, and policy health.  
+**Principal action(s):** Create account  
+**Requirement trace:** ACC-007–ACC-025, INT-001–INT-008, OPS-001–OPS-004
+
+> **Mockup not tracked here:** `admin-dashboard.png` — System overview. Held in the documentation repository; ask the document owner for the image.
+
+*Illustrative desktop mockup. Labels, example names, dates, counts, and values are review data rather than production fixtures.*
+
+##### UI-16 — Accounts and internships
+
+**Screen ID:** `admin-users`  
+**Access:** Active Admin  
+**Purpose:** Create accounts, manage account state, and control Intern lifecycle.  
+**Principal action(s):** Create account  
+**Requirement trace:** ACC-008–ACC-025
+
+> **Mockup not tracked here:** `admin-users.png` — Accounts and internships. Held in the documentation repository; ask the document owner for the image.
+
+*Illustrative desktop mockup. Labels, example names, dates, counts, and values are review data rather than production fixtures.*
+
+##### UI-17 — Create account
+
+**Screen ID:** `admin-account-create`  
+**Access:** Active Admin  
+**Purpose:** The new user receives a 24-hour single-use activation link.  
+**Principal action(s):** Create and send activation  
+**Requirement trace:** ACC-008–ACC-025
+
+> **Mockup not tracked here:** `admin-account-create.png` — Create account. Held in the documentation repository; ask the document owner for the image.
+
+*Illustrative desktop mockup. Labels, example names, dates, counts, and values are review data rather than production fixtures.*
+
+##### UI-18 — Mai Linh
+
+**Screen ID:** `admin-user-detail`  
+**Access:** Active Admin  
+**Purpose:** Intern account, lifecycle, sessions, and retained history.  
+**Principal action(s):** Lock account  
+**Requirement trace:** ACC-008–ACC-025
+
+> **Mockup not tracked here:** `admin-user-detail.png` — Mai Linh. Held in the documentation repository; ask the document owner for the image.
+
+*Illustrative desktop mockup. Labels, example names, dates, counts, and values are review data rather than production fixtures.*
+
+##### UI-19 — SMTP configuration
+
+**Screen ID:** `admin-smtp`  
+**Access:** Active Admin  
+**Purpose:** Test a draft before it can replace the active email configuration.  
+**Principal action(s):** Create draft  
+**Requirement trace:** INT-001–INT-006, NOT-003
+
+> **Mockup not tracked here:** `admin-smtp.png` — SMTP configuration. Held in the documentation repository; ask the document owner for the image.
+
+*Illustrative desktop mockup. Labels, example names, dates, counts, and values are review data rather than production fixtures.*
+
+##### UI-20 — HolidayAPI integration
+
+**Screen ID:** `admin-holiday-api`  
+**Access:** Active Admin  
+**Purpose:** Credentials support Admin-triggered Vietnamese holiday previews; attendance never calls the API live.  
+**Principal action(s):** Test draft  
+**Requirement trace:** CAL-001–CAL-009, INT-007–INT-008
+
+> **Mockup not tracked here:** `admin-holiday-api.png` — HolidayAPI integration. Held in the documentation repository; ask the document owner for the image.
+
+*Illustrative desktop mockup. Labels, example names, dates, counts, and values are review data rather than production fixtures.*
+
+##### UI-21 — Attendance policies
+
+**Screen ID:** `admin-policy-versions`  
+**Access:** Active Admin  
+**Purpose:** Schedule future policy versions without changing historical attendance.  
+**Principal action(s):** Schedule policy  
+**Requirement trace:** ATT-001–ATT-006
+
+> **Mockup not tracked here:** `admin-policy-versions.png` — Attendance policies. Held in the documentation repository; ask the document owner for the image.
+
+*Illustrative desktop mockup. Labels, example names, dates, counts, and values are review data rather than production fixtures.*
+
+##### UI-22 — Schedule attendance policy
+
+**Screen ID:** `admin-policy-form`  
+**Access:** Active Admin  
+**Purpose:** A new version must begin on the first day of a future month.  
+**Principal action(s):** Schedule version  
+**Requirement trace:** ATT-001–ATT-006
+
+> **Mockup not tracked here:** `admin-policy-form.png` — Schedule attendance policy. Held in the documentation repository; ask the document owner for the image.
+
+*Illustrative desktop mockup. Labels, example names, dates, counts, and values are review data rather than production fixtures.*
+
+##### UI-23 — Global calendar
+
+**Screen ID:** `admin-calendar`  
+**Access:** Active Admin  
+**Purpose:** Global days off waive attendance, absence, quota, and compliance penalties.  
+**Principal action(s):** Add custom day off  
+**Requirement trace:** CAL-001–CAL-009, INT-007–INT-008
+
+> **Mockup not tracked here:** `admin-calendar.png` — Global calendar. Held in the documentation repository; ask the document owner for the image.
+
+*Illustrative desktop mockup. Labels, example names, dates, counts, and values are review data rather than production fixtures.*
+
+##### UI-24 — Preview Vietnamese holidays
+
+**Screen ID:** `admin-holiday-import`  
+**Access:** Active Admin  
+**Purpose:** Review HolidayAPI candidates before importing them into the global calendar.  
+**Principal action(s):** Import 3 selected  
+**Requirement trace:** CAL-001–CAL-009, INT-007–INT-008
+
+> **Mockup not tracked here:** `admin-holiday-import.png` — Preview Vietnamese holidays. Held in the documentation repository; ask the document owner for the image.
+
+*Illustrative desktop mockup. Labels, example names, dates, counts, and values are review data rather than production fixtures.*
+
+##### UI-25 — All Projects
+
+**Screen ID:** `admin-projects`  
+**Access:** Active Admin  
+**Purpose:** Read-only visibility across Project ownership, membership, Tasks, and progress.  
+**Principal action(s):** View/filter the authorized dataset  
+**Requirement trace:** PRJ-001–PRJ-022, AUTH-003–AUTH-011
+
+> **Mockup not tracked here:** `admin-projects.png` — All Projects. Held in the documentation repository; ask the document owner for the image.
+
+*Illustrative desktop mockup. Labels, example names, dates, counts, and values are review data rather than production fixtures.*
+
+##### UI-26 — Intern Portal Refresh
+
+**Screen ID:** `admin-project-detail`  
+**Access:** Active Admin  
+**Purpose:** Read-only Project and Task inspection. Admin has no Project mutation authority.  
+**Principal action(s):** View/filter the authorized dataset  
+**Requirement trace:** PRJ-001–PRJ-022, AUTH-003–AUTH-011
+
+> **Mockup not tracked here:** `admin-project-detail.png` — Intern Portal Refresh. Held in the documentation repository; ask the document owner for the image.
+
+*Illustrative desktop mockup. Labels, example names, dates, counts, and values are review data rather than production fixtures.*
+
+##### UI-27 — Reports and exports
+
+**Screen ID:** `admin-reports`  
+**Access:** Active Admin  
+**Purpose:** HTML, Excel, and PDF use one authorized dataset and identical totals.  
+**Principal action(s):** Export PDF; Export Excel  
+**Requirement trace:** RPT-001–RPT-010
+
+> **Mockup not tracked here:** `admin-reports.png` — Reports and exports. Held in the documentation repository; ask the document owner for the image.
+
+*Illustrative desktop mockup. Labels, example names, dates, counts, and values are review data rather than production fixtures.*
+
+##### UI-28 — System status
+
+**Screen ID:** `admin-system-status`  
+**Access:** Active Admin  
+**Purpose:** Runtime readiness, database migration, integration, and delivery health.  
+**Principal action(s):** View/filter the authorized dataset  
+**Requirement trace:** OPS-001–OPS-010, INT-001–INT-008
+
+> **Mockup not tracked here:** `admin-system-status.png` — System status. Held in the documentation repository; ask the document owner for the image.
+
+*Illustrative desktop mockup. Labels, example names, dates, counts, and values are review data rather than production fixtures.*
+
+#### 10.3 Mentor
+
+##### UI-29 — Good morning, Minh
+
+**Screen ID:** `mentor-dashboard`  
+**Access:** Any active Mentor within the stated attendance/decision scope  
+**Purpose:** Resolve time-sensitive requests, then scan attendance and owned Project health.  
+**Principal action(s):** Review 5 requests  
+**Requirement trace:** AUTH-003, PRJ-015–PRJ-022, ATT-007–ATT-018, COR-001–COR-009, LEV-001–LEV-012
+
+> **Mockup not tracked here:** `mentor-dashboard.png` — Good morning, Minh. Held in the documentation repository; ask the document owner for the image.
+
+*Illustrative desktop mockup. Labels, example names, dates, counts, and values are review data rather than production fixtures.*
+
+##### UI-30 — Owned Projects
+
+**Screen ID:** `mentor-projects`  
+**Access:** Any active Mentor; creator becomes owning Mentor  
+**Purpose:** Create Projects and manage their lifecycle, membership, leadership, and progress.  
+**Principal action(s):** Create Project  
+**Requirement trace:** PRJ-001–PRJ-022, AUTH-003–AUTH-011
+
+> **Mockup not tracked here:** `mentor-projects.png` — Owned Projects. Held in the documentation repository; ask the document owner for the image.
+
+*Illustrative desktop mockup. Labels, example names, dates, counts, and values are review data rather than production fixtures.*
+
+##### UI-31 — Create Project
+
+**Screen ID:** `mentor-project-form`  
+**Access:** Any active Mentor; creator becomes owning Mentor  
+**Purpose:** Set the Project boundary. Membership and leadership are configured after creation.  
+**Principal action(s):** Create Project  
+**Requirement trace:** PRJ-001–PRJ-022, AUTH-003–AUTH-011
+
+> **Mockup not tracked here:** `mentor-project-form.png` — Create Project. Held in the documentation repository; ask the document owner for the image.
+
+*Illustrative desktop mockup. Labels, example names, dates, counts, and values are review data rather than production fixtures.*
+
+##### UI-32 — Intern Portal Refresh
+
+**Screen ID:** `mentor-project-detail`  
+**Access:** Owning Mentor for the selected Project  
+**Purpose:** Project progress and Task visibility without Task-management controls.  
+**Principal action(s):** Complete Project  
+**Requirement trace:** PRJ-001–PRJ-022, AUTH-003–AUTH-011
+
+> **Mockup not tracked here:** `mentor-project-detail.png` — Intern Portal Refresh. Held in the documentation repository; ask the document owner for the image.
+
+*Illustrative desktop mockup. Labels, example names, dates, counts, and values are review data rather than production fixtures.*
+
+##### UI-33 — Membership and leadership
+
+**Screen ID:** `mentor-membership`  
+**Access:** Owning Mentor for the selected Project  
+**Purpose:** Add or remove members and appoint one current Leader for this Project.  
+**Principal action(s):** Add member  
+**Requirement trace:** PRJ-001–PRJ-022, AUTH-003–AUTH-011
+
+> **Mockup not tracked here:** `mentor-membership.png` — Membership and leadership. Held in the documentation repository; ask the document owner for the image.
+
+*Illustrative desktop mockup. Labels, example names, dates, counts, and values are review data rather than production fixtures.*
+
+##### UI-34 — PDF export template
+
+**Screen ID:** `mentor-task-detail`  
+**Access:** Owning Mentor for the selected Project  
+**Purpose:** View Task history and add comments. Task definition and status controls are intentionally absent.  
+**Principal action(s):** Add comment  
+**Requirement trace:** TSK-001–TSK-019, AUTH-004–AUTH-011
+
+> **Mockup not tracked here:** `mentor-task-detail.png` — PDF export template. Held in the documentation repository; ask the document owner for the image.
+
+*Illustrative desktop mockup. Labels, example names, dates, counts, and values are review data rather than production fixtures.*
+
+##### UI-35 — Leave decisions
+
+**Screen ID:** `mentor-leave`  
+**Access:** Any active Mentor within the stated attendance/decision scope  
+**Purpose:** Any active Mentor may decide eligible requests before the first counted workday starts.  
+**Principal action(s):** Approve selected  
+**Requirement trace:** LEV-001–LEV-012
+
+> **Mockup not tracked here:** `mentor-leave.png` — Leave decisions. Held in the documentation repository; ask the document owner for the image.
+
+*Illustrative desktop mockup. Labels, example names, dates, counts, and values are review data rather than production fixtures.*
+
+##### UI-36 — Missed-checkout corrections
+
+**Screen ID:** `mentor-corrections`  
+**Access:** Any active Mentor within the stated attendance/decision scope  
+**Purpose:** Approve, reject, or revert a decision within each request’s 24-hour decision window.  
+**Principal action(s):** View/filter the authorized dataset  
+**Requirement trace:** COR-001–COR-009
+
+> **Mockup not tracked here:** `mentor-corrections.png` — Missed-checkout corrections. Held in the documentation repository; ask the document owner for the image.
+
+*Illustrative desktop mockup. Labels, example names, dates, counts, and values are review data rather than production fixtures.*
+
+##### UI-37 — Intern attendance
+
+**Screen ID:** `mentor-attendance`  
+**Access:** Any active Mentor within the stated attendance/decision scope  
+**Purpose:** Inspect authorized attendance and compliance calculated from historical policy.  
+**Principal action(s):** Export PDF; Export Excel  
+**Requirement trace:** ATT-007–ATT-018, RPT-001–RPT-004
+
+> **Mockup not tracked here:** `mentor-attendance.png` — Intern attendance. Held in the documentation repository; ask the document owner for the image.
+
+*Illustrative desktop mockup. Labels, example names, dates, counts, and values are review data rather than production fixtures.*
+
+##### UI-38 — Project reports
+
+**Screen ID:** `mentor-reports`  
+**Access:** Owning Mentor for the selected Project  
+**Purpose:** Owned Project progress, status counts, and per-member logged work.  
+**Principal action(s):** Export PDF; Export Excel  
+**Requirement trace:** RPT-001–RPT-010
+
+> **Mockup not tracked here:** `mentor-reports.png` — Project reports. Held in the documentation repository; ask the document owner for the image.
+
+*Illustrative desktop mockup. Labels, example names, dates, counts, and values are review data rather than production fixtures.*
+
+#### 10.4 Intern and Leader
+
+##### UI-39 — Today
+
+**Screen ID:** `intern-dashboard`  
+**Access:** Active Intern; own or current-membership scope  
+**Purpose:** Attendance, assigned work, leave balance, and Project activity.  
+**Principal action(s):** Check in  
+**Requirement trace:** ATT-007–ATT-018, LEV-001–LEV-012, PRJ-003–PRJ-022, TSK-001–TSK-019, NOT-001–NOT-010
+
+> **Mockup not tracked here:** `intern-dashboard.png` — Today. Held in the documentation repository; ask the document owner for the image.
+
+*Illustrative desktop mockup. Labels, example names, dates, counts, and values are review data rather than production fixtures.*
+
+##### UI-40 — My attendance
+
+**Screen ID:** `intern-attendance`  
+**Access:** Active Intern; own or current-membership scope  
+**Purpose:** Check-in/out history, daily classification, and correction eligibility.  
+**Principal action(s):** Check out  
+**Requirement trace:** ATT-007–ATT-018, RPT-001–RPT-004
+
+> **Mockup not tracked here:** `intern-attendance.png` — My attendance. Held in the documentation repository; ask the document owner for the image.
+
+*Illustrative desktop mockup. Labels, example names, dates, counts, and values are review data rather than production fixtures.*
+
+##### UI-41 — Missing-checkout correction
+
+**Screen ID:** `intern-corrections`  
+**Access:** Active Intern; own or current-membership scope  
+**Purpose:** Submit one proposed checkout before the attendance-day deadline.  
+**Principal action(s):** Submit correction  
+**Requirement trace:** COR-001–COR-009
+
+> **Mockup not tracked here:** `intern-corrections.png` — Missing-checkout correction. Held in the documentation repository; ask the document owner for the image.
+
+*Illustrative desktop mockup. Labels, example names, dates, counts, and values are review data rather than production fixtures.*
+
+##### UI-42 — My leave
+
+**Screen ID:** `intern-leave`  
+**Access:** Active Intern; own or current-membership scope  
+**Purpose:** Request full-day leave and see frozen quota reservations.  
+**Principal action(s):** Request leave  
+**Requirement trace:** LEV-001–LEV-012
+
+> **Mockup not tracked here:** `intern-leave.png` — My leave. Held in the documentation repository; ask the document owner for the image.
+
+*Illustrative desktop mockup. Labels, example names, dates, counts, and values are review data rather than production fixtures.*
+
+##### UI-43 — My Projects
+
+**Screen ID:** `intern-projects`  
+**Access:** Active Intern; own or current-membership scope  
+**Purpose:** Current and historical memberships across multiple Projects.  
+**Principal action(s):** View/filter the authorized dataset  
+**Requirement trace:** PRJ-001–PRJ-022, AUTH-003–AUTH-011
+
+> **Mockup not tracked here:** `intern-projects.png` — My Projects. Held in the documentation repository; ask the document owner for the image.
+
+*Illustrative desktop mockup. Labels, example names, dates, counts, and values are review data rather than production fixtures.*
+
+##### UI-44 — Intern Portal Refresh
+
+**Screen ID:** `intern-project-detail`  
+**Access:** Active Intern; own or current-membership scope  
+**Purpose:** Project overview, members, aggregate progress, Tasks, and comments.  
+**Principal action(s):** View/filter the authorized dataset  
+**Requirement trace:** PRJ-001–PRJ-022, AUTH-003–AUTH-011
+
+> **Mockup not tracked here:** `intern-project-detail.png` — Intern Portal Refresh. Held in the documentation repository; ask the document owner for the image.
+
+*Illustrative desktop mockup. Labels, example names, dates, counts, and values are review data rather than production fixtures.*
+
+##### UI-45 — Assigned Tasks
+
+**Screen ID:** `intern-tasks`  
+**Access:** Active Intern; own or current-membership scope  
+**Purpose:** Only the current assignee may change status and record Task work.  
+**Principal action(s):** View/filter the authorized dataset  
+**Requirement trace:** TSK-001–TSK-019, AUTH-004–AUTH-011
+
+> **Mockup not tracked here:** `intern-tasks.png` — Assigned Tasks. Held in the documentation repository; ask the document owner for the image.
+
+*Illustrative desktop mockup. Labels, example names, dates, counts, and values are review data rather than production fixtures.*
+
+##### UI-46 — Responsive shell
+
+**Screen ID:** `intern-task-detail`  
+**Access:** Active Intern; own or current-membership scope  
+**Purpose:** Update assigned Task status, comment, and record dated work independently of attendance.  
+**Principal action(s):** Change status; Log work  
+**Requirement trace:** TSK-001–TSK-019, AUTH-004–AUTH-011
+
+> **Mockup not tracked here:** `intern-task-detail.png` — Responsive shell. Held in the documentation repository; ask the document owner for the image.
+
+*Illustrative desktop mockup. Labels, example names, dates, counts, and values are review data rather than production fixtures.*
+
+##### UI-47 — Project Tasks
+
+**Screen ID:** `leader-task-manager`  
+**Access:** Current Leader of the selected non-completed Project  
+**Purpose:** Leader controls Task definitions and assignment; assignees control status and work.  
+**Principal action(s):** Create Task  
+**Requirement trace:** TSK-001–TSK-019, AUTH-004–AUTH-011
+
+> **Mockup not tracked here:** `leader-task-manager.png` — Project Tasks. Held in the documentation repository; ask the document owner for the image.
+
+*Illustrative desktop mockup. Labels, example names, dates, counts, and values are review data rather than production fixtures.*
+
+##### UI-48 — Create Task
+
+**Screen ID:** `leader-task-form`  
+**Access:** Current Leader of the selected non-completed Project  
+**Purpose:** Assign one active Project member and choose a valid Project work date.  
+**Principal action(s):** Create Task  
+**Requirement trace:** TSK-001–TSK-019, AUTH-004–AUTH-011
+
+> **Mockup not tracked here:** `leader-task-form.png` — Create Task. Held in the documentation repository; ask the document owner for the image.
+
+*Illustrative desktop mockup. Labels, example names, dates, counts, and values are review data rather than production fixtures.*
+
+## Appendix F. Business rules and system messages
+
+
+#### 12.1 High-impact business rules
+
+| Rule | Required meaning |
+|---|---|
+| One global role | `ADMIN`, `MENTOR`, or `INTERN` is selected once and cannot be mutated. Leader is contextual membership authority. |
+| Separate clocks | Attendance instants and dated Task-work minutes never prove or update each other. |
+| Historical stability | Later policy/calendar changes do not rewrite prior attendance, leave quota, or compliance meaning. |
+| Mentor versus Leader | Mentor directly controls and finally decides Project membership; Leader invites and requests removal; each member may make a self-Task; Leader controls broader Task definition/assignment; assignee controls status/work. |
+| One assignee | Each Task has exactly one current same-Project member as assignee. |
+| Exact late boundary | At defaults, 09:00 is on time and any later instant is late. |
+| Exact checkout boundary | At defaults, normal checkout through 16:00:00 succeeds; the first later instant is rejected and missing checkout applies when no effective checkout exists. |
+| Corrections | Only missing checkout is correctable after normal checkout closes; submission remains anchored to scheduled end plus 24 hours; raw attendance remains immutable. |
+| Leave cutoff | Same-day submission/decision/cancellation closes before the first counted workday’s scheduled start. |
+| Global day off | Waives attendance/quota/penalty and blocks check-in/new due dates, but allows voluntary Project work. |
+| SMTP gate | Onboarding/resend/reset delivery is blocked without active SMTP; other domain actions retain in-app notification. |
+
+#### 12.2 Required message families
+
+| Message family | Example required information |
+|---|---|
+| Authorization denial | The action is unavailable without disclosing whether an unauthorized identifier exists. |
+| Optimistic conflict | The record changed since it was opened; reload current state before deciding again. |
+| SMTP restricted | State which onboarding/recovery action is blocked and link Admin to SMTP configuration. |
+| Integration unavailable | Explain that manual calendar configuration remains available. |
+| Deadline closed | Show the authoritative local deadline and final locked state. |
+| Quota/overlap rejection | Identify month-level counted days or the conflicting range without exposing another Intern’s data. |
+| Membership removal guard | Identify unfinished Task count and offer the approved assisted transfer to current Leader. |
+| Invitation conflict | Explain that eligibility, leadership, or membership changed and reload current state without leaking another user’s protected details. |
+| Membership-exit decision | Show requester, target, reason, unfinished Task transfer, and required replacement when the Leader leaves. |
+| Project completion guard | Identify remaining non-deleted Tasks not in DONE. |
+| No-data metric | Render `N/A` and explain the zero denominator; do not render a misleading 0%. |
+| Successful mutation | Confirm the resulting state and the next available action without implying email delivery unless it succeeded. |

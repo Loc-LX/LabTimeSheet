@@ -55,8 +55,11 @@ layouts stay best effort; desktop is the supported target.
 | What evidence backs a behavior | [`docs/tests/`](docs/tests/README.md) |
 | Rules for AI agents working here | [AGENTS.md](AGENTS.md), [CLAUDE.md](CLAUDE.md) |
 
-The requirements document carries 267 numbered IDs. It was deleted in error on
-29 August 2026 and restored from history on 10 September 2026.
+The requirements document carries 267 numbered IDs in sections 1 through 22. It
+was deleted in error on 29 August 2026 and restored from history on 10 September
+2026. Appendices C through F hold the use-case flows, screen inventory, desktop
+mockups, and system message catalogue recovered from the 17 August 2026 SRS; they
+are explanatory and predate Iterations 3 and 4.
 
 ## What works today
 
