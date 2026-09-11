@@ -31,8 +31,8 @@
 > and the `assets/` images stayed behind and have never been tracked in this
 > repository. Every image embed below is therefore written as a named reference
 > rather than a link, so nothing renders as a broken image.
-> The live schema is [`V1__baseline.sql`](../../src/main/resources/db/migration/V1__baseline.sql)
-> plus [`V2__add_task_effort_planning.sql`](../../src/main/resources/db/migration/V2__add_task_effort_planning.sql),
+> The live schema is [`V1__baseline.sql`](../src/main/resources/db/migration/V1__baseline.sql)
+> plus [`V2__add_task_effort_planning.sql`](../src/main/resources/db/migration/V2__add_task_effort_planning.sql),
 > which together create twenty-four tables; §19.4 below carries the physical
 > table diagram. Ask the document owner for the reference images if you need them.
 
@@ -73,7 +73,7 @@ When statements conflict, use this precedence from highest to lowest:
 > return the non-disclosing `Project unavailable` response, and the Admin dashboard still carries
 > account-lifecycle counts and configuration guidance only. This revision restores the position
 > held by the 17 August SRS and is the current decision of the primary implementor under the
-> `GOV-001` authority order; it is recorded in `docs/adr/0002-admin-attendance-report-scope.md`.
+> `GOV-001` authority order; it is recorded in `.sdd/rfcs/ADR-002-attendance-report-scope.md`.
 
 | ID | Requirement |
 |---|---|
@@ -1334,7 +1334,7 @@ Validation performed on 14 August 2026 established the review artifacts below. T
 > - No use case covers the Daily Project Work Report, added in Iteration 4. See `RPT-011` through `RPT-013`.
 > - No use case or screen covers Task estimates and Remaining effort forecasts, added in Iteration 4. See `TSK-020` through `TSK-022` and `DB-013`.
 > - Appendix D lists 48 screens against 43 non-fragment templates in `src/main/resources/templates` today; the Iteration 3 screen split for Policy, Calendar, Holiday Import, SMTP, Leave, and Corrections is not reflected.
-> - Admin reporting scope in these appendices predates the 27 August withdrawal and the 30 August restoration. The current rule is `RPT-004` plus `docs/adr/0002-admin-attendance-report-scope.md`.
+> - Admin reporting scope in these appendices predates the 27 August withdrawal and the 30 August restoration. The current rule is `RPT-004` plus `.sdd/rfcs/ADR-002-attendance-report-scope.md`.
 >
 > They are kept because they are the only written record of the use-case flows, the screen
 > inventory with access rules, the desktop layout intent, and the system message catalogue.

@@ -2,7 +2,7 @@
 
 **Artifact purpose:** Local agent coordination and progress tracking  
 **Implementation branches:** `work/platform`, `work/projects`, `work/tasks`, `work/attendance`, `work/reports-ui`  
-**Requirements authority:** [`docs/requirements/requirements-specification.md`](../docs/requirements/requirements-specification.md), tracked in this repository since 10 September 2026  
+**Requirements authority:** [`.sdd/requirements.md`](.sdd/requirements.md), tracked in this repository since 10 September 2026  
 **SRS:** `labtimesheet-docs-hub/software-requirements-specification.md`, generated in the separate documentation repository and not tracked here  
 **Current status:** Iterations 1 and 2 implemented and locally verified; Iteration 3 producer reviews and Reports/UI consumer candidate are complete locally, with final integrated review pending coordination. Candidate `ba1682ef6e295beb7ddc435abf9f39df759f5d27` consumes the reviewed Platform/Projects/Tasks/Attendance heads and advancing-clock merge; post-review parity evidence and managed report-download rerun are green.
 
@@ -337,9 +337,11 @@ Iteration 4 uses the following execution and review protocol:
 
 The 29 unpublished Iteration 4 commits were subsequently replayed to normalize commit subjects.
 Current commit references in the tracker use the rewritten public SHAs. Historical verification
-records retain the original tested SHAs and map them to their content-identical rewritten commits in
-`docs/history/commit-map-iteration-4.md`; this does not claim that an earlier
-test run occurred on a rewritten SHA.
+records retain the original tested SHAs, which do not resolve in this repository because the
+branches they were written on were never published here. No mapping document is kept: the one that
+existed paired 58 commits from two absent branches, and only six of its entries appeared in any
+evidence record. A retained SHA is a record of what was tested that day, not a claim that the same
+run happened on a rewritten commit.
 
 | ID | Deliverable | Test/evidence emphasis | Status | Owner/date | Result/commit |
 |---|---|---|---|---|---|

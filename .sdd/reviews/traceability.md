@@ -1,7 +1,7 @@
 # Traceability: requirement to test
 
 Which numbered rule in
-[the requirements](requirements/requirements-specification.md) is protected by
+[the requirements](../requirements.md) is protected by
 which test class, and which rules are protected by nothing.
 
 Test classes live under `src/test/java`. A rule with no class in the
@@ -89,7 +89,7 @@ anything failing.
 
 These 11 are process or scope statements. They bind people and
 review, not code, so the absence of a test is correct rather than a gap.
-See [CONSTITUTION.md](../CONSTITUTION.md).
+See [`.sdd/constitution.md`](../constitution.md).
 
 | Rule |
 |---|

@@ -2,7 +2,7 @@
 
 Operating rules for any AI agent working in this repository. They govern what
 you may touch and how you must work. They do not govern what the system must be
-true of; that is [CONSTITUTION.md](CONSTITUTION.md), and it outranks this file.
+true of; that is [`.sdd/constitution.md`](.sdd/constitution.md), and it outranks this file.
 
 ## 1. Role
 
@@ -22,13 +22,13 @@ Check these before assuming anything. When two disagree, the higher row wins.
 
 | Question | Authority |
 |---|---|
-| What must always be true | [CONSTITUTION.md](CONSTITUTION.md) |
-| What the system must do | [`docs/requirements/requirements-specification.md`](docs/requirements/requirements-specification.md), 269 numbered rules |
-| Why a decision was made | [`docs/adr/`](docs/adr/) |
-| What is planned, and its status | [`.agents/PROJECT_PLAN.md`](.agents/PROJECT_PLAN.md) |
+| What must always be true | [`.sdd/constitution.md`](.sdd/constitution.md) |
+| What the system must do | [`.sdd/requirements.md`](.sdd/requirements.md), 269 numbered rules |
+| Why a decision was made | [`.sdd/rfcs/`](.sdd/rfcs) |
+| What is planned, and its status | [`plan.md`](plan.md) |
 | What behavior is already proven | [`docs/tests/`](docs/tests/README.md), 155 evidence records |
 
-`.agents/PROJECT_PLAN.md` is the only live plan. Do not trust any other copy.
+`plan.md` is the only live plan. Do not trust any other copy.
 
 ## 3. Scope
 

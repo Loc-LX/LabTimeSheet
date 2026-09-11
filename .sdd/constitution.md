@@ -5,8 +5,8 @@
 | Version | 1.0.0 |
 | Status | `LOCKED` |
 | Applies to | every developer, every AI agent, every pull request |
-| Amendment | requires a new ADR under [`docs/adr/`](docs/adr/) and the `GOV-001` authority order |
-| Full rule text | [`docs/requirements/requirements-specification.md`](docs/requirements/requirements-specification.md) |
+| Amendment | requires a new ADR under [`.sdd/rfcs/`](rfcs) and the `GOV-001` authority order |
+| Full rule text | [`.sdd/requirements.md`](requirements.md) |
 
 This document is an index, not a copy. Each row names a rule that already exists
 in the requirements specification, states how strictly it binds, and names the
@@ -111,7 +111,7 @@ what it adds, and never claiming precedence over it.
 ### Definition of done
 
 A tracked item is `DONE` only when all of the following hold. The list is
-maintained in [`.agents/PROJECT_PLAN.md`](.agents/PROJECT_PLAN.md).
+maintained in [`plan.md`](../plan.md).
 
 - The numbered requirement and its acceptance behavior are satisfied.
 - The test existed and failed for the intended reason before production code.
@@ -132,14 +132,14 @@ maintained in [`.agents/PROJECT_PLAN.md`](.agents/PROJECT_PLAN.md).
 
 `GOV-001` sets the authority order. When statements conflict, the highest
 applicable authority wins and a lower-authority rule may not be revived against
-it. In practice an amendment means: write an ADR under [`docs/adr/`](docs/adr/)
+it. In practice an amendment means: write an ADR under [`.sdd/rfcs/`](rfcs)
 stating the decision, its rationale, and its consequences; update the
 requirements specification; then update this index.
 
 That process has been exercised once. The Admin Attendance report scope was
 granted on 17 August 2026, withdrawn on 27 August, and restored on 30 August.
 The reasoning is recorded in
-[`docs/adr/0002-admin-attendance-report-scope.md`](docs/adr/0002-admin-attendance-report-scope.md),
+[`.sdd/rfcs/ADR-002-attendance-report-scope.md`](rfcs/ADR-002-attendance-report-scope.md),
 and the superseded wording was left in place rather than rewritten, which is
 `GOV-005` applied to the document itself.
 

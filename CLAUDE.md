@@ -1,7 +1,7 @@
 # CLAUDE.md — Lab Timesheet project map
 
 Context for working in this codebase. Rules live in
-[AGENTS.md](AGENTS.md); invariants live in [CONSTITUTION.md](CONSTITUTION.md).
+[AGENTS.md](AGENTS.md); invariants live in [`.sdd/constitution.md`](.sdd/constitution.md).
 This file is what the system *is*.
 
 ## In sixty seconds
@@ -96,7 +96,7 @@ Global role alone never grants access. Every check resolves stored context:
 ownership of the Project, active membership, a current leadership term, being
 the current assignee, and the lifecycle state of the aggregate.
 
-- **Admin** manages accounts, internship lifecycle, SMTP, HolidayAPI, attendance policy, and the global calendar. Read-only on Projects. Holds Attendance report scope, and no Project/Task or Daily report scope. See [`docs/adr/0002-admin-attendance-report-scope.md`](docs/adr/0002-admin-attendance-report-scope.md).
+- **Admin** manages accounts, internship lifecycle, SMTP, HolidayAPI, attendance policy, and the global calendar. Read-only on Projects. Holds Attendance report scope, and no Project/Task or Daily report scope. See [`.sdd/rfcs/ADR-002-attendance-report-scope.md`](.sdd/rfcs/ADR-002-attendance-report-scope.md).
 - **Mentor** owns the Projects they created, decides every membership exit, and decides leave and missed-checkout corrections. Cannot create or assign Tasks.
 - **Intern** checks in and out, works assigned Tasks, records work logs, requests leave and corrections, answers their own invitations.
 - **Current Leader** invites eligible interns, defines and assigns Tasks within the led Project, and redistributes unfinished Tasks in confirmed batches before a pending exit is approved.
@@ -116,7 +116,7 @@ English.
 
 ## Things learned the hard way
 
-**There is exactly one plan.** `.agents/PROJECT_PLAN.md`. A duplicate once sat
+**There is exactly one plan.** `plan.md`. A duplicate once sat
 at the repository root, drifted, and misreported finished work as `TODO`. Do not
 recreate it.
 
@@ -124,11 +124,11 @@ recreate it.
 the specification is missing, recover it from history rather than rewriting it.
 
 **Admin Attendance report scope has changed more than once.** The code is
-correct and [`docs/adr/0002-admin-attendance-report-scope.md`](docs/adr/0002-admin-attendance-report-scope.md)
+correct and [`.sdd/rfcs/ADR-002-attendance-report-scope.md`](.sdd/rfcs/ADR-002-attendance-report-scope.md)
 explains why. Do not "fix" the code to match older wording.
 
 **Verify a path before trusting its name.** The specification lives at
-`docs/requirements/requirements-specification.md`. Some evidence records cite an
+`.sdd/requirements.md`. Some evidence records cite an
 older location; they are dated records and are left as written.
 
 ## Useful commands

@@ -74,7 +74,7 @@ calendar dates that have now passed, so they fail with
 `Project start date cannot be in the past` regardless of platform.
 
 Background and measurements are in
-[`docs/adr/0003-verification-authority-and-windows-test-environment.md`](docs/adr/0003-verification-authority-and-windows-test-environment.md).
+[`.sdd/rfcs/ADR-003-verification-authority.md`](.sdd/rfcs/ADR-003-verification-authority.md).
 
 Frontend assets have a separate check:
 

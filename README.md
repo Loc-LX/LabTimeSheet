@@ -15,7 +15,7 @@ that close intervals instead of overwriting rows.
 ## Status
 
 All tracked deliverables for Iterations 1 through 4 are marked `DONE` in
-[`.agents/PROJECT_PLAN.md`](.agents/PROJECT_PLAN.md), each with an implementation
+[`plan.md`](plan.md), each with an implementation
 commit and an evidence path. The Iteration 3 heading itself stays `IN_PROGRESS`
 because the final integrated review has not been run.
 
@@ -26,7 +26,7 @@ because the final integrated review has not been run.
 | 3 | Hardening, security, reports, containers, accessibility | 31 of 31 |
 | 4 | Partial Jira/Tempo slice: Task effort planning and Daily reports | 6 of 6 |
 
-**`.agents/PROJECT_PLAN.md` is the only live plan.** A stale duplicate at the
+**`plan.md` is the only live plan.** A stale duplicate at the
 repository root was removed; it had stopped being updated on 21 August 2026 and
 still showed every Iteration 3 item as `TODO`.
 
@@ -40,20 +40,20 @@ layouts stay best effort; desktop is the supported target.
 
 | Question | Read |
 |---|---|
-| What must always be true of this system | [CONSTITUTION.md](CONSTITUTION.md) |
+| What must always be true of this system | [`.sdd/constitution.md`](.sdd/constitution.md) |
 | How do I set up and contribute | [CONTRIBUTING.md](CONTRIBUTING.md) |
-| What is the product and who are its users | [PRODUCT.md](PRODUCT.md) |
-| What do the domain terms mean | [`docs/glossary.md`](docs/glossary.md) |
-| What do we assume but have not confirmed | [PRODUCT.md](PRODUCT.md), Assumptions |
-| What are the numbered requirements | [`docs/requirements/requirements-specification.md`](docs/requirements/requirements-specification.md) |
-| Why was a decision made | [`docs/adr/`](docs/adr/) |
-| Which libraries and versions, and why | [`docs/architecture/tech-stack.md`](docs/architecture/tech-stack.md) |
+| What is the product and who are its users | [`.sdd/product.md`](.sdd/product.md) |
+| What do the domain terms mean | [`.sdd/constraints/glossary.md`](.sdd/constraints/glossary.md) |
+| What do we assume but have not confirmed | [`.sdd/product.md`](.sdd/product.md), Assumptions |
+| What are the numbered requirements | [`.sdd/requirements.md`](.sdd/requirements.md) |
+| Why was a decision made | [`.sdd/rfcs/`](.sdd/rfcs) |
+| Which libraries and versions, and why | [`.sdd/constraints/tech-stack.md`](.sdd/constraints/tech-stack.md) |
 | What are the UI design tokens | [`docs/architecture/design-system.md`](docs/architecture/design-system.md) |
 | How do I run the app locally | [DEVELOPMENT.md](DEVELOPMENT.md) |
 | How do I run and write tests | [TESTING.md](TESTING.md) |
 | How do I deploy | [DEPLOYMENT.md](DEPLOYMENT.md) |
-| What is planned and who owns it | [`.agents/PROJECT_PLAN.md`](.agents/PROJECT_PLAN.md) |
-| Which test protects which rule | [`docs/traceability.md`](docs/traceability.md) |
+| What is planned and who owns it | [`plan.md`](plan.md) |
+| Which test protects which rule | [`.sdd/reviews/traceability.md`](.sdd/reviews/traceability.md) |
 | What evidence backs a behavior | [`docs/tests/`](docs/tests/README.md) |
 | Rules for AI agents working here | [AGENTS.md](AGENTS.md), [CLAUDE.md](CLAUDE.md) |
 
@@ -108,7 +108,7 @@ are explanatory and predate Iterations 3 and 4.
 - Intern own attendance history, plus authorized active-Mentor and active-Admin detailed Intern attendance and compliance reports using the historically applied policy and schedule.
 - Owning-Mentor and current-Leader Project and Task reports with per-member hours.
 - Daily Project Work Reports for owning Mentors and current Leaders, with XLSX and PDF export parity.
-- Admin holds Attendance report scope only, with no Project/Task or Daily report page, export, or dataset. See [`docs/adr/0002-admin-attendance-report-scope.md`](docs/adr/0002-admin-attendance-report-scope.md).
+- Admin holds Attendance report scope only, with no Project/Task or Daily report page, export, or dataset. See [`.sdd/rfcs/ADR-002-attendance-report-scope.md`](.sdd/rfcs/ADR-002-attendance-report-scope.md).
 - Undefined denominators render as `N/A`, and all three formats agree on hand-checkable totals.
 
 ### Security and operations
@@ -164,7 +164,7 @@ through environment variables.
 - Flyway owns the schema and Hibernate validates it with `ddl-auto=validate`.
 
 Version-by-version detail and the reason each library was chosen are in
-[`docs/architecture/tech-stack.md`](docs/architecture/tech-stack.md).
+[`.sdd/constraints/tech-stack.md`](.sdd/constraints/tech-stack.md).
 
 ## Testing
 

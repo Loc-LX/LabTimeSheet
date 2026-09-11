@@ -1,6 +1,6 @@
 # Open decisions blocking approval of the specification
 
-[The specification](requirements-specification.md) cannot be approved until the
+[The specification](../requirements.md) cannot be approved until the
 questions below are answered by a person, not by reading the code. Each one is a
 place where the document currently states something that no recorded human
 decision supports.
@@ -33,7 +33,7 @@ settle a business rule, and it should not have been.
 | What the earlier text said | Admins have no Attendance-report scope or report dataset. |
 
 The rule has moved three times.
-[ADR 0002](../adr/0002-admin-attendance-report-scope.md) reconstructs the
+[ADR 0002](../rfcs/ADR-002-attendance-report-scope.md) reconstructs the
 sequence from commits: granted on 17 August 2026, the specification carrying it
 deleted on 20 August, withdrawn on 27 August, the specification deleted again on
 29 August, restored on 30 August.
@@ -71,7 +71,7 @@ scope and the change would be confined to the reporting feature.
 
 The reversal cost, should it be taken later, is: revert `684e13c`, amend
 `RPT-004`, `RPT-011`, the section 5.2 permission matrix, the section 15.2 page
-map, and `AC-RPT-002`, and change `PRODUCT.md` and `README.md`.
+map, and `AC-RPT-002`, and change `.sdd/product.md` and `README.md`.
 
 **Decided by:** Loc-LX, primary implementor, highest rank in the `GOV-001`
 authority order in the absence of the instructor.

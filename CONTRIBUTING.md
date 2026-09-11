@@ -2,15 +2,15 @@
 
 This is the practical guide: how to set up, how to work, how to get a change
 accepted. It covers procedure. For the rules a change must satisfy, read
-[CONSTITUTION.md](CONSTITUTION.md).
+[`.sdd/constitution.md`](.sdd/constitution.md).
 
 ## Before you start
 
 Read three things, in this order. It takes about twenty minutes and saves days.
 
 1. [README.md](README.md) for what the system does and where documentation lives.
-2. [CONSTITUTION.md](CONSTITUTION.md) for the rules that are not negotiable.
-3. The section of [`docs/requirements/requirements-specification.md`](docs/requirements/requirements-specification.md) covering the area you will touch.
+2. [`.sdd/constitution.md`](.sdd/constitution.md) for the rules that are not negotiable.
+3. The section of [`.sdd/requirements.md`](.sdd/requirements.md) covering the area you will touch.
 
 Two ideas are worth internalizing early. Attendance and Task work are separate
 domains and neither proves the other. Historical results must not change when
@@ -167,13 +167,13 @@ merges, never forced.
 If the code and the requirements disagree, that is a decision for a person, not
 a silent edit in either direction.
 
-Write an ADR under [`docs/adr/`](docs/adr/) stating the decision, the reasoning,
+Write an ADR under [`.sdd/rfcs/`](.sdd/rfcs) stating the decision, the reasoning,
 and the consequences. Update the requirements specification. Then update
-[CONSTITUTION.md](CONSTITUTION.md) if the rule index changed. Supersede old
+[`.sdd/constitution.md`](.sdd/constitution.md) if the rule index changed. Supersede old
 wording with a dated note rather than rewriting it, so the document keeps its
 own history.
 
-[`docs/adr/0002-admin-attendance-report-scope.md`](docs/adr/0002-admin-attendance-report-scope.md)
+[`.sdd/rfcs/ADR-002-attendance-report-scope.md`](.sdd/rfcs/ADR-002-attendance-report-scope.md)
 is a worked example.
 
 ## Working with AI agents
