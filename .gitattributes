@@ -1,2 +1,11 @@
+# Every text file is stored with LF and checked out with LF, on every platform.
+# Without this, a Windows checkout with core.autocrlf=true rewrites files to
+# CRLF on disk, and the contract tests under src/test/js read those files and
+# match regular expressions containing a literal \n. Three of them failed for
+# that reason alone while the content matched exactly.
+* text=auto eol=lf
+
+# Windows batch files are the exception; cmd.exe requires CRLF.
+# These two rules come last so they win over the rule above.
 /mvnw text eol=lf
 *.cmd text eol=crlf
