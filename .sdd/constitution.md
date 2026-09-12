@@ -9,28 +9,36 @@
 | Supervisor | not yet assigned |
 | Signed by | — |
 | Last updated | 2026-09-12 |
-| Amendment | requires a new ADR under [`.sdd/rfcs/`](rfcs) and the `GOV-001` authority order |
+| Amendment | see [Amendment](#amendment); the mechanism depends on the kind of change |
 | Full rule text | [`.sdd/requirements.md`](requirements.md) |
 
 **Status is `DRAFT` on purpose.** The playbook makes a signed constitution the
 first milestone of week one, and the risk it names for skipping it is a team
 working to several conventions at once. This project reached iteration four
 before the document existed, so the signature is outstanding rather than early.
-It becomes `LOCKED` when the maintainer accepts the rules below; until then a
-rule here describes current practice rather than agreed law.
 
-This document is an index, not a copy. Each row names a rule that already exists
-in the requirements specification, states how strictly it binds, and names the
-test that enforces it. The full normative wording stays in one place so the two
-documents cannot drift apart.
+Unsigned does not mean optional. These rules bind now, both as the practice this
+project already follows and as the authority `AGENTS.md` defers to in its own
+opening paragraph. What the signature changes is the amendment path. Once the
+maintainer accepts the rules below the status becomes `LOCKED`, and from then on
+a rule changes through the process under Amendment rather than by editing this
+file.
 
-Three layers, from strictest to most negotiable:
+This document is an index, not a copy, with one exception named where it stands:
+the definition of done in Layer 3 is canonical here and exists nowhere else.
+Every other row names a rule that already exists in the requirements
+specification, states how strictly it binds, and names the test that enforces it.
+The full normative wording stays in one place so the two documents cannot drift
+apart.
 
-| Layer | Meaning | Bypass |
+Three layers. They say who may authorize an exception, not how negotiable a rule
+is. Whether an exception exists at all is stated by the rule's own row.
+
+| Layer | Meaning | Who may authorize an exception |
 |---|---|---|
-| 1 | Never violated. A breach is a defect regardless of deadline. | None |
-| 2 | Architectural boundary. | Approved ADR only |
-| 3 | Engineering standard. | Documented reason in the change itself |
+| 1 | Domain and security invariants. A breach is a defect regardless of deadline. | Nobody |
+| 2 | Architectural boundary. | An approved ADR |
+| 3 | Engineering standard binding the people who work here. | Per rule. Most admit none, and the row says so. |
 
 ---
 
@@ -128,7 +136,9 @@ stated so that a reviewer knows to ask, not because anything here enforces them.
 SPA framework, JWT authentication, microservices, Redis, Kafka, generic workflow
 engine, or persisted `Report` entity; no project-level days off, multiple Task
 assignees, unconditional self-service Project joining, Task dependencies, epics,
-sprints, or story points. Adding any of them needs a new ADR, not a pull request.
+sprints, or story points. Crossing any of them is the third row of the table
+under Amendment: an ADR to lift the exclusion, then a numbered requirement and
+an acceptance scenario to define what replaces it.
 
 `GOV-015` adds the Task effort-planning boundary: no external Jira or Tempo
 integration, no Jira mirroring, no Tempo accounts or synchronization, no
@@ -136,10 +146,9 @@ integration, no Jira mirroring, no Tempo accounts or synchronization, no
 worked reassignment.
 
 Weekly and Monthly report presets are **deferred, not excluded**. They sit
-outside the v1 acceptance scope and may be built later, which needs a numbered
-requirement and an acceptance scenario rather than an ADR. The distinction is
-recorded because `GOV-015` once forbade them while the decision behind it only
-postponed them.
+outside the v1 acceptance scope and may be built later, which is the second row
+under Amendment and needs no ADR. The distinction is recorded because `GOV-015`
+once forbade them while the decision behind it only postponed them.
 
 `GOV-016` governs the documents themselves: every requirement has exactly one
 canonical location, a change in business behavior updates that location, and a
@@ -151,7 +160,10 @@ document overrides the canonical location of a rule.
 
 ## Layer 3 — Engineering standards
 
-| ID | Rule | Bypass |
+These bind the people who work here rather than the running system, which is why
+they carry no enforcement column. Most admit no exception at all.
+
+| ID | Rule | Exception |
 |---|---|---|
 | `TST-001` | Every feature, fix, refactor, or behavior change follows strict RED, verified failure, minimal GREEN, verified narrow pass. | None in practice; see `TST-009` |
 | `TST-002` | Production behavior written before its failing test is discarded and reimplemented from the failing test. | None |
@@ -220,16 +232,19 @@ dependency, and changing the database schema.
 A question from the maintainer is not permission. "What does this folder do" asks
 for an answer, not for the folder to be tidied.
 
+**Never, with or without agreement.** These are not the maintainer's to grant in
+passing. They are stated here rather than only in `AGENTS.md`, because this
+document outranks that one, and an absolute prohibition held only by the lower
+authority dissolves against the higher one under `GOV-001`.
+
+- Commit to `main`. Work lands on a `work/fix/<feature>/<what-fix>` branch under `OPS-019` and reaches `main` by review.
+- Read or print `.env`. The committed `.env.example` files hold placeholders only under `OPS-004`; the real file holds a database password and the AES-256 master key.
+
 **Must do.**
 
 - State the plan, name the files it will change, say how to undo it, then stop and wait.
 - When the specification does not answer something the work needs, list what is unclear, state the assumption that would be made, say what that assumption changes, and stop. Do not pick an interpretation quietly.
 - Name the rule identifiers a change touches, so the reviewer can check the change against the rule rather than against the diff.
-- Never read or print `.env`.
-
-**Never read `.env`.** The committed `.env.example` files hold placeholders only
-under `OPS-004`; the real file holds a database password and the AES-256 master
-key.
 
 This section exists because the rule was broken before it was written. During the
 September 2026 documentation work an agent deleted a duplicated skills directory
@@ -240,9 +255,20 @@ was correct and the timing was not, and no written rule forbade it at the time.
 
 `GOV-001` sets the authority order. When statements conflict, the highest
 applicable authority wins and a lower-authority rule may not be revived against
-it. In practice an amendment means: write an ADR under [`.sdd/rfcs/`](rfcs)
-stating the decision, its rationale, and its consequences; update the
-requirements specification; then update this index.
+it.
+
+Three kinds of change, three mechanisms. Earlier drafts of this document answered
+this differently in three separate places, so the answer is stated here and
+referenced from everywhere else.
+
+| Change | What it needs |
+|---|---|
+| Change or withdraw a rule that already exists | An ADR under [`.sdd/rfcs/`](rfcs) stating the decision, its rationale and its consequences; then the requirements specification; then this index. |
+| Add a rule inside the scope already agreed | A numbered requirement under the applicable prefix and an acceptance scenario in §20 of the specification. No ADR. |
+| Cross something `GOV-007`, `GOV-008` or `GOV-015` declares excluded | Both. The ADR lifts the exclusion; the numbered requirement and scenario define what replaces it. |
+
+A pull request is how any of these reaches the repository. It is the delivery
+mechanism, never an alternative to them.
 
 That process has been exercised once. The Admin Attendance report scope was
 granted on 17 August 2026, withdrawn on 27 August, and restored on 30 August.
@@ -255,9 +281,13 @@ and the superseded wording was left in place rather than rewritten, which is
 
 Every row that names a test was checked against that test on 11 September 2026.
 Three named a class that exists and tests something else, and six more overstated
-how much their test covers. Those rows were corrected, and the gaps they were
-hiding are listed here. The Layer 3 table names no test at all, so it was outside
-that check and remains outside this list.
+how much their test covers. Those nine rows were corrected. The Layer 3 table
+names no test at all, so it was outside that check and remains outside this list.
+
+The table below is not the same nine. It lists every gap known today, whatever
+brought it to light. `OPS-016` and `OPS-017` are here because they were written
+already admitting that nothing in this repository can check them, not because
+they once claimed otherwise.
 
 The whole document was re-read on 12 September 2026. Every test class and method
 name it cites still resolves. That pass found three further defects, of three
