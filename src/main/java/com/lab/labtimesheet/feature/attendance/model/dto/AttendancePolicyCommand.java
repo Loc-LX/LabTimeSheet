@@ -32,6 +32,15 @@ public record AttendancePolicyCommand(
         BigDecimal violationPenalty,
         Set<DayOfWeek> workdays) {
 
+    /**
+     * Largest monthly leave quota an Admin may configure, fixed by {@code ATT-003}.
+     *
+     * <p>Four is the largest whole number that stays within a fifth of the shortest
+     * twenty-workday month. The database column still permits 0 through 31; that wider bound is
+     * a type constraint, and this is the business limit.
+     */
+    public static final int MAX_MONTHLY_LEAVE_QUOTA = 4;
+
     /** Validates required values before the application service reaches persistence. */
     public AttendancePolicyCommand {
         Objects.requireNonNull(effectiveFrom, "effectiveFrom");
@@ -40,8 +49,9 @@ public record AttendancePolicyCommand(
         Objects.requireNonNull(scheduledEnd, "scheduledEnd");
         Objects.requireNonNull(violationPenalty, "violationPenalty");
         Objects.requireNonNull(workdays, "workdays");
-        if (monthlyLeaveQuota < 0 || monthlyLeaveQuota > 31) {
-            throw new IllegalArgumentException("monthlyLeaveQuota must be between 0 and 31");
+        if (monthlyLeaveQuota < 0 || monthlyLeaveQuota > MAX_MONTHLY_LEAVE_QUOTA) {
+            throw new IllegalArgumentException(
+                    "monthlyLeaveQuota must be between 0 and " + MAX_MONTHLY_LEAVE_QUOTA);
         }
         if (violationPenalty.signum() < 0 || violationPenalty.compareTo(BigDecimal.ONE) > 0) {
             throw new IllegalArgumentException("violationPenalty must be between 0 and 1");
