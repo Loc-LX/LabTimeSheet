@@ -18,14 +18,19 @@ Eighty-eight classes predate that rule and carry no identifiers. Until they are
 back-filled, this file is the only mapping for them and nothing detects it
 drifting from the tests. Treat a row here as a claim to verify, not a fact.
 
+One row has since been verified and was false. `ARC-008` claimed two classes.
+The rule governs a reviewed DDL that lives in the separate documentation
+repository and has never been tracked here, so no test in this repository can
+observe it. The row now reads `none`, and the counts above move with it.
+
 ## Coverage
 
 | | Count |
 |---|---:|
 | Numbered rules in the specification | 269 |
-| Rules with at least one test class | 221 |
+| Rules with at least one test class | 220 |
 | Rules a test could protect but none does | 37 |
-| Rules no test can protect, being process or scope statements | 11 |
+| Rules no test can protect, being process or scope statements | 12 |
 | Distinct test classes named | 88 |
 
 ## Coverage by rule group
@@ -33,7 +38,7 @@ drifting from the tests. Treat a row here as a claim to verify, not a fact.
 | Group | Rules | Tested | Untested |
 |---|---:|---:|---:|
 | `ACC` | 25 | 20 | 5 |
-| `ARC` | 8 | 8 | 0 |
+| `ARC` | 8 | 7 | 1 |
 | `ATT` | 18 | 18 | 0 |
 | `AUTH` | 11 | 10 | 1 |
 | `CAL` | 9 | 6 | 3 |
@@ -143,7 +148,7 @@ See [`.sdd/constitution.md`](../constitution.md).
 | `ARC-005` | `AttendanceLayerStructureTest`, `LayerStructureTest`, `PlatformFoundationTest`, `ProjectPersistenceStructureTest` |
 | `ARC-006` | `LayerStructureTest`, `PlatformFoundationTest` |
 | `ARC-007` | `LayerStructureTest`, `PlatformFoundationTest`, `ProjectPersistenceStructureTest` |
-| `ARC-008` | `LayerStructureTest`, `PlatformFoundationTest` |
+| `ARC-008` | none |
 | `ACC-001` | `BootstrapIntegrationTest`, `SecurityResponseIntegrationTest` |
 | `ACC-002` | `BootstrapIntegrationTest` |
 | `ACC-003` | `BootstrapIntegrationTest` |

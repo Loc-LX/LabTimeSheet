@@ -108,11 +108,11 @@ stated so that a reviewer knows to ask, not because anything here enforces them.
 | `ARC-001` | One server-rendered modular monolith on Java 25 and Spring Boot 4.1.0. | the build refuses to compile on another version; no test asserts the shape |
 | `ARC-002` | Backend uses Maven, Spring MVC, Security, Data JPA, Bean Validation, Thymeleaf, Spring Mail, and Flyway. | `ReportingDependencyContractTest` covers the reporting libraries only |
 | `ARC-003` | PostgreSQL 18.4 is the database family for production, development, and integration tests. PostgreSQL-specific rules are tested against PostgreSQL, never H2. | Testcontainers configuration in `TestcontainersConfiguration` |
-| `ARC-004` | The UI toolchain pins Node 24 LTS and Tailwind CSS 4, uses `npm ci`, and commits the lockfile. Test-tool versions are not pinned by assertion; each run records the version it used. | the `Set up Node 24`, `npm ci`, and `Verify generated assets are committed` steps of `.gitea/workflows/verify.yml` |
+| `ARC-004` | The UI toolchain pins Node 24 LTS and Tailwind CSS 4, uses `npm ci`, and commits the lockfile. Test tooling is constrained to a compatible range instead, no test asserts equality against a tool version, and each run records the version it resolved. | the `Set up Node 24`, `npm ci`, and `Verify generated assets are committed` steps of `.gitea/workflows/verify.yml`; the ban on version equality is currently broken, see the gap table |
 | `ARC-005` | `LabtimesheetApplication` stays in the root package. Shared wiring lives in `config`. Business code groups under `feature.<name>` for `account`, `attendance`, `integration`, `notification`, `project`, `reporting`, and `task`, each adding only the layer subpackages it needs. Tests mirror those packages. | `LayerStructureTest`, `AttendanceLayerStructureTest` |
 | `ARC-006` | Controllers bind validated DTOs and delegate to services; services use repositories and entities. A feature may call another feature's service contract and DTOs but never its repositories or entities. No business SQL. Flyway and schema verification are the only direct-SQL boundary. | `LayerStructureTest` |
 | `ARC-007` | Flyway is the sole production schema authority. JPA schema generation is validation-only outside disposable tests. | `PlatformFoundationTest#flywayCreatesApprovedPostgresCatalog` |
-| `ARC-008` | The reviewed design DDL is a baseline, adapted into Flyway migrations rather than executed directly. | `PlatformFoundationTest#flywayCreatesApprovedPostgresCatalog` |
+| `ARC-008` | The reviewed `database-schema.sql` is a design baseline rather than an executable artifact. It is adapted into Flyway migrations and never executed against production. | nothing here; the artifact is not in this repository and the adaptation is already done. `ARC-007` carries the obligation that still binds |
 
 ### Delivery
 
@@ -160,17 +160,22 @@ document overrides the canonical location of a rule.
 | `TST-005` | Each test names, in its own source, the numbered requirements it protects. | None |
 | `TST-006` | One test class covers one cohesive behavior, not one production class. Test packages mirror the feature packages they exercise. | None |
 | `TST-007` | The trace records the requirement and scenario identifiers, the observable break, and the hand-derived expected result. | None |
-| `TST-008` | Evidence is updated on the same branch as its tests and implementation. A Markdown claim never replaces executable CI evidence. | None |
+| `TST-008` | A verification run records its own commands, results, and resolved tool versions. A written claim never replaces an executable run. | None |
 | `TST-009` | Human prose and simple configuration do not receive artificial unit tests. Their evidence is the smallest executable validation. | This rule is itself the documented exception to `TST-001` |
 | `TST-010` | A milestone is committed only when evidence is current, narrow and affected suites are green, and no unexplained error or warning remains. | None |
 | `GOV-006` | A feature absent from the specification needs a new reviewed decision. Adjacent scope is never silently authorized. | None |
 | `OPS-019` | Shared build, migration, security, navigation, and base-template files have one named owner at a time. | None |
 
 `TST-008` is the rule that the errors in this document's own enforcement columns
-violated: a Markdown claim that a test protects a rule is not evidence that it
-does. Three rows named a class that exists and tests something else, which is
-exactly the failure `TST-008` describes, committed by the document that indexes
-it.
+violated: a written claim that a test protects a rule never replaces the run that
+would show it. Three rows named a class that exists and tests something else,
+which is exactly the failure `TST-008` describes, committed by the document that
+indexes it.
+
+This row carried the superseded wording until 12 September 2026. `ADR-004`
+replaced it, the specification was updated, and the index was not. The error is
+recorded rather than quietly overwritten because it is the same failure the
+paragraph above describes.
 
 ### Definition of done
 
@@ -248,10 +253,18 @@ and the superseded wording was left in place rather than rewritten, which is
 
 ## Known enforcement gaps
 
-Every row above was checked against the test it names on 11 September 2026. Three
-named a class that exists and tests something else, and six more overstated how
-much their test covers. Those rows were corrected; the gaps they were hiding are
-listed here.
+Every row that names a test was checked against that test on 11 September 2026.
+Three named a class that exists and tests something else, and six more overstated
+how much their test covers. Those rows were corrected, and the gaps they were
+hiding are listed here. The Layer 3 table names no test at all, so it was outside
+that check and remains outside this list.
+
+The whole document was re-read on 12 September 2026. Every test class and method
+name it cites still resolves. That pass found three further defects, of three
+different kinds, all recorded here or in the row itself: `TST-008` stated wording
+that `ADR-004` had already replaced, `ARC-008` claimed an enforcement no file here
+can provide, and `ARC-004` is not merely unenforced but actively broken by a test
+in this repository.
 
 A constitution that claims enforcement it does not have is worse than one that
 names its own gaps, and worse still when the claim survives because the class
@@ -266,6 +279,8 @@ name looks plausible.
 | `GOV-014` | Relies on schema constraints in `V1__baseline.sql`. | A test asserting that no repository exposes a hard-delete method for accounts, Projects, memberships, or Tasks. |
 | `ARC-001` | The build fails on the wrong Java version, which proves the version and not the architecture. | An architecture test asserting the module shape, alongside `LayerStructureTest`. |
 | `ARC-002` | `ReportingDependencyContractTest` covers the reporting libraries only. | Extend it to the rest of the declared stack, or accept the narrower claim. |
+| `ARC-004` | Not a gap but a live breach. `src/test/js/playwright-contract.test.mjs` line 8 asserts equality against `@playwright/test` version `1.55.0`, which the rule's third sentence forbids, while `package.json` declares `^1.62.1`. The assertion fails, which is why `npm run test:ui` is red on `main`. | Replace the equality assertion with a compatible-range check and record the resolved version in the run. That is D4's open action in [`reviews/open-decisions.md`](reviews/open-decisions.md), not a documentation change. |
+| `ARC-008` | Nothing in this repository can enforce it. `database-schema.sql` was authored in the separate documentation repository, stayed there, and has never appeared in any commit here, which the specification header states. The row previously claimed a Flyway catalog test as its enforcement; that test cannot observe an absent file. | Nothing, and that is the point. The rule records a completed one-time adaptation. `ARC-007` is what binds future schema work, and it is enforced. |
 | `OPS-016`, `OPS-017` | Both describe runner configuration. A repository cannot verify its own runner. | An operator confirms it outside this repository; nothing here can. |
 
 ### A defect found while checking these
