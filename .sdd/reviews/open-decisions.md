@@ -54,10 +54,10 @@ every open one states the assumption that would be used if nobody answers. Read
 those as the price of the choice, not as a formality. Without them, "we can fix
 it later" is a hope rather than a plan.
 
-**All nine are answered.** D7 is the only one the code does not yet satisfy: it
-caps the monthly leave quota at four days where the application still accepts
-thirty-one. Everything else either matched the shipped behavior already or was
-settled by writing down a rule the code was following without saying so.
+**All nine are answered, and all nine now match the code.** D7 was the only one
+the application contradicted, and it was implemented on 12 September 2026 in
+commit `bf19a25`. Everything else either matched the shipped behavior already or
+was settled by writing down a rule the code was following without saying so.
 
 ## D1. May an Admin see one Intern's detailed attendance?
 
@@ -445,11 +445,21 @@ workdays, would hold the ratio exactly but change `monthly_leave_quota` from an
 absolute count an Admin sets into a value the system computes. The difference is
 zero to two days, and it was not judged worth changing what a schema field means.
 
-**This is the one requirement on this page that the code does not yet satisfy.**
-`AttendancePolicyCommand` validates `0 <= monthlyLeaveQuota <= 31`, matching the
-schema. Implementing the decision means tightening that bound to 4 and a failing
-test first. The schema may keep its wider range as a type constraint, or a later
-migration may align it; that is a separate choice.
+**Implemented on 12 September 2026 in commit `bf19a25`.** This was the one
+requirement on this page the code did not satisfy: `AttendancePolicyCommand`
+validated `0 <= monthlyLeaveQuota <= 31`, matching the schema. The bound is now
+4, behind a test that failed first for the right reason, a quota of five being
+accepted where the rule refuses it.
+
+The database column keeps `0 AND 31` as a type constraint. Aligning it would need
+a migration and would gain nothing the application does not already enforce, so
+it was not done; if a later decision wants the database to carry the business
+limit too, that is a separate choice with its own migration.
+
+One part of the verification is outstanding rather than green. Docker was not
+available on the machine, so the PostgreSQL integration suites did not run. What
+was checked instead: every construction of `AttendancePolicyCommand` across main
+and test passes a quota of 3 or 4, so none is invalidated by the tighter bound.
 
 **Decided by:** Loc-LX.
 
