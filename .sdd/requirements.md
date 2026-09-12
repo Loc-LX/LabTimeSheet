@@ -36,6 +36,42 @@
 > which together create twenty-four tables; §19.4 below carries the physical
 > table diagram. Ask the document owner for the reference images if you need them.
 
+## How to read a rule
+
+Every rule that describes system behavior is written in EARS notation, which
+fixes the shape of the sentence so that the triggering condition cannot be left
+implicit.
+
+| Opening | Meaning |
+|---|---|
+| `THE system SHALL …` | always true, no trigger |
+| `WHEN <event>, THE system SHALL …` | triggered by an event |
+| `WHILE <state>, THE system SHALL …` | holds continuously while a state holds |
+| `WHERE <condition>, THE system SHALL …` | applies under a condition, including an error condition |
+
+The point of the form is what it prevents. "Export failure shall return an
+error" can be written and approved without anyone deciding what the error is;
+`WHERE report generation fails, THE system SHALL return an error` forces the
+sentence to name it. Rewriting this document into EARS on 12 September 2026
+surfaced four such gaps, recorded as D6 through D9 in
+[`reviews/open-decisions.md`](reviews/open-decisions.md).
+
+**Twenty-eight rules are deliberately not in EARS**, because they bind people
+rather than the system and no `THE system SHALL` sentence would be true of them:
+
+| Rules | What they bind |
+|---|---|
+| `GOV-001`, `GOV-002`, `GOV-003`, `GOV-006`, `GOV-016` | how requirements are decided, named, and changed |
+| `ARC-008`, `ACC-004`, `OPS-010` | a design baseline, an operational instruction, a recovery procedure |
+| `AUTH-010`, `TSK-017` | pointers to the rule that actually decides, kept so a reader arrives there |
+| `OPS-001`–`OPS-004` | the development environment a contributor sets up |
+| `OPS-018`–`OPS-021` | ownership, integration order, and commit discipline across branches |
+| `TST-001`–`TST-010` | the test-driven workflow a contributor follows |
+
+Forcing those into the notation would make the document look uniform and say
+something false. Chapter 13.6 of the playbook names that as the first
+anti-pattern.
+
 ## 1. Authority, purpose, and scope
 
 ### 1.1 Decision authority
@@ -80,8 +116,8 @@ When statements conflict, use this precedence from highest to lowest:
 | GOV-001 | Implementers shall use the authority order above and shall not revive a lower-authority rule that conflicts with an approved higher-authority decision. |
 | GOV-002 | The term **Project** replaces the obsolete term **Group** throughout code, schema, UI, and documentation. |
 | GOV-003 | v1 shall be a working attendance and project/task-management system, not a prototype or static demonstration. |
-| GOV-004 | Attendance time and task work time shall remain separate domains; neither proves or derives the other. |
-| GOV-005 | Historical business results shall not change merely because an Admin later changes global workdays, schedule, check-in grace, checkout grace, quota, penalty, or calendar configuration. |
+| GOV-004 | THE system SHALL hold attendance time and Task work time as separate domains, and SHALL NOT derive, prove, or update either from the other. |
+| GOV-005 | WHEN an Admin changes global workdays, scheduled start or end, check-in grace, checkout grace, monthly leave quota, violation penalty, or calendar configuration, THE system SHALL leave every previously computed attendance, leave, and compliance result unchanged. |
 | GOV-006 | Features not specified here require a new reviewed decision; this draft does not silently authorize adjacent scope. |
 | GOV-016 | Every requirement shall have exactly one canonical location, and a change in business behavior shall update that location. A new feature shall be documented in the same form as the features already documented: numbered rules under an applicable prefix, and acceptance scenarios in §20. Splitting the specification across separate documents is an organizational choice made when it helps, never a goal, and no separate document shall override the canonical location of a rule. |
 
@@ -98,11 +134,11 @@ The system supports a university laboratory or internship program in four connec
 
 | ID | Requirement |
 |---|---|
-| GOV-007 | v1 shall not use a SPA framework, JWT authentication, microservices, Redis, Kafka, a generic workflow engine, or a persisted `Report` entity. |
-| GOV-008 | v1 shall not include project-level days off, multiple task assignees, unconditional self-service Project joining/leaving, task dependencies, epics, sprints, story points, labels, watchers, reactions, attachments, nested subtasks, or burndown charts. Authenticated invitation acceptance and Mentor-approved exit requests are the only member-initiated boundary workflows. |
-| GOV-009 | v1 shall not persist generic domain events, login-attempt history, daily calendar materializations, or task-assignment history. Narrow correction and leadership history are retained because current requirements depend on them. |
-| GOV-010 | Automatic SSH deployment is not active until the deployment VM and its secrets exist; the workflow contains only a disabled template. |
-| GOV-015 | The Task effort-planning slice shall remain local to this product. v1 shall not integrate with external Jira or Tempo, shall not mirror Jira issues, sprints, or story points, shall not hold Tempo accounts or synchronization, shall not add a `SUBMITTED` state or a Leader acceptance and rejection Task workflow, and shall not perform continuous replanning unrelated to worked reassignment. Any of these requires a new numbered requirement and a recorded decision. |
+| GOV-007 | THE system SHALL NOT use a SPA framework, JWT authentication, microservices, Redis, Kafka, a generic workflow engine, or a persisted `Report` entity in v1. |
+| GOV-008 | THE system SHALL NOT provide project-level days off, multiple Task assignees, unconditional self-service Project joining or leaving, Task dependencies, epics, sprints, story points, labels, watchers, reactions, attachments, nested subtasks, or burndown charts. Authenticated invitation acceptance and Mentor-approved exit requests SHALL be the only member-initiated boundary workflows. |
+| GOV-009 | THE system SHALL NOT persist generic domain events, login-attempt history, daily calendar materializations, or Task-assignment history. Narrow correction and leadership history SHALL be retained because current requirements depend on them. |
+| GOV-010 | WHILE the deployment host and its secrets do not exist, THE delivery pipeline SHALL keep the SSH deployment job disabled and SHALL NOT attempt to connect to a deployment target. |
+| GOV-015 | THE system SHALL keep the Task effort-planning slice local to this product. It SHALL NOT integrate with external Jira or Tempo, SHALL NOT mirror Jira issues, sprints, or story points, SHALL NOT hold Tempo accounts or synchronization, SHALL NOT add a `SUBMITTED` state or a Leader acceptance and rejection Task workflow, and SHALL NOT perform continuous replanning unrelated to worked reassignment. Any of these requires a new numbered requirement and a recorded decision. |
 
 **Deferred, which is not the same as excluded.** Weekly and Monthly report
 presets sit outside the v1 acceptance scope and are postponed for later
@@ -156,23 +192,23 @@ separation of attendance from Task work exist to prevent.
 
 | ID | Requirement |
 |---|---|
-| GOV-011 | Business dates and schedule boundaries shall be evaluated in the attendance policy version's timezone; persisted instants shall use `timestamptz` and be treated as UTC instants. |
-| GOV-012 | Server time shall be authoritative for check-in, checkout, submission, decision, activation, expiry, and lifecycle timestamps. Browser-supplied timestamps shall not be trusted as event time. |
-| GOV-013 | All mutable aggregate updates shall be transactional and use optimistic locking; quota, daily work totals, bootstrap, and transfer workflows shall additionally serialize on the narrow affected record. |
-| GOV-014 | Historical records shall be retained with restrictive foreign keys and lifecycle/soft-delete fields. Normal UI operations shall not physically delete accounts, projects, memberships, tasks, attendance, leave, corrections, comments, logs, or notifications. |
+| GOV-011 | THE system SHALL evaluate business dates and schedule boundaries in the timezone of the applicable attendance policy version, and SHALL persist instants as `timestamptz` treated as UTC. |
+| GOV-012 | WHEN a check-in, checkout, submission, decision, activation, expiry, or lifecycle transition occurs, THE system SHALL record server time as the event time. THE system SHALL NOT accept a browser-supplied timestamp as event time. |
+| GOV-013 | THE system SHALL perform every mutable aggregate update inside a transaction with optimistic locking. WHERE the update affects leave quota, a daily work total, bootstrap, or a Task transfer, THE system SHALL additionally serialize on the narrow affected record. |
+| GOV-014 | THE system SHALL retain historical records behind restrictive foreign keys and lifecycle or soft-delete fields. THE system SHALL NOT physically delete an account, Project, membership, Task, attendance row, leave request, correction, comment, work log, or notification through a normal interface operation. |
 
 ## 3. Architecture and runtime
 
 | ID | Requirement |
 |---|---|
-| ARC-001 | The application shall be one server-rendered modular monolith using Java 25 and Spring Boot 4.1.0. |
-| ARC-002 | The backend shall use Maven, Spring MVC, Spring Security, Spring Data JPA, Bean Validation, Thymeleaf, Spring Mail, and Flyway. |
-| ARC-003 | PostgreSQL 18.4 shall be the production, development, and integration-test database family. Tests exercising PostgreSQL-specific constraints shall use PostgreSQL rather than H2. |
-| ARC-004 | The UI toolchain shall pin Node 24 LTS and Tailwind CSS 4, use `npm ci`, and commit the npm lockfile when implementation begins. Test tooling shall be constrained to a compatible range rather than pinned by assertion, and each verification run shall record the version it actually resolved. A test shall not assert equality against a tool version, because that encodes a decision in a place no decision record can reach. |
-| ARC-005 | `LabtimesheetApplication` shall remain in the root package `com.lab.labtimesheet`. Shared application wiring shall live in `config`. Business code shall be grouped below `feature.<name>` for `account`, `integration`, `project`, `task`, `attendance`, `notification`, and `reporting`; each feature shall add only the layer subpackages it needs from `controller`, `model`, `model.dto`, `model.entity`, `repository`, `service`, and `exception`. Tests shall mirror those feature/layer packages. Thymeleaf templates and built static assets shall remain under `src/main/resources/templates` and `src/main/resources/static`. |
-| ARC-006 | Within a feature, MVC controllers shall bind validated DTOs and delegate business transactions to services; services shall use Spring Data JPA repositories and model entities/value objects. A feature may call another feature's service contract and DTOs but shall not reach into that feature's repository or JPA entities. Business services shall not contain direct SQL. Flyway/schema/catalog verification is the only approved direct-SQL boundary, and the application shall not introduce network boundaries, empty utility/core packages, or one-implementation abstraction layers. |
-| ARC-007 | Flyway shall be the sole production schema authority. JPA schema generation shall be validation-only outside disposable tests. |
-| ARC-008 | The reviewed `database-schema.sql` is a design baseline. After approval, the platform owner shall adapt it into the initial Flyway migration rather than executing the review file in production. |
+| ARC-001 | THE system SHALL be one server-rendered modular monolith on Java 25 and Spring Boot 4.1.0. |
+| ARC-002 | THE system SHALL build with Maven and use Spring MVC, Spring Security, Spring Data JPA, Bean Validation, Thymeleaf, Spring Mail, and Flyway. |
+| ARC-003 | THE system SHALL use PostgreSQL 18.4 for production, development, and integration testing. WHERE a test exercises a PostgreSQL-specific constraint, it SHALL run against PostgreSQL rather than H2. |
+| ARC-004 | THE system SHALL pin Node 24 LTS and Tailwind CSS 4 for the UI toolchain, SHALL install with `npm ci`, and SHALL commit the npm lockfile. THE system SHALL constrain test tooling to a compatible range rather than pinning it by assertion, and every verification run SHALL record the version it actually resolved. A test SHALL NOT assert equality against a tool version, because that encodes a decision in a place no decision record can reach. |
+| ARC-005 | THE system SHALL keep `LabtimesheetApplication` in the root package `com.lab.labtimesheet` and shared wiring in `config`. Business code SHALL be grouped below `feature.<name>` for `account`, `integration`, `project`, `task`, `attendance`, `notification`, and `reporting`, each adding only the layer subpackages it needs from `controller`, `model`, `model.dto`, `model.entity`, `repository`, `service`, and `exception`. Tests SHALL mirror those packages, and Thymeleaf templates and built static assets SHALL remain under `src/main/resources/templates` and `src/main/resources/static`. |
+| ARC-006 | THE system SHALL bind validated DTOs in a feature's controllers and delegate business transactions to that feature's services, which use its repositories and entities. A feature MAY call another feature's service contract and DTOs. WHERE code reaches into another feature's repository or JPA entity, or places business SQL in a service, THE build SHALL fail. Flyway and schema verification SHALL be the only direct-SQL boundary, and THE system SHALL NOT introduce network boundaries, empty utility packages, or one-implementation abstraction layers. |
+| ARC-007 | THE system SHALL treat Flyway as the sole production schema authority, and SHALL restrict JPA schema generation to validation outside disposable tests. |
+| ARC-008 | The reviewed `database-schema.sql` is a design baseline rather than an executable artifact. The platform owner adapts it into Flyway migrations; it is never executed against production. |
 
 Reference versions and primary documentation:
 
@@ -189,36 +225,36 @@ Reference versions and primary documentation:
 
 | ID | Requirement |
 |---|---|
-| ACC-001 | Before initialization, the application shall expose only health endpoints, static bootstrap assets, and the one-time bootstrap workflow. |
-| ACC-002 | Bootstrap shall create the first `ADMIN` with a password directly and atomically mark the singleton system state initialized. Concurrent bootstrap submissions shall result in exactly one first Admin. |
-| ACC-003 | The bootstrap route shall become unavailable immediately after initialization and remain unavailable after restart. |
-| ACC-004 | Deployment instructions shall require bootstrap on a private interface before public network exposure; the temporary unguarded bootstrap route is an accepted, documented operational risk. |
-| ACC-005 | Bootstrap shall offer SMTP setup. Admin may defer it only after five sequential, distinct confirmation screens; every screen shall offer Back and Configure SMTP, and only the fifth shall permit Finish without SMTP. |
-| ACC-006 | The five deferral warnings shall cover, in order: account onboarding disabled, activation resend disabled, password recovery disabled, reduced email immediacy for workflow events, and final acknowledgement of a restricted installation. |
-| ACC-007 | A persistent Admin warning shall remain visible until a tested SMTP configuration is active. |
-| ACC-008 | After bootstrap, an active Admin may create additional Admin, Mentor, and Intern accounts. A role chosen at creation is immutable. |
-| ACC-009 | Email shall be the only login identifier and shall be unique case-insensitively after trimming and normalization. Admin email correction shall require tested active SMTP, shall be allowed only for `PENDING_ACTIVATION`, `ACTIVE`, or `LOCKED` accounts, and shall commit only when its required delivery succeeds. A `DEACTIVATED` account shall remain read-only. |
-| ACC-010 | Admin-created accounts shall start `PENDING_ACTIVATION`, without a password hash, and receive a single-use activation link that sets the first password. |
-| ACC-011 | Account creation, activation resend, and password-reset delivery shall be unavailable when no tested SMTP configuration is active. Bootstrap creation of the first Admin is the sole exception. |
-| ACC-012 | If activation delivery fails after account creation, the account shall remain pending, the failed token shall be invalidated, and Admin shall receive a visible failure with an explicit Resend Activation action. |
-| ACC-013 | Resend Activation shall invalidate any prior unused activation token before generating and sending a fresh token. |
-| ACC-014 | Account states shall be `PENDING_ACTIVATION`, `ACTIVE`, `LOCKED`, and `DEACTIVATED`. Admin lock and deactivation are explicit manual actions. |
-| ACC-015 | Unlock shall return a previously activated locked account to `ACTIVE`; it shall not change its global role or recreate credentials. |
-| ACC-016 | Deactivated accounts shall not authenticate. Their historical attribution shall remain visible. |
-| ACC-017 | Users shall manage their own display/profile fields and password. Admin shall have a server-filtered account directory searchable by display name, email, or Student Code and filterable by immutable global role. Admin may correct email identity and the permitted Intern fields, but shall not edit display name or global role; account and internship states shall continue to change only through their explicit lifecycle actions. No persisted session history shall be fabricated. |
-| ACC-018 | Password change, password reset, Admin email correction, lock, and deactivation shall invalidate the affected user's existing authenticated sessions. A pending-account email correction shall invalidate prior activation tokens and deliver a fresh activation to the corrected address; an active/locked-account correction shall deliver notice to the corrected address. The identity change and its required delivery shall succeed or fail together. |
+| ACC-001 | WHILE the installation is uninitialized, THE system SHALL expose only the health endpoints, the static bootstrap assets, and the one-time bootstrap workflow. |
+| ACC-002 | WHEN a valid first-Admin bootstrap is submitted, THE system SHALL create that `ADMIN` with a password and mark the singleton system state initialized in one transaction. WHERE two bootstrap submissions arrive concurrently, exactly one SHALL create an Admin and the other SHALL be told setup is already complete. |
+| ACC-003 | WHEN initialization completes, THE system SHALL make the bootstrap route unavailable, and it SHALL remain unavailable across restarts. |
+| ACC-004 | Bootstrap runs on a private interface before the installation is exposed publicly. The temporary unguarded bootstrap route is an accepted and documented operational risk, not a defect. |
+| ACC-005 | WHILE bootstrap is open, THE system SHALL offer SMTP setup. WHERE the Admin defers it, THE system SHALL require five sequential distinct confirmations, SHALL offer Back and Configure SMTP on every one, and SHALL permit Finish without SMTP only on the fifth. |
+| ACC-006 | THE system SHALL present the five deferral warnings in this order: account onboarding disabled, activation resend disabled, password recovery disabled, reduced email immediacy for workflow events, and final acknowledgement of a restricted installation. |
+| ACC-007 | WHILE no tested SMTP configuration is active, THE system SHALL keep a persistent warning visible to every Admin. |
+| ACC-008 | WHILE an Admin account is active, THE system SHALL permit it to create further Admin, Mentor, and Intern accounts. THE system SHALL treat the role chosen at creation as immutable. |
+| ACC-009 | THE system SHALL use email as the only login identifier, unique case-insensitively after trimming and normalization. WHERE an Admin corrects an email identity, THE system SHALL require a tested active SMTP configuration, SHALL allow it only for a `PENDING_ACTIVATION`, `ACTIVE`, or `LOCKED` account, and SHALL commit only when the required delivery succeeds. A `DEACTIVATED` account SHALL remain read-only. |
+| ACC-010 | WHEN an Admin creates an account, THE system SHALL store it as `PENDING_ACTIVATION` with no password hash and SHALL issue one single-use activation link that sets the first password. |
+| ACC-011 | WHILE no tested SMTP configuration is active, THE system SHALL refuse account creation, activation resend, and password-reset delivery. Bootstrap creation of the first Admin is the only exception. |
+| ACC-012 | WHERE activation delivery fails after an account is created, THE system SHALL leave the account pending, SHALL invalidate the failed token, and SHALL show the Admin a visible failure carrying an explicit Resend Activation action. |
+| ACC-013 | WHEN an Admin resends activation, THE system SHALL invalidate any prior unused activation token before generating and sending the fresh one. |
+| ACC-014 | THE system SHALL hold an account in exactly one of `PENDING_ACTIVATION`, `ACTIVE`, `LOCKED`, or `DEACTIVATED`. Lock and deactivation SHALL occur only through an explicit Admin action. |
+| ACC-015 | WHEN an Admin unlocks a previously activated account, THE system SHALL return it to `ACTIVE` without changing its global role or recreating its credentials. |
+| ACC-016 | WHILE an account is `DEACTIVATED`, THE system SHALL refuse authentication for it and SHALL keep its historical attribution visible. |
+| ACC-017 | THE system SHALL allow a user to manage their own display and profile fields and their password. THE system SHALL give an Admin a server-filtered account directory searchable by display name, email, or Student Code and filterable by immutable global role. An Admin MAY correct the email identity and the permitted Intern fields; THE system SHALL NOT allow an Admin to edit a display name or a global role, SHALL change account and internship state only through the explicit lifecycle actions, and SHALL NOT fabricate session history it never stored. |
+| ACC-018 | WHEN a password change, password reset, Admin email correction, lock, or deactivation succeeds, THE system SHALL invalidate that user's existing authenticated sessions. WHERE the corrected account is pending, THE system SHALL invalidate prior activation tokens and deliver a fresh activation to the corrected address; WHERE it is active or locked, THE system SHALL deliver notice to the corrected address. The identity change and its required delivery SHALL succeed or fail together. |
 
 ### 4.2 Internship lifecycle
 
 | ID | Requirement |
 |---|---|
-| ACC-019 | Every `INTERN` account shall have one Intern profile with case-insensitively unique Student Code, internship start/end dates, and internship status. Non-Intern accounts shall not have Intern profiles. Admin may correct Student Code while the internship is `NOT_STARTED` or `ACTIVE`; start/end dates may be corrected only while `NOT_STARTED`; `COMPLETED` and `WITHDRAWN` profiles shall be read-only. |
-| ACC-020 | Internship states shall be `NOT_STARTED → ACTIVE → COMPLETED` or `NOT_STARTED/ACTIVE → WITHDRAWN`; `SUSPENDED` shall not exist. |
-| ACC-021 | Reaching the configured internship start date shall activate an eligible `NOT_STARTED` Intern through both a scheduled guard and a request-time guard. Correctness shall not depend on scheduler timing. |
-| ACC-022 | Admin shall explicitly mark an Intern `COMPLETED` or `WITHDRAWN`. Both actions shall be blocked while that Intern is a current Leader or owns unfinished Tasks until the normal leader-transfer/task-reassignment workflow succeeds. |
-| ACC-023 | A completed Intern may authenticate in read-only mode to view their retained history and manage password/session security; they may not create or mutate attendance, leave, correction, project, task, comment, or work-log data. |
-| ACC-024 | A withdrawn Intern shall lose normal authentication access immediately. Historical memberships, tasks, logs, attendance, leave, and corrections shall remain attributable. |
-| ACC-025 | A terminal lifecycle action takes effect immediately for authorization. Attendance already recorded on that local date remains reportable; an otherwise empty terminal date is not newly classified as an absence. |
+| ACC-019 | THE system SHALL give every `INTERN` account exactly one Intern profile carrying a case-insensitively unique Student Code, internship start and end dates, and an internship status, and SHALL NOT create a profile for a non-Intern account. An Admin MAY correct the Student Code WHILE the internship is `NOT_STARTED` or `ACTIVE`, and MAY correct the dates only WHILE it is `NOT_STARTED`. WHILE a profile is `COMPLETED` or `WITHDRAWN`, THE system SHALL keep it read-only. |
+| ACC-020 | THE system SHALL permit only these internship transitions: `NOT_STARTED → ACTIVE → COMPLETED` and `NOT_STARTED/ACTIVE → WITHDRAWN`. A `SUSPENDED` state SHALL NOT exist. |
+| ACC-021 | WHEN the configured internship start date is reached, THE system SHALL activate an eligible `NOT_STARTED` Intern through both a scheduled guard and a guard applied at request time, so that correctness does not depend on scheduler timing. |
+| ACC-022 | WHEN an Admin marks an Intern `COMPLETED` or `WITHDRAWN`, THE system SHALL apply it only through that explicit action. WHILE that Intern holds a current leadership term or owns an unfinished Task, THE system SHALL refuse both actions until the leader-transfer and Task-reassignment workflows have succeeded. |
+| ACC-023 | WHILE an Intern is `COMPLETED`, THE system SHALL allow authentication in read-only mode to view retained history and manage password and session security, and SHALL refuse any attempt to create or mutate attendance, leave, correction, Project, Task, comment, or work-log data. |
+| ACC-024 | WHEN an Intern becomes `WITHDRAWN`, THE system SHALL refuse normal authentication immediately and SHALL keep their historical memberships, Tasks, work logs, attendance, leave, and corrections attributable. |
+| ACC-025 | WHEN a terminal lifecycle action is applied, THE system SHALL enforce it for authorization from that instant. Attendance already recorded on that local date SHALL remain reportable, and an otherwise empty terminal date SHALL NOT be newly classified as an absence. |
 
 ## 5. Authorization model
 
@@ -226,12 +262,12 @@ Reference versions and primary documentation:
 
 | ID | Requirement |
 |---|---|
-| AUTH-001 | Every state-changing operation shall be authorized server-side using global role, account/intern state, record ownership, active membership, current leadership term, current task assignee, and aggregate lifecycle as applicable. |
-| AUTH-002 | Hiding a control in Thymeleaf shall not substitute for server authorization. Direct URL access and guessed identifiers shall produce an access-denied or not-found result without disclosing unauthorized record details. |
-| AUTH-003 | Any active Mentor may view Intern attendance and decide leave/correction requests globally. Project-management authority is restricted to the Project's owning Mentor. |
-| AUTH-004 | Leader permissions shall begin and end with the stored leadership term. Losing leadership shall remove task-management permissions immediately. For a pending Leader exit, the owning Mentor shall appoint the replacement before any exit-transfer work; the new Leader then receives transfer authority without silently moving Tasks merely because leadership changed. |
-| AUTH-005 | Current-assignee permission shall apply independently of leadership: a Leader may update/log only a Task assigned to them, and an ordinary member may update/log only their assigned Task. |
-| AUTH-006 | Completed Projects are read-only to every role. Admin may read every Project and its retained history; the owning Mentor and current members may read authorized open-Project history. A removed member shall lose open-Project access and regain read-only access only after that Project is completed. |
+| AUTH-001 | WHEN a state-changing operation is requested, THE system SHALL authorize it on the server from the global role, account and internship state, record ownership, active membership, current leadership term, current Task assignee, and aggregate lifecycle, as applicable to that operation. |
+| AUTH-002 | THE system SHALL NOT treat a hidden Thymeleaf control as authorization. WHERE a caller reaches an operation by direct URL or a guessed identifier and is not entitled to it, THE system SHALL return an access-denied or not-found result that discloses nothing about the record. |
+| AUTH-003 | WHILE a Mentor account is active, THE system SHALL permit it to view Intern attendance and decide leave and correction requests for any Intern. THE system SHALL restrict Project-management authority to the Project's owning Mentor. |
+| AUTH-004 | WHILE a leadership term is current, THE system SHALL grant its holder Leader permissions, and WHEN that term ends, THE system SHALL withdraw Task-management permission immediately. WHERE a Leader exit is pending, THE system SHALL require the owning Mentor to appoint the replacement before any exit-transfer work, and SHALL NOT move a Task merely because leadership changed. |
+| AUTH-005 | THE system SHALL resolve current-assignee permission independently of leadership: a Leader MAY update or log work on a Task only WHILE assigned to it, and so MAY an ordinary member. |
+| AUTH-006 | WHILE a Project is `COMPLETED`, THE system SHALL make it read-only to every role. An Admin MAY read every Project and its retained history. WHILE a Project is open, THE system SHALL grant history access to its owning Mentor and current members. WHEN a member is removed, THE system SHALL withdraw open-Project access and SHALL restore read-only access only after that Project completes. |
 
 ### 5.2 Permission matrix
 
@@ -266,38 +302,38 @@ Legend: **Yes** = permitted within the stated scope; **Own** = own Project or ow
 
 | ID | Requirement |
 |---|---|
-| AUTH-007 | Admin project access shall be read-only and shall not imply commenting, membership, leadership, Task, or status authority. |
-| AUTH-008 | Mentor Task access shall permit view, comment, and read retained Task history but shall forbid manual create, assign, reassign, edit, soft-delete, and status change. The automatic transfer performed by direct Mentor removal is a guarded Project-domain operation, not Mentor Task-management authority. |
-| AUTH-009 | Active Project members may view every non-deleted Task, assignee, status, aggregate progress, comment thread, and authorized Project History entry in that Project and may add comments to any non-deleted Task while the Project remains open. |
-| AUTH-010 | Per-member task-hour visibility is defined by `RPT-005`. This entry exists so that authorization-model readers reach that rule; it adds nothing of its own. |
-| AUTH-011 | Invitation, membership-exit, exit-transfer batch, self-Task, Task-definition, and history-read operations shall authorize from the authenticated user, owning Project, active membership, pending-exit state, issuing/current leadership term, Task creator/current assignee, and aggregate state inside the transaction or read boundary. Guessed cross-Project or stale identifiers shall not disclose protected records or cause partial changes. |
+| AUTH-007 | THE system SHALL keep Admin Project access read-only, and SHALL NOT let it imply commenting, membership, leadership, Task, or status authority. |
+| AUTH-008 | THE system SHALL permit a Mentor to view a Task, comment on it, and read its retained history. THE system SHALL refuse a Mentor's attempt to create, assign, reassign, edit, soft-delete, or change the status of a Task. The automatic transfer performed by direct Mentor removal is a guarded Project-domain operation rather than Task-management authority. |
+| AUTH-009 | WHILE a Project is open, THE system SHALL permit its active members to view every non-deleted Task, assignee, status, aggregate progress, comment thread, and authorized history entry in that Project, and to comment on any non-deleted Task. |
+| AUTH-010 | Per-member Task-hour visibility is defined by `RPT-005`. This entry exists so that a reader of the authorization model reaches that rule; it adds nothing of its own. |
+| AUTH-011 | WHEN an invitation, membership-exit, exit-transfer batch, self-Task, Task-definition, or history-read operation is requested, THE system SHALL authorize it inside the transaction or read boundary from the authenticated user, the owning Project, active membership, pending-exit state, the issuing or current leadership term, the Task creator or current assignee, and aggregate state. WHERE the identifier is cross-Project or stale, THE system SHALL disclose no protected record and SHALL commit no part of the change. |
 
 ## 6. Project, membership, and leadership
 
 | ID | Requirement |
 |---|---|
-| PRJ-001 | An active Mentor shall create and own a Project. Creation shall atomically create the Project, one eligible initial Leader membership, and its first leadership term; an empty committed Project is invalid. |
-| PRJ-002 | Project states shall be `PLANNED → ACTIVE → COMPLETED`. There is no reopen transition from `COMPLETED`. |
-| PRJ-003 | An Intern may hold active memberships in multiple Projects simultaneously. Membership shall be represented explicitly with join and optional leave timestamps. |
-| PRJ-004 | Only the owning Mentor shall directly add/remove members or decide membership exits. The current Leader may invite eligible Interns, request another member's removal, and redistribute unfinished Tasks away from a pending exit target. An Intern may join only by accepting their own invitation and may leave only after owning-Mentor approval. |
-| PRJ-005 | A `PLANNED` or `ACTIVE` Project shall have exactly one current Leader who is an active member of that Project. Completion shall close, not delete, the final leadership term. |
-| PRJ-006 | Leadership changes shall close the current leadership term and open a new term for another active member in one transaction, so the Project never exposes two current Leaders or an active period without one. |
-| PRJ-007 | Merely changing the Leader shall not reassign any Task. The former Leader remains a normal member and retains assignee rights for Tasks still assigned to them. |
-| PRJ-008 | Before a pending current-Leader exit can transfer Tasks or be approved, the owning Mentor shall appoint an eligible replacement. The replacement becomes the current Leader and performs any remaining transfer batches; leadership reassignment by itself shall not move Tasks. |
-| PRJ-009 | Direct Mentor removal shall remain an atomic shortcut: unfinished Tasks of an ordinary member transfer to the current Leader, while removal of the current Leader requires an eligible replacement and transfers unfinished Tasks to that replacement. Any failed replacement, transfer, authorization, or lock check shall leave membership and Tasks unchanged. |
-| PRJ-010 | A pending exit request shall use Leader-managed redistribution before approval. The current Leader shall select one or more unfinished `TODO`, `IN_PROGRESS`, or `BLOCKED` Tasks and one eligible active current member per confirmed batch; each batch reassigns immediately and atomically, may be repeated, and shall not be undone by later cancellation or rejection. |
-| PRJ-011 | Membership closure shall not rewrite completed Tasks, Task creator attribution, comments, work logs, invitations, exit requests, or leadership history. Completed Tasks shall remain assigned to the closed historical membership and display that removed Intern's name in authorized history. |
-| PRJ-012 | Project activation shall require a current Leader, at least one active member, valid Project dates, and valid active-member assignees for all non-deleted Tasks. |
-| PRJ-013 | The current Leader may prepare Tasks for any active member, and any active member may prepare a self-assigned Task, while a Project is `PLANNED`; Task status changes and work logging shall remain disabled until `ACTIVE`. |
-| PRJ-014 | Only the owning Mentor shall complete a Project, and only when every non-deleted Task is `DONE`. Completion shall close current leadership/membership intervals, revoke pending invitations, supersede pending exit requests, and make the aggregate read-only. |
-| PRJ-015 | Project progress shall be `DONE non-deleted Tasks / all non-deleted Tasks`. A Project with no non-deleted Tasks shall show `N/A`, not 0%. |
-| PRJ-016 | Project progress views shall also show TODO, IN_PROGRESS, BLOCKED, and DONE counts plus total logged minutes. |
-| PRJ-017 | An Intern is eligible for direct addition or invitation only when their account and internship are `ACTIVE` and they have no active membership in that Project. Owning-Mentor direct addition needs no acceptance and records that Mentor as `added_by_user_id`; invitation acceptance records the accepting Intern. If a matching invitation is pending, Mentor direct-add shall mark it `SUPERSEDED` with `MENTOR_DIRECT_ADD` in the same transaction. |
-| PRJ-018 | In a `PLANNED` or `ACTIVE` Project, the current Leader may create at most one pending invitation per eligible Intern. Invitations have no time expiry, preserve the issuing leadership term, and require the intended Intern to authenticate before any response. An email URL shall only open the authenticated response page. |
-| PRJ-019 | The intended Intern may accept or decline their pending invitation. Acceptance shall atomically recheck Project, invitee, issuing leadership, and membership state before creating one membership. The issuing Leader may revoke their pending invitations; the owning Mentor may revoke any. Losing leadership, Project completion, or invitee ineligibility shall revoke unusable pending invitations without deleting them. |
-| PRJ-020 | A current Leader may request removal of another current member. Any current member, including the Leader, may request their own leave. A request shall contain a nonblank reason, shall not expire, and only one pending request may target a membership. While pending, every authorized Project viewer shall see whether a replacement Leader is required, how many unfinished Tasks remain, or whether the request is ready for Mentor decision. |
-| PRJ-021 | A pending membership-exit request shall leave membership, existing assignments, and existing Task rights active, but the target shall be ineligible to receive newly created/reassigned Tasks or create a self-Task. The requester may cancel it; only the owning Mentor may approve or reject it. Cancellation or rejection shall preserve completed transfer batches and restore new-assignment eligibility. Direct Mentor removal shall resolve a matching request as `APPROVED`, and Project completion shall mark unresolved requests `SUPERSEDED`. |
-| PRJ-022 | Exit approval shall lock and recheck the request, target membership, current leadership, and unfinished Task count. Approval shall be blocked while the target is current Leader or owns any unfinished Task; when both guards pass, membership closure and request approval shall commit atomically. Completed Tasks and all retained attribution shall remain unchanged. |
+| PRJ-001 | WHEN an active Mentor creates a Project, THE system SHALL create the Project, one eligible initial Leader membership, and its first leadership term in a single transaction. THE system SHALL NOT commit a Project with no membership. |
+| PRJ-002 | THE system SHALL permit only these Project transitions: `PLANNED → ACTIVE → COMPLETED`. THE system SHALL NOT reopen a `COMPLETED` Project. |
+| PRJ-003 | THE system SHALL permit an Intern to hold active memberships in several Projects at once, and SHALL represent each membership explicitly with a join timestamp and an optional leave timestamp. |
+| PRJ-004 | THE system SHALL permit only the owning Mentor to add or remove a member directly and to decide a membership exit. THE system SHALL permit the current Leader to invite an eligible Intern, request another member's removal, and redistribute unfinished Tasks away from a pending exit target. THE system SHALL permit an Intern to join only by accepting their own invitation, and to leave only after the owning Mentor approves. |
+| PRJ-005 | WHILE a Project is `PLANNED` or `ACTIVE`, THE system SHALL maintain exactly one current Leader who is an active member of that Project. WHEN the Project completes, THE system SHALL close the final leadership term rather than delete it. |
+| PRJ-006 | WHEN leadership changes, THE system SHALL close the current term and open a new term for another active member in one transaction, so that the Project never exposes two current Leaders and never exposes an active period without one. |
+| PRJ-007 | WHEN leadership changes and nothing else, THE system SHALL NOT reassign any Task. The former Leader SHALL remain a normal member and SHALL retain assignee rights for Tasks still assigned to them. |
+| PRJ-008 | WHILE an exit request targets the current Leader, THE system SHALL refuse Task transfer and exit approval until the owning Mentor appoints an eligible replacement. WHEN the replacement is appointed, THE system SHALL grant it current leadership and the authority to perform remaining transfer batches, and SHALL NOT move any Task merely because leadership changed. |
+| PRJ-009 | WHEN an owning Mentor removes a member directly, THE system SHALL transfer that member's unfinished Tasks to the current Leader in the same transaction. WHERE the removed member is the current Leader, THE system SHALL require an eligible replacement and SHALL transfer the unfinished Tasks to that replacement. WHERE any replacement, transfer, authorization, or lock check fails, THE system SHALL leave membership and Tasks unchanged. |
+| PRJ-010 | WHILE an exit request is pending, THE system SHALL permit the current Leader to redistribute work in confirmed batches, each naming one or more unfinished `TODO`, `IN_PROGRESS`, or `BLOCKED` Tasks and one eligible active current member. THE system SHALL apply each batch immediately and atomically, SHALL permit the batches to repeat, and SHALL NOT undo a completed batch when the request is later cancelled or rejected. |
+| PRJ-011 | WHEN a membership closes, THE system SHALL leave completed Tasks, Task creator attribution, comments, work logs, invitations, exit requests, and leadership history unchanged. A completed Task SHALL remain assigned to the closed historical membership and SHALL display that Intern's name in authorized history. |
+| PRJ-012 | WHEN a Mentor activates a Project, THE system SHALL require a current Leader, at least one active member, valid Project dates, and a valid active-member assignee on every non-deleted Task. |
+| PRJ-013 | WHILE a Project is `PLANNED`, THE system SHALL permit the current Leader to prepare a Task for any active member and any active member to prepare a self-assigned Task, and SHALL refuse Task status changes and work logging until the Project is `ACTIVE`. |
+| PRJ-014 | THE system SHALL permit only the owning Mentor to complete a Project, and only WHILE every non-deleted Task is `DONE`. WHEN completion commits, THE system SHALL close the current leadership and membership intervals, revoke pending invitations, supersede pending exit requests, and make the aggregate read-only. |
+| PRJ-015 | THE system SHALL compute Project progress as `DONE non-deleted Tasks / all non-deleted Tasks`. WHERE a Project has no non-deleted Task, THE system SHALL render `N/A` rather than 0%. |
+| PRJ-016 | THE system SHALL show, alongside Project progress, the counts of `TODO`, `IN_PROGRESS`, `BLOCKED`, and `DONE` Tasks and the total logged minutes. |
+| PRJ-017 | THE system SHALL treat an Intern as eligible for direct addition or invitation only WHILE their account and internship are `ACTIVE` and they hold no active membership in that Project. WHEN an owning Mentor adds a member directly, THE system SHALL require no acceptance and SHALL record that Mentor as `added_by_user_id`; WHEN an invitation is accepted, THE system SHALL record the accepting Intern. WHERE a matching invitation is pending at the moment of a direct add, THE system SHALL mark it `SUPERSEDED` with `MENTOR_DIRECT_ADD` in the same transaction. |
+| PRJ-018 | WHILE a Project is `PLANNED` or `ACTIVE`, THE system SHALL permit the current Leader at most one pending invitation per eligible Intern. THE system SHALL NOT expire an invitation by time, SHALL preserve the issuing leadership term, and SHALL require the intended Intern to authenticate before any response. An emailed URL SHALL open only the authenticated response page. |
+| PRJ-019 | THE system SHALL permit only the intended Intern to accept or decline their pending invitation. WHEN acceptance is submitted, THE system SHALL recheck Project, invitee, issuing leadership, and membership state and create one membership, all in one transaction. THE system SHALL permit the issuing Leader to revoke their own pending invitations and the owning Mentor to revoke any. WHEN the issuing leadership ends, the Project completes, or the invitee becomes ineligible, THE system SHALL revoke the now-unusable pending invitation without deleting it. |
+| PRJ-020 | THE system SHALL permit a current Leader to request removal of another current member, and any current member including the Leader to request their own leave. THE system SHALL require a nonblank reason, SHALL NOT expire the request, and SHALL allow at most one pending request per membership. WHILE a request is pending, THE system SHALL show every authorized Project viewer whether a replacement Leader is required, how many unfinished Tasks remain, and whether the request is ready for a Mentor decision. |
+| PRJ-021 | WHILE an exit request is pending, THE system SHALL keep the target's membership, existing assignments, and existing Task rights active, and SHALL refuse to give that target a newly created or reassigned Task or to let them create a self-Task. THE system SHALL permit the requester to cancel and only the owning Mentor to approve or reject. WHEN the request is cancelled or rejected, THE system SHALL preserve completed transfer batches and restore new-assignment eligibility. WHEN an owning Mentor removes the target directly, THE system SHALL resolve the matching request as `APPROVED`; WHEN the Project completes, THE system SHALL mark unresolved requests `SUPERSEDED`. |
+| PRJ-022 | WHEN exit approval is submitted, THE system SHALL lock and recheck the request, the target membership, current leadership, and the unfinished Task count. WHILE the target is the current Leader or owns any unfinished Task, THE system SHALL refuse approval. WHEN both guards pass, THE system SHALL commit membership closure and request approval together, leaving completed Tasks and all retained attribution unchanged. |
 
 ## 7. Tasks, comments, and task work
 
@@ -305,33 +341,33 @@ Legend: **Yes** = permitted within the stated scope; **Own** = own Project or ow
 
 | ID | Requirement |
 |---|---|
-| TSK-001 | Each Task shall belong to one Project and have exactly one current assignee referencing a membership in that Project. |
-| TSK-002 | One Intern may be the current assignee of multiple Tasks across multiple Projects. |
-| TSK-003 | The current Leader may create a Task assigned to any eligible active same-Project member. Any eligible active member may create a Task only when its initial assignee is that same creating membership. A pending exit target is not eligible for either new assignment or self-Task creation. |
-| TSK-004 | Task fields shall include title, optional description, status, optional due date, current assignee, creator membership, current assignment actor/time, lifecycle timestamps, optional deletion actor, and optimistic-lock version. Authorized views shall resolve creator, current/final assignee, comment authors, work-log authors, and deletion actor to human-readable retained identity. |
-| TSK-005 | A due date, when present, shall be within the Project date range and shall not be a currently configured global day off when it is created or changed. |
-| TSK-006 | Creating a later global day off shall not rewrite existing Task due dates. The calendar preview shall identify affected existing Tasks so their Leader can reschedule them. |
-| TSK-007 | Only the current assignee shall change Task status. Allowed transitions are `TODO → IN_PROGRESS|BLOCKED`, `IN_PROGRESS → DONE|BLOCKED`, `BLOCKED → TODO|IN_PROGRESS`, and `DONE → IN_PROGRESS`. |
-| TSK-008 | No other status transition shall be accepted, and v1 shall not implement a configurable workflow engine. |
-| TSK-009 | Only the current Leader may reassign an unfinished Task, including one or more Tasks in an exit-transfer batch. Every target shall be an eligible active current member who is not pending exit. Reassignment shall update current assignment actor/time while preserving creator attribution, status, comments, work logs, and applicable lifecycle timestamps. A `DONE` Task shall not be transferred or reassigned unless its current assignee first reopens it to `IN_PROGRESS`. |
-| TSK-010 | The current Leader may edit or soft-delete any unfinished Task in the Project. A non-Leader creator may edit or soft-delete an unfinished Task only while creator and current assignee remain the same eligible active membership. Soft-deleted Tasks are excluded from progress and normal lists but remain visible in authorized Project/Task history with deletion attribution. |
+| TSK-001 | THE system SHALL give each Task exactly one Project and exactly one current assignee, referencing a membership in that same Project. |
+| TSK-002 | THE system SHALL permit one Intern to be the current assignee of several Tasks across several Projects. |
+| TSK-003 | THE system SHALL permit the current Leader to create a Task assigned to any eligible active member of the same Project. THE system SHALL permit any other eligible active member to create a Task only WHERE its initial assignee is that creating membership. WHILE a member is the target of a pending exit, THE system SHALL treat them as ineligible for a new assignment and for self-Task creation. |
+| TSK-004 | THE system SHALL store, for each Task, a title, an optional description, a status, an optional due date, the current assignee, the creator membership, the current assignment actor and time, lifecycle timestamps, an optional deletion actor, and an optimistic-lock version. In an authorized view, THE system SHALL resolve the creator, the current or final assignee, comment authors, work-log authors, and the deletion actor to the retained human-readable identity. |
+| TSK-005 | WHERE a due date is given, THE system SHALL require it to fall within the Project date range and SHALL refuse a date that is a currently configured global day off at the moment it is created or changed. |
+| TSK-006 | WHEN an Admin creates a later global day off, THE system SHALL leave existing Task due dates unchanged, and SHALL identify the affected Tasks in the calendar preview so their Leader can reschedule them. |
+| TSK-007 | THE system SHALL permit only the current assignee to change a Task status, and SHALL permit only these transitions: `TODO → IN_PROGRESS|BLOCKED`, `IN_PROGRESS → DONE|BLOCKED`, `BLOCKED → TODO|IN_PROGRESS`, and `DONE → IN_PROGRESS`. |
+| TSK-008 | WHERE any other status transition is requested, THE system SHALL reject it. THE system SHALL NOT provide a configurable workflow engine in v1. |
+| TSK-009 | THE system SHALL permit only the current Leader to reassign an unfinished Task, singly or within an exit-transfer batch, and SHALL require every target to be an eligible active current member who is not the target of a pending exit. WHEN a reassignment commits, THE system SHALL update the current assignment actor and time while preserving creator attribution, status, comments, work logs, and applicable lifecycle timestamps. WHILE a Task is `DONE`, THE system SHALL refuse transfer and reassignment until its current assignee reopens it to `IN_PROGRESS`. |
+| TSK-010 | THE system SHALL permit the current Leader to edit or soft-delete any unfinished Task in the Project. THE system SHALL permit a non-Leader creator to edit or soft-delete an unfinished Task only WHILE the creator and the current assignee remain the same eligible active membership. WHEN a Task is soft-deleted, THE system SHALL exclude it from progress and ordinary lists and SHALL keep it visible in authorized history with its deletion attribution. |
 
 ### 7.2 Comments and work logs
 
 | ID | Requirement |
 |---|---|
-| TSK-011 | Task comments shall be separate append-only records. v1 shall not provide comment edit or delete. |
-| TSK-012 | The owning Mentor, current Leader, and every active member may comment on any non-deleted Task in their authorized Project while the Project is not completed. |
-| TSK-013 | Only the current assignee shall create a work log for a Task. Each entry shall contain work date, minutes from 1 through 1440, and an optional non-blank note. |
-| TSK-014 | Work date shall not be in the future, shall fall within Project dates, and shall fall within the logging member's membership interval. |
-| TSK-015 | An Intern's combined Task work across all Projects shall not exceed 1440 minutes on one local date. Validation shall serialize on that Intern to prevent concurrent over-allocation. |
-| TSK-016 | The log author may correct their own log while the Project is active and they remain a member, even if the Task was subsequently reassigned. Other users shall not edit the log. |
-| TSK-017 | Day-off effects on Task activity are defined by `CAL-009`, and the separation of Task work from attendance by `GOV-004`. This entry exists so that Task-domain readers reach those rules; it adds nothing of its own. |
-| TSK-018 | Member self-Task creation shall set creator, assignment actor, and assignee to the authenticated membership in one transaction. It shall not create a self-notification. The current Leader's broader creation authority shall remain Project-scoped. |
-| TSK-019 | Task definition authorization shall use current stored context: the Leader may manage any unfinished Task, while an eligible member creator may manage only an unfinished Task still assigned to them. Pending exit prevents new/self-assignment without removing existing assignee rights. Reassignment away removes creator control without changing historical creator attribution; assignment back restores it only when creator/current-assignee equality and current eligibility both hold. |
-| TSK-020 | A Task may have one optional whole-Task estimate in integer minutes from 1 through 527040. Only the current Project Leader may set, replace, or clear it before the first retained work log; after that log the estimate is immutable. Estimate mutation is separate from ordinary Task editing and is rejected for other actors. |
-| TSK-021 | Actual Task effort is the lifetime sum of all retained work-log minutes across authors and assignments. For a DONE Task with an estimate, variance is actual effort minus estimate; unfinished/reopened estimated Tasks have undefined variance and unestimated Tasks have no variance. No efficiency or productivity score is derived. |
-| TSK-022 | Reassigning an unfinished Task with retained work requires an append-only Project Leader Remaining effort forecast containing the reassignment snapshot. Corrections append a successor only before the incoming assignee's first newly created work log. Direct Mentor removal is blocked while worked unfinished Tasks remain and must not fabricate Leader forecast provenance. |
+| TSK-011 | THE system SHALL store Task comments as separate append-only records, and SHALL NOT provide comment editing or deletion in v1. |
+| TSK-012 | WHILE a Project is not completed, THE system SHALL permit its owning Mentor, its current Leader, and every active member to comment on any non-deleted Task in that Project. |
+| TSK-013 | THE system SHALL permit only the current assignee to create a work log for a Task, and SHALL require each entry to carry a work date, minutes from 1 through 1440, and an optional nonblank note. |
+| TSK-014 | THE system SHALL refuse a work date that is in the future, outside the Project dates, or outside the logging member's membership interval. |
+| TSK-015 | THE system SHALL refuse a work log that would take an Intern's combined Task work across all Projects above 1440 minutes on one local date, and SHALL serialize that check on the Intern so that concurrent submissions cannot over-allocate. |
+| TSK-016 | WHILE the Project is active and the author remains a member, THE system SHALL permit the log author to correct their own work log, even after the Task has been reassigned. THE system SHALL refuse any other user's attempt to edit that log. |
+| TSK-017 | Day-off effects on Task activity are defined by `CAL-009`, and the separation of Task work from attendance by `GOV-004`. This entry exists so that a reader of the Task domain reaches those rules; it adds nothing of its own. |
+| TSK-018 | WHEN a member creates a self-Task, THE system SHALL set the creator, the assignment actor, and the assignee to the authenticated membership in one transaction, and SHALL NOT raise a notification to that same member. The current Leader's broader creation authority SHALL remain scoped to the Project. |
+| TSK-019 | THE system SHALL authorize Task definition from currently stored context: the current Leader MAY manage any unfinished Task, and an eligible member creator MAY manage only an unfinished Task still assigned to them. WHILE a member is the target of a pending exit, THE system SHALL refuse new and self-assignment to them without removing their existing assignee rights. WHEN a Task is reassigned away from its creator, THE system SHALL withdraw creator control while leaving historical creator attribution unchanged, and SHALL restore that control on reassignment back only WHERE creator and current assignee are equal and currently eligible. |
+| TSK-020 | THE system SHALL permit a Task to carry one optional whole-Task estimate in integer minutes from 1 through 527040. THE system SHALL permit only the current Project Leader to set, replace, or clear it, and only before the first retained work log. WHEN the first work log is retained, THE system SHALL make the estimate immutable. THE system SHALL treat estimate mutation as separate from ordinary Task editing and SHALL reject it from any other actor. |
+| TSK-021 | THE system SHALL compute Actual Task effort as the lifetime sum of retained work-log minutes across every author and assignment. WHERE a Task is `DONE` and carries an estimate, THE system SHALL compute variance as actual effort minus estimate. WHERE a Task is unfinished, reopened, or unestimated, THE system SHALL treat variance as undefined. THE system SHALL NOT derive an efficiency or productivity score from any of these. |
+| TSK-022 | WHERE an unfinished Task carrying retained work is reassigned, THE system SHALL require an append-only Remaining effort forecast from the current Leader containing the reassignment snapshot. THE system SHALL accept a correcting successor only before the incoming assignee's first newly created work log. WHILE a member owns a worked unfinished Task, THE system SHALL refuse direct Mentor removal, and SHALL NOT fabricate Leader provenance for a forecast. |
 
 ## 8. Global attendance policy and calendar
 
@@ -339,26 +375,26 @@ Legend: **Yes** = permitted within the stated scope; **Own** = own Project or ow
 
 | ID | Requirement |
 |---|---|
-| ATT-001 | Admin shall manage one effective-dated global attendance-policy timeline. Each version shall store timezone, scheduled start/end, check-in grace minutes, checkout grace minutes, monthly leave quota, violation penalty, and configured ISO weekdays. The Admin UI shall expose a read-only policy History tab using these retained versions and non-secret creator/effective metadata. |
-| ATT-002 | The seed version shall be effective `1970-01-01` with timezone `Asia/Ho_Chi_Minh`, Monday–Friday, 08:30–15:30, 30-minute check-in grace, 30-minute checkout grace, 3 leave workdays per month, and 0.25 penalty per applicable violation. |
-| ATT-003 | Each grace value shall be an integer from 0 through 720 minutes. Scheduled end plus checkout grace shall remain strictly before the next local midnight, so overnight attendance schedules remain out of scope. A new policy version shall begin on the first day of a future calendar month. The Admin form shall collect a future calendar month and the server shall derive its first day before applying the same domain validation. A not-yet-effective version may be replaced; an effective version shall be immutable. |
-| ATT-004 | Reports for a date without an attendance row shall resolve the immutable policy version effective on that date, preserving historical absence and denominator calculations. |
-| ATT-005 | Attendance rows shall reference the policy version applied when check-in was accepted; that attached version shall govern the row's check-in and checkout boundaries permanently. Leave-day allocations shall reference and snapshot the applicable policy/quota when submitted. |
-| ATT-006 | Existing leave-day allocations shall remain frozen when a later future policy or calendar change is scheduled; only newly submitted requests use the revised eligibility. |
+| ATT-001 | THE system SHALL maintain one effective-dated global attendance-policy timeline managed by an Admin. THE system SHALL store, in each version, the timezone, scheduled start and end, check-in grace minutes, checkout grace minutes, monthly leave quota, violation penalty, and configured ISO weekdays. THE system SHALL expose a read-only policy History built from those retained versions and their non-secret creator and effective metadata. |
+| ATT-002 | THE system SHALL seed one policy version effective `1970-01-01` with timezone `Asia/Ho_Chi_Minh`, Monday through Friday, 08:30 to 15:30, 30-minute check-in grace, 30-minute checkout grace, 3 leave workdays per month, and a 0.25 penalty per applicable violation. |
+| ATT-003 | THE system SHALL require each grace value to be an integer from 0 through 720 minutes, and SHALL require scheduled end plus checkout grace to fall strictly before the next local midnight, so that an overnight schedule cannot be configured. THE system SHALL require a new policy version to begin on the first day of a future calendar month, SHALL collect that month in the Admin form and derive its first day on the server before applying the same validation, SHALL permit a not-yet-effective version to be replaced, and SHALL treat an effective version as immutable. |
+| ATT-004 | WHERE a report covers a date with no attendance row, THE system SHALL resolve the immutable policy version effective on that date, so that historical absence and denominator calculations are preserved. |
+| ATT-005 | WHEN check-in is accepted, THE system SHALL attach the applied policy version to that attendance row, and that version SHALL govern the row's check-in and checkout boundaries permanently. WHEN a leave request is submitted, THE system SHALL reference and snapshot the applicable policy and quota on each allocated day. |
+| ATT-006 | WHEN a later policy or calendar change is scheduled, THE system SHALL leave existing leave-day allocations frozen, and SHALL apply the revised eligibility only to newly submitted requests. |
 
 ### 8.2 Global calendar and HolidayAPI
 
 | ID | Requirement |
 |---|---|
-| CAL-001 | Only Admin shall create or edit global calendar events. Events may be custom or imported from HolidayAPI; project-level calendar overrides shall not exist. |
-| CAL-002 | HolidayAPI integration shall be optional, fixed to country `VN`, and invoked only by an Admin preview/import action. Attendance, leave, dashboards, and reports shall never call it live. |
-| CAL-003 | Import preview shall preserve source UUID, name, actual date, observed date, public-holiday marker, import timestamp, and non-secret provenance required by the Admin Calendar History view. `public=true` shall preselect—but not force—the local `is_day_off` choice. |
-| CAL-004 | Admin shall review and explicitly select imported rows. Import shall copy data locally and shall not silently overwrite an existing source UUID. |
-| CAL-005 | Manual custom calendar entry shall remain available when the API key is absent, invalid, rate-limited, or unavailable. |
-| CAL-006 | A calendar date is globally exempt when at least one local event on that date has `is_day_off=true`. Non-day-off observances are displayed but do not affect attendance or quota. |
-| CAL-007 | Global events whose calendar date has passed shall be immutable. Future events may be changed with optimistic locking and impact preview. The focused Global Calendar workflow shall expose retained past and current event metadata through a Calendar History view without exposing integration secrets. |
-| CAL-008 | A global day off shall waive attendance obligation, absence classification, compliance penalty, and quota consumption when a leave request is submitted. Existing materialized leave-day allocations remain frozen under ATT-006; the future-calendar impact preview shall disclose any such reservations rather than rewriting them silently. |
-| CAL-009 | A global day off shall block attendance check-in and creation/change of a Task due date on that date, but shall not block voluntary Task comments, status changes, or work logs. |
+| CAL-001 | THE system SHALL permit only an Admin to create or edit a global calendar event, whether custom or imported. THE system SHALL NOT provide project-level calendar overrides. |
+| CAL-002 | THE system SHALL treat the HolidayAPI integration as optional and fixed to country `VN`, and SHALL call it only from an explicit Admin preview or import action. THE system SHALL NOT call it from attendance, leave, a dashboard, or a report. |
+| CAL-003 | WHEN an import preview is produced, THE system SHALL preserve the source UUID, name, actual date, observed date, public-holiday marker, import timestamp, and the non-secret provenance the Admin Calendar History needs. WHERE a candidate carries `public=true`, THE system SHALL preselect the local `is_day_off` choice without forcing it. |
+| CAL-004 | THE system SHALL require an Admin to review and explicitly select the rows to import, SHALL copy the selected data locally, and SHALL NOT silently overwrite an existing source UUID. |
+| CAL-005 | WHERE the HolidayAPI key is absent, invalid, rate-limited, or the service is unavailable, THE system SHALL keep manual custom calendar entry available. |
+| CAL-006 | THE system SHALL treat a calendar date as globally exempt WHERE at least one local event on that date carries `is_day_off=true`. THE system SHALL display a non-day-off observance without letting it affect attendance or quota. |
+| CAL-007 | WHILE a global event's calendar date has passed, THE system SHALL treat that event as immutable. THE system SHALL permit a future event to change under optimistic locking with an impact preview. THE system SHALL expose retained past and current event metadata through a Calendar History view without exposing any integration secret. |
+| CAL-008 | WHEN a leave request is submitted, THE system SHALL treat a global day off as waiving attendance obligation, absence classification, compliance penalty, and quota consumption. THE system SHALL leave already-materialized leave-day allocations frozen under `ATT-006`, and SHALL disclose any such reservation in the future-calendar impact preview rather than rewriting it silently. |
+| CAL-009 | WHILE a date is a global day off, THE system SHALL refuse attendance check-in on it and SHALL refuse creating or moving a Task due date onto it. THE system SHALL continue to permit voluntary Task comments, status changes, and work logs on that date. |
 
 HolidayAPI field behavior is based on its [official API documentation](https://holidayapi.com/docs).
 
@@ -368,12 +404,12 @@ HolidayAPI field behavior is based on its [official API documentation](https://h
 
 | ID | Requirement |
 |---|---|
-| ATT-007 | An `ACTIVE` Intern may check in at most once on an eligible workday that is not covered by approved leave. |
-| ATT-008 | Check-in shall store server timestamp, derived local work date, and applied policy version in one transaction. Off-day, approved-leave, duplicate, non-active, completed, and withdrawn attempts shall be rejected. |
-| ATT-009 | Late shall be true only when `check_in > scheduled_start + check_in_grace`. Under defaults, exactly 09:00:00 is on time and 09:00:00.001 is late. |
-| ATT-010 | Checkout shall require that day's open attendance record and shall be accepted once only when `server_now <= scheduled_end + checkout_grace` under the attendance row's attached policy version. The cutoff is inclusive: under defaults, 16:00:00 is accepted and the first later instant is rejected. An accepted checkout shall preserve the raw server timestamp. |
-| ATT-011 | Effective checkout before scheduled end shall create an early-departure violation. Once `server_now > scheduled_end + checkout_grace`, an attendance row with no effective checkout shall classify as `MISSING_CHECKOUT` only and shall not simultaneously create early departure. Normal checkout shall remain closed after that cutoff and shall not populate or overwrite raw checkout. |
-| ATT-012 | Raw check-in and checkout shall never be edited through normal account, correction, or report operations. |
+| ATT-007 | WHILE an Intern account is `ACTIVE`, THE system SHALL permit at most one check-in per eligible workday that is not covered by approved leave. |
+| ATT-008 | WHEN check-in is accepted, THE system SHALL store the server timestamp, the derived local work date, and the applied policy version in one transaction. WHERE the attempt falls on an off-day, on approved leave, duplicates an existing row, or comes from a non-active, completed, or withdrawn account, THE system SHALL reject it. |
+| ATT-009 | WHERE `check_in > scheduled_start + check_in_grace`, THE system SHALL classify the day as late, and otherwise SHALL NOT. Under the seeded defaults, exactly 09:00:00 is on time and 09:00:00.001 is late. |
+| ATT-010 | WHEN checkout is requested, THE system SHALL require that day's open attendance row and SHALL accept it once, only WHILE `server_now <= scheduled_end + checkout_grace` under the policy version attached to that row. The cutoff is inclusive: under the seeded defaults 16:00:00 is accepted and the first later instant is rejected. WHEN a checkout is accepted, THE system SHALL preserve the raw server timestamp. |
+| ATT-011 | WHERE effective checkout falls before scheduled end, THE system SHALL record an early-departure violation. WHERE `server_now > scheduled_end + checkout_grace` and the row still has no effective checkout, THE system SHALL classify it as `MISSING_CHECKOUT` only and SHALL NOT also record early departure. After that cutoff THE system SHALL refuse normal checkout and SHALL NOT populate or overwrite the raw checkout. |
+| ATT-012 | THE system SHALL NOT edit a raw check-in or raw checkout through any account, correction, or report operation. |
 
 ### 9.2 Daily classification and formulas
 
@@ -386,43 +422,43 @@ For an applicable Intern/date, classification precedence is:
 
 | ID | Requirement |
 |---|---|
-| ATT-013 | Non-eligible dates shall not enter the attendance-rate or compliance denominator. Global off-days and approved leave shall be excluded. |
-| ATT-014 | Attendance rate shall be `present eligible workdays / (eligible workdays − approved-leave workdays)`. When the denominator is zero, the result shall be `N/A`. |
-| ATT-015 | For a present day, daily compliance shall be `max(0, 1 − policy penalty × applicable violation count)`. An absent expected day scores 0. Off-days and approved leave have no daily score. |
-| ATT-016 | Applicable violations shall be late plus exactly one of early departure or missing checkout. Approved correction shall recompute the effective checkout outcome without changing the historical policy penalty. |
-| ATT-017 | Period compliance shall be the average daily score over expected workdays. A period with no expected workdays shall report `N/A`. |
-| ATT-018 | Terminal internship timestamps shall prevent new attendance obligations after the lifecycle action while preserving any attendance already recorded on that local date. |
+| ATT-013 | THE system SHALL exclude non-eligible dates from the attendance-rate and compliance denominators, including global days off and approved leave. |
+| ATT-014 | THE system SHALL compute the attendance rate as `present eligible workdays / (eligible workdays − approved-leave workdays)`. WHERE that denominator is zero, THE system SHALL render `N/A`. |
+| ATT-015 | WHERE a day is present, THE system SHALL compute daily compliance as `max(0, 1 − policy penalty × applicable violation count)`. WHERE an expected day is absent, THE system SHALL score it 0. WHERE a day is an off-day or approved leave, THE system SHALL give it no daily score. |
+| ATT-016 | THE system SHALL count as applicable violations the late violation plus exactly one of early departure or missing checkout. WHEN a correction is approved, THE system SHALL recompute the effective checkout outcome without changing the historical policy penalty. |
+| ATT-017 | THE system SHALL compute period compliance as the average daily score over expected workdays. WHERE a period contains no expected workday, THE system SHALL report `N/A`. |
+| ATT-018 | WHEN a terminal internship timestamp is set, THE system SHALL create no further attendance obligation after that instant, and SHALL preserve any attendance already recorded on that local date. |
 
 ## 10. Missed-checkout corrections
 
 | ID | Requirement |
 |---|---|
-| COR-001 | Only the owning Intern may request a correction for an attendance record with no raw checkout, and only after the attached policy version's checkout cutoff has passed. At most one correction request shall exist per attendance record. |
-| COR-002 | The owning Intern shall supply proposed checkout and a non-blank reason. Proposed checkout shall be after check-in, on the original local work date, and not in the future at submission. |
-| COR-003 | Submission shall be accepted through the inclusive deadline `scheduled end on the attendance date + 24 hours`, using the attached historical policy version. The deadline shall remain anchored to scheduled end rather than the checkout cutoff; under defaults it is 15:30 the following day. |
-| COR-004 | Accepted submission shall start a separate 24-hour decision window from `submitted_at`. |
-| COR-005 | During that decision window, any active Mentor may approve, reject, or revert an approved/rejected decision to `PENDING`. Every transition shall create an immutable correction event. |
-| COR-006 | Approval shall leave raw checkout null and use proposed checkout only as effective checkout. It shall remove missing checkout and may create early departure. |
-| COR-007 | At decision-window expiry, approved/rejected state shall lock; a still-pending request shall become automatically rejected and lock. |
-| COR-008 | A scheduled expiry worker shall persist auto-rejection and notifications. Every correction read/write path shall also apply the same deadline guard before acting. |
-| COR-009 | Expired or locked corrections shall reject further Mentor state changes. Admin shall not decide or reopen corrections. |
+| COR-001 | THE system SHALL permit only the owning Intern to request a correction, only WHERE the attendance row has no raw checkout, and only after the checkout cutoff of the policy version attached to that row has passed. THE system SHALL permit at most one correction request per attendance row. |
+| COR-002 | THE system SHALL require the owning Intern to supply a proposed checkout and a nonblank reason, and SHALL require that proposed checkout to be after check-in, on the original local work date, and not in the future at submission. |
+| COR-003 | THE system SHALL accept a submission through the inclusive deadline `scheduled end on the attendance date + 24 hours`, resolved from the attached historical policy version. THE system SHALL anchor that deadline to scheduled end rather than to the checkout cutoff; under the seeded defaults it falls at 15:30 the following day. |
+| COR-004 | WHEN a submission is accepted, THE system SHALL open a separate 24-hour decision window measured from `submitted_at`. |
+| COR-005 | WHILE the decision window is open, THE system SHALL permit any active Mentor to approve, reject, or revert an approved or rejected decision to `PENDING`, and SHALL write an immutable correction event for every transition. |
+| COR-006 | WHEN a correction is approved, THE system SHALL leave the raw checkout null and use the proposed checkout only as the effective checkout. THE system SHALL then clear the missing-checkout classification and MAY record early departure. |
+| COR-007 | WHEN the decision window expires, THE system SHALL lock an approved or rejected request, and SHALL automatically reject and then lock a request still pending. |
+| COR-008 | THE system SHALL persist auto-rejection and its notifications through a scheduled worker, and SHALL apply the same deadline guard on every correction read and write path before acting. |
+| COR-009 | WHILE a correction is expired or locked, THE system SHALL reject any further Mentor state change. THE system SHALL NOT permit an Admin to decide or reopen a correction. |
 
 ## 11. Leave
 
 | ID | Requirement |
 |---|---|
-| LEV-001 | Leave shall be a full-day inclusive date range plus a non-blank reason. v1 shall have no leave type and no seven-day advance-notice rule. |
-| LEV-002 | A request shall lie within the Intern's applicable internship interval and contain at least one eligible workday after excluding configured non-workdays and global days off. |
-| LEV-003 | Submission shall materialize each quota-consuming date with its policy version, calendar month, and monthly quota snapshot. Cross-month requests shall allocate dates to their respective months, and Intern views shall show those frozen allocations grouped by quota month. |
-| LEV-004 | `PENDING` and `APPROVED` leave days shall both reserve quota. `REJECTED` and `CANCELLED` requests shall release quota. For a selected quota month, the Intern balance shall show `reserved / applicable quota / remaining`, where remaining is `max(0, quota − reserved)`. The dashboard shall default to the current business month; My Leave shall permit month selection. |
-| LEV-005 | Quota validation shall include existing pending/approved allocations plus the candidate request and shall serialize on the Intern profile to prevent concurrent overbooking. |
-| LEV-006 | PostgreSQL and application validation shall reject any overlapping `PENDING` or `APPROVED` inclusive date range for the same Intern. |
-| LEV-007 | The Intern may edit or cancel a pending request before the scheduled start of its first counted workday. Editing shall revalidate overlap, frozen day allocations, and quota atomically. |
-| LEV-008 | Any active Mentor may approve or reject a pending request before that same boundary; Admin shall not decide leave. |
-| LEV-009 | Same-day submission is allowed before the first counted workday's scheduled start. Under defaults, a request whose first counted date is today is valid before 08:30 and invalid at or after 08:30. |
-| LEV-010 | A pending request still unresolved at the first counted start shall automatically become `REJECTED`. Scheduler and access-time guards shall enforce the same boundary. |
-| LEV-011 | An approved request may be cancelled only before the first counted start. Once leave begins, the request and its materialized day allocation are frozen. |
-| LEV-012 | Leave shall not be approved, cancelled, or created retroactively. |
+| LEV-001 | THE system SHALL represent leave as a full-day inclusive date range with a nonblank reason. THE system SHALL NOT provide a leave type or a seven-day advance-notice rule in v1. |
+| LEV-002 | THE system SHALL require a leave request to fall within the Intern's applicable internship interval and to contain at least one eligible workday after excluding configured non-workdays and global days off. |
+| LEV-003 | WHEN a leave request is submitted, THE system SHALL materialize each quota-consuming date with its policy version, calendar month, and monthly quota snapshot. WHERE a request spans months, THE system SHALL allocate each date to its own month, and SHALL show the Intern those frozen allocations grouped by quota month. |
+| LEV-004 | THE system SHALL reserve quota for both `PENDING` and `APPROVED` leave days, and SHALL release it WHEN a request becomes `REJECTED` or `CANCELLED`. For a selected quota month THE system SHALL show the Intern `reserved / applicable quota / remaining`, where remaining is `max(0, quota − reserved)`. THE system SHALL default the dashboard to the current business month and SHALL permit month selection in My Leave. |
+| LEV-005 | WHEN quota is validated, THE system SHALL include existing pending and approved allocations together with the candidate request, and SHALL serialize on the Intern profile so that concurrent submissions cannot overbook. |
+| LEV-006 | WHERE a `PENDING` or `APPROVED` inclusive date range would overlap another for the same Intern, THE system SHALL reject it in both the application and the database. |
+| LEV-007 | WHILE a request is pending and the scheduled start of its first counted workday has not passed, THE system SHALL permit the owning Intern to edit or cancel it. WHEN an edit is submitted, THE system SHALL revalidate overlap, frozen day allocations, and quota in one transaction. |
+| LEV-008 | WHILE a request is pending and that same boundary has not passed, THE system SHALL permit any active Mentor to approve or reject it. THE system SHALL NOT permit an Admin to decide leave. |
+| LEV-009 | THE system SHALL accept a same-day submission before the scheduled start of the first counted workday. Under the seeded defaults, a request whose first counted date is today is valid before 08:30 and invalid at or after 08:30. |
+| LEV-010 | WHEN the first counted start is reached and the request is still pending, THE system SHALL set it to `REJECTED` automatically, and SHALL enforce that same boundary from both the scheduler and the access-time guard. |
+| LEV-011 | WHILE the first counted start has not passed, THE system SHALL permit an approved request to be cancelled. WHEN leave begins, THE system SHALL freeze the request and its materialized day allocation. |
+| LEV-012 | THE system SHALL NOT approve, cancel, or create leave retroactively. |
 
 ## 12. Integrations and notifications
 
@@ -430,31 +466,31 @@ For an applicable Intern/date, classification precedence is:
 
 | ID | Requirement |
 |---|---|
-| INT-001 | SMTP and HolidayAPI settings shall be administered through the application, not through direct database editing. SMTP shall not be configured through deployment environment variables. |
-| INT-002 | Production startup shall require a deployment-provided 256-bit application master key. Dev/test shall receive explicit non-production keys through Spring configuration. |
-| INT-003 | SMTP passwords and HolidayAPI keys shall be stored only as AES-256-GCM ciphertext with a fresh 96-bit nonce and key-version metadata. The master key shall never be stored in PostgreSQL. |
-| INT-004 | Secret values shall never be redisplayed after submission. Replacing a saved secret shall require entering a new value. Configuration History views shall omit ciphertext, nonce, passwords, API keys, tokens, and master-key material. |
-| INT-005 | Logs, exception messages, HTML, exports, notification bodies, CI artifacts, and database diagnostic views shall not contain raw integration secrets or authentication tokens. |
-| INT-006 | SMTP revisions shall use `DRAFT → ACTIVE → RETIRED`. At most one draft and one active revision shall exist. Editing active configuration shall create a draft and leave the active revision operational. The focused SMTP workflow shall include read-only SMTP History showing non-secret revision metadata, test/activation/retirement outcomes, and responsible users. |
-| INT-007 | SMTP fields shall include host, port, security mode, optional username/password, From address, and From name. Production shall permit `STARTTLS` or `TLS`; plaintext `NONE` shall be rejected outside dev/test. |
-| INT-008 | Testing SMTP shall send a message to the current Admin. Only a successful test may activate a draft. Activating a draft shall retire the previous active revision atomically. |
-| INT-009 | HolidayAPI configuration shall use the same draft/test/activate/retire behavior, encrypted key handling, and fixed country code `VN`. The focused Holiday Import workflow shall include read-only HolidayAPI History showing non-secret revision metadata and outcomes. |
-| INT-010 | Master-key rotation UI and external secret-store integration are outside v1. Cipher envelopes shall carry key-version metadata so an operator-led future migration remains possible. |
+| INT-001 | THE system SHALL administer SMTP and HolidayAPI settings through the application. THE system SHALL NOT take SMTP configuration from a deployment environment variable, and an operator SHALL NOT configure either by editing the database directly. |
+| INT-002 | WHILE running under the production profile, THE system SHALL require a deployment-provided 256-bit application master key. WHILE running under a development or test profile, THE system SHALL take an explicit non-production key from Spring configuration. |
+| INT-003 | THE system SHALL store an SMTP password or HolidayAPI key only as AES-256-GCM ciphertext with a fresh 96-bit nonce and key-version metadata. THE system SHALL NOT store the master key in PostgreSQL. |
+| INT-004 | THE system SHALL NOT redisplay a secret after it is submitted, and SHALL require a new value to replace a saved one. THE system SHALL omit ciphertext, nonce, passwords, API keys, tokens, and master-key material from every Configuration History view. |
+| INT-005 | THE system SHALL NOT place a raw integration secret or authentication token in a log, exception message, rendered page, export, notification body, pipeline artifact, or database diagnostic view. |
+| INT-006 | THE system SHALL move an SMTP revision through `DRAFT → ACTIVE → RETIRED`, and SHALL permit at most one draft and one active revision at a time. WHEN an Admin edits an active configuration, THE system SHALL create a draft and leave the active revision operational. THE system SHALL expose a read-only SMTP History carrying non-secret revision metadata, test, activation and retirement outcomes, and the responsible users. |
+| INT-007 | THE system SHALL store, for SMTP, a host, port, security mode, optional username and password, From address, and From name. WHILE running under the production profile, THE system SHALL permit `STARTTLS` or `TLS` and SHALL reject plaintext `NONE`. |
+| INT-008 | WHEN an Admin tests SMTP, THE system SHALL send a message to that Admin. THE system SHALL permit activation of a draft only after a successful test, and WHEN a draft is activated SHALL retire the previous active revision in the same transaction. |
+| INT-009 | THE system SHALL apply the same draft, test, activate and retire behaviour, the same encrypted key handling, and the fixed country code `VN` to the HolidayAPI configuration, and SHALL expose a read-only HolidayAPI History carrying non-secret revision metadata and outcomes. |
+| INT-010 | THE system SHALL NOT provide master-key rotation or external secret-store integration in v1. THE system SHALL carry key-version metadata in every cipher envelope so that an operator-led migration remains possible later. |
 
 ### 12.2 Notification channels and retry
 
 | ID | Requirement |
 |---|---|
-| NOT-001 | Every notification shall create an in-app record for its recipient. Email is an optional delivery channel attached only to events designated for email. |
-| NOT-002 | Leave/correction submission and decision, membership/leadership change, Project invitation creation/resolution, membership-exit request/resolution, and Task assignment/reassignment shall request both in-app and email delivery. Project workflow notifications shall use `PROJECT_INVITATION_CREATED`, `PROJECT_INVITATION_RESOLVED`, `MEMBERSHIP_EXIT_REQUESTED`, and `MEMBERSHIP_EXIT_RESOLVED`. |
-| NOT-003 | Task comments and Task status changes shall create in-app notifications only. |
-| NOT-004 | Domain actions in NOT-002 shall commit even when SMTP is absent or transiently failing. Absence shall record `UNAVAILABLE`; transient delivery failure shall retain `PENDING` retry state. |
-| NOT-005 | Events recorded `UNAVAILABLE` shall not be fabricated or retroactively emailed after SMTP is later configured. Their in-app records remain available. |
-| NOT-006 | Non-secret email delivery shall attempt immediately and, after failure, retry after 1 minute, 5 minutes, 30 minutes, 2 hours, and 12 hours. Failure after the fifth retry shall become terminal `FAILED`. |
-| NOT-007 | Admin shall be able to inspect failed ordinary email and invoke a manual retry, which shall re-enter bounded retry state without duplicating the in-app notification. |
-| NOT-008 | Activation and password-reset mail shall not use the ordinary notification outbox because the raw link must not be persisted. A send failure shall invalidate the token and require explicit regeneration. |
-| NOT-009 | Unread count and notification list shall be scoped to the authenticated recipient. Mark-read shall be idempotent. |
-| NOT-010 | Invitation creation shall notify the invitee; response shall notify issuing Leader and owning Mentor; revocation/supersession shall notify the invitee and relevant Leader/Mentor. Leader removal requests shall notify owning Mentor and target; member-leave requests shall notify owning Mentor and current Leader; decisions/cancellation shall notify requester, target, and current Leader with duplicate recipients collapsed. Self-Task creation shall send no notification. |
+| NOT-001 | WHEN a notification is raised, THE system SHALL create an in-app record for its recipient. THE system SHALL attach email delivery only to an event designated for email. |
+| NOT-002 | WHEN leave or a correction is submitted or decided, membership or leadership changes, a Project invitation is created or resolved, a membership exit is requested or resolved, or a Task is assigned or reassigned, THE system SHALL request both in-app and email delivery. THE system SHALL use the types `PROJECT_INVITATION_CREATED`, `PROJECT_INVITATION_RESOLVED`, `MEMBERSHIP_EXIT_REQUESTED`, and `MEMBERSHIP_EXIT_RESOLVED` for the Project workflow. |
+| NOT-003 | WHEN a Task comment is added or a Task status changes, THE system SHALL create an in-app notification only. |
+| NOT-004 | WHERE SMTP is absent or transiently failing, THE system SHALL still commit the domain action listed in `NOT-002`. WHERE SMTP is absent, THE system SHALL record delivery as `UNAVAILABLE`; WHERE delivery fails transiently, THE system SHALL retain `PENDING` retry state. |
+| NOT-005 | WHEN SMTP is later configured, THE system SHALL NOT fabricate or retroactively send an email for an event already recorded `UNAVAILABLE`. THE system SHALL keep that event's in-app record available. |
+| NOT-006 | WHEN non-secret email is raised, THE system SHALL attempt delivery immediately and, after a failure, retry after 1 minute, 5 minutes, 30 minutes, 2 hours, and 12 hours. WHERE the fifth retry also fails, THE system SHALL mark delivery terminally `FAILED`. |
+| NOT-007 | THE system SHALL permit an Admin to inspect failed ordinary email and invoke a manual retry. WHEN that retry is invoked, THE system SHALL re-enter bounded retry state without duplicating the in-app notification. |
+| NOT-008 | THE system SHALL NOT route activation or password-reset mail through the ordinary notification outbox, because the raw link must not be persisted. WHERE such a send fails, THE system SHALL invalidate the token and require explicit regeneration. |
+| NOT-009 | THE system SHALL scope the unread count and the notification list to the authenticated recipient, and SHALL make mark-read idempotent. |
+| NOT-010 | WHEN an invitation is created, THE system SHALL notify the invitee. WHEN it is answered, THE system SHALL notify the issuing Leader and the owning Mentor. WHEN it is revoked or superseded, THE system SHALL notify the invitee and the relevant Leader and Mentor. WHEN a Leader requests a removal, THE system SHALL notify the owning Mentor and the target; WHEN a member requests their own leave, THE system SHALL notify the owning Mentor and the current Leader; WHEN such a request is decided or cancelled, THE system SHALL notify the requester, the target, and the current Leader, collapsing duplicate recipients. WHEN a member creates a self-Task, THE system SHALL send no notification. |
 
 ## 13. Authentication and security
 
@@ -462,43 +498,43 @@ For an applicable Intern/date, classification precedence is:
 
 | ID | Requirement |
 |---|---|
-| SEC-001 | Spring Security session authentication, server authorization, object ownership checks, CSRF protection, Bean Validation, output escaping, and password hashing shall remain enabled in dev, test, and production. |
-| SEC-002 | Passwords shall be 12 through 128 characters and use Spring Security's delegating adaptive password encoder. v1 shall not impose composition rules. |
-| SEC-003 | Activation and reset tokens shall use cryptographically secure random bytes suitable for URL-safe encoding. Only their 32-byte SHA-256 hashes shall be persisted. |
-| SEC-004 | Activation tokens shall expire after 24 hours and password-reset tokens after 30 minutes. Issuing a token shall invalidate the user's older unused token of the same purpose. |
-| SEC-005 | Login and password-reset forms shall return generic responses that do not reveal whether an email exists, is pending, is locked, or lacks SMTP delivery. |
-| SEC-006 | Login throttling shall key on normalized email plus source IP. Five failures inside 15 minutes shall create a 15-minute throttle; successful login shall clear the applicable state. |
-| SEC-007 | Throttle state may be bounded in-memory in v1. Restart resets it and multi-node coordination is unsupported because production is a single application instance. Manual account lock shall remain persisted separately. |
-| SEC-008 | Redirect targets shall be allow-listed/local. State-changing endpoints shall not accept open redirects, user-selected class names, arbitrary templates, or arbitrary URLs. |
-| SEC-009 | Error pages and authorization failures shall not expose stack traces, SQL, secrets, internal IDs from unauthorized records, or existence distinctions useful for enumeration. |
+| SEC-001 | THE system SHALL keep Spring Security session authentication, server-side authorization, object ownership checks, CSRF protection, Bean Validation, output escaping, and password hashing enabled under every profile, including development and test. |
+| SEC-002 | THE system SHALL require a password of 12 through 128 characters and SHALL hash it with Spring Security's delegating adaptive encoder. THE system SHALL NOT impose composition rules in v1. |
+| SEC-003 | THE system SHALL generate activation and reset tokens from cryptographically secure random bytes suitable for URL-safe encoding, and SHALL persist only their 32-byte SHA-256 hashes. |
+| SEC-004 | THE system SHALL expire an activation token after 24 hours and a password-reset token after 30 minutes. WHEN a token is issued, THE system SHALL invalidate that user's older unused token of the same purpose. |
+| SEC-005 | WHEN a login or password-reset form is submitted, THE system SHALL return a generic response that does not reveal whether the email exists, is pending, is locked, or lacks SMTP delivery. |
+| SEC-006 | THE system SHALL key login throttling on the normalized email together with the source IP. WHERE five failures occur inside 15 minutes, THE system SHALL throttle that key for 15 minutes. WHEN a login succeeds, THE system SHALL clear the applicable throttle state. |
+| SEC-007 | THE system MAY hold throttle state in bounded memory in v1. A restart therefore resets it, and multi-node coordination is unsupported because production runs one application instance. THE system SHALL keep manual account lock persisted separately. |
+| SEC-008 | THE system SHALL restrict redirect targets to an allow-listed local set. WHERE a state-changing endpoint receives an open redirect, a user-selected class name, an arbitrary template, or an arbitrary URL, THE system SHALL reject it. |
+| SEC-009 | WHERE an error page or an authorization failure is rendered, THE system SHALL NOT expose a stack trace, SQL, a secret, an internal identifier from an unauthorized record, or an existence distinction useful for enumeration. |
 
 ### 13.2 Profile-dependent hardening
 
 | ID | Requirement |
 |---|---|
-| SEC-010 | Production shall require an HTTPS public base URL/origin and explicit trusted-proxy configuration before startup is considered ready. |
-| SEC-011 | Production responses shall carry security headers that force HTTPS for at least one year including subdomains, restrict every resource, form target, and base URI to the application itself, forbid the application from being framed, and suppress referrer disclosure. Session cookies shall be `Secure`, `HttpOnly`, and `SameSite=Strict`, and configured-origin checks shall be strict. The exact directive values are fixed by `AC-SEC-008`. |
-| SEC-012 | Forwarded headers shall be trusted only when the deployment explicitly enables and constrains the known reverse-proxy path. Arbitrary client-forwarded headers shall not define scheme, host, or source IP. |
-| SEC-013 | Dev/test may use HTTP, localhost origins, `SameSite=Lax`, and no HSTS or Secure-cookie requirement. These relaxations shall be activated only by dev/test profile state and shall not be silently inherited by production. |
-| SEC-014 | Production readiness shall fail when the master key, public origin, datasource, or explicit proxy policy required by production is absent or malformed. SMTP may remain absent, but the application shall remain visibly restricted as specified. |
+| SEC-010 | WHILE running under the production profile, THE system SHALL require an HTTPS public base URL and origin and an explicit trusted-proxy configuration before it reports itself ready. |
+| SEC-011 | WHILE running under the production profile, THE system SHALL send security headers that force HTTPS for at least one year including subdomains, restrict every resource, form target, and base URI to the application itself, forbid the application from being framed, and suppress referrer disclosure. THE system SHALL mark session cookies `Secure`, `HttpOnly`, and `SameSite=Strict`, and SHALL apply strict configured-origin checks. The exact directive values are fixed by `AC-SEC-008`. |
+| SEC-012 | THE system SHALL trust forwarded headers only WHERE the deployment explicitly enables and constrains the known reverse-proxy path. THE system SHALL NOT let an arbitrary client-forwarded header define the scheme, host, or source IP. |
+| SEC-013 | WHILE running under a development or test profile, THE system MAY use HTTP, localhost origins, `SameSite=Lax`, and neither HSTS nor Secure cookies. THE system SHALL activate those relaxations only from development or test profile state, and SHALL NOT let production inherit them. |
+| SEC-014 | WHERE the master key, public origin, datasource, or explicit proxy policy required by production is absent or malformed, THE system SHALL fail production readiness. SMTP MAY remain absent, and WHILE it is absent THE system SHALL remain visibly restricted as specified. |
 
 ## 14. Reports and exports
 
 | ID | Requirement |
 |---|---|
-| RPT-001 | One shared report dataset/query layer shall feed HTML, Excel, and PDF output so filters, classifications, totals, rounding, and authorization cannot drift. |
-| RPT-002 | Attendance/compliance reports shall filter by date range and authorized Intern scope and include daily classification, applied schedule, raw/effective checkout, late/early/missing flags, attendance rate, and compliance score. |
-| RPT-003 | Project/task reports shall filter by Project, member, Task status, and work-date range and include completion percentage, status counts, current assignees, due dates, logged minutes, and blocked Tasks. |
-| RPT-004 | Active Mentors and active Admins may view detailed Intern attendance for any target account whose immutable role is `INTERN`, and both hold the same target scope, navigation, HTML page, XLSX/PDF export, and report dataset. Interns may view their own history. Project Leaders do not receive another Intern's attendance merely because they lead a Project; as Interns, their Attendance scope remains their own history. Admin Attendance scope does not imply any Project/Task or Daily Project Work Report scope. |
-| RPT-005 | Owning Mentors may see per-member Project hours within their owned-Project scope, and current Leaders may see them only for Projects they currently lead. Ordinary members receive aggregate Project progress and hours only. Admins have no Project/Task-report scope, Project option list, report dataset, or per-member hours. |
-| RPT-006 | Excel and PDF export shall cover attendance/compliance, project/task, and Daily Project Work Reports. Leave, correction, notification, and integration queues remain in-app. |
-| RPT-007 | Excel shall use Apache POI XSSF. PDF shall use OpenPDF HTML with a dedicated print-safe Thymeleaf XHTML/CSS template and an embedded Unicode-capable font. Modern Tailwind application CSS shall not be passed directly to the PDF renderer. |
-| RPT-008 | Export operations may be synchronous in v1. They shall enforce bounded date ranges and authorized filters to avoid unbounded memory/response work. |
-| RPT-009 | HTML, Excel, and PDF shall use identical hand-checkable totals. Empty Project progress and zero attendance/compliance denominators shall render `N/A`. |
-| RPT-010 | Export filenames shall contain report family and requested date range without user-controlled path characters. |
-| RPT-011 | An owning Mentor may request a Daily Project Work Report for all owned Projects or one selected owned Project. The global Daily entry remains available to Mentors. An active Intern sees a conditional Daily entry only when the server confirms that they currently lead at least one `PLANNED` or `ACTIVE` Project; one eligible Project redirects directly to its locked report, while multiple eligible Projects show an authorized selector and no eligible Project returns `Project unavailable`. A current Project Leader may request HTML, XLSX, or PDF for one mandatory exact currently-led `PLANNED` or `ACTIVE` Project, for today or a permitted past Report date, including the whole retained Project history before the current leadership term. Leader HTML/XLSX/PDF requests re-authorize the exact `projectId`, and a valid selected date survives selection or redirection. Admins have no Daily-report scope: their navigation is absent and Daily HTML/XLSX/PDF requests retain the non-disclosing `Project unavailable` response. Admin Project/Task HTML/XLSX/PDF requests are denied with the authenticated access-denied response before Project option resolution, Task/work-log reads, dataset construction, or exporter invocation. Admin Attendance HTML/XLSX/PDF requests are authorized on the same footing as an active Mentor per `RPT-004` and are not denied. Ordinary Interns without current leadership, former Leaders, Leaders of another Project, completed Projects, missing `projectId` requests, and guessed IDs shall be denied before Attendance context, Task reads, or exporter invocation. |
-| RPT-012 | Daily Project Work Report selected-date minutes remain distinct from lifetime Task actual effort, original estimate, latest Remaining effort forecast, and DONE-only signed variance. The report shall omit empty Projects in all-Projects mode, show an explicit empty state for a selected empty Project, and make no attendance, completion-on-date, productivity, or efficiency claim. |
-| RPT-013 | HTML, XLSX, and PDF Daily Project Work Reports shall use one authorized immutable dataset and expose identical rows, descriptions, statuses, planning values, and hand-checkable totals. |
+| RPT-001 | THE system SHALL feed HTML, Excel, and PDF output from one shared report dataset and query layer, so that filters, classifications, totals, rounding, and authorization cannot drift between formats. |
+| RPT-002 | THE system SHALL filter an attendance and compliance report by date range and authorized Intern scope, and SHALL include the daily classification, the applied schedule, the raw and effective checkout, the late, early-departure and missing-checkout flags, the attendance rate, and the compliance score. |
+| RPT-003 | THE system SHALL filter a Project and Task report by Project, member, Task status, and work-date range, and SHALL include the completion percentage, status counts, current assignees, due dates, logged minutes, and blocked Tasks. |
+| RPT-004 | WHILE a Mentor or Admin account is active, THE system SHALL permit it to view detailed Intern attendance for any target account whose immutable role is `INTERN`, with the same target scope, navigation, HTML page, XLSX and PDF export, and report dataset. THE system SHALL permit an Intern to view their own history only. THE system SHALL NOT grant a Project Leader another Intern's attendance on account of leadership; as an Intern their Attendance scope remains their own history. Admin Attendance scope SHALL NOT imply any Project, Task, or Daily Project Work Report scope. |
+| RPT-005 | THE system SHALL show per-member Project hours to an owning Mentor within their owned-Project scope, and to a current Leader only for a Project they currently lead. THE system SHALL show an ordinary member aggregate Project progress and hours only. THE system SHALL NOT give an Admin any Project or Task report scope, Project option list, report dataset, or per-member hours. |
+| RPT-006 | THE system SHALL provide Excel and PDF export for the attendance and compliance, Project and Task, and Daily Project Work Reports. THE system SHALL keep the leave, correction, notification, and integration queues in-app only. |
+| RPT-007 | THE system SHALL produce Excel through Apache POI XSSF, and PDF through OpenPDF HTML using a dedicated print-safe Thymeleaf XHTML and CSS template with an embedded Unicode-capable font. THE system SHALL NOT pass the modern Tailwind application stylesheet to the PDF renderer. |
+| RPT-008 | THE system MAY perform an export synchronously in v1, and SHALL enforce bounded date ranges and authorized filters so that a request cannot demand unbounded memory or response work. |
+| RPT-009 | THE system SHALL produce identical hand-checkable totals in HTML, Excel, and PDF. WHERE Project progress has no non-deleted Task, or an attendance or compliance denominator is zero, THE system SHALL render `N/A`. |
+| RPT-010 | THE system SHALL compose an export filename from the report family and the requested date range, and SHALL NOT include a user-controlled path character in it. |
+| RPT-011 | THE system SHALL permit an owning Mentor to request a Daily Project Work Report for all owned Projects or one selected owned Project, and SHALL keep the global Daily entry available to Mentors. WHILE an active Intern currently leads at least one `PLANNED` or `ACTIVE` Project, THE system SHALL show them a conditional Daily entry: WHERE exactly one Project is eligible it SHALL redirect to that locked report, WHERE several are eligible it SHALL show an authorized selector, and WHERE none is eligible it SHALL return `Project unavailable`. THE system SHALL permit a current Leader to request HTML, XLSX, or PDF for one mandatory exact currently-led `PLANNED` or `ACTIVE` Project, for today or a permitted past Report date, covering the whole retained Project history including the period before the current leadership term. THE system SHALL re-authorize the exact `projectId` on every Leader request and SHALL carry a valid selected date through selection and redirection. THE system SHALL give an Admin no Daily scope: their navigation SHALL be absent and their Daily requests SHALL keep the non-disclosing `Project unavailable` response. WHERE an Admin requests a Project or Task report in any format, THE system SHALL return the authenticated access-denied response before resolving Project options, reading Tasks or work logs, building a dataset, or invoking an exporter. WHERE an Admin requests an Attendance report, THE system SHALL authorize it on the same footing as an active Mentor under `RPT-004`. WHERE the caller is an ordinary Intern without current leadership, a former Leader, the Leader of another Project, or names a completed Project, a missing `projectId`, or a guessed identifier, THE system SHALL deny before reading Attendance context or Tasks and before invoking an exporter. |
+| RPT-012 | THE system SHALL keep the Daily Project Work Report's selected-date minutes distinct from lifetime Actual Task effort, the original estimate, the latest Remaining effort forecast, and the `DONE`-only signed variance. WHERE the mode is all-Projects, THE system SHALL omit an empty Project; WHERE one empty Project is selected, THE system SHALL show an explicit empty state. THE system SHALL NOT assert attendance, completion on that date, productivity, or efficiency. |
+| RPT-013 | THE system SHALL build the HTML, XLSX, and PDF Daily Project Work Reports from one authorized immutable dataset, and SHALL expose identical rows, descriptions, statuses, planning values, and hand-checkable totals in all three. |
 
 ## 15. User interface and accessibility
 
@@ -514,25 +550,25 @@ The following supplied screenshots are visual-direction references. Their exampl
 
 | ID | Requirement |
 |---|---|
-| UI-001 | The application shall use a quiet, high-density Vercel/shadcn-style operations shell implemented with Tailwind tokens and Thymeleaf fragments, without importing React or the shadcn React runtime. |
-| UI-002 | Desktop is the supported v1 interface target and shall use an approximately 16rem fixed sidebar that can collapse to an approximately 4rem icon rail. Mobile and tablet behavior is best-effort only and is not required to provide complete workflow parity or a dedicated navigation pattern. |
-| UI-003 | Sidebar collapse state shall persist in `localStorage`. Navigation shall be generated by authorization scope and shall never show actions the authenticated user cannot perform. |
-| UI-004 | The content header shall contain sidebar toggle, breadcrumb/page title, notification access, and contextual primary actions. The lower sidebar account area shall expose profile, theme, and logout. |
-| UI-005 | Visual tokens shall use near-white/near-black canvases, slightly contrasting sidebar/panels, one-pixel neutral borders, 10–12px radii, compact controls, restrained shadows, tabular numerals, and muted secondary text. |
-| UI-006 | Dark mode shall use the supplied near-black canvas and charcoal panel hierarchy rather than a naïve color inversion. Accent color shall be reserved for status, focus, validation, and a small number of primary actions. |
-| UI-007 | First visit shall follow system color preference. A Light/Dark/System selector shall store a browser-local override and apply it before first paint to prevent theme flash. No database theme-preference table is required. |
-| UI-008 | Reusable fragments shall cover the shell, navigation, button, input, select, checkbox, cards, metric cards, badges, tabs, tables, pagination, alerts, confirmation dialog, empty state, skeleton state, and notification menu. |
-| UI-009 | Lucide Static 1.27.0 shall be pinned as a build dependency and reduced to a local build-time SVG sprite. There shall be no icon CDN, icon font, runtime DOM-replacement pass, or React adapter. |
-| UI-010 | An icon adjacent to visible text shall be decorative and hidden from assistive technology. Every icon-only control shall have an accessible name, visible tooltip, keyboard focus, and adequate target size. |
-| UI-011 | Chart.js 4.5.1 shall be used only for meaningful attendance and Project trends. Each canvas shall have an accessible name and an adjacent text/table summary because canvas data is not inherently screen-reader accessible. |
-| UI-012 | Charts shall consume theme tokens, honor reduced motion, and never be the only representation of a value or status. |
-| UI-013 | The interface shall be English-only in v1. Business dates display `dd/MM/yyyy`; times display 24-hour local time with timezone context where ambiguity matters. |
-| UI-014 | Forms shall provide associated labels, inline field errors, an error summary, retained safe input after validation, keyboard operation, and visible focus. Role-dependent Intern fields shall be disabled and cleared when the selected role is not `INTERN`, while server validation remains authoritative. Month-bound policy input shall use a native month control rather than inviting invalid arbitrary dates. Status shall never be communicated through color alone. |
-| UI-015 | Tables shall remain fully usable at supported desktop widths. On narrower mobile/tablet screens, deliberate column prioritization, wrapping, or horizontal scrolling should prevent avoidable corruption on a best-effort basis, but complete mobile workflow support is outside v1 acceptance. |
-| UI-016 | Terminal/destructive actions such as withdrawal, completion, deactivation, direct member removal, membership-exit approval, Task soft-delete, and SMTP retirement shall require an explicit confirmation describing consequences. Exit approval shall show replacement/unfinished-Task readiness; transfer confirmation shall show selected Task count and recipient. |
-| UI-017 | The design shall avoid decorative gradients, glass effects, card-within-card repetition, oversized marketing headings, remote fonts/assets, and non-informational charts. |
-| UI-018 | Light and dark themes shall meet WCAG 2.2 AA contrast: at least 4.5:1 for normal text, 3:1 for large text and meaningful non-text UI boundaries, and a visible 3:1 focus indicator against adjacent colors. |
-| UI-019 | The implemented desktop product shall provide Leader invitation list/create/revoke, Intern invitation accept/decline, Leader removal-request, member leave/cancel, persistent pending-exit warnings, a Leader-only side drawer for repeated multi-Task/one-recipient transfer batches, and an owning-Mentor decision surface. It shall provide separate Intern My Leave/My Corrections and Mentor Leave Decisions/Correction Decisions workflows, with actionable queues before retained history and the monthly leave balance defined by LEV-004. Admin shall receive focused Account Directory/Detail/Edit, Attendance Policy with History, Global Calendar with History, Holiday Import with provider History, and SMTP with History workflows; Admin dashboard content shall remain account/configuration-only and shall not include an Active Projects metric or report-like Project/Task summary. Dedicated Attendance and Project/Task report navigation shall be limited to the non-Admin scopes in RPT-004/RPT-005. The global Daily entry shall remain visible to Mentors and shall be conditionally visible to an active Intern only when current leadership makes at least one `PLANNED` or `ACTIVE` Project eligible; Project-detail Daily generation remains current-Leader-only. Admin shall not receive dedicated report navigation. The legacy `/admin/settings` route shall redirect to `/admin/attendance-policies`, and `/attendance/requests` shall redirect to `/attendance/leave`. It shall also provide one authorized Project History tab. Existing mockups remain illustrative and do not override numbered requirements. |
+| UI-001 | THE system SHALL present a quiet, high-density operations shell built from Tailwind tokens and Thymeleaf fragments, and SHALL NOT import React or a React component runtime. |
+| UI-002 | THE system SHALL treat desktop as the supported v1 interface target, with a roughly 16rem fixed sidebar collapsible to a roughly 4rem icon rail. Mobile and tablet behaviour is best-effort and SHALL NOT be required to reach workflow parity or provide a dedicated navigation pattern. |
+| UI-003 | THE system SHALL persist the sidebar collapse state in `localStorage`, SHALL generate navigation from authorization scope, and SHALL NOT show an action the authenticated user cannot perform. |
+| UI-004 | THE system SHALL place the sidebar toggle, breadcrumb or page title, notification access, and contextual primary actions in the content header, and SHALL expose profile, theme, and logout in the lower sidebar account area. |
+| UI-005 | THE system SHALL use near-white and near-black canvases, slightly contrasting sidebar and panel surfaces, one-pixel neutral borders, 10 to 12 pixel radii, compact controls, restrained shadows, tabular numerals, and muted secondary text. |
+| UI-006 | WHILE dark mode is active, THE system SHALL use the near-black canvas and charcoal panel hierarchy rather than inverting the light palette, and SHALL reserve the accent colour for status, focus, validation, and a small number of primary actions. |
+| UI-007 | WHEN a visitor arrives for the first time, THE system SHALL follow the system colour preference. THE system SHALL offer a Light, Dark, and System selector, SHALL store the override in the browser, and SHALL apply it before first paint so that no theme flash occurs. THE system SHALL NOT require a database table for theme preference. |
+| UI-008 | THE system SHALL provide reusable fragments for the shell, navigation, button, input, select, checkbox, cards, metric cards, badges, tabs, tables, pagination, alerts, confirmation dialog, empty state, skeleton state, and notification menu. |
+| UI-009 | THE system SHALL pin Lucide Static 1.27.0 as a build dependency and reduce it to a local build-time SVG sprite. THE system SHALL NOT use an icon CDN, an icon font, a runtime DOM replacement pass, or a React adapter. |
+| UI-010 | WHERE an icon sits beside visible text, THE system SHALL mark it decorative and hide it from assistive technology. WHERE a control carries only an icon, THE system SHALL give it an accessible name, a visible tooltip, keyboard focus, and an adequate target size. |
+| UI-011 | THE system SHALL use Chart.js 4.5.1 only for meaningful attendance and Project trends, and SHALL give every canvas an accessible name and an adjacent text or table summary, because canvas content is not inherently available to a screen reader. |
+| UI-012 | THE system SHALL draw charts from the theme tokens, SHALL honour a reduced-motion preference, and SHALL NOT let a chart be the only representation of a value or status. |
+| UI-013 | THE system SHALL present the interface in English only in v1, SHALL display business dates as `dd/MM/yyyy`, and SHALL display times in 24-hour local form with timezone context where ambiguity matters. |
+| UI-014 | THE system SHALL give every form field an associated label, inline field errors, an error summary, retained safe input after validation, keyboard operation, and visible focus. WHERE the selected role is not `INTERN`, THE system SHALL disable and clear the role-dependent Intern fields while server validation remains authoritative. WHERE policy input is bound to a month, THE system SHALL use a native month control rather than invite an arbitrary invalid date. THE system SHALL NOT communicate status through colour alone. |
+| UI-015 | THE system SHALL keep tables fully usable at supported desktop widths. WHERE the viewport is narrower, THE system SHOULD prioritise columns, wrap, or scroll horizontally to avoid avoidable corruption, and complete mobile workflow support remains outside v1 acceptance. |
+| UI-016 | WHEN a terminal or destructive action is requested, including internship withdrawal, Project completion, account deactivation, direct member removal, membership-exit approval, Task soft-delete, and SMTP retirement, THE system SHALL require an explicit confirmation describing the consequences. WHERE the action is exit approval, THE system SHALL show replacement and unfinished-Task readiness; WHERE it is a transfer, THE system SHALL show the selected Task count and the recipient. |
+| UI-017 | THE system SHALL NOT use decorative gradients, glass effects, card-within-card repetition, oversized marketing headings, remote fonts or assets, or a chart that carries no information. |
+| UI-018 | THE system SHALL meet WCAG 2.2 AA contrast in both light and dark themes: at least 4.5:1 for normal text, at least 3:1 for large text and meaningful non-text boundaries, and a visible focus indicator at 3:1 against adjacent colours. |
+| UI-019 | THE system SHALL provide Leader invitation list, create and revoke; Intern invitation accept and decline; Leader removal request; member leave and cancel; persistent pending-exit warnings; a Leader-only side drawer for repeated multi-Task single-recipient transfer batches; and an owning-Mentor decision surface. THE system SHALL provide separate Intern My Leave and My Corrections workflows and separate Mentor Leave Decisions and Correction Decisions workflows, each placing the actionable queue before retained history and showing the monthly leave balance defined by `LEV-004`. THE system SHALL give an Admin focused Account Directory, Detail and Edit workflows, Attendance Policy with History, Global Calendar with History, Holiday Import with provider History, and SMTP with History. THE system SHALL keep Admin dashboard content account and configuration only, without an Active Projects metric or a report-like Project or Task summary, and SHALL NOT give an Admin dedicated report navigation. THE system SHALL limit dedicated Attendance and Project or Task report navigation to the non-Admin scopes in `RPT-004` and `RPT-005`. THE system SHALL keep the global Daily entry visible to Mentors, and SHALL show it to an active Intern only WHILE current leadership makes at least one `PLANNED` or `ACTIVE` Project eligible; Project-detail Daily generation SHALL remain available to the current Leader only. THE system SHALL redirect `/admin/settings` to `/admin/attendance-policies` and `/attendance/requests` to `/attendance/leave`. THE system SHALL provide one authorized Project History tab. Existing mockups are illustrative and SHALL NOT override a numbered requirement. |
 
 Primary UI dependency references:
 
@@ -568,24 +604,24 @@ Primary UI dependency references:
 
 | ID | Requirement |
 |---|---|
-| OPS-005 | A multi-stage Docker build shall compile frontend assets and the Spring Boot artifact, then run on a minimal Java 25 runtime as a non-root user. |
-| OPS-006 | The application image shall expose liveness and readiness health endpoints. Readiness shall require the datasource to be reachable and the Flyway migration set to have completed; it shall not require SMTP or HolidayAPI availability. |
-| OPS-007 | Recommended production Compose shall run the application plus a pinned PostgreSQL 18.4 service with health-gated startup and a persistent named volume. |
-| OPS-008 | The same application image shall support an externally managed PostgreSQL database through datasource URL, username, and password environment values without starting a bundled database. |
-| OPS-009 | Production configuration shall include datasource, application master key, public base URL/origin, and explicit proxy policy. SMTP and HolidayAPI credentials shall remain Admin-console configuration. |
+| OPS-005 | THE container build SHALL compile the frontend assets and the Spring Boot artifact in separate stages and SHALL run the result on a minimal Java 25 runtime as a non-root user. |
+| OPS-006 | THE application image SHALL expose liveness and readiness health endpoints. THE system SHALL report ready only WHILE the datasource is reachable and the Flyway migration set has completed, and SHALL NOT require SMTP or HolidayAPI availability to report ready. |
+| OPS-007 | THE recommended production Compose file SHALL run the application together with a pinned PostgreSQL 18.4 service, with health-gated startup and a persistent named volume. |
+| OPS-008 | THE same application image SHALL run against an externally managed PostgreSQL database, taking the datasource URL, username, and password from the environment, without starting a bundled database. |
+| OPS-009 | THE production configuration SHALL carry the datasource, application master key, public base URL and origin, and an explicit proxy policy. SMTP and HolidayAPI credentials SHALL remain Admin-console configuration rather than deployment configuration. |
 | OPS-010 | Database backup, restore, and PostgreSQL minor-upgrade procedures shall preserve the named volume or external database. Container replacement shall never be treated as a database backup. |
 
 ### 16.3 Gitea Actions
 
 | ID | Requirement |
 |---|---|
-| OPS-011 | A trusted repository-scoped Gitea Actions runner shall verify Maven tests, PostgreSQL/Flyway integration, frontend assets, and workflow contracts for every pull request and push. The container workflow shall run only by manual dispatch or a push to `main`, and its own verification job shall succeed before any image build. |
-| OPS-012 | Only `main` shall publish an OCI image to the Gitea registry. Every publication shall use the immutable commit SHA tag; a moving `main` tag may be published only as a convenience alias. |
-| OPS-013 | The current pipeline shall stop at build and publish. It shall not connect to an unprovisioned production host. |
-| OPS-014 | A dormant SSH deployment job template shall run only on `main` when repository variable `DEPLOY_ENABLED` equals `true` and required host, user, private-key, and known-host secrets exist. |
-| OPS-015 | The future deployment template shall pull the selected immutable SHA image, execute the remote Compose rollout, wait for health, and retain the previous SHA for rollback. |
-| OPS-016 | The workflow shall use Gitea `vars` and `secrets` contexts and shall not rely on `jobs.<job_id>.environment` as an approval boundary because Gitea currently ignores that syntax. |
-| OPS-017 | Runner access to a Docker socket shall be limited to trusted repositories and operators; untrusted fork code shall not receive publication/deployment secrets. |
+| OPS-011 | THE delivery pipeline SHALL verify Maven tests, PostgreSQL and Flyway integration, frontend assets, and workflow contracts on a trusted repository-scoped runner for every pull request and push. THE container workflow SHALL run only on manual dispatch or a push to `main`, and its own verification job SHALL succeed before any image is built. |
+| OPS-012 | THE delivery pipeline SHALL publish an image to the registry only from `main`, and every publication SHALL carry the immutable commit SHA tag. A moving `main` tag MAY be published only as a convenience alias. |
+| OPS-013 | THE delivery pipeline SHALL stop at build and publish, and SHALL NOT connect to an unprovisioned production host. |
+| OPS-014 | THE SSH deployment job SHALL remain a dormant template, and SHALL run only on `main`, only WHILE the repository variable `DEPLOY_ENABLED` equals `true`, and only WHERE the required host, user, private-key, and known-host secrets exist. |
+| OPS-015 | WHEN the deployment template is eventually enabled, it SHALL pull the selected immutable SHA image, execute the remote Compose rollout, wait for health, and retain the previous SHA for rollback. |
+| OPS-016 | THE workflow SHALL take variables and secrets from the Gitea `vars` and `secrets` contexts, and SHALL NOT rely on `jobs.<job_id>.environment` as an approval boundary, because Gitea currently ignores that syntax. |
+| OPS-017 | THE runner SHALL expose a Docker socket only to trusted repositories and operators, and untrusted fork code SHALL NOT receive publication or deployment secrets. |
 
 Gitea references: [variables](https://docs.gitea.com/1.24/usage/actions/actions-variables), [secrets](https://docs.gitea.com/next/usage/actions/secrets), [workflow differences](https://docs.gitea.com/usage/actions/comparison), and [runner security](https://docs.gitea.com/1.24/usage/actions/act-runner).
 
@@ -710,19 +746,19 @@ The schema contains **24 tables**. The earlier 21-table baseline was superseded 
 
 | ID | Requirement |
 |---|---|
-| DB-001 | DDL shall use generated `BIGINT` identity keys, `date` for local business dates, `time` for schedules, `timestamptz` for instants, and checked `varchar` states rather than PostgreSQL enums. |
-| DB-002 | DDL shall enable `btree_gist` and use an exclusion constraint to prevent overlapping pending/approved leave ranges per Intern. |
-| DB-003 | DDL shall enforce case-insensitive unique email/student code, one active membership per Intern/Project, one current Leader per Project, one pending invitation per Intern/Project, one pending exit request per target membership, one attendance record per Intern/date, one correction per attendance record, and one active/draft integration revision. |
-| DB-004 | Composite foreign keys shall keep leadership, invitation provenance/accepted membership, membership-exit requester/target, Task assignee/actors, and work-log member inside the same Project. |
-| DB-005 | A trigger shall reject mutation of an existing user's global role. Foreign keys shall default to `RESTRICT`; only explicitly modeled soft/lifecycle transitions shall remove items from active views. |
-| DB-006 | Database indexes shall cover every foreign key plus active membership/Leader, pending invitation/exit queues, Project Task status/assignee, attendance date, pending deadlines, leave month, unread notification, and pending-email lookup paths. |
-| DB-007 | Application transactions shall enforce role compatibility, state graphs, ownership, exact-one live Leader, invitation eligibility/resolution, pending-exit assignment exclusion, atomic transfer batches, approval readiness, direct-removal automatic transfer, self-Task versus Leader authority, active membership, Project completion, policy immutability, calendar cutoff, due-date validation, leave quota, and daily work-minute total. Existing retained rows supply authorized history views; no generic audit or Task-assignment-history table shall be introduced. |
-| DB-008 | Leave quota and daily work-minute validation shall lock the affected Intern profile before reading reservations/totals and writing the new state. |
-| DB-009 | The DDL seed shall create the `1970-01-01` policy and ISO workdays 1 through 5. |
-| DB-010 | The physical Mermaid database diagram and SQL shall describe the same tables, columns, and foreign-key relationships. The DDL is authoritative for composite/partial uniqueness, checks, exclusions, triggers, and lifecycle enforcement that Mermaid cannot express. |
-| DB-011 | `project_invitations` shall preserve Project, intended Intern, issuing leadership term, status, optional accepted membership, resolution code/actor/time, and optimistic version. Partial uniqueness and same-Project composite foreign keys shall prevent duplicate pending invitations and cross-Project provenance. |
-| DB-012 | `project_membership_exit_requests` shall preserve Project, requester/target memberships, request type/reason, status, optional decision details, and optimistic version. The schema shall enforce same-Project participants, request-type participant shape, and one pending request per target; Task actor columns shall use generic membership names. |
-| DB-013 | Task estimates shall be nullable whole-Task integer minutes constrained to 1..527040 with no backfill. Remaining-effort forecasts shall be append-only rows with same-Project Task/membership references, reassignment timestamp, remaining minutes, nonnegative lifetime-actual snapshot, optional initial note, correction reason/supersession shape, linear successors, and indexes for Task history/latest lookup. Derived forecast totals shall not be persisted. |
+| DB-001 | THE schema SHALL use generated `BIGINT` identity keys, `date` for local business dates, `time` for schedules, `timestamptz` for instants, and checked `varchar` states rather than PostgreSQL enums. |
+| DB-002 | THE schema SHALL enable `btree_gist` and SHALL use an exclusion constraint so that a pending or approved leave range cannot overlap another for the same Intern. |
+| DB-003 | THE schema SHALL enforce case-insensitive unique email and Student Code, one active membership per Intern and Project, one current Leader per Project, one pending invitation per Intern and Project, one pending exit request per target membership, one attendance row per Intern and date, one correction per attendance row, and one active and one draft revision per integration. |
+| DB-004 | THE schema SHALL use composite foreign keys to keep leadership, invitation provenance and accepted membership, membership-exit requester and target, Task assignee and actors, and work-log member inside the same Project. |
+| DB-005 | WHERE an update would change an existing user's global role, THE schema SHALL reject it through a trigger. THE schema SHALL default foreign keys to `RESTRICT`, so that only an explicitly modelled soft-delete or lifecycle transition removes an item from an active view. |
+| DB-006 | THE schema SHALL index every foreign key, together with the active membership and Leader lookups, the pending invitation and exit queues, Project Task status and assignee, attendance date, pending deadlines, leave month, unread notification, and pending-email paths. |
+| DB-007 | THE system SHALL enforce, inside application transactions, role compatibility, state graphs, ownership, exactly one live Leader, invitation eligibility and resolution, pending-exit assignment exclusion, atomic transfer batches, approval readiness, direct-removal automatic transfer, self-Task versus Leader authority, active membership, Project completion, policy immutability, calendar cutoff, due-date validation, leave quota, and the daily work-minute total. THE system SHALL build authorized history views from the retained domain rows, and SHALL NOT introduce a generic audit table or a Task-assignment-history table. |
+| DB-008 | WHEN leave quota or a daily work-minute total is validated, THE system SHALL lock the affected Intern profile before reading reservations or totals and before writing the new state. |
+| DB-009 | THE schema seed SHALL create the `1970-01-01` policy version and ISO workdays 1 through 5. |
+| DB-010 | THE physical Mermaid diagram and the SQL SHALL describe the same tables, columns, and foreign-key relationships. WHERE they differ on composite or partial uniqueness, checks, exclusions, triggers, or lifecycle enforcement, the DDL is authoritative, because Mermaid cannot express those. |
+| DB-011 | THE schema SHALL preserve, in `project_invitations`, the Project, intended Intern, issuing leadership term, status, optional accepted membership, resolution code, actor and time, and an optimistic version. THE schema SHALL use partial uniqueness and same-Project composite foreign keys so that a duplicate pending invitation and cross-Project provenance are both impossible. |
+| DB-012 | THE schema SHALL preserve, in `project_membership_exit_requests`, the Project, requester and target memberships, request type and reason, status, optional decision details, and an optimistic version. THE schema SHALL enforce same-Project participants, the participant shape each request type requires, and one pending request per target, and SHALL name Task actor columns generically. |
+| DB-013 | THE schema SHALL store a Task estimate as nullable whole-Task integer minutes constrained to `1..527040`, with no backfill. THE schema SHALL store Remaining effort forecasts as append-only rows carrying same-Project Task and membership references, the reassignment timestamp, remaining minutes, a nonnegative lifetime-actual snapshot, an optional initial note, the correction reason and supersession shape, linear successors, and indexes for Task history and latest lookup. THE schema SHALL NOT persist a derived forecast total. |
 
 ### 19.4 Physical database diagram
 
@@ -1287,13 +1323,13 @@ produces ceremony without protection.
 
 | ID | Requirement |
 |---|---|
-| ERR-001 | Validation errors shall keep the user on the same safe form with field errors and no partial database mutation. |
-| ERR-002 | Optimistic-lock conflicts shall produce a clear stale-data response and invite reload; the application shall not silently overwrite a concurrent Admin/Mentor/Leader decision. |
-| ERR-003 | Deadline guards, lifecycle guards, and authorization shall execute inside the same transaction as the requested mutation to prevent time-of-check/time-of-use races. |
-| ERR-004 | Scheduled workers shall be idempotent and process bounded batches. A late or repeated worker invocation shall not duplicate state transitions or notifications. |
-| ERR-005 | HolidayAPI and ordinary SMTP failures shall not make local attendance/project data unavailable. Identity-mail actions remain blocked or explicitly failed as specified because they cannot complete safely without delivery. |
-| ERR-006 | Export failure shall return an error without persisting a partial report. Response streams and temporary resources shall be closed. |
-| ERR-007 | Database migration failure shall fail application readiness; the application shall not serve against a partially migrated schema. |
+| ERR-001 | WHERE a submitted form fails validation, THE system SHALL re-render that same form with the submitted values retained, SHALL mark every invalid field, and SHALL commit no part of the requested change. |
+| ERR-002 | WHERE an optimistic-lock conflict occurs, THE system SHALL return a clear stale-data response inviting reload, and SHALL NOT silently overwrite a concurrent Admin, Mentor, or Leader decision. |
+| ERR-003 | THE system SHALL execute deadline guards, lifecycle guards, and authorization inside the same transaction as the mutation they protect, so that no decision can be made on state that changes before the write. |
+| ERR-004 | THE system SHALL make every scheduled worker idempotent and SHALL bound the batch it processes. WHERE a worker runs late or runs twice, THE system SHALL NOT duplicate a state transition or a notification. |
+| ERR-005 | WHERE HolidayAPI or ordinary SMTP delivery fails, THE system SHALL keep local attendance and Project data available. WHERE the action depends on identity mail, THE system SHALL keep it blocked or explicitly failed as specified, because it cannot complete safely without delivery. |
+| ERR-006 | WHERE report generation fails, THE system SHALL return an error, SHALL persist no partial report, and SHALL close the response stream and any temporary resource. |
+| ERR-007 | WHERE a database migration fails, THE system SHALL fail readiness and SHALL NOT serve requests against a partially migrated schema. |
 
 ## 22. Review and implementation gate
 
