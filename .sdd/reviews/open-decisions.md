@@ -1,23 +1,28 @@
-# Open decisions blocking approval of the specification
+# Decisions behind the specification
 
-[The specification](../requirements.md) cannot be approved until the
-questions below are answered by a person, not by reading the code. Each one is a
-place where the document currently states something that no recorded human
-decision supports.
+Each entry is a place where [the specification](../requirements.md) stated
+something that no recorded decision supported. Section 1.1 names who may settle
+one. Until an answer is recorded here and applied to the numbered rules, the
+specification stays unapproved and no test written against the affected rule is
+authoritative.
 
-Section 1.1 of the specification names who may answer. Until an answer is
-recorded here and applied to the numbered rules, the specification stays
-unapproved and no test written against the affected rule is authoritative.
+## How a question gets answered
 
-## How this document is used
+This project inherited a working codebase whose decisions were largely unwritten,
+so most answers came from evidence rather than from a fresh judgement. Four
+approaches were used, strongest evidence first.
 
-1. Whoever holds authority answers each question below.
-2. The answer is written into the Decision column with a date and a name.
-3. The affected numbered rules are edited to match.
-4. Anything that contradicts the answer, in code or in tests, is then a defect.
+1. **Find the decision in history.** A commit, a written ruling, a code comment, or a test. A test asserting `403` is evidence that somebody chose `403`. This settled D1 and D2.
+2. **Find the rule behind the behavior, then check it is coherent.** Not copying what the code does, but looking for the principle it follows and asking whether that principle holds everywhere. This settled D6 and D8, and in D6 it overturned this page's own alarm.
+3. **Judge the found rule against the domain.** A rule can be consistent and still wrong. This is where D7 changed: the code permitted a monthly leave quota of thirty-one days, which is not a business limit but the absence of one.
+4. **Ask a person.** Reserved for what the first three cannot settle, which is usually a question of value rather than of fact.
+
+The order matters. Reaching for the fourth without the first three produces a
+list of questions nobody can answer, because the answers were already in the
+repository.
 
 A decision recorded here outranks the current behavior of the application. Where
-they disagree, the application is wrong.
+they disagree, the application is wrong, and D7 is the case in point.
 
 ## Where these stand
 
@@ -28,10 +33,10 @@ they disagree, the application is wrong.
 | D3 | A separate document per feature | One canonical location per rule | `GOV-016` |
 | D4 | Exact version pinning for test tooling | Range is enough; action still open | `ARC-004` |
 | D5 | The recovered appendices | Edited, not kept as written | Appendices C–F |
-| D6 | Which HTTP status a denial returns | **open** | `AUTH-002`, `SEC-009` |
-| D7 | Valid range of the monthly leave quota | **open** | `ATT-001` |
-| D8 | Naming the invitation resolution codes | **open** | `PRJ-019`, `DB-011` |
-| D9 | Stating the SMTP port range | **open** | `INT-001`–`INT-003` |
+| D6 | Which HTTP status a denial returns | Three tiers, already coherent in code | `AUTH-002` |
+| D7 | Valid range of the monthly leave quota | 0 through 4, one fifth of a month | `ATT-003` |
+| D8 | Naming the invitation resolution codes | All eight named with their cause | `DB-011` |
+| D9 | Stating the SMTP port range | 1 through 65535, a type constraint | `INT-007` |
 
 D1 through D5 came from reading the specification against its own history. D6
 through D9 came from the audit described at the end of this page, which read the
@@ -49,8 +54,10 @@ every open one states the assumption that would be used if nobody answers. Read
 those as the price of the choice, not as a formality. Without them, "we can fix
 it later" is a hope rather than a plan.
 
-**D6 is the one to read first.** It is the only open item that may already put
-the specification and the code in conflict, rather than merely leaving a gap.
+**All nine are answered.** D7 is the only one the code does not yet satisfy: it
+caps the monthly leave quota at four days where the application still accepts
+thirty-one. Everything else either matched the shipped behavior already or was
+settled by writing down a rule the code was following without saying so.
 
 ## D1. May an Admin see one Intern's detailed attendance?
 
@@ -362,13 +369,37 @@ says, or some of those endpoints contradict it.
 | B. State the mapping as a rule, keeping today's split between `403` and `404`. | Nothing in the code changes. `SEC-009` gains an explicit carve-out saying `403` on an authorized-route-unauthorized-record is acceptable. |
 | C. Leave it unstated. | The 345 assertions keep encoding an unwritten decision, and the next person to touch a controller cannot tell whether they are fixing a bug or breaking a contract. |
 
-**If forced to assume**, B: it matches shipped behavior and needs no code change.
-The assumption is worth naming because it weakens `SEC-009`, and weakening a
-security rule by assumption is the kind of thing that should be visible.
+**Decision:** Neither. The alarm in this entry was wrong, and reading the code
+found a rule already there and already coherent.
 
-**Decision:**
-**Decided by:**
-**Date:**
+The tests were read for what condition produces which status. There are three
+tiers, not the two this entry assumed.
+
+| Situation | Response |
+|---|---|
+| Not authenticated | redirect to the sign-in page |
+| Authenticated, wrong role for the whole route | `403` |
+| Authenticated, may reach the route, record absent or not theirs | `404`, identical in both cases |
+
+`403` appears only where the whole route belongs to another role: a non-Admin at
+`/admin/*`, an Admin at `/reports/project-tasks`, a missing CSRF token. No record
+is implied, so nothing about existence leaks.
+
+`404` is where concealment matters, and it is already tested:
+`guessedProjectIdReturnsTheSameNotFoundResponseAsAMissingProject` asserts exactly
+the property `SEC-009` demands, that a guessed identifier and an absent record
+produce the same response.
+
+So `SEC-009` is not contradicted. `AUTH-002` now states the three tiers instead
+of the ambiguous "access-denied **or** not-found".
+
+One correction to the evidence above: the three `401` assertions are an artifact
+of `@WebMvcTest` slices, where the full filter chain does not run. The running
+application redirects an unauthenticated request to `/login`.
+
+**Decided by:** derived from the code and the tests, confirmed by Loc-LX.
+
+**Date:** 2026-09-12
 
 ## D7. What is the valid range of the monthly leave quota?
 
@@ -392,12 +423,37 @@ document explains why, because no document says 31 is the ceiling.
 | A. State `0` through `31` in `ATT-001`, matching the schema. | The document explains the refusal. 31 is defensible as the longest month. |
 | B. State a smaller business ceiling. | The schema stays valid, and the application gains a stricter check above it. A quota near 31 means an Intern may be absent every workday, which may not be intended. |
 
-**If forced to assume**, A: describe what is enforced rather than invent a
-business limit nobody stated.
+**Decision:** Neither option as written. The business limit is **one fifth of a
+month**, and `ATT-003` now caps the configurable monthly leave quota at 0 through
+4 days.
 
-**Decision:**
-**Decided by:**
-**Date:**
+Four is the largest whole number that stays within a fifth of the shortest
+month. Across 2024 to 2030 a Monday-to-Friday month holds 20 to 23 workdays:
+
+| Workdays in the month | Months | A cap of 4 is | A cap of 5 would be |
+|---:|---:|---:|---:|
+| 20 | 10 | 20% | 25% |
+| 21 | 24 | 19% | 24% |
+| 22 | 27 | 18% | 23% |
+| 23 | 23 | 17% | 22% |
+
+**The stated fifth is not exact in every month, and that was accepted knowingly.**
+`CAL-008` removes a global day off from the denominator, so a month carrying five
+public holidays leaves fifteen eligible workdays and four days of leave reaches
+27%. The alternative, deriving the quota as a fifth of each month's eligible
+workdays, would hold the ratio exactly but change `monthly_leave_quota` from an
+absolute count an Admin sets into a value the system computes. The difference is
+zero to two days, and it was not judged worth changing what a schema field means.
+
+**This is the one requirement on this page that the code does not yet satisfy.**
+`AttendancePolicyCommand` validates `0 <= monthlyLeaveQuota <= 31`, matching the
+schema. Implementing the decision means tightening that bound to 4 and a failing
+test first. The schema may keep its wider range as a type constraint, or a later
+migration may align it; that is a separate choice.
+
+**Decided by:** Loc-LX.
+
+**Date:** 2026-09-12
 
 ## D8. Should the invitation resolution codes be named?
 
@@ -425,11 +481,35 @@ never defines.
 | A. Enumerate the seven codes in `DB-011` with the situation that produces each. | A reader of Project History can interpret what they see. The list must be updated whenever the schema adds a value. |
 | B. Leave the behavior statement as the specification and treat codes as an implementation detail. | Then no history surface may display a raw code, which is a constraint worth stating rather than assuming. |
 
-**If forced to assume**, A.
+**Decision:** A. `DB-011` now names every code with the situation that produces
+it, read from `InvitationResolutionCode` and the service that assigns each one.
 
-**Decision:**
-**Decided by:**
-**Date:**
+One correction to the evidence above: there are **eight** codes, not seven. The
+earlier count missed `INVITEE_INELIGIBLE`, which is present in both the enum and
+the database constraint, so the two agree and there was no defect to find.
+
+| Code | Produced when |
+|---|---|
+| `INVITEE_ACCEPTED` | the intended Intern accepted and became a member |
+| `INVITEE_DECLINED` | the intended Intern declined |
+| `INVITER_REVOKED` | the issuing Leader withdrew it |
+| `MENTOR_REVOKED` | the owning Mentor withdrew it |
+| `LEADER_CHANGED` | the issuing leadership term ended before any response |
+| `PROJECT_COMPLETED` | Project completion superseded it |
+| `INVITEE_INELIGIBLE` | the intended Intern stopped satisfying eligibility |
+| `MENTOR_DIRECT_ADD` | a direct Mentor addition superseded it |
+
+**One design choice here departs from common practice and is recorded rather
+than hidden.** `PRJ-018` gives an invitation no time expiry, where most systems
+expire one after days. What makes it defensible is that the emailed link is not a
+bearer token: it opens only the authenticated response page, so a stale link
+grants nothing to whoever holds it. In a laboratory where an invitation may wait
+through a term break, never expiring is the more useful behavior. A reviewer who
+disagrees should raise it as a new decision rather than treat it as an oversight.
+
+**Decided by:** derived from the code, confirmed by Loc-LX.
+
+**Date:** 2026-09-12
 
 ## D9. Should the SMTP port range be stated?
 
@@ -448,11 +528,23 @@ caller would reasonably attempt.
 | A. State it with the other SMTP field rules. | Complete, at the cost of a rule that carries no business judgement. |
 | B. Record that generic data-type validation is not specified as business rules, and apply that consistently. | Shorter specification, and one stated reason covering every similar constraint instead of a rule for each. |
 
-**If forced to assume**, B.
+**Decision:** A, with the range stated as what it is. `INT-007` now says the port
+is an integer from 1 through 65535.
 
-**Decision:**
-**Decided by:**
-**Date:**
+That is the whole valid TCP port space, so it constrains nothing a caller would
+reasonably attempt. It is written down because a reader comparing the rules
+against the schema should find every constraint accounted for, and because
+silence would leave them wondering whether the bound was deliberate.
+
+Conventional SMTP ports are 25, 465, 587, and sometimes 2525. THE system does not
+restrict to those, and deliberately so: a laboratory relay may listen anywhere.
+What makes the wide range safe is `INT-007` itself, which rejects plaintext
+`NONE` under the production profile, so a permissive port cannot become a
+plaintext channel in production.
+
+**Decided by:** Loc-LX.
+
+**Date:** 2026-09-12
 
 ## What the audit checked and found sound
 
