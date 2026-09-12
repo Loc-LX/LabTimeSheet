@@ -1369,13 +1369,16 @@ needs. None is outstanding.
 |---:|---|---|---|
 | OQ-1 | Does this product require exact version pinning for test tooling, or is a compatible range sufficient? | A compatible range is sufficient. Each verification run records the version it resolved, and no test asserts equality against a tool version. `ARC-004` now states this. | 11 September 2026 |
 
-Closing OQ-1 settles the specification question and does not by itself repair the
-pipeline. `src/test/js/playwright-contract.test.mjs` still asserts equality
-against `1.55.0` while `package.json` declares `^1.62.1`, and that assertion now
-contradicts `ARC-004`. Removing it is an ordinary defect fix with its own
-verification, not a specification change, and it needs the four checks recorded
-under D4 in the decision record: why the pin existed, what the upgrade altered,
-what the lockfile resolves to, and an actual run rather than an inference.
+Closing OQ-1 settled the specification question and did not by itself repair the
+pipeline. `src/test/js/playwright-contract.test.mjs` asserted equality against
+`1.55.0` while `package.json` declared `^1.62.1`, and that assertion contradicted
+`ARC-004`. The repair was an ordinary defect fix with its own verification rather
+than a specification change, and it waited on the four checks recorded under D4
+in the decision record: why the pin existed, what the upgrade altered, what the
+lockfile resolves to, and an actual run rather than an inference. All four are
+answered there. The assertion now requires a compatible range, refuses an exact
+pin, checks that the lockfile resolves inside that range, and records the
+resolved version on every run.
 
 ## Appendix A. Implementation dependency notes
 

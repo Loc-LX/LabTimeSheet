@@ -108,7 +108,7 @@ stated so that a reviewer knows to ask, not because anything here enforces them.
 | `ARC-001` | One server-rendered modular monolith on Java 25 and Spring Boot 4.1.0. | the build refuses to compile on another version; no test asserts the shape |
 | `ARC-002` | Backend uses Maven, Spring MVC, Security, Data JPA, Bean Validation, Thymeleaf, Spring Mail, and Flyway. | `ReportingDependencyContractTest` covers the reporting libraries only |
 | `ARC-003` | PostgreSQL 18.4 is the database family for production, development, and integration tests. PostgreSQL-specific rules are tested against PostgreSQL, never H2. | Testcontainers configuration in `TestcontainersConfiguration` |
-| `ARC-004` | The UI toolchain pins Node 24 LTS and Tailwind CSS 4, uses `npm ci`, and commits the lockfile. Test tooling is constrained to a compatible range instead, no test asserts equality against a tool version, and each run records the version it resolved. | the `Set up Node 24`, `npm ci`, and `Verify generated assets are committed` steps of `.gitea/workflows/verify.yml`; the ban on version equality is currently broken, see the gap table |
+| `ARC-004` | The UI toolchain pins Node 24 LTS and Tailwind CSS 4, uses `npm ci`, and commits the lockfile. Test tooling is constrained to a compatible range instead, no test asserts equality against a tool version, and each run records the version it resolved. | the `Set up Node 24`, `npm ci`, and `Verify generated assets are committed` steps of `.gitea/workflows/verify.yml`; the compatible-range rule, the ban on version equality, and the recording rule by `src/test/js/playwright-contract.test.mjs` |
 | `ARC-005` | `LabtimesheetApplication` stays in the root package. Shared wiring lives in `config`. Business code groups under `feature.<name>` for `account`, `attendance`, `integration`, `notification`, `project`, `reporting`, and `task`, each adding only the layer subpackages it needs. Tests mirror those packages. | `LayerStructureTest`, `AttendanceLayerStructureTest` |
 | `ARC-006` | Controllers bind validated DTOs and delegate to services; services use repositories and entities. A feature may call another feature's service contract and DTOs but never its repositories or entities. No business SQL. Flyway and schema verification are the only direct-SQL boundary. | `LayerStructureTest` |
 | `ARC-007` | Flyway is the sole production schema authority. JPA schema generation is validation-only outside disposable tests. | `PlatformFoundationTest#flywayCreatesApprovedPostgresCatalog` |
@@ -261,10 +261,14 @@ that check and remains outside this list.
 
 The whole document was re-read on 12 September 2026. Every test class and method
 name it cites still resolves. That pass found three further defects, of three
-different kinds, all recorded here or in the row itself: `TST-008` stated wording
-that `ADR-004` had already replaced, `ARC-008` claimed an enforcement no file here
-can provide, and `ARC-004` is not merely unenforced but actively broken by a test
-in this repository.
+different kinds: `TST-008` stated wording that `ADR-004` had already replaced,
+`ARC-008` claimed an enforcement no file here can provide, and `ARC-004` was not
+merely unenforced but actively broken by a test in this repository.
+
+The first two are recorded in their own rows. The third was repaired the same
+day: the equality assertion in `src/test/js/playwright-contract.test.mjs` became
+a compatible-range check that also records the resolved version, so `ARC-004` is
+no longer a gap and has left the table below. `npm run test:ui` passes.
 
 A constitution that claims enforcement it does not have is worse than one that
 names its own gaps, and worse still when the claim survives because the class
@@ -279,7 +283,6 @@ name looks plausible.
 | `GOV-014` | Relies on schema constraints in `V1__baseline.sql`. | A test asserting that no repository exposes a hard-delete method for accounts, Projects, memberships, or Tasks. |
 | `ARC-001` | The build fails on the wrong Java version, which proves the version and not the architecture. | An architecture test asserting the module shape, alongside `LayerStructureTest`. |
 | `ARC-002` | `ReportingDependencyContractTest` covers the reporting libraries only. | Extend it to the rest of the declared stack, or accept the narrower claim. |
-| `ARC-004` | Not a gap but a live breach. `src/test/js/playwright-contract.test.mjs` line 8 asserts equality against `@playwright/test` version `1.55.0`, which the rule's third sentence forbids, while `package.json` declares `^1.62.1`. The assertion fails, which is why `npm run test:ui` is red on `main`. | Replace the equality assertion with a compatible-range check and record the resolved version in the run. That is D4's open action in [`reviews/open-decisions.md`](reviews/open-decisions.md), not a documentation change. |
 | `ARC-008` | Nothing in this repository can enforce it. `database-schema.sql` was authored in the separate documentation repository, stayed there, and has never appeared in any commit here, which the specification header states. The row previously claimed a Flyway catalog test as its enforcement; that test cannot observe an absent file. | Nothing, and that is the point. The rule records a completed one-time adaptation. `ARC-007` is what binds future schema work, and it is enforced. |
 | `OPS-016`, `OPS-017` | Both describe runner configuration. A repository cannot verify its own runner. | An operator confirms it outside this repository; nothing here can. |
 

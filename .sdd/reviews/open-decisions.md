@@ -31,7 +31,7 @@ they disagree, the application is wrong, and D7 is the case in point.
 | D1 | Admin access to detailed Intern attendance | Permitted | `RPT-004`, `RPT-011` |
 | D2 | External issue tracker in scope | Excluded; report presets deferred | `GOV-015` |
 | D3 | A separate document per feature | One canonical location per rule | `GOV-016` |
-| D4 | Exact version pinning for test tooling | Range is enough; action still open | `ARC-004` |
+| D4 | Exact version pinning for test tooling | Range is enough; action completed 12 September 2026 | `ARC-004` |
 | D5 | The recovered appendices | Edited, not kept as written | Appendices C–F |
 | D6 | Which HTTP status a denial returns | Three tiers, already coherent in code | `AUTH-002` |
 | D7 | Valid range of the monthly leave quota | 0 through 4, one fifth of a month | `ATT-003` |
@@ -234,10 +234,12 @@ appears in exactly one file.
 
 **Affects** `ARC-004`, and section 22.3 where this is recorded as OQ-1.
 
-`ARC-004` pins Node and Tailwind and says nothing about the test toolchain. A
-committed contract test asserts an exact Playwright version that `package.json`
-no longer matches. One of the two encodes a decision nobody wrote down, and the
-mismatch is why the pipeline on `main` fails.
+`ARC-004` pinned Node and Tailwind and said nothing about the test toolchain. A
+committed contract test asserted an exact Playwright version that `package.json`
+no longer matched. One of the two encoded a decision nobody wrote down, and the
+mismatch was why the pipeline on `main` failed.
+
+State when this was raised, on 11 September 2026:
 
 | Where | Value |
 |---|---|
@@ -255,27 +257,48 @@ mismatch is why the pipeline on `main` fails.
 The version actually used is recorded by each test run rather than asserted as an
 equality inside a test.
 
-The action that follows is **not** decided and is not a documentation change.
-Correcting one assertion would fix that assertion and prove nothing about the
-rest of the pipeline, so the change is handled separately with its own
-verification. Four things have to be established first.
+The action that follows was handled separately from the principle, with its own
+verification, because correcting one assertion proves nothing about the rest of
+the pipeline. Four things had to be established first. All four are answered.
 
-1. Why `1.55.0` was pinned, and whether any behavior depended on it.
-2. What the upgrade to `^1.62.1` changed. It was made inside commit `73df96b`, whose subject is `chore: remove redundant docs files` and which also deleted the requirements specification. The version change has no recorded reason of its own.
-3. What the lockfile resolves to now.
-4. An actual run, not an inference from the assertion.
+1. **Why `1.55.0` was pinned.** It entered with the harness itself in `6d2c967`, written as an exact version with no caret. No commit message, decision record, or document gives a reason, so it was a habit rather than a decision, and no behavior depended on it.
+2. **What the upgrade changed.** Commit `73df96b`, whose subject is `chore: remove redundant docs files`, moved the declaration to `^1.62.1` and updated the lockfile inside the same commit that deleted the requirements specification. The version change has no recorded reason of its own.
+3. **What the lockfile resolves to.** `1.62.1`, and the installed tree agrees. The upgrade was complete and internally consistent. Only the assertion lagged behind it.
+4. **An actual run.** Playwright `1.62.1` runs on this machine and its Chromium build is installed. The three end-to-end specs need the application and PostgreSQL, so they were not run. `npm run test:e2e` appears in no workflow either, so the pipeline has never run them.
 
-One consequence is already visible. The recording place used to be the
-hand-written evidence files under `docs/tests/`, removed by `ADR-004`.
-Recording per run therefore has to mean the pipeline prints the resolved version,
-not that a person types it into a file afterwards.
+Two things surfaced that were not part of the question.
 
-Until the investigation closes, this stays the open question in section 22.3,
-with an owner rather than an answer.
+`npm run test:ui` runs in both `.gitea/workflows/verify.yml` and
+`.gitea/workflows/container.yml`. One failing assertion therefore blocked
+verification and image publication together, while guarding a tool the pipeline
+never invokes.
 
-**Decided by:** Loc-LX for the principle. The action is unassigned and open.
+A second equality assertion sits at `src/test/js/chart-contract.test.mjs` line 12
+and pins `chart.js` to `4.5.1`. It is deliberately left alone. Chart.js is a
+runtime library vendored into the static assets rather than test tooling, and
+that assertion ties `package.json` to the committed `chart.umd.min.js`.
+`ARC-004` governs test tooling and does not reach it.
 
-**Date:** 2026-09-11
+One consequence was visible when the principle was decided. The recording place
+used to be the hand-written evidence files under `docs/tests/`, removed by
+`ADR-004`. Recording per run therefore has to mean the run itself prints the
+resolved version, not that a person types it into a file afterwards. The
+repaired assertion does that.
+
+**Action taken, 12 September 2026.** The equality assertion was replaced by three
+checks derived from `ARC-004`: the declared value is a caret range on the major
+this harness targets, it does not fall below the minor the harness was written
+against, and the lockfile resolves inside that range. The run prints the declared
+range and the resolved version. Both failure modes were demonstrated before the
+change was kept. Restoring an exact pin produces `must be declared as a caret
+range`, and declaring a range above what the lockfile holds produces `lockfile
+resolves 1.62.1, below the declared range`. `npm run test:ui` went from one
+failure to none, twenty of twenty.
+
+**Decided by:** Loc-LX, for the principle on 11 September 2026 and for the action
+on 12 September 2026.
+
+**Date:** 2026-09-11, action completed 2026-09-12
 
 ## D5. Do the recovered appendices stay in the baseline?
 
