@@ -37,6 +37,7 @@ they disagree, the application is wrong, and D7 is the case in point.
 | D7 | Valid range of the monthly leave quota | 0 through 4, one fifth of a month | `ATT-003` |
 | D8 | Naming the invitation resolution codes | All eight named with their cause | `DB-011` |
 | D9 | Stating the SMTP port range | 1 through 65535, a type constraint | `INT-007` |
+| D10 | Which stylesheet the desktop overflow contract requires | The assertion was wrong, not the stylesheet; action completed 12 September 2026 | none |
 
 D1 through D5 came from reading the specification against its own history. D6
 through D9 came from the audit described at the end of this page, which read the
@@ -54,10 +55,17 @@ every open one states the assumption that would be used if nobody answers. Read
 those as the price of the choice, not as a formality. Without them, "we can fix
 it later" is a hope rather than a plan.
 
-**All nine are answered, and all nine now match the code.** D7 was the only one
+**All ten are answered, and all ten now match the code.** D7 was the only one
 the application contradicted, and it was implemented on 12 September 2026 in
 commit `bf19a25`. Everything else either matched the shipped behavior already or
 was settled by writing down a rule the code was following without saying so.
+
+D10 arrived later and by a different route. It is not a gap in the specification
+but a contradiction between two tests, found on 12 September 2026 while checking
+why the branch was not green. It is recorded here because `AGENTS.md` forbids
+deleting a test assertion and the deletion therefore needed a decision rather
+than an edit. The page's opening definition does not cover it, and that is stated
+in the entry itself rather than by widening the definition.
 
 ## D1. May an Admin see one Intern's detailed attendance?
 
@@ -574,6 +582,88 @@ restrict to those, and deliberately so: a laboratory relay may listen anywhere.
 What makes the wide range safe is `INT-007` itself, which rejects plaintext
 `NONE` under the production profile, so a permissive port cannot become a
 plaintext channel in production.
+
+**Decided by:** Loc-LX.
+
+**Date:** 2026-09-12
+
+## D10. Which stylesheet does the desktop overflow contract require?
+
+**Affects** no numbered rule. This entry is different in kind from the nine above:
+it settles a contradiction between two tests, not a place where the specification
+stated something unsupported. `UI-002` and `UI-015` are unchanged by it.
+
+Two tests in this repository required incompatible versions of
+`src/main/frontend/app.css`.
+
+| Test | Required |
+|---|---|
+| `FrontendSourceContractTest#desktopLayoutContainsPageLevelOverflowContainment` | `min-width: 64rem` on `html` |
+| `src/test/js/narrow-screen-contract.test.mjs` | a `@media (max-width: 64rem)` block |
+
+Both cannot hold. A 64rem floor on `html` means the viewport never reports less
+than 64rem, so the narrow-screen block is dead code that no width can reach.
+
+The history says which one arrived later and why. Commit `f5eeb0b` added the Java
+assertion on 22 August 2026. Commit `6d2c967`, the same day, changed
+`min-width: 64rem` to `min-width: 0` and in the same diff added the
+`max-width: 64rem` and `max-width: 40rem` blocks and the JavaScript test that
+requires them. The floor was not dropped by accident; it was dropped because the
+narrow-screen layout it blocked was being added.
+
+The Java assertion has been red ever since, which `ADR-003` recorded on
+11 September 2026 as one of two genuine regressions on `main`. Because CI runs
+`./mvnw -B test`, `main` has been failing this check for three weeks.
+
+**Options**
+
+| Option | Consequence |
+|---|---|
+| A. Restore `min-width: 64rem` in the stylesheet. | The Java test passes and `narrow-screen-contract.test.mjs` becomes vacuous, asserting the presence of a block that can never apply. It also contradicts `UI-015`, which asks a narrower viewport to wrap or scroll rather than be blocked. |
+| B. Drop the `min-width` assertion and keep the other two. | The stylesheet is unchanged. Containment is still asserted through `overflow-x: hidden` on `body` and `max-width: 100%`, which are the declarations that actually prevent page-level overflow. |
+
+**Decision: option B.** The assertion was removed; the stylesheet and every
+template were left untouched.
+
+The reasoning is that `min-width: 64rem` was never the contract. No numbered rule
+asks for it, and the phrase "page-level overflow" that the test method is named
+after appears nowhere in the specification. `UI-015` requires tables to stay
+usable at desktop widths and asks narrower viewports to wrap or scroll. A minimum
+page width satisfies neither sentence; it prevents the second one from ever being
+exercised. What does satisfy the rule is horizontal containment on `body` and a
+per-table scroll region, and both remain asserted.
+
+**`AGENTS.md` forbids weakening an assertion to make a test pass, and this
+decision deletes one.** That prohibition is why this is recorded rather than
+quietly edited. The distinguishing fact is that the deleted assertion did not
+protect a requirement: it contradicted a passing test and a numbered rule. The
+two assertions that carry the intent were kept, and the method still fails if
+either is removed.
+
+**A second, smaller correction is recorded under the same decision.**
+`everyTemplateTableIsWrappedInAScrollRegion` walked every template containing a
+`<table>` and therefore included `reports/print.html`, which failed. That
+template is a standalone A4 landscape document with its own `<style>` block and
+no application shell; it is rendered to paper and PDF, where a horizontal scroll
+region does not exist. `UI-015` bounds its obligation to viewport width, so the
+print template is outside its scope and is now excluded by name, with the reason
+stated in the source.
+
+**Reversing this** costs one line in one test file, plus a decision about what to
+do with `narrow-screen-contract.test.mjs` and the two media blocks, which would
+have to be deleted with it. The stylesheet was not touched, so nothing else moves.
+
+**Implemented on 12 September 2026.** `FrontendSourceContractTest` failed first
+for the right reason: 28 tests, 2 failures, the `min-width` assertion and the
+`reports/print.html` parameter. After the change it runs 27 tests green, one fewer
+because the print template is no longer a parameter. `npm run test:ui` passes
+20 of 20, including the narrow-screen safeguard, so the two suites now agree.
+The class also gained the rule trace `TST-005` requires; it was one of the 118
+that carried none.
+
+Verification was run with JDK 25 and `-Duser.timezone=Asia/Ho_Chi_Minh`, which
+`ADR-003` records as necessary on Windows. Docker was not running, so no
+PostgreSQL suite was run; this class reads files and needs none.
 
 **Decided by:** Loc-LX.
 

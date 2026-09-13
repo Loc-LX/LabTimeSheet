@@ -41,7 +41,7 @@ The product joins attendance oversight and Project delivery without pretending t
 - Admins may preview and import Vietnamese holiday candidates from HolidayAPI, while the stored Admin decision remains authoritative. Manual calendar management remains available.
 - Mentors review global leave and correction queues and separately oversee only the Projects they own.
 - Reports cover attendance/compliance and Project/Task progress in HTML, Excel, and PDF from one shared dataset definition, with role-scoped access: active Mentors and Admins may inspect detailed Intern Attendance, Interns retain own-Attendance scope, and owning Mentors/current Leaders retain authorized Project/Task detail. Admins have no Project/Task or Daily report scope. Current Leaders can discover Daily reporting only for currently-led open Projects.
-- The authoritative requirements are `.sdd/requirements.md`. They document a system that is built: four iterations have shipped and the schema lives in Flyway. The document has passed its own quality gate but has not been formally approved, and one open question remains in its §22.3.
+- The authoritative requirements are `.sdd/requirements.md`. They document a system that is built: four iterations have shipped and the schema lives in Flyway. The document has passed its own quality gate but has not been formally approved. Its §22.3 open question `OQ-1` was closed on 11 September 2026 and none is outstanding; what approval still needs is listed in §22.2.
 
 ## Capabilities and Constraints
 

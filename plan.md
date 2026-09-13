@@ -68,6 +68,16 @@ Conflict-prevention rules:
 | 1 | Working vertical slice | Bootstrap users, create/activate Project, assign/change a Task, and check in/out with role-correct UI. | `DONE` | `b9b150ff8ca9333e3b46d77537ec91875a970d57` |
 | 2 | Complete business workflows | Policy/calendar changes, leave/corrections, leadership/member transfer, work logs, notifications, and full HTML workflows. | `DONE` | `c4f039663f86370b865df036e1756338529e47c9` |
 | 3 | Hardening and delivery | Historical/concurrency proof, production security, HTML/XLSX/PDF parity, accessibility, containers, and CI publication boundary. | `IN_PROGRESS` | — |
+| 4 | Partial Jira/Tempo vertical slice | Task estimates, remaining-effort forecasts, forecast-aware reassignment, and the Daily Project Work Report with export parity. | `IN_PROGRESS` | — |
+
+**Both open rows are open for the same reason, and it is not unfinished items.**
+All 31 tracked items of Iteration 3 and all 6 of Iteration 4 are `DONE`; §6.6 and
+§7 carry them. What neither iteration has is a recorded integration-gate result.
+Iterations 1 and 2 each close with a dated taskmaster exit result naming the
+suite counts and the integration commit, and §6.6 has no such paragraph while §7
+has no gate section at all. The status stays `IN_PROGRESS` because the gate is
+what the status tracks. `.sdd/requirements.md` §22.2 makes that same Iteration 3
+review one of the three conditions for approving the specification.
 
 ## 4. Iteration 1 — Working vertical slice
 
@@ -81,7 +91,7 @@ Conflict-prevention rules:
 | I1-PLAT-04 | Implement atomic first-Admin bootstrap and permanent bootstrap closure. | Concurrent submissions create exactly one first Admin; restart keeps bootstrap closed. | `DONE` | platform_agent / 2026-08-15 | Bootstrap/restart/concurrency evidence approved at `692b23e9b9891d360882671d8247965b44920b2f`; fresh local bootstrap passed. |
 | I1-PLAT-05 | Implement initial SMTP draft/test/active path sufficient for Mailpit onboarding. | Failed test cannot activate; tested revision supports delivery. | `DONE` | platform_agent / 2026-08-15 | Real local Mailpit draft, test delivery, activation, active-state, and health checks passed at the integrated head. |
 | I1-PLAT-06 | Create Mentor/Intern accounts, deliver activation, set first password, and authenticate/logout. | SMTP gate, single-use token, expiry, normalized email, role/state access. | `DONE` | platform_agent / 2026-08-15 | Activation/authentication evidence and independent review approved at `692b23e9b9891d360882671d8247965b44920b2f`. |
-| I1-PLAT-07 | Provide development Compose with PostgreSQL and Mailpit plus initial Gitea verification workflow. | Fresh developer start and branch/main verification. | `DEFERRED` | taskmaster / 2026-08-15 | Explicitly excluded from this exit gate; application containerization, Compose, and CI remain future work. |
+| I1-PLAT-07 | Provide development Compose with PostgreSQL and Mailpit plus initial Gitea verification workflow. | Fresh developer start and branch/main verification. | `DONE` | taskmaster / 2026-08-15, delivered later | Deferred out of the Iteration 1 exit gate, then delivered during Iteration 3 and not marked back. The subject of this item now exists and is verified on 13 September 2026: `compose.yaml`, `Dockerfile`, and both `.gitea/workflows/verify.yml` and `container.yml`. |
 
 ### 4.2 `work/projects`
 
