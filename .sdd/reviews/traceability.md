@@ -47,6 +47,17 @@ check found is recorded under [Re-derivation](#re-derivation-13-september-2026).
 The last two rows differ by 30. Those classes are named by no row here and are
 listed under the re-derivation.
 
+**The summary above and the mapping table below do not agree, and the summary is
+the one that has been checked.** The summary counts 253 rules as tested. The
+mapping table names a class for 219 and writes `none` for 50, of which only 16
+are the rules this page declares as unprotected or untestable. Thirty-four rules
+are therefore counted as tested here and marked `none` there. The disagreement
+predates the 13 September re-derivation, which examined only the 37 rules the page
+listed as unprotected and took the group counts as its baseline. It is recorded
+under [The thirty-four unreconciled rows](#the-thirty-four-unreconciled-rows)
+rather than resolved, because resolving it means repeating that pass over another
+thirty-four rules.
+
 ## Coverage by rule group
 
 Third column is rules a test could protect and none does. Fourth is rules no test
@@ -298,7 +309,7 @@ and `AccountRecoveryLockOrderIntegrationTest#concurrentAccountFirstConsumptionAn
 | `AUTH-010` | `ProjectTaskReportServiceTest` |
 | `AUTH-011` | `ProjectInvitationExitIntegrationTest`, `ProjectServiceIntegrationTest`, `ProjectTaskMutationContextTest`, `TaskControllerTest`, `TaskCreationIntegrationTest`, `TaskMutationBoundaryTest` |
 | `PRJ-001` | `ProjectControllerTest`, `ProjectEntityTest`, `ProjectServiceIntegrationTest` |
-| `PRJ-002` | none |
+| `PRJ-002` | `ProjectEntityTest`, `ProjectServiceIntegrationTest` |
 | `PRJ-003` | `ProjectEntityTest`, `ProjectInvitationExitIntegrationTest` |
 | `PRJ-004` | `ProjectControllerTest` |
 | `PRJ-005` | `ProjectEntityTest`, `ProjectServiceIntegrationTest` |
@@ -314,7 +325,7 @@ and `AccountRecoveryLockOrderIntegrationTest#concurrentAccountFirstConsumptionAn
 | `PRJ-015` | `TaskControllerTest`, `TaskCreationIntegrationTest`, `TaskDomainRulesTest` |
 | `PRJ-016` | `TaskCreationIntegrationTest`, `TaskDashboardServiceTest`, `TaskDomainRulesTest` |
 | `PRJ-017` | `BootstrapIntegrationTest`, `EligibleInternOptionIntegrationTest`, `ProjectEntityTest`, `ProjectInvitationExitIntegrationTest`, `ProjectServiceIntegrationTest` |
-| `PRJ-018` | none |
+| `PRJ-018` | `ProjectInvitationExitIntegrationTest` |
 | `PRJ-019` | `ProjectInvitationExitIntegrationTest` |
 | `PRJ-020` | `ProjectTaskMutationContextTest` |
 | `PRJ-021` | `ProjectTaskMutationContextTest` |
@@ -384,7 +395,7 @@ and `AccountRecoveryLockOrderIntegrationTest#concurrentAccountFirstConsumptionAn
 | `LEV-005` | none |
 | `LEV-006` | `AttendancePersistenceIntegrationTest` |
 | `LEV-007` | none |
-| `LEV-008` | none |
+| `LEV-008` | `LeaveApplicationServiceTest` |
 | `LEV-009` | `LeaveApplicationServiceTest` |
 | `LEV-010` | `AttendanceCorrectionApplicationServiceTest`, `AttendancePersistenceIntegrationTest`, `LeaveApplicationServiceTest` |
 | `LEV-011` | `AttendanceConcurrencyIntegrationTest`, `AttendancePersistenceIntegrationTest` |
@@ -486,7 +497,7 @@ and `AccountRecoveryLockOrderIntegrationTest#concurrentAccountFirstConsumptionAn
 | `OPS-019` | `ReportingDependencyContractTest` |
 | `OPS-020` | `AttendanceLayerStructureTest`, `ProjectPersistenceStructureTest` |
 | `OPS-021` | none |
-| `DB-001` | none |
+| `DB-001` | `PlatformFoundationTest` |
 | `DB-002` | `AttendancePersistenceIntegrationTest` |
 | `DB-003` | `AccountWebIntegrationTest`, `PlatformFoundationTest`, `ProjectServiceIntegrationTest` |
 | `DB-004` | `PlatformFoundationTest` |
@@ -532,6 +543,35 @@ and `ProjectTaskReportServiceTest` before this file was extracted, which
 [`ADR-004`](../rfcs/ADR-004-test-evidence-moves-into-the-test.md) records as the
 reason a Markdown trace cannot be trusted: it has no compiler. Both names are now
 the current ones, and no row names a class that does not exist.
+
+### The thirty-four unreconciled rows
+
+These rules are counted as tested by the summary and written `none` by the
+mapping table. One of the two is wrong about each of them, and which one is not
+yet established.
+
+`AUTH-007`, `LEV-002`, `LEV-005`, `LEV-007`, `LEV-012`, `OPS-001`, `OPS-004`,
+`OPS-006`, `OPS-007`, `OPS-008`, `OPS-009`, `OPS-011`, `OPS-012`, `OPS-014`,
+`OPS-015`, `OPS-016`, `OPS-021`, `PRJ-008`, `PRJ-010`, `PRJ-011`, `TSK-006`,
+`TSK-010`, `TSK-013`, `TSK-014`, `TSK-015`, `TSK-016`, `TSK-019`, `TSK-020`,
+`TSK-021`, `UI-011`, `UI-012`, `UI-015`, `UI-016`, `UI-017`.
+
+The `OPS` group carries seventeen of the thirty-four and is the clearest case.
+The summary counts nineteen of its twenty-one rules as tested; the mapping names
+a class for seven. Several `OPS` rules bind a contributor's environment or a
+runner's configuration and belong with `OPS-002` and `OPS-010` among the rules no
+test can protect, so part of this gap is likely a classification error rather than
+missing coverage.
+
+The 13 September pass found that twenty-three of the thirty-seven rules it checked
+were already protected while the page said `none`, so the mapping table
+understates coverage more often than it overstates it. That is a pattern, not a
+finding about these thirty-four. Each still has to be read against the test
+sources before a number here can be trusted.
+
+Four rows of this kind were resolved on 13 September rather than listed: `DB-001`,
+`LEV-008`, `PRJ-002` and `PRJ-018` were closed by new tests that day and their
+mapping rows were corrected with them.
 
 ### Classes that exist and no row names
 
