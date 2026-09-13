@@ -14,7 +14,7 @@ The rule it replaced them with, `TST-005`, puts the identifiers in the test
 source, where they can be read back mechanically and a table like this one is
 generated rather than maintained.
 
-Eight of the 121 classes carry that trace today. The other 113 predate the rule, so
+Nine of the 121 classes carry that trace today. The other 112 predate the rule, so
 for them this file is the only mapping and nothing detects it drifting from the
 tests. Treat a row here as a claim to verify, not a fact.
 
@@ -32,14 +32,14 @@ misfiled in one direction or the other. Both passes are recorded under
 were checked one by one against the test sources rather than against the extract.
 Twenty-three were already protected, four were protected in one half of the rule
 only, four bind people rather than the system and belong in the second table, and
-six were genuinely unprotected, two of which have since been closed. The counts below are current; what the
+six were genuinely unprotected, three of which have since been closed. The counts below are current; what the
 check found is recorded under [Re-derivation](#re-derivation-13-september-2026).
 
 | | Count |
 |---|---:|
 | Numbered rules in the specification | 269 |
-| Rules with at least one test class | 250 |
-| Rules a test could protect but none does | 4 |
+| Rules with at least one test class | 251 |
+| Rules a test could protect but none does | 3 |
 | Rules no test can protect, being process or scope statements | 15 |
 | Distinct test classes named below | 93 |
 | Test classes that exist under `src/test/java` | 121 |
@@ -51,7 +51,7 @@ listed under the re-derivation.
 
 Third column is rules a test could protect and none does. Fourth is rules no test
 can protect. The three right-hand columns sum to the rule count on every row, and
-the columns themselves sum to 250, 4 and 15.
+the columns themselves sum to 251, 3 and 15.
 
 | Group | Rules | Tested | Untested | Untestable |
 |---|---:|---:|---:|---:|
@@ -62,7 +62,7 @@ the columns themselves sum to 250, 4 and 15.
 | `CAL` | 9 | 9 | 0 | 0 |
 | `COR` | 9 | 9 | 0 | 0 |
 | `DB` | 13 | 13 | 0 | 0 |
-| `ERR` | 7 | 5 | 2 | 0 |
+| `ERR` | 7 | 6 | 1 | 0 |
 | `GOV` | 16 | 4 | 2 | 10 |
 | `INT` | 10 | 10 | 0 | 0 |
 | `LEV` | 12 | 12 | 0 | 0 |
@@ -77,12 +77,12 @@ the columns themselves sum to 250, 4 and 15.
 
 ## Rules no test protects
 
-These four rules describe behavior a test could assert, and none does. Each is a
+These three rules describe behavior a test could assert, and none does. Each is a
 place where the code can drift away from the requirement without anything
-failing. Two of the four were already known: the constitution lists `GOV-004` and
+failing. Two of the three were already known: the constitution lists `GOV-004` and
 `GOV-014` in its own gap table and says what would close each.
 
-Two of the original six were closed on 13 September 2026, each by a test that was
+Three of the original six were closed on 13 September 2026, each by a test that was
 run against the break it names and then run again after the production change was
 reverted.
 
@@ -90,14 +90,25 @@ reverted.
 |---|---|---|
 | `COR-003` | `AttendanceCorrectionApplicationServiceTest#correctionSubmissionDeadlineAnchorsToScheduledEndRatherThanTheCheckoutCutoff` | Anchoring the deadline to the checkout cutoff instead of scheduled end moves it from `2026-08-15T08:30:00Z` to `2026-08-15T09:00:00Z`, exactly the thirty minutes of checkout grace. |
 | `LEV-009` | `LeaveApplicationServiceTest#sameDayLeaveIsAcceptedBeforeScheduledStartAndRefusedFromItOnwards` | Replacing `!now.isBefore(firstCountedStart)` with `now.isAfter(firstCountedStart)` makes the boundary exclusive, so a request filed at exactly 08:30 local is accepted where the rule refuses it. |
+| `ERR-006` | `ReportingExportControllerWebTest#failedExportGenerationSurfacesAnErrorInsteadOfATruncatedDownload` | Catching the generation failure in the controller and answering `200` with an empty workbook hands the caller a truncated file that claims to have succeeded, and the test fails because no throwable is raised. |
 
-Neither test reads its expected value back from the implementation. Both derive
-it from the rule and from `ATT-002`, which fixes the seeded schedule at 08:30 to
-15:30 in `Asia/Ho_Chi_Minh` with thirty minutes of checkout grace.
+No test reads its expected value back from the implementation. The first two
+derive it from the rule and from `ATT-002`, which fixes the seeded schedule at
+08:30 to 15:30 in `Asia/Ho_Chi_Minh` with thirty minutes of checkout grace.
+
+`ERR-006` is recorded as covered with one clause qualified. The rule has three:
+return an error, persist no partial report, and close the response stream and any
+temporary resource. The first is asserted directly. The second has nothing to
+assert against, because `GOV-007` excludes a persisted `Report` entity, so the
+export writes to no store and no partial row can exist. The third holds by the
+shape of the seam rather than by a catch block: `ReportExportService` assembles
+the document into a `ByteArrayOutputStream` inside try-with-resources and returns
+`byte[]`, so a failure occurs before any status line, header or byte reaches the
+client. The test pins that ordering, which is what a refactor to streaming would
+break.
 
 | Rule | Group | What is missing |
 |---|---|---|
-| `ERR-006` | ERR | Nothing asserts that a failed report returns an error, persists no partial report, and closes the stream. No test method name is even adjacent to it. |
 | `ERR-007` | ERR | `PlatformFoundationTest#flywayCreatesApprovedPostgresCatalog` asserts the success path. Nothing simulates a failed migration, and `ProductionReadinessTest` fails readiness for other inputs only. |
 | `GOV-004` | GOV | Relies on the two domains staying in separate features with no shared read path. A test asserting that no reporting query joins attendance to work logs would close it. |
 | `GOV-014` | GOV | Relies on schema constraints in `V1__baseline.sql`. A test asserting that no repository exposes a hard-delete method for accounts, Projects, memberships, or Tasks would close it. |
@@ -421,7 +432,7 @@ and `AccountRecoveryLockOrderIntegrationTest#concurrentAccountFirstConsumptionAn
 | `ERR-003` | `ProjectInvitationExitIntegrationTest`, `TaskMutationBoundaryTest` |
 | `ERR-004` | `NotificationServiceIntegrationTest` |
 | `ERR-005` | `HolidayApiHttpClientTest`, `NotificationServiceIntegrationTest` |
-| `ERR-006` | none |
+| `ERR-006` | `ReportingExportControllerWebTest` |
 | `ERR-007` | none |
 
 ## Re-derivation, 13 September 2026
