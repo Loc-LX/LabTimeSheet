@@ -14,7 +14,7 @@ The rule it replaced them with, `TST-005`, puts the identifiers in the test
 source, where they can be read back mechanically and a table like this one is
 generated rather than maintained.
 
-Seven of the 121 classes carry that trace today. The other 114 predate the rule, so
+Eight of the 121 classes carry that trace today. The other 113 predate the rule, so
 for them this file is the only mapping and nothing detects it drifting from the
 tests. Treat a row here as a claim to verify, not a fact.
 
@@ -32,14 +32,14 @@ misfiled in one direction or the other. Both passes are recorded under
 were checked one by one against the test sources rather than against the extract.
 Twenty-three were already protected, four were protected in one half of the rule
 only, four bind people rather than the system and belong in the second table, and
-six were genuinely unprotected, one of which has since been closed. The counts below are current; what the
+six were genuinely unprotected, two of which have since been closed. The counts below are current; what the
 check found is recorded under [Re-derivation](#re-derivation-13-september-2026).
 
 | | Count |
 |---|---:|
 | Numbered rules in the specification | 269 |
-| Rules with at least one test class | 249 |
-| Rules a test could protect but none does | 5 |
+| Rules with at least one test class | 250 |
+| Rules a test could protect but none does | 4 |
 | Rules no test can protect, being process or scope statements | 15 |
 | Distinct test classes named below | 93 |
 | Test classes that exist under `src/test/java` | 121 |
@@ -51,7 +51,7 @@ listed under the re-derivation.
 
 Third column is rules a test could protect and none does. Fourth is rules no test
 can protect. The three right-hand columns sum to the rule count on every row, and
-the columns themselves sum to 249, 5 and 15.
+the columns themselves sum to 250, 4 and 15.
 
 | Group | Rules | Tested | Untested | Untestable |
 |---|---:|---:|---:|---:|
@@ -65,7 +65,7 @@ the columns themselves sum to 249, 5 and 15.
 | `ERR` | 7 | 5 | 2 | 0 |
 | `GOV` | 16 | 4 | 2 | 10 |
 | `INT` | 10 | 10 | 0 | 0 |
-| `LEV` | 12 | 11 | 1 | 0 |
+| `LEV` | 12 | 12 | 0 | 0 |
 | `NOT` | 10 | 10 | 0 | 0 |
 | `OPS` | 21 | 19 | 0 | 2 |
 | `PRJ` | 22 | 22 | 0 | 0 |
@@ -77,21 +77,26 @@ the columns themselves sum to 249, 5 and 15.
 
 ## Rules no test protects
 
-These five rules describe behavior a test could assert, and none does. Each is a
+These four rules describe behavior a test could assert, and none does. Each is a
 place where the code can drift away from the requirement without anything
-failing. Two of the five were already known: the constitution lists `GOV-004` and
+failing. Two of the four were already known: the constitution lists `GOV-004` and
 `GOV-014` in its own gap table and says what would close each.
 
-`COR-003` was the sixth and was closed on 13 September 2026 by
-`AttendanceCorrectionApplicationServiceTest#correctionSubmissionDeadlineAnchorsToScheduledEndRatherThanTheCheckoutCutoff`.
-The test was verified against the break it names: anchoring the deadline to the
-checkout cutoff instead of scheduled end moves it from `2026-08-15T08:30:00Z` to
-`2026-08-15T09:00:00Z`, exactly the thirty minutes of checkout grace, and the
-test fails on that change and passes when it is reverted.
+Two of the original six were closed on 13 September 2026, each by a test that was
+run against the break it names and then run again after the production change was
+reverted.
+
+| Rule | Test | Break it was verified against |
+|---|---|---|
+| `COR-003` | `AttendanceCorrectionApplicationServiceTest#correctionSubmissionDeadlineAnchorsToScheduledEndRatherThanTheCheckoutCutoff` | Anchoring the deadline to the checkout cutoff instead of scheduled end moves it from `2026-08-15T08:30:00Z` to `2026-08-15T09:00:00Z`, exactly the thirty minutes of checkout grace. |
+| `LEV-009` | `LeaveApplicationServiceTest#sameDayLeaveIsAcceptedBeforeScheduledStartAndRefusedFromItOnwards` | Replacing `!now.isBefore(firstCountedStart)` with `now.isAfter(firstCountedStart)` makes the boundary exclusive, so a request filed at exactly 08:30 local is accepted where the rule refuses it. |
+
+Neither test reads its expected value back from the implementation. Both derive
+it from the rule and from `ATT-002`, which fixes the seeded schedule at 08:30 to
+15:30 in `Asia/Ho_Chi_Minh` with thirty minutes of checkout grace.
 
 | Rule | Group | What is missing |
 |---|---|---|
-| `LEV-009` | LEV | Nothing asserts the same-day submission boundary. The rule fixes it exactly: a request whose first counted date is today is valid before 08:30 and invalid at or after it. |
 | `ERR-006` | ERR | Nothing asserts that a failed report returns an error, persists no partial report, and closes the stream. No test method name is even adjacent to it. |
 | `ERR-007` | ERR | `PlatformFoundationTest#flywayCreatesApprovedPostgresCatalog` asserts the success path. Nothing simulates a failed migration, and `ProductionReadinessTest` fails readiness for other inputs only. |
 | `GOV-004` | GOV | Relies on the two domains staying in separate features with no shared read path. A test asserting that no reporting query joins attendance to work logs would close it. |
@@ -297,7 +302,7 @@ and `AccountRecoveryLockOrderIntegrationTest#concurrentAccountFirstConsumptionAn
 | `LEV-006` | `AttendancePersistenceIntegrationTest` |
 | `LEV-007` | none |
 | `LEV-008` | none |
-| `LEV-009` | none |
+| `LEV-009` | `LeaveApplicationServiceTest` |
 | `LEV-010` | `AttendanceCorrectionApplicationServiceTest`, `AttendancePersistenceIntegrationTest`, `LeaveApplicationServiceTest` |
 | `LEV-011` | `AttendanceConcurrencyIntegrationTest`, `AttendancePersistenceIntegrationTest` |
 | `LEV-012` | none |
