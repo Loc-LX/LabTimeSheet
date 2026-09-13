@@ -14,7 +14,7 @@ The rule it replaced them with, `TST-005`, puts the identifiers in the test
 source, where they can be read back mechanically and a table like this one is
 generated rather than maintained.
 
-Six of the 121 classes carry that trace today. The other 115 predate the rule, so
+Seven of the 121 classes carry that trace today. The other 114 predate the rule, so
 for them this file is the only mapping and nothing detects it drifting from the
 tests. Treat a row here as a claim to verify, not a fact.
 
@@ -32,14 +32,14 @@ misfiled in one direction or the other. Both passes are recorded under
 were checked one by one against the test sources rather than against the extract.
 Twenty-three were already protected, four were protected in one half of the rule
 only, four bind people rather than the system and belong in the second table, and
-six are genuinely unprotected. The counts below are the corrected ones; what the
+six were genuinely unprotected, one of which has since been closed. The counts below are current; what the
 check found is recorded under [Re-derivation](#re-derivation-13-september-2026).
 
 | | Count |
 |---|---:|
 | Numbered rules in the specification | 269 |
-| Rules with at least one test class | 248 |
-| Rules a test could protect but none does | 6 |
+| Rules with at least one test class | 249 |
+| Rules a test could protect but none does | 5 |
 | Rules no test can protect, being process or scope statements | 15 |
 | Distinct test classes named below | 93 |
 | Test classes that exist under `src/test/java` | 121 |
@@ -51,7 +51,7 @@ listed under the re-derivation.
 
 Third column is rules a test could protect and none does. Fourth is rules no test
 can protect. The three right-hand columns sum to the rule count on every row, and
-the columns themselves sum to 248, 6 and 15.
+the columns themselves sum to 249, 5 and 15.
 
 | Group | Rules | Tested | Untested | Untestable |
 |---|---:|---:|---:|---:|
@@ -60,7 +60,7 @@ the columns themselves sum to 248, 6 and 15.
 | `ATT` | 18 | 18 | 0 | 0 |
 | `AUTH` | 11 | 11 | 0 | 0 |
 | `CAL` | 9 | 9 | 0 | 0 |
-| `COR` | 9 | 8 | 1 | 0 |
+| `COR` | 9 | 9 | 0 | 0 |
 | `DB` | 13 | 13 | 0 | 0 |
 | `ERR` | 7 | 5 | 2 | 0 |
 | `GOV` | 16 | 4 | 2 | 10 |
@@ -77,14 +77,20 @@ the columns themselves sum to 248, 6 and 15.
 
 ## Rules no test protects
 
-These six rules describe behavior a test could assert, and none does. Each is a
+These five rules describe behavior a test could assert, and none does. Each is a
 place where the code can drift away from the requirement without anything
-failing. Two of the six were already known: the constitution lists `GOV-004` and
+failing. Two of the five were already known: the constitution lists `GOV-004` and
 `GOV-014` in its own gap table and says what would close each.
+
+`COR-003` was the sixth and was closed on 13 September 2026 by
+`AttendanceCorrectionApplicationServiceTest#correctionSubmissionDeadlineAnchorsToScheduledEndRatherThanTheCheckoutCutoff`.
+The test was verified against the break it names: anchoring the deadline to the
+checkout cutoff instead of scheduled end moves it from `2026-08-15T08:30:00Z` to
+`2026-08-15T09:00:00Z`, exactly the thirty minutes of checkout grace, and the
+test fails on that change and passes when it is reverted.
 
 | Rule | Group | What is missing |
 |---|---|---|
-| `COR-003` | COR | The submission deadline is implemented as `scheduledEnd.plusSeconds(24 * 60 * 60)` in `AttendanceCorrectionApplicationService`, and the identifier `submissionDeadline` appears in no test file. The rule states a hand-checkable value, 15:30 the following day under the seeded defaults. |
 | `LEV-009` | LEV | Nothing asserts the same-day submission boundary. The rule fixes it exactly: a request whose first counted date is today is valid before 08:30 and invalid at or after it. |
 | `ERR-006` | ERR | Nothing asserts that a failed report returns an error, persists no partial report, and closes the stream. No test method name is even adjacent to it. |
 | `ERR-007` | ERR | `PlatformFoundationTest#flywayCreatesApprovedPostgresCatalog` asserts the success path. Nothing simulates a failed migration, and `ProductionReadinessTest` fails readiness for other inputs only. |
@@ -276,7 +282,7 @@ and `AccountRecoveryLockOrderIntegrationTest#concurrentAccountFirstConsumptionAn
 | `ATT-018` | `AttendancePersistenceIntegrationTest`, `HistoricalInternReportingWindowIntegrationTest` |
 | `COR-001` | `AttendanceCorrectionApplicationServiceTest`, `AttendancePersistenceIntegrationTest`, `AttendanceReadModelServiceTest` |
 | `COR-002` | `AttendanceCorrectionApplicationServiceTest`, `AttendancePersistenceIntegrationTest` |
-| `COR-003` | none |
+| `COR-003` | `AttendanceCorrectionApplicationServiceTest` |
 | `COR-004` | `AttendancePersistenceIntegrationTest` |
 | `COR-005` | `AttendanceConcurrencyIntegrationTest`, `AttendancePersistenceIntegrationTest` |
 | `COR-006` | `AttendanceCorrectionApplicationServiceTest`, `AttendancePersistenceIntegrationTest` |
