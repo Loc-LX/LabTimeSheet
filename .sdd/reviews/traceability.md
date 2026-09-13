@@ -14,7 +14,7 @@ The rule it replaced them with, `TST-005`, puts the identifiers in the test
 source, where they can be read back mechanically and a table like this one is
 generated rather than maintained.
 
-Six of the 122 classes carry that trace today. The other 116 predate the rule, so
+Six of the 121 classes carry that trace today. The other 115 predate the rule, so
 for them this file is the only mapping and nothing detects it drifting from the
 tests. Treat a row here as a claim to verify, not a fact.
 
@@ -42,9 +42,9 @@ check found is recorded under [Re-derivation](#re-derivation-13-september-2026).
 | Rules a test could protect but none does | 6 |
 | Rules no test can protect, being process or scope statements | 15 |
 | Distinct test classes named below | 93 |
-| Test classes that exist under `src/test/java` | 122 |
+| Test classes that exist under `src/test/java` | 121 |
 
-The last two rows differ by 29. Those classes are named by no row here and are
+The last two rows differ by 28. Those classes are named by no row here and are
 listed under the re-derivation.
 
 ## Coverage by rule group
@@ -441,7 +441,7 @@ the current ones, and no row names a class that does not exist.
 
 ### Classes that exist and no row names
 
-Twenty-nine of the 122 test classes under `src/test/java` are named by no row in
+Twenty-eight of the 121 test classes under `src/test/java` are named by no row in
 this file. They were written after the evidence records were extracted, or were
 never covered by one. Each is a class whose rules are unknown to this mapping,
 not a class that protects nothing.
@@ -457,7 +457,7 @@ not a class that protects nothing.
 `Iteration2ProjectWorkflowWebTest`, `Iteration2TaskWorkflowWebTest`,
 `NotificationInboxIntegrationTest`, `ProjectLifecycleLockIntegrationTest`,
 `ProjectQueryIndexIntegrationTest`, `ProjectQueryServiceLeaderDailyTest`,
-`ProjectTaskReportPageWebTest`, `TaskDefinitionRulesTest`,
+`TaskDefinitionRulesTest`,
 `TaskIteration3QueryTest`, `TaskProjectQueryTest`, `TaskTransferServiceTest`,
 `TaskWorkLogIntegrationTest`, `TaskWorkLogRulesTest`.
 

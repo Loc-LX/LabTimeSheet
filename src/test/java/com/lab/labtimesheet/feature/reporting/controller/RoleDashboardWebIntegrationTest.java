@@ -165,9 +165,15 @@ class RoleDashboardWebIntegrationTest {
             if ("/attendance/requests".equals(path)) {
                 request.andExpect(status().is3xxRedirection())
                         .andExpect(redirectedUrl("/attendance/leave"));
-            } else if ("/reports/daily".equals(path)) {
-                // A single current-led Project is deliberately resolved by the Daily controller
-                // before report rendering, so the conditional Intern navigation is a redirect.
+            } else if ("/reports/daily".equals(path) && "INTERN".equals(role)) {
+                // UI-019 shows this entry to an Intern only while a current leadership term makes
+                // at least one open Project eligible, and DailyProjectWorkReportController resolves
+                // that single Project before rendering, so the Intern entry is a redirect.
+                //
+                // A Mentor holds the same entry unconditionally and may own several Projects, so
+                // the controller renders the selector and answers 200. This branch tested every
+                // role until 13 September 2026 and the Mentor case was hidden behind a context
+                // failure in the same class.
                 request.andExpect(status().is3xxRedirection());
             } else {
                 request.andExpect(status().isOk());
