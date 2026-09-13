@@ -100,7 +100,7 @@ class RoleDashboardWebIntegrationTest {
                 new ProjectCreateCommand(
                         "Intern Portal",
                         "Portal refresh",
-                        LocalDate.of(2026, 8, 1),
+                        LocalDate.of(2026, 8, 14),
                         LocalDate.of(2026, 9, 30),
                         internId));
         projects.activate(mentorId, projectId);
