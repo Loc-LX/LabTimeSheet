@@ -36,6 +36,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.springframework.data.domain.Pageable;
 import org.junit.jupiter.api.Test;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.transaction.support.TransactionTemplate;
 
 class LeaveApplicationServiceTest {
@@ -152,6 +153,45 @@ class LeaveApplicationServiceTest {
                 .hasMessageContaining("first counted start");
         org.mockito.Mockito.verify(refusingRequests, org.mockito.Mockito.never())
                 .saveAndFlush(any(LeaveRequestEntity.class));
+    }
+
+    /**
+     * Protects the second half of {@code LEV-008}, which reserves the leave decision for an active
+     * Mentor and withholds it from an Admin. Observable break: the guard is loosened to any
+     * privileged role, and an Admin starts approving and rejecting leave, which also moves quota
+     * because an approval reserves it.
+     *
+     * <p>{@code AttendanceRole} carries `ADMIN`, so an Admin can reach these methods and the
+     * refusal has to be deliberate rather than a consequence of the type. The test asserts the
+     * refusal on both decisions and, separately, that nothing was read on the way to it: the guard
+     * runs before the request is looked up, so an Admin holding a guessed identifier learns neither
+     * whether it exists nor whose it is. That second assertion is what would fail if the guard were
+     * moved below the lookup while still refusing.
+     */
+    @Test
+    void anAdminCannotDecideLeaveAndIsRefusedBeforeAnyRequestIsRead() {
+        LeaveRequestRepository requests = mock(LeaveRequestRepository.class);
+        LeaveRequestDayRepository days = mock(LeaveRequestDayRepository.class);
+        AccountService accounts = mock(AccountService.class);
+        LeaveApplicationService service = new LeaveApplicationService(
+                Clock.fixed(Instant.parse("2026-08-14T01:00:00Z"), ZoneOffset.UTC),
+                mock(AttendancePolicyRepository.class),
+                requests,
+                days,
+                accounts,
+                mock(CalendarApplicationService.class),
+                mock(TransactionTemplate.class),
+                mock(NotificationService.class));
+        AttendanceActor admin = new AttendanceActor(9L, AttendanceRole.ADMIN);
+
+        assertThatThrownBy(() -> service.approve(admin, 77L))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("Only Mentors may decide leave");
+        assertThatThrownBy(() -> service.reject(admin, 77L))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("Only Mentors may decide leave");
+
+        org.mockito.Mockito.verifyNoInteractions(requests, days, accounts);
     }
 
     /**

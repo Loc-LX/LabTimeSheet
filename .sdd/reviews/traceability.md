@@ -14,7 +14,7 @@ The rule it replaced them with, `TST-005`, puts the identifiers in the test
 source, where they can be read back mechanically and a table like this one is
 generated rather than maintained.
 
-Eleven of the 123 classes carry that trace today. The other 112 predate the rule, so
+Fifteen of the 123 classes carry that trace today. The other 108 predate the rule, so
 for them this file is the only mapping and nothing detects it drifting from the
 tests. Treat a row here as a claim to verify, not a fact.
 
@@ -166,16 +166,35 @@ Writing a test now would decide the question by picking a side, which
 stays in the table above, and this note is the finding rather than a gap someone
 forgot to close.
 
-Four more rules are protected in one half and unprotected in the other. They are
-counted as tested above, because a rule with a test is not a rule with no test,
-but each is a smaller version of the same gap.
+Four rules were protected in one half only. They were counted as tested, because a
+rule with a test is not a rule with no test, but each was a smaller version of the
+same gap. All four were closed on 13 September 2026, after the six above.
 
-| Rule | Half that is protected | Half that is not |
-|---|---|---|
-| `LEV-008` | An active Mentor may approve or reject. | That an Admin may not decide leave. This is the authorization half. |
-| `PRJ-018` | Eligibility, the issuing leadership term, and the authenticated response. | At most one pending invitation per eligible Intern, and that an invitation never expires by time. |
-| `PRJ-002` | Activation and completion, from both the entity and the service side. | Nothing attempts to reopen a `COMPLETED` Project. |
-| `DB-001` | One column's type, `tasks.estimated_minutes`. | The schema-wide type policy, including the clause forbidding PostgreSQL enums, which one catalog query would settle. |
+| Rule | Half that had no test | Test that closed it | Break it was verified against |
+|---|---|---|---|
+| `LEV-008` | That an Admin may not decide leave. | `LeaveApplicationServiceTest#anAdminCannotDecideLeaveAndIsRefusedBeforeAnyRequestIsRead` | Loosening the guard from "is a Mentor" to "is not an Intern" lets an Admin through, and the expected refusal is not raised. |
+| `PRJ-002` | Nothing attempted to reopen a `COMPLETED` Project. | `ProjectEntityTest#aCompletedProjectCannotBeReopened` | Removing the lifecycle guard from activation. The first version of this test asserted only the exception type and still passed, because a completed Project fails the later "requires an active member" guard for an unrelated reason. Asserting the message is what makes it fail for the intended one. |
+| `DB-001` | The schema-wide type policy. | `PlatformFoundationTest#theSchemaUsesNoPostgresEnumsAndStoresEveryInstantWithItsZone` | A probe migration adding a PostgreSQL enum and a `timestamp without time zone` column, which the test reports by name. |
+| `PRJ-018` | At most one pending invitation per eligible Intern. | `ProjectInvitationExitIntegrationTest#aSecondPendingInvitationForTheSameInternIsRefused` | Asserting the exception type alone, which this service raises for many rules; the message and the surviving row count are asserted as well. |
+
+Two of these are worth reading before trusting a test that resembles them.
+
+`PRJ-002` is the clearest illustration of why the verification step exists. The
+first version asserted `ProjectRuleViolationException` and passed with the
+lifecycle guard removed, because a completed Project has no open memberships and
+so fails a later guard with the same exception type. The test looked correct, ran
+green, and protected nothing.
+
+`DB-001` is asserted over the whole public schema rather than over a list of
+columns, so a new table is covered the day it is created. Its surrogate-key
+assertion is scoped to columns named `id`: three tables key on natural values
+instead, `attendance_policy_workdays`, `leave_request_days` and `system_state`,
+and a first attempt that asserted over every primary key column failed on exactly
+those three.
+
+`PRJ-018` keeps one clause uncovered. The rule also says an invitation never
+expires by time, and asserting the absence of an expiry path needs a different
+instrument than a test that issues one invitation.
 
 These 15 are process or scope statements. They bind people and
 review, not code, so the absence of a test is correct rather than a gap.

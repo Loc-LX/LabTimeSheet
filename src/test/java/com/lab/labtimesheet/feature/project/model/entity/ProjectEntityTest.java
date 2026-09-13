@@ -157,6 +157,41 @@ class ProjectEntityTest {
                 () -> project.complete(10L, CREATED_AT.plusSeconds(180)));
     }
 
+    /**
+     * Protects the second sentence of {@code PRJ-002}, which forbids reopening a `COMPLETED`
+     * Project. Observable break: the activation guard is relaxed from "only a planned Project" to
+     * anything that is not already active, and a finished Project can be brought back to life. Its
+     * memberships and leadership terms were closed at completion, so it would reopen without a
+     * current Leader and without members, which `PRJ-005` requires every open Project to have.
+     *
+     * <p>The forward transitions and the refusal to complete twice are asserted by the tests above.
+     * The path back was the one nothing tried.
+     *
+     * <p>The message is asserted, not merely the exception type, and that distinction is the whole
+     * test. Completion closes every membership and leadership term, so a reopened Project also
+     * fails the "requires an active member" guard and raises the same exception type for an
+     * unrelated reason. An assertion on the type alone passes even after the lifecycle guard is
+     * removed, which was checked. Pinning the message makes the test fail for the intended reason
+     * and only that one. The unchanged status is asserted as well, because a guard that threw after
+     * mutating would satisfy the first assertion.
+     */
+    @Test
+    void aCompletedProjectCannotBeReopened() {
+        var project = plannedProject();
+        project.activate(10L, Set.of(20L), true, CREATED_AT.plusSeconds(60));
+        project.complete(10L, CREATED_AT.plusSeconds(120));
+
+        ProjectRuleViolationException refusal = assertThrows(ProjectRuleViolationException.class,
+                () -> project.activate(10L, Set.of(20L), true, CREATED_AT.plusSeconds(180)));
+
+        assertTrue(
+                refusal.getMessage().contains("Only a planned Project can be activated"),
+                "PRJ-002 must refuse a COMPLETED Project at the lifecycle guard, "
+                        + "not incidentally at a later one. Actual: " + refusal.getMessage());
+        assertEquals(ProjectStatus.COMPLETED, project.status());
+        assertEquals(CREATED_AT.plusSeconds(120), project.completedAt());
+    }
+
     private static ProjectEntity plannedProject() {
         return ProjectEntity.plan(
                 10L,
