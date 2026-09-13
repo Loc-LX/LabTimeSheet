@@ -14,7 +14,7 @@ The rule it replaced them with, `TST-005`, puts the identifiers in the test
 source, where they can be read back mechanically and a table like this one is
 generated rather than maintained.
 
-Ten of the 122 classes carry that trace today. The other 112 predate the rule, so
+Eleven of the 123 classes carry that trace today. The other 112 predate the rule, so
 for them this file is the only mapping and nothing detects it drifting from the
 tests. Treat a row here as a claim to verify, not a fact.
 
@@ -32,26 +32,26 @@ misfiled in one direction or the other. Both passes are recorded under
 were checked one by one against the test sources rather than against the extract.
 Twenty-three were already protected, four were protected in one half of the rule
 only, four bind people rather than the system and belong in the second table, and
-six were genuinely unprotected, four of which have since been closed. The counts below are current; what the
+six were genuinely unprotected, five of which have since been closed. The counts below are current; what the
 check found is recorded under [Re-derivation](#re-derivation-13-september-2026).
 
 | | Count |
 |---|---:|
 | Numbered rules in the specification | 269 |
-| Rules with at least one test class | 252 |
-| Rules a test could protect but none does | 2 |
+| Rules with at least one test class | 253 |
+| Rules a test could protect but none does | 1 |
 | Rules no test can protect, being process or scope statements | 15 |
 | Distinct test classes named below | 93 |
-| Test classes that exist under `src/test/java` | 122 |
+| Test classes that exist under `src/test/java` | 123 |
 
-The last two rows differ by 29. Those classes are named by no row here and are
+The last two rows differ by 30. Those classes are named by no row here and are
 listed under the re-derivation.
 
 ## Coverage by rule group
 
 Third column is rules a test could protect and none does. Fourth is rules no test
 can protect. The three right-hand columns sum to the rule count on every row, and
-the columns themselves sum to 252, 2 and 15.
+the columns themselves sum to 253, 1 and 15.
 
 | Group | Rules | Tested | Untested | Untestable |
 |---|---:|---:|---:|---:|
@@ -63,7 +63,7 @@ the columns themselves sum to 252, 2 and 15.
 | `COR` | 9 | 9 | 0 | 0 |
 | `DB` | 13 | 13 | 0 | 0 |
 | `ERR` | 7 | 7 | 0 | 0 |
-| `GOV` | 16 | 4 | 2 | 10 |
+| `GOV` | 16 | 5 | 1 | 10 |
 | `INT` | 10 | 10 | 0 | 0 |
 | `LEV` | 12 | 12 | 0 | 0 |
 | `NOT` | 10 | 10 | 0 | 0 |
@@ -77,12 +77,14 @@ the columns themselves sum to 252, 2 and 15.
 
 ## Rules no test protects
 
-These two rules describe behavior a test could assert, and none does. Each is a
-place where the code can drift away from the requirement without anything
-failing. Both were already known before this re-derivation: the constitution
-lists `GOV-004` and `GOV-014` in its own gap table and says what would close each.
+This rule describes behavior a test could assert, and none does. It is a place
+where the code can drift away from the requirement without anything failing. It
+was already known before this re-derivation, because the constitution lists
+`GOV-014` in its own gap table. What the constitution proposes as the closure
+does not hold, and writing the test is what established that; the reason is under
+[GOV-014](#gov-014-is-left-open-deliberately).
 
-Four of the original six were closed on 13 September 2026, each by a test that was
+Five of the original six were closed on 13 September 2026, each by a test that was
 run against the break it names and then run again after the production change was
 reverted.
 
@@ -120,8 +122,49 @@ PostgreSQL-specific rule.
 
 | Rule | Group | What is missing |
 |---|---|---|
-| `GOV-004` | GOV | Relies on the two domains staying in separate features with no shared read path. A test asserting that no reporting query joins attendance to work logs would close it. |
-| `GOV-014` | GOV | Relies on schema constraints in `V1__baseline.sql`. A test asserting that no repository exposes a hard-delete method for accounts, Projects, memberships, or Tasks would close it. |
+| `GOV-014` | GOV | Relies on schema constraints in `V1__baseline.sql`. The closure the constitution proposes cannot be written as stated; see below. |
+
+### `GOV-014` is left open deliberately
+
+The constitution proposes closing this rule with "a test asserting that no
+repository exposes a hard-delete method for accounts, Projects, memberships, or
+Tasks". Attempting it on 13 September 2026 established that the check cannot be
+written as stated, and why is a question for a person rather than a test.
+
+Two things are in the way.
+
+**Most repositories inherit delete.** They extend `JpaRepository`, which carries
+`delete`, `deleteById` and `deleteAll` whether or not a repository declares them.
+A test asserting that no such method is exposed would fail on every one of them
+and would be asserting something the project never chose.
+
+**A Project can be deleted through the interface, and no numbered rule says so.**
+`ProjectController` maps `POST /projects/{projectId}/delete`, reachable from
+`projects/detail.html`, and `ProjectService` answers it with native SQL that
+deletes rows from `task_comments`, `task_work_logs`, `tasks`,
+`project_membership_exit_requests`, `project_invitations`,
+`project_leadership_terms`, `project_memberships` and `projects`. Five of those
+eight hold record kinds `GOV-014` names: Project, membership, Task, comment and
+work log.
+
+The operation is guarded. Only the owning Mentor may invoke it and only while the
+Project is `PLANNED`, and `PRJ-013` refuses work logging until a Project is
+`ACTIVE`, so `task_work_logs` should be empty whenever it runs. That bounds the
+history at risk; it does not reconcile the rule, because `GOV-014` states no
+exception, `PRJ-002` defines the Project lifecycle as `PLANNED → ACTIVE →
+COMPLETED` and never mentions deletion, and `GOV-006` says a feature absent from
+the specification needs a new reviewed decision.
+
+A third rule is touched. `ARC-006` makes Flyway and schema verification the only
+direct-SQL boundary, and this is business SQL in a service. The existing check
+for that, `TaskPersistenceStructureTest#taskBusinessCodeContainsNoDirectJdbcOrSqlImports`,
+scans the `task` feature only, so the `project` feature has never been covered by
+it.
+
+Writing a test now would decide the question by picking a side, which
+`AGENTS.md` §8 reserves for a person and says produces an ADR. The rule therefore
+stays in the table above, and this note is the finding rather than a gap someone
+forgot to close.
 
 Four more rules are protected in one half and unprotected in the other. They are
 counted as tested above, because a rule with a test is not a rule with no test,
@@ -178,7 +221,7 @@ and `AccountRecoveryLockOrderIntegrationTest#concurrentAccountFirstConsumptionAn
 | `GOV-001` | none |
 | `GOV-002` | none |
 | `GOV-003` | none |
-| `GOV-004` | none |
+| `GOV-004` | `AttendanceAndTaskWorkSeparationTest` |
 | `GOV-005` | `AttendancePersistenceIntegrationTest` |
 | `GOV-006` | none |
 | `GOV-016` | none |
@@ -473,7 +516,7 @@ the current ones, and no row names a class that does not exist.
 
 ### Classes that exist and no row names
 
-Twenty-nine of the 122 test classes under `src/test/java` are named by no row in
+Thirty of the 123 test classes under `src/test/java` are named by no row in
 this file. They were written after the evidence records were extracted, or were
 never covered by one. Each is a class whose rules are unknown to this mapping,
 not a class that protects nothing.
