@@ -53,7 +53,7 @@ is. Whether an exception exists at all is stated by the rule's own row.
 | `GOV-011` | Business dates resolve in the attendance policy version's timezone. Persisted instants are `timestamptz` and treated as UTC. | `ApplicationTimeZoneIntegrationTest` covers alias canonicalization before startup only; resolution against the policy version is a gap |
 | `GOV-012` | Server time is authoritative for check-in, checkout, submission, decision, activation, expiry, and lifecycle timestamps. Browser timestamps are never trusted. | `AttendanceServiceTest#exactCheckInGraceBoundaryIsOnTimeAndFirstLaterInstantIsLate`, `#checkoutIsInclusiveAtCutoffAndCannotBeOverwritten` |
 | `GOV-013` | Mutable aggregate updates are transactional and use optimistic locking. Quota, daily work totals, bootstrap, and transfer workflows serialize further. | `BootstrapIntegrationTest#concurrentBootstrapCreatesExactlyOneAdminAndPermanentlyCloses`, `AccountRecoveryLockOrderIntegrationTest#concurrentAccountFirstConsumptionAndIssuanceComplete` |
-| `GOV-014` | Historical records are retained behind restrictive foreign keys and lifecycle or soft-delete fields. Normal UI operations never physically delete accounts, Projects, memberships, or Tasks. | No single test. Enforced by schema constraints in `V1__baseline.sql`. |
+| `GOV-014` | Historical records are retained behind restrictive foreign keys and lifecycle or soft-delete fields. The interface never physically deletes a record that carries business history; the only deletion it offers is an empty `PLANNED` Project under `PRJ-002`. | No single test. Schema constraints in `V1__baseline.sql`; the emptiness condition of `PRJ-002` is not yet implemented. |
 
 ### Security
 
@@ -143,8 +143,7 @@ scenario to define what replaces it.
 
 `GOV-015` adds the Task effort-planning boundary: no external Jira or Tempo
 integration, no Jira mirroring, no Tempo accounts or synchronization, no
-`SUBMITTED` Leader acceptance workflow, and no continuous replanning unrelated to
-worked reassignment.
+acceptance or rejection states for Tasks, and no re-baselining once work is retained.
 
 Weekly and Monthly report presets are **deferred, not excluded**. They sit
 outside the v1 acceptance scope and may be built later, which is the second row
