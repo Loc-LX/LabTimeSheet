@@ -127,8 +127,8 @@ the specification is missing, recover it from history rather than rewriting it.
 correct and [`.sdd/rfcs/ADR-002-attendance-report-scope.md`](.sdd/rfcs/ADR-002-attendance-report-scope.md)
 explains why. Do not "fix" the code to match older wording.
 
-**Verify a path before trusting its name.** The specification lives at
-`.sdd/requirements.md`. Some evidence records cite an
+**Verify a path before trusting its name.** The specification lives in
+`.sdd/specs/`, one spec per feature, indexed by `.sdd/requirements.md`. Some evidence records cite an
 older location; they are dated records and are left as written.
 
 ## Useful commands

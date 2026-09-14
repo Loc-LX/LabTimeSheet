@@ -43,9 +43,9 @@ layouts stay best effort; desktop is the supported target.
 | What must always be true of this system | [`.sdd/constitution.md`](.sdd/constitution.md) |
 | How do I set up and contribute | [CONTRIBUTING.md](CONTRIBUTING.md) |
 | What is the product and who are its users | [`.sdd/product.md`](.sdd/product.md) |
-| What do the domain terms mean | [`.sdd/requirements.md`](.sdd/requirements.md), section 2 |
+| What do the domain terms mean | [the platform spec](.sdd/specs/feature-platform/SPEC.md), §2 |
 | What do we assume but have not confirmed | [`.sdd/product.md`](.sdd/product.md), Assumptions |
-| What are the numbered requirements | [`.sdd/requirements.md`](.sdd/requirements.md) |
+| What are the numbered requirements | [`.sdd/specs/`](.sdd/specs), indexed by [`.sdd/requirements.md`](.sdd/requirements.md) |
 | Why was a decision made | [`.sdd/rfcs/`](.sdd/rfcs) |
 | Which libraries and versions, and why | [`.sdd/constraints/tech-stack.md`](.sdd/constraints/tech-stack.md) |
 | What are the UI design tokens | [`docs/architecture/design-system.md`](docs/architecture/design-system.md) |

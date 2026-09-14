@@ -28,9 +28,9 @@ they disagree, the application is wrong, and D7 is the case in point.
 
 | | Question | Answer | Rules it changes |
 |---|---|---|---|
-| D1 | Admin access to detailed Intern attendance | Permitted | `RPT-004`, `RPT-011` |
+| D1 | Admin access to detailed Intern attendance | Permitted; confirmed by the instructor on 14 September 2026, with the fields listed | `RPT-004`, `RPT-011` |
 | D2 | External issue tracker in scope | Excluded; report presets deferred | `GOV-015` |
-| D3 | A separate document per feature | One canonical location per rule | `GOV-016` |
+| D3 | A separate document per feature | One canonical location per rule; the split into feature specs was carried out on 14 September 2026 | `GOV-016` |
 | D4 | Exact version pinning for test tooling | Range is enough; action completed 12 September 2026 | `ARC-004` |
 | D5 | The recovered appendices | Edited, not kept as written | Appendices C–F |
 | D6 | Which HTTP status a denial returns | Three tiers, already coherent in code | `AUTH-002` |
@@ -40,6 +40,7 @@ they disagree, the application is wrong, and D7 is the case in point.
 | D10 | Which stylesheet the desktop overflow contract requires | The assertion was wrong, not the stylesheet; action completed 12 September 2026 | none |
 | D11 | Whether approving the specification waits for the Iteration 3 integrated review | No; resolving every code and specification disagreement is the condition instead | §22.2 |
 | D12 | Whether a Project may be deleted | Only a `PLANNED` Project, only by its owning Mentor; pending confirmation with the instructor | `GOV-014`, `PRJ-002` |
+| D13 | Whether an owning Mentor may change a Task's status | Open: the code permits it on an `ACTIVE` Project, the rules refuse it | `AUTH-008`, `TSK-007` |
 
 D1 through D5 came from reading the specification against its own history. D6
 through D9 came from the audit described at the end of this page, which read the
@@ -139,6 +140,16 @@ map, and `AC-RPT-002`, and change `.sdd/product.md` and `README.md`.
 authority order in the absence of the instructor.
 
 **Date:** 2026-09-11
+
+**Confirmed by the instructor, 14 September 2026.** An Admin may view detailed Intern
+attendance. For now an Admin sees everything a Mentor sees; the instructor expects to
+remove some fields from Admin later. Two things follow. `RPT-004` now lists the fields
+of that dataset, so a later restriction names what it removes. And the plan must let
+the Admin field set change in one place: today it is decided in three,
+`SecurityConfiguration`, `AttendanceReportQueryService#authorize` where Admin and
+Mentor share one branch, and the shared layout, and none of them works per field.
+Still open: whether the instructor's "full access" also covers the Project/Task and
+Daily reports, which `RPT-005` and `RPT-011` deny to Admin.
 
 ## D2. Is the external issue tracker permanently out of scope?
 
@@ -251,6 +262,14 @@ appears in exactly one file.
 **Decided by:** Loc-LX.
 
 **Date:** 2026-09-11
+
+**Carried out on 14 September 2026.** The maintainer chose to follow the playbook's
+layout, and the specification now sits in eight specs under `.sdd/specs/`, one per
+code package plus a platform spec for the shared rules. The counts this entry
+predicted held: the platform spec carries 119 rules and the seven feature specs 150.
+A check confirmed that every identifier appears in exactly one spec, and
+`.sdd/requirements.md` became an index. `GOV-016` now says a feature's rules and
+scenarios live in that feature's spec.
 
 ## D4. Must test tooling versions be pinned exactly?
 
@@ -804,6 +823,36 @@ rule, pending confirmation with the instructor.
 
 **Date:** 2026-09-14
 
+**Open questions raised on 14 September 2026 by a domain analysis:** whether accepted
+invitations, comments and exit requests from Interns must survive the deletion;
+whether an `ACTIVE` Project can be abandoned, since today the only way out is to
+soft-delete its unfinished Tasks and complete it; whether former members are told,
+and what happens to notifications that link to the deleted Project; and whether a
+deletion needs a record or a way back. The same analysis found that an abandoned
+`PLANNED` Project keeps its Leader from completing or withdrawing, because the
+internship guard counts every current membership, so some way out of `PLANNED` is
+needed whatever the answer.
+
+## D13. May an owning Mentor change a Task's status?
+
+**Affects** `AUTH-008`, `TSK-007`, the section 5.2 permission matrix, and `AC-AUTH-004`.
+
+Found on 14 September 2026 while reading the Task service for `D12`.
+
+| | |
+|---|---|
+| What the rules say | Only the current assignee changes a Task's status. A Mentor may view and comment and is refused every status change. |
+| What the code does | `TaskService#changeStatus` lets the owning Mentor change the status of any Task on an `ACTIVE` Project. |
+| Evidence for the code | Commit `d897da0`, 24 August 2026, "Mentor task access"; `TaskCreationIntegrationTest#owningMentorCanChangeStatusForAnyTaskOnAnActiveProject`; `TaskMutationBoundaryTest#owningMentorCanChangeStatusForAnyProjectTask`; and `docs/tests/web/task-pages.md` of the same day: "The owning Mentor and current assignee may change status on an ACTIVE Project". |
+| Evidence for the rules | The prohibition dates from 17 August. Edits to the specification after 24 August did not touch these rules, so they neither confirmed nor revisited it. |
+
+The most-recent-decision rule does not settle this one. The code change is later, but
+nothing shows that anyone weighed it against the rule it breaks. Either answer is
+cheap to apply: the rules gain a Mentor exception, or the code loses one branch and
+two tests.
+
+**Status:** open.
+
 ## What the audit checked and found sound
 
 Listing what passed matters as much as what failed, because a reader otherwise
@@ -862,8 +911,9 @@ reverses it.
 
 | Item | Current answer | Why it needs the instructor |
 |---|---|---|
-| `D1` | An Admin sees one Intern's detailed attendance, as a Mentor does. | The rule moved three times. The latest move, restoring access on 30 August, has no written record; the denial before it has a written ruling. |
-| `D12` | Only a `PLANNED` Project may be deleted, only by its owning Mentor, with everything it owns. | The decision exists only in code, Javadoc and tests. A `PLANNED` Project can already hold Tasks and comments. |
-| `ACC-024` | Withdrawing an Intern deactivates the account, so the Intern cannot sign in to view their own history. A completed Intern can. | The difference between the two terminal states exists only in code. |
-| `COR-006` | A checkout set by an approved correction still counts as early departure when it falls before scheduled end. | The rules agree with each other and with the code; whether a corrected day should carry a violation is a policy question. |
+| `D1` | **Confirmed 14 September 2026.** An Admin sees every field a Mentor sees, listed in `RPT-004`. | Still open: whether "full access" covers the Project/Task and Daily reports. |
+| `D12` | Only a `PLANNED` Project may be deleted, only by its owning Mentor, with everything it owns. | The decision exists only in code, Javadoc and tests. The four questions recorded under `D12` are still open. |
+| `ACC-024` | **Confirmed 14 September 2026.** A withdrawn Intern cannot sign in; a completed Intern keeps a read-only account. | Still open: whether read-only lets a completed Intern change their password and manage sessions, as `ACC-023` permits. |
+| `COR-006` | A checkout set by an approved correction still counts as early departure when it falls before scheduled end. Approval confirms the time; it does not excuse the departure. | Whether the laboratory excuses early departures or late arrivals at all, whether an excused violation lowers compliance, and who approves it. No excuse exists in the rules or the code. |
 | Daily Project Work Report | A `DONE` Task logged by two authors on one date shows its lifetime actual, estimate and variance under each author. | `RPT-012` forbids productivity claims, but repeating one variance per author may read as one. No record exercised this case. |
+| `D13` | Open: the code lets an owning Mentor change a Task's status; the rules refuse it. | Whether a Mentor should be able to move a Task's status at all. |

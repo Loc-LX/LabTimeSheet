@@ -10,7 +10,7 @@ Read three things, in this order. It takes about twenty minutes and saves days.
 
 1. [README.md](README.md) for what the system does and where documentation lives.
 2. [`.sdd/constitution.md`](.sdd/constitution.md) for the rules that are not negotiable.
-3. The section of [`.sdd/requirements.md`](.sdd/requirements.md) covering the area you will touch.
+3. The spec under [`.sdd/specs/`](.sdd/specs) for the feature you will touch; [`.sdd/requirements.md`](.sdd/requirements.md) says which one.
 
 Two ideas are worth internalizing early. Attendance and Task work are separate
 domains and neither proves the other. Historical results must not change when
@@ -107,7 +107,7 @@ Name the numbered requirements the test protects, in the test itself:
 
 Record three things: the identifiers, the observable production break the test
 catches, and the expected value. Derive that value by hand from
-[the specification](.sdd/requirements.md) before looking at what the code
+[the specification](.sdd/specs) before looking at what the code
 produces. A test written from the implementation proves only that the code agrees
 with itself.
 

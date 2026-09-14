@@ -23,7 +23,7 @@ Check these before assuming anything. When two disagree, the higher row wins.
 | Question | Authority |
 |---|---|
 | What must always be true | [`.sdd/constitution.md`](.sdd/constitution.md) |
-| What the system must do | [`.sdd/requirements.md`](.sdd/requirements.md), 269 numbered rules |
+| What the system must do | [`.sdd/specs/`](.sdd/specs), eight specs and 269 numbered rules, indexed by [`.sdd/requirements.md`](.sdd/requirements.md) |
 | Why a decision was made | [`.sdd/rfcs/`](.sdd/rfcs) |
 | What is planned, and its status | [`plan.md`](plan.md) |
 | What behavior is already proven | [`.sdd/reviews/traceability.md`](.sdd/reviews/traceability.md), rule to test class |
