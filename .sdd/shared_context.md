@@ -1,7 +1,8 @@
-# Lab Timesheet Technology Stack
+# Shared context — technology stack
 
-This document is the team reference for the technologies and development tools
-used by Lab Timesheet. The five-person development team uses Windows 11 and
+This document is the one team reference for the technologies and development tools
+used by Lab Timesheet. Other documents summarize the stack and point here for
+versions and reasons. The five-person development team uses Windows 11 and
 IntelliJ IDEA. Versions controlled by the repository must not be changed in one
 developer's environment without a reviewed project-wide update.
 
@@ -169,9 +170,9 @@ Actuator readiness and liveness checks.
 | `Dockerfile` | Production multi-stage application image |
 | `compose.yaml` | Production application and optional PostgreSQL deployment example |
 | `.gitea/workflows/` | Verification and container publication workflows |
-| `DEVELOPMENT.md` | Windows/IDE-oriented local setup and run instructions |
-| `TESTING.md` | Test commands, TDD rules, and evidence format |
-| `DEPLOYMENT.md` | Production container configuration and operation |
+| `docs/guides/DEVELOPMENT.md` | Windows/IDE-oriented local setup and run instructions |
+| `docs/guides/TESTING.md` | Test commands, TDD rules, and how a test names the rules it protects |
+| `docs/guides/DEPLOYMENT.md` | Production container configuration and operation |
 
 When documentation and a build file disagree about an installed version, the
 build file and lockfile are authoritative. Update this document in the same

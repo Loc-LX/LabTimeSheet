@@ -74,7 +74,7 @@ calendar dates that have now passed, so they fail with
 `Project start date cannot be in the past` regardless of platform.
 
 Background and measurements are in
-[`.sdd/rfcs/ADR-003-verification-authority.md`](.sdd/rfcs/ADR-003-verification-authority.md).
+[`.sdd/rfcs/ADR-003-verification-authority.md`](../../.sdd/rfcs/ADR-003-verification-authority.md).
 
 Frontend assets have a separate check:
 
@@ -289,7 +289,7 @@ returns.
 
 A written claim never replaces a test command and its result. That is `TST-008`,
 and it is the reason the Markdown evidence records were removed: see
-[`.sdd/rfcs/ADR-004-test-evidence-moves-into-the-test.md`](.sdd/rfcs/ADR-004-test-evidence-moves-into-the-test.md).
+[`.sdd/rfcs/ADR-004-test-evidence-moves-into-the-test.md`](../../.sdd/rfcs/ADR-004-test-evidence-moves-into-the-test.md).
 
 ## 7. Testing best practices
 

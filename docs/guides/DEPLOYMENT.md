@@ -6,7 +6,7 @@ These files deploy Lab Timesheet in production. They are not the development wor
 
 Install Docker Engine and Docker Compose v2.20 or newer. Put an HTTPS reverse proxy in front of the application. By default, Compose binds the application only to `127.0.0.1:8080`.
 
-Copy [`.env.compose.example`](.env.compose.example) to a protected path outside the repository:
+Copy [`.env.compose.example`](../../.env.compose.example) to a protected path outside the repository:
 
 ```bash
 sudo install -d -m 0700 /etc/labtimesheet

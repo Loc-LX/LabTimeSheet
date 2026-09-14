@@ -8,12 +8,7 @@ web
 
 ## Stack
 
-- Java 25 and Spring Boot 4.1.0.
-- Maven-built, server-rendered Spring MVC modular monolith organized by business feature.
-- Spring Security, Spring Data JPA, Bean Validation, Thymeleaf, Spring Mail, and Flyway.
-- Tailwind CSS 4 with Node 24 LTS used only for frontend build assets.
-- PostgreSQL 18.4 across development, integration testing, and production.
-- No SPA framework, JWT authentication, microservices, Redis, Kafka, or generic workflow engine in v1.
+- A server-rendered Spring Boot modular monolith on PostgreSQL. Versions and the reason for each choice are in [`shared_context.md`](shared_context.md); what version 1 deliberately excludes is `GOV-007`.
 
 ## Users
 

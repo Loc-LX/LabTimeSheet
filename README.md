@@ -47,11 +47,11 @@ layouts stay best effort; desktop is the supported target.
 | What do we assume but have not confirmed | [`.sdd/product.md`](.sdd/product.md), Assumptions |
 | What are the numbered requirements | [`.sdd/specs/`](.sdd/specs), indexed by [`.sdd/requirements.md`](.sdd/requirements.md) |
 | Why was a decision made | [`.sdd/rfcs/`](.sdd/rfcs) |
-| Which libraries and versions, and why | [`.sdd/constraints/tech-stack.md`](.sdd/constraints/tech-stack.md) |
+| Which libraries and versions, and why | [`.sdd/shared_context.md`](.sdd/shared_context.md) |
 | What are the UI design tokens | [`docs/architecture/design-system.md`](docs/architecture/design-system.md) |
-| How do I run the app locally | [DEVELOPMENT.md](DEVELOPMENT.md) |
-| How do I run and write tests | [TESTING.md](TESTING.md) |
-| How do I deploy | [DEPLOYMENT.md](DEPLOYMENT.md) |
+| How do I run the app locally | [docs/guides/DEVELOPMENT.md](docs/guides/DEVELOPMENT.md) |
+| How do I run and write tests | [docs/guides/TESTING.md](docs/guides/TESTING.md) |
+| How do I deploy | [docs/guides/DEPLOYMENT.md](docs/guides/DEPLOYMENT.md) |
 | What is planned and who owns it | [`plan.md`](plan.md) |
 | Which test protects which rule | [`.sdd/reviews/traceability.md`](.sdd/reviews/traceability.md) |
 | Rules for AI agents working here | [AGENTS.md](AGENTS.md), [CLAUDE.md](CLAUDE.md) |
@@ -127,7 +127,7 @@ are explanatory and predate Iterations 3 and 4.
 ## Quick start
 
 Full setup, container commands, and an IntelliJ IDEA walkthrough are in
-[DEVELOPMENT.md](DEVELOPMENT.md). The short version:
+[docs/guides/DEVELOPMENT.md](docs/guides/DEVELOPMENT.md). The short version:
 
 ```bash
 cp .env.example .env
@@ -163,7 +163,7 @@ through environment variables.
 - Flyway owns the schema and Hibernate validates it with `ddl-auto=validate`.
 
 Version-by-version detail and the reason each library was chosen are in
-[`.sdd/constraints/tech-stack.md`](.sdd/constraints/tech-stack.md).
+[`.sdd/shared_context.md`](.sdd/shared_context.md).
 
 ## Testing
 
@@ -184,7 +184,7 @@ is a record of the gate rather than a current figure.
 A test names the numbered requirements it protects in its own Javadoc, and the
 current mapping is in
 [`.sdd/reviews/traceability.md`](.sdd/reviews/traceability.md).
-[TESTING.md](TESTING.md) covers the required TDD cycle and the common failures.
+[docs/guides/TESTING.md](docs/guides/TESTING.md) covers the required TDD cycle and the common failures.
 
 ## Continuous integration and production containers
 
@@ -199,7 +199,7 @@ convenience alias.
 The production image is a non-root Java 25 image. The root
 [compose.yaml](compose.yaml) supports either a persistent PostgreSQL 18.4
 sidecar or an external database, and is not used for development. Follow
-[DEPLOYMENT.md](DEPLOYMENT.md) and start from
+[docs/guides/DEPLOYMENT.md](docs/guides/DEPLOYMENT.md) and start from
 [`.env.compose.example`](.env.compose.example), keeping the real production
 environment file outside the repository.
 

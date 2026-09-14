@@ -25,7 +25,7 @@ configuration changes later. Most surprising design choices follow from those.
 | Docker | any current | PostgreSQL Testcontainers; tests cannot run without it |
 | Git | any current | |
 
-[DEVELOPMENT.md](DEVELOPMENT.md) has the full walkthrough including container
+[docs/guides/DEVELOPMENT.md](docs/guides/DEVELOPMENT.md) has the full walkthrough including container
 commands and an IntelliJ IDEA run configuration.
 
 ## First-time setup
@@ -63,7 +63,7 @@ To run one class:
 ```
 
 If tests fail immediately with a container error, Docker is not running or
-`DOCKER_HOST` is wrong. [TESTING.md](TESTING.md) lists the common failures.
+`DOCKER_HOST` is wrong. [docs/guides/TESTING.md](docs/guides/TESTING.md) lists the common failures.
 
 ## The workflow
 

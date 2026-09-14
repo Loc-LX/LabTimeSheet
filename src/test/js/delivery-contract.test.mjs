@@ -94,7 +94,7 @@ test("deployment template is dormant, main-only, host-key checked, and rollback-
 
 test("enabled deployment passes one absolute remote Compose file through rollout, health, and rollback", () => {
   const workflow = read(".gitea/workflows/container.yml");
-  const deployment = read("DEPLOYMENT.md");
+  const deployment = read("docs/guides/DEPLOYMENT.md");
 
   assert.match(workflow, /REMOTE_COMPOSE_FILE: \/etc\/labtimesheet\/compose\.yaml/);
   assert.match(workflow, /bash -s -- "\$REMOTE_COMPOSE_ENV" "\$REMOTE_COMPOSE_FILE" "\$IMAGE"/);
@@ -108,8 +108,8 @@ test("deterministic E2E clock is opt-in and rejected in production", () => {
   const e2e = read("src/main/resources/application-e2e.yaml");
   const application = read("src/main/resources/application.yaml");
   const timeConfiguration = read("src/main/java/com/lab/labtimesheet/config/TimeConfiguration.java");
-  const development = read("DEVELOPMENT.md");
-  const testing = read("TESTING.md");
+  const development = read("docs/guides/DEVELOPMENT.md");
+  const testing = read("docs/guides/TESTING.md");
   const startupTest = read("src/test/java/com/lab/labtimesheet/config/E2eProfileIntegrationTest.java");
 
   assert.match(e2e, /on-profile: e2e/);

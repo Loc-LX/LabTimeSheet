@@ -13,6 +13,7 @@ application answers both without letting either answer stand in for the other.
 Server-rendered Spring MVC with Thymeleaf. No SPA, no REST API for the browser,
 no JWT. Spring Security sessions. PostgreSQL through Spring Data JPA, schema
 owned by Flyway. Tailwind builds through Node but ships as static assets.
+Versions and reasons: [`.sdd/shared_context.md`](.sdd/shared_context.md).
 
 Four iterations are complete. What remains is the final integrated review.
 
@@ -141,7 +142,7 @@ npm run test:ui                  # UI contract tests
 ```
 
 Development expects PostgreSQL on `55432` and Mailpit SMTP on `1025`. Details in
-[DEVELOPMENT.md](DEVELOPMENT.md).
+[docs/guides/DEVELOPMENT.md](docs/guides/DEVELOPMENT.md).
 
 ## Tooling
 
