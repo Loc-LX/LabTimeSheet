@@ -3,6 +3,15 @@
 Each entry records a change to [SPEC.md](SPEC.md): the version, the date, what changed,
 and why. A change that alters a rule raises the version.
 
+## 1.1.2 — 2026-09-14
+
+The remaining four points of decision `D14`, recorded in [`.sdd/decisions.md`](../../decisions.md). Marked provisional, pending instructor confirmation.
+
+- `EXC-003`: a request undecided after 24 hours becomes overdue, not rejected; only the responsible Mentor's decision makes it excused or unexcused, while the finalization window is open.
+- `EXC-004`: a Mentor may mark an excuse up to 48 hours after scheduled end (laboratory policy).
+- **Added `EXC-007`**: a decision changes only by appending a new decision or reversal with a reason; history stays immutable. `EXC-005` follows the current decision.
+- Added `AC-EXC-003`; `AC-EXC-002` and `UC-15` follow.
+
 ## 1.1.1 — 2026-09-14
 
 Relocation only; no rule text changed. `DB-002`, `DB-009` moved here from the platform spec because they concern only this feature, with `AC-DB-005`.

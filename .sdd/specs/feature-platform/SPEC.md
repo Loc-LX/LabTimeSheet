@@ -1,6 +1,6 @@
 # Platform Spec
 
-**Version:** 1.2.2 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-14
+**Version:** 1.2.3 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-14
 
 Part of the Lab Timesheet specification. Rules every feature shares, including the
 glossary, the authorization model, the domain model, and failure handling, are in
@@ -22,8 +22,8 @@ This spec holds what every feature shares. It is not a feature in the code; the 
 | Database baseline | PostgreSQL 18.4, 24 application tables |
 | Companion DDL | `database-schema.sql`, not tracked in this repository |
 | Review state | Approved as version 1.0.0 on 14 September 2026; open questions are listed in each spec |
-| Normative rules | 285 across the eight specs |
-| Acceptance scenarios | 135 across the eight specs |
+| Normative rules | 286 across the eight specs |
+| Acceptance scenarios | 137 across the eight specs |
 
 > **Companion files.** This document was authored in a separate documentation
 > repository and copied here on 26 August 2026. Its companion `database-schema.sql`
@@ -225,6 +225,7 @@ Legend: **Yes** = permitted within the stated scope; **Own** = own Project or ow
 | Remaining effort forecast | A current Leader's dated prediction of the additional effort needed to finish an unfinished Task, recorded at a reassignment or whenever that prediction changes. It never replaces the estimate. |
 | Current Remaining effort | Zero for a `DONE` Task; otherwise the latest effective Remaining effort forecast, the most recent one no correction has superseded, less the Actual Task effort added since that forecast was recorded, never below zero. |
 | Current Work | Actual Task effort plus current Remaining effort. |
+| Attendance finalization window | The period after a work date during which an attendance exception decision may still change (`EXC-007`). Its length and closing point are not yet decided (`D14`). |
 | Report date | A local business date used to select dated Task work logs for reporting. Attendance policy and calendar context may describe the date but never remove otherwise valid Task work from the report. |
 | Daily Project Work Report | An authorized view of retained Task work logs for one Report date, shown by Task, with each Task's planning values once, and by work-log author, with minutes only. It may show attendance context and each Task's current status, but asserts neither attendance nor that a Task was completed on that date. |
 
@@ -1132,10 +1133,10 @@ documents a working product.
 
 | Measure | Value |
 |---|---:|
-| Normative rules, sections 1–22 | 285 |
-| Rules with a §20 acceptance scenario | 266 |
+| Normative rules, sections 1–22 | 286 |
+| Rules with a §20 acceptance scenario | 267 |
 | Rules declared without one, with reason | 19 |
-| Acceptance scenarios | 135 |
+| Acceptance scenarios | 137 |
 | Flyway application tables | 24 |
 
 The specification quality review in §20 and the twelve-point gate once recorded in the

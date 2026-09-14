@@ -3,6 +3,12 @@
 Each entry records a change to [SPEC.md](SPEC.md): the version, the date, what changed,
 and why. A change that alters a rule raises the version.
 
+## 1.1.1 — 2026-09-14
+
+Decision `D14`, recorded in [`.sdd/decisions.md`](../../decisions.md). Marked provisional, pending instructor confirmation.
+
+- `NOT-011` notifies the responsible Mentor again when an exception request becomes overdue.
+
 ## 1.1.0 — 2026-09-14
 
 Decisions `D12`, `D13`, and `D14`, recorded in [`.sdd/decisions.md`](../../decisions.md). Marked provisional, pending instructor confirmation.

@@ -3,6 +3,12 @@
 Each entry records a change to [SPEC.md](SPEC.md): the version, the date, what changed,
 and why. A change that alters a rule raises the version.
 
+## 1.1.2 — 2026-09-14
+
+The remaining points of decision `D14`, recorded in [`.sdd/decisions.md`](../../decisions.md). Marked provisional, pending instructor confirmation.
+
+- `ACC-026`: reassignment moves every pending or overdue leave, correction, and exception request to the new Mentor; while the responsible Mentor is locked or deactivated the Intern is shown to Admins for reassignment, and no Admin or other Mentor decides. Added `AC-ACC-014`.
+
 ## 1.1.1 — 2026-09-14
 
 Relocation only; no rule text changed. `SEC-002`, `SEC-003`, `SEC-004`, `SEC-005`, `SEC-006`, `SEC-007` moved here from the platform spec because they concern only this feature, with `AC-SEC-002`, `AC-SEC-003`.

@@ -1,6 +1,6 @@
 # Account Spec
 
-**Version:** 1.1.1 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-14
+**Version:** 1.1.2 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-14
 
 Part of the Lab Timesheet specification. Rules every feature shares, including the
 glossary, the authorization model, the domain model, and failure handling, are in
@@ -61,7 +61,7 @@ Every capability by role is in the permission matrix, [platform spec](../feature
 | ACC-023 | WHILE an Intern is `COMPLETED`, THE system SHALL allow authentication in read-only mode to view retained history and manage password and session security, and SHALL refuse any attempt to create or mutate attendance, leave, correction, Project, Task, comment, or work-log data. |
 | ACC-024 | WHEN an Admin withdraws an Intern, THE system SHALL set the account to `DEACTIVATED` in the same transaction, SHALL end every session of that account, SHALL thereafter refuse its login under `ACC-016`, SHALL issue it no password-reset token and refuse any it already holds, and SHALL keep their historical memberships, Tasks, work logs, attendance, leave, and corrections attributable. |
 | ACC-025 | WHEN a terminal lifecycle action is applied, THE system SHALL enforce it for authorization from that instant. Attendance already recorded on that local date SHALL remain reportable, and an otherwise empty terminal date SHALL NOT be newly classified as an absence. |
-| ACC-026 | THE system SHALL let an Admin assign one active Mentor as an Intern's responsible Mentor and replace that assignment. WHEN the assignment changes, THE system SHALL route requests decided afterwards to the new Mentor and SHALL leave every earlier decision attributed to the Mentor who made it. |
+| ACC-026 | THE system SHALL let an Admin assign one active Mentor as an Intern's responsible Mentor and replace that assignment. WHEN the assignment changes, THE system SHALL move every pending or overdue leave, correction, and attendance exception request of that Intern to the new Mentor, SHALL leave every earlier decision attributed to the Mentor who made it, and SHALL NOT make the Admin an approver. WHILE an Intern's responsible Mentor is `LOCKED` or `DEACTIVATED`, THE system SHALL show that Intern to Admins as needing a new responsible Mentor, and SHALL NOT let an Admin or any other Mentor decide the Intern's requests. |
 
 ### Authentication controls (from platform §13.1)
 
@@ -185,6 +185,7 @@ Scenarios from the §20 acceptance catalogue whose identifiers start with `AC-AC
 | AC-ACC-011 | ACC-008, ACC-017, ACC-019, UI-014 | Admin switches account creation between Intern and non-Intern roles, then submits a crafted non-Intern request containing Intern fields | The browser disables and clears inapplicable fields; the server independently rejects crafted incompatible data; role remains immutable. |
 | AC-ACC-012 | ACC-009, ACC-017–ACC-019 | Admin searches and filters the account directory, then corrects account data in pending, active, locked, and terminal states | Search matches normalized display name/email/Student Code and role filtering is exact; pending email change replaces activation safely; active/locked email change invalidates sessions; SMTP/delivery/uniqueness failure leaves identity unchanged; Student Code and date edits obey their lifecycle boundaries; deactivated/terminal data and role/display name remain read-only. |
 | AC-ACC-013 | ACC-021, ACC-026 | An Intern's start date arrives before an Admin assigns a responsible Mentor; the Admin then assigns one, and later replaces them after that Mentor has decided a leave request | The internship stays `NOT_STARTED` until a responsible Mentor is assigned and activates once one is; after replacement, new requests go to the new Mentor and the earlier decision still names the Mentor who made it. |
+| AC-ACC-014 | ACC-026 | An Intern's responsible Mentor is locked while the Intern has a pending leave request, a pending correction, and an overdue exception request | The Intern appears to Admins as needing a new responsible Mentor; neither an Admin nor another Mentor can decide the requests; after an Admin assigns a new Mentor all three move to that Mentor, and decisions made earlier still name the original Mentor. |
 | AC-SEC-002 | SEC-002–SEC-005 | Password is 11, 12, 128, then 129 characters; reset email is unknown | Only 12 and 128 pass length validation; response for unknown email remains generic. |
 | AC-SEC-003 | SEC-006–SEC-007 | Same normalized email/IP fails login five times inside window | Sixth attempt is throttled for 15 minutes; restart may clear throttle but does not unlock a manually locked account. |
 
@@ -197,4 +198,4 @@ Exclusions stated inside this spec's own rules: `ACC-020`.
 ## Notes / Open Questions
 
 - `ACC-023` and `ACC-024` were confirmed by the instructor on 14 September 2026: a withdrawn Intern cannot sign in; a completed Intern keeps a read-only account and may still change their password and manage sessions.
-- `ACC-026` follows `D14`, which is provisional pending instructor confirmation. Who decides an Intern's pending requests while their responsible Mentor is locked or deactivated is not yet decided.
+- `ACC-026` follows `D14`, which is provisional pending instructor confirmation. When a responsible Mentor becomes unavailable, an Admin reassigns the Intern and the pending requests move with them; the Admin never becomes an approver.

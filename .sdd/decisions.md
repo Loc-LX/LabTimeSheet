@@ -56,7 +56,7 @@ changes one, its status here changes first.
 | D11 | Whether approving the specification waits for the Iteration 3 integrated review | No; resolving every code and specification disagreement is the condition instead | §22.2 |
 | D12 | Whether a Project may be deleted | Only an empty `PLANNED` Project, with its notifications; any other Project that will not run is cancelled and stays in reports. Provisional | `PRJ-002`, `PRJ-023`, `RPT-003`, `RPT-011` |
 | D13 | Whether an owning Mentor may change a Task's status | Only block, unblock to the previous status, and reopen with a reason, decided by role, scope, and state. Provisional | `AUTH-005`, `AUTH-008`, `TSK-007`, `TSK-023`, `TSK-025`, `NOT-003` |
-| D14 | Whether a late arrival or early departure can be excused | Yes, as a separate decision by the responsible Mentor, who also decides leave and corrections. Provisional; four points open | `EXC-001`–`EXC-006`, `ACC-026`, `LEV-008`, `COR-005` |
+| D14 | Whether a late arrival or early departure can be excused | Yes, as a separate, append-only decision by the responsible Mentor, who also decides leave and corrections; overdue is not rejected. Provisional; the finalization window is open | `EXC-001`–`EXC-007`, `ACC-026`, `LEV-008`, `COR-005`, `NOT-011` |
 | D15 | What Remaining effort and variance mean, and who the Daily report is for | Estimate is the baseline; Remaining is a current forecast; two report perspectives | `GOV-015`, `TSK-021`, `TSK-024`, `RPT-012`, `RPT-014` |
 | D16 | When a rule change needs an ADR | Only when it moves an architectural boundary | constitution, Amendment |
 | D17 | What to do with `work/tasks-lab-b5` and `work/tasks-sync` | Superseded history; not merged, not a source of truth | none |
@@ -939,10 +939,18 @@ systems that keep a time correction apart from an attendance exception.
 - The responsible Mentor is set before the internship becomes `ACTIVE`, not necessarily at account creation; an Admin may replace them, and earlier decisions keep the Mentor who made them (`ACC-021`, `ACC-026`).
 - Leave, corrections, and exceptions are all decided by the responsible Mentor (`LEV-008`, `COR-005`, `AUTH-003`), unless the laboratory later names a central attendance approver. An Intern Leader never approves.
 
-**Still open:** what happens to an exception request nobody decides within 24 hours; how
-long after a work date the Mentor may still mark an excuse; whether a decided exception
-can be changed within its window; and who decides pending leave, correction, and
-exception requests while the responsible Mentor is locked or deactivated.
+**The last four points, decided the same day.**
+
+- A request undecided after 24 hours becomes **overdue**, and the responsible Mentor is notified again. It is neither excused nor unexcused until the Mentor decides; overdue is not rejected (`EXC-003`, `NOT-011`). ENTERPRISE-BACKED.
+- A Mentor may mark an excuse without a request up to **48 hours** after scheduled end (`EXC-004`). LAB-POLICY, provisional.
+- A decision changes only inside the attendance finalization window, by appending a new decision or a reversal with actor, time, and reason; the latest effective decision is current and history is immutable. After the window, only an explicit reopen flow may change it (`EXC-007`). ENTERPRISE-BACKED.
+- When the responsible Mentor is locked or deactivated, an Admin assigns another active Mentor and every pending leave, correction, and exception request moves to them. The Admin does not become an approver, and past decisions keep their original approver (`ACC-026`). ENTERPRISE-BACKED.
+
+**Still open:** the length and closing point of the attendance finalization window, and the
+reopen flow after it closes. Also, leave and corrections are still rejected automatically
+at their deadlines (`LEV-010`, `COR-007`), including while an Intern waits for a new
+responsible Mentor; whether they should become overdue instead, like exceptions, is not
+decided.
 
 **Status:** provisional, pending instructor confirmation.
 
@@ -1076,7 +1084,7 @@ reverses it.
 | `D1` | **Confirmed 14 September 2026.** An Admin views and exports every report read-only. | Nothing open. |
 | `D12` | Decided 14 September 2026, **provisional**. Only an empty draft is deleted, with its notifications; everything else is cancelled and stays in reports. | Instructor confirmation. |
 | `ACC-024` | **Confirmed 14 September 2026.** A withdrawn Intern cannot sign in; a completed Intern keeps a read-only account and may change their password. | Nothing open. |
-| `COR-006` and `D14` | An approved correction confirms the time only. Excused violations are written as `EXC-001`–`EXC-006`, **provisional**, with LAB-POLICY limits. | Instructor confirmation, and the four open points under `D14`. |
+| `COR-006` and `D14` | An approved correction confirms the time only. Excused violations are written as `EXC-001`–`EXC-007`, **provisional**, with LAB-POLICY limits. | Instructor confirmation; the finalization window and reopen flow; whether leave and corrections should become overdue too. |
 | Daily Project Work Report | Decided 14 September 2026 under `D15`, **provisional**: a Task view and an Intern view, so variance is shown once per Task. | Instructor confirmation. |
 | `D13` | Decided 14 September 2026, **provisional**. Block, unblock to the previous status, and reopen with a reason. | Instructor confirmation. |
 

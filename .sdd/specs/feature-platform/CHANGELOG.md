@@ -3,6 +3,12 @@
 Each entry records a change to [SPEC.md](SPEC.md): the version, the date, what changed,
 and why. A change that alters a rule raises the version.
 
+## 1.2.3 — 2026-09-14
+
+Decision `D14`, recorded in [`.sdd/decisions.md`](../../decisions.md).
+
+- The glossary adds the attendance finalization window, whose length is not yet decided. Counts are 286 rules and 137 scenarios.
+
 ## 1.2.2 — 2026-09-14
 
 Spelling only: British spellings in the rule text became the American spellings the rest of the documentation uses. No meaning changed.

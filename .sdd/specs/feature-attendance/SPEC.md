@@ -1,6 +1,6 @@
 # Attendance Spec
 
-**Version:** 1.1.1 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-14
+**Version:** 1.1.2 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-14
 
 Part of the Lab Timesheet specification. Rules every feature shares, including the
 glossary, the authorization model, the domain model, and failure handling, are in
@@ -123,10 +123,11 @@ For an applicable Intern/date, classification precedence is:
 |---|---|
 | EXC-001 | THE system SHALL keep a late arrival or an early departure recorded exactly as `ATT-009` and `ATT-011` classify it, and SHALL hold whether it is excused as a separate decision that never clears the classification and never changes the raw or effective times. |
 | EXC-002 | WHEN an Intern requests that their own recorded late arrival or early departure be excused, THE system SHALL require a nonblank reason, SHALL accept the request only through 24 hours after the scheduled end of that work date, and SHALL keep at most one request per attendance row and violation kind. The 24-hour limit is a provisional laboratory policy. |
-| EXC-003 | WHILE a request is pending and less than 24 hours have passed since it was submitted, THE system SHALL permit only the Intern's responsible Mentor under `ACC-026` to decide it as excused or unexcused, and SHALL retain the decider, the server time, and any decision note. The 24-hour limit is a provisional laboratory policy. |
-| EXC-004 | WHEN the responsible Mentor marks an Intern's recorded late arrival or early departure excused without a request, THE system SHALL require a nonblank reason and SHALL retain the Mentor and the server time. |
-| EXC-005 | WHERE a late arrival or early departure is excused, THE system SHALL NOT count it among the applicable violations of `ATT-016`, and SHALL still show it, marked excused, in attendance history, reports, and statistics. Leaving an excused violation out of compliance is a provisional laboratory policy. |
+| EXC-003 | WHILE a request is pending or overdue and the attendance finalization window of its work date is open, THE system SHALL permit only the Intern's responsible Mentor under `ACC-026` to decide it as excused or unexcused, and SHALL retain the decider, the server time, and any decision note. WHEN 24 hours pass after submission without a decision, THE system SHALL mark the request overdue and SHALL NOT treat it as excused or unexcused; only a decision by the responsible Mentor makes it either. The 24-hour limit is a provisional laboratory policy. |
+| EXC-004 | WHEN the responsible Mentor marks an Intern's recorded late arrival or early departure excused without a request, THE system SHALL require a nonblank reason, SHALL accept the mark only through 48 hours after the scheduled end of that work date, and SHALL retain the Mentor and the server time. The 48-hour limit is a provisional laboratory policy. |
+| EXC-005 | WHERE the current decision on a late arrival or early departure is excused, THE system SHALL NOT count it among the applicable violations of `ATT-016`, and SHALL still show it, marked excused, in attendance history, reports, and statistics. Leaving an excused violation out of compliance is a provisional laboratory policy. |
 | EXC-006 | THE system SHALL refuse an exception decision or mark by an Intern Leader, an Admin, or any Mentor other than the Intern's responsible Mentor. |
+| EXC-007 | WHILE the attendance finalization window of the work date is open, THE system SHALL permit the responsible Mentor to change an exception decision only by appending a new decision or a reversal carrying the actor, the server time, and a nonblank reason. THE system SHALL treat the latest effective decision as the current one and SHALL keep every earlier decision unchanged. WHERE the window has closed, THE system SHALL refuse any change to the decision. |
 
 ### Integrity (from platform §19.3)
 
@@ -246,18 +247,19 @@ For an applicable Intern/date, classification precedence is:
 | Trigger | An Intern asks for a recorded late arrival or early departure to be excused, or the responsible Mentor marks one excused. |
 | Preconditions | The attendance row records the late arrival or early departure, and the Intern has a responsible Mentor. |
 | Postconditions | The violation stays recorded; whether it is excused is retained with actor, time, and reason. |
-| Traced requirements | EXC-001–EXC-006, ACC-026, ATT-016, NOT-011 |
+| Traced requirements | EXC-001–EXC-007, ACC-026, ATT-016, NOT-011 |
 
 **Main success flow**
 
 1. The Intern submits a request with a reason within 24 hours after scheduled end.
-2. The responsible Mentor sees it in their queue and decides it excused or unexcused within 24 hours.
+2. The responsible Mentor sees it in their queue and decides it excused or unexcused; a request still undecided after 24 hours is marked overdue and the Mentor is reminded.
 3. The Intern is notified of the decision.
 4. An excused violation stops lowering compliance and still appears, marked excused, in history and reports.
 
 **Alternatives and exceptions**
 
-- The responsible Mentor marks a violation excused without a request, giving a reason.
+- The responsible Mentor marks a violation excused without a request, giving a reason, within 48 hours after scheduled end.
+- While the finalization window is open, the Mentor changes a decision by appending a new decision or a reversal with a reason; earlier decisions stay in history.
 - A late request, or a decision by anyone other than the responsible Mentor, is refused.
 
 ## 4. Non-functional Requirements
@@ -302,7 +304,8 @@ Scenarios from the §20 acceptance catalogue whose identifiers start with `AC-AT
 | AC-COR-005 | COR-007–COR-009 | Pending correction reaches decision deadline while scheduler is late | First access auto-rejects/locks atomically; scheduler later behaves idempotently; no reopen succeeds. |
 | AC-COR-006 | AUTH-003, COR-001–COR-009, UI-019 | Intern and Mentor open their correction workflows with pending and terminal requests | Intern sees only owned corrections; the responsible Mentor sees the actionable queue of the Interns they are responsible for before retained correction/event history; unauthorized users and guessed IDs disclose nothing; no Leave form is mixed into either Correction workflow. |
 | AC-EXC-001 | EXC-001–EXC-003, EXC-005, NOT-011 | An Intern ten minutes late requests an excuse with a reason 23 hours after scheduled end, and on another day 25 hours after; the responsible Mentor excuses the first request within 24 hours | The first request is accepted and the second refused; the responsible Mentor is notified of the request and the Intern of the decision; the day still shows late, its compliance counts no late violation, and history and reports mark it excused with the Mentor and time. |
-| AC-EXC-002 | EXC-004, EXC-006, AUTH-003 | The responsible Mentor marks an early departure excused without a reason and then with one; another Mentor, the Intern's Leader, and an Admin each try to decide a pending request | Only the reasoned mark by the responsible Mentor commits; every other attempt is refused and changes nothing. |
+| AC-EXC-002 | EXC-004, EXC-006, AUTH-003 | The responsible Mentor marks one early departure excused without a reason, another with a reason 47 hours after scheduled end, and a third 49 hours after; another Mentor, the Intern's Leader, and an Admin each try to decide a pending request | Only the reasoned mark inside 48 hours commits; every other attempt is refused and changes nothing. |
+| AC-EXC-003 | EXC-003, EXC-005, EXC-007, NOT-011 | A request stays undecided for 24 hours; the responsible Mentor then excuses it inside the finalization window, later reverses it to unexcused with a reason, and tries a further change after the window has closed | At 24 hours the request becomes overdue, the Mentor is notified, and compliance still counts the violation; the later decision commits; the reversal appends a new decision while the earlier one stays unchanged in history; compliance follows the current decision; the change after the window is refused. |
 | AC-LEV-001 | LEV-001–LEV-003 | Request spans weekend, global day off, and two months | Only eligible dates materialize; each date uses its correct quota month/policy snapshot. |
 | AC-LEV-002 | LEV-004–LEV-006 | Concurrent requests would exceed quota or overlap | Locking and exclusion constraint allow at most one valid outcome; no overbooking/overlap commits. |
 | AC-LEV-003 | LEV-007 | Intern edits pending range | Original allocation is replaced only after new overlap/quota validation succeeds atomically. |
@@ -321,5 +324,5 @@ Exclusions stated inside this spec's own rules: `CAL-001`, `LEV-001`.
 
 - `UC-04` also configures SMTP and HolidayAPI, whose rules are in [the integration spec](../feature-integration/SPEC.md).
 - `COR-006`: approving a correction confirms the effective checkout only; a checkout before scheduled end remains an early departure under `ATT-011`.
-- `D14`, decided on 14 September 2026 and **provisional pending instructor confirmation**, is written as `EXC-001`–`EXC-006`. Separating the fact from the approval and scoping approval to a responsible Mentor follow enterprise time-and-labour practice. The 24-hour submission and decision limits and leaving excused violations out of compliance are laboratory policy, not an industry standard. Leave (`LEV-008`) and corrections (`COR-005`) moved to the responsible Mentor with them.
-- **Open.** What happens to an exception request nobody decides within 24 hours; how long after a work date a Mentor may still mark a violation excused without a request; whether a decided exception can be changed within its window, as corrections can; and who decides pending leave, correction, and exception requests while the responsible Mentor is locked or deactivated.
+- `D14`, decided on 14 September 2026 and **provisional pending instructor confirmation**, is `EXC-001`–`EXC-007`. Enterprise-backed: the attendance fact kept apart from the approval, approval scoped to a responsible Mentor, an overdue request that is neither approved nor rejected, decisions changed only by appending to an immutable history, and reassignment when the approver is unavailable. Laboratory policy, not a standard: the 24-hour request and decision limits, the 48-hour limit for a Mentor-initiated mark, and leaving excused violations out of compliance. Leave (`LEV-008`) and corrections (`COR-005`) are also decided by the responsible Mentor.
+- **Open.** How long the attendance finalization window is and when it closes, and which explicit reopen flow changes a decision after it closes. Also whether leave and corrections should become overdue instead of being rejected automatically (`LEV-010`, `COR-007`), since their deadlines keep running while an Intern waits for a new responsible Mentor.
