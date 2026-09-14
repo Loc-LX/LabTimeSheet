@@ -9,220 +9,110 @@ authorized reports in HTML, XLSX, and PDF.
 Two rules shape most of the design. Attendance time and Task work time are
 separate domains and neither proves the other (`GOV-004`). Historical business
 results must not change when an Admin later edits policy or the calendar
-(`GOV-005`). Together they explain why the schema carries twenty-four tables
-that close intervals instead of overwriting rows.
+(`GOV-005`).
 
 ## Status
 
 Iterations 1 through 4 are built. The specification was approved on 14 September
 2026 and then changed by decisions the code does not implement yet.
-[`plan.md`](plan.md) tracks that work and everything else still open. The
-item-by-item delivery record of the four iterations is in git history.
+[`plan.md`](plan.md) is the only progress tracker and lists that work and
+everything else still open.
 
-| Iteration | Scope | Tracked items |
-|---|---|---:|
-| 1 | Working vertical slice | complete |
-| 2 | Complete business workflows | complete |
-| 3 | Hardening, security, reports, containers, accessibility | 31 of 31 |
-| 4 | Partial Jira/Tempo slice: Task effort planning and Daily reports | 6 of 6 |
+## Where things live
 
-**`plan.md` is the only progress tracker.** A stale duplicate at the
-repository root was removed; it had stopped being updated on 21 August 2026 and
-still showed every Iteration 3 item as `TODO`.
-
-Remaining before release: implementing the 14 September decisions, and the
-Iteration 3 integrated review, covering historical
-stability after policy changes, concurrency safety, HTML/XLSX/PDF total parity,
-production configuration refusal, the container image against bundled and
-external PostgreSQL, and the desktop accessibility pass. Mobile and tablet
-layouts stay best effort; desktop is the supported target.
-
-## Documentation map
+Two places. **`.sdd/`** holds what the system must do and why. **The repository
+root** holds how to work on it.
 
 | Question | Read |
 |---|---|
-| What must always be true of this system | [`.sdd/constitution.md`](.sdd/constitution.md) |
-| How do I set up and contribute | [CONTRIBUTING.md](CONTRIBUTING.md) |
-| What is the product and who are its users | [`.sdd/product.md`](.sdd/product.md) |
-| What do the domain terms mean | [the platform spec](.sdd/specs/feature-platform/SPEC.md), §2 |
-| What do we assume but have not confirmed | [`.sdd/product.md`](.sdd/product.md), Assumptions |
-| What are the numbered requirements | [`.sdd/specs/`](.sdd/specs), indexed by [`.sdd/requirements.md`](.sdd/requirements.md) |
-| Why was a decision made | [`.sdd/rfcs/`](.sdd/rfcs) |
-| Which libraries and versions, and why | [`.sdd/shared_context.md`](.sdd/shared_context.md) |
-| What are the UI design tokens | [`docs/architecture/design-system.md`](docs/architecture/design-system.md) |
-| How do I run the app locally | [docs/guides/DEVELOPMENT.md](docs/guides/DEVELOPMENT.md) |
-| How do I run and write tests | [docs/guides/TESTING.md](docs/guides/TESTING.md) |
-| How do I deploy | [docs/guides/DEPLOYMENT.md](docs/guides/DEPLOYMENT.md) |
+| What must always be true | [`.sdd/constitution.md`](.sdd/constitution.md) |
+| What the system must do | [`.sdd/specs/`](.sdd/specs), one spec per feature; shared rules in `feature-platform` |
+| Why a decision was made | [`.sdd/decisions.md`](.sdd/decisions.md); architectural decisions in [`.sdd/rfcs/`](.sdd/rfcs) |
+| Product, users, assumptions, and technology stack | [`.sdd/shared_context.md`](.sdd/shared_context.md) |
+| UI design tokens | [`.sdd/design-system.md`](.sdd/design-system.md) |
 | What is being worked on now | [`plan.md`](plan.md) |
-| Which test protects which rule | [`.sdd/reviews/traceability.md`](.sdd/reviews/traceability.md) |
-| Rules for AI agents working here | [AGENTS.md](AGENTS.md), [CLAUDE.md](CLAUDE.md) |
-
-The requirements are eight specs under `.sdd/specs/`, split on 14 September 2026 from
-a single document that was deleted in error on 29 August 2026 and restored from history
-on 10 September 2026. Appendices C through F hold the use-case flows, screen inventory, desktop
-mockups, and system message catalogue recovered from the 17 August 2026 SRS; they
-are explanatory and predate Iterations 3 and 4.
-
-## What works today
-
-### Accounts and onboarding
-
-- Atomic first-Admin bootstrap that stays closed after initialization and restart.
-- Optional SMTP onboarding with five distinct deferral warnings and a persistent restricted-state notice.
-- Admin SMTP draft, connection test, and activation against Mailpit or another configured server.
-- Admin creation of Admin, Mentor, and Intern accounts through single-use email activation.
-- Activation resend and failure handling, forgot and reset password, account lock, unlock, deactivation, and session invalidation.
-- Admin account directory with server-side search and role filter, plus controlled email-identity correction.
-- Internship start activation, guarded completion and withdrawal, recipient-scoped notification inbox, and non-secret integration history.
-
-### Projects
-
-- Owning Mentors create `PLANNED` Projects with an eligible initial Leader.
-- Mentor-controlled direct membership with historical membership and leadership intervals.
-- Invitation accept and decline, safe direct-add supersession, assisted member and Leader exits, repeated Task-transfer batches, and atomic direct removal.
-- Leader reassignment and guarded `PLANNED` to `ACTIVE` activation.
-- Guarded Project completion plus role-correct current and retained Project History views.
-- Role-correct Project lists, details, member views, and guessed-ID concealment.
-
-### Tasks
-
-- One current assignee per Task.
-- Active members create self-assigned Tasks; the current Leader may assign another active member.
-- Due dates are checked against Project dates and current global days off.
-- The fixed `TODO`, `IN_PROGRESS`, `BLOCKED`, and `DONE` transition graph is enforced.
-- Authorized edits, reassignment, soft deletion, dated work logs and corrections, comments, retained history, status counts, and completion progress.
-- Nullable whole-Task estimates, lifetime actual effort, `DONE`-only variance, and append-only Remaining effort forecasts on reassignment.
-- Daily work is serialized across Projects and capped at 1,440 minutes.
-
-### Attendance and calendar
-
-- Effective attendance-policy resolution with Vietnam business time, configured workdays, and separate 30-minute check-in and checkout grace defaults.
-- Admin-managed manual global calendar days off, with separate focused pages for Policy, Calendar, Holiday Import, and SMTP, each carrying its own feature-owned history.
-- Effective-dated policy and calendar history, Vietnam HolidayAPI preview and import, leave decisions, missed-checkout corrections and reverts, and deadline schedulers.
-- Server-time check-in and checkout with duplicate, off-day, leave-day, lifecycle, and cutoff rejection.
-- `MISSING_CHECKOUT` classification without a second early-departure violation.
-- Separate Intern My Leave and My Corrections pages, and Mentor Leave Decisions and Correction Decisions queues.
-
-### Reports
-
-- Intern own attendance history, plus authorized active-Mentor and active-Admin detailed Intern attendance and compliance reports using the historically applied policy and schedule.
-- Owning-Mentor and current-Leader Project and Task reports with per-member hours.
-- Daily Project Work Reports for owning Mentors and current Leaders, with XLSX and PDF export parity.
-- Admin holds Attendance report scope only, with no Project/Task or Daily report page, export, or dataset. See [`.sdd/rfcs/ADR-002-attendance-report-scope.md`](.sdd/rfcs/ADR-002-attendance-report-scope.md).
-- Undefined denominators render as `N/A`, and all three formats agree on hand-checkable totals.
-
-### Security and operations
-
-- Login throttling keyed on normalized email plus source IP, expiring token cleanup, and generic non-disclosing authentication responses.
-- Ordinary email retry schedule with terminal failure handling.
-- Production startup refuses an unsafe public origin, proxy policy, datasource, or missing master key.
-- Non-root Java 25 container image that runs against a bundled or external PostgreSQL.
-
-### Desktop UI
-
-- Shared Thymeleaf and Tailwind shell with role-aware navigation and dashboards.
-- Light, dark, and system themes applied before paint.
-- Collapsible desktop sidebar, accessible forms and errors, tables, badges, empty states, and local Lucide icons.
-- Local Chart.js trends keep adjacent text or table alternatives and honour reduced motion.
+| How to set up, run, test, and contribute | [CONTRIBUTING.md](CONTRIBUTING.md) |
+| Rules and context for AI agents | [AGENTS.md](AGENTS.md), [CLAUDE.md](CLAUDE.md) |
 
 ## Quick start
 
-Full setup, container commands, and an IntelliJ IDEA walkthrough are in
-[docs/guides/DEVELOPMENT.md](docs/guides/DEVELOPMENT.md). The short version:
-
 ```bash
-cp .env.example .env
-# Edit .env. Generate LAB_SECURITY_MASTER_KEY with: openssl rand -base64 32
-
-export JAVA_HOME=/opt/homebrew/opt/openjdk@25
-export PATH="/opt/homebrew/opt/node@24/bin:$JAVA_HOME/bin:$PATH"
-
-npm ci
-npm run build
+cp .env.example .env         # then set LAB_SECURITY_MASTER_KEY: openssl rand -base64 32
+npm ci && npm run build
 ./mvnw spring-boot:run
 ```
 
-Development defaults to the application on port `8080`, PostgreSQL on `55432`,
-and Mailpit SMTP on `1025`, configured in
-[`application-dev.yaml`](src/main/resources/application-dev.yaml).
+This expects JDK 25, PostgreSQL on `55432` and Mailpit on `1025`;
+[CONTRIBUTING.md](CONTRIBUTING.md) starts both containers and covers tests. Open
+`http://localhost:8080`: an empty database redirects to `/bootstrap`, where you
+create the first Admin.
 
-On first launch open `http://localhost:8080`. The application redirects to
-`/bootstrap` where you create the first Admin, then asks you to configure and
-test SMTP or acknowledge all five deferral warnings.
+## Deploy
 
-The committed [`.env.example`](.env.example) holds placeholders only. Real
-database passwords and the AES-256 master key belong in an untracked `.env`.
-Product SMTP and HolidayAPI credentials are configured in the Admin console, not
-through environment variables.
+The root [`Dockerfile`](Dockerfile) and [`compose.yaml`](compose.yaml) are for
+production only. The image is non-root Java 25 and runs against either a bundled
+PostgreSQL 18.4 or an external database.
 
-## Architecture at a glance
+### Prepare the host
 
-- Java 25, Spring Boot 4.1.0, Maven, Spring MVC, Security, Data JPA, Validation, Thymeleaf, Flyway, PostgreSQL 18.4.
-- Node 24 and npm 11 build frontend assets only, with Tailwind CSS 4 and `lucide-static`.
-- Package-by-feature modular monolith under `com.lab.labtimesheet.feature`, one package each for `account`, `attendance`, `integration`, `notification`, `project`, `reporting`, and `task`.
-- Features talk through public services and DTOs. No cross-feature repository or entity access, and no business SQL. `LayerStructureTest` enforces this.
-- Flyway owns the schema and Hibernate validates it with `ddl-auto=validate`.
-
-Version-by-version detail and the reason each library was chosen are in
-[`.sdd/shared_context.md`](.sdd/shared_context.md).
-
-## Testing
-
-Tests need Docker for PostgreSQL Testcontainers.
+Install Docker Engine and Docker Compose v2.20 or newer, and put an HTTPS reverse
+proxy in front; Compose binds the application to `127.0.0.1:8080`. Keep the real
+environment file outside the repository:
 
 ```bash
-export JAVA_HOME=/opt/homebrew/opt/openjdk@25
-export DOCKER_HOST=unix:///Users/your-name/.orbstack/run/docker.sock # OrbStack only
-./mvnw test
+sudo install -d -m 0700 /etc/labtimesheet
+sudo install -m 0600 .env.compose.example /etc/labtimesheet/compose.env
+sudo install -m 0644 compose.yaml /etc/labtimesheet/compose.yaml
+sudo editor /etc/labtimesheet/compose.env
 ```
 
-The 21 August 2026 Iteration 2 gate recorded 444 of 444 Maven tests passing, the
-focused architecture and Flyway gate at 13 of 13 with a replay producing 23
-tables and 56 foreign keys, and 7 of 7 UI contract tests. Migration `V2` has
-since added a twenty-fourth table for Task effort planning, so that table count
-is a record of the gate rather than a current figure.
+Generate `LAB_SECURITY_MASTER_KEY` with `openssl rand -base64 32` and use an
+immutable `sha-<full-commit>` image tag. SMTP and HolidayAPI credentials never go
+in this file; they are entered in the Admin console.
 
-A test names the numbered requirements it protects in its own Javadoc, and the
-current mapping is in
-[`.sdd/reviews/traceability.md`](.sdd/reviews/traceability.md).
-[docs/guides/TESTING.md](docs/guides/TESTING.md) covers the required TDD cycle and the common failures.
+### Run
 
-## Continuous integration and production containers
+With the bundled database, keep the example JDBC host `postgres`:
 
-Gitea Actions verifies every pull request and push. The separate container
-workflow runs only on manual dispatch or a push to `main`, and its own
-verification job must pass before either image build starts. Manual runs build
-without publishing. Pushes to `main` publish Linux AMD64, adding native Linux
-ARM64 only when the repository declares its ARM runner online. Every published
-revision carries an immutable `sha-<full-commit>` tag with `main` as a
-convenience alias.
+```bash
+docker compose --env-file /etc/labtimesheet/compose.env -f /etc/labtimesheet/compose.yaml --profile bundled-db up -d
+```
 
-The production image is a non-root Java 25 image. The root
-[compose.yaml](compose.yaml) supports either a persistent PostgreSQL 18.4
-sidecar or an external database, and is not used for development. Follow
-[docs/guides/DEPLOYMENT.md](docs/guides/DEPLOYMENT.md) and start from
-[`.env.compose.example`](.env.compose.example), keeping the real production
-environment file outside the repository.
+With an external database, set `LAB_DB_URL`, `LAB_DB_USERNAME` and
+`LAB_DB_PASSWORD`, and start only the application:
 
-## Branch ownership
+```bash
+docker compose --env-file /etc/labtimesheet/compose.env -f /etc/labtimesheet/compose.yaml up -d app
+```
 
-| Branch | Primary area |
-|---|---|
-| `work/platform` | Application baseline, schema, accounts, security, integrations |
-| `work/projects` | Projects, membership, leadership, lifecycle |
-| `work/tasks` | Tasks, comments, status, progress |
-| `work/attendance` | Policy, calendar, attendance workflows |
-| `work/reports-ui` | Shared UI, dashboards, reporting presentation |
+Liveness is `GET /actuator/health/liveness`; readiness,
+`GET /actuator/health/readiness`, includes PostgreSQL. The container runs as
+UID/GID `10001` with a read-only root filesystem and no Linux capabilities.
 
-For a targeted repair, create a clean isolated branch and worktree from the
-latest verified `main` named
-`work/fix/<feature>/<what-fix>`. Do not nest it as
-`work/<feature>/fix/<what-fix>`: the persistent `work/<feature>` ref already
-uses that Git ref prefix.
+Back up with database-aware tooling such as `pg_dump`; the named volume survives
+container replacement but is not a backup. To update or roll back, change
+`LAB_IMAGE` to the required SHA tag and run `up -d` again, keeping the previous
+tag recorded until the new image is healthy.
 
-Every targeted repair starts from the latest verified `main`, follows TDD from RED to GREEN,
-adds Javadoc as it goes, names the rules each test protects in that test's Javadoc,
-gets an independent review, and is merged with an ordinary non-force merge only
-when separately authorized.
+### Gitea Actions
 
-[CONTRIBUTING.md](CONTRIBUTING.md) has the step-by-step workflow.
+`verify.yml` runs on every pull request and push. `container.yml` runs on manual
+dispatch or a push to `main`, repeats verification, and publishes only on a push
+to `main`: an immutable `sha-<commit>` tag and a `main` convenience tag, AMD64,
+plus ARM64 while a trusted ARM runner is declared available.
+
+| Kind | Name | Value |
+|---|---|---|
+| Variable | `ARM64_RUNNER_AVAILABLE` | `true` only while a trusted `ubuntu-latest-arm` runner is online |
+| Secret | `REGISTRY_TOKEN` | Package read/write token for the triggering Gitea account |
+| Variable | `DEPLOY_ENABLED` | Exactly `true` before the dormant deploy job may run |
+| Secret | `DEPLOY_HOST`, `DEPLOY_USER` | SSH target of the deploy job |
+| Secret | `DEPLOY_PRIVATE_KEY` | Dedicated SSH key for the deployment host |
+| Secret | `DEPLOY_KNOWN_HOSTS` | Pinned `known_hosts`; strict host-key checking is always on |
+
+The `deploy` job runs only on `main` with `DEPLOY_ENABLED` set and all four
+secrets present, after verification and the AMD64 image. It selects the
+`sha-<full-commit>-amd64` image, never a mutable tag, and expects the host to hold
+`/etc/labtimesheet/compose.env` and `/etc/labtimesheet/compose.yaml`. It records
+the previous image, restarts only `app`, waits for readiness, and restores the
+previous image if the rollout fails. No database or volume is ever deleted.

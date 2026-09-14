@@ -149,7 +149,7 @@ npm run test:ui                  # UI contract tests
 ```
 
 Development expects PostgreSQL on `55432` and Mailpit SMTP on `1025`. Details in
-[docs/guides/DEVELOPMENT.md](docs/guides/DEVELOPMENT.md).
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Tooling
 

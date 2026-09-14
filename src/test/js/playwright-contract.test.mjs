@@ -68,7 +68,7 @@ test('Playwright harness exposes the required deterministic commands', () => {
   assert.match(config, /workers:\s*1/);
   assert.match(config, /trace:\s*'retain-on-failure'/);
   assert.match(config, /screenshot:\s*'only-on-failure'/);
-  const testing = fs.readFileSync('docs/guides/TESTING.md', 'utf8');
+  const testing = fs.readFileSync('CONTRIBUTING.md', 'utf8');
   for (const command of [
     'npm ci',
     'npx playwright install chromium',
@@ -79,7 +79,7 @@ test('Playwright harness exposes the required deterministic commands', () => {
     'npm run test:e2e:smoke',
     'npx playwright show-report',
   ]) {
-    assert.ok(testing.includes(command), `docs/guides/TESTING.md must document ${command}`);
+    assert.ok(testing.includes(command), `CONTRIBUTING.md must document ${command}`);
   }
   assert.match(testing, /No browser extension\s+is required/);
 });
