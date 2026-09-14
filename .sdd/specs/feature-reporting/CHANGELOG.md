@@ -14,7 +14,7 @@ Decisions `D1` and `D15`, recorded in [`.sdd/decisions.md`](../../decisions.md).
 ## 1.0.0 — 2026-09-14
 
 Approved by Loc-LX. The rules moved here unchanged from the single-file
-specification at `.sdd/requirements.md` (commit `fdd5ee1`), with one exception:
+specification at `.sdd/requirements.md` (commit `625463b`), with one exception:
 
 - `RPT-004` now lists the fields of the Intern attendance dataset and states that an Admin sees none outside it. The instructor confirmed `D1` on 14 September 2026 and asked that the fields an Admin sees be written down, because they are expected to be narrowed later.
 

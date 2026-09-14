@@ -17,7 +17,7 @@ Decisions `D1`, `D12`, `D13`, `D15` and `D16`, recorded in [`.sdd/decisions.md`]
 ## 1.0.0 — 2026-09-14
 
 Approved by Loc-LX. The rules moved here unchanged from the single-file
-specification at `.sdd/requirements.md` (commit `fdd5ee1`), with these exceptions:
+specification at `.sdd/requirements.md` (commit `625463b`), with these exceptions:
 
 - `GOV-016` now places a feature's rules in that feature's spec and its acceptance scenarios in section 7 of the same spec, instead of in §20 of one document. The maintainer chose on 14 September 2026 to split the specification into feature specs.
 - §22.2 records the approval, and the questions and the code disagreement `D13` that remained open when it was given.

@@ -63,7 +63,7 @@ it later" is a hope rather than a plan.
 
 **All ten are answered, and all ten now match the code.** D7 was the only one
 the application contradicted, and it was implemented on 12 September 2026 in
-commit `bf19a25`. Everything else either matched the shipped behavior already or
+commit `275e1a4`. Everything else either matched the shipped behavior already or
 was settled by writing down a rule the code was following without saying so.
 
 D10 arrived later and by a different route. It is not a gap in the specification
@@ -181,8 +181,8 @@ Report cover the same ground without any external service. Iteration 4 was calle
 "Partial Jira/Tempo" for that reason: a deliberately partial, local reimplementation.
 
 `GOV-015` draws the boundary of that partial slice. Its source is a decision
-record removed from the working tree in commit `d5b1754` and still readable at
-`d5b1754^`. Question 1 of that record was answered "build local Jira/Tempo-inspired
+record removed from the working tree in commit `dad1a9f` and still readable at
+`dad1a9f^`. Question 1 of that record was answered "build local Jira/Tempo-inspired
 behavior; do not integrate with external Jira or Tempo APIs".
 
 One correction belongs with this question. `GOV-015` says the product "shall not
@@ -210,7 +210,7 @@ softened from forbidden to deferred.
 This is not a fresh judgement. It restates the prior team's answer to question 1
 of the 26 August 2026 decision record, "build local Jira/Tempo-inspired
 behavior; do not integrate with external Jira or Tempo APIs". That record is no
-longer in the working tree and is readable at `d5b1754^`.
+longer in the working tree and is readable at `dad1a9f^`.
 
 The search that confirms it: across the whole codebase the words Jira and Tempo
 appear once, in a comment on line 1 of `V2__add_task_effort_planning.sql` naming
@@ -519,7 +519,7 @@ workdays, would hold the ratio exactly but change `monthly_leave_quota` from an
 absolute count an Admin sets into a value the system computes. The difference is
 zero to two days, and it was not judged worth changing what a schema field means.
 
-**Implemented on 12 September 2026 in commit `bf19a25`.** This was the one
+**Implemented on 12 September 2026 in commit `275e1a4`.** This was the one
 requirement on this page the code did not satisfy: `AttendancePolicyCommand`
 validated `0 <= monthlyLeaveQuota <= 31`, matching the schema. The bound is now
 4, behind a test that failed first for the right reason, a quota of five being
@@ -956,7 +956,7 @@ cannot tell how much of the rule set was examined.
 - **Numeric bounds.** Every other bound in the schema is stated with its subject in the rules: passwords 12 through 128, grace 0 through 720, daily work 1 through 1440, a Task estimate 1 through 527040, a token hash of exactly 32 bytes, an encryption nonce of 12.
 - **Actors.** The section 5.2 permission matrix was compared against the rules that name a role. No rule grants a capability the matrix withholds.
 - **State and timestamp coherence.** Thirty-seven schema constraints require a status and its timestamp to agree, such as a `LOCKED` account having a lock time. Each follows from a lifecycle rule the specification already states.
-- **Meaning kept through the EARS rewrite.** On 14 September 2026 every rule was compared before and after commit `1376ced` for changed numbers, negations and named roles. Ninety-seven rules were flagged and all were read. One had changed meaning, `TSK-021`, corrected in the table below; the rest reword the same rule. `COR-006` also changed meaning in that rewrite and was found earlier, by checking the rewrite's twelve uses of MAY, which this comparison would not have caught. A change that alters none of numbers, negations, roles or MAY would pass both checks.
+- **Meaning kept through the EARS rewrite.** On 14 September 2026 every rule was compared before and after commit `beb0497` for changed numbers, negations and named roles. Ninety-seven rules were flagged and all were read. One had changed meaning, `TSK-021`, corrected in the table below; the rest reword the same rule. `COR-006` also changed meaning in that rewrite and was found earlier, by checking the rewrite's twelve uses of MAY, which this comparison would not have caught. A change that alters none of numbers, negations, roles or MAY would pass both checks.
 - **Old wording left behind by later decisions.** For each of the 52 rules changed since 17 August, the phrases the change removed were searched for everywhere else in the specification, and every acceptance scenario and use case still worded as on 17 August was read against the rules it traces. The acceptance scenarios were sound. The use cases, the permission matrix and Appendix F were not, and are corrected below.
 
 The audit could not check one kind of failure.

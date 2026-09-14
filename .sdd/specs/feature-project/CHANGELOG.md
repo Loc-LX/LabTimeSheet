@@ -14,7 +14,7 @@ Decision `D12`, recorded in [`.sdd/decisions.md`](../../decisions.md).
 ## 1.0.0 — 2026-09-14
 
 Approved by Loc-LX. The rules moved here unchanged from the single-file
-specification at `.sdd/requirements.md` (commit `fdd5ee1`). Sections 1, 2, 4, 5, 6 and 8 and the notes were written for this spec.
+specification at `.sdd/requirements.md` (commit `625463b`). Sections 1, 2, 4, 5, 6 and 8 and the notes were written for this spec.
 
 Changes made to these rules during the review before approval are recorded in
 [`.sdd/decisions.md`](../../decisions.md).

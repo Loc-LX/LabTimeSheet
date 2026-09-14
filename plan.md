@@ -21,7 +21,7 @@ ahead of `origin/main`, nothing pushed.
 | Validation against the specification | Not started. |
 
 The delivery plan that tracked Iterations 1–4 item by item, with owners, branches
-and integration commits, is in git history: `git show 702d1a5:plan.md`.
+and integration commits, is in git history: `git show b71fc29:plan.md`.
 
 ## Now
 
