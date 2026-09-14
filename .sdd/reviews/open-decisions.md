@@ -813,6 +813,8 @@ cannot tell how much of the rule set was examined.
 - **Numeric bounds.** Every other bound in the schema is stated with its subject in the rules: passwords 12 through 128, grace 0 through 720, daily work 1 through 1440, a Task estimate 1 through 527040, a token hash of exactly 32 bytes, an encryption nonce of 12.
 - **Actors.** The section 5.2 permission matrix was compared against the rules that name a role. No rule grants a capability the matrix withholds.
 - **State and timestamp coherence.** Thirty-seven schema constraints require a status and its timestamp to agree, such as a `LOCKED` account having a lock time. Each follows from a lifecycle rule the specification already states.
+- **Meaning kept through the EARS rewrite.** On 14 September 2026 every rule was compared before and after commit `1376ced` for changed numbers, negations and named roles. Ninety-seven rules were flagged and all were read. One had changed meaning, `TSK-021`, corrected in the table below; the rest reword the same rule. `COR-006` also changed meaning in that rewrite and was found earlier, by checking the rewrite's twelve uses of MAY, which this comparison would not have caught. A change that alters none of numbers, negations, roles or MAY would pass both checks.
+- **Old wording left behind by later decisions.** For each of the 52 rules changed since 17 August, the phrases the change removed were searched for everywhere else in the specification, and every acceptance scenario and use case still worded as on 17 August was read against the rules it traces. The acceptance scenarios were sound. The use cases, the permission matrix and Appendix F were not, and are corrected below.
 
 The audit could not check one of the six failure kinds the playbook names.
 A domain error is a rule that is internally consistent, testable, and simply
@@ -832,14 +834,36 @@ listed so that a reviewer can object rather than discover them later.
 | `DB-010` | The fixed count of 23 tables was removed. The rule now says the diagram covers the 23 baseline tables and that the table added by migration `V2` is not yet drawn. | The schema has 24 tables. The rule asserted a number that was false. |
 | `AUTH-010` | Replaced by a pointer to `RPT-005`, which already carried the same rule. | Two rules stating one thing drift apart. |
 | `TSK-017` | Replaced by a pointer to `CAL-009` and `GOV-004`, which already carried the same rule. | Same reason. |
+| `TSK-021` | Variance for an estimated Task that is unfinished or reopened renders `Pending`; for an unestimated Task it renders `N/A`. The rule had said "undefined" for both. | The EARS rewrite of 12 September 2026 merged two states the earlier wording kept apart ("undefined variance" and "no variance"). `TaskVarianceState` has held both since 26 August 2026. A change of notation should not change meaning. |
+| `ACC-024` | "Refuse normal authentication" now names what withdrawal does: the account becomes `DEACTIVATED`, its sessions end, login is refused, and no password reset is issued. | "Normal" implied another path stayed open. None does: `AccountService#withdrawInternship` has deactivated the account and expired its sessions since 20 August 2026. That decision exists only in code, so it is listed below for the instructor. |
+| `NOT-010` | "The relevant Leader and Mentor" on revocation or supersession is now the issuing Leader and the owning Mentor. | The code notifies exactly those two, the same pair the rule already named for an answered invitation. |
+| `UI-010` | "Adequate target size" is now at least 24 by 24 CSS pixels. | `product.md` already commits the interface to WCAG 2.2 AA interaction requirements, and success criterion 2.5.8 sets that minimum. The smallest icon-only control today, a collapsed sidebar link, is 39 pixels wide. |
+| `PRJ-009` | States first that direct removal is refused while the member owns a worked unfinished Task, pointing to `TSK-022`. | Read alone, the rule promised a transfer that `TSK-022` and the code refuse. |
+| Appendix C, UC-02, UC-05, UC-06, UC-14 | UC-14 still described the 17 August exit flow, in which approval itself moved the Tasks. It now describes the flow `PRJ-008`, `PRJ-010` and `PRJ-022` require: replacement first, Leader transfer batches, approval refused until nothing is left. UC-05 and UC-06 gained the worked-Task refusal, the estimate, the forecast and the `D12` deletion; UC-02 no longer says "normal write access". | The use cases were kept almost word for word from 17 August while 52 of their traced rules changed. `ProjectService#approveExit` and `#directRemoveMember` confirm the current rules. |
+| §5.2 and Appendix F | The permission matrix gained rows for deleting a `PLANNED` Project and for the Task estimate. Two message families no longer offer the old "assisted transfer to current Leader". | Same cause as the row above. |
 
 ## What acceptance of the specification still requires
 
-Answering the five questions above closes the gaps that are visible from inside
-the document. It does not make the document correct.
+Answering the questions above closes the gaps that are visible from inside the
+document. It does not make the document correct.
 
-Two hundred and sixty of the 269 numbered rules were written by an earlier author
-and have not been changed. They are internally consistent and they match the
-code. Neither of those facts establishes that they describe what the laboratory
-actually wants. Only a reading by the authority named in section 1.1 can
-establish that, and section 22.2 already requires it.
+Most of the 269 numbered rules were written by earlier authors, and this review
+changed their wording only where the wording was wrong. They are internally
+consistent and they match the code. Neither of those facts establishes that they
+describe what the laboratory actually wants. Only a reading by the authority named
+in section 1.1 can establish that, and section 22.2 already requires it.
+
+## To confirm with the instructor
+
+These were settled from evidence under the rule that the most recent earlier
+decision applies. Each is a judgement about the laboratory rather than a fact about
+the code, and each is the current candidate until the instructor confirms or
+reverses it.
+
+| Item | Current answer | Why it needs the instructor |
+|---|---|---|
+| `D1` | An Admin sees one Intern's detailed attendance, as a Mentor does. | The rule moved three times. The latest move, restoring access on 30 August, has no written record; the denial before it has a written ruling. |
+| `D12` | Only a `PLANNED` Project may be deleted, only by its owning Mentor, with everything it owns. | The decision exists only in code, Javadoc and tests. A `PLANNED` Project can already hold Tasks and comments. |
+| `ACC-024` | Withdrawing an Intern deactivates the account, so the Intern cannot sign in to view their own history. A completed Intern can. | The difference between the two terminal states exists only in code. |
+| `COR-006` | A checkout set by an approved correction still counts as early departure when it falls before scheduled end. | The rules agree with each other and with the code; whether a corrected day should carry a violation is a policy question. |
+| Daily Project Work Report | A `DONE` Task logged by two authors on one date shows its lifetime actual, estimate and variance under each author. | `RPT-012` forbids productivity claims, but repeating one variance per author may read as one. No record exercised this case. |

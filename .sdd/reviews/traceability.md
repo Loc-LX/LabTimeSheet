@@ -615,6 +615,23 @@ not a class that protects nothing.
 `TaskIteration3QueryTest`, `TaskProjectQueryTest`, `TaskTransferServiceTest`,
 `TaskWorkLogIntegrationTest`, `TaskWorkLogRulesTest`.
 
+### Clauses reworded on 14 September 2026
+
+Five rules were reworded on this date to say what the code does; the reasons are in
+`open-decisions.md` under "Decided without escalation". Their rows above were not
+changed. What a text search of `src/test/java` found for the new wording:
+
+| Rule | Clause | Test found |
+|---|---|---|
+| `ACC-024` | Withdrawal sets the account to `DEACTIVATED` | `InternshipLifecycleIntegrationTest` asserts it. |
+| `ACC-024` | Withdrawal ends sessions; no password reset is issued afterwards | None exercises withdrawal. `AccountSessionInvalidationWebIntegrationTest` covers session end for the Admin deactivate action only, and no password-reset test uses a deactivated account. |
+| `TSK-021` | Estimated unfinished Task renders `Pending`; unestimated renders `N/A` | `TaskControllerTest` renders both states on the Task page. |
+| `NOT-010` | Revocation and supersession notify the issuing Leader and the owning Mentor | Not established; the search found no assertion on these recipients. |
+| `UI-010` | Icon-only target at least 24 by 24 CSS pixels | None. |
+| `PRJ-009` | Direct removal refused while a worked unfinished Task remains | Not established; the refusal message appears in no test. |
+
+These are test gaps, not disagreements. They are left for validation.
+
 ### Why this file should stop existing in this form
 
 Every error above is the same error. A derived fact was copied into prose, was

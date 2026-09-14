@@ -253,7 +253,7 @@ Reference versions and primary documentation:
 | ACC-021 | WHEN the configured internship start date is reached, THE system SHALL activate an eligible `NOT_STARTED` Intern through both a scheduled guard and a guard applied at request time, so that correctness does not depend on scheduler timing. |
 | ACC-022 | WHEN an Admin marks an Intern `COMPLETED` or `WITHDRAWN`, THE system SHALL apply it only through that explicit action. WHILE that Intern holds a current leadership term or owns an unfinished Task, THE system SHALL refuse both actions until the leader-transfer and Task-reassignment workflows have succeeded. |
 | ACC-023 | WHILE an Intern is `COMPLETED`, THE system SHALL allow authentication in read-only mode to view retained history and manage password and session security, and SHALL refuse any attempt to create or mutate attendance, leave, correction, Project, Task, comment, or work-log data. |
-| ACC-024 | WHEN an Intern becomes `WITHDRAWN`, THE system SHALL refuse normal authentication immediately and SHALL keep their historical memberships, Tasks, work logs, attendance, leave, and corrections attributable. |
+| ACC-024 | WHEN an Admin withdraws an Intern, THE system SHALL set the account to `DEACTIVATED` in the same transaction, SHALL end every session of that account, SHALL thereafter refuse its login under `ACC-016`, SHALL issue it no password-reset token and refuse any it already holds, and SHALL keep their historical memberships, Tasks, work logs, attendance, leave, and corrections attributable. |
 | ACC-025 | WHEN a terminal lifecycle action is applied, THE system SHALL enforce it for authorization from that instant. Attendance already recorded on that local date SHALL remain reportable, and an otherwise empty terminal date SHALL NOT be newly classified as an absence. |
 
 ## 5. Authorization model
@@ -281,6 +281,7 @@ Legend: **Yes** = permitted within the stated scope; **Own** = own Project or ow
 | View all Projects/tasks/progress | Yes, read-only | Own | Own | Membership scope |
 | Create Project | No | Yes | No | No |
 | Edit/activate/complete Project | No | Own | No | No |
+| Delete a PLANNED Project | No | Own | No | No |
 | Directly add/remove Project members | No | Own | No | No |
 | Issue/revoke Project invitation | No | Revoke any in Own | Issue/revoke own in Own | Accept/decline own invitation |
 | Request/decide membership exit | No | Decide or remove directly in Own | Request another member's removal or own leave | Request/cancel own leave |
@@ -288,6 +289,7 @@ Legend: **Yes** = permitted within the stated scope; **Own** = own Project or ow
 | Redistribute unfinished Tasks for pending exit | No | No | Own, in confirmed batches | No |
 | Create Task | No | No | Own; any active assignee | Self-assigned only |
 | Assign/reassign Task | No | No | Own | No |
+| Set/replace/clear Task estimate before the first work log | No | No | Own | No |
 | Edit/soft-delete Task | No | No | Unfinished in Own | Unfinished self-created while still self-assigned |
 | Change Task status | No | No | Assigned | Assigned |
 | Comment on Task | No | Own | Own | Membership scope |
@@ -320,7 +322,7 @@ Legend: **Yes** = permitted within the stated scope; **Own** = own Project or ow
 | PRJ-006 | WHEN leadership changes, THE system SHALL close the current term and open a new term for another active member in one transaction, so that the Project never exposes two current Leaders and never exposes an active period without one. |
 | PRJ-007 | WHEN leadership changes and nothing else, THE system SHALL NOT reassign any Task. The former Leader SHALL remain a normal member and SHALL retain assignee rights for Tasks still assigned to them. |
 | PRJ-008 | WHILE an exit request targets the current Leader, THE system SHALL refuse Task transfer and exit approval until the owning Mentor appoints an eligible replacement. WHEN the replacement is appointed, THE system SHALL grant it current leadership and the authority to perform remaining transfer batches, and SHALL NOT move any Task merely because leadership changed. |
-| PRJ-009 | WHEN an owning Mentor removes a member directly, THE system SHALL transfer that member's unfinished Tasks to the current Leader in the same transaction. WHERE the removed member is the current Leader, THE system SHALL require an eligible replacement and SHALL transfer the unfinished Tasks to that replacement. WHERE any replacement, transfer, authorization, or lock check fails, THE system SHALL leave membership and Tasks unchanged. |
+| PRJ-009 | WHERE the member owns a worked unfinished Task, THE system SHALL refuse direct removal under `TSK-022`. WHEN an owning Mentor removes a member directly, THE system SHALL transfer that member's unfinished Tasks to the current Leader in the same transaction. WHERE the removed member is the current Leader, THE system SHALL require an eligible replacement and SHALL transfer the unfinished Tasks to that replacement. WHERE any replacement, transfer, authorization, or lock check fails, THE system SHALL leave membership and Tasks unchanged. |
 | PRJ-010 | WHILE an exit request is pending, THE system SHALL permit the current Leader to redistribute work in confirmed batches, each naming one or more unfinished `TODO`, `IN_PROGRESS`, or `BLOCKED` Tasks and one eligible active current member. THE system SHALL apply each batch immediately and atomically, SHALL permit the batches to repeat, and SHALL NOT undo a completed batch when the request is later cancelled or rejected. |
 | PRJ-011 | WHEN a membership closes, THE system SHALL leave completed Tasks, Task creator attribution, comments, work logs, invitations, exit requests, and leadership history unchanged. A completed Task SHALL remain assigned to the closed historical membership and SHALL display that Intern's name in authorized history. |
 | PRJ-012 | WHEN a Mentor activates a Project, THE system SHALL require a current Leader, at least one active member, valid Project dates, and a valid active-member assignee on every non-deleted Task. |
@@ -366,7 +368,7 @@ Legend: **Yes** = permitted within the stated scope; **Own** = own Project or ow
 | TSK-018 | WHEN a member creates a self-Task, THE system SHALL set the creator, the assignment actor, and the assignee to the authenticated membership in one transaction, and SHALL NOT raise a notification to that same member. The current Leader's broader creation authority SHALL remain scoped to the Project. |
 | TSK-019 | THE system SHALL authorize Task definition from currently stored context: the current Leader MAY manage any unfinished Task, and an eligible member creator MAY manage only an unfinished Task still assigned to them. WHILE a member is the target of a pending exit, THE system SHALL refuse new and self-assignment to them without removing their existing assignee rights. WHEN a Task is reassigned away from its creator, THE system SHALL withdraw creator control while leaving historical creator attribution unchanged, and SHALL restore that control on reassignment back only WHERE creator and current assignee are equal and currently eligible. |
 | TSK-020 | THE system SHALL permit a Task to carry one optional whole-Task estimate in integer minutes from 1 through 527040. THE system SHALL permit only the current Project Leader to set, replace, or clear it, and only before the first retained work log. WHEN the first work log is retained, THE system SHALL make the estimate immutable. THE system SHALL treat estimate mutation as separate from ordinary Task editing and SHALL reject it from any other actor. |
-| TSK-021 | THE system SHALL compute Actual Task effort as the lifetime sum of retained work-log minutes across every author and assignment. WHERE a Task is `DONE` and carries an estimate, THE system SHALL compute variance as actual effort minus estimate. WHERE a Task is unfinished, reopened, or unestimated, THE system SHALL treat variance as undefined. THE system SHALL NOT derive an efficiency or productivity score from any of these. |
+| TSK-021 | THE system SHALL compute Actual Task effort as the lifetime sum of retained work-log minutes across every author and assignment. WHERE a Task is `DONE` and carries an estimate, THE system SHALL compute variance as actual effort minus estimate. WHERE a Task carries an estimate and is unfinished or reopened, THE system SHALL leave variance undefined and render it as `Pending`. WHERE a Task carries no estimate, THE system SHALL leave variance undefined and render it as `N/A`. THE system SHALL NOT derive an efficiency or productivity score from any of these. |
 | TSK-022 | WHERE an unfinished Task carrying retained work is reassigned, THE system SHALL require an append-only Remaining effort forecast from the current Leader containing the reassignment snapshot. THE system SHALL accept a correcting successor only before the incoming assignee's first newly created work log. WHILE a member owns a worked unfinished Task, THE system SHALL refuse direct Mentor removal, and SHALL NOT fabricate Leader provenance for a forecast. |
 
 ## 8. Global attendance policy and calendar
@@ -490,7 +492,7 @@ For an applicable Intern/date, classification precedence is:
 | NOT-007 | THE system SHALL permit an Admin to inspect failed ordinary email and invoke a manual retry. WHEN that retry is invoked, THE system SHALL re-enter bounded retry state without duplicating the in-app notification. |
 | NOT-008 | THE system SHALL NOT route activation or password-reset mail through the ordinary notification outbox, because the raw link must not be persisted. WHERE such a send fails, THE system SHALL invalidate the token and require explicit regeneration. |
 | NOT-009 | THE system SHALL scope the unread count and the notification list to the authenticated recipient, and SHALL make mark-read idempotent. |
-| NOT-010 | WHEN an invitation is created, THE system SHALL notify the invitee. WHEN it is answered, THE system SHALL notify the issuing Leader and the owning Mentor. WHEN it is revoked or superseded, THE system SHALL notify the invitee and the relevant Leader and Mentor. WHEN a Leader requests a removal, THE system SHALL notify the owning Mentor and the target; WHEN a member requests their own leave, THE system SHALL notify the owning Mentor and the current Leader; WHEN such a request is decided or cancelled, THE system SHALL notify the requester, the target, and the current Leader, collapsing duplicate recipients. WHEN a member creates a self-Task, THE system SHALL send no notification. |
+| NOT-010 | WHEN an invitation is created, THE system SHALL notify the invitee. WHEN it is answered, THE system SHALL notify the issuing Leader and the owning Mentor. WHEN it is revoked or superseded, THE system SHALL notify the invitee, the issuing Leader, and the owning Mentor, collapsing duplicate recipients. WHEN a Leader requests a removal, THE system SHALL notify the owning Mentor and the target; WHEN a member requests their own leave, THE system SHALL notify the owning Mentor and the current Leader; WHEN such a request is decided or cancelled, THE system SHALL notify the requester, the target, and the current Leader, collapsing duplicate recipients. WHEN a member creates a self-Task, THE system SHALL send no notification. |
 
 ## 13. Authentication and security
 
@@ -559,7 +561,7 @@ The following supplied screenshots are visual-direction references. Their exampl
 | UI-007 | WHEN a visitor arrives for the first time, THE system SHALL follow the system colour preference. THE system SHALL offer a Light, Dark, and System selector, SHALL store the override in the browser, and SHALL apply it before first paint so that no theme flash occurs. THE system SHALL NOT require a database table for theme preference. |
 | UI-008 | THE system SHALL provide reusable fragments for the shell, navigation, button, input, select, checkbox, cards, metric cards, badges, tabs, tables, pagination, alerts, confirmation dialog, empty state, skeleton state, and notification menu. |
 | UI-009 | THE system SHALL pin Lucide Static 1.27.0 as a build dependency and reduce it to a local build-time SVG sprite. THE system SHALL NOT use an icon CDN, an icon font, a runtime DOM replacement pass, or a React adapter. |
-| UI-010 | WHERE an icon sits beside visible text, THE system SHALL mark it decorative and hide it from assistive technology. WHERE a control carries only an icon, THE system SHALL give it an accessible name, a visible tooltip, keyboard focus, and an adequate target size. |
+| UI-010 | WHERE an icon sits beside visible text, THE system SHALL mark it decorative and hide it from assistive technology. WHERE a control carries only an icon, THE system SHALL give it an accessible name, a visible tooltip, keyboard focus, and a target of at least 24 by 24 CSS pixels, the WCAG 2.2 AA minimum under success criterion 2.5.8. |
 | UI-011 | THE system SHALL use Chart.js 4.5.1 only for meaningful attendance and Project trends, and SHALL give every canvas an accessible name and an adjacent text or table summary, because canvas content is not inherently available to a screen reader. |
 | UI-012 | THE system SHALL draw charts from the theme tokens, SHALL honour a reduced-motion preference, and SHALL NOT let a chart be the only representation of a value or status. |
 | UI-013 | THE system SHALL present the interface in English only in v1, SHALL display business dates as `dd/MM/yyyy`, and SHALL display times in 24-hour local form with timezone context where ambiguity matters. |
@@ -577,6 +579,7 @@ Primary UI dependency references:
 - [Chart.js 4.5.1 release](https://github.com/chartjs/Chart.js/releases/tag/v4.5.1)
 - [Chart.js accessibility guidance](https://www.chartjs.org/docs/latest/general/accessibility.html)
 - [WCAG 2.2 contrast minimum](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html)
+- [WCAG 2.2 target size minimum](https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html)
 
 ### 15.2 Role-oriented page map
 
@@ -1501,7 +1504,7 @@ Validation performed on 14 August 2026 established the review artifacts below. T
 - Expired, used, invalidated, or superseded tokens fail without revealing secret data.
 - Five failed sign-ins in 15 minutes produce a 15-minute temporary throttle.
 - Password recovery delivery is unavailable without active SMTP.
-- Locked, deactivated, withdrawn, or otherwise ineligible users cannot obtain normal write access.
+- Pending, locked, and deactivated accounts cannot sign in, and withdrawing an Intern deactivates the account; a completed Intern signs in read-only.
 
 #### 5.3 UC-03 — Administer accounts and internship lifecycle
 
@@ -1525,7 +1528,7 @@ Validation performed on 14 August 2026 established the review artifacts below. T
 
 - Failed activation delivery retains the pending account, invalidates the token, and exposes explicit resend.
 - Completion or withdrawal is blocked while the Intern is a Leader or owns unfinished Tasks.
-- Completed Interns retain read-only historical access; withdrawn Interns lose normal authentication.
+- Completed Interns retain read-only historical access; withdrawal deactivates the account, ends its sessions, and refuses further login.
 
 #### 5.4 UC-04 — Configure policy, calendar, and integrations
 
@@ -1576,9 +1579,10 @@ Validation performed on 14 August 2026 established the review artifacts below. T
 **Alternatives and exceptions**
 
 - Leadership reassignment leaves the former Leader’s Task assignments unchanged.
-- Removing a member with unfinished Tasks requires assisted reassignment to the current Leader.
+- Direct removal moves the member's unfinished Tasks to the current Leader, or to the replacement when the member leads, and is refused while the member owns an unfinished Task that already carries work logs.
 - Removing or approving leave for the current Leader requires a replacement first.
 - Project completion revokes pending invitations and supersedes pending exit requests.
+- A PLANNED Project may be deleted by its owning Mentor together with the rows it owns; an ACTIVE or COMPLETED Project offers no deletion.
 
 #### 5.6 UC-06 — Manage Tasks as current Project Leader
 
@@ -1588,18 +1592,21 @@ Validation performed on 14 August 2026 established the review artifacts below. T
 | Trigger | The current Leader creates, edits, assigns, reassigns, or soft-deletes a Task. |
 | Preconditions | The Leader has a current leadership term and active membership in a non-completed Project. |
 | Postconditions | The Task definition or assignment changes without falsifying creator or assignee-controlled history. |
-| Traced requirements | TSK-001–TSK-019, AUTH-004–AUTH-011 |
+| Traced requirements | TSK-001–TSK-022, AUTH-004–AUTH-011 |
 
 **Main success flow**
 
-1. Create or edit a Task with one active same-Project assignee.
+1. Create or edit a Task with one eligible active same-Project assignee.
 2. Choose an optional due date inside Project dates and not on a current global day off.
-3. Reassign an unfinished Task while preserving creator, status, comments, and work logs.
-4. Inspect status counts, progress, logged minutes, and per-member work.
+3. Set, replace, or clear an optional estimate before the Task's first work log.
+4. Reassign an unfinished Task while preserving creator, status, comments, and work logs, recording a Remaining effort forecast when the Task already carries work.
+5. Inspect status counts, progress, logged minutes, and per-member work.
 
 **Alternatives and exceptions**
 
 - A DONE Task must be reopened by its current assignee before reassignment.
+- A member targeted by a pending exit cannot receive a new or reassigned Task.
+- Once a work log is retained, the estimate cannot change.
 - A stale leadership term or guessed Project/Task identifier is denied.
 - Soft deletion removes the Task from current lists and progress but preserves history.
 
@@ -1789,21 +1796,22 @@ inferring it from the steps above.
 | Primary actor(s) | Current Leader; current Project member; owning Mentor |
 | Trigger | A Leader requests another member’s removal, a member asks to leave, or the owning Mentor decides the request. |
 | Preconditions | Requester and target have active memberships in the same PLANNED or ACTIVE Project; no pending request already targets that membership. |
-| Postconditions | Approved exit changes membership only after safe transfer; every request and original attribution remains historical. |
-| Traced requirements | AUTH-011, PRJ-020–PRJ-022, NOT-010, UI-019, DB-012 |
+| Postconditions | Approval closes the membership only once the target neither leads the Project nor owns an unfinished Task; every request and original attribution remains historical. |
+| Traced requirements | AUTH-011, PRJ-008, PRJ-010, PRJ-020–PRJ-022, TSK-022, NOT-010, UI-019, DB-012 |
 
 **Main success flow**
 
 1. Create a pending request with the correct type and a nonblank reason.
-2. Keep membership, leadership, assignments, and rights unchanged while pending.
-3. Allow the requester to cancel, or the owning Mentor to approve or reject.
-4. On approval, lock the request, target membership, Project leadership, and unfinished Tasks.
-5. Move unfinished Tasks to the current Leader, or atomically appoint a replacement and move them there when the Leader leaves.
-6. Close membership/leadership intervals and resolve the request in the same transaction.
+2. While pending, keep the target's membership, existing assignments, and rights, and give the target no new or reassigned Task and no self-Task.
+3. Where the target is the current Leader, the owning Mentor appoints an eligible replacement before any transfer.
+4. The current Leader moves the target's unfinished Tasks to eligible current members in confirmed batches, each committed immediately, with a Remaining effort forecast for every worked Task.
+5. Allow the requester to cancel, or the owning Mentor to reject, or to approve once the target neither leads the Project nor owns an unfinished Task.
+6. On approval, lock and recheck the request, target membership, current leadership, and unfinished Task count, then close the membership and resolve the request in the same transaction.
 
 **Alternatives and exceptions**
 
-- Reject and cancel change only the request.
+- Reject and cancel resolve only the request; completed transfer batches stay, and the target is again eligible for new assignments.
+- Approval submitted while the target still leads the Project or owns an unfinished Task is refused and changes nothing.
 - Direct Mentor removal resolves a matching pending request as APPROVED.
 - Project completion marks unresolved requests SUPERSEDED.
 - Optimistic or authorization conflict leaves every membership and historical row unchanged.
@@ -1925,9 +1933,9 @@ the wording is not.
 | Integration unavailable | Explain that manual calendar configuration remains available. |
 | Deadline closed | Show the authoritative local deadline and final locked state. |
 | Quota/overlap rejection | Identify month-level counted days or the conflicting range without exposing another Intern’s data. |
-| Membership removal guard | Identify unfinished Task count and offer the approved assisted transfer to current Leader. |
+| Membership removal guard | Identify the unfinished Task count, state that worked unfinished Tasks must be transferred with a forecast before direct removal, and that the rest move to the current Leader. |
 | Invitation conflict | Explain that eligibility, leadership, or membership changed and reload current state without leaking another user’s protected details. |
-| Membership-exit decision | Show requester, target, reason, unfinished Task transfer, and required replacement when the Leader leaves. |
+| Membership-exit decision | Show requester, target, reason, the remaining unfinished Task count, whether a replacement Leader is still required, and whether the request is ready for approval. |
 | Project completion guard | Identify remaining non-deleted Tasks not in DONE. |
 | No-data metric | Render `N/A` and explain the zero denominator; do not render a misleading 0%. |
 | Successful mutation | Confirm the resulting state and the next available action without implying email delivery unless it succeeded. |
