@@ -1,6 +1,6 @@
 # Task Spec
 
-**Version:** 1.2.0 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-14
+**Version:** 1.2.1 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-14
 
 Part of the Lab Timesheet specification. Rules every feature shares, including the
 glossary, the authorization model, the domain model, and failure handling, are in
@@ -60,6 +60,14 @@ Every capability by role is in the permission matrix, [platform spec](../feature
 | TSK-023 | THE system SHALL decide every Task status change from the actor's role, the actor's scope, the Task's current status, and the target status, and SHALL NOT infer from a higher role that an actor may set any status. WHILE a Project is `ACTIVE`, THE system SHALL permit the current Leader, on any non-deleted Task of the Project they lead, and the owning Mentor, on any non-deleted Task of their Project, to block a Task (`TODO` or `IN_PROGRESS` → `BLOCKED`), to unblock it back to the status it held immediately before it was blocked, and to reopen it (`DONE` → `IN_PROGRESS`) so that its assignee can correct it. THE system SHALL refuse a Leader's or Mentor's attempt to unblock a Task to any other status, to start another member's Task, or to mark it `DONE`, and SHALL refuse every status change by an Admin. |
 | TSK-024 | WHILE a Project is `ACTIVE`, THE system SHALL permit its current Leader to append a Remaining effort forecast for any unfinished Task whenever the prediction of the effort still needed changes. THE system SHALL record with each forecast the Actual Task effort at that moment, SHALL NOT edit or replace an earlier forecast, and SHALL use the latest one under `TSK-021`. A forecast SHALL NOT change the estimate. |
 | TSK-025 | WHEN a Task is blocked, unblocked, or reopened, THE system SHALL retain a transition record holding the actor, the server time, the previous status, the new status, and, for a reopen, a nonblank reason the actor must supply. THE system SHALL take the status a Task returns to on unblock from the record of its latest block. THE system MAY show a reopen reason as a Task comment, but the transition record SHALL remain its authoritative copy. |
+
+### Authorization and integrity (from platform §5 and §19.3)
+
+| ID | Requirement |
+|---|---|
+| AUTH-005 | THE system SHALL resolve current-assignee permission independently of leadership: a Leader MAY log work on a Task, and MAY make any `TSK-007` transition on it, only WHILE assigned to it, and so MAY an ordinary member. The transitions a current Leader MAY make on another member's Task are those of `TSK-023` and no others. |
+| AUTH-008 | THE system SHALL permit a Mentor to view a Task, comment on it, and read its retained history. THE system SHALL refuse a Mentor's attempt to create, assign, reassign, edit, or soft-delete a Task. WHILE a Project is `ACTIVE`, THE system SHALL permit its owning Mentor only the block, unblock, and reopen transitions of `TSK-023`, and SHALL refuse every other status change by a Mentor. The automatic transfer performed by direct Mentor removal is a guarded Project-domain operation rather than Task-management authority. |
+| DB-013 | THE schema SHALL store a Task estimate as nullable whole-Task integer minutes constrained to `1..527040`, with no backfill. THE schema SHALL store Remaining effort forecasts as append-only rows carrying same-Project Task and membership references, the start of the assignment the forecast applies to, remaining minutes, a nonnegative lifetime-actual snapshot, an optional initial note, the correction reason and supersession shape, linear successors, and indexes for Task history and latest lookup. THE schema SHALL NOT persist a derived forecast total. |
 
 ### Use cases
 
@@ -157,6 +165,8 @@ Scenarios from the §20 acceptance catalogue whose identifiers start with `AC-TS
 | AC-TSK-016 | TSK-007, TSK-023 | On an `ACTIVE` Project the assignee, the current Leader, the owning Mentor, another member, and an Admin each attempt every `TSK-007` transition on one Task, then the same on a `PLANNED` Project | The assignee may make every transition; the Leader and the owning Mentor may block, unblock, and reopen only, and are refused starting the Task and marking it `DONE`; another member and the Admin are refused every change; on the `PLANNED` Project every status change is refused. |
 | AC-TSK-017 | TSK-021, TSK-024 | A Task estimated at 600 minutes has 200 logged; the Leader records 300 remaining; 120 more are logged; the Leader records 250 remaining; 220 more are logged and the Task is completed | After the first forecast Current Work is 500 and variance −100; after the next 120 minutes current Remaining is 180 and Current Work stays 500; after the second forecast Current Work is 570 and variance −30; once `DONE`, Current Work is 540 and variance −60. The estimate never changes and both forecasts remain in history. |
 | AC-TSK-018 | TSK-023, TSK-025, NOT-003 | On an `ACTIVE` Project the Leader blocks a `TODO` Task and an `IN_PROGRESS` Task, then unblocks both; the owning Mentor reopens a `DONE` Task first without a reason and then with one | The `TODO` Task returns to `TODO` and the `IN_PROGRESS` Task to `IN_PROGRESS`, and unblocking either to another status is refused; the reasonless reopen is refused; each block, unblock, and reopen leaves a transition record with actor, time, both statuses, and the reopen reason; the assignee receives an in-app notification for each, and the current Leader also for the Mentor's reopen. |
+| AC-AUTH-004 | AUTH-008, TSK-023 | Owning Mentor opens a Task on an `ACTIVE` Project, then one on a `PLANNED` Project | Mentor can view and comment; every Task definition mutation is denied; on the `ACTIVE` Project block, unblock, and reopen succeed while starting the Task and marking it `DONE` are denied; on the `PLANNED` Project every status change is denied. |
+| AC-DB-003 | DB-013 | SQL probes insert a Task estimate of 0, one of 527 041, a forecast whose Task and membership belong to different Projects, a forecast with negative lifetime-actual, and an attempt to update an existing forecast row | Each is rejected by a constraint; estimates accept `NULL` and the inclusive bounds 1 and 527 040; forecasts accept inserts only, and no derived total column exists on any table. |
 
 ## 8. Out of Scope
 

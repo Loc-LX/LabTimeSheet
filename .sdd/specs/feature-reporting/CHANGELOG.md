@@ -3,6 +3,10 @@
 Each entry records a change to [SPEC.md](SPEC.md): the version, the date, what changed,
 and why. A change that alters a rule raises the version.
 
+## 1.2.1 — 2026-09-14
+
+Relocation only; no rule text changed. `ERR-006` moved here from the platform spec because they concern only this feature, with `AC-ERR-006`.
+
 ## 1.2.0 — 2026-09-14
 
 Decisions `D12`, `D14`, and `D15`, recorded in [`.sdd/decisions.md`](../../decisions.md). Marked provisional, pending instructor confirmation.

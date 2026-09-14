@@ -1,6 +1,6 @@
 # Attendance Spec
 
-**Version:** 1.1.0 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-14
+**Version:** 1.1.1 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-14
 
 Part of the Lab Timesheet specification. Rules every feature shares, including the
 glossary, the authorization model, the domain model, and failure handling, are in
@@ -127,6 +127,13 @@ For an applicable Intern/date, classification precedence is:
 | EXC-004 | WHEN the responsible Mentor marks an Intern's recorded late arrival or early departure excused without a request, THE system SHALL require a nonblank reason and SHALL retain the Mentor and the server time. |
 | EXC-005 | WHERE a late arrival or early departure is excused, THE system SHALL NOT count it among the applicable violations of `ATT-016`, and SHALL still show it, marked excused, in attendance history, reports, and statistics. Leaving an excused violation out of compliance is a provisional laboratory policy. |
 | EXC-006 | THE system SHALL refuse an exception decision or mark by an Intern Leader, an Admin, or any Mentor other than the Intern's responsible Mentor. |
+
+### Integrity (from platform §19.3)
+
+| ID | Requirement |
+|---|---|
+| DB-002 | THE schema SHALL enable `btree_gist` and SHALL use an exclusion constraint so that a pending or approved leave range cannot overlap another for the same Intern. |
+| DB-009 | THE schema seed SHALL create the `1970-01-01` policy version and ISO workdays 1 through 5. |
 
 ### Use cases
 
@@ -302,6 +309,7 @@ Scenarios from the §20 acceptance catalogue whose identifiers start with `AC-AT
 | AC-LEV-004 | LEV-008–LEV-010 | Same-day request submitted at 08:29:59 and at 08:30:00 | First may submit; second rejects. Pending at 08:30 auto-rejects through access guard even if scheduler has not run. |
 | AC-LEV-005 | LEV-011–LEV-012 | Intern cancels approved leave before and after first counted start | Before succeeds and releases quota; at/after boundary rejects and allocation remains frozen. |
 | AC-LEV-006 | LEV-003–LEV-004, UI-019 | Intern opens the dashboard and My Leave across pending, approved, rejected, cancelled, and cross-month requests | Dashboard shows current-month reserved/quota/remaining; month selection recomputes from frozen allocations; pending/approved reserve, rejected/cancelled release, and each cross-month allocation remains separately labelled. |
+| AC-DB-005 | DB-002 | `btree_gist` is queried after replay, then one Intern is given a pending leave range and a second overlapping range is inserted directly by SQL | The extension is present; the second insert is refused by the exclusion constraint; a non-overlapping range for the same Intern and an overlapping range for a different Intern both succeed. |
 
 ## 8. Out of Scope
 

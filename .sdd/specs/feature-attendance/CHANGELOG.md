@@ -3,6 +3,10 @@
 Each entry records a change to [SPEC.md](SPEC.md): the version, the date, what changed,
 and why. A change that alters a rule raises the version.
 
+## 1.1.1 — 2026-09-14
+
+Relocation only; no rule text changed. `DB-002`, `DB-009` moved here from the platform spec because they concern only this feature, with `AC-DB-005`.
+
 ## 1.1.0 — 2026-09-14
 
 Decision `D14`, recorded in [`.sdd/decisions.md`](../../decisions.md). Marked provisional, pending instructor confirmation.

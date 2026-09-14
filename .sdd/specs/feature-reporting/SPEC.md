@@ -1,6 +1,6 @@
 # Reporting Spec
 
-**Version:** 1.2.0 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-14
+**Version:** 1.2.1 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-14
 
 Part of the Lab Timesheet specification. Rules every feature shares, including the
 glossary, the authorization model, the domain model, and failure handling, are in
@@ -41,6 +41,12 @@ Every capability by role is in the permission matrix, [platform spec](../feature
 | RPT-012 | THE system SHALL keep the Daily Project Work Report's selected-date minutes distinct from lifetime Actual Task effort, the estimate, the current Remaining effort, Current Work, and the variance of `TSK-021`. WHERE the mode is all-Projects, THE system SHALL omit an empty Project; WHERE one empty Project is selected, THE system SHALL show an explicit empty state. THE system SHALL NOT assert attendance, completion on that date, productivity, or efficiency. |
 | RPT-013 | THE system SHALL build the HTML, XLSX, and PDF Daily Project Work Reports from one authorized immutable dataset, and SHALL expose identical rows, descriptions, statuses, planning values, and hand-checkable totals in all three. |
 | RPT-014 | THE system SHALL present the Daily Project Work Report in two perspectives in every format. The Task view SHALL show each Task with work on the selected date once, with its current status, estimate, Actual Task effort, current Remaining effort and the date of the forecast it derives from, Current Work, and variance, followed by each contributor and their selected-date minutes. The Intern view SHALL show each work-log author with their Tasks, work descriptions, and selected-date minutes, and SHALL NOT repeat a Task's planning values under an author. THE system SHALL total selected-date minutes only. |
+
+### Failure handling (from platform §21)
+
+| ID | Requirement |
+|---|---|
+| ERR-006 | WHERE report generation fails, THE system SHALL return an error, SHALL persist no partial report, and SHALL close the response stream and any temporary resource. |
 
 ### Use cases
 
@@ -121,6 +127,7 @@ Scenarios from the §20 acceptance catalogue whose identifiers start with `AC-RP
 | AC-RPT-004 | RPT-011–RPT-012 | Owning Mentor requests Daily Project Work Report for all owned or one selected owned Project; current Leader requests one mandatory exact currently-led `PLANNED`/`ACTIVE` Project in HTML, XLSX, or PDF for a past, current, policy non-workday, global day off, empty scope, or soft-deleted Task; an active Intern follows the conditional Leader navigation with zero, one, or multiple eligible Projects; Admin requests Daily HTML/XLSX/PDF | Authorized retained logs remain grouped by historical author and described with current status/deletion marker, including work before the current leadership term; date labels never filter valid Task work; one eligible Leader Project redirects to its locked report, multiple show only an authorized selector, none returns `Project unavailable`, and selected date survives selection/redirect. An active Admin receives a read-only report for all Projects or a selected one. Ordinary Intern without current leadership, former Leader, other-Project Leader, completed Project, missing `projectId`, and guessed-ID requests are denied before downstream reads or exporter invocation. A cancelled Project is left out of an all-Projects request unless the filter includes it. |
 | AC-RPT-005 | RPT-013 | The same Daily dataset is rendered as HTML, XLSX, and PDF | All formats contain identical authorized Projects, authors, Tasks, descriptions, statuses, planning fields, and totals; no format adds attendance/completion/productivity claims. |
 | AC-RPT-006 | RPT-014, TSK-021 | On one date a `DONE` estimated Task is logged by two authors, and an unfinished Task with a forecast by one of them | The Task view shows each Task once with its planning values and both contributors' minutes; the Intern view shows each author's minutes and descriptions with no estimate, forecast, Current Work, or variance; totals equal the sum of selected-date minutes in HTML, XLSX, and PDF. |
+| AC-ERR-006 | ERR-006 | An XLSX export fails midway through writing the workbook | The response reports the failure rather than a truncated file; no report artifact is persisted; the workbook stream and any temporary file are closed, verified by the absence of leaked handles after the request. |
 
 ## 8. Out of Scope
 
