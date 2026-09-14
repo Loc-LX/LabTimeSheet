@@ -3,6 +3,12 @@
 Each entry records a change to [SPEC.md](SPEC.md): the version, the date, what changed,
 and why. A change that alters a rule raises the version.
 
+## 1.1.4 — 2026-09-14
+
+Decision `D14`, recorded in [`.sdd/decisions.md`](../../decisions.md). Marked provisional, pending instructor confirmation.
+
+- `NOT-011` sends a reopen request to every active user the authorization policy lets decide it, not to Admins by role, so narrowing Admin rights or adding an attendance-administration role later needs no notification change. It also names amendments and reversals.
+
 ## 1.1.3 — 2026-09-14
 
 Decision `D14`, recorded in [`.sdd/decisions.md`](../../decisions.md). Marked provisional, pending instructor confirmation.

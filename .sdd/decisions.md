@@ -56,7 +56,7 @@ changes one, its status here changes first.
 | D11 | Whether approving the specification waits for the Iteration 3 integrated review | No; resolving every code and specification disagreement is the condition instead | §22.2 |
 | D12 | Whether a Project may be deleted | Only an empty `PLANNED` Project, with its notifications; any other Project that will not run is cancelled and stays in reports. Provisional | `PRJ-002`, `PRJ-023`, `RPT-003`, `RPT-011` |
 | D13 | Whether an owning Mentor may change a Task's status | Only block, unblock to the previous status, and reopen with a reason, decided by role, scope, and state. Provisional | `AUTH-005`, `AUTH-008`, `TSK-007`, `TSK-023`, `TSK-025`, `NOT-003` |
-| D14 | Whether a late arrival or early departure can be excused | Yes, as a separate, append-only decision by the responsible Mentor, who also decides leave and corrections under the same lifecycle; overdue is never rejected; results finalize by monthly period and reopen with Admin approval. Provisional | `EXC-001`–`EXC-007`, `ATT-019`–`ATT-024`, `ACC-026`, `LEV-008`, `LEV-010`, `LEV-013`, `COR-005`, `COR-007`, `NOT-011` |
+| D14 | Whether a late arrival or early departure can be excused | Yes, as a separate, append-only decision by the responsible Mentor, who also decides leave and corrections, all three reusing one decision-history and finalization mechanism; overdue is never rejected; results finalize by monthly period and reopen with Admin approval. Provisional | `EXC-001`–`EXC-007`, `ATT-019`–`ATT-024`, `ACC-026`, `LEV-008`, `LEV-010`, `LEV-013`, `COR-005`, `COR-007`, `NOT-011` |
 | D15 | What Remaining effort and variance mean, and who the Daily report is for | Estimate is the baseline; Remaining is a current forecast; two report perspectives | `GOV-015`, `TSK-021`, `TSK-024`, `RPT-012`, `RPT-014` |
 | D16 | When a rule change needs an ADR | Only when it moves an architectural boundary | constitution, Amendment |
 | D17 | What to do with `work/tasks-lab-b5` and `work/tasks-sync` | Superseded history; not merged, not a source of truth | none |
@@ -957,21 +957,23 @@ systems that keep a time correction apart from an attendance exception.
 again by the responsible Mentor. An overdue leave request keeps its quota reservation and
 blocks overlaps, and `LEV-012` allows approving it after its start.
 
-**The last three points, decided the same day.**
+**The last three points, decided the same day and reviewed before closing.**
 
 - An Intern may withdraw a `PENDING` or `OVERDUE` leave request until its period is finalized. Withdrawal releases the quota reservation and the overlap block and keeps the request and its history. It never deletes or changes an attendance fact: a day the Intern was absent is still absent (`LEV-013`). ENTERPRISE-BACKED.
-- An Admin approves or rejects a reopen request, deciding only whether to reopen, from the reason, the records or range, and the data-governance and finalization rules, never the attendance, leave, correction, or exception itself. A rejection keeps actor, time, and reason (`ATT-022`). ENTERPRISE-BACKED.
-- A correction no longer locks when its 24-hour decision window ends. Leave, corrections, and exceptions share one lifecycle: pending, overdue if the approver is late, decided, changed only by an appended decision or reversal with actor, time, and reason until the period is finalized, and changed afterward only through reopen. The latest effective decision is current and history is immutable (`ATT-024`, `COR-005`, `COR-007`, `COR-009`, `EXC-007`, `LEV-011`). ENTERPRISE-BACKED.
+- An Admin approves or rejects a reopen request, deciding only whether to reopen, from the reason, the records or range, and the data-governance and finalization rules, never the attendance, leave, correction, or exception itself. A rejection keeps actor, time, and reason (`ATT-022`). The request notifies every active user the authorization policy lets decide it, not every Admin by role, so narrowing Admin rights or adding an attendance-administration role later needs no notification change (`NOT-011`). ENTERPRISE-BACKED.
+- A correction no longer locks when its 24-hour decision window ends.
+- Leave, corrections, and exceptions reuse one mechanism, not one workflow: immutable decision history, the latest effective decision as current, amendments and reversals audited with actor, time, and reason, and finalization with reopen (`ATT-024`). Each keeps its own actions and states. An **amendment** changes the content of the current decision; a **reversal** reverses its outcome. Neither returns a decision to pending, and a change that needs a new approval is a new request. ENTERPRISE-BACKED.
+- Corrections and exceptions may be amended or reversed until the period is finalized (`COR-005`, `EXC-007`).
+- Approved leave is never reversed. Before it begins, the Intern cancels it under the cancellation rule; after it begins, only an audited amendment by the responsible Mentor changes it, and the attendance fact stays (`LEV-011`). ENTERPRISE-BACKED. Recalculating attendance and compliance when an amendment leaves a past date without leave is LAB-POLICY, provisional.
 
-**Derived from those points, to confirm.** Each follows from a rule above rather than
-from a separate decision.
+**Derived from those points, to confirm.**
 
-- A reversal replaces the outcome with the opposite one, and nothing returns a decided request to pending, because the current value is always a decision. `COR-005` no longer reverts to `PENDING`.
-- Leave shares the lifecycle, so the responsible Mentor may reverse an approved leave after its dates, which are then classified without it; approving again revalidates quota and overlap (`LEV-011`).
-- Withdrawal was given to pending and overdue requests only, so an Intern still cancels an approved request only before its first counted start (`LEV-011`, `LEV-012`).
-- A reopen request notifies every active Admin, and its outcome notifies the requester and the responsible Mentor (`NOT-011`), because a request goes to whoever decides it and the outcome to whoever asked.
+- A Mentor sets only an outcome and a note on a correction or an exception today, so an amendment there changes the note; any other amendable value would need a rule of its own.
+- An amendment to approved leave can only withdraw approval from dates, because adding a date needs a new approval.
+- A leave decision is never reversed, so a rejected request stays rejected and those dates need a new request. Since `LEV-012` forbids retroactive leave, a rejected request whose dates have passed can no longer become leave.
+- Under `COR-001` a row keeps one correction request, so after a decision only the responsible Mentor's amendment or reversal changes it.
 
-**Status:** provisional, pending instructor confirmation.
+**Status:** closed on 14 September 2026; provisional, pending instructor confirmation.
 
 ## D15. What do Remaining effort and variance mean, and who is the Daily report for?
 

@@ -3,6 +3,12 @@
 Each entry records a change to [SPEC.md](SPEC.md): the version, the date, what changed,
 and why. A change that alters a rule raises the version.
 
+## 1.2.6 — 2026-09-14
+
+Decision `D14`, recorded in [`.sdd/decisions.md`](../../decisions.md).
+
+- The glossary adds decision amendment and decision reversal, and the §5.2 matrix lets the responsible Mentor amend or reverse a decision only where its rule permits.
+
 ## 1.2.5 — 2026-09-14
 
 Decision `D14`, recorded in [`.sdd/decisions.md`](../../decisions.md).

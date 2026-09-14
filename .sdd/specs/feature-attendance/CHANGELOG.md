@@ -3,6 +3,15 @@
 Each entry records a change to [SPEC.md](SPEC.md): the version, the date, what changed,
 and why. A change that alters a rule raises the version.
 
+## 1.3.1 — 2026-09-14
+
+Decision `D14`, reviewed and closed, recorded in [`.sdd/decisions.md`](../../decisions.md). Still provisional, pending instructor confirmation.
+
+- `ATT-024` now shares only the mechanism: new decision entries with kind, actor, time, and reason; the latest effective entry is current; nothing returns to `PENDING`; a change needing a new approval is a new request; no change after finalization except through reopen. Each kind keeps its own actions and states.
+- An amendment changes a decision's content and a reversal its outcome. `COR-005` and `EXC-007` permit both until the period is finalized; a correction amendment never changes the proposed checkout.
+- `LEV-011`: a leave decision is never reversed. Approved leave is cancelled by the Intern before it begins, and after that changes only by the responsible Mentor's amendment withdrawing approval from dates, which releases their quota and leaves attendance as it happened; the resulting recalculation is laboratory policy. `LEV-004` and `LEV-012` follow.
+- `AC-COR-003`, `AC-LEV-008`, `UC-09`, `UC-10` and `UC-15` follow.
+
 ## 1.3.0 — 2026-09-14
 
 Decision `D14`, its last three points, recorded in [`.sdd/decisions.md`](../../decisions.md). Marked provisional, pending instructor confirmation.

@@ -1,6 +1,6 @@
 # Platform Spec
 
-**Version:** 1.2.5 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-14
+**Version:** 1.2.6 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-14
 
 Part of the Lab Timesheet specification. Rules every feature shares, including the
 glossary, the authorization model, the domain model, and failure handling, are in
@@ -185,7 +185,7 @@ Legend: **Yes** = permitted within the stated scope; **Own** = own Project or ow
 | View Project/Task retained history | Yes, read-only | Own | Own | Current membership; former membership only after completion |
 | View per-member Project hours | Yes, read-only | Own | Own | No |
 | View Intern attendance | Yes | Yes | Own history only | Own history only |
-| Decide leave, correction, or attendance exception, or change that decision (`ATT-024`) | No | Responsible Mentor only (`ACC-026`) | No | No |
+| Decide leave, correction, or attendance exception; amend or reverse that decision where its rule permits (`ATT-024`) | No | Responsible Mentor only (`ACC-026`) | No | No |
 | Submit own leave, correction, or exception request | No | No | If active Intern | If active Intern |
 | Withdraw own `PENDING` or `OVERDUE` leave request (`LEV-013`) | No | No | If active Intern | If active Intern |
 | Ask to reopen a finalized attendance period (`ATT-022`) | No | Responsible Mentor only (`ACC-026`) | Own, if active Intern | Own, if active Intern |
@@ -230,6 +230,8 @@ Legend: **Yes** = permitted within the stated scope; **Own** = own Project or ow
 | Current Work | Actual Task effort plus current Remaining effort. |
 | Attendance period | One Intern's attendance for one calendar month. It finalizes at 23:59 on the third day of the next month once no request affecting it is pending or overdue, and after that changes only inside a range reopened when an Admin approves a reopen request (`ATT-019`–`ATT-024`). |
 | Overdue request | A leave, correction, or attendance exception request submitted in time whose approver missed the decision deadline. It is neither approved nor rejected and is never held against the Intern. |
+| Decision amendment | A new decision entry that changes the content of the current decision on a leave, correction, or attendance exception request, such as its note or the dates an approved leave still covers. It never overwrites the earlier entry (`ATT-024`). |
+| Decision reversal | A new decision entry that reverses the outcome of the previous decision, such as excused to unexcused. It never returns a request to pending, and a leave decision is never reversed (`ATT-024`, `LEV-011`). |
 | Report date | A local business date used to select dated Task work logs for reporting. Attendance policy and calendar context may describe the date but never remove otherwise valid Task work from the report. |
 | Daily Project Work Report | An authorized view of retained Task work logs for one Report date, shown by Task, with each Task's planning values once, and by work-log author, with minutes only. It may show attendance context and each Task's current status, but asserts neither attendance nor that a Task was completed on that date. |
 

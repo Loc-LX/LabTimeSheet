@@ -14,7 +14,7 @@ ahead of `origin/main`, nothing pushed.
 | Stage | State |
 |---|---|
 | Delivery, Iterations 1–4 | Built. Every tracked item is done; the Iteration 3 and 4 integration gates were never run. |
-| Specification | Approved. Eight specs; platform, project, task and reporting at 1.1.0, the rest at 1.0.x. |
+| Specification | Approved. Eight specs; each version is in its spec header and `CHANGELOG.md`. `D14` is closed and, like `D12`, `D13` and `D15`, provisional. |
 | Technical plans (`PLAN.md`) | Not started. |
 | Task breakdown (`TASKS.md`) | Not started. |
 | Implementation of the 14 September decisions | Not started; the code still follows the earlier rules. |
@@ -31,9 +31,10 @@ and integration commits, is in git history: `git show b71fc29:plan.md`.
 
 1. Draft the ten constitution ambiguities for one review; lock the constitution only after that review and a last contradiction check (items 13, 15).
 2. Make `./mvnw test` pass on Windows without the timezone flag (`D19`).
-3. Run the full suite, then merge into `main` (item 22).
-4. Verify the application end to end: `scripts/demo-seed.sql` loads, the end-to-end suite passes, the main business flows work; then demonstrate to the instructor (item 23).
-5. `PLAN.md` for `feature-platform` (`AUTH-012`, `ADR-005`), then `feature-task`, `feature-project`, `feature-reporting`, `feature-attendance`.
+3. Run the full Maven suite, including the integration tests, and the end-to-end suite. `npm run test:ui` passing alone is not enough to merge.
+4. Merge into `main` only after step 3 passes (item 22). Pushing the branch as a backup and merging into `main` are separate actions, each needing its own permission.
+5. Verify the application end to end: `scripts/demo-seed.sql` loads, the end-to-end suite passes, the main business flows work; then demonstrate to the instructor (item 23).
+6. `PLAN.md` for `feature-platform` (`AUTH-012`, `ADR-005`), then `feature-task`, `feature-project`, `feature-reporting`, `feature-attendance`.
 
 ## Waiting on a decision
 
