@@ -1354,7 +1354,14 @@ header both pass. Passing them is not approval.
 
 - The holder of the highest applicable authority in §1.1 accepts the rule set, the acceptance catalogue, and the declared exclusions.
 - The open question in §22.3 is answered. Closed on 11 September 2026.
-- The Iteration 3 integrated review runs and its exit demonstration passes.
+- Every disagreement between the code and this specification found during review is resolved and recorded, either by correcting the specification to match a decision that already exists or by a new decision stating which of the two is intended.
+
+The Iteration 3 integrated review and its exit demonstration are not a condition of
+approval. They validate the code against the specification, so they need the
+specification fixed first and follow approval rather than preceding it. Until
+14 September 2026 this list named that review as its third condition, which made
+approval wait for a check that could only run after approval. The change and its
+reasoning are recorded as `D11` in [`reviews/open-decisions.md`](reviews/open-decisions.md).
 
 Until that happens the review state in the header stays as it is. A document may
 satisfy every mechanical check and still be wrong about the business; only a person

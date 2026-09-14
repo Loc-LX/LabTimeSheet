@@ -76,8 +76,9 @@ All 31 tracked items of Iteration 3 and all 6 of Iteration 4 are `DONE`; §6.6 a
 Iterations 1 and 2 each close with a dated taskmaster exit result naming the
 suite counts and the integration commit, and §6.6 has no such paragraph while §7
 has no gate section at all. The status stays `IN_PROGRESS` because the gate is
-what the status tracks. `.sdd/requirements.md` §22.2 makes that same Iteration 3
-review one of the three conditions for approving the specification.
+what the status tracks. Until 14 September 2026 `.sdd/requirements.md` §22.2 made
+that same Iteration 3 review a condition for approving the specification; `D11`
+moved it after approval, so the gate here no longer blocks the specification.
 
 ## 4. Iteration 1 — Working vertical slice
 

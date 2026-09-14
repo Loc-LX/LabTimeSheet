@@ -38,6 +38,7 @@ they disagree, the application is wrong, and D7 is the case in point.
 | D8 | Naming the invitation resolution codes | All eight named with their cause | `DB-011` |
 | D9 | Stating the SMTP port range | 1 through 65535, a type constraint | `INT-007` |
 | D10 | Which stylesheet the desktop overflow contract requires | The assertion was wrong, not the stylesheet; action completed 12 September 2026 | none |
+| D11 | Whether approving the specification waits for the Iteration 3 integrated review | No; resolving every code and specification disagreement is the condition instead | §22.2 |
 
 D1 through D5 came from reading the specification against its own history. D6
 through D9 came from the audit described at the end of this page, which read the
@@ -66,6 +67,11 @@ why the branch was not green. It is recorded here because `AGENTS.md` forbids
 deleting a test assertion and the deletion therefore needed a decision rather
 than an edit. The page's opening definition does not cover it, and that is stated
 in the entry itself rather than by widening the definition.
+
+D11 is outside the opening definition for a different reason. It changes nothing
+the system does; it changes what approving the specification depends on. The
+first ten are counted as matching the code. D11 is not counted that way, because
+it is a statement about process that no code can match or contradict.
 
 ## D1. May an Admin see one Intern's detailed attendance?
 
@@ -668,6 +674,70 @@ PostgreSQL suite was run; this class reads files and needs none.
 **Decided by:** Loc-LX.
 
 **Date:** 2026-09-12
+
+## D11. Does approving the specification wait for the Iteration 3 integrated review?
+
+**Affects** §22.2 of the specification. No numbered rule. Like `D10`, this entry
+settles something other than a gap in a rule: it settles what approval of the
+specification depends on.
+
+§22.2 listed three conditions for approving the specification. The third was that
+"the Iteration 3 integrated review runs and its exit demonstration passes".
+
+That review checks the code against the specification. A check of code against a
+specification can only mean something once the specification is fixed, because
+otherwise a failure cannot say whether the code or the rule is wrong. So the third
+condition made approval wait for a check that could only run after approval, and
+as written the specification could never be approved.
+
+Deleting the condition outright has its own cost, and it is specific to how this
+project came about. The specification was not written before the code. It was
+recovered afterwards, partly by reading what the code does. Approving it without
+reading the code again risks approving a code defect as a requirement, or
+approving a rule that contradicts behaviour already shipped. `GOV-014` is a live
+case: it forbids physically deleting a Project through a normal interface
+operation, and `POST /projects/{projectId}/delete` physically deletes a `PLANNED`
+Project.
+
+**Options**
+
+| Option | Consequence |
+|---|---|
+| A. Keep the third condition as written. | Approval waits for validation and validation waits for approval. The specification is never approved. |
+| B. Delete the third condition. | Approval no longer depends on anyone reading the code. A rule that contradicts shipped behaviour can be approved without anyone noticing. |
+| C. Split it. Resolving every disagreement between code and specification becomes the approval condition. The integrated review moves after approval. | Approval can happen, and it happens only after the code has been read against the rules. |
+
+**Decision: option C.**
+
+The two halves of the old condition were different kinds of work. Finding where the
+code and the specification say different things is part of reviewing the
+specification, because each disagreement is a place where the rule may be wrong
+and a person has to say which side is intended. Demonstrating that the whole
+system meets the specification is validation, and it needs an approved
+specification to measure against.
+
+What each half covers, using what the 13 September review had already found:
+
+| Finding | Kind | Blocks approval |
+|---|---|---|
+| `GOV-014` against the Project delete route | code and specification disagree | yes |
+| Daily report showing a `DONE` Task's variance under each author | code does something the specification neither permits nor forbids | yes |
+| `UI-019` and `AC-UI-005` against the shared layout and `RPT-004` | specification disagrees with the code and with `ADR-002` | yes |
+| No test fails when the leave edit-after-start guard is removed (`LEV-012`) | missing test; rule and code agree | no |
+| No test fails when the eligible-workday guard is removed (`LEV-002`) | missing test; rule and code agree | no |
+
+The last two rows are the distinction worth keeping. A rule the code satisfies and
+no test protects is a gap in the evidence, and it belongs to validation. A rule the
+code does not satisfy, or satisfies only by an interpretation nobody recorded, is a
+question about the requirement, and it belongs to approval.
+
+**Reversing this** restores one bullet in §22.2 and removes the paragraph that
+replaced it. Nothing in code or tests depends on either wording.
+
+**Decided by:** Loc-LX, on 14 September 2026, after the split was proposed and the
+plan that begins with recording it was approved.
+
+**Date:** 2026-09-14
 
 ## What the audit checked and found sound
 
