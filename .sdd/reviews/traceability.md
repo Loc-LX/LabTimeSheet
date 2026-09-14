@@ -556,12 +556,43 @@ yet established.
 `TSK-010`, `TSK-013`, `TSK-014`, `TSK-015`, `TSK-016`, `TSK-019`, `TSK-020`,
 `TSK-021`, `UI-011`, `UI-012`, `UI-015`, `UI-016`, `UI-017`.
 
-The `OPS` group carries seventeen of the thirty-four and is the clearest case.
-The summary counts nineteen of its twenty-one rules as tested; the mapping names
-a class for seven. Several `OPS` rules bind a contributor's environment or a
-runner's configuration and belong with `OPS-002` and `OPS-010` among the rules no
-test can protect, so part of this gap is likely a classification error rather than
-missing coverage.
+The `OPS` group carries twelve of the thirty-four. The summary counts nineteen of
+its twenty-one rules as tested; the mapping names a class for seven.
+
+An earlier draft of this paragraph guessed that several `OPS` rules "probably"
+belonged with `OPS-002` and `OPS-010` among the rules no test can protect. The
+guess was replaced with a count, and the count turned out to be larger than the
+guess and not confined to `OPS`.
+
+**The specification's own classification and this page's disagree about eighteen
+rules.** Section "How to read a rule" declares twenty-eight rules deliberately not
+written in EARS, because they bind a contributor or a reviewer rather than the
+system. This page lists fifteen rules as protected by no possible test. The two
+sets overlap on ten. The eighteen the specification declares and this page counts
+as tested are:
+
+| Rules | What the specification says they bind |
+|---|---|
+| `TST-001`–`TST-010` | the test-driven workflow a contributor follows |
+| `OPS-018`–`OPS-021` | ownership, integration order, and commit discipline across branches |
+| `OPS-001`, `OPS-003`, `OPS-004` | the development environment a contributor sets up |
+| `AUTH-010` | a pointer to `RPT-005`, which carries the rule |
+
+All ten `TST` rules are the sharpest case: the group table records them as ten
+tested, none untested, none untestable, while the specification says every one of
+them binds a person's workflow.
+
+This is stated as a disagreement, not as a verdict. A rule that binds a person can
+still have a proxy check, and `TST-005` is the example: a test naming the rules it
+protects is readable from source, so a scan can assert it. Which of the eighteen
+have such a check, and which are counted as tested because the 11 September
+extraction mapped them to a class that tests something adjacent, has not been
+examined.
+
+Five rules run the other way. `GOV-007`, `GOV-008`, `GOV-009`, `GOV-010` and
+`GOV-015` are listed here as untestable and are written in EARS as `SHALL NOT`
+statements. They are scope exclusions rather than people-binding rules, which is a
+different and defensible reason to be in that table.
 
 The 13 September pass found that twenty-three of the thirty-seven rules it checked
 were already protected while the page said `none`, so the mapping table
