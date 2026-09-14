@@ -14,10 +14,10 @@ that close intervals instead of overwriting rows.
 
 ## Status
 
-All tracked deliverables for Iterations 1 through 4 are marked `DONE` in
-[`plan.md`](plan.md), each with an implementation
-commit and an evidence path. The Iteration 3 heading itself stays `IN_PROGRESS`
-because the final integrated review has not been run.
+Iterations 1 through 4 are built. The specification was approved on 14 September
+2026 and then changed by decisions the code does not implement yet.
+[`plan.md`](plan.md) tracks that work and everything else still open. The
+item-by-item delivery record of the four iterations is in git history.
 
 | Iteration | Scope | Tracked items |
 |---|---|---:|
@@ -26,11 +26,12 @@ because the final integrated review has not been run.
 | 3 | Hardening, security, reports, containers, accessibility | 31 of 31 |
 | 4 | Partial Jira/Tempo slice: Task effort planning and Daily reports | 6 of 6 |
 
-**`plan.md` is the only live plan.** A stale duplicate at the
+**`plan.md` is the only progress tracker.** A stale duplicate at the
 repository root was removed; it had stopped being updated on 21 August 2026 and
 still showed every Iteration 3 item as `TODO`.
 
-Remaining before release: the Iteration 3 integrated review, covering historical
+Remaining before release: implementing the 14 September decisions, and the
+Iteration 3 integrated review, covering historical
 stability after policy changes, concurrency safety, HTML/XLSX/PDF total parity,
 production configuration refusal, the container image against bundled and
 external PostgreSQL, and the desktop accessibility pass. Mobile and tablet
@@ -52,7 +53,7 @@ layouts stay best effort; desktop is the supported target.
 | How do I run the app locally | [docs/guides/DEVELOPMENT.md](docs/guides/DEVELOPMENT.md) |
 | How do I run and write tests | [docs/guides/TESTING.md](docs/guides/TESTING.md) |
 | How do I deploy | [docs/guides/DEPLOYMENT.md](docs/guides/DEPLOYMENT.md) |
-| What is planned and who owns it | [`plan.md`](plan.md) |
+| What is being worked on now | [`plan.md`](plan.md) |
 | Which test protects which rule | [`.sdd/reviews/traceability.md`](.sdd/reviews/traceability.md) |
 | Rules for AI agents working here | [AGENTS.md](AGENTS.md), [CLAUDE.md](CLAUDE.md) |
 

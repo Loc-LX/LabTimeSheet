@@ -64,7 +64,7 @@ The product joins attendance oversight and Project delivery without pretending t
 
 - `.sdd/specs/` holds the approved requirements, eight specs of numbered rules, indexed by `.sdd/requirements.md`.
 - The companion `database-schema.sql` and the `assets/ui-reference-*.png` visual references remain in the separate documentation repository and are not tracked here. The live schema is the Flyway migration set under `src/main/resources/db/migration`, which creates twenty-four tables.
-- The repository contains the implemented product. All tracked deliverables for Iterations 1 through 4 are marked `DONE` in `plan.md`; only the Iteration 3 integrated review remains.
+- The repository contains the implemented product. Iterations 1 through 4 are built; the 14 September 2026 decisions and the Iteration 3 integrated review remain, and `plan.md` tracks them.
 - No production data, customer testimonials, adoption metrics, institutional endorsements, or performance claims are available. Future design work must not fabricate them.
 
 ## Assumptions

@@ -25,10 +25,10 @@ Check these before assuming anything. When two disagree, the higher row wins.
 | What must always be true | [`.sdd/constitution.md`](.sdd/constitution.md) |
 | What the system must do | [`.sdd/specs/`](.sdd/specs), eight specs of numbered rules, indexed by [`.sdd/requirements.md`](.sdd/requirements.md) |
 | Why a decision was made | [`.sdd/rfcs/`](.sdd/rfcs) |
-| What is planned, and its status | [`plan.md`](plan.md) |
+| What is being worked on now, and what waits | [`plan.md`](plan.md) |
 | What behavior is already proven | [`.sdd/reviews/traceability.md`](.sdd/reviews/traceability.md), rule to test class |
 
-`plan.md` is the only live plan. Do not trust any other copy.
+`plan.md` is the only progress tracker. A feature's `PLAN.md` under `.sdd/specs/` is its technical design, not a second tracker.
 
 ## 3. Scope
 

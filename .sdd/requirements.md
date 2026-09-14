@@ -43,8 +43,8 @@ Each spec is tagged in git as `spec/<name>/v<version>`, for example
 an entry to its `CHANGELOG.md`; a change to its notes alone raises the patch number.
 
 Each spec folder will also hold a `PLAN.md` and a `TASKS.md`. They belong to the
-planning and task-breakdown phases and have not been written. Until they are,
-[`plan.md`](../plan.md) remains the single tracker.
+planning and task-breakdown phases and have not been written. Progress across
+all of them is tracked in [`plan.md`](../plan.md).
 
 ## Old references that need translating
 

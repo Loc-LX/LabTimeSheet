@@ -15,7 +15,8 @@ no JWT. Spring Security sessions. PostgreSQL through Spring Data JPA, schema
 owned by Flyway. Tailwind builds through Node but ships as static assets.
 Versions and reasons: [`.sdd/shared_context.md`](.sdd/shared_context.md).
 
-Four iterations are complete. What remains is the final integrated review.
+Four iterations are built. The specification was approved on 14 September 2026 and
+then moved ahead of the code; [`plan.md`](plan.md) says what comes next.
 
 ## The two rules that explain the design
 
@@ -117,9 +118,10 @@ English.
 
 ## Things learned the hard way
 
-**There is exactly one plan.** `plan.md`. A duplicate once sat
+**There is exactly one progress tracker.** `plan.md`. A duplicate once sat
 at the repository root, drifted, and misreported finished work as `TODO`. Do not
-recreate it.
+recreate it. A feature's `PLAN.md` under `.sdd/specs/` is a technical design, not a
+tracker; progress is never recorded there.
 
 **The requirements have been lost twice and recovered from git both times.** If
 the specification is missing, recover it from history rather than rewriting it.
