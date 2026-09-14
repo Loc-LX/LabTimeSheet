@@ -3,6 +3,12 @@
 Each entry records a change to [SPEC.md](SPEC.md): the version, the date, what changed,
 and why. A change that alters a rule raises the version.
 
+## 1.2.4 — 2026-09-14
+
+Decision `D14`, recorded in [`.sdd/decisions.md`](../../decisions.md).
+
+- The glossary replaces the undefined finalization window with the attendance period and adds the overdue request. `GOV-009` also retains attendance period reopen history. Counts are 291 rules and 139 scenarios.
+
 ## 1.2.3 — 2026-09-14
 
 Decision `D14`, recorded in [`.sdd/decisions.md`](../../decisions.md).

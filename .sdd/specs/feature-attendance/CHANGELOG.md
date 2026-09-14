@@ -3,6 +3,15 @@
 Each entry records a change to [SPEC.md](SPEC.md): the version, the date, what changed,
 and why. A change that alters a rule raises the version.
 
+## 1.2.0 — 2026-09-14
+
+Decision `D14`, finalization and overdue handling, recorded in [`.sdd/decisions.md`](../../decisions.md). Marked provisional, pending instructor confirmation.
+
+- **Added `ATT-019`–`ATT-023`**: monthly attendance periods per Intern that finalize at 23:59 on the third day of the next month (laboratory policy) unless a request affecting them is pending or overdue; no change after finalization except in a range an Admin reopens with a reason, where only the responsible Mentor acts and finalizes again.
+- Leave and corrections no longer reject automatically when the approver misses the deadline: `LEV-010` and `COR-007` mark them `OVERDUE`, `LEV-004` and `LEV-006` keep an overdue leave reserving quota and blocking overlaps, `LEV-008`, `LEV-012` and `COR-005` let the responsible Mentor still decide, and `COR-008` and `COR-009` follow.
+- `EXC-003` and `EXC-007` use the period instead of an undefined window.
+- Added `AC-ATT-009`, `AC-ATT-010`, and `UC-17`; `AC-LEV-004`, `AC-COR-005`, `AC-EXC-003`, `UC-09`, `UC-10` and `UC-15` follow.
+
 ## 1.1.2 — 2026-09-14
 
 The remaining four points of decision `D14`, recorded in [`.sdd/decisions.md`](../../decisions.md). Marked provisional, pending instructor confirmation.

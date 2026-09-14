@@ -1,6 +1,6 @@
 # Attendance Spec
 
-**Version:** 1.1.2 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-14
+**Version:** 1.2.0 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-14
 
 Part of the Lab Timesheet specification. Rules every feature shares, including the
 glossary, the authorization model, the domain model, and failure handling, are in
@@ -94,11 +94,11 @@ For an applicable Intern/date, classification precedence is:
 | COR-002 | THE system SHALL require the owning Intern to supply a proposed checkout and a nonblank reason, and SHALL require that proposed checkout to be after check-in, on the original local work date, and not in the future at submission. |
 | COR-003 | THE system SHALL accept a submission through the inclusive deadline `scheduled end on the attendance date + 24 hours`, resolved from the attached historical policy version. THE system SHALL anchor that deadline to scheduled end rather than to the checkout cutoff; under the seeded defaults it falls at 15:30 the following day. |
 | COR-004 | WHEN a submission is accepted, THE system SHALL open a separate 24-hour decision window measured from `submitted_at`. |
-| COR-005 | WHILE the decision window is open, THE system SHALL permit the Intern's responsible Mentor under `ACC-026` to approve, reject, or revert an approved or rejected decision to `PENDING`, and SHALL write an immutable correction event for every transition. |
+| COR-005 | WHILE the decision window is open, THE system SHALL permit the Intern's responsible Mentor under `ACC-026` to approve, reject, or revert an approved or rejected decision to `PENDING`; WHILE a request is overdue and its period is not finalized, THE system SHALL permit that Mentor to approve or reject it. THE system SHALL write an immutable correction event for every transition. |
 | COR-006 | WHEN a correction is approved, THE system SHALL leave the raw checkout null and use the proposed checkout only as the effective checkout. THE system SHALL then clear the missing-checkout classification, and WHERE the effective checkout falls before scheduled end, THE system SHALL record an early-departure violation under `ATT-011`. |
-| COR-007 | WHEN the decision window expires, THE system SHALL lock an approved or rejected request, and SHALL automatically reject and then lock a request still pending. |
-| COR-008 | THE system SHALL persist auto-rejection and its notifications through a scheduled worker, and SHALL apply the same deadline guard on every correction read and write path before acting. |
-| COR-009 | WHILE a correction is expired or locked, THE system SHALL reject any further Mentor state change. THE system SHALL NOT permit an Admin, or any Mentor other than the responsible Mentor, to decide or reopen a correction. |
+| COR-007 | WHEN the decision window expires, THE system SHALL lock an approved or rejected request, and SHALL mark a request still pending `OVERDUE` without rejecting it, because the approver rather than the Intern missed the deadline. |
+| COR-008 | THE system SHALL persist the overdue marking and its reminder through a scheduled worker, and SHALL apply the same deadline guard on every correction read and write path before acting. |
+| COR-009 | WHILE a correction is locked or its period is finalized, THE system SHALL reject any further Mentor state change. THE system SHALL NOT permit an Admin, or any Mentor other than the responsible Mentor, to decide or reopen a correction. |
 
 ### §11. Leave
 
@@ -107,15 +107,15 @@ For an applicable Intern/date, classification precedence is:
 | LEV-001 | THE system SHALL represent leave as a full-day inclusive date range with a nonblank reason. THE system SHALL NOT provide a leave type or a seven-day advance-notice rule in v1. |
 | LEV-002 | THE system SHALL require a leave request to fall within the Intern's applicable internship interval and to contain at least one eligible workday after excluding configured non-workdays and global days off. |
 | LEV-003 | WHEN a leave request is submitted, THE system SHALL materialize each quota-consuming date with its policy version, calendar month, and monthly quota snapshot. WHERE a request spans months, THE system SHALL allocate each date to its own month, and SHALL show the Intern those frozen allocations grouped by quota month. |
-| LEV-004 | THE system SHALL reserve quota for both `PENDING` and `APPROVED` leave days, and SHALL release it WHEN a request becomes `REJECTED` or `CANCELLED`. For a selected quota month THE system SHALL show the Intern `reserved / applicable quota / remaining`, where remaining is `max(0, quota − reserved)`. THE system SHALL default the dashboard to the current business month and SHALL permit month selection in My Leave. |
+| LEV-004 | THE system SHALL reserve quota for `PENDING`, `OVERDUE`, and `APPROVED` leave days, and SHALL release it WHEN a request becomes `REJECTED` or `CANCELLED`. For a selected quota month THE system SHALL show the Intern `reserved / applicable quota / remaining`, where remaining is `max(0, quota − reserved)`. THE system SHALL default the dashboard to the current business month and SHALL permit month selection in My Leave. |
 | LEV-005 | WHEN quota is validated, THE system SHALL include existing pending and approved allocations together with the candidate request, and SHALL serialize on the Intern profile so that concurrent submissions cannot overbook. |
-| LEV-006 | WHERE a `PENDING` or `APPROVED` inclusive date range would overlap another for the same Intern, THE system SHALL reject it in both the application and the database. |
+| LEV-006 | WHERE a `PENDING`, `OVERDUE`, or `APPROVED` inclusive date range would overlap another for the same Intern, THE system SHALL reject it in both the application and the database. |
 | LEV-007 | WHILE a request is pending and the scheduled start of its first counted workday has not passed, THE system SHALL permit the owning Intern to edit or cancel it. WHEN an edit is submitted, THE system SHALL revalidate overlap, frozen day allocations, and quota in one transaction. |
-| LEV-008 | WHILE a request is pending and that same boundary has not passed, THE system SHALL permit the Intern's responsible Mentor under `ACC-026` to approve or reject it. THE system SHALL NOT permit an Admin to decide leave. |
+| LEV-008 | WHILE a request is pending before that same boundary, or overdue after it, and no period it touches is finalized, THE system SHALL permit the Intern's responsible Mentor under `ACC-026` to approve or reject it. THE system SHALL NOT permit an Admin to decide leave. |
 | LEV-009 | THE system SHALL accept a same-day submission before the scheduled start of the first counted workday. Under the seeded defaults, a request whose first counted date is today is valid before 08:30 and invalid at or after 08:30. |
-| LEV-010 | WHEN the first counted start is reached and the request is still pending, THE system SHALL set it to `REJECTED` automatically, and SHALL enforce that same boundary from both the scheduler and the access-time guard. |
+| LEV-010 | WHEN the first counted start is reached and a request submitted in time is still pending, THE system SHALL mark it `OVERDUE`, SHALL keep its quota reservation, and SHALL NOT reject it, because the approver rather than the Intern missed the deadline. THE system SHALL enforce that boundary from both the scheduler and the access-time guard. |
 | LEV-011 | WHILE the first counted start has not passed, THE system SHALL permit an approved request to be cancelled. WHEN leave begins, THE system SHALL freeze the request and its materialized day allocation. |
-| LEV-012 | THE system SHALL NOT approve, cancel, or create leave retroactively. |
+| LEV-012 | THE system SHALL NOT create or cancel leave retroactively, and SHALL NOT approve it retroactively except an `OVERDUE` request under `LEV-008`. |
 
 ### Attendance exceptions
 
@@ -123,11 +123,21 @@ For an applicable Intern/date, classification precedence is:
 |---|---|
 | EXC-001 | THE system SHALL keep a late arrival or an early departure recorded exactly as `ATT-009` and `ATT-011` classify it, and SHALL hold whether it is excused as a separate decision that never clears the classification and never changes the raw or effective times. |
 | EXC-002 | WHEN an Intern requests that their own recorded late arrival or early departure be excused, THE system SHALL require a nonblank reason, SHALL accept the request only through 24 hours after the scheduled end of that work date, and SHALL keep at most one request per attendance row and violation kind. The 24-hour limit is a provisional laboratory policy. |
-| EXC-003 | WHILE a request is pending or overdue and the attendance finalization window of its work date is open, THE system SHALL permit only the Intern's responsible Mentor under `ACC-026` to decide it as excused or unexcused, and SHALL retain the decider, the server time, and any decision note. WHEN 24 hours pass after submission without a decision, THE system SHALL mark the request overdue and SHALL NOT treat it as excused or unexcused; only a decision by the responsible Mentor makes it either. The 24-hour limit is a provisional laboratory policy. |
+| EXC-003 | WHILE a request is pending or overdue and the attendance period of its work date is not finalized, THE system SHALL permit only the Intern's responsible Mentor under `ACC-026` to decide it as excused or unexcused, and SHALL retain the decider, the server time, and any decision note. WHEN 24 hours pass after submission without a decision, THE system SHALL mark the request overdue and SHALL NOT treat it as excused or unexcused; only a decision by the responsible Mentor makes it either. The 24-hour limit is a provisional laboratory policy. |
 | EXC-004 | WHEN the responsible Mentor marks an Intern's recorded late arrival or early departure excused without a request, THE system SHALL require a nonblank reason, SHALL accept the mark only through 48 hours after the scheduled end of that work date, and SHALL retain the Mentor and the server time. The 48-hour limit is a provisional laboratory policy. |
 | EXC-005 | WHERE the current decision on a late arrival or early departure is excused, THE system SHALL NOT count it among the applicable violations of `ATT-016`, and SHALL still show it, marked excused, in attendance history, reports, and statistics. Leaving an excused violation out of compliance is a provisional laboratory policy. |
 | EXC-006 | THE system SHALL refuse an exception decision or mark by an Intern Leader, an Admin, or any Mentor other than the Intern's responsible Mentor. |
-| EXC-007 | WHILE the attendance finalization window of the work date is open, THE system SHALL permit the responsible Mentor to change an exception decision only by appending a new decision or a reversal carrying the actor, the server time, and a nonblank reason. THE system SHALL treat the latest effective decision as the current one and SHALL keep every earlier decision unchanged. WHERE the window has closed, THE system SHALL refuse any change to the decision. |
+| EXC-007 | WHILE the attendance period of the work date is not finalized, THE system SHALL permit the responsible Mentor to change an exception decision only by appending a new decision or a reversal carrying the actor, the server time, and a nonblank reason. THE system SHALL treat the latest effective decision as the current one and SHALL keep every earlier decision unchanged. WHERE the period is finalized, THE system SHALL refuse any change except inside a range reopened under `ATT-022`. |
+
+### Attendance periods and finalization
+
+| ID | Requirement |
+|---|---|
+| ATT-019 | THE system SHALL hold each Intern's attendance in monthly attendance periods, one per calendar month in the business timezone. A period covers the attendance rows, leave days, corrections, and attendance exceptions dated in that month; a leave request spanning months belongs to every period it touches. |
+| ATT-020 | WHEN 23:59 on the third day of the following month is reached, THE system SHALL finalize an Intern's period unless a leave, correction, or attendance exception request affecting that period is pending or overdue. WHERE such a request remains, THE system SHALL keep the period open and SHALL finalize it as soon as the last such request is decided. The three-day grace is a provisional laboratory policy. |
+| ATT-021 | WHILE a period or a reopened range within it is finalized, THE system SHALL refuse every change to the attendance results it covers, including leave approval, rejection or cancellation, correction decisions, and exception decisions or reversals, and SHALL refuse new requests for its dates. |
+| ATT-022 | WHEN the Intern's responsible Mentor or the Intern asks to reopen a finalized period, THE system SHALL require a nonblank reason and the attendance records or date range concerned. WHEN an Admin reopens it, THE system SHALL reopen only those records or that range, SHALL retain the Admin, the server time, and the reason, and SHALL NOT let the Admin approve, reject, correct, or decide anything within it. |
+| ATT-023 | WHILE a range is reopened, THE system SHALL permit only the Intern's responsible Mentor under `ACC-026` to approve, reject, correct, decide, or reverse within it under the rules that applied before finalization, and SHALL let that Mentor finalize the range again. WHEN the range is finalized again, THE system SHALL retain the Mentor and the server time. |
 
 ### Integrity (from platform §19.3)
 
@@ -210,7 +220,7 @@ For an applicable Intern/date, classification precedence is:
 
 - A correction before or at the checkout cutoff is rejected because normal checkout remains available.
 - The submission deadline stays anchored to scheduled end, not checkout grace; under defaults it is 15:30 the next day.
-- The scheduler and request-time guard both auto-reject expired pending requests.
+- The scheduler and the request-time guard both mark a request undecided at the end of its decision window overdue; it is never rejected for the Mentor's delay.
 - Expired decided requests lock and cannot be reverted.
 - Concurrent decisions serialize so only a valid current transition wins.
 
@@ -236,7 +246,7 @@ For an applicable Intern/date, classification precedence is:
 
 - Global days off and non-workdays do not consume quota.
 - Cross-month requests reserve each month independently.
-- Pending requests auto-reject at the boundary.
+- A request still pending at the boundary becomes overdue, keeps its quota, and can still be approved or rejected by the responsible Mentor.
 - Overlapping pending/approved ranges and exhausted quota are rejected transactionally.
 
 #### UC-15 — Excuse a late arrival or early departure
@@ -259,8 +269,30 @@ For an applicable Intern/date, classification precedence is:
 **Alternatives and exceptions**
 
 - The responsible Mentor marks a violation excused without a request, giving a reason, within 48 hours after scheduled end.
-- While the finalization window is open, the Mentor changes a decision by appending a new decision or a reversal with a reason; earlier decisions stay in history.
+- Until the period is finalized, the Mentor changes a decision by appending a new decision or a reversal with a reason; earlier decisions stay in history.
 - A late request, or a decision by anyone other than the responsible Mentor, is refused.
+
+#### UC-17 — Reopen a finalized attendance period
+
+| Field | Specification |
+|---|---|
+| Primary actor(s) | The Intern or their responsible Mentor (requester); Admin (reopens); the responsible Mentor (acts and finalizes again) |
+| Trigger | A result in a finalized attendance period needs to change. |
+| Preconditions | The period is finalized under `ATT-020`. |
+| Postconditions | Only the named records or dates changed; the reopen and the renewed finalization are retained with actor, time, and reason. |
+| Traced requirements | ATT-019–ATT-023, EXC-007, ACC-026 |
+
+**Main success flow**
+
+1. The Intern or the responsible Mentor asks to reopen, naming the records or date range and a reason.
+2. An Admin reopens exactly that range; the reopen is recorded.
+3. The responsible Mentor makes the correction, approval, or decision the change needs.
+4. The responsible Mentor finalizes the range again.
+
+**Alternatives and exceptions**
+
+- An Admin attempting to approve, correct, or decide inside the reopened range is refused.
+- Dates outside the reopened range stay finalized and refuse changes.
 
 ## 4. Non-functional Requirements
 
@@ -292,6 +324,8 @@ Scenarios from the §20 acceptance catalogue whose identifiers start with `AC-AT
 | AC-ATT-006 | ATT-013–ATT-017 | Period has 20 eligible days, one approved-leave day, 17 present, and two absent | Attendance rate is `17/19 = 89.47%`; compliance uses historical daily policy and absent days score zero. |
 | AC-ATT-007 | ATT-014, ATT-017 | Filtered period has no expected workdays | Attendance and compliance display `N/A` without division error. |
 | AC-ATT-008 | ATT-018 | An Intern checks in, the Admin completes the internship later the same local date, and the Intern attempts a second check-in the next workday | The already-recorded attendance row for the terminal date is retained unchanged and still appears in reports; the next-day check-in is refused because the lifecycle is terminal. |
+| AC-ATT-009 | ATT-019–ATT-021, LEV-010, COR-007 | On 3 October at 23:59 one Intern's September period has no open request, while another's has a correction left undecided past its window; the correction is decided on 5 October | The correction became `OVERDUE`, not rejected; the first period finalizes at the deadline and every later change to its September results is refused; the second stays open, finalizes when the correction is decided, and then refuses changes too. |
+| AC-ATT-010 | ATT-022–ATT-023 | After September is finalized, the responsible Mentor asks to reopen one date with a reason; an Admin reopens that date and tries to decide an exception in it; the Mentor reverses the exception decision and finalizes the date again | The reopen records the Admin, the time, and the reason and covers only that date; the Admin's decision is refused; the Mentor's reversal commits and the date is finalized again with the Mentor and time; every other September date stays finalized throughout. |
 | AC-CAL-001 | CAL-002–CAL-005 | HolidayAPI unavailable or unconfigured | Preview reports actionable failure; Admin can add custom event; attendance/reporting continue from local data. |
 | AC-CAL-002 | CAL-003–CAL-004 | Preview returns public and non-public Vietnam events | Public is preselected only; Admin can toggle either; selected rows preserve provenance and duplicate UUID import is rejected/idempotent. |
 | AC-CAL-003 | CAL-006–CAL-009 | Admin marks observed holiday as display-only, then as day off before date | Display-only date remains eligible; day-off version suppresses new attendance/quota and new due dates. |
@@ -301,15 +335,15 @@ Scenarios from the §20 acceptance catalogue whose identifiers start with `AC-AT
 | AC-COR-002 | COR-002 | Proposed checkout precedes check-in, crosses local date, or is future | Validation rejects each value without creating correction. |
 | AC-COR-003 | COR-004–COR-005 | Mentor approves, rejects, and reopens inside decision window | Valid transitions update current state and append ordered immutable events. |
 | AC-COR-004 | COR-006 | Mentor approves a proposed checkout before scheduled end | Raw checkout remains null; effective checkout becomes proposal; missing flag clears and early flag appears. |
-| AC-COR-005 | COR-007–COR-009 | Pending correction reaches decision deadline while scheduler is late | First access auto-rejects/locks atomically; scheduler later behaves idempotently; no reopen succeeds. |
+| AC-COR-005 | COR-007–COR-009 | Pending correction reaches decision deadline while scheduler is late | First access marks it `OVERDUE` atomically without rejecting it; the scheduler later behaves idempotently; the responsible Mentor can still decide it until its period is finalized. |
 | AC-COR-006 | AUTH-003, COR-001–COR-009, UI-019 | Intern and Mentor open their correction workflows with pending and terminal requests | Intern sees only owned corrections; the responsible Mentor sees the actionable queue of the Interns they are responsible for before retained correction/event history; unauthorized users and guessed IDs disclose nothing; no Leave form is mixed into either Correction workflow. |
 | AC-EXC-001 | EXC-001–EXC-003, EXC-005, NOT-011 | An Intern ten minutes late requests an excuse with a reason 23 hours after scheduled end, and on another day 25 hours after; the responsible Mentor excuses the first request within 24 hours | The first request is accepted and the second refused; the responsible Mentor is notified of the request and the Intern of the decision; the day still shows late, its compliance counts no late violation, and history and reports mark it excused with the Mentor and time. |
 | AC-EXC-002 | EXC-004, EXC-006, AUTH-003 | The responsible Mentor marks one early departure excused without a reason, another with a reason 47 hours after scheduled end, and a third 49 hours after; another Mentor, the Intern's Leader, and an Admin each try to decide a pending request | Only the reasoned mark inside 48 hours commits; every other attempt is refused and changes nothing. |
-| AC-EXC-003 | EXC-003, EXC-005, EXC-007, NOT-011 | A request stays undecided for 24 hours; the responsible Mentor then excuses it inside the finalization window, later reverses it to unexcused with a reason, and tries a further change after the window has closed | At 24 hours the request becomes overdue, the Mentor is notified, and compliance still counts the violation; the later decision commits; the reversal appends a new decision while the earlier one stays unchanged in history; compliance follows the current decision; the change after the window is refused. |
+| AC-EXC-003 | EXC-003, EXC-005, EXC-007, NOT-011 | A request stays undecided for 24 hours; the responsible Mentor then excuses it before the period is finalized, later reverses it to unexcused with a reason, and tries a further change after the period is finalized | At 24 hours the request becomes overdue, the Mentor is notified, and compliance still counts the violation; the later decision commits; the reversal appends a new decision while the earlier one stays unchanged in history; compliance follows the current decision; the change after finalization is refused. |
 | AC-LEV-001 | LEV-001–LEV-003 | Request spans weekend, global day off, and two months | Only eligible dates materialize; each date uses its correct quota month/policy snapshot. |
 | AC-LEV-002 | LEV-004–LEV-006 | Concurrent requests would exceed quota or overlap | Locking and exclusion constraint allow at most one valid outcome; no overbooking/overlap commits. |
 | AC-LEV-003 | LEV-007 | Intern edits pending range | Original allocation is replaced only after new overlap/quota validation succeeds atomically. |
-| AC-LEV-004 | LEV-008–LEV-010 | Same-day request submitted at 08:29:59 and at 08:30:00 | First may submit; second rejects. Pending at 08:30 auto-rejects through access guard even if scheduler has not run. |
+| AC-LEV-004 | LEV-008–LEV-010 | Same-day request submitted at 08:29:59 and at 08:30:00 | First may submit; second rejects. Pending at 08:30 becomes `OVERDUE` through the access guard even if the scheduler has not run, keeps its quota reservation, and can still be approved by the responsible Mentor. |
 | AC-LEV-005 | LEV-011–LEV-012 | Intern cancels approved leave before and after first counted start | Before succeeds and releases quota; at/after boundary rejects and allocation remains frozen. |
 | AC-LEV-006 | LEV-003–LEV-004, UI-019 | Intern opens the dashboard and My Leave across pending, approved, rejected, cancelled, and cross-month requests | Dashboard shows current-month reserved/quota/remaining; month selection recomputes from frozen allocations; pending/approved reserve, rejected/cancelled release, and each cross-month allocation remains separately labelled. |
 | AC-DB-005 | DB-002 | `btree_gist` is queried after replay, then one Intern is given a pending leave range and a second overlapping range is inserted directly by SQL | The extension is present; the second insert is refused by the exclusion constraint; a non-overlapping range for the same Intern and an overlapping range for a different Intern both succeed. |
@@ -324,5 +358,6 @@ Exclusions stated inside this spec's own rules: `CAL-001`, `LEV-001`.
 
 - `UC-04` also configures SMTP and HolidayAPI, whose rules are in [the integration spec](../feature-integration/SPEC.md).
 - `COR-006`: approving a correction confirms the effective checkout only; a checkout before scheduled end remains an early departure under `ATT-011`.
-- `D14`, decided on 14 September 2026 and **provisional pending instructor confirmation**, is `EXC-001`–`EXC-007`. Enterprise-backed: the attendance fact kept apart from the approval, approval scoped to a responsible Mentor, an overdue request that is neither approved nor rejected, decisions changed only by appending to an immutable history, and reassignment when the approver is unavailable. Laboratory policy, not a standard: the 24-hour request and decision limits, the 48-hour limit for a Mentor-initiated mark, and leaving excused violations out of compliance. Leave (`LEV-008`) and corrections (`COR-005`) are also decided by the responsible Mentor.
-- **Open.** How long the attendance finalization window is and when it closes, and which explicit reopen flow changes a decision after it closes. Also whether leave and corrections should become overdue instead of being rejected automatically (`LEV-010`, `COR-007`), since their deadlines keep running while an Intern waits for a new responsible Mentor.
+- `D14`, decided on 14 September 2026 and **provisional pending instructor confirmation**, covers `EXC-001`–`EXC-007` and the monthly periods of `ATT-019`–`ATT-023`. Enterprise-backed: the fact kept apart from the approval; approval by a responsible Mentor; overdue never meaning rejected, for leave, corrections, and exceptions alike; append-only decisions; reassignment when the approver is unavailable; results managed by finalized period. Laboratory policy, not a standard: the 24-hour and 48-hour limits, the three-day finalization grace, and leaving excused violations out of compliance.
+- **Interpreted, to confirm.** A period belongs to one Intern, so one Intern's open request never holds back anyone else's month. A reopened range is finalized again by the responsible Mentor. An overdue leave request keeps its quota reservation and still blocks overlapping requests.
+- **Not yet decided.** Whether an Intern may cancel an overdue leave request after its start; whether an Admin may decline a reopen request; and whether a decided correction should stay changeable until finalization, as an exception decision is, rather than locking when its 24-hour window ends (`COR-007`).

@@ -39,6 +39,7 @@
     "nonblank",
     "openpdf",
     "postconditions",
+    "reassignable",
     "redisplays",
     "reimplementation",
     "resends",
