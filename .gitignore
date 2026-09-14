@@ -44,3 +44,7 @@ node_modules/
 
 # Reference material kept locally, not part of the product
 *.pdf
+
+# JVM crash reports written to the working directory
+hs_err_pid*.log
+replay_pid*.log

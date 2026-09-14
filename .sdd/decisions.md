@@ -61,7 +61,7 @@ changes one, its status here changes first.
 | D16 | When a rule change needs an ADR | Only when it moves an architectural boundary | constitution, Amendment |
 | D17 | What to do with `work/tasks-lab-b5` and `work/tasks-sync` | Superseded history; not merged, not a source of truth | none |
 | D18 | Whether native SQL may stay in a service | No; special queries go through the data-access layer | `ARC-006` |
-| D19 | Whether the suite must pass on Windows without extra flags | Yes; the timezone is normalized in test configuration | none |
+| D19 | Whether the suite must pass on Windows without extra flags | Yes; the timezone is normalized in test configuration; done 15 September 2026 | none |
 | D20 | How the constitution ranks rules, and what outranks what | Layers by how strictly a rule binds; one authority order by document type | `GOV-001`, `OPS-019`, constitution |
 
 D1 through D5 came from reading the specification against its own history. D6
@@ -1044,6 +1044,14 @@ current code.
 on Windows without anyone remembering `-Duser.timezone`, so the timezone is normalized in
 test configuration that every Spring test context reaches. This answers the question
 `ADR-003` left for a future decision.
+
+**Done on 15 September 2026.** `LegacyTimeZoneTestListener`, registered in
+`src/test/resources/META-INF/spring.factories`, applies the application's own
+canonicalization of `Asia/Saigon` when a Spring Boot test context starts, and
+`ApplicationTimeZoneIntegrationTest` fails if it stops doing so. A pom-wide
+`-Duser.timezone` was rejected because forcing the JVM onto Vietnam time would hide the
+failures `GOV-011` exists to catch. `./mvnw -B test` then passed 755 tests on Windows
+with no flag.
 
 ## D20. How does the constitution rank rules, and what outranks what?
 

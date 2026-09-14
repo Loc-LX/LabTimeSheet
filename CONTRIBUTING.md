@@ -125,13 +125,14 @@ database, Mailpit, or `.env`. Docker must be running.
 npm run test:ui      # UI and documentation contract tests, including the spec structure
 ```
 
-**On Windows**, pass the business timezone. The JVM reports Vietnam as the legacy
-alias `Asia/Saigon`, which PostgreSQL refuses, and Spring test contexts never
-reach the normalization in `LabtimesheetApplication.main`:
+**On Windows** no timezone flag is needed. The JVM reports Vietnam as the legacy
+alias `Asia/Saigon`, which PostgreSQL refuses. `LabtimesheetApplication.main`
+canonicalizes it for the application, and `LegacyTimeZoneTestListener`, registered
+in `src/test/resources/META-INF/spring.factories`, does the same when a Spring Boot
+test context starts (`D19`).
 
-```bash
-./mvnw test -DargLine="-Duser.timezone=Asia/Ho_Chi_Minh"
-```
+The full suite keeps several PostgreSQL containers alive at once. On a machine with
+16 GB of memory, close browsers and other heavy programs before running it.
 
 Docker also needs free space on the drive holding its storage; a full drive makes
 every Testcontainers start fail with `Could not create/start container`. The
@@ -314,6 +315,7 @@ evidence; a green suite is.
 | Styles or icons are missing | `npm ci` and `npm run build` |
 | The wrong Java version is used | `java -version` and `./mvnw -version` both report 25; in IntelliJ check both Project SDK and the run configuration's JRE |
 | Testcontainers cannot find Docker | Docker Desktop is running and `docker version` answers; the Gitea runner sets `TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal` for the same reason |
-| Most integration tests fail with `invalid value for parameter "TimeZone"` | Add `-DargLine="-Duser.timezone=Asia/Ho_Chi_Minh"` |
+| Most integration tests fail with `invalid value for parameter "TimeZone"` | `src/test/resources/META-INF/spring.factories` still registers `LegacyTimeZoneTestListener`; it canonicalizes only `Asia/Saigon` |
+| The suite stops with `The forked VM terminated without properly saying goodbye` and an `hs_err_pid*.log` reporting insufficient memory | The machine ran out of memory, not a test; close browsers and other heavy programs and run it again |
 | A test passes alone but fails in the full suite | Shared state, fixed ports, run-order assumptions, or data the test did not create; do not hide it with retries |
 | Build output looks stale | `./mvnw clean test`, only after confirming the normal command used stale output |
