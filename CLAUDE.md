@@ -98,8 +98,8 @@ Global role alone never grants access. Every check resolves stored context:
 ownership of the Project, active membership, a current leadership term, being
 the current assignee, and the lifecycle state of the aggregate.
 
-- **Admin** manages accounts, internship lifecycle, SMTP, HolidayAPI, attendance policy, and the global calendar. Read-only on Projects. Holds Attendance report scope, and no Project/Task or Daily report scope. See [`.sdd/rfcs/ADR-002-attendance-report-scope.md`](.sdd/rfcs/ADR-002-attendance-report-scope.md).
-- **Mentor** owns the Projects they created, decides every membership exit, and decides leave and missed-checkout corrections. Cannot create or assign Tasks.
+- **Admin** manages accounts, internship lifecycle, SMTP, HolidayAPI, attendance policy, and the global calendar. Read-only on Projects. The code gives Admin the Attendance report only, as [`.sdd/rfcs/ADR-002-attendance-report-scope.md`](.sdd/rfcs/ADR-002-attendance-report-scope.md) explains; since 14 September 2026 the specification grants read access to every report (`D1`), not yet implemented.
+- **Mentor** owns the Projects they created, decides every membership exit, and decides leave and missed-checkout corrections. Cannot create or assign Tasks. The specification lets the owning Mentor only block, unblock, or reopen a Task (`TSK-023`); the code still lets it set any status.
 - **Intern** checks in and out, works assigned Tasks, records work logs, requests leave and corrections, answers their own invitations.
 - **Current Leader** invites eligible interns, defines and assigns Tasks within the led Project, and redistributes unfinished Tasks in confirmed batches before a pending exit is approved.
 
@@ -126,13 +126,18 @@ tracker; progress is never recorded there.
 **The requirements have been lost twice and recovered from git both times.** If
 the specification is missing, recover it from history rather than rewriting it.
 
-**Admin Attendance report scope has changed more than once.** The code is
-correct and [`.sdd/rfcs/ADR-002-attendance-report-scope.md`](.sdd/rfcs/ADR-002-attendance-report-scope.md)
-explains why. Do not "fix" the code to match older wording.
+**Admin report scope has changed more than once.**
+[`.sdd/rfcs/ADR-002-attendance-report-scope.md`](.sdd/rfcs/ADR-002-attendance-report-scope.md)
+explains the August moves, and `D1` widened it on 14 September 2026. Follow the
+current specification, not older wording in either direction.
+
+**The specification is ahead of the code.** The 14 September 2026 decisions
+(`D1`, `D12`, `D13`, `D15`) are approved and not yet implemented; `plan.md` lists
+them. Do not edit the specification back to match the code.
 
 **Verify a path before trusting its name.** The specification lives in
-`.sdd/specs/`, one spec per feature, indexed by `.sdd/requirements.md`. Some evidence records cite an
-older location; they are dated records and are left as written.
+`.sdd/specs/`, one spec per feature, indexed by `.sdd/requirements.md`. Some dated records cite an
+older location; they are left as written.
 
 ## Useful commands
 

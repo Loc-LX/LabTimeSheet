@@ -63,9 +63,12 @@ answer, not for the folder to be tidied.
 
 ## 4. Branch naming
 
-- A targeted repair uses a clean, isolated `work/fix/<feature>/<what-fix>` branch and worktree from the taskmaster-verified current `main`. Do not use `work/<feature>/fix/<what-fix>`: the persistent `work/<feature>` ref already occupies that Git ref prefix.
+- A targeted repair uses a clean, isolated `work/fix/<feature>/<what-fix>` branch and worktree from the latest verified `main`. Do not use `work/<feature>/fix/<what-fix>`: the persistent `work/<feature>` ref already occupies that Git ref prefix.
 
-Every targeted repair starts from the taskmaster-verified latest `main`, uses TDD RED → GREEN, adds Javadoc during implementation, records companion evidence, undergoes independent review, and uses a normal, non-force merge only when separately authorized.
+Every targeted repair starts from the latest verified `main`, follows TDD from RED to GREEN,
+adds Javadoc as it goes, names the rules each test protects in that test's Javadoc,
+gets an independent review, and is merged with an ordinary non-force merge only
+when separately authorized.
 
 `<feature>` names the owning persistent area: `platform`, `projects`, `tasks`,
 `attendance`, or `reports-ui`.

@@ -174,14 +174,17 @@ merges, never forced.
 If the code and the requirements disagree, that is a decision for a person, not
 a silent edit in either direction.
 
-Write an ADR under [`.sdd/rfcs/`](.sdd/rfcs) stating the decision, the reasoning,
-and the consequences. Update the requirements specification. Then update
-[`.sdd/constitution.md`](.sdd/constitution.md) if the rule index changed. Supersede old
-wording with a dated note rather than rewriting it, so the document keeps its
-own history.
+Record the decision and its evidence in
+[`.sdd/reviews/open-decisions.md`](.sdd/reviews/open-decisions.md). Change the rule in
+the spec that holds it and add an entry to that spec's `CHANGELOG.md`. Write an ADR
+under [`.sdd/rfcs/`](.sdd/rfcs) only when the change sets or moves an architectural
+boundary, as the Amendment table in [`.sdd/constitution.md`](.sdd/constitution.md)
+says. Supersede old wording with a dated note rather than rewriting it, so the
+document keeps its own history.
 
-[`.sdd/rfcs/ADR-002-attendance-report-scope.md`](.sdd/rfcs/ADR-002-attendance-report-scope.md)
-is a worked example.
+`D12` in the decision record is a worked example of a business rule change;
+[`.sdd/rfcs/ADR-005-one-authorization-policy.md`](.sdd/rfcs/ADR-005-one-authorization-policy.md)
+is one of an architectural decision.
 
 ## Working with AI agents
 

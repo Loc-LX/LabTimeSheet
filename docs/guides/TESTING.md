@@ -213,10 +213,13 @@ test only to check that a text file exists.
 Run that check from the clean targeted-fix branch named
 `work/fix/<feature>/<what-fix>` when repairing one feature. Do not use
 `work/<feature>/fix/<what-fix>`: a persistent `work/<feature>` ref already
-occupies that Git ref prefix. Record the expected RED and the matching GREEN
-shell output in the evidence record.
+occupies that Git ref prefix. Report the RED and GREEN command output from the
+run itself; nothing is written to a separate evidence file (`ADR-004`).
 
-Every targeted repair starts from the taskmaster-verified latest `main`, uses TDD RED → GREEN, adds Javadoc during implementation, records companion evidence, undergoes independent review, and uses a normal, non-force merge only when separately authorized.
+Every targeted repair starts from the latest verified `main`, follows TDD from RED to GREEN,
+adds Javadoc as it goes, names the rules each test protects in that test's Javadoc,
+gets an independent review, and is merged with an ordinary non-force merge only
+when separately authorized.
 
 ## 4. Useful commands
 

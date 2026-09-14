@@ -215,11 +215,14 @@ environment file outside the repository.
 | `work/reports-ui` | Shared UI, dashboards, reporting presentation |
 
 For a targeted repair, create a clean isolated branch and worktree from the
-taskmaster-verified current `main` named
+latest verified `main` named
 `work/fix/<feature>/<what-fix>`. Do not nest it as
 `work/<feature>/fix/<what-fix>`: the persistent `work/<feature>` ref already
 uses that Git ref prefix.
 
-Every targeted repair starts from the taskmaster-verified latest `main`, uses TDD RED → GREEN, adds Javadoc during implementation, records companion evidence, undergoes independent review, and uses a normal, non-force merge only when separately authorized.
+Every targeted repair starts from the latest verified `main`, follows TDD from RED to GREEN,
+adds Javadoc as it goes, names the rules each test protects in that test's Javadoc,
+gets an independent review, and is merged with an ordinary non-force merge only
+when separately authorized.
 
 [CONTRIBUTING.md](CONTRIBUTING.md) has the step-by-step workflow.
