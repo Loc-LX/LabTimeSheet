@@ -1,6 +1,6 @@
 # Attendance Spec
 
-**Version:** 1.0.0 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-14
+**Version:** 1.0.1 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-14
 
 Part of the Lab Timesheet specification. [`.sdd/requirements.md`](../../requirements.md) indexes every
 spec, rule prefix, and original section number. Rules every feature shares, including the
@@ -279,4 +279,5 @@ Exclusions stated inside this spec's own rules: `CAL-001`, `LEV-001`.
 
 - `UC-04` also configures SMTP and HolidayAPI, whose rules are in [the integration spec](../feature-integration/SPEC.md).
 - `COR-006`: approving a correction confirms the effective checkout only; a checkout before scheduled end remains an early departure under `ATT-011`.
-- **Open, with the instructor.** Whether the laboratory excuses an early departure or a late arrival; whether an excused violation still lowers compliance; who approves it; and whether a mistaken early raw checkout needs a correction path, which `COR-001` and `ATT-012` do not allow today.
+- `D14` was decided on 14 September 2026 and is **not yet written as rules**, because two parts are open. Decided: a late arrival or early departure stays recorded as it happened, and a separate approval marks it excused or unexcused; an excused violation does not lower the compliance score but stays in attendance history and statistics; the approver is the Mentor responsible for that Intern, which needs a responsible-Mentor field the Intern profile does not have (`ACC-019`); a Leader never approves, and an Admin never decides.
+- **Open.** Who starts an exception, the Intern by request or the Mentor directly; the deadlines for submitting and deciding it, which are not to be copied from corrections; and whether leave and corrections should also move to the responsible Mentor, which `LEV-008` and `COR-005` give to any active Mentor today.

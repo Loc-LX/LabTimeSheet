@@ -1,6 +1,6 @@
 # Platform Spec
 
-**Version:** 1.0.0 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-14
+**Version:** 1.1.0 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-14
 
 Part of the Lab Timesheet specification. [`.sdd/requirements.md`](../../requirements.md) indexes every
 spec, rule prefix, and original section number. Rules every feature shares, including the
@@ -10,7 +10,7 @@ numbers the rules carried in the single-file specification and are kept so exist
 references still resolve.
 
 This spec holds what every feature shares. It is not a feature in the code; the name keeps the
-playbook's `feature-{name}` convention so every spec is found and tagged the same way.
+`feature-{name}` convention of the other specs so every spec is found and tagged the same way.
 
 ## 1. Context & Goal
 
@@ -23,8 +23,8 @@ playbook's `feature-{name}` convention so every spec is found and tagged the sam
 | Database baseline | PostgreSQL 18.4, 24 application tables |
 | Companion DDL | `database-schema.sql`, not tracked in this repository |
 | Review state | Approved as version 1.0.0 on 14 September 2026; open questions are listed in each spec |
-| Normative rules | 269 across the eight specs |
-| Acceptance scenarios | 126 across the eight specs |
+| Normative rules | 274 across the eight specs |
+| Acceptance scenarios | 131 across the eight specs |
 
 > **Companion files.** This document was authored in a separate documentation
 > repository and copied here on 26 August 2026. Its companion `database-schema.sql`
@@ -69,8 +69,7 @@ rather than the system and no `THE system SHALL` sentence would be true of them:
 | `TST-001`–`TST-010` | the test-driven workflow a contributor follows |
 
 Forcing those into the notation would make the document look uniform and say
-something false. Chapter 13.6 of the playbook names that as the first
-anti-pattern.
+something false.
 
 ### §1. Authority, purpose, and scope
 
@@ -111,6 +110,15 @@ When statements conflict, use this precedence from highest to lowest:
 > held by the 17 August SRS and is the current decision of the primary implementor under the
 > `GOV-001` authority order; it is recorded in `.sdd/rfcs/ADR-002-attendance-report-scope.md`.
 
+> **Admin read-scope revision — 14 September 2026. Supersedes the 27 and 30 August blocks above
+> on reports.** The instructor confirmed that an Admin may, for now, view every report and its
+> data: detailed Intern Attendance, Project/Task, and the Daily Project Work Report, with their
+> HTML pages and XLSX and PDF exports. This is read access only. An Admin still edits no Project
+> or Task and decides no leave, correction, or attendance exception, and the Admin dashboard stays
+> as `UI-019` states. The instructor expects to withdraw part of this later, so each Admin
+> capability is its own row of the §5.2 matrix and is decided by the one authorization policy of
+> `AUTH-012`. Recorded as `D1` in `.sdd/reviews/open-decisions.md`.
+
 | ID | Requirement |
 |---|---|
 | GOV-001 | Implementers shall use the authority order above and shall not revive a lower-authority rule that conflicts with an approved higher-authority decision. |
@@ -142,8 +150,8 @@ The system supports a university laboratory or internship program in four connec
 | AUTH-002 | THE system SHALL NOT treat a hidden Thymeleaf control as authorization. WHERE the caller is not authenticated, THE system SHALL redirect to the sign-in page. WHERE the caller is authenticated but holds the wrong role for the whole route, THE system SHALL return an authenticated access-denied response, which implies no record. WHERE the caller may reach the route but the record is not theirs or does not exist, THE system SHALL return the same not-found response in both cases, so that the response cannot be used to discover which records exist. |
 | AUTH-003 | WHILE a Mentor account is active, THE system SHALL permit it to view Intern attendance and decide leave and correction requests for any Intern. THE system SHALL restrict Project-management authority to the Project's owning Mentor. |
 | AUTH-004 | WHILE a leadership term is current, THE system SHALL grant its holder Leader permissions, and WHEN that term ends, THE system SHALL withdraw Task-management permission immediately. WHERE a Leader exit is pending, THE system SHALL require the owning Mentor to appoint the replacement before any exit-transfer work, and SHALL NOT move a Task merely because leadership changed. |
-| AUTH-005 | THE system SHALL resolve current-assignee permission independently of leadership: a Leader MAY update or log work on a Task only WHILE assigned to it, and so MAY an ordinary member. |
-| AUTH-006 | WHILE a Project is `COMPLETED`, THE system SHALL make it read-only to every role. An Admin MAY read every Project and its retained history. WHILE a Project is open, THE system SHALL grant history access to its owning Mentor and current members. WHEN a member is removed, THE system SHALL withdraw open-Project access and SHALL restore read-only access only after that Project completes. |
+| AUTH-005 | THE system SHALL resolve current-assignee permission independently of leadership: a Leader MAY log work on a Task, and MAY make any `TSK-007` transition on it, only WHILE assigned to it, and so MAY an ordinary member. The transitions a current Leader MAY make on another member's Task are those of `TSK-023` and no others. |
+| AUTH-006 | WHILE a Project is `COMPLETED` or `CANCELLED`, THE system SHALL make it read-only to every role. An Admin MAY read every Project and its retained history. WHILE a Project is open, THE system SHALL grant history access to its owning Mentor and current members. WHEN a member is removed, THE system SHALL withdraw open-Project access and SHALL restore read-only access only after that Project completes or is cancelled. |
 
 #### §5.2 Permission matrix
 
@@ -157,7 +165,8 @@ Legend: **Yes** = permitted within the stated scope; **Own** = own Project or ow
 | View all Projects/tasks/progress | Yes, read-only | Own | Own | Membership scope |
 | Create Project | No | Yes | No | No |
 | Edit/activate/complete Project | No | Own | No | No |
-| Delete a PLANNED Project | No | Own | No | No |
+| Delete an empty `PLANNED` Project (`PRJ-002`) | No | Own | No | No |
+| Cancel a `PLANNED` or `ACTIVE` Project (`PRJ-023`) | No | Own | No | No |
 | Directly add/remove Project members | No | Own | No | No |
 | Issue/revoke Project invitation | No | Revoke any in Own | Issue/revoke own in Own | Accept/decline own invitation |
 | Request/decide membership exit | No | Decide or remove directly in Own | Request another member's removal or own leave | Request/cancel own leave |
@@ -166,25 +175,31 @@ Legend: **Yes** = permitted within the stated scope; **Own** = own Project or ow
 | Create Task | No | No | Own; any active assignee | Self-assigned only |
 | Assign/reassign Task | No | No | Own | No |
 | Set/replace/clear Task estimate before the first work log | No | No | Own | No |
+| Record a Remaining effort forecast (`TSK-022`, `TSK-024`) | No | No | Own | No |
 | Edit/soft-delete Task | No | No | Unfinished in Own | Unfinished self-created while still self-assigned |
-| Change Task status | No | No | Assigned | Assigned |
+| Change the status of one's own assigned Task (any `TSK-007` transition) | No | No | Assigned | Assigned |
+| Block, unblock, or reopen another member's Task (`TSK-023`) | No | Own, `ACTIVE` Project | Own, `ACTIVE` Project | No |
+| Start another member's Task or mark it `DONE` | No | No | No | No |
 | Comment on Task | No | Own | Own | Membership scope |
 | Create/edit own Task work log | No | No | Assigned/own log | Assigned/own log |
 | View aggregate Project progress | Yes | Own | Own | Membership scope |
 | View Project/Task retained history | Yes, read-only | Own | Own | Current membership; former membership only after completion |
-| View per-member Project hours | No | Own | Own | No |
+| View per-member Project hours | Yes, read-only | Own | Own | No |
 | View Intern attendance | Yes | Yes | Own history only | Own history only |
 | Decide leave/correction | No | Yes | No | No |
 | Submit own leave/correction | No | No | If active Intern | If active Intern |
-| Export authorized attendance/project reports | Attendance only | Authorized scope | Project scope | No detailed export |
+| View and export the Attendance report (`RPT-004`) | Yes | Yes | Own history only | Own history only |
+| View and export the Project/Task report (`RPT-005`) | Yes, read-only | Own | Project scope | Aggregate only |
+| View and export the Daily Project Work Report (`RPT-011`) | Yes, read-only | Own | Led `PLANNED` or `ACTIVE` Project | No |
 
 | ID | Requirement |
 |---|---|
 | AUTH-007 | THE system SHALL keep Admin Project access read-only, and SHALL NOT let it imply commenting, membership, leadership, Task, or status authority. |
-| AUTH-008 | THE system SHALL permit a Mentor to view a Task, comment on it, and read its retained history. THE system SHALL refuse a Mentor's attempt to create, assign, reassign, edit, soft-delete, or change the status of a Task. The automatic transfer performed by direct Mentor removal is a guarded Project-domain operation rather than Task-management authority. |
+| AUTH-008 | THE system SHALL permit a Mentor to view a Task, comment on it, and read its retained history. THE system SHALL refuse a Mentor's attempt to create, assign, reassign, edit, or soft-delete a Task. WHILE a Project is `ACTIVE`, THE system SHALL permit its owning Mentor only the block, unblock, and reopen transitions of `TSK-023`, and SHALL refuse every other status change by a Mentor. The automatic transfer performed by direct Mentor removal is a guarded Project-domain operation rather than Task-management authority. |
 | AUTH-009 | WHILE a Project is open, THE system SHALL permit its active members to view every non-deleted Task, assignee, status, aggregate progress, comment thread, and authorized history entry in that Project, and to comment on any non-deleted Task. |
 | AUTH-010 | Per-member Task-hour visibility is defined by `RPT-005`. This entry exists so that a reader of the authorization model reaches that rule; it adds nothing of its own. |
 | AUTH-011 | WHEN an invitation, membership-exit, exit-transfer batch, self-Task, Task-definition, or history-read operation is requested, THE system SHALL authorize it inside the transaction or read boundary from the authenticated user, the owning Project, active membership, pending-exit state, the issuing or current leadership term, the Task creator or current assignee, and aggregate state. WHERE the identifier is cross-Project or stale, THE system SHALL disclose no protected record and SHALL commit no part of the change. |
+| AUTH-012 | THE system SHALL decide every business permission through one authorization policy that takes the actor's role, the actor's scope in stored context, the current state of the record, and, for a transition, the target state. THE system SHALL NOT infer from a higher role a capability the §5.2 matrix does not grant, SHALL give each capability of that matrix its own entry in the policy so that it can be withdrawn from one role alone, and SHALL NOT decide a business permission from a role check outside the policy. Route protection MAY remain coarse; the service SHALL enforce the policy's decision; a template SHALL ask the same policy only to decide what to show. The decision is `ADR-005`. |
 
 ## 3. Functional Requirements
 
@@ -207,12 +222,14 @@ Legend: **Yes** = permitted within the stated scope; **Own** = own Project or ow
 | Raw checkout | The server timestamp recorded by normal checkout; it is never overwritten by correction. |
 | Effective checkout | Raw checkout when present, otherwise an approved correction's requested checkout. |
 | Task work log | A dated number of minutes spent on a Task; it is independent from attendance. |
-| Task estimate | The planned effort in minutes for one whole Task. It belongs to the Task rather than to an assignee, and is independent of attendance, calendar duration, and elapsed time. |
+| Task estimate | The planned effort in minutes for one whole Task. It belongs to the Task rather than to an assignee, and is independent of attendance, calendar duration, and elapsed time. It is the Task's baseline: once work is retained it never changes. |
 | Actual Task effort | The lifetime sum of retained work-log minutes for one Task across every author and assignment. It does not reset when the Task is reassigned. |
-| Task effort variance | For a `DONE` Task carrying an estimate, Actual Task effort minus Task estimate. It is a signed planning difference, undefined for an unfinished or unestimated Task. |
-| Remaining effort forecast | A current Leader's dated prediction of the additional effort needed to finish an unfinished Task, recorded at a reassignment or replanning point. It never replaces the estimate. |
+| Task effort variance | Current Work minus Task estimate, a signed planning difference. It is undefined for an unestimated Task, and for an unfinished Task with no Remaining effort forecast. |
+| Remaining effort forecast | A current Leader's dated prediction of the additional effort needed to finish an unfinished Task, recorded at a reassignment or whenever that prediction changes. It never replaces the estimate. |
+| Current Remaining effort | Zero for a `DONE` Task; otherwise the latest Remaining effort forecast less the Actual Task effort added since that forecast was recorded, never below zero. |
+| Current Work | Actual Task effort plus current Remaining effort. |
 | Report date | A local business date used to select dated Task work logs for reporting. Attendance policy and calendar context may describe the date but never remove otherwise valid Task work from the report. |
-| Daily Project Work Report | An authorized view of retained Task work logs for one Report date, grouped by Project and work-log author. It may show attendance context and each Task's current status, but asserts neither attendance nor that a Task was completed on that date. |
+| Daily Project Work Report | An authorized view of retained Task work logs for one Report date, shown by Task, with each Task's planning values once, and by work-log author, with minutes only. It may show attendance context and each Task's current status, but asserts neither attendance nor that a Task was completed on that date. |
 
 #### §2.1 Words this product does not use
 
@@ -316,10 +333,10 @@ The following supplied screenshots are visual-direction references. Their exampl
 | UI-013 | THE system SHALL present the interface in English only in v1, SHALL display business dates as `dd/MM/yyyy`, and SHALL display times in 24-hour local form with timezone context where ambiguity matters. |
 | UI-014 | THE system SHALL give every form field an associated label, inline field errors, an error summary, retained safe input after validation, keyboard operation, and visible focus. WHERE the selected role is not `INTERN`, THE system SHALL disable and clear the role-dependent Intern fields while server validation remains authoritative. WHERE policy input is bound to a month, THE system SHALL use a native month control rather than invite an arbitrary invalid date. THE system SHALL NOT communicate status through colour alone. |
 | UI-015 | THE system SHALL keep tables fully usable at supported desktop widths. WHERE the viewport is narrower, THE system SHOULD prioritise columns, wrap, or scroll horizontally to avoid avoidable corruption, and complete mobile workflow support remains outside v1 acceptance. |
-| UI-016 | WHEN a terminal or destructive action is requested, including internship withdrawal, Project completion, account deactivation, direct member removal, membership-exit approval, Task soft-delete, and SMTP retirement, THE system SHALL require an explicit confirmation describing the consequences. WHERE the action is exit approval, THE system SHALL show replacement and unfinished-Task readiness; WHERE it is a transfer, THE system SHALL show the selected Task count and the recipient. |
+| UI-016 | WHEN a terminal or destructive action is requested, including internship withdrawal, Project completion, Project cancellation, Project deletion, account deactivation, direct member removal, membership-exit approval, Task soft-delete, and SMTP retirement, THE system SHALL require an explicit confirmation describing the consequences. WHERE the action is exit approval, THE system SHALL show replacement and unfinished-Task readiness; WHERE it is a transfer, THE system SHALL show the selected Task count and the recipient. |
 | UI-017 | THE system SHALL NOT use decorative gradients, glass effects, card-within-card repetition, oversized marketing headings, remote fonts or assets, or a chart that carries no information. |
 | UI-018 | THE system SHALL meet WCAG 2.2 AA contrast in both light and dark themes: at least 4.5:1 for normal text, at least 3:1 for large text and meaningful non-text boundaries, and a visible focus indicator at 3:1 against adjacent colours. |
-| UI-019 | THE system SHALL provide Leader invitation list, create and revoke; Intern invitation accept and decline; Leader removal request; member leave and cancel; persistent pending-exit warnings; a Leader-only side drawer for repeated multi-Task single-recipient transfer batches; and an owning-Mentor decision surface. THE system SHALL provide separate Intern My Leave and My Corrections workflows and separate Mentor Leave Decisions and Correction Decisions workflows, each placing the actionable queue before retained history and showing the monthly leave balance defined by `LEV-004`. THE system SHALL give an Admin focused Account Directory, Detail and Edit workflows, Attendance Policy with History, Global Calendar with History, Holiday Import with provider History, and SMTP with History. THE system SHALL keep Admin dashboard content account and configuration only, without an Active Projects metric or a report-like Project or Task summary. THE system SHALL give an Admin the dedicated Attendance report navigation that `RPT-004` grants, and SHALL NOT give an Admin dedicated Project or Task report navigation or Daily Project Work Report navigation. THE system SHALL limit dedicated Attendance report navigation to the scopes in `RPT-004`, and dedicated Project or Task report navigation to the non-Admin scopes in `RPT-005`. THE system SHALL keep the global Daily entry visible to Mentors, and SHALL show it to an active Intern only WHILE current leadership makes at least one `PLANNED` or `ACTIVE` Project eligible; Project-detail Daily generation SHALL remain available to the current Leader only. THE system SHALL redirect `/admin/settings` to `/admin/attendance-policies` and `/attendance/requests` to `/attendance/leave`. THE system SHALL provide one authorized Project History tab. Existing mockups are illustrative and SHALL NOT override a numbered requirement. |
+| UI-019 | THE system SHALL provide Leader invitation list, create and revoke; Intern invitation accept and decline; Leader removal request; member leave and cancel; persistent pending-exit warnings; a Leader-only side drawer for repeated multi-Task single-recipient transfer batches; and an owning-Mentor decision surface. THE system SHALL provide separate Intern My Leave and My Corrections workflows and separate Mentor Leave Decisions and Correction Decisions workflows, each placing the actionable queue before retained history and showing the monthly leave balance defined by `LEV-004`. THE system SHALL give an Admin focused Account Directory, Detail and Edit workflows, Attendance Policy with History, Global Calendar with History, Holiday Import with provider History, and SMTP with History. THE system SHALL keep Admin dashboard content account and configuration only, without an Active Projects metric or a report-like Project or Task summary. THE system SHALL give an Admin read-only dedicated Attendance, Project or Task, and Daily Project Work Report navigation, as `RPT-004`, `RPT-005`, and `RPT-011` grant, and SHALL limit each report's navigation to the scopes its rule grants. THE system SHALL keep the global Daily entry visible to Mentors and Admins, and SHALL show it to an active Intern only WHILE current leadership makes at least one `PLANNED` or `ACTIVE` Project eligible; Project-detail Daily generation SHALL remain available to the current Leader only. THE system SHALL redirect `/admin/settings` to `/admin/attendance-policies` and `/attendance/requests` to `/attendance/leave`. THE system SHALL provide one authorized Project History tab. Existing mockups are illustrative and SHALL NOT override a numbered requirement. |
 
 Primary UI dependency references:
 
@@ -335,7 +352,7 @@ Primary UI dependency references:
 | Role/context | Required pages |
 |---|---|
 | Bootstrap | First Admin; optional SMTP configuration/test; five-step defer acknowledgement; completion. |
-| Admin | Account/configuration-only Dashboard (active accounts, pending activations, active internships, and system/configuration guidance); users/internships; SMTP and History; HolidayAPI and History; policy versions and History; global calendar/import and History; all-Project overview and Project History; system status; notifications. Attendance report navigation, HTML page, XLSX/PDF export, and dataset on the same footing as an active Mentor per `RPT-004`. No dedicated Project/Task or Daily report navigation, HTML, XLSX, PDF, or dataset. |
+| Admin | Account/configuration-only Dashboard (active accounts, pending activations, active internships, and system/configuration guidance); users/internships; SMTP and History; HolidayAPI and History; policy versions and History; global calendar/import and History; all-Project overview and Project History; system status; notifications. Read-only navigation, HTML pages, and XLSX/PDF exports for the Attendance report per `RPT-004`, the Project/Task report per `RPT-005`, and the Daily Project Work Report per `RPT-011`. |
 | Mentor | Dashboard; owned Projects; direct membership/leadership; pending membership-exit decisions/readiness; Project/task progress and History; comments; global leave queue; correction queue; authorized Intern attendance; notifications. |
 | Intern | Dashboard/check-in; own attendance; correction requests; leave; memberships; Project invitations; own leave requests; authorized Projects and History; assigned/self-created Tasks; comments; work logs; notifications; profile/security. |
 | Leader context | All Intern pages plus invitation issue/revoke, removal requests, persistent exit-readiness warnings, repeated multi-Task/one-recipient transfer batches, Task creation for eligible active members, assignment/edit/delete, detailed Project/member progress inside currently led Projects, and Daily Project Work Report navigation for each currently-led `PLANNED` or `ACTIVE` Project. |
@@ -585,9 +602,9 @@ The schema contains **24 tables**. The earlier 21-table baseline was superseded 
 | DB-008 | WHEN leave quota or a daily work-minute total is validated, THE system SHALL lock the affected Intern profile before reading reservations or totals and before writing the new state. |
 | DB-009 | THE schema seed SHALL create the `1970-01-01` policy version and ISO workdays 1 through 5. |
 | DB-010 | THE physical Mermaid diagram and the SQL SHALL describe the same tables, columns, and foreign-key relationships. WHERE they differ on composite or partial uniqueness, checks, exclusions, triggers, or lifecycle enforcement, the DDL is authoritative, because Mermaid cannot express those. |
-| DB-011 | THE schema SHALL preserve, in `project_invitations`, the Project, intended Intern, issuing leadership term, status, optional accepted membership, resolution code, actor and time, and an optimistic version. THE schema SHALL constrain the resolution code to exactly these eight values, each recording why the invitation stopped being pending: `INVITEE_ACCEPTED` when the intended Intern accepted and became a member, `INVITEE_DECLINED` when they declined, `INVITER_REVOKED` when the issuing Leader withdrew it, `MENTOR_REVOKED` when the owning Mentor withdrew it, `LEADER_CHANGED` when the issuing leadership term ended before any response, `PROJECT_COMPLETED` when Project completion superseded it, `INVITEE_INELIGIBLE` when the intended Intern stopped satisfying membership eligibility, and `MENTOR_DIRECT_ADD` when a direct Mentor addition superseded it. THE schema SHALL use partial uniqueness and same-Project composite foreign keys so that a duplicate pending invitation and cross-Project provenance are both impossible. |
+| DB-011 | THE schema SHALL preserve, in `project_invitations`, the Project, intended Intern, issuing leadership term, status, optional accepted membership, resolution code, actor and time, and an optimistic version. THE schema SHALL constrain the resolution code to exactly these nine values, each recording why the invitation stopped being pending: `INVITEE_ACCEPTED` when the intended Intern accepted and became a member, `INVITEE_DECLINED` when they declined, `INVITER_REVOKED` when the issuing Leader withdrew it, `MENTOR_REVOKED` when the owning Mentor withdrew it, `LEADER_CHANGED` when the issuing leadership term ended before any response, `PROJECT_COMPLETED` when Project completion superseded it, `PROJECT_CANCELLED` when Project cancellation superseded it, `INVITEE_INELIGIBLE` when the intended Intern stopped satisfying membership eligibility, and `MENTOR_DIRECT_ADD` when a direct Mentor addition superseded it. THE schema SHALL use partial uniqueness and same-Project composite foreign keys so that a duplicate pending invitation and cross-Project provenance are both impossible. |
 | DB-012 | THE schema SHALL preserve, in `project_membership_exit_requests`, the Project, requester and target memberships, request type and reason, status, optional decision details, and an optimistic version. THE schema SHALL enforce same-Project participants, the participant shape each request type requires, and one pending request per target, and SHALL name Task actor columns generically. |
-| DB-013 | THE schema SHALL store a Task estimate as nullable whole-Task integer minutes constrained to `1..527040`, with no backfill. THE schema SHALL store Remaining effort forecasts as append-only rows carrying same-Project Task and membership references, the reassignment timestamp, remaining minutes, a nonnegative lifetime-actual snapshot, an optional initial note, the correction reason and supersession shape, linear successors, and indexes for Task history and latest lookup. THE schema SHALL NOT persist a derived forecast total. |
+| DB-013 | THE schema SHALL store a Task estimate as nullable whole-Task integer minutes constrained to `1..527040`, with no backfill. THE schema SHALL store Remaining effort forecasts as append-only rows carrying same-Project Task and membership references, the start of the assignment the forecast applies to, remaining minutes, a nonnegative lifetime-actual snapshot, an optional initial note, the correction reason and supersession shape, linear successors, and indexes for Task history and latest lookup. THE schema SHALL NOT persist a derived forecast total. |
 
 #### §19.4 Physical database diagram
 
@@ -1057,13 +1074,14 @@ Scenarios for a feature are in section 7 of that feature's spec. The scenarios b
 | AC-AUTH-001 | AUTH-001–AUTH-002, AUTH-011 | User guesses an unauthorized Intern, Project, invitation, membership, exit request, Task, leave, or correction ID | No record details are disclosed and no mutation occurs. |
 | AC-AUTH-002 | AUTH-003 | Mentor who owns no Project views global leave/correction queue | Mentor may inspect and decide eligible requests but cannot mutate another Mentor's Project. |
 | AC-AUTH-003 | AUTH-006–AUTH-007 | Admin opens a Project and its History tab | Admin sees read-only Project/tasks/progress and retained history but cannot comment, assign, change status, or manage membership. |
-| AC-AUTH-004 | AUTH-008 | Owning Mentor opens a Task | Mentor can view/comment but every Task definition/status mutation is denied. |
-| AC-AUTH-005 | AUTH-004–AUTH-005 | Leader opens one assigned and one unassigned Task | Leader manages definitions for both, but can change status/log work only for the assigned Task. |
+| AC-AUTH-004 | AUTH-008, TSK-023 | Owning Mentor opens a Task on an `ACTIVE` Project, then one on a `PLANNED` Project | Mentor can view and comment; every Task definition mutation is denied; on the `ACTIVE` Project block, unblock, and reopen succeed while starting the Task and marking it `DONE` are denied; on the `PLANNED` Project every status change is denied. |
+| AC-AUTH-005 | AUTH-004–AUTH-005, TSK-023 | Leader opens one assigned and one unassigned Task on an `ACTIVE` Project | Leader manages definitions for both; on the assigned Task every `TSK-007` transition and work logging succeed; on the unassigned Task only block, unblock, and reopen succeed, and starting it, marking it `DONE`, and logging work are denied. |
 | AC-AUTH-006 | AUTH-005, AUTH-009 | Ordinary member opens Project Tasks | Member sees and comments on all Tasks; status/log controls exist only on their assigned Task. |
 | AC-AUTH-007 | AUTH-006 | Removed member opens the Project before and after completion | Open-Project access is denied after removal; after completion the former member receives authorized read-only Project/Task history and no mutation is accepted. |
 | AC-AUTH-008 | AUTH-010 | An Admin or ordinary member requests the Project/Task report, per-member hours endpoint, or export | No Admin report dataset/project option list or detailed breakdown is constructed; the authenticated Admin request is denied at the report boundary, while an ordinary member receives only the permitted aggregate Project progress and hours. |
 | AC-AUTH-009 | AUTH-001–AUTH-010 | A parameterized authorization suite evaluates every permission-matrix and history-visibility row for Admin, owning/non-owning Mentor, current/former Leader, assigned/unassigned active member, removed member in open/completed Project, and unrelated user contexts | Each allow/deny result matches the matrix; dedicated-report Admin requests are denied before target/Project option resolution and report reads, every other denial leaves state unchanged, and no unauthorized object details are revealed. |
 | AC-AUTH-010 | AUTH-011 | A stale former Leader or unrelated member submits an invitation, exit, self-Task, or Task-management request by direct identifier | Authorization is re-evaluated inside the transaction; the request is denied without existence leakage or partial mutation. |
+| AC-AUTH-011 | AUTH-012 | Every cell of the §5.2 permission matrix is exercised for each role, then one Admin capability is withdrawn from the policy | Each granted cell succeeds and each refused cell is denied at the service; no route or template grants what the service refuses; withdrawing the one Admin capability changes that capability's outcome and no other. |
 | AC-SEC-001 | SEC-001, SEC-013 | Dev/test request a state-changing form without CSRF | Request is denied despite relaxed transport/cookie settings. |
 | AC-SEC-002 | SEC-002–SEC-005 | Password is 11, 12, 128, then 129 characters; reset email is unknown | Only 12 and 128 pass length validation; response for unknown email remains generic. |
 | AC-SEC-003 | SEC-006–SEC-007 | Same normalized email/IP fails login five times inside window | Sixth attempt is throttled for 15 minutes; restart may clear throttle but does not unlock a manually locked account. |
@@ -1076,7 +1094,7 @@ Scenarios for a feature are in section 7 of that feature's spec. The scenarios b
 | AC-UI-002 | UI-002–UI-004 | Sidebar is collapsed and restored on a supported desktop viewport | Desktop becomes an icon rail, the state persists locally, and all authorized navigation remains keyboard-accessible. Mobile behavior is not part of this acceptance gate. |
 | AC-UI-003 | UI-009–UI-010 | Screen reader reaches icon-only actions | Local Lucide sprite loads; decorative icons are hidden; controls have distinct accessible names/tooltips. |
 | AC-UI-004 | UI-011–UI-012 | Chart JavaScript disabled or canvas unavailable | Adjacent textual/table summary still conveys the same trend values. |
-| AC-UI-005 | UI-005–UI-019 | Light/dark pages, account/configuration-only Admin dashboard and focused Admin configuration/history pages, role-aware report navigation, persistent exit warnings, transfer drawer, Project History, and separate Intern/Mentor Leave/Correction workflows are reviewed at supported desktop widths | Reference hierarchy, measured AA contrast, focus, keyboard operation, selected/remaining counts, actionable-before-history ordering, confirmation, secret redaction, wrapping, non-color status requirements, presence of Admin Attendance report navigation, absence of Admin Project/Task and Daily report navigation and of the Active Projects metric, and conditional current-Leader Daily navigation pass. Legacy settings/request routes redirect as specified. Narrow-screen behavior receives best-effort smoke review only and does not block v1 acceptance. |
+| AC-UI-005 | UI-005–UI-019 | Light/dark pages, account/configuration-only Admin dashboard and focused Admin configuration/history pages, role-aware report navigation, persistent exit warnings, transfer drawer, Project History, and separate Intern/Mentor Leave/Correction workflows are reviewed at supported desktop widths | Reference hierarchy, measured AA contrast, focus, keyboard operation, selected/remaining counts, actionable-before-history ordering, confirmation, secret redaction, wrapping, non-color status requirements, presence of Admin Attendance, Project/Task, and Daily report navigation, absence of the Active Projects metric, and conditional current-Leader Daily navigation pass. Legacy settings/request routes redirect as specified. Narrow-screen behavior receives best-effort smoke review only and does not block v1 acceptance. |
 | AC-OPS-001 | OPS-001–OPS-004 | Developer starts PostgreSQL/Mailpit and runs IDE `dev` profile | Application connects using environment-backed Spring properties without production transport hardening. |
 | AC-OPS-002 | OPS-003 | CI executes tests on clean runner | PostgreSQL Testcontainer supplies database; no host database, SMTP, or API key is required. |
 | AC-OPS-003 | OPS-005–OPS-009 | App runs through bundled Compose and against external PostgreSQL | Same non-root image becomes healthy in both topologies with no embedded database assumption. |
@@ -1107,7 +1125,7 @@ Scenarios for a feature are in section 7 of that feature's spec. The scenarios b
 | GOV-008 | THE system SHALL NOT provide project-level days off, multiple Task assignees, unconditional self-service Project joining or leaving, Task dependencies, epics, sprints, story points, labels, watchers, reactions, attachments, nested subtasks, or burndown charts. Authenticated invitation acceptance and Mentor-approved exit requests SHALL be the only member-initiated boundary workflows. |
 | GOV-009 | THE system SHALL NOT persist generic domain events, login-attempt history, daily calendar materializations, or Task-assignment history. Narrow correction and leadership history SHALL be retained because current requirements depend on them. |
 | GOV-010 | WHILE the deployment host and its secrets do not exist, THE delivery pipeline SHALL keep the SSH deployment job disabled and SHALL NOT attempt to connect to a deployment target. |
-| GOV-015 | THE system SHALL keep the Task effort-planning slice local to this product. It SHALL NOT integrate with external Jira or Tempo, SHALL NOT mirror Jira issues, sprints, or story points, SHALL NOT hold Tempo accounts or synchronization, SHALL NOT add a `SUBMITTED` state or a Leader acceptance and rejection Task workflow, and SHALL NOT perform continuous replanning unrelated to worked reassignment. Any of these requires a new numbered requirement and a recorded decision. |
+| GOV-015 | THE system SHALL keep the Task effort-planning slice local to this product. It SHALL NOT integrate with external Jira or Tempo, SHALL NOT mirror Jira issues, sprints, or story points, SHALL NOT hold Tempo accounts or synchronization, and SHALL NOT add a `SUBMITTED`, `ACCEPTED`, or `REJECTED` state or any acceptance and rejection state machine for Tasks. Reopening a `DONE` Task under `TSK-023` so that its assignee corrects it is a status transition, not such a workflow. THE system SHALL NOT re-baseline a Task: once work is retained the estimate stays as `TSK-020` fixes it, and recording a Remaining effort forecast under `TSK-022` or `TSK-024` is not re-baselining. Any of these requires a new numbered requirement and a recorded decision. |
 
 **Deferred, which is not the same as excluded.** Weekly and Monthly report
 presets sit outside the v1 acceptance scope and are postponed for later
@@ -1129,10 +1147,10 @@ documents a working product.
 
 | Measure | Value |
 |---|---:|
-| Normative rules, sections 1–22 | 269 |
-| Rules with a §20 acceptance scenario | 252 |
+| Normative rules, sections 1–22 | 274 |
+| Rules with a §20 acceptance scenario | 257 |
 | Rules declared without one, with reason | 17 |
-| Acceptance scenarios | 126 |
+| Acceptance scenarios | 131 |
 | Flyway application tables | 24 |
 
 The specification quality review in §20 and the twelve-point gate once recorded in the
@@ -1264,4 +1282,4 @@ Validation performed on 14 August 2026 established the review artifacts below. T
 
 ### Constitution changes awaiting agreement
 
-- The constitution's `GOV-014` row says Projects are never deleted, which `PRJ-002` now permits for a `PLANNED` Project, and its change table still sends a new scenario to "§20 of the specification", which is now section 7 of each spec. Changing either needs the maintainer's agreement to specific wording.
+- The constitution's `GOV-014` row says Projects are never deleted, which `PRJ-002` now permits for an empty `PLANNED` Project, and its summary of `GOV-015` still names "continuous replanning". Changing either needs the maintainer's agreement to specific wording. The Amendment table was changed on 14 September 2026 with that agreement.

@@ -17,7 +17,7 @@ web
 
 ## Users
 
-- **Admins** operate accounts, internship lifecycles, attendance policy, the global calendar, SMTP, HolidayAPI, and system configuration. Their dashboard is account/configuration-only; they may inspect and export detailed Intern Attendance reports, but have no dedicated Project/Task or Daily Project Work Report pages or exports. Any retained generic Project/history read surface remains read-only and does not grant additional reporting scope.
+- **Admins** operate accounts, internship lifecycles, attendance policy, the global calendar, SMTP, HolidayAPI, and system configuration. Their dashboard is account/configuration-only. For now they may view and export every report read-only, covering Attendance, Project/Task, and Daily Project Work, but they edit no Project or Task and decide no leave, correction, or attendance exception. The instructor expects to withdraw part of this access later.
 - **Mentors** own Projects, directly manage membership and leadership, decide membership exits, monitor Project and Intern progress/history, comment on Tasks, inspect attendance, and decide leave and missed-checkout corrections.
 - **Interns** check in and out, request leave and missed-checkout corrections, respond to their own Project invitations, request/cancel their own Project exit, participate in multiple Projects, create self-assigned Tasks when eligible, perform assigned Tasks, comment, update their own assigned Task status, record Task work, and inspect authorized Project history.
 - A **Project Leader** is an Intern with a current leadership term for one Project. It is contextual authority, never a global account role. The Leader may invite eligible Interns, request a member's removal, manage Task definitions/assignment, and redistribute unfinished Tasks away from a pending exit target in confirmed batches.
@@ -40,15 +40,16 @@ The product joins attendance oversight and Project delivery without pretending t
 - Initial installation uses a one-time first-Admin bootstrap. Later account creation and password recovery depend on a tested SMTP configuration.
 - Admins may preview and import Vietnamese holiday candidates from HolidayAPI, while the stored Admin decision remains authoritative. Manual calendar management remains available.
 - Mentors review global leave and correction queues and separately oversee only the Projects they own.
-- Reports cover attendance/compliance and Project/Task progress in HTML, Excel, and PDF from one shared dataset definition, with role-scoped access: active Mentors and Admins may inspect detailed Intern Attendance, Interns retain own-Attendance scope, and owning Mentors/current Leaders retain authorized Project/Task detail. Admins have no Project/Task or Daily report scope. Current Leaders can discover Daily reporting only for currently-led open Projects.
+- Reports cover attendance/compliance and Project/Task progress in HTML, Excel, and PDF from one shared dataset definition, with role-scoped access: active Mentors and Admins may inspect detailed Intern Attendance, Interns retain own-Attendance scope, and owning Mentors/current Leaders retain authorized Project/Task detail. Admins may view and export every report read-only. Current Leaders can discover Daily reporting only for currently-led open Projects.
 - The authoritative requirements are the eight specs under `.sdd/specs/`, indexed by `.sdd/requirements.md`. They document a system that is built: four iterations have shipped and the schema lives in Flyway. They were approved as version 1.0.0 on 14 September 2026; the questions still to confirm with the instructor are listed in the Notes section of each spec, and §22.2 of the platform spec records the approval.
 
 ## Capabilities and Constraints
 
 - Global account roles are exactly `ADMIN`, `MENTOR`, and `INTERN`, and are immutable after account creation.
 - Project membership is many-to-many and interval-based. The owning Mentor may add/remove directly and makes every exit decision; the current Leader may invite; only the intended authenticated Intern may accept/decline; members may request but cannot unilaterally leave. Pending exit keeps existing rights but blocks new/self-assignment to the target; the Leader redistributes unfinished Tasks before approval, while direct Mentor removal retains its atomic automatic-transfer shortcut.
+- A Project that will not run is cancelled with a reason and kept read-only; only an empty draft can be deleted.
 - Every `PLANNED` or `ACTIVE` Project has exactly one current Intern Leader. Any active member may create a Task assigned only to themselves; only the current Leader may create for another member or reassign broader Task work.
-- Each Task has one current assignee. Only that assignee changes its status and records work.
+- Each Task has one current assignee, who alone records work on it and moves it through its execution states. The current Leader and the owning Mentor may only block, unblock, or reopen a Task; nobody starts or finishes a Task for its assignee.
 - Attendance uses server-time check-in and checkout. Effective-dated policy stores separate check-in and checkout grace periods, both defaulting to 30 minutes; with the default 15:30 end, normal checkout closes immediately after the inclusive 16:00:00 cutoff. Task work is a separate dated-minute record and never proves attendance.
 - Leave is full-day. Only frozen eligible workdays consume quota, and pending or approved requests reserve it.
 - Corrections apply only to missing checkout after the attendance row's historical checkout cutoff. Submission remains open through scheduled end plus 24 hours, and the Mentor then receives a separate 24-hour decision window.
@@ -66,7 +67,7 @@ The product joins attendance oversight and Project delivery without pretending t
 
 ## Evidence on Hand
 
-- `.sdd/specs/` holds the approved requirements, eight specs carrying 269 numbered rules, indexed by `.sdd/requirements.md`.
+- `.sdd/specs/` holds the approved requirements, eight specs of numbered rules, indexed by `.sdd/requirements.md`.
 - The companion `database-schema.sql` and the `assets/ui-reference-*.png` visual references remain in the separate documentation repository and are not tracked here. The live schema is the Flyway migration set under `src/main/resources/db/migration`, which creates twenty-four tables.
 - The repository contains the implemented product. All tracked deliverables for Iterations 1 through 4 are marked `DONE` in `plan.md`; only the Iteration 3 integrated review remains.
 - No production data, customer testimonials, adoption metrics, institutional endorsements, or performance claims are available. Future design work must not fabricate them.

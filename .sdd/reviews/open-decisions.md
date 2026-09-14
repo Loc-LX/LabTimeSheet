@@ -28,7 +28,7 @@ they disagree, the application is wrong, and D7 is the case in point.
 
 | | Question | Answer | Rules it changes |
 |---|---|---|---|
-| D1 | Admin access to detailed Intern attendance | Permitted; confirmed by the instructor on 14 September 2026, with the fields listed | `RPT-004`, `RPT-011` |
+| D1 | Admin access to detailed Intern attendance | Permitted, and since 14 September 2026 read access to every report; confirmed by the instructor | `RPT-004`, `RPT-005`, `RPT-011` |
 | D2 | External issue tracker in scope | Excluded; report presets deferred | `GOV-015` |
 | D3 | A separate document per feature | One canonical location per rule; the split into feature specs was carried out on 14 September 2026 | `GOV-016` |
 | D4 | Exact version pinning for test tooling | Range is enough; action completed 12 September 2026 | `ARC-004` |
@@ -39,8 +39,11 @@ they disagree, the application is wrong, and D7 is the case in point.
 | D9 | Stating the SMTP port range | 1 through 65535, a type constraint | `INT-007` |
 | D10 | Which stylesheet the desktop overflow contract requires | The assertion was wrong, not the stylesheet; action completed 12 September 2026 | none |
 | D11 | Whether approving the specification waits for the Iteration 3 integrated review | No; resolving every code and specification disagreement is the condition instead | §22.2 |
-| D12 | Whether a Project may be deleted | Only a `PLANNED` Project, only by its owning Mentor; pending confirmation with the instructor | `GOV-014`, `PRJ-002` |
-| D13 | Whether an owning Mentor may change a Task's status | Open: the code permits it on an `ACTIVE` Project, the rules refuse it | `AUTH-008`, `TSK-007` |
+| D12 | Whether a Project may be deleted | Only an empty `PLANNED` Project; any other Project that will not run is cancelled | `PRJ-002`, `PRJ-023` |
+| D13 | Whether an owning Mentor may change a Task's status | Only block, unblock, and reopen, decided by role, scope, and state | `AUTH-005`, `AUTH-008`, `TSK-007`, `TSK-023` |
+| D14 | Whether a late arrival or early departure can be excused | Yes, as a separate approval; not yet written as rules | none yet |
+| D15 | What Remaining effort and variance mean, and who the Daily report is for | Estimate is the baseline; Remaining is a current forecast; two report perspectives | `GOV-015`, `TSK-021`, `TSK-024`, `RPT-012`, `RPT-014` |
+| D16 | When a rule change needs an ADR | Only when it moves an architectural boundary | constitution, Amendment |
 
 D1 through D5 came from reading the specification against its own history. D6
 through D9 came from the audit described at the end of this page, which read the
@@ -148,8 +151,15 @@ of that dataset, so a later restriction names what it removes. And the plan must
 the Admin field set change in one place: today it is decided in three,
 `SecurityConfiguration`, `AttendanceReportQueryService#authorize` where Admin and
 Mentor share one branch, and the shared layout, and none of them works per field.
-Still open: whether the instructor's "full access" also covers the Project/Task and
-Daily reports, which `RPT-005` and `RPT-011` deny to Admin.
+**Widened on 14 September 2026.** The instructor's "full access" covers every report.
+An Admin now views the Attendance, Project/Task, and Daily Project Work reports and
+their data read-only, and exports them. An Admin edits no Project or Task and decides
+no leave, correction, or attendance exception. `RPT-005`, `RPT-011`, `UI-019`, the
+§5.2 matrix, and a new revision block in §1.1 of the platform spec carry it. So that
+part of it can be withdrawn later without a search through the code, every capability
+is its own matrix row and `AUTH-012` requires one authorization policy to decide them;
+the architectural side is `ADR-005`. This supersedes the Project/Task and Daily part of
+`ADR-002`, which stays as written because it is a dated record.
 
 ## D2. Is the external issue tracker permanently out of scope?
 
@@ -263,8 +273,8 @@ appears in exactly one file.
 
 **Date:** 2026-09-11
 
-**Carried out on 14 September 2026.** The maintainer chose to follow the playbook's
-layout, and the specification now sits in eight specs under `.sdd/specs/`, one per
+**Carried out on 14 September 2026.** The maintainer chose to split it, and the
+specification now sits in eight specs under `.sdd/specs/`, one per
 code package plus a platform spec for the shared rules. The counts this entry
 predicted held: the platform spec carries 119 rules and the seven feature specs 150.
 A check confirmed that every identifier appears in exactly one spec, and
@@ -833,6 +843,17 @@ deletion needs a record or a way back. The same analysis found that an abandoned
 internship guard counts every current membership, so some way out of `PLANNED` is
 needed whatever the answer.
 
+**Decided on 14 September 2026.** A `PLANNED` Project can be deleted only while it is
+empty: the one membership and one leadership term created with it, and no Task,
+invitation, or exit request (`PRJ-002`). Any other Project that will not run, whether
+`PLANNED` with history or `ACTIVE`, is cancelled (`PRJ-023`): the owning Mentor gives a
+reason, the Mentor and time are recorded, intervals close but stay, pending invitations
+are revoked with a ninth resolution code `PROJECT_CANCELLED`, pending exit requests are
+superseded, Tasks and history stay unchanged, and the Project becomes read-only. Only
+`CANCELLED` was added; `ARCHIVED` has no meaning yet that `COMPLETED` and `CANCELLED`
+lack. Deleting an empty draft leaves no audit record, which `GOV-009` would forbid.
+The constitution's `GOV-014` row still needs new wording agreed.
+
 ## D13. May an owning Mentor change a Task's status?
 
 **Affects** `AUTH-008`, `TSK-007`, the section 5.2 permission matrix, and `AC-AUTH-004`.
@@ -847,11 +868,84 @@ Found on 14 September 2026 while reading the Task service for `D12`.
 | Evidence for the rules | The prohibition dates from 17 August. Edits to the specification after 24 August did not touch these rules, so they neither confirmed nor revisited it. |
 
 The most-recent-decision rule does not settle this one. The code change is later, but
-nothing shows that anyone weighed it against the rule it breaks. Either answer is
-cheap to apply: the rules gain a Mentor exception, or the code loses one branch and
-two tests.
+nothing shows that anyone weighed it against the rule it breaks.
 
-**Status:** open.
+**Decided on 14 September 2026 by Loc-LX.** Neither version stands. Permission follows
+the hierarchy Mentor, Intern Leader, Intern, and is decided by role, scope, current
+status, and target status; a higher role never implies any status (`TSK-023`).
+
+| Actor | Scope | May |
+|---|---|---|
+| Current assignee | Their own Task | Every `TSK-007` transition |
+| Current Leader | Tasks of the Project they lead | Block, unblock, reopen `DONE → IN_PROGRESS` |
+| Owning Mentor | Tasks of their Project | The same as the Leader |
+| Admin | none | Nothing |
+
+Nobody starts a Task or marks it `DONE` for its assignee. No `SUBMITTED`, `ACCEPTED`,
+or `REJECTED` state is added, and `GOV-015` now says that reopening for correction is
+not an acceptance workflow. The code that lets an owning Mentor set any status, and the
+two tests asserting it, change with the implementation.
+
+## D14. May a late arrival or early departure be excused?
+
+**Affects** `ATT-011`, `ATT-015`, `ATT-016`, `COR-006`, `ACC-019`. Raised by the
+question under `COR-006` of whether an approved correction excuses an early departure.
+
+**Decided on 14 September 2026 by Loc-LX**, following the practice of time-and-labour
+systems that keep a time correction apart from an attendance exception.
+
+- The fact stays recorded as it happened: late, or early departure. An approval never clears it.
+- A separate approval marks the violation excused or unexcused.
+- An excused violation does not lower the compliance score, and stays in attendance history and statistics.
+- The approver is the Mentor responsible for that Intern, not any active Mentor. No such relation exists today, so the Intern profile needs a responsible Mentor assigned by an Admin, unless the laboratory confirms a central approver.
+- A Leader never approves, and an Admin never decides.
+
+**Not yet written as rules**, because three things are open: who starts an exception, the
+Intern by request or the Mentor directly; the deadlines for submitting and deciding it,
+which are deliberately not copied from corrections; and whether leave and corrections,
+which `LEV-008` and `COR-005` give to any active Mentor, should move to the responsible
+Mentor as well.
+
+## D15. What do Remaining effort and variance mean, and who is the Daily report for?
+
+**Affects** `GOV-015`, `TSK-021`, `TSK-022`, `TSK-024`, `RPT-011`, `RPT-012`, `RPT-014`,
+and the glossary.
+
+**Decided on 14 September 2026 by Loc-LX**, taking the work model of a project-scheduling
+tool as the reference without copying the product.
+
+| Term | Meaning here |
+|---|---|
+| Baseline | The Task estimate. It never changes once work is retained (`TSK-020`). |
+| Actual | Actual Task effort, the lifetime sum of work logs. |
+| Remaining | The latest Remaining effort forecast less the work logged since it, never below zero; zero once `DONE`. |
+| Current Work | Actual plus Remaining. |
+| Variance | Current Work minus Baseline. |
+
+The current Leader may record a new forecast whenever the prediction changes
+(`TSK-024`). That is not re-baselining and not the continuous replanning `GOV-015` used
+to forbid; `GOV-015` now forbids re-baselining instead. Forecasts are appended, never
+overwritten. `ADR-001` described forecasts only at reassignment; it stays as written
+because it is a dated record.
+
+Remaining decreases as work is logged, which was chosen over keeping it fixed: a fixed
+Remaining would add every logged minute to Current Work without anyone re-estimating.
+
+Variance belongs to the Task. The Daily report is mainly for the owning Mentor and the
+current Leader, and shows two perspectives (`RPT-014`): a Task view with each Task's
+planning values once and its contributors, and an Intern view with minutes only, so a
+Task's variance is never shown as if it belonged to one Intern. Ordinary Interns are not
+given the Daily report; they see their own work logs in their Task pages.
+
+## D16. When does a rule change need an ADR?
+
+**Decided on 14 September 2026 by Loc-LX.** The constitution's Amendment table required
+an ADR for every change to an existing rule, while the session handoff forbade new
+decision files, and in practice no rule change since 11 September had an ADR. The table
+now reads: a rule change goes to the spec that holds it and its `CHANGELOG.md`, with the
+decision recorded on this page, and an ADR is written only when an architectural
+boundary moves. Under that rule `D12` to `D15` are recorded here, and the one
+architectural decision of the day, a single authorization policy, is `ADR-005`.
 
 ## What the audit checked and found sound
 
@@ -865,7 +959,7 @@ cannot tell how much of the rule set was examined.
 - **Meaning kept through the EARS rewrite.** On 14 September 2026 every rule was compared before and after commit `1376ced` for changed numbers, negations and named roles. Ninety-seven rules were flagged and all were read. One had changed meaning, `TSK-021`, corrected in the table below; the rest reword the same rule. `COR-006` also changed meaning in that rewrite and was found earlier, by checking the rewrite's twelve uses of MAY, which this comparison would not have caught. A change that alters none of numbers, negations, roles or MAY would pass both checks.
 - **Old wording left behind by later decisions.** For each of the 52 rules changed since 17 August, the phrases the change removed were searched for everywhere else in the specification, and every acceptance scenario and use case still worded as on 17 August was read against the rules it traces. The acceptance scenarios were sound. The use cases, the permission matrix and Appendix F were not, and are corrected below.
 
-The audit could not check one of the six failure kinds the playbook names.
+The audit could not check one kind of failure.
 A domain error is a rule that is internally consistent, testable, and simply
 wrong about what the laboratory wants. Nothing in the repository can detect that,
 which is why section 22.2 still requires a person to accept the rule set.
@@ -911,9 +1005,9 @@ reverses it.
 
 | Item | Current answer | Why it needs the instructor |
 |---|---|---|
-| `D1` | **Confirmed 14 September 2026.** An Admin sees every field a Mentor sees, listed in `RPT-004`. | Still open: whether "full access" covers the Project/Task and Daily reports. |
-| `D12` | Only a `PLANNED` Project may be deleted, only by its owning Mentor, with everything it owns. | The decision exists only in code, Javadoc and tests. The four questions recorded under `D12` are still open. |
-| `ACC-024` | **Confirmed 14 September 2026.** A withdrawn Intern cannot sign in; a completed Intern keeps a read-only account. | Still open: whether read-only lets a completed Intern change their password and manage sessions, as `ACC-023` permits. |
-| `COR-006` | A checkout set by an approved correction still counts as early departure when it falls before scheduled end. Approval confirms the time; it does not excuse the departure. | Whether the laboratory excuses early departures or late arrivals at all, whether an excused violation lowers compliance, and who approves it. No excuse exists in the rules or the code. |
-| Daily Project Work Report | A `DONE` Task logged by two authors on one date shows its lifetime actual, estimate and variance under each author. | `RPT-012` forbids productivity claims, but repeating one variance per author may read as one. No record exercised this case. |
-| `D13` | Open: the code lets an owning Mentor change a Task's status; the rules refuse it. | Whether a Mentor should be able to move a Task's status at all. |
+| `D1` | **Confirmed 14 September 2026.** An Admin views and exports every report read-only. | Nothing open. |
+| `D12` | **Decided 14 September 2026.** Only an empty draft is deleted; everything else is cancelled. | Nothing open. |
+| `ACC-024` | **Confirmed 14 September 2026.** A withdrawn Intern cannot sign in; a completed Intern keeps a read-only account and may change their password. | Nothing open. |
+| `COR-006` and `D14` | An approved correction confirms the time only. Excused violations are decided in principle under `D14`. | Who starts an exception, its deadlines, and whether leave and corrections move to the responsible Mentor. |
+| Daily Project Work Report | **Decided 14 September 2026** under `D15`: a Task view and an Intern view, so variance is shown once per Task. | Nothing open. |
+| `D13` | **Decided 14 September 2026.** Block, unblock, and reopen only. | Nothing open. |

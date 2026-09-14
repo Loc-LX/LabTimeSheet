@@ -8,13 +8,13 @@
 | Maintainer | Loc-LX |
 | Supervisor | not yet assigned |
 | Signed by | — |
-| Last updated | 2026-09-12 |
+| Last updated | 2026-09-14 |
 | Amendment | see [Amendment](#amendment); the mechanism depends on the kind of change |
 | Full rule text | [`.sdd/requirements.md`](requirements.md) |
 
-**Status is `DRAFT` on purpose.** The playbook makes a signed constitution the
-first milestone of week one, and the risk it names for skipping it is a team
-working to several conventions at once. This project reached iteration four
+**Status is `DRAFT` on purpose.** A constitution is normally signed at the start
+of a project, because without one a team ends up working to several conventions
+at once. This project reached iteration four
 before the document existed, so the signature is outstanding rather than early.
 
 Unsigned does not mean optional. These rules bind now, both as the practice this
@@ -137,8 +137,9 @@ SPA framework, JWT authentication, microservices, Redis, Kafka, generic workflow
 engine, or persisted `Report` entity; no project-level days off, multiple Task
 assignees, unconditional self-service Project joining, Task dependencies, epics,
 sprints, or story points. Crossing any of them is the third row of the table
-under Amendment: an ADR to lift the exclusion, then a numbered requirement and
-an acceptance scenario to define what replaces it.
+under Amendment: a recorded decision to lift the exclusion, with an ADR when the
+exclusion is architectural, then a numbered requirement and an acceptance
+scenario to define what replaces it.
 
 `GOV-015` adds the Task effort-planning boundary: no external Jira or Tempo
 integration, no Jira mirroring, no Tempo accounts or synchronization, no
@@ -263,9 +264,9 @@ referenced from everywhere else.
 
 | Change | What it needs |
 |---|---|
-| Change or withdraw a rule that already exists | An ADR under [`.sdd/rfcs/`](rfcs) stating the decision, its rationale and its consequences; then the requirements specification; then this index. |
-| Add a rule inside the scope already agreed | A numbered requirement under the applicable prefix and an acceptance scenario in §20 of the specification. No ADR. |
-| Cross something `GOV-007`, `GOV-008` or `GOV-015` declares excluded | Both. The ADR lifts the exclusion; the numbered requirement and scenario define what replaces it. |
+| Change or withdraw a rule that already exists | The spec that holds the rule and an entry in its `CHANGELOG.md`, with the decision and its evidence recorded in `.sdd/reviews/open-decisions.md`. An ADR under [`.sdd/rfcs/`](rfcs) only when the change sets or moves an architectural boundary. |
+| Add a rule inside the scope already agreed | A numbered requirement in the spec of the feature it belongs to and an acceptance scenario in section 7 of that spec. No ADR. |
+| Cross something `GOV-007`, `GOV-008` or `GOV-015` declares excluded | A recorded decision lifting the exclusion, and an ADR when the exclusion is architectural (`GOV-007`); then the numbered requirement and scenario. |
 
 A pull request is how any of these reaches the repository. It is the delivery
 mechanism, never an alternative to them.
@@ -328,10 +329,7 @@ than fixed, because it is a pipeline change and not a documentation one.
 ## Provenance
 
 The three-layer format, the `LOCKED` status, and the amendment-by-consensus idea
-come from Constitution-Driven Development as described in *Spec-Driven &
-Agent-Driven Development* by LinhNDM, chapter 7, with the student-project
-template in section 13.5. It is a methodology choice rather than an industry
-standard; most projects distribute the same content across `CONTRIBUTING.md`,
+are a methodology choice rather than an industry standard; most projects distribute the same content across `CONTRIBUTING.md`,
 architecture decision records, and CI configuration.
 
 The rules themselves are not new. They were written by the project team across

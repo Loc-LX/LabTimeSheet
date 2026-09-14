@@ -1,6 +1,6 @@
 # Project Spec
 
-**Version:** 1.0.0 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-14
+**Version:** 1.1.0 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-14
 
 Part of the Lab Timesheet specification. [`.sdd/requirements.md`](../../requirements.md) indexes every
 spec, rule prefix, and original section number. Rules every feature shares, including the
@@ -31,7 +31,7 @@ Every capability by role is in the permission matrix, [platform spec](../feature
 | ID | Requirement |
 |---|---|
 | PRJ-001 | WHEN an active Mentor creates a Project, THE system SHALL create the Project, one eligible initial Leader membership, and its first leadership term in a single transaction. THE system SHALL NOT commit a Project with no membership. |
-| PRJ-002 | THE system SHALL permit only these Project transitions: `PLANNED → ACTIVE → COMPLETED`. THE system SHALL NOT reopen a `COMPLETED` Project. WHILE a Project is `PLANNED`, THE system SHALL permit only its owning Mentor to delete it together with its Tasks, comments, work logs, memberships, leadership terms, invitations, and exit requests. WHERE a Project is `ACTIVE` or `COMPLETED`, THE system SHALL refuse deletion and SHALL NOT offer a delete action. |
+| PRJ-002 | THE system SHALL permit only these Project transitions: `PLANNED → ACTIVE → COMPLETED`, and `PLANNED → CANCELLED` or `ACTIVE → CANCELLED` under `PRJ-023`. THE system SHALL NOT reopen a `COMPLETED` or `CANCELLED` Project. WHILE a Project is `PLANNED` and empty, holding exactly the one membership and one leadership term created with it and no Task (soft-deleted Tasks included), invitation, or exit request, THE system SHALL permit only its owning Mentor to delete it together with those rows. WHERE a Project is not empty, or is `ACTIVE`, `COMPLETED`, or `CANCELLED`, THE system SHALL refuse deletion and SHALL NOT offer a delete action. |
 | PRJ-003 | THE system SHALL permit an Intern to hold active memberships in several Projects at once, and SHALL represent each membership explicitly with a join timestamp and an optional leave timestamp. |
 | PRJ-004 | THE system SHALL permit only the owning Mentor to add or remove a member directly and to decide a membership exit. THE system SHALL permit the current Leader to invite an eligible Intern, request another member's removal, and redistribute unfinished Tasks away from a pending exit target. THE system SHALL permit an Intern to join only by accepting their own invitation, and to leave only after the owning Mentor approves. |
 | PRJ-005 | WHILE a Project is `PLANNED` or `ACTIVE`, THE system SHALL maintain exactly one current Leader who is an active member of that Project. WHEN the Project completes, THE system SHALL close the final leadership term rather than delete it. |
@@ -52,6 +52,7 @@ Every capability by role is in the permission matrix, [platform spec](../feature
 | PRJ-020 | THE system SHALL permit a current Leader to request removal of another current member, and any current member including the Leader to request their own leave. THE system SHALL require a nonblank reason, SHALL NOT expire the request, and SHALL allow at most one pending request per membership. WHILE a request is pending, THE system SHALL show every authorized Project viewer whether a replacement Leader is required, how many unfinished Tasks remain, and whether the request is ready for a Mentor decision. |
 | PRJ-021 | WHILE an exit request is pending, THE system SHALL keep the target's membership, existing assignments, and existing Task rights active, and SHALL refuse to give that target a newly created or reassigned Task or to let them create a self-Task. THE system SHALL permit the requester to cancel and only the owning Mentor to approve or reject. WHEN the request is cancelled or rejected, THE system SHALL preserve completed transfer batches and restore new-assignment eligibility. WHEN an owning Mentor removes the target directly, THE system SHALL resolve the matching request as `APPROVED`; WHEN the Project completes, THE system SHALL mark unresolved requests `SUPERSEDED`. |
 | PRJ-022 | WHEN exit approval is submitted, THE system SHALL lock and recheck the request, the target membership, current leadership, and the unfinished Task count. WHILE the target is the current Leader or owns any unfinished Task, THE system SHALL refuse approval. WHEN both guards pass, THE system SHALL commit membership closure and request approval together, leaving completed Tasks and all retained attribution unchanged. |
+| PRJ-023 | WHEN the owning Mentor cancels a `PLANNED` or `ACTIVE` Project, THE system SHALL require a nonblank cancellation reason and SHALL record the Mentor, the server time, and the reason. In the same transaction THE system SHALL close the current leadership and membership intervals while retaining them, revoke pending invitations with `PROJECT_CANCELLED`, mark pending exit requests `SUPERSEDED`, leave every Task, comment, work log, estimate, and forecast unchanged, and make the aggregate read-only. THE system SHALL notify every member whose interval it closes under `NOT-002`. |
 
 ### Use cases
 
@@ -63,7 +64,7 @@ Every capability by role is in the permission matrix, [platform spec](../feature
 | Trigger | A Mentor creates or manages an owned Project. |
 | Preconditions | The Mentor is active and owns the Project for every operation after creation. |
 | Postconditions | Intervals and historical attribution remain intact; a completed Project is terminal and read-only. |
-| Traced requirements | PRJ-001–PRJ-022, AUTH-003–AUTH-011 |
+| Traced requirements | PRJ-001–PRJ-023, AUTH-003–AUTH-011 |
 
 **Main success flow**
 
@@ -81,7 +82,7 @@ Every capability by role is in the permission matrix, [platform spec](../feature
 - Direct removal moves the member's unfinished Tasks to the current Leader, or to the replacement when the member leads, and is refused while the member owns an unfinished Task that already carries work logs.
 - Removing or approving leave for the current Leader requires a replacement first.
 - Project completion revokes pending invitations and supersedes pending exit requests.
-- A PLANNED Project may be deleted by its owning Mentor together with the rows it owns; an ACTIVE or COMPLETED Project offers no deletion.
+- An empty PLANNED Project may be deleted by its owning Mentor. A PLANNED Project with history, or an ACTIVE one, is cancelled instead: the Mentor gives a reason, members are released and notified, and the Project stays read-only.
 
 #### UC-13 — Respond to a Project invitation
 
@@ -170,7 +171,8 @@ Scenarios from the §20 acceptance catalogue whose identifiers start with `AC-PR
 | AC-PRJ-011 | PRJ-018–PRJ-019 | Invitee declines, issuing Leader revokes, leadership changes, Project completes, and invitee becomes ineligible in separate cases | Each pending invitation reaches the correct terminal status/code, remains historical, and cannot later be accepted. |
 | AC-PRJ-012 | PRJ-020–PRJ-022, DB-012 | Leader requests another member's removal; the Project has several unfinished Tasks; Leader repeatedly selects multiple Tasks and one eligible recipient per batch; requester then cancels or Mentor rejects/approves | Pending warning shows remaining count/readiness; target keeps existing rights but cannot receive/create new Tasks; each confirmed batch commits immediately and atomically; cancellation/rejection keeps completed reassignments and restores eligibility; approval remains blocked until zero unfinished Tasks, then closes membership and request together. |
 | AC-PRJ-013 | PRJ-008, PRJ-010, PRJ-020–PRJ-022 | Current Leader requests own leave with unfinished Tasks | Warning requires replacement first; owning Mentor appoints one; new Leader performs repeatable transfer batches to eligible current members, including a newly direct-added or invitation-accepted member; approval remains blocked until target is no longer Leader and has zero unfinished Tasks. |
-| AC-PRJ-014 | PRJ-002 | An owning Mentor completes a Project, then attempts to move it back to `ACTIVE` or `PLANNED`, and a direct request attempts the same transition | Both attempts are refused; the Project remains `COMPLETED`; no state column value outside `PLANNED`, `ACTIVE`, and `COMPLETED` can be written. Separately, the owning Mentor deletes a `PLANNED` Project and its Tasks, comments, memberships, leadership terms, invitations, and exit requests are removed with it; another Mentor's delete request is denied; a delete request for an `ACTIVE` Project is refused, the Project remains, and its page offers no delete action. |
+| AC-PRJ-014 | PRJ-002 | An owning Mentor completes a Project, then attempts to move it back to `ACTIVE` or `PLANNED`, and a direct request attempts the same transition | Both attempts are refused; the Project remains `COMPLETED`; no state column value outside `PLANNED`, `ACTIVE`, `COMPLETED`, and `CANCELLED` can be written. Separately, the owning Mentor deletes an empty `PLANNED` Project and its initial membership and leadership term are removed with it; a `PLANNED` Project holding a Task, a second membership, an invitation, or an exit request refuses deletion and offers none; another Mentor's delete request is denied; a delete request for an `ACTIVE` Project is refused, the Project remains, and its page offers no delete action. |
+| AC-PRJ-015 | PRJ-023, AUTH-006, DB-011 | The owning Mentor cancels an `ACTIVE` Project holding unfinished Tasks, a pending invitation, and a pending exit request, first without a reason and then with one, and another Mentor attempts the same | The reasonless attempt and the other Mentor's attempt are refused and change nothing; the cancellation records the Mentor, the time, and the reason, closes the leadership and membership intervals, revokes the invitation with `PROJECT_CANCELLED`, supersedes the exit request, leaves the Tasks and their statuses unchanged, and notifies each closed member; every later mutation of the Project or its Tasks is refused. |
 
 ## 8. Out of Scope
 
@@ -180,6 +182,7 @@ No rule in this spec states an exclusion of its own.
 
 ## Notes / Open Questions
 
-- `D12`: only the owning Mentor may delete a `PLANNED` Project. **Open, with the instructor:** whether accepted invitations, comments, and exit requests from Interns must survive that deletion; whether an `ACTIVE` Project can be abandoned; whether former members are told, and what happens to notifications that link to the deleted Project; and whether a deletion needs a record or a way back.
-- The constitution's `GOV-014` row still says Projects are never deleted. Changing it needs the maintainer's agreement to specific wording.
-- Code finding, not a rule: `ProjectService#deleteProjectRows` does not delete `task_remaining_effort_forecasts`. A `PLANNED` Project cannot hold work logs, so no forecast can exist for it today.
+- `D12` was decided on 14 September 2026. Only an empty `PLANNED` Project can be deleted; any other Project that will not run is cancelled under `PRJ-023`, which keeps its history. `ARCHIVED` was not added, because nothing yet gives it a meaning `COMPLETED` and `CANCELLED` lack.
+- Deleting an empty draft leaves no audit record, since `GOV-009` forbids generic domain events. It also leaves the two notifications sent to the initial Leader at creation pointing at a Project that no longer exists; no rule decides what they should show.
+- The constitution's `GOV-014` row still says Projects are never deleted. Its new wording needs the maintainer's agreement.
+- Code finding, not a rule: `ProjectService#deleteProjectRows` does not delete `task_remaining_effort_forecasts`. An empty Project has no Task, so no forecast can exist for it.

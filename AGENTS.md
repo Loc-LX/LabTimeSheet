@@ -23,7 +23,7 @@ Check these before assuming anything. When two disagree, the higher row wins.
 | Question | Authority |
 |---|---|
 | What must always be true | [`.sdd/constitution.md`](.sdd/constitution.md) |
-| What the system must do | [`.sdd/specs/`](.sdd/specs), eight specs and 269 numbered rules, indexed by [`.sdd/requirements.md`](.sdd/requirements.md) |
+| What the system must do | [`.sdd/specs/`](.sdd/specs), eight specs of numbered rules, indexed by [`.sdd/requirements.md`](.sdd/requirements.md) |
 | Why a decision was made | [`.sdd/rfcs/`](.sdd/rfcs) |
 | What is planned, and its status | [`plan.md`](plan.md) |
 | What behavior is already proven | [`.sdd/reviews/traceability.md`](.sdd/reviews/traceability.md), rule to test class |
@@ -119,8 +119,9 @@ you skipped a step, say which. Do not claim a suite is green unless you ran it.
 
 If the requirements and the code disagree, stop and say so. Do not silently
 change working code to match a document, and do not silently change a document
-to match code. That disagreement is a decision for a person, and it produces an
-ADR.
+to match code. That disagreement is a decision for a person. It is recorded in
+`.sdd/reviews/open-decisions.md`, and produces an ADR only when it moves an
+architectural boundary.
 
 ---
 <!-- gitnexus:start -->

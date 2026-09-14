@@ -1,6 +1,6 @@
 # Account Spec
 
-**Version:** 1.0.0 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-14
+**Version:** 1.0.1 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-14
 
 Part of the Lab Timesheet specification. [`.sdd/requirements.md`](../../requirements.md) indexes every
 spec, rule prefix, and original section number. Rules every feature shares, including the
@@ -182,5 +182,5 @@ Exclusions stated inside this spec's own rules: `ACC-020`.
 
 ## Notes / Open Questions
 
-- `ACC-023` and `ACC-024` were confirmed by the instructor on 14 September 2026: a withdrawn Intern cannot sign in, and a completed Intern keeps a read-only account.
-- **Open.** Whether "read-only" still lets a completed Intern change their password and manage sessions, which `ACC-023` permits today.
+- `ACC-023` and `ACC-024` were confirmed by the instructor on 14 September 2026: a withdrawn Intern cannot sign in; a completed Intern keeps a read-only account and may still change their password and manage sessions, as `ACC-023` states.
+- `D14` needs a responsible Mentor on the Intern profile, assigned by an Admin, to approve attendance exceptions. It is not yet written into `ACC-019`; see the attendance spec.

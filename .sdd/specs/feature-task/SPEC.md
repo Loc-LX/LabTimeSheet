@@ -1,6 +1,6 @@
 # Task Spec
 
-**Version:** 1.0.0 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-14
+**Version:** 1.1.0 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-14
 
 Part of the Lab Timesheet specification. [`.sdd/requirements.md`](../../requirements.md) indexes every
 spec, rule prefix, and original section number. Rules every feature shares, including the
@@ -37,9 +37,9 @@ Every capability by role is in the permission matrix, [platform spec](../feature
 | TSK-004 | THE system SHALL store, for each Task, a title, an optional description, a status, an optional due date, the current assignee, the creator membership, the current assignment actor and time, lifecycle timestamps, an optional deletion actor, and an optimistic-lock version. In an authorized view, THE system SHALL resolve the creator, the current or final assignee, comment authors, work-log authors, and the deletion actor to the retained human-readable identity. |
 | TSK-005 | WHERE a due date is given, THE system SHALL require it to fall within the Project date range and SHALL refuse a date that is a currently configured global day off at the moment it is created or changed. |
 | TSK-006 | WHEN an Admin creates a later global day off, THE system SHALL leave existing Task due dates unchanged, and SHALL identify the affected Tasks in the calendar preview so their Leader can reschedule them. |
-| TSK-007 | THE system SHALL permit only the current assignee to change a Task status, and SHALL permit only these transitions: `TODO → IN_PROGRESS|BLOCKED`, `IN_PROGRESS → DONE|BLOCKED`, `BLOCKED → TODO|IN_PROGRESS`, and `DONE → IN_PROGRESS`. |
+| TSK-007 | THE system SHALL permit only these Task status transitions: `TODO → IN_PROGRESS|BLOCKED`, `IN_PROGRESS → DONE|BLOCKED`, `BLOCKED → TODO|IN_PROGRESS`, and `DONE → IN_PROGRESS`. WHILE the Project is `ACTIVE`, THE system SHALL permit the current assignee any of them on their own Task; which of them any other actor may make is decided by `TSK-023`. |
 | TSK-008 | WHERE any other status transition is requested, THE system SHALL reject it. THE system SHALL NOT provide a configurable workflow engine in v1. |
-| TSK-009 | THE system SHALL permit only the current Leader to reassign an unfinished Task, singly or within an exit-transfer batch, and SHALL require every target to be an eligible active current member who is not the target of a pending exit. WHEN a reassignment commits, THE system SHALL update the current assignment actor and time while preserving creator attribution, status, comments, work logs, and applicable lifecycle timestamps. WHILE a Task is `DONE`, THE system SHALL refuse transfer and reassignment until its current assignee reopens it to `IN_PROGRESS`. |
+| TSK-009 | THE system SHALL permit only the current Leader to reassign an unfinished Task, singly or within an exit-transfer batch, and SHALL require every target to be an eligible active current member who is not the target of a pending exit. WHEN a reassignment commits, THE system SHALL update the current assignment actor and time while preserving creator attribution, status, comments, work logs, and applicable lifecycle timestamps. WHILE a Task is `DONE`, THE system SHALL refuse transfer and reassignment until it is reopened to `IN_PROGRESS` under `TSK-007` or `TSK-023`. |
 | TSK-010 | THE system SHALL permit the current Leader to edit or soft-delete any unfinished Task in the Project. THE system SHALL permit a non-Leader creator to edit or soft-delete an unfinished Task only WHILE the creator and the current assignee remain the same eligible active membership. WHEN a Task is soft-deleted, THE system SHALL exclude it from progress and ordinary lists and SHALL keep it visible in authorized history with its deletion attribution. |
 
 #### §7.2 Comments and work logs
@@ -56,8 +56,10 @@ Every capability by role is in the permission matrix, [platform spec](../feature
 | TSK-018 | WHEN a member creates a self-Task, THE system SHALL set the creator, the assignment actor, and the assignee to the authenticated membership in one transaction, and SHALL NOT raise a notification to that same member. The current Leader's broader creation authority SHALL remain scoped to the Project. |
 | TSK-019 | THE system SHALL authorize Task definition from currently stored context: the current Leader MAY manage any unfinished Task, and an eligible member creator MAY manage only an unfinished Task still assigned to them. WHILE a member is the target of a pending exit, THE system SHALL refuse new and self-assignment to them without removing their existing assignee rights. WHEN a Task is reassigned away from its creator, THE system SHALL withdraw creator control while leaving historical creator attribution unchanged, and SHALL restore that control on reassignment back only WHERE creator and current assignee are equal and currently eligible. |
 | TSK-020 | THE system SHALL permit a Task to carry one optional whole-Task estimate in integer minutes from 1 through 527040. THE system SHALL permit only the current Project Leader to set, replace, or clear it, and only before the first retained work log. WHEN the first work log is retained, THE system SHALL make the estimate immutable. THE system SHALL treat estimate mutation as separate from ordinary Task editing and SHALL reject it from any other actor. |
-| TSK-021 | THE system SHALL compute Actual Task effort as the lifetime sum of retained work-log minutes across every author and assignment. WHERE a Task is `DONE` and carries an estimate, THE system SHALL compute variance as actual effort minus estimate. WHERE a Task carries an estimate and is unfinished or reopened, THE system SHALL leave variance undefined and render it as `Pending`. WHERE a Task carries no estimate, THE system SHALL leave variance undefined and render it as `N/A`. THE system SHALL NOT derive an efficiency or productivity score from any of these. |
+| TSK-021 | THE system SHALL compute Actual Task effort as the lifetime sum of retained work-log minutes across every author and assignment. THE system SHALL compute the current Remaining effort as zero for a `DONE` Task and otherwise as the latest Remaining effort forecast less the Actual Task effort added since that forecast's actual-effort snapshot, never below zero, and SHALL compute Current Work as Actual Task effort plus current Remaining effort. WHERE a Task carries an estimate and is `DONE` or has a Remaining effort forecast, THE system SHALL compute variance as Current Work minus the estimate. WHERE a Task carries an estimate, is unfinished, and has no forecast, THE system SHALL leave variance undefined and render it as `Pending`. WHERE a Task carries no estimate, THE system SHALL leave variance undefined and render it as `N/A`. THE system SHALL NOT derive an efficiency or productivity score from any of these. |
 | TSK-022 | WHERE an unfinished Task carrying retained work is reassigned, THE system SHALL require an append-only Remaining effort forecast from the current Leader containing the reassignment snapshot. THE system SHALL accept a correcting successor only before the incoming assignee's first newly created work log. WHILE a member owns a worked unfinished Task, THE system SHALL refuse direct Mentor removal, and SHALL NOT fabricate Leader provenance for a forecast. |
+| TSK-023 | THE system SHALL decide every Task status change from the actor's role, the actor's scope, the Task's current status, and the target status, and SHALL NOT infer from a higher role that an actor may set any status. WHILE a Project is `ACTIVE`, THE system SHALL permit the current Leader, on any non-deleted Task of the Project they lead, and the owning Mentor, on any non-deleted Task of their Project, to block a Task (`TODO` or `IN_PROGRESS` → `BLOCKED`), unblock it (`BLOCKED` → `TODO` or `IN_PROGRESS`), and reopen it (`DONE` → `IN_PROGRESS`) so that its assignee can correct it. THE system SHALL refuse a Leader's or Mentor's attempt to start another member's Task or mark it `DONE`, and SHALL refuse every status change by an Admin. |
+| TSK-024 | WHILE a Project is `ACTIVE`, THE system SHALL permit its current Leader to append a Remaining effort forecast for any unfinished Task whenever the prediction of the effort still needed changes. THE system SHALL record with each forecast the Actual Task effort at that moment, SHALL NOT edit or replace an earlier forecast, and SHALL use the latest one under `TSK-021`. A forecast SHALL NOT change the estimate. |
 
 ### Use cases
 
@@ -69,7 +71,7 @@ Every capability by role is in the permission matrix, [platform spec](../feature
 | Trigger | The current Leader creates, edits, assigns, reassigns, or soft-deletes a Task. |
 | Preconditions | The Leader has a current leadership term and active membership in a non-completed Project. |
 | Postconditions | The Task definition or assignment changes without falsifying creator or assignee-controlled history. |
-| Traced requirements | TSK-001–TSK-022, AUTH-004–AUTH-011 |
+| Traced requirements | TSK-001–TSK-024, AUTH-004–AUTH-011 |
 
 **Main success flow**
 
@@ -77,11 +79,14 @@ Every capability by role is in the permission matrix, [platform spec](../feature
 2. Choose an optional due date inside Project dates and not on a current global day off.
 3. Set, replace, or clear an optional estimate before the Task's first work log.
 4. Reassign an unfinished Task while preserving creator, status, comments, and work logs, recording a Remaining effort forecast when the Task already carries work.
-5. Inspect status counts, progress, logged minutes, and per-member work.
+5. On an ACTIVE Project, block, unblock, or reopen a team member's Task when the work needs it.
+6. Record a new Remaining effort forecast whenever the effort still needed changes.
+7. Inspect status counts, progress, logged minutes, and per-member work.
 
 **Alternatives and exceptions**
 
-- A DONE Task must be reopened by its current assignee before reassignment.
+- A DONE Task must be reopened before reassignment.
+- The Leader cannot start another member's Task or mark it DONE.
 - A member targeted by a pending exit cannot receive a new or reassigned Task.
 - Once a work log is retained, the estimate cannot change.
 - A stale leadership term or guessed Project/Task identifier is denied.
@@ -145,10 +150,12 @@ Scenarios from the §20 acceptance catalogue whose identifiers start with `AC-TS
 | AC-TSK-009 | GOV-004, TSK-017 | Intern logs work on global day off without attendance | Log succeeds; no attendance record or implied presence is created. |
 | AC-TSK-010 | TSK-003–TSK-004, TSK-018 | Ordinary member creates a Task for self, then attempts to create one for another member | Self-Task stores creator/assigner/assignee as the authenticated membership and sends no self-notification; other-assignee creation is denied. |
 | AC-TSK-011 | TSK-004, TSK-009–TSK-010, TSK-019 | Leader reassigns an unfinished member-created Task away, then back to its creator and opens Task history | Creator attribution, status, comments, work logs, and assignment actor/time survive; creator controls follow current eligibility/assignment; the UI shows only the current/final assignee and does not invent previous-assignee or status/edit timelines. |
-| AC-TSK-012 | TSK-020–TSK-021 | Leader creates and edits an estimate before work, then a retained log is created and the Task is completed | Valid optional estimate persists, ordinary-member forged mutation is denied, first retained log freezes the estimate, lifetime actual spans authors/assignments, and DONE variance is signed actual minus estimate only. |
+| AC-TSK-012 | TSK-020–TSK-021 | Leader creates and edits an estimate before work, then a retained log is created and the Task is completed | Valid optional estimate persists, ordinary-member forged mutation is denied, first retained log freezes the estimate, lifetime actual spans authors/assignments, and a DONE Task's variance is signed actual minus estimate. |
 | AC-TSK-013 | TSK-022 | Leader reassigns worked and unworked unfinished Tasks, then corrects the latest forecast | Worked reassignment requires an atomic forecast snapshot; unworked reassignment rejects unsolicited forecast; correction appends one successor before the incoming member's first new log and rejects stale/late/unauthorized corrections. |
 | AC-TSK-014 | TSK-022, PRJ-008–PRJ-010 | Mentor attempts direct removal while the target owns worked unfinished Tasks | Removal is rejected before leadership, membership, assignment, request, or notification mutation; after Leader forecast-aware transfers, eligible unworked Tasks retain existing automatic transfer behavior. |
 | AC-TSK-015 | TSK-002 | One Intern is an active member of two Projects and is made current assignee of Tasks in both, then of a second Task in the first Project | Every assignment succeeds; each Task keeps exactly one current assignee; the Intern's assignment count is not capped by Project membership. |
+| AC-TSK-016 | TSK-007, TSK-023 | On an `ACTIVE` Project the assignee, the current Leader, the owning Mentor, another member, and an Admin each attempt every `TSK-007` transition on one Task, then the same on a `PLANNED` Project | The assignee may make every transition; the Leader and the owning Mentor may block, unblock, and reopen only, and are refused starting the Task and marking it `DONE`; another member and the Admin are refused every change; on the `PLANNED` Project every status change is refused. |
+| AC-TSK-017 | TSK-021, TSK-024 | A Task estimated at 600 minutes has 200 logged; the Leader records 300 remaining; 120 more are logged; the Leader records 250 remaining; 220 more are logged and the Task is completed | After the first forecast Current Work is 500 and variance −100; after the next 120 minutes current Remaining is 180 and Current Work stays 500; after the second forecast Current Work is 570 and variance −30; once `DONE`, Current Work is 540 and variance −60. The estimate never changes and both forecasts remain in history. |
 
 ## 8. Out of Scope
 
@@ -158,4 +165,5 @@ Exclusions stated inside this spec's own rules: `TSK-008`, `TSK-011`.
 
 ## Notes / Open Questions
 
-- **Open, `D13`.** Since 24 August 2026 the code lets an owning Mentor change a Task's status on an `ACTIVE` Project (`TaskService#changeStatus`, two tests, and `docs/tests/web/task-pages.md`). `AUTH-008`, `TSK-007`, the §5.2 matrix, and `AC-AUTH-004` refuse it. Which one is intended is not decided.
+- `D13` was decided on 14 September 2026: status changes follow role, scope, current status, and target status (`TSK-023`). The code still lets an owning Mentor set any status (`TaskService#changeStatus`), and two tests assert it; both change with the implementation.
+- `D15` was decided the same day: the estimate is the baseline, the Remaining effort forecast is the current prediction the Leader may update (`TSK-024`), and variance compares Current Work with the baseline (`TSK-021`). A forecast recorded outside a reassignment can use the existing forecast columns with the current assignee and assignment start; the implementation plan confirms it.

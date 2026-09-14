@@ -1,6 +1,6 @@
 # Notification Spec
 
-**Version:** 1.0.0 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-14
+**Version:** 1.0.1 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-14
 
 Part of the Lab Timesheet specification. [`.sdd/requirements.md`](../../requirements.md) indexes every
 spec, rule prefix, and original section number. Rules every feature shares, including the
@@ -104,4 +104,4 @@ No rule in this spec states an exclusion of its own.
 
 ## Notes / Open Questions
 
-- What happens to a notification whose link points at a deleted `PLANNED` Project is an open question under `D12`, in [the project spec](../feature-project/SPEC.md).
+- A cancelled Project stays readable, so its notifications keep working links; cancellation notifies closed members under `NOT-002` (`PRJ-023`). Deleting an empty draft leaves the initial Leader's two creation notifications linking to a Project that no longer exists, and no rule yet decides what they show.

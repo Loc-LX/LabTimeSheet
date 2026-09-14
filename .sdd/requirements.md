@@ -1,8 +1,7 @@
 # Lab Timesheet specification — index
 
 This file holds no rule. On 14 September 2026 the specification that stood here was
-split into one spec per feature under [`.sdd/specs/`](specs), following the playbook
-layout, and each spec was approved as version 1.0.0. This index stays at the old path
+split into one spec per feature under [`.sdd/specs/`](specs), and each spec was approved as version 1.0.0. This index stays at the old path
 because many documents and dated records link here; it tells a reader where each rule
 and each old section now lives.
 
@@ -23,15 +22,15 @@ reference such as `RPT-004` or `§19.4` resolves through the tables below.
 | [Task](specs/feature-task/SPEC.md) | `TSK` | `AC-TSK` | §7; UC-06, UC-07 |
 | [Reporting](specs/feature-reporting/SPEC.md) | `RPT` | `AC-RPT` | §14; UC-12 |
 
-The eight specs hold 269 numbered rules and 126 acceptance scenarios, the same counts
-the single file held. The split was checked line by line: every line of the old file
+At the split the eight specs held 269 numbered rules and 126 acceptance scenarios, the
+same counts the single file held. The split was checked line by line: every line of the old file
 was either carried into exactly one spec or dropped as a heading, separator, or header
-the specs replace. Only `GOV-016` and `RPT-004` changed wording; each spec's
-`CHANGELOG.md` says how and why.
+the specs replace. Only `GOV-016` and `RPT-004` changed wording then. Every later change,
+including new rules, is in the `CHANGELOG.md` of the spec it touches.
 
 ## What each spec contains
 
-Every spec has the playbook's eight sections: 1 Context & Goal, 2 Actors & Roles,
+Every spec has the same eight sections: 1 Context & Goal, 2 Actors & Roles,
 3 Functional Requirements, 4 Non-functional Requirements, 5 Data, 6 Error Handling,
 7 Acceptance Criteria, 8 Out of Scope, followed by Notes / Open Questions. A feature
 spec points to the platform spec for what every feature shares rather than repeating
@@ -39,12 +38,12 @@ it. New specs start from [`specs/_template.md`](specs/_template.md).
 
 ## Versions
 
-Each spec is tagged in git as `spec/<name>/v1.0.0`, for example
-`spec/feature-reporting/v1.0.0`. A later change to a rule raises that spec's version
-and adds an entry to its `CHANGELOG.md`.
+Each spec is tagged in git as `spec/<name>/v<version>`, for example
+`spec/feature-reporting/v1.1.0`. A change to a rule raises that spec's version and adds
+an entry to its `CHANGELOG.md`; a change to its notes alone raises the patch number.
 
-The playbook also places `PLAN.md` and `TASKS.md` in each spec folder. They belong to
-the planning and task-breakdown phases and have not been written. Until they are,
+Each spec folder will also hold a `PLAN.md` and a `TASKS.md`. They belong to the
+planning and task-breakdown phases and have not been written. Until they are,
 [`plan.md`](../plan.md) remains the single tracker.
 
 ## Old references that need translating

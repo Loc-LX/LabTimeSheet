@@ -56,9 +56,9 @@ layouts stay best effort; desktop is the supported target.
 | Which test protects which rule | [`.sdd/reviews/traceability.md`](.sdd/reviews/traceability.md) |
 | Rules for AI agents working here | [AGENTS.md](AGENTS.md), [CLAUDE.md](CLAUDE.md) |
 
-The requirements document carries 269 numbered rules in sections 1 through 22. It
-was deleted in error on 29 August 2026 and restored from history on 10 September
-2026. Appendices C through F hold the use-case flows, screen inventory, desktop
+The requirements are eight specs under `.sdd/specs/`, split on 14 September 2026 from
+a single document that was deleted in error on 29 August 2026 and restored from history
+on 10 September 2026. Appendices C through F hold the use-case flows, screen inventory, desktop
 mockups, and system message catalogue recovered from the 17 August 2026 SRS; they
 are explanatory and predate Iterations 3 and 4.
 
