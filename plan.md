@@ -25,17 +25,15 @@ and integration commits, is in git history: `git show b71fc29:plan.md`.
 
 ## Now
 
-- The 24 decisions of 14 September 2026 are applied to the specs, the constitution, and `.sdd/decisions.md`. The local history was rewritten to drop citations of an outside source, and the branch and its spec tags were pushed to Gitea as a backup. Nothing is merged into `main`.
+- The 24 decisions of 14 September 2026 are applied to the specs, the constitution, and `.sdd/decisions.md`. The local history was rewritten to drop citations of an outside source, and the branch and its spec tags were pushed to Gitea as a backup; commits after that backup are local. Nothing is merged into `main`. The sixteen single-feature rules have moved out of `feature-platform`, and `cspell.json` holds the project dictionary.
 
 ## Next
 
-1. Move the sixteen single-feature rules out of `feature-platform`, without changing their text (item 11).
-2. Add the spell-checker dictionary, listing only real domain and technical terms (item 17).
-3. Draft the ten constitution ambiguities for one review; lock the constitution only after that review and a last contradiction check (items 13, 15).
-4. Make `./mvnw test` pass on Windows without the timezone flag (`D19`).
-5. Run the full suite, then merge into `main` (item 22).
-6. Verify the application end to end: `scripts/demo-seed.sql` loads, the end-to-end suite passes, the main business flows work; then demonstrate to the instructor (item 23).
-7. `PLAN.md` for `feature-platform` (`AUTH-012`, `ADR-005`), then `feature-task`, `feature-project`, `feature-reporting`, `feature-attendance`.
+1. Draft the ten constitution ambiguities for one review; lock the constitution only after that review and a last contradiction check (items 13, 15).
+2. Make `./mvnw test` pass on Windows without the timezone flag (`D19`).
+3. Run the full suite, then merge into `main` (item 22).
+4. Verify the application end to end: `scripts/demo-seed.sql` loads, the end-to-end suite passes, the main business flows work; then demonstrate to the instructor (item 23).
+5. `PLAN.md` for `feature-platform` (`AUTH-012`, `ADR-005`), then `feature-task`, `feature-project`, `feature-reporting`, `feature-attendance`.
 
 ## Waiting on a decision
 
