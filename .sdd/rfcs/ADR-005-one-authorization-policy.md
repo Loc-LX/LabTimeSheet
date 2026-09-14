@@ -54,7 +54,7 @@ mirror it row for row means a change to the matrix has exactly one place to land
 in code, and a test can read the matrix and exercise every cell.
 
 Keeping route protection in `SecurityConfiguration` is deliberate. It is cheap
-defence in depth. What changes is that it is no longer where a business rule is
+defense in depth. What changes is that it is no longer where a business rule is
 decided.
 
 ## Consequences

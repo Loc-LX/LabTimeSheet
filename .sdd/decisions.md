@@ -502,7 +502,7 @@ application redirects an unauthenticated request to `/login`.
 and states no bound for it.
 
 The comparison that makes this a gap rather than an oversight: the same rule set
-does bound the neighbouring field. Grace minutes are pinned to "an integer from 0
+does bound the neighboring field. Grace minutes are pinned to "an integer from 0
 through 720 minutes". Quota is not.
 
 An Admin who enters 50 is refused by the database with a constraint error, and no

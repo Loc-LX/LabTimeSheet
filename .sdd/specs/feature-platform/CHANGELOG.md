@@ -3,6 +3,10 @@
 Each entry records a change to [SPEC.md](SPEC.md): the version, the date, what changed,
 and why. A change that alters a rule raises the version.
 
+## 1.2.2 — 2026-09-14
+
+Spelling only: British spellings in the rule text became the American spellings the rest of the documentation uses. No meaning changed.
+
 ## 1.2.1 — 2026-09-14
 
 Relocation only; no rule text changed. Sixteen rules that concern a single feature moved to that feature's spec, with the nine scenarios that cover only them: `SEC-002`–`SEC-007` to account; `AUTH-006`, `AUTH-007`, `DB-011`, `DB-012` to project; `AUTH-005`, `AUTH-008`, `DB-013` to task; `DB-002`, `DB-009` to attendance; `ERR-006` to reporting. Each section they left names where they went. Scenarios that also cover a platform rule stay here.

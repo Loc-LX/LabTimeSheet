@@ -40,7 +40,7 @@ and configuration guidance only.
 1. `GOV-001` sets the authority order, and its highest rank is the current decision of the primary
    implementor. The 30 August change is that decision, and it is the most recent statement in the
    sequence above.
-2. Three independent artefacts already agree: `OperationalReportAuthorization.requireAttendanceReportAccess`
+2. Three independent artifacts already agree: `OperationalReportAuthorization.requireAttendanceReportAccess`
    admits `ROLE_ADMIN`, the shared layout exposes the Attendance report link to
    `hasAnyRole('ADMIN','MENTOR','INTERN')`, and `AttendanceReportQueryService` documents Admin and
    Mentor as holding the same target scope. `README.md` and `PRODUCT.md` describe the same

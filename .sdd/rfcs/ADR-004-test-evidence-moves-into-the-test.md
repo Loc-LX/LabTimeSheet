@@ -28,7 +28,7 @@ Two of the named classes, `AttendanceReportFormulasTest` and
 
 The last row is the argument. A record proves that someone ran a command on a
 machine that no longer exists, against a commit this repository cannot resolve.
-It does not prove that the behaviour holds now. `TST-008` already says as much:
+It does not prove that the behavior holds now. `TST-008` already says as much:
 a Markdown claim shall not replace executable CI evidence.
 
 What the records did hold, and the source did not, is the mapping from a numbered
@@ -43,7 +43,7 @@ in its own Javadoc, and the run records its own execution.
 | Rule | Was | Becomes |
 |---|---|---|
 | `TST-005` | a Markdown file is created with the first failing test | the test names the rules it protects, in the test source |
-| `TST-006` | evidence directories are `unit`, `integration`, `web`, `e2e` | one test class covers one cohesive behaviour, not one production class |
+| `TST-006` | evidence directories are `unit`, `integration`, `web`, `e2e` | one test class covers one cohesive behavior, not one production class |
 | `TST-007` | the file records ten listed fields | the trace records the rule identifiers, the observable break, and the hand-derived expected value |
 | `TST-008` | evidence updated on the same branch; Markdown never replaces CI | the verification run records its own commands, results, and resolved tool versions; a written claim never replaces it |
 
