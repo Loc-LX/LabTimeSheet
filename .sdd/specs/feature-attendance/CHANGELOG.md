@@ -3,6 +3,15 @@
 Each entry records a change to [SPEC.md](SPEC.md): the version, the date, what changed,
 and why. A change that alters a rule raises the version.
 
+## 1.3.0 — 2026-09-14
+
+Decision `D14`, its last three points, recorded in [`.sdd/decisions.md`](../../decisions.md). Marked provisional, pending instructor confirmation.
+
+- **Added `LEV-013`**: an Intern may withdraw a pending or overdue leave request until its period is finalized. Withdrawal releases quota and overlap blocking, keeps the request and its history, and changes no attendance record. `LEV-007` now covers editing only; `LEV-004`, `LEV-005`, `LEV-012` and `DB-002` follow.
+- **Added `ATT-024`**: one decision lifecycle for leave, corrections, and exceptions. Until the period is finalized the responsible Mentor changes a decision only by appending a new decision or a reversal with actor, time, and reason; the latest effective decision is current. `COR-005`, `COR-007` and `COR-009` drop the 24-hour decision lock and the revert to `PENDING`; `EXC-007` and `LEV-011` refer to the shared rule.
+- `ATT-022`: an Admin approves or rejects a reopen request, deciding only whether to reopen; a rejection keeps the Admin, time, and reason. `ATT-020` and `ATT-021` follow.
+- Added `AC-LEV-007` and `AC-LEV-008`; `AC-COR-003`, `AC-LEV-006`, `AC-EXC-003`, `AC-ATT-010`, `UC-09`, `UC-10`, `UC-15` and `UC-17` follow.
+
 ## 1.2.0 — 2026-09-14
 
 Decision `D14`, finalization and overdue handling, recorded in [`.sdd/decisions.md`](../../decisions.md). Marked provisional, pending instructor confirmation.

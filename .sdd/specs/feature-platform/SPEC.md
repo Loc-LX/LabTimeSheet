@@ -1,6 +1,6 @@
 # Platform Spec
 
-**Version:** 1.2.4 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-14
+**Version:** 1.2.5 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-14
 
 Part of the Lab Timesheet specification. Rules every feature shares, including the
 glossary, the authorization model, the domain model, and failure handling, are in
@@ -22,8 +22,8 @@ This spec holds what every feature shares. It is not a feature in the code; the 
 | Database baseline | PostgreSQL 18.4, 24 application tables |
 | Companion DDL | `database-schema.sql`, not tracked in this repository |
 | Review state | Approved as version 1.0.0 on 14 September 2026; open questions are listed in each spec |
-| Normative rules | 291 across the eight specs |
-| Acceptance scenarios | 139 across the eight specs |
+| Normative rules | 293 across the eight specs |
+| Acceptance scenarios | 141 across the eight specs |
 
 > **Companion files.** This document was authored in a separate documentation
 > repository and copied here on 26 August 2026. Its companion `database-schema.sql`
@@ -185,8 +185,11 @@ Legend: **Yes** = permitted within the stated scope; **Own** = own Project or ow
 | View Project/Task retained history | Yes, read-only | Own | Own | Current membership; former membership only after completion |
 | View per-member Project hours | Yes, read-only | Own | Own | No |
 | View Intern attendance | Yes | Yes | Own history only | Own history only |
-| Decide leave, correction, or attendance exception | No | Responsible Mentor only (`ACC-026`) | No | No |
+| Decide leave, correction, or attendance exception, or change that decision (`ATT-024`) | No | Responsible Mentor only (`ACC-026`) | No | No |
 | Submit own leave, correction, or exception request | No | No | If active Intern | If active Intern |
+| Withdraw own `PENDING` or `OVERDUE` leave request (`LEV-013`) | No | No | If active Intern | If active Intern |
+| Ask to reopen a finalized attendance period (`ATT-022`) | No | Responsible Mentor only (`ACC-026`) | Own, if active Intern | Own, if active Intern |
+| Approve or reject a request to reopen a finalized attendance period (`ATT-022`) | Yes | No | No | No |
 | View and export the Attendance report (`RPT-004`) | Yes | Yes | Own history only | Own history only |
 | View and export the Project/Task report (`RPT-005`) | Yes, read-only | Own | Project scope | Aggregate only |
 | View and export the Daily Project Work Report (`RPT-011`) | Yes, read-only | Own | Led `PLANNED` or `ACTIVE` Project | No |
@@ -225,7 +228,7 @@ Legend: **Yes** = permitted within the stated scope; **Own** = own Project or ow
 | Remaining effort forecast | A current Leader's dated prediction of the additional effort needed to finish an unfinished Task, recorded at a reassignment or whenever that prediction changes. It never replaces the estimate. |
 | Current Remaining effort | Zero for a `DONE` Task; otherwise the latest effective Remaining effort forecast, the most recent one no correction has superseded, less the Actual Task effort added since that forecast was recorded, never below zero. |
 | Current Work | Actual Task effort plus current Remaining effort. |
-| Attendance period | One Intern's attendance for one calendar month. It finalizes at 23:59 on the third day of the next month once no request affecting it is pending or overdue, and after that changes only inside a range an Admin reopens (`ATT-019`–`ATT-023`). |
+| Attendance period | One Intern's attendance for one calendar month. It finalizes at 23:59 on the third day of the next month once no request affecting it is pending or overdue, and after that changes only inside a range reopened when an Admin approves a reopen request (`ATT-019`–`ATT-024`). |
 | Overdue request | A leave, correction, or attendance exception request submitted in time whose approver missed the decision deadline. It is neither approved nor rejected and is never held against the Intern. |
 | Report date | A local business date used to select dated Task work logs for reporting. Attendance policy and calendar context may describe the date but never remove otherwise valid Task work from the report. |
 | Daily Project Work Report | An authorized view of retained Task work logs for one Report date, shown by Task, with each Task's planning values once, and by work-log author, with minutes only. It may show attendance context and each Task's current status, but asserts neither attendance nor that a Task was completed on that date. |
@@ -1032,7 +1035,8 @@ the wording is not.
 | Optimistic conflict | The record changed since it was opened; reload current state before deciding again. |
 | SMTP restricted | State which onboarding/recovery action is blocked and link Admin to SMTP configuration. |
 | Integration unavailable | Explain that manual calendar configuration remains available. |
-| Deadline closed | Show the authoritative local deadline and final locked state. |
+| Deadline closed | Show the authoritative local deadline and the request's current state. |
+| Period finalized | State that the attendance period is finalized and that a change needs a reopen request with a reason (`ATT-021`, `ATT-022`). |
 | Quota/overlap rejection | Identify month-level counted days or the conflicting range without exposing another Intern’s data. |
 | Membership removal guard | Identify the unfinished Task count, state that worked unfinished Tasks must be transferred with a forecast before direct removal, and that the rest move to the current Leader. |
 | Invitation conflict | Explain that eligibility, leadership, or membership changed and reload current state without leaking another user’s protected details. |
@@ -1110,7 +1114,7 @@ Scenarios for a feature are in section 7 of that feature's spec. The scenarios b
 |---|---|
 | GOV-007 | THE system SHALL NOT use a SPA framework, JWT authentication, microservices, Redis, Kafka, a generic workflow engine, or a persisted `Report` entity in v1. |
 | GOV-008 | THE system SHALL NOT provide project-level days off, multiple Task assignees, unconditional self-service Project joining or leaving, Task dependencies, epics, sprints, story points, labels, watchers, reactions, attachments, nested subtasks, or burndown charts. Authenticated invitation acceptance and Mentor-approved exit requests SHALL be the only member-initiated boundary workflows. |
-| GOV-009 | THE system SHALL NOT persist generic domain events, login-attempt history, daily calendar materializations, or Task-assignment history. Narrow correction, leadership, Task block, unblock and reopen, and attendance period reopen history SHALL be retained because current requirements depend on them. |
+| GOV-009 | THE system SHALL NOT persist generic domain events, login-attempt history, daily calendar materializations, or Task-assignment history. Narrow correction, leave and attendance exception decision, leadership, Task block, unblock and reopen, and attendance period reopen request and decision history SHALL be retained because current requirements depend on them. |
 | GOV-010 | WHILE the deployment host and its secrets do not exist, THE delivery pipeline SHALL keep the SSH deployment job disabled and SHALL NOT attempt to connect to a deployment target. |
 | GOV-015 | THE system SHALL keep the Task effort-planning slice local to this product. It SHALL NOT integrate with external Jira or Tempo, SHALL NOT mirror Jira issues, sprints, or story points, SHALL NOT hold Tempo accounts or synchronization, and SHALL NOT add a `SUBMITTED`, `ACCEPTED`, or `REJECTED` state or any acceptance and rejection state machine for Tasks. Reopening a `DONE` Task under `TSK-023` so that its assignee corrects it is a status transition, not such a workflow. THE system SHALL NOT re-baseline a Task: once work is retained the estimate stays as `TSK-020` fixes it, and recording a Remaining effort forecast under `TSK-022` or `TSK-024` is not re-baselining. Any of these requires a new numbered requirement and a recorded decision. |
 
@@ -1134,10 +1138,10 @@ documents a working product.
 
 | Measure | Value |
 |---|---:|
-| Normative rules, sections 1–22 | 291 |
-| Rules with a §20 acceptance scenario | 272 |
+| Normative rules, sections 1–22 | 293 |
+| Rules with a §20 acceptance scenario | 274 |
 | Rules declared without one, with reason | 19 |
-| Acceptance scenarios | 139 |
+| Acceptance scenarios | 141 |
 | Flyway application tables | 24 |
 
 The specification quality review in §20 and the twelve-point gate once recorded in the

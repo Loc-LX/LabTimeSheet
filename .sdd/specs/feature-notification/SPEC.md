@@ -1,6 +1,6 @@
 # Notification Spec
 
-**Version:** 1.1.2 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-14
+**Version:** 1.1.3 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-14
 
 Part of the Lab Timesheet specification. Rules every feature shares, including the
 glossary, the authorization model, the domain model, and failure handling, are in
@@ -39,7 +39,7 @@ Every capability by role is in the permission matrix, [platform spec](../feature
 | NOT-008 | THE system SHALL NOT route activation or password-reset mail through the ordinary notification outbox, because the raw link must not be persisted. WHERE such a send fails, THE system SHALL invalidate the token and require explicit regeneration. |
 | NOT-009 | THE system SHALL scope the unread count and the notification list to the authenticated recipient, and SHALL make mark-read idempotent. |
 | NOT-010 | WHEN an invitation is created, THE system SHALL notify the invitee. WHEN it is answered, THE system SHALL notify the issuing Leader and the owning Mentor. WHEN it is revoked or superseded, THE system SHALL notify the invitee, the issuing Leader, and the owning Mentor, collapsing duplicate recipients. WHEN a Leader requests a removal, THE system SHALL notify the owning Mentor and the target; WHEN a member requests their own leave, THE system SHALL notify the owning Mentor and the current Leader; WHEN such a request is decided or cancelled, THE system SHALL notify the requester, the target, and the current Leader, collapsing duplicate recipients. WHEN a member creates a self-Task, THE system SHALL send no notification. |
-| NOT-011 | WHEN leave, a correction, or an attendance exception request is submitted, THE system SHALL notify the Intern's responsible Mentor under `ACC-026`, and WHEN any such request becomes overdue, SHALL notify that Mentor again. WHEN such a request is decided, or a late arrival or early departure is marked excused without a request, THE system SHALL notify the Intern. |
+| NOT-011 | WHEN leave, a correction, or an attendance exception request is submitted, THE system SHALL notify the Intern's responsible Mentor under `ACC-026`, and WHEN any such request becomes overdue, SHALL notify that Mentor again. WHEN such a request is decided or its decision changes under `ATT-024`, or a late arrival or early departure is marked excused without a request, THE system SHALL notify the Intern. WHEN a request to reopen a finalized attendance period is made under `ATT-022`, THE system SHALL notify every active Admin, and WHEN it is approved or rejected, SHALL notify the requester and, where different, the Intern's responsible Mentor. |
 
 ### Use cases
 

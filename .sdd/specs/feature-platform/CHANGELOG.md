@@ -3,6 +3,12 @@
 Each entry records a change to [SPEC.md](SPEC.md): the version, the date, what changed,
 and why. A change that alters a rule raises the version.
 
+## 1.2.5 — 2026-09-14
+
+Decision `D14`, recorded in [`.sdd/decisions.md`](../../decisions.md).
+
+- The §5.2 matrix adds withdrawing own leave, asking to reopen a finalized period, and an Admin approving or rejecting that request, and lets the responsible Mentor change a decision. The glossary, `GOV-009`, and the message families follow: `Deadline closed` no longer shows a locked state, and `Period finalized` is added. Counts are 293 rules and 141 scenarios.
+
 ## 1.2.4 — 2026-09-14
 
 Decision `D14`, recorded in [`.sdd/decisions.md`](../../decisions.md).

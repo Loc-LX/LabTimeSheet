@@ -40,7 +40,6 @@ and integration commits, is in git history: `git show b71fc29:plan.md`.
 | Item | Waiting on | Recorded in |
 |---|---|---|
 | Confirmation of `D12`, `D13`, `D14`, `D15`, all provisional | the instructor | `decisions.md` |
-| `D14`: cancelling an overdue leave request after its start; whether an Admin may decline a reopen request; whether a decided correction stays changeable until finalization | maintainer or laboratory | `decisions.md` `D14`, attendance spec notes |
 | Split rules that span several features (`UI-019`, `AUTH-003`, `AUTH-004`, `AUTH-009`, `AUTH-011`, `DB-008`) | after the platform plan | this file |
 | Constitution: no stated criterion for which rules it indexes; no `AUTH` row although `AUTH-002` is a Layer 1 kind of invariant; `SEC-007` and `SEC-013` omitted, and `SEC-001` loses "under every profile"; `OPS-019` row keeps half its rule; the definition-of-done bullet on "evidence paths in the tracker" predates `ADR-004`; "shared fragments" undefined; unused `Supervisor` row; version `1.0.0` while unsigned; `SEC-011`'s gap stated twice | drafts from the agent, then the maintainer | this file |
 
