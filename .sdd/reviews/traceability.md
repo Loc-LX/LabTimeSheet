@@ -92,8 +92,8 @@ This rule describes behavior a test could assert, and none does. It is a place
 where the code can drift away from the requirement without anything failing. It
 was already known before this re-derivation, because the constitution lists
 `GOV-014` in its own gap table. What the constitution proposes as the closure
-does not hold, and writing the test is what established that; the reason is under
-[GOV-014](#gov-014-is-left-open-deliberately).
+does not hold as stated, and the reason is under
+[GOV-014 after D12](#gov-014-after-d12).
 
 Five of the original six were closed on 13 September 2026, each by a test that was
 run against the break it names and then run again after the production change was
@@ -105,6 +105,7 @@ reverted.
 | `LEV-009` | `LeaveApplicationServiceTest#sameDayLeaveIsAcceptedBeforeScheduledStartAndRefusedFromItOnwards` | Replacing `!now.isBefore(firstCountedStart)` with `now.isAfter(firstCountedStart)` makes the boundary exclusive, so a request filed at exactly 08:30 local is accepted where the rule refuses it. |
 | `ERR-006` | `ReportingExportControllerWebTest#failedExportGenerationSurfacesAnErrorInsteadOfATruncatedDownload` | Catching the generation failure in the controller and answering `200` with an empty workbook hands the caller a truncated file that claims to have succeeded, and the test fails because no throwable is raised. |
 | `ERR-007` | `FailedMigrationReadinessIntegrationTest#aFailedMigrationStopsTheContextInsteadOfServingAHalfMigratedSchema` | Setting `spring.flyway.enabled=false`, which is how a failing migration is usually made to go away, lets the context start and the test fails asserting it had failed. |
+| `GOV-004` | `AttendanceAndTaskWorkSeparationTest#noProductionSourceReachesBothAttendanceRecordsAndTaskWorkLogs` | Adding a reference to `AttendanceRecordRepository` inside `DailyProjectWorkReportService` gives one file a read path into both domains, and the test fails naming that file. |
 
 No test reads its expected value back from the implementation. The first two
 derive it from the rule and from `ATT-002`, which fixes the seeded schedule at
@@ -135,47 +136,35 @@ PostgreSQL-specific rule.
 |---|---|---|
 | `GOV-014` | GOV | Relies on schema constraints in `V1__baseline.sql`. The closure the constitution proposes cannot be written as stated; see below. |
 
-### `GOV-014` is left open deliberately
+### `GOV-014` after `D12`
 
-The constitution proposes closing this rule with "a test asserting that no
-repository exposes a hard-delete method for accounts, Projects, memberships, or
-Tasks". Attempting it on 13 September 2026 established that the check cannot be
-written as stated, and why is a question for a person rather than a test.
+On 13 September 2026 this rule was left open because the code and the
+specification disagreed: `POST /projects/{projectId}/delete` physically deletes a
+`PLANNED` Project and the rows it owns, and `GOV-014` stated no exception. That was
+a question about the requirement, not about tests.
 
-Two things are in the way.
+`D12` settled it on 14 September 2026. `GOV-014` now excepts the deletion `PRJ-002`
+permits, and `PRJ-002` describes it: only the owning Mentor, only while the Project
+is `PLANNED`, and an `ACTIVE` or `COMPLETED` Project refuses the request. The code
+and the specification now agree, and five tests cover the exception across
+`ProjectEntityTest`, `ProjectServiceIntegrationTest` and `ProjectControllerTest`.
 
-**Most repositories inherit delete.** They extend `JpaRepository`, which carries
-`delete`, `deleteById` and `deleteAll` whether or not a repository declares them.
-A test asserting that no such method is exposed would fail on every one of them
-and would be asserting something the project never chose.
+**What remains is a test gap, not a disagreement.** Nothing asserts that deletion is
+confined to that exception, which is the half of `GOV-014` a test could protect.
+The closure the constitution proposes, "a test asserting that no repository exposes
+a hard-delete method", still cannot be written as stated: repositories extend
+`JpaRepository`, which carries `delete`, `deleteById` and `deleteAll` whether or not
+they are declared, so that test would fail everywhere and assert something the
+project never chose. A workable test would assert the behavior instead, for example
+that no other interface route removes the record kinds `GOV-014` names. It is not
+written.
 
-**A Project can be deleted through the interface, and no numbered rule says so.**
-`ProjectController` maps `POST /projects/{projectId}/delete`, reachable from
-`projects/detail.html`, and `ProjectService` answers it with native SQL that
-deletes rows from `task_comments`, `task_work_logs`, `tasks`,
-`project_membership_exit_requests`, `project_invitations`,
-`project_leadership_terms`, `project_memberships` and `projects`. Five of those
-eight hold record kinds `GOV-014` names: Project, membership, Task, comment and
-work log.
-
-The operation is guarded. Only the owning Mentor may invoke it and only while the
-Project is `PLANNED`, and `PRJ-013` refuses work logging until a Project is
-`ACTIVE`, so `task_work_logs` should be empty whenever it runs. That bounds the
-history at risk; it does not reconcile the rule, because `GOV-014` states no
-exception, `PRJ-002` defines the Project lifecycle as `PLANNED → ACTIVE →
-COMPLETED` and never mentions deletion, and `GOV-006` says a feature absent from
-the specification needs a new reviewed decision.
-
-A third rule is touched. `ARC-006` makes Flyway and schema verification the only
-direct-SQL boundary, and this is business SQL in a service. The existing check
-for that, `TaskPersistenceStructureTest#taskBusinessCodeContainsNoDirectJdbcOrSqlImports`,
+**One related issue `D12` did not settle.** `ProjectService` performs the deletion
+with native SQL across eight tables, and `ARC-006` makes Flyway and schema
+verification the only direct-SQL boundary. The existing check,
+`TaskPersistenceStructureTest#taskBusinessCodeContainsNoDirectJdbcOrSqlImports`,
 scans the `task` feature only, so the `project` feature has never been covered by
-it.
-
-Writing a test now would decide the question by picking a side, which
-`AGENTS.md` §8 reserves for a person and says produces an ADR. The rule therefore
-stays in the table above, and this note is the finding rather than a gap someone
-forgot to close.
+it. That is a code-structure finding, left for validation.
 
 Four rules were protected in one half only. They were counted as tested, because a
 rule with a test is not a rule with no test, but each was a smaller version of the
@@ -309,7 +298,7 @@ and `AccountRecoveryLockOrderIntegrationTest#concurrentAccountFirstConsumptionAn
 | `AUTH-010` | `ProjectTaskReportServiceTest` |
 | `AUTH-011` | `ProjectInvitationExitIntegrationTest`, `ProjectServiceIntegrationTest`, `ProjectTaskMutationContextTest`, `TaskControllerTest`, `TaskCreationIntegrationTest`, `TaskMutationBoundaryTest` |
 | `PRJ-001` | `ProjectControllerTest`, `ProjectEntityTest`, `ProjectServiceIntegrationTest` |
-| `PRJ-002` | `ProjectEntityTest`, `ProjectServiceIntegrationTest` |
+| `PRJ-002` | `ProjectEntityTest`, `ProjectServiceIntegrationTest`, `ProjectControllerTest` |
 | `PRJ-003` | `ProjectEntityTest`, `ProjectInvitationExitIntegrationTest` |
 | `PRJ-004` | `ProjectControllerTest` |
 | `PRJ-005` | `ProjectEntityTest`, `ProjectServiceIntegrationTest` |

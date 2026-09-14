@@ -39,6 +39,7 @@ they disagree, the application is wrong, and D7 is the case in point.
 | D9 | Stating the SMTP port range | 1 through 65535, a type constraint | `INT-007` |
 | D10 | Which stylesheet the desktop overflow contract requires | The assertion was wrong, not the stylesheet; action completed 12 September 2026 | none |
 | D11 | Whether approving the specification waits for the Iteration 3 integrated review | No; resolving every code and specification disagreement is the condition instead | §22.2 |
+| D12 | Whether a Project may be deleted | Only a `PLANNED` Project, only by its owning Mentor; pending confirmation with the instructor | `GOV-014`, `PRJ-002` |
 
 D1 through D5 came from reading the specification against its own history. D6
 through D9 came from the audit described at the end of this page, which read the
@@ -73,12 +74,19 @@ the system does; it changes what approving the specification depends on. The
 first ten are counted as matching the code. D11 is not counted that way, because
 it is a statement about process that no code can match or contradict.
 
+D12 matches the code by construction: it adopts behavior the code already had and
+writes it into the rules. It was settled by a rule adopted on 14 September 2026 for
+rebuilding this specification, that where earlier decisions conflict the most
+recent one applies, and it is recorded as pending confirmation with the instructor.
+
 ## D1. May an Admin see one Intern's detailed attendance?
 
 **Affects** `RPT-004`, `RPT-011`, and the permission matrix in section 5.2.
 
-This is the only question on this page where the running application was used to
-settle a business rule, and it should not have been.
+This was the first question on this page where the running application was used
+to settle a business rule, and it should not have been. `D12` is the second, and it
+was done knowingly under the most-recent-decision rule, with confirmation from the
+instructor still owed.
 
 | | |
 |---|---|
@@ -694,7 +702,7 @@ Deleting the condition outright has its own cost, and it is specific to how this
 project came about. The specification was not written before the code. It was
 recovered afterwards, partly by reading what the code does. Approving it without
 reading the code again risks approving a code defect as a requirement, or
-approving a rule that contradicts behaviour already shipped. `GOV-014` is a live
+approving a rule that contradicts behavior already shipped. `GOV-014` is a live
 case: it forbids physically deleting a Project through a normal interface
 operation, and `POST /projects/{projectId}/delete` physically deletes a `PLANNED`
 Project.
@@ -704,7 +712,7 @@ Project.
 | Option | Consequence |
 |---|---|
 | A. Keep the third condition as written. | Approval waits for validation and validation waits for approval. The specification is never approved. |
-| B. Delete the third condition. | Approval no longer depends on anyone reading the code. A rule that contradicts shipped behaviour can be approved without anyone noticing. |
+| B. Delete the third condition. | Approval no longer depends on anyone reading the code. A rule that contradicts shipped behavior can be approved without anyone noticing. |
 | C. Split it. Resolving every disagreement between code and specification becomes the approval condition. The integrated review moves after approval. | Approval can happen, and it happens only after the code has been read against the rules. |
 
 **Decision: option C.**
@@ -736,6 +744,63 @@ replaced it. Nothing in code or tests depends on either wording.
 
 **Decided by:** Loc-LX, on 14 September 2026, after the split was proposed and the
 plan that begins with recording it was approved.
+
+**Date:** 2026-09-14
+
+## D12. May a Project be deleted?
+
+**Affects** `GOV-014`, `PRJ-002`, `AC-PRJ-014`.
+
+`GOV-014` forbade physically deleting a Project, membership, Task, comment or work
+log through a normal interface operation. `POST /projects/{projectId}/delete` does
+exactly that for a `PLANNED` Project: it removes the Project and the rows it owns
+from eight tables, and only its owning Mentor may call it. No numbered rule
+permitted it, and the Project use case specification committed alongside it on
+25 August 2026 listed eighteen use cases, none of them a deletion.
+
+The two positions carry dates. The prohibition was already in the 17 August
+specification and did not change afterwards. The deletion arrived in code on
+25 August 2026 with a written reason on the guard that authorizes it: a `PLANNED`
+Project is a "disposable draft", and "once execution has started, the Project and
+its retained history are immutable".
+
+**Options**
+
+| Option | Consequence |
+|---|---|
+| A. Keep the prohibition and remove the delete route. | Working, tested behavior is removed, and a Mentor who creates a Project by mistake has no way to discard it. |
+| B. Permit deleting a `PLANNED` Project and state the exception. | The specification describes what ships. History is still protected from the moment a Project is activated. |
+
+**Decision: option B.**
+
+It follows the rule adopted for rebuilding this specification: where earlier
+decisions conflict, the most recent applies. The deletion dates from 25 August and
+the prohibition from 17 August.
+
+`PRJ-002` now carries the behavior, because it already governs the Project
+lifecycle, so the rule set keeps 269 identifiers. `GOV-014` states the exception by
+reference to `PRJ-002` instead of repeating it. `AC-PRJ-014` adds the scenario.
+The wording follows the guard and five existing tests: only the owning Mentor may
+delete, only while the Project is `PLANNED`, and an `ACTIVE` Project refuses the
+request and offers no delete action.
+
+**One point is weaker than the rest and is recorded as such.** The 25 August
+position was never written into any specification; it exists only as code, a
+Javadoc comment, and tests. Treating a committed feature as an earlier team's
+decision is the interpretation applied here. It is on the list of assumptions to
+confirm with the instructor.
+
+**The rows removed are not always empty.** `PRJ-013` refuses work logging while a
+Project is `PLANNED`, so work logs should be absent, but a `PLANNED` Project may
+already hold Tasks, comments, memberships, leadership terms, invitations and exit
+requests, and deletion removes them. The exception is justified by the Project not
+having begun, not by it holding nothing.
+
+**Reversing this** means removing the added sentences from `PRJ-002`, `GOV-014`
+and `AC-PRJ-014`, and deciding separately whether the delete route stays.
+
+**Decided by:** Loc-LX, on 14 September 2026, by adopting the most-recent-decision
+rule, pending confirmation with the instructor.
 
 **Date:** 2026-09-14
 
