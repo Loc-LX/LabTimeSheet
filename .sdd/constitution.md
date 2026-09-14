@@ -54,9 +54,9 @@ by subject.
 
 | ID | Rule | Enforced by |
 |---|---|---|
-| `GOV-004` | Attendance time and Task work time are separate domains. Neither proves nor derives the other. | No single test. Upheld by keeping `attendance_records` and `task_work_logs` in separate features with no shared read path. |
+| `GOV-004` | Attendance time and Task work time are separate domains. Neither proves nor derives the other. | `AttendanceAndTaskWorkSeparationTest#noProductionSourceReachesBothAttendanceRecordsAndTaskWorkLogs`, which fails when any production source names the persistence identifiers of both domains |
 | `GOV-005` | Historical business results must not change because an Admin later edits workdays, schedule, grace, quota, penalty, or the calendar. | `AttendancePersistenceIntegrationTest#approvedLeaveBlocksOnlyItsFrozenAllocatedDates`, `#calendarDayOffBlocksCheckInAndPastEventsAreImmutable` |
-| `GOV-011` | Business dates resolve in the attendance policy version's timezone. Persisted instants are `timestamptz` and treated as UTC. | `ApplicationTimeZoneIntegrationTest` covers alias canonicalization before startup only; resolution against the policy version is a gap |
+| `GOV-011` | Business dates resolve in the attendance policy version's timezone. Persisted instants are `timestamptz` and treated as UTC. | `PlatformFoundationTest#theSchemaUsesNoPostgresEnumsAndStoresEveryInstantWithItsZone` for instants stored with their zone; `ApplicationTimeZoneIntegrationTest` only canonicalizes the JVM's timezone alias; resolution against the policy version is a gap |
 | `GOV-012` | Server time is authoritative for check-in, checkout, submission, decision, activation, expiry, and lifecycle timestamps. Browser timestamps are never trusted. | `AttendanceServiceTest#exactCheckInGraceBoundaryIsOnTimeAndFirstLaterInstantIsLate`, `#checkoutIsInclusiveAtCutoffAndCannotBeOverwritten` |
 | `GOV-013` | Mutable aggregate updates are transactional and use optimistic locking. Quota, daily work totals, bootstrap, and transfer workflows serialize further. | `BootstrapIntegrationTest#concurrentBootstrapCreatesExactlyOneAdminAndPermanentlyCloses`, `AccountRecoveryLockOrderIntegrationTest#concurrentAccountFirstConsumptionAndIssuanceComplete` |
 | `GOV-014` | Historical records are retained behind restrictive foreign keys and lifecycle or soft-delete fields. The interface never physically deletes a record that carries business history; the only deletion it offers is an empty `PLANNED` Project under `PRJ-002`. | No single test. Schema constraints in `V1__baseline.sql`; the emptiness condition of `PRJ-002` is not yet implemented. |
@@ -333,6 +333,14 @@ claimed a build failure `LayerStructureTest` does not provide, that `ARC-001`
 overstated what the compiler setting refuses, and that six rows had dropped a
 prohibition from their rule. Each is corrected in its row.
 
+That check only looked at the tests this document names. On 15 September 2026 the
+reverse check, every test that names an indexed rule, found two rows that understated
+their enforcement: `GOV-004` had been enforced since 13 September by
+`AttendanceAndTaskWorkSeparationTest`, and the storage half of `GOV-011` by
+`PlatformFoundationTest`. Both rows are corrected and `GOV-004` has left the table
+below. The same day `./mvnw -B test` passed 755 tests, which is the current run the
+enforcement column needed.
+
 A constitution that claims enforcement it does not have is worse than one that
 names its own gaps, and worse still when the claim survives because the class
 name looks plausible.
@@ -343,8 +351,7 @@ name looks plausible.
 | `SEC-001` | The rule is broader than any single test. `SecurityConfiguration` builds the filter chain, and every web test that asserts a denial exercises one slice of it. | Accept it as an intent statement, or narrow it into rules that can each be asserted. |
 | `AUTH-002` | No test compares the response for a record the caller may not see with the response for a record that does not exist, and none asserts that a hidden control grants nothing. | A web test per protected record type that requests an existing unauthorized identifier and an absent one and asserts the same status, view, and model. |
 | `SEC-013` | Production readiness is tested only against all development values at once, and nothing checks HSTS or `Secure` cookies under the production profile. | Fold into the `SEC-011` header test: under the production profile, assert each relaxation is absent. |
-| `GOV-004` | Relies on the two domains staying in separate features with no shared read path. | A test asserting that no reporting query joins attendance to work logs. |
-| `GOV-011` | The cited test only canonicalizes a timezone alias before startup. Nothing asserts that a business date resolves against the applicable policy version's timezone. | A test that sets a JVM default different from the policy timezone and checks the resulting business date. |
+| `GOV-011` | Only the storage half is tested. Nothing asserts that a business date resolves against the applicable policy version's timezone. | A test that sets a JVM default different from the policy timezone and checks the resulting business date. |
 | `GOV-014` | Relies on schema constraints in `V1__baseline.sql`. | A test asserting that only an eligible empty `PLANNED` draft can be physically deleted, and that no other route, service, or interface operation physically deletes the Project data `GOV-014` protects. |
 | `ARC-001` | An older JDK fails the build, which proves the minimum version and not the architecture. | An architecture test asserting the module shape, alongside `LayerStructureTest`. |
 | `ARC-002` | `ReportingDependencyContractTest` covers the reporting libraries only. | Extend it to the rest of the declared stack, or accept the narrower claim. |
