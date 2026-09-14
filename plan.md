@@ -29,10 +29,10 @@ and integration commits, is in git history: `git show b71fc29:plan.md`.
 
 ## Next
 
-1. A last contradiction and enforcement-gap check of the constitution, then lock it (item 15). The ten ambiguities of item 13 are resolved (`D20`).
-2. Make `./mvnw test` pass on Windows without the timezone flag (`D19`).
-3. Run the full Maven suite, including the integration tests, and the end-to-end suite. `npm run test:ui` passing alone is not enough to merge.
-4. Merge into `main` only after step 3 passes (item 22). Pushing the branch as a backup and merging into `main` are separate actions, each needing its own permission.
+1. Make `./mvnw test` pass on Windows without the timezone flag (`D19`).
+2. Run the full Maven suite, including the integration tests, and the end-to-end suite. `npm run test:ui` passing alone is not enough to merge.
+3. Lock the constitution once step 2 passes (item 15). Its ten ambiguities and the last contradiction and enforcement-gap check are done (`D20`); a current run is what remains.
+4. Merge into `main` only after steps 2 and 3 (item 22). Pushing the branch as a backup and merging into `main` are separate actions, each needing its own permission.
 5. Verify the application end to end: `scripts/demo-seed.sql` loads, the end-to-end suite passes, the main business flows work; then demonstrate to the instructor (item 23).
 6. `PLAN.md` for `feature-platform` (`AUTH-012`, `ADR-005`), then `feature-task`, `feature-project`, `feature-reporting`, `feature-attendance`.
 

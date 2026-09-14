@@ -1,6 +1,6 @@
 # Platform Spec
 
-**Version:** 1.2.7 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-14
+**Version:** 1.2.8 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-14
 
 Part of the Lab Timesheet specification. Rules every feature shares, including the
 glossary, the authorization model, the domain model, and failure handling, are in
@@ -76,7 +76,7 @@ something false.
 
 When statements conflict, use this precedence from highest to lowest:
 
-1. [`.sdd/constitution.md`](../../constitution.md).
+1. [`.sdd/constitution.md`](../../constitution.md), for what it states canonically: each indexed rule's layer and exception, the standing deviations, the definition of done, and the AI agent policy. The wording of a rule is in its spec.
 2. The feature specs under `.sdd/specs/`, where each rule has its one canonical location (`GOV-016`). Within a spec, a dated revision supersedes the text it names.
 3. `AGENTS.md`, `CONTRIBUTING.md`, and `CLAUDE.md`.
 4. Code and tests. Where they disagree with a spec, the code changes.
@@ -1274,4 +1274,4 @@ Validation performed on 14 August 2026 established the review artifacts below. T
 ### Constitution changes
 
 - On 14 September 2026 the constitution's Amendment table, its `GOV-014` rows, its `GOV-015` summary, and its engineering standards (`ARC-009`, `TST-011`) were changed with the maintainer's agreement.
-- The same day its layers were ranked by how strictly a rule binds (`D20`): `TST-011`, `ARC-009` and `GOV-006` moved to Layer 1, `AUTH-002` and `SEC-013` joined Layer 1, `AUTH-012` and `SEC-007` joined Layer 2, and the ten wording ambiguities were resolved. The constitution stays `DRAFT` until a last contradiction check.
+- The same day its layers were ranked by how strictly a rule binds (`D20`): `TST-011`, `ARC-009` and `GOV-006` moved to Layer 1, `AUTH-002` and `SEC-013` joined Layer 1, `AUTH-012` and `SEC-007` joined Layer 2, and the ten wording ambiguities were resolved. A last check the same day corrected `ARC-006`, `ARC-001` and six shortened rows. The constitution stays `DRAFT` until a current full test run backs its enforcement column.

@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | Version | `1.0.0-draft`; becomes `1.0.0` when the status becomes `LOCKED` |
-| Status | `DRAFT`, awaiting sign-off |
+| Status | `DRAFT`; locked after a current full test run backs the enforcement column |
 | Applies to | every developer, every AI agent, every pull request |
 | Maintainer | Loc-LX |
 | Business reviewer | the instructor; confirms decisions marked provisional in [`.sdd/decisions.md`](decisions.md) and does not sign this document |
@@ -24,12 +24,12 @@ maintainer accepts the rules below the status becomes `LOCKED`, and from then on
 a rule changes through the process under Amendment rather than by editing this
 file.
 
-This document is an index, not a copy, with one exception named where it stands:
-the definition of done in Layer 3 is canonical here and exists nowhere else.
-Every other row names a rule that already exists in the requirements
-specification, states how strictly it binds, and names the test that enforces it.
-The full normative wording stays in one place so the two documents cannot drift
-apart.
+This document is canonical for four things only: each indexed rule's layer and
+exception, the standing deviations, the definition of done, and the AI agent policy.
+For the wording of a rule it is an index. Each row summarizes a rule whose full text
+is in its spec, states how strictly it binds, and names the test that enforces it.
+Where a row and its spec differ, the spec's wording is the rule and the row is
+corrected.
 
 A rule is indexed here when it is a hard rule, an architectural constraint, or an
 engineering standard that holds across features. Feature business rules, such as who
@@ -70,9 +70,9 @@ by subject.
 | `SEC-002` | Passwords are 12 to 128 characters and use the delegating adaptive encoder. No composition rules. | `PasswordResetIntegrationTest#resetPostRejectsPasswordsOutsideTheTwelveToOneTwentyEightCharacterBounds` |
 | `SEC-003` | Activation and reset tokens use cryptographically secure random bytes. Only the 32-byte SHA-256 hash is stored. | `PasswordResetIntegrationTest#resetTokenPersistsOnlyItsHashExpiresExclusivelyAndIsSingleUse` |
 | `SEC-004` | Activation tokens expire after 24 hours, reset tokens after 30 minutes. Issuing a token invalidates the older one. | `PasswordResetIntegrationTest#resetTokenExpiresAtExactlyThirtyMinutes`, `AccountRecoveryIntegrationTest#resendInvalidatesPriorActivationTokenBeforeSendingFreshLink` |
-| `SEC-005` | Login and password-reset responses are generic and never reveal whether an email exists, is pending, or is locked. | `PasswordResetIntegrationTest#forgotPostUsesOneGenericResponseForActivePendingLockedAndUnknownAccounts`, `PasswordRecoveryWebIntegrationTest` |
+| `SEC-005` | Login and password-reset responses are generic and never reveal whether an email exists, is pending, is locked, or lacks SMTP delivery. | `PasswordResetIntegrationTest#forgotPostUsesOneGenericResponseForActivePendingLockedAndUnknownAccounts`, `PasswordRecoveryWebIntegrationTest` |
 | `SEC-006` | Login throttling keys on normalized email plus source IP. Five failures in 15 minutes create a 15-minute throttle; a success clears it. | `LoginThrottleTest#fiveFailuresWithinFifteenMinutesThrottleTheSixthAttempt` |
-| `SEC-008` | Redirect targets are allow-listed and local. State-changing endpoints reject open redirects and user-supplied class names. | `NotificationActionContractTest#acceptsOnlySafeRelativeApplicationRoutes`, `OriginEnforcementFilterTest#mismatchedOriginIsRejectedForStateChangingRequests` |
+| `SEC-008` | Redirect targets are allow-listed and local. State-changing endpoints reject open redirects, user-selected class names, arbitrary templates, and arbitrary URLs. | `NotificationActionContractTest#acceptsOnlySafeRelativeApplicationRoutes`, `OriginEnforcementFilterTest#mismatchedOriginIsRejectedForStateChangingRequests` |
 | `SEC-009` | Error pages never expose stack traces, SQL, secrets, internal IDs from unauthorized records, or existence signals. | `SharedErrorTemplateWebTest` |
 | `SEC-010` | Production requires an HTTPS public base URL and explicit trusted-proxy configuration before it is considered ready. | `ProductionReadinessTest#productionOriginIsCanonicalAndRejectsBracketedIpv6Loopback` |
 | `SEC-011` | Production responses carry HSTS, a restrictive content policy, frame denial, and referrer suppression. Session cookies are `Secure`, `HttpOnly`, `SameSite=Strict`. | referrer only, in `SecurityResponseIntegrationTest#authenticationAndActivationResponsesDoNotSendReferrers`; see [Known enforcement gaps](#known-enforcement-gaps) |
@@ -123,12 +123,12 @@ stated so that a reviewer knows to ask, not because anything here enforces them.
 
 | ID | Rule | Enforced by |
 |---|---|---|
-| `ARC-001` | One server-rendered modular monolith on Java 25 and Spring Boot 4.1.0. | the build refuses to compile on another version; no test asserts the shape |
+| `ARC-001` | One server-rendered modular monolith on Java 25 and Spring Boot 4.1.0. | the compiler release is 25, so an older JDK fails the build while a newer one is not refused; the Spring Boot parent pins 4.1.0; no test asserts the shape |
 | `ARC-002` | Backend uses Maven, Spring MVC, Security, Data JPA, Bean Validation, Thymeleaf, Spring Mail, and Flyway. | `ReportingDependencyContractTest` covers the reporting libraries only |
 | `ARC-003` | PostgreSQL 18.4 is the database family for production, development, and integration tests. PostgreSQL-specific rules are tested against PostgreSQL, never H2. | Testcontainers configuration in `TestcontainersConfiguration` |
 | `ARC-004` | The UI toolchain pins Node 24 LTS and Tailwind CSS 4, uses `npm ci`, and commits the lockfile. Test tooling is constrained to a compatible range instead, no test asserts equality against a tool version, and each run records the version it resolved. | the `Set up Node 24`, `npm ci`, and `Verify generated assets are committed` steps of `.gitea/workflows/verify.yml`; the compatible-range rule, the ban on version equality, and the recording rule by `src/test/js/playwright-contract.test.mjs` |
 | `ARC-005` | `LabtimesheetApplication` stays in the root package. Shared wiring lives in `config`. Business code groups under `feature.<name>` for `account`, `attendance`, `integration`, `notification`, `project`, `reporting`, and `task`, each adding only the layer subpackages it needs. Tests mirror those packages. | `LayerStructureTest`, `AttendanceLayerStructureTest` |
-| `ARC-006` | Controllers bind validated DTOs and delegate to services; services use repositories and entities. A feature may call another feature's service contract and DTOs but never its repositories or entities. No business SQL. Flyway and schema verification are the only direct-SQL boundary. | `LayerStructureTest` |
+| `ARC-006` | Controllers bind validated DTOs and delegate to services; services use repositories and entities. A feature may call another feature's service contract and DTOs but never its repositories or entities. No business SQL. Flyway and schema verification are the only direct-SQL boundary. | `LayerStructureTest` covers cross-feature imports only; nothing fails the build on business SQL. See [Known enforcement gaps](#known-enforcement-gaps) |
 | `ARC-007` | Flyway is the sole production schema authority. JPA schema generation is validation-only outside disposable tests. | `PlatformFoundationTest#flywayCreatesApprovedPostgresCatalog` |
 | `ARC-008` | The reviewed `database-schema.sql` is a design baseline rather than an executable artifact. It is adapted into Flyway migrations and never executed against production. | nothing here; the artifact is not in this repository and the adaptation is already done. `ARC-007` carries the obligation that still binds |
 | `AUTH-012` | Every business permission is decided by one authorization policy from the actor's role, the actor's scope, the record's current state, and the target state. No role check outside the policy decides a business permission; route protection may stay coarse, and a template only asks the policy what to show. | nothing yet; not implemented. `ADR-005` records the decision and `AC-AUTH-011` the scenario |
@@ -138,9 +138,9 @@ stated so that a reviewer knows to ask, not because anything here enforces them.
 
 | ID | Rule | Enforced by |
 |---|---|---|
-| `OPS-011` | A trusted repository-scoped runner verifies Maven tests, PostgreSQL and Flyway integration, and the frontend build before anything is published. | the job steps in `.gitea/workflows/verify.yml` |
+| `OPS-011` | A trusted repository-scoped runner verifies Maven tests, PostgreSQL and Flyway integration, frontend assets, and workflow contracts on every pull request and push. The container workflow runs only on manual dispatch or a push to `main`, and its own verification job succeeds before any image is built. | the job steps in `.gitea/workflows/verify.yml`; the `on` block and the `needs: verify` of both image jobs in `.gitea/workflows/container.yml` |
 | `OPS-013` | The pipeline stops at build and publish. It does not connect to an unprovisioned production host. | the deployment job is gated on `DEPLOY_ENABLED` |
-| `OPS-014` | The SSH deployment job is a dormant template, active only on `main` and only when the repository variable enables it. | the same gate, plus `GOV-010` naming it as not yet active |
+| `OPS-014` | The SSH deployment job is a dormant template, active only on `main`, only when the repository variable enables it, and only when the required host, user, private-key, and known-host secrets exist. | the same gate, plus `GOV-010` naming it as not yet active |
 
 ### Excluded by decision
 
@@ -184,8 +184,8 @@ belongs in Layer 1.
 | ID | Rule | Deviation |
 |---|---|---|
 | `TST-001` | Every feature, fix, refactor, or behavior change follows strict RED, verified failure, minimal GREEN, verified narrow pass. | Documented reason; `TST-009` names where it does not apply |
-| `TST-002` | Production behavior written before its failing test is discarded and reimplemented from the failing test. | Documented reason |
-| `TST-003` | Each test names the observable break it catches and derives expected values independently, never mirroring production code. | Documented reason |
+| `TST-002` | Production behavior written before its failing test is discarded and reimplemented from the failing test. A test written only after implementation does not satisfy it. | Documented reason |
+| `TST-003` | Each test names the observable break it catches and derives expected values independently, never mirroring production code or merely asserting that a mock was called. | Documented reason |
 | `TST-004` | Real components are used at the relevant boundary. Only slow or external dependencies such as SMTP and HolidayAPI are faked. | Documented reason |
 | `TST-005` | Each test names, in its own source, the numbered requirements it protects. | Documented reason; see [Standing deviations](#standing-deviations) |
 | `TST-006` | One test class covers one cohesive behavior, not one production class. Test packages mirror the feature packages they exercise. | Documented reason |
@@ -290,6 +290,7 @@ referenced from everywhere else.
 | Change or withdraw a rule that already exists | The spec that holds the rule and an entry in its `CHANGELOG.md`, with the decision and its evidence recorded in `.sdd/decisions.md`. An ADR under [`.sdd/rfcs/`](rfcs) only when the change sets or moves an architectural boundary. |
 | Add a rule inside the scope already agreed | A numbered requirement in the spec of the feature it belongs to and an acceptance scenario in section 7 of that spec. No ADR. |
 | Cross something `GOV-007`, `GOV-008` or `GOV-015` declares excluded | A recorded decision lifting the exclusion, and an ADR when the exclusion is architectural (`GOV-007`); then the numbered requirement and scenario. |
+| Change this document: a rule's layer or exception, an index row, a standing deviation, the definition of done, or the agent policy | The maintainer's agreement to the wording, the decision recorded in `.sdd/decisions.md`, and a new version of this document: major when an obligation is removed or weakened, minor when one is added, patch for wording. |
 
 A pull request is how any of these reaches the repository. It is the delivery
 mechanism, never an alternative to them.
@@ -324,6 +325,14 @@ day: the equality assertion in `src/test/js/playwright-contract.test.mjs` became
 a compatible-range check that also records the resolved version, so `ARC-004` is
 no longer a gap and has left the table below. `npm run test:ui` passes.
 
+On 14 September 2026, after the layers were ranked by how strictly a rule binds, all
+29 test classes and methods this document cites still resolved. That shows the names
+exist, not that the tests pass: the last full run was on 13 September 2026, and this
+document is locked only after a current one. The same check found that `ARC-006`
+claimed a build failure `LayerStructureTest` does not provide, that `ARC-001`
+overstated what the compiler setting refuses, and that six rows had dropped a
+prohibition from their rule. Each is corrected in its row.
+
 A constitution that claims enforcement it does not have is worse than one that
 names its own gaps, and worse still when the claim survives because the class
 name looks plausible.
@@ -337,8 +346,9 @@ name looks plausible.
 | `GOV-004` | Relies on the two domains staying in separate features with no shared read path. | A test asserting that no reporting query joins attendance to work logs. |
 | `GOV-011` | The cited test only canonicalizes a timezone alias before startup. Nothing asserts that a business date resolves against the applicable policy version's timezone. | A test that sets a JVM default different from the policy timezone and checks the resulting business date. |
 | `GOV-014` | Relies on schema constraints in `V1__baseline.sql`. | A test asserting that only an eligible empty `PLANNED` draft can be physically deleted, and that no other route, service, or interface operation physically deletes the Project data `GOV-014` protects. |
-| `ARC-001` | The build fails on the wrong Java version, which proves the version and not the architecture. | An architecture test asserting the module shape, alongside `LayerStructureTest`. |
+| `ARC-001` | An older JDK fails the build, which proves the minimum version and not the architecture. | An architecture test asserting the module shape, alongside `LayerStructureTest`. |
 | `ARC-002` | `ReportingDependencyContractTest` covers the reporting libraries only. | Extend it to the rest of the declared stack, or accept the narrower claim. |
+| `ARC-006` | `LayerStructureTest` checks imports only. The rule requires the build to fail on business SQL in a service, and `ProjectService#nativeDelete` runs native SQL today (`D18`). | Move that SQL behind the data-access layer under `D18`, and add a check that fails the build on `createNativeQuery` or `JdbcTemplate` outside a `repository` package. |
 | `AUTH-012` | Not implemented. Role checks in `SecurityConfiguration`, services, and templates still decide business permissions. | The matrix-driven test of `AC-AUTH-011`, run through the policy `ADR-005` describes. |
 | `SEC-007` | Nothing shows that a manual account lock is kept apart from the in-memory throttle state. | A test that recreates the throttle and asserts a manually locked account is still refused. |
 | `TST-011`, `GOV-006` | Review is the only control. | Nothing automated can close it; a reviewer checks that a changed assertion follows a recorded decision and that new scope has one. |
@@ -357,11 +367,10 @@ than fixed, because it is a pipeline change and not a documentation one.
 
 ## Provenance
 
-The three-layer format, the `LOCKED` status, and the amendment-by-consensus idea
-are a methodology choice rather than an industry standard; most projects distribute the same content across `CONTRIBUTING.md`,
+The three-layer format and the `LOCKED` status are a methodology choice rather
+than an industry standard; most projects distribute the same content across `CONTRIBUTING.md`,
 architecture decision records, and CI configuration.
 
 The rules themselves are not new. They were written by the project team across
-Iterations 1 to 4 and already live in the requirements specification, the
-project plan, and the enforcing tests. This document only gathers them and says
+Iterations 1 to 4 and live in the feature specs and the tests that enforce them. This document only gathers them and says
 which ones have teeth.

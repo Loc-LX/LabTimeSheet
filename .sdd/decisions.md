@@ -1057,7 +1057,14 @@ ambiguities listed in `plan.md`.
 - `OPS-019` drops "taskmaster-verified", a role from the retired iteration plan.
 - The constitution header names the instructor as business reviewer, not signer, and carries version `1.0.0-draft` until it is locked.
 
-**Status:** decided. The constitution stays `DRAFT` until a last contradiction check.
+**Refined the same day, after a last contradiction and enforcement-gap check.**
+
+- The constitution is canonical only for each indexed rule's layer and exception, the standing deviations, the definition of done, and the AI agent policy. For the wording of a rule the spec wins, so a shortened row cannot narrow a rule that `GOV-001` now ranks below it.
+- `ARC-006` claimed a build failure that `LayerStructureTest` does not provide, while `ProjectService#nativeDelete` runs native SQL (`D18`); it is now a listed gap. `ARC-001` overstated what the compiler setting refuses. Six rows that had dropped a prohibition were completed.
+- Changing the constitution itself needs the maintainer's agreement, a decision here, and a new version: major when an obligation is removed or weakened, minor when one is added, patch for wording.
+- The constitution is locked only after a current full test run backs its enforcement column; the last one was on 13 September 2026.
+
+**Status:** decided. The constitution stays `DRAFT` until that run.
 
 ## What the audit checked and found sound
 

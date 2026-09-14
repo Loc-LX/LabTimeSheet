@@ -3,6 +3,12 @@
 Each entry records a change to [SPEC.md](SPEC.md): the version, the date, what changed,
 and why. A change that alters a rule raises the version.
 
+## 1.2.8 — 2026-09-14
+
+Decision `D20`, recorded in [`.sdd/decisions.md`](../../decisions.md).
+
+- §1.1: the constitution outranks the specs only for what it states canonically, each indexed rule's layer and exception, the standing deviations, the definition of done, and the AI agent policy. The wording of a rule is in its spec, so a shortened constitution row cannot narrow it.
+
 ## 1.2.7 — 2026-09-14
 
 Decision `D20`, recorded in [`.sdd/decisions.md`](../../decisions.md).
