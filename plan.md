@@ -25,7 +25,8 @@ and integration commits, is in git history: `git show 702d1a5:plan.md`.
 
 ## Now
 
-- Restructure the documentation to the agreed layout: guides under `docs/guides/`, `shared_context.md`, this file. Remaining: delete `scripts/verify-fix-branch-workflow.cjs` and the untracked `SAVEPOINT.md`, bring stale wording in the guides up to date, and add a CI test that checks the spec structure.
+- Nothing is in progress. The documentation restructure finished on 14 September 2026: guides under `docs/guides/`, `.sdd/shared_context.md` as the stack reference, this file as the tracker, the dead verification script removed, and `src/test/js/spec-structure-contract.test.mjs` checking the specs in CI.
+- Small leftover: assumptions `A1`, `A3` and `A4` in `.sdd/product.md` still describe evidence records and fixture dates that no longer exist.
 
 ## Next
 
@@ -64,4 +65,4 @@ the other way round.
 
 - Maven needs JDK 25; the default `JAVA_HOME` on the maintainer's machine is JDK 8. JDK 25 is at `/c/Users/Admin/AppData/Roaming/Code/User/globalStorage/pleiades.java-extension-pack-jdk/java/25`.
 - On Windows run the suite as `./mvnw -B test -DargLine="-Duser.timezone=Asia/Ho_Chi_Minh"`, with Docker Desktop running. The last full run, on 13 September 2026, passed 754 tests with no failures; no production source has changed since.
-- `npm run test:ui` passes 20 of 20.
+- `npm run test:ui` passes 26 of 26, including the six spec-structure checks.
