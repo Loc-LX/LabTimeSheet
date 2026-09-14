@@ -25,27 +25,26 @@ and integration commits, is in git history: `git show b71fc29:plan.md`.
 
 ## Now
 
-- Nothing is in progress. The documentation restructure finished on 14 September 2026. Documents now live in two places: `.sdd/` for the specs, decisions and context, and the repository root for how to work. `src/test/js/spec-structure-contract.test.mjs` checks the specs and every documentation link in CI.
+- The 24 decisions of 14 September 2026 are applied to the specs, the constitution, and `.sdd/decisions.md`. The local history was rewritten to drop citations of an outside source, and the branch and its spec tags were pushed to Gitea as a backup. Nothing is merged into `main`.
 
 ## Next
 
-1. `PLAN.md` for `feature-platform`, starting with the single authorization policy (`AUTH-012`, `ADR-005`), because Admin report access (`D1`) and Task status permissions (`D13`) both depend on it.
-2. `PLAN.md` for `feature-task`, `feature-project`, and `feature-reporting`, covering `D12`, `D13`, and `D15`.
-3. `feature-attendance` waits until `D14` is settled.
-4. `TASKS.md` for each approved plan, then implementation.
+1. Move the sixteen single-feature rules out of `feature-platform`, without changing their text (item 11).
+2. Add the spell-checker dictionary, listing only real domain and technical terms (item 17).
+3. Draft the ten constitution ambiguities for one review; lock the constitution only after that review and a last contradiction check (items 13, 15).
+4. Make `./mvnw test` pass on Windows without the timezone flag (`D19`).
+5. Run the full suite, then merge into `main` (item 22).
+6. Verify the application end to end: `scripts/demo-seed.sql` loads, the end-to-end suite passes, the main business flows work; then demonstrate to the instructor (item 23).
+7. `PLAN.md` for `feature-platform` (`AUTH-012`, `ADR-005`), then `feature-task`, `feature-project`, `feature-reporting`, `feature-attendance`.
 
 ## Waiting on a decision
 
 | Item | Waiting on | Recorded in |
 |---|---|---|
-| `D14`: who starts an attendance exception, its deadlines, whether leave and corrections move to a responsible Mentor | the laboratory | `decisions.md` `D14`, attendance spec notes |
-| Move the sixteen rules that belong to one feature out of `feature-platform` | maintainer | not yet recorded |
-| Split rules that span several features (`UI-019`, `AUTH-003`, `AUTH-004`, `AUTH-009`, `AUTH-011`, `DB-008`) | after the platform plan | not yet recorded |
-| Constitution: the `GOV-014` row in Known enforcement gaps still proposes a test that cannot be written | maintainer, specific wording | platform spec notes |
-| Constitution: no stated criterion for which rules it indexes; no `AUTH` row although `AUTH-002` is a Layer 1 kind of invariant; `SEC-007` and `SEC-013` omitted, and `SEC-001` loses "under every profile"; `OPS-019` row keeps half its rule; the definition-of-done bullet on "evidence paths in the tracker" predates `ADR-004`; "shared fragments" undefined; unused `Supervisor` row; version `1.0.0` while unsigned; `SEC-011`'s gap stated twice | maintainer | this file |
-| Two absolutes held only by `AGENTS.md`, not the constitution: never weaken or delete an assertion, never edit an applied Flyway migration | maintainer | this file |
-| Sign the constitution | maintainer | constitution header |
-| Rewrite six local commit messages before any push | maintainer | this file |
+| Confirmation of `D12`, `D13`, `D14`, `D15`, all provisional | the instructor | `decisions.md` |
+| `D14`: an undecided exception request after 24 hours; how late a Mentor may mark an excuse; changing a decided exception; who decides while the responsible Mentor is locked or deactivated | maintainer or laboratory | `decisions.md` `D14`, attendance spec notes |
+| Split rules that span several features (`UI-019`, `AUTH-003`, `AUTH-004`, `AUTH-009`, `AUTH-011`, `DB-008`) | after the platform plan | this file |
+| Constitution: no stated criterion for which rules it indexes; no `AUTH` row although `AUTH-002` is a Layer 1 kind of invariant; `SEC-007` and `SEC-013` omitted, and `SEC-001` loses "under every profile"; `OPS-019` row keeps half its rule; the definition-of-done bullet on "evidence paths in the tracker" predates `ADR-004`; "shared fragments" undefined; unused `Supervisor` row; version `1.0.0` while unsigned; `SEC-011`'s gap stated twice | drafts from the agent, then the maintainer | this file |
 
 ## Validation backlog
 
@@ -57,7 +56,7 @@ the other way round.
 - **The Iteration 3 and 4 integration gates.** Most of their checks are acceptance scenarios now: `AC-RPT-001` (format parity), `AC-SEC-004` (production refusal), `AC-OPS-003` (bundled and external PostgreSQL), plus historical stability and concurrency.
 - **The end-to-end suite has never run.** No workflow runs `npm run test:e2e`, and it needs the application and PostgreSQL.
 - **Known test gaps:** the edit clause of `LEV-012` and the eligible-workday clause of `LEV-002` survived mutation.
-- **Known code findings:** `ProjectService#deleteProjectRows` does not delete `task_remaining_effort_forecasts`; `ProjectService` holds native SQL against `ARC-006`.
+- **Known code findings:** `ProjectService#deleteProjectRows` does not delete `task_remaining_effort_forecasts`, and its native SQL moves behind the data-access layer (`D18`).
 - **`app.css` trip-wire:** a local Tailwind build emits `.block{display:block}`, which the committed file lacks, and CI compares the file with `git diff --exit-code`.
 
 ## Environment

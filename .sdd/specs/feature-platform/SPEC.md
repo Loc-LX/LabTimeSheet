@@ -1,6 +1,6 @@
 # Platform Spec
 
-**Version:** 1.1.0 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-14
+**Version:** 1.2.0 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-14
 
 Part of the Lab Timesheet specification. Rules every feature shares, including the
 glossary, the authorization model, the domain model, and failure handling, are in
@@ -22,8 +22,8 @@ This spec holds what every feature shares. It is not a feature in the code; the 
 | Database baseline | PostgreSQL 18.4, 24 application tables |
 | Companion DDL | `database-schema.sql`, not tracked in this repository |
 | Review state | Approved as version 1.0.0 on 14 September 2026; open questions are listed in each spec |
-| Normative rules | 274 across the eight specs |
-| Acceptance scenarios | 131 across the eight specs |
+| Normative rules | 285 across the eight specs |
+| Acceptance scenarios | 135 across the eight specs |
 
 > **Companion files.** This document was authored in a separate documentation
 > repository and copied here on 26 August 2026. Its companion `database-schema.sql`
@@ -55,17 +55,17 @@ sentence to name it. Rewriting this document into EARS on 12 September 2026
 surfaced four such gaps, recorded as D6 through D9 in
 [`decisions.md`](../../decisions.md).
 
-**Twenty-eight rules are deliberately not in EARS**, because they bind people
+**Thirty rules are deliberately not in EARS**, because they bind people
 rather than the system and no `THE system SHALL` sentence would be true of them:
 
 | Rules | What they bind |
 |---|---|
 | `GOV-001`, `GOV-002`, `GOV-003`, `GOV-006`, `GOV-016` | how requirements are decided, named, and changed |
-| `ARC-008`, `ACC-004`, `OPS-010` | a design baseline, an operational instruction, a recovery procedure |
+| `ARC-008`, `ARC-009`, `ACC-004`, `OPS-010` | a design baseline, a migration discipline, an operational instruction, a recovery procedure |
 | `AUTH-010`, `TSK-017` | pointers to the rule that actually decides, kept so a reader arrives there |
 | `OPS-001`–`OPS-004` | the development environment a contributor sets up |
 | `OPS-018`–`OPS-021` | ownership, integration order, and commit discipline across branches |
-| `TST-001`–`TST-010` | the test-driven workflow a contributor follows |
+| `TST-001`–`TST-011` | the test-driven workflow a contributor follows |
 
 Forcing those into the notation would make the document look uniform and say
 something false.
@@ -147,7 +147,7 @@ The system supports a university laboratory or internship program in four connec
 |---|---|
 | AUTH-001 | WHEN a state-changing operation is requested, THE system SHALL authorize it on the server from the global role, account and internship state, record ownership, active membership, current leadership term, current Task assignee, and aggregate lifecycle, as applicable to that operation. |
 | AUTH-002 | THE system SHALL NOT treat a hidden Thymeleaf control as authorization. WHERE the caller is not authenticated, THE system SHALL redirect to the sign-in page. WHERE the caller is authenticated but holds the wrong role for the whole route, THE system SHALL return an authenticated access-denied response, which implies no record. WHERE the caller may reach the route but the record is not theirs or does not exist, THE system SHALL return the same not-found response in both cases, so that the response cannot be used to discover which records exist. |
-| AUTH-003 | WHILE a Mentor account is active, THE system SHALL permit it to view Intern attendance and decide leave and correction requests for any Intern. THE system SHALL restrict Project-management authority to the Project's owning Mentor. |
+| AUTH-003 | WHILE a Mentor account is active, THE system SHALL permit it to view any Intern's attendance, and SHALL permit only an Intern's responsible Mentor under `ACC-026` to decide that Intern's leave, correction, and attendance exception requests. THE system SHALL restrict Project-management authority to the Project's owning Mentor. |
 | AUTH-004 | WHILE a leadership term is current, THE system SHALL grant its holder Leader permissions, and WHEN that term ends, THE system SHALL withdraw Task-management permission immediately. WHERE a Leader exit is pending, THE system SHALL require the owning Mentor to appoint the replacement before any exit-transfer work, and SHALL NOT move a Task merely because leadership changed. |
 | AUTH-005 | THE system SHALL resolve current-assignee permission independently of leadership: a Leader MAY log work on a Task, and MAY make any `TSK-007` transition on it, only WHILE assigned to it, and so MAY an ordinary member. The transitions a current Leader MAY make on another member's Task are those of `TSK-023` and no others. |
 | AUTH-006 | WHILE a Project is `COMPLETED` or `CANCELLED`, THE system SHALL make it read-only to every role. An Admin MAY read every Project and its retained history. WHILE a Project is open, THE system SHALL grant history access to its owning Mentor and current members. WHEN a member is removed, THE system SHALL withdraw open-Project access and SHALL restore read-only access only after that Project completes or is cancelled. |
@@ -185,8 +185,8 @@ Legend: **Yes** = permitted within the stated scope; **Own** = own Project or ow
 | View Project/Task retained history | Yes, read-only | Own | Own | Current membership; former membership only after completion |
 | View per-member Project hours | Yes, read-only | Own | Own | No |
 | View Intern attendance | Yes | Yes | Own history only | Own history only |
-| Decide leave/correction | No | Yes | No | No |
-| Submit own leave/correction | No | No | If active Intern | If active Intern |
+| Decide leave, correction, or attendance exception | No | Responsible Mentor only (`ACC-026`) | No | No |
+| Submit own leave, correction, or exception request | No | No | If active Intern | If active Intern |
 | View and export the Attendance report (`RPT-004`) | Yes | Yes | Own history only | Own history only |
 | View and export the Project/Task report (`RPT-005`) | Yes, read-only | Own | Project scope | Aggregate only |
 | View and export the Daily Project Work Report (`RPT-011`) | Yes, read-only | Own | Led `PLANNED` or `ACTIVE` Project | No |
@@ -225,7 +225,7 @@ Legend: **Yes** = permitted within the stated scope; **Own** = own Project or ow
 | Actual Task effort | The lifetime sum of retained work-log minutes for one Task across every author and assignment. It does not reset when the Task is reassigned. |
 | Task effort variance | Current Work minus Task estimate, a signed planning difference. It is undefined for an unestimated Task, and for an unfinished Task with no Remaining effort forecast. |
 | Remaining effort forecast | A current Leader's dated prediction of the additional effort needed to finish an unfinished Task, recorded at a reassignment or whenever that prediction changes. It never replaces the estimate. |
-| Current Remaining effort | Zero for a `DONE` Task; otherwise the latest Remaining effort forecast less the Actual Task effort added since that forecast was recorded, never below zero. |
+| Current Remaining effort | Zero for a `DONE` Task; otherwise the latest effective Remaining effort forecast, the most recent one no correction has superseded, less the Actual Task effort added since that forecast was recorded, never below zero. |
 | Current Work | Actual Task effort plus current Remaining effort. |
 | Report date | A local business date used to select dated Task work logs for reporting. Attendance policy and calendar context may describe the date but never remove otherwise valid Task work from the report. |
 | Daily Project Work Report | An authorized view of retained Task work logs for one Report date, shown by Task, with each Task's planning values once, and by work-log author, with minutes only. It may show attendance context and each Task's current status, but asserts neither attendance nor that a Task was completed on that date. |
@@ -267,6 +267,7 @@ separation of attendance from Task work exist to prevent.
 | ARC-006 | THE system SHALL bind validated DTOs in a feature's controllers and delegate business transactions to that feature's services, which use its repositories and entities. A feature MAY call another feature's service contract and DTOs. WHERE code reaches into another feature's repository or JPA entity, or places business SQL in a service, THE build SHALL fail. Flyway and schema verification SHALL be the only direct-SQL boundary, and THE system SHALL NOT introduce network boundaries, empty utility packages, or one-implementation abstraction layers. |
 | ARC-007 | THE system SHALL treat Flyway as the sole production schema authority, and SHALL restrict JPA schema generation to validation outside disposable tests. |
 | ARC-008 | The reviewed `database-schema.sql` is a design baseline rather than an executable artifact. The platform owner adapts it into Flyway migrations; it is never executed against production. |
+| ARC-009 | A Flyway migration that has been applied is never edited. A schema change adds a new migration. |
 
 Reference versions and primary documentation:
 
@@ -335,7 +336,7 @@ The following supplied screenshots are visual-direction references. Their exampl
 | UI-016 | WHEN a terminal or destructive action is requested, including internship withdrawal, Project completion, Project cancellation, Project deletion, account deactivation, direct member removal, membership-exit approval, Task soft-delete, and SMTP retirement, THE system SHALL require an explicit confirmation describing the consequences. WHERE the action is exit approval, THE system SHALL show replacement and unfinished-Task readiness; WHERE it is a transfer, THE system SHALL show the selected Task count and the recipient. |
 | UI-017 | THE system SHALL NOT use decorative gradients, glass effects, card-within-card repetition, oversized marketing headings, remote fonts or assets, or a chart that carries no information. |
 | UI-018 | THE system SHALL meet WCAG 2.2 AA contrast in both light and dark themes: at least 4.5:1 for normal text, at least 3:1 for large text and meaningful non-text boundaries, and a visible focus indicator at 3:1 against adjacent colours. |
-| UI-019 | THE system SHALL provide Leader invitation list, create and revoke; Intern invitation accept and decline; Leader removal request; member leave and cancel; persistent pending-exit warnings; a Leader-only side drawer for repeated multi-Task single-recipient transfer batches; and an owning-Mentor decision surface. THE system SHALL provide separate Intern My Leave and My Corrections workflows and separate Mentor Leave Decisions and Correction Decisions workflows, each placing the actionable queue before retained history and showing the monthly leave balance defined by `LEV-004`. THE system SHALL give an Admin focused Account Directory, Detail and Edit workflows, Attendance Policy with History, Global Calendar with History, Holiday Import with provider History, and SMTP with History. THE system SHALL keep Admin dashboard content account and configuration only, without an Active Projects metric or a report-like Project or Task summary. THE system SHALL give an Admin read-only dedicated Attendance, Project or Task, and Daily Project Work Report navigation, as `RPT-004`, `RPT-005`, and `RPT-011` grant, and SHALL limit each report's navigation to the scopes its rule grants. THE system SHALL keep the global Daily entry visible to Mentors and Admins, and SHALL show it to an active Intern only WHILE current leadership makes at least one `PLANNED` or `ACTIVE` Project eligible; Project-detail Daily generation SHALL remain available to the current Leader only. THE system SHALL redirect `/admin/settings` to `/admin/attendance-policies` and `/attendance/requests` to `/attendance/leave`. THE system SHALL provide one authorized Project History tab. Existing mockups are illustrative and SHALL NOT override a numbered requirement. |
+| UI-019 | THE system SHALL provide Leader invitation list, create and revoke; Intern invitation accept and decline; Leader removal request; member leave and cancel; persistent pending-exit warnings; a Leader-only side drawer for repeated multi-Task single-recipient transfer batches; and an owning-Mentor decision surface. THE system SHALL provide separate Intern My Leave, My Corrections, and My Exceptions workflows and separate Mentor Leave Decisions, Correction Decisions, and Exception Decisions workflows, each Mentor queue listing only the Interns that Mentor is responsible for, and each placing the actionable queue before retained history and showing the monthly leave balance defined by `LEV-004`. THE system SHALL give an Admin focused Account Directory, Detail and Edit workflows, Attendance Policy with History, Global Calendar with History, Holiday Import with provider History, and SMTP with History. THE system SHALL keep Admin dashboard content account and configuration only, without an Active Projects metric or a report-like Project or Task summary. THE system SHALL give an Admin read-only dedicated Attendance, Project or Task, and Daily Project Work Report navigation, as `RPT-004`, `RPT-005`, and `RPT-011` grant, and SHALL limit each report's navigation to the scopes its rule grants. THE system SHALL keep the global Daily entry visible to Mentors and Admins, and SHALL show it to an active Intern only WHILE current leadership makes at least one `PLANNED` or `ACTIVE` Project eligible; Project-detail Daily generation SHALL remain available to the current Leader only. THE system SHALL redirect `/admin/settings` to `/admin/attendance-policies` and `/attendance/requests` to `/attendance/leave`. THE system SHALL provide one authorized Project History tab. Existing mockups are illustrative and SHALL NOT override a numbered requirement. |
 
 Primary UI dependency references:
 
@@ -501,6 +502,7 @@ Gitea references: [variables](https://docs.gitea.com/1.24/usage/actions/actions-
 | TST-008 | A verification run shall record its own commands, results, and resolved tool versions. A written claim shall never replace an executable run. |
 | TST-009 | Human prose and simple configuration shall not receive artificial unit tests. Their evidence shall be the smallest executable validation, such as migration replay, `docker compose config`, workflow validation, or container health smoke test. |
 | TST-010 | A medium milestone may be committed only when its evidence is current, narrow and affected suites are green, and no unexplained error or warning remains. |
+| TST-011 | A test assertion is never weakened or deleted to make a test pass. A failing assertion is either a defect in the code or a decision recorded before the assertion changes. |
 
 Trace convention. The rules a test protects are named in the test source, so the
 trace moves with the class and can be read back mechanically:
@@ -593,7 +595,7 @@ The schema contains **24 tables**. The earlier 21-table baseline was superseded 
 |---|---|
 | DB-001 | THE schema SHALL use generated `BIGINT` identity keys, `date` for local business dates, `time` for schedules, `timestamptz` for instants, and checked `varchar` states rather than PostgreSQL enums. |
 | DB-002 | THE schema SHALL enable `btree_gist` and SHALL use an exclusion constraint so that a pending or approved leave range cannot overlap another for the same Intern. |
-| DB-003 | THE schema SHALL enforce case-insensitive unique email and Student Code, one active membership per Intern and Project, one current Leader per Project, one pending invitation per Intern and Project, one pending exit request per target membership, one attendance row per Intern and date, one correction per attendance row, and one active and one draft revision per integration. |
+| DB-003 | THE schema SHALL enforce case-insensitive unique email and Student Code, one active membership per Intern and Project, one current Leader per Project, one pending invitation per Intern and Project, one pending exit request per target membership, one attendance row per Intern and date, one correction per attendance row, one attendance exception per attendance row and violation kind, and one active and one draft revision per integration. |
 | DB-004 | THE schema SHALL use composite foreign keys to keep leadership, invitation provenance and accepted membership, membership-exit requester and target, Task assignee and actors, and work-log member inside the same Project. |
 | DB-005 | WHERE an update would change an existing user's global role, THE schema SHALL reject it through a trigger. THE schema SHALL default foreign keys to `RESTRICT`, so that only an explicitly modelled soft-delete or lifecycle transition removes an item from an active view. |
 | DB-006 | THE schema SHALL index every foreign key, together with the active membership and Leader lookups, the pending invitation and exit queues, Project Task status and assignee, attendance date, pending deadlines, leave month, unread notification, and pending-email paths. |
@@ -1058,6 +1060,7 @@ They are listed here so that a reader can tell a deliberate exclusion from an ov
 | Group | IDs | Why no scenario |
 |---|---|---|
 | Governance | `GOV-001`, `GOV-002`, `GOV-003`, `GOV-005`–`GOV-010`, `GOV-012`, `GOV-014`–`GOV-016` | Authority order, terminology, scope discipline, non-goals, and retention intent. These bind the people writing requirements and code; an automated scenario cannot observe them. `GOV-004`, `GOV-011`, and `GOV-013` describe system behavior and are covered by `AC-ATT-*`, `AC-GOV-001`, and `AC-GOV-002`. |
+| Engineering discipline | `ARC-009`, `TST-011` | Migration immutability and assertion integrity bind contributors; no running system can observe them. |
 | Coordination | `OPS-018`–`OPS-021` | Baseline publication, file ownership, branch naming, integration order, and commit discipline. Enforced by review and by branch policy, not by the running application. |
 
 Excluding them is a choice, not a gap. Writing a scenario for a rule that no test can observe
@@ -1122,7 +1125,7 @@ Scenarios for a feature are in section 7 of that feature's spec. The scenarios b
 |---|---|
 | GOV-007 | THE system SHALL NOT use a SPA framework, JWT authentication, microservices, Redis, Kafka, a generic workflow engine, or a persisted `Report` entity in v1. |
 | GOV-008 | THE system SHALL NOT provide project-level days off, multiple Task assignees, unconditional self-service Project joining or leaving, Task dependencies, epics, sprints, story points, labels, watchers, reactions, attachments, nested subtasks, or burndown charts. Authenticated invitation acceptance and Mentor-approved exit requests SHALL be the only member-initiated boundary workflows. |
-| GOV-009 | THE system SHALL NOT persist generic domain events, login-attempt history, daily calendar materializations, or Task-assignment history. Narrow correction and leadership history SHALL be retained because current requirements depend on them. |
+| GOV-009 | THE system SHALL NOT persist generic domain events, login-attempt history, daily calendar materializations, or Task-assignment history. Narrow correction, leadership, and Task block, unblock and reopen history SHALL be retained because current requirements depend on them. |
 | GOV-010 | WHILE the deployment host and its secrets do not exist, THE delivery pipeline SHALL keep the SSH deployment job disabled and SHALL NOT attempt to connect to a deployment target. |
 | GOV-015 | THE system SHALL keep the Task effort-planning slice local to this product. It SHALL NOT integrate with external Jira or Tempo, SHALL NOT mirror Jira issues, sprints, or story points, SHALL NOT hold Tempo accounts or synchronization, and SHALL NOT add a `SUBMITTED`, `ACCEPTED`, or `REJECTED` state or any acceptance and rejection state machine for Tasks. Reopening a `DONE` Task under `TSK-023` so that its assignee corrects it is a status transition, not such a workflow. THE system SHALL NOT re-baseline a Task: once work is retained the estimate stays as `TSK-020` fixes it, and recording a Remaining effort forecast under `TSK-022` or `TSK-024` is not re-baselining. Any of these requires a new numbered requirement and a recorded decision. |
 
@@ -1146,10 +1149,10 @@ documents a working product.
 
 | Measure | Value |
 |---|---:|
-| Normative rules, sections 1–22 | 274 |
-| Rules with a §20 acceptance scenario | 257 |
-| Rules declared without one, with reason | 17 |
-| Acceptance scenarios | 131 |
+| Normative rules, sections 1–22 | 285 |
+| Rules with a §20 acceptance scenario | 266 |
+| Rules declared without one, with reason | 19 |
+| Acceptance scenarios | 135 |
 | Flyway application tables | 24 |
 
 The specification quality review in §20 and the twelve-point gate once recorded in the
@@ -1170,8 +1173,7 @@ reasoning are recorded as `D11` in [`decisions.md`](../../decisions.md).
 
 **Approved on 14 September 2026** by Loc-LX, the maintainer, as version 1.0.0 of each spec under
 `.sdd/specs/`. The approval was given knowing that questions remain for the instructor, who
-holds domain authority, and that `D13` is a disagreement between code and rules not yet
-resolved; each is listed in the Notes section of the spec it affects and in
+holds domain authority, and that the decisions of 14 September 2026 are ahead of the code; each is listed in the Notes section of the spec it affects and in
 [`decisions.md`](../../decisions.md). An answer that changes a rule
 changes that spec's version and is recorded in its `CHANGELOG.md`.
 
@@ -1264,10 +1266,7 @@ Validation performed on 14 August 2026 established the review artifacts below. T
 > which `GOV-016` forbids. Appendix F now holds only the message families, which
 > state what interface copy must communicate and are guidance, not rules.
 >
-> **Appendix C is still behind the product in one place**, and it is named
-> rather than silently left:
->
-> - No use case covers the Daily Project Work Report, added in Iteration 4. The rules are `RPT-011` through `RPT-013`.
+> Since 14 September 2026 every shipped workflow has a use case: the Daily Project Work Report is `UC-16`, and attendance exceptions are `UC-15`.
 >
 > Admin reporting scope inside Appendix C follows the decision recorded in
 > [`.sdd/rfcs/ADR-002-attendance-report-scope.md`](../../rfcs/ADR-002-attendance-report-scope.md).
@@ -1281,4 +1280,4 @@ Validation performed on 14 August 2026 established the review artifacts below. T
 
 ### Constitution changes awaiting agreement
 
-- The constitution's `GOV-014` row says Projects are never deleted, which `PRJ-002` now permits for an empty `PLANNED` Project, and its summary of `GOV-015` still names "continuous replanning". Changing either needs the maintainer's agreement to specific wording. The Amendment table was changed on 14 September 2026 with that agreement.
+- On 14 September 2026 the constitution's Amendment table, its `GOV-014` rows, its `GOV-015` summary, and its engineering standards (`ARC-009`, `TST-011`) were changed with the maintainer's agreement. Ten wording ambiguities remain to be drafted and reviewed before the constitution is locked.

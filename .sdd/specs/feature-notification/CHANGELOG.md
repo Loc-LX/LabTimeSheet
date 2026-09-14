@@ -3,6 +3,13 @@
 Each entry records a change to [SPEC.md](SPEC.md): the version, the date, what changed,
 and why. A change that alters a rule raises the version.
 
+## 1.1.0 — 2026-09-14
+
+Decisions `D12`, `D13`, and `D14`, recorded in [`.sdd/decisions.md`](../../decisions.md). Marked provisional, pending instructor confirmation.
+
+- `NOT-003` notifies the assignee when someone else blocks, unblocks, or reopens their Task, and the current Leader too when the owning Mentor does.
+- `NOT-002` includes attendance exceptions; **added `NOT-011`**, which sends leave, correction, and exception requests to the responsible Mentor and decisions to the Intern.
+
 ## 1.0.1 — 2026-09-14
 
 Notes only. What cancellation and deletion mean for existing notifications.

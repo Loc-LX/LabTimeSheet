@@ -3,6 +3,15 @@
 Each entry records a change to [SPEC.md](SPEC.md): the version, the date, what changed,
 and why. A change that alters a rule raises the version.
 
+## 1.2.0 — 2026-09-14
+
+Decisions `D13` and `D15`, recorded in [`.sdd/decisions.md`](../../decisions.md). Marked provisional, pending instructor confirmation.
+
+- `TSK-023`: unblocking returns a Task to the status it had before it was blocked, and nothing else.
+- **Added `TSK-025`**: every block, unblock, and reopen leaves a transition record; a reopen needs a reason, and the record, not a comment, is its authoritative copy.
+- `TSK-021`: the current Remaining effort comes from the latest effective forecast; earlier forecasts stay as history.
+- Added `AC-TSK-018`; `UC-06` follows.
+
 ## 1.1.0 — 2026-09-14
 
 Decisions `D13` and `D15`, recorded in [`.sdd/decisions.md`](../../decisions.md).

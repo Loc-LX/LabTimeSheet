@@ -3,6 +3,14 @@
 Each entry records a change to [SPEC.md](SPEC.md): the version, the date, what changed,
 and why. A change that alters a rule raises the version.
 
+## 1.2.0 — 2026-09-14
+
+Decisions `D12`, `D14`, and `D15`, recorded in [`.sdd/decisions.md`](../../decisions.md). Marked provisional, pending instructor confirmation.
+
+- `RPT-003` keeps completed and cancelled Projects in the Project/Task report, labelled; `RPT-011` and `AC-RPT-004` leave cancelled Projects out of an all-Projects Daily request unless the filter includes them.
+- `RPT-002` and `RPT-004` show whether each late arrival or early departure is excused.
+- Added `UC-16` for the Daily Project Work Report.
+
 ## 1.1.0 — 2026-09-14
 
 Decisions `D1` and `D15`, recorded in [`.sdd/decisions.md`](../../decisions.md).

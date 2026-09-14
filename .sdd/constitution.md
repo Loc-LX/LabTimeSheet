@@ -175,6 +175,8 @@ they carry no enforcement column. Most admit no exception at all.
 | `TST-008` | A verification run records its own commands, results, and resolved tool versions. A written claim never replaces an executable run. | None |
 | `TST-009` | Human prose and simple configuration do not receive artificial unit tests. Their evidence is the smallest executable validation. | This rule is itself the documented exception to `TST-001` |
 | `TST-010` | A milestone is committed only when evidence is current, narrow and affected suites are green, and no unexplained error or warning remains. | None |
+| `TST-011` | A test assertion is never weakened or deleted to make a test pass. | None |
+| `ARC-009` | An applied Flyway migration is never edited; a schema change adds a new migration. | None |
 | `GOV-006` | A feature absent from the specification needs a new reviewed decision. Adjacent scope is never silently authorized. | None |
 | `OPS-019` | Shared build, migration, security, navigation, and base-template files have one named owner at a time. | None |
 
@@ -310,7 +312,7 @@ name looks plausible.
 | `SEC-001` | The rule is broader than any single test. Slices are covered by the denial assertions scattered through the web tests. | Accept it as an intent statement, or narrow it into rules that can each be asserted. |
 | `GOV-004` | Relies on the two domains staying in separate features with no shared read path. | A test asserting that no reporting query joins attendance to work logs. |
 | `GOV-011` | The cited test only canonicalizes a timezone alias before startup. Nothing asserts that a business date resolves against the applicable policy version's timezone. | A test that sets a JVM default different from the policy timezone and checks the resulting business date. |
-| `GOV-014` | Relies on schema constraints in `V1__baseline.sql`. | A test asserting that no repository exposes a hard-delete method for accounts, Projects, memberships, or Tasks. |
+| `GOV-014` | Relies on schema constraints in `V1__baseline.sql`. | A test asserting that only an eligible empty `PLANNED` draft can be physically deleted, and that no other route, service, or interface operation physically deletes the Project data `GOV-014` protects. |
 | `ARC-001` | The build fails on the wrong Java version, which proves the version and not the architecture. | An architecture test asserting the module shape, alongside `LayerStructureTest`. |
 | `ARC-002` | `ReportingDependencyContractTest` covers the reporting libraries only. | Extend it to the rest of the declared stack, or accept the narrower claim. |
 | `ARC-008` | Nothing in this repository can enforce it. `database-schema.sql` was authored in the separate documentation repository, stayed there, and has never appeared in any commit here, which the specification header states. The row previously claimed a Flyway catalog test as its enforcement; that test cannot observe an absent file. | Nothing, and that is the point. The rule records a completed one-time adaptation. `ARC-007` is what binds future schema work, and it is enforced. |

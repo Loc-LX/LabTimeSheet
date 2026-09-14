@@ -24,6 +24,21 @@ repository.
 A decision recorded here outranks the current behavior of the application. Where
 they disagree, the application is wrong, and D7 is the case in point.
 
+## How the decisions are labelled
+
+Since 14 September 2026 a decision says where its content comes from, so that a
+laboratory choice is never presented as an industry standard.
+
+| Label | Meaning | Examples |
+|---|---|---|
+| ENTERPRISE-BACKED | Follows a pattern common to enterprise work-management, time-and-labour, and access-control products | Permission from role, scope, and allowed workflow transition; Admin is not unlimited business authority; Project lifecycle and retained history instead of casual deletion; an attendance fact kept apart from its approved exception; an approver chosen by management responsibility; baseline, actual, remaining, current work, and variance |
+| ADAPTED | The pattern, shaped to this product | A blocked Task returning to its previous status; a reason required to reopen; notifying the assignee and the Leader; the Mentor, Intern Leader, Intern responsibility chain; two Daily report perspectives |
+| LAB-POLICY | A choice of this laboratory, not a standard | The 24-hour limits for attendance exceptions; an excused violation not lowering compliance |
+
+**Provisional.** `D12`, `D13`, `D14`, and `D15` were decided by the maintainer from
+analysis and are not yet confirmed by the instructor. When the instructor confirms or
+changes one, its status here changes first.
+
 ## Where these stand
 
 | | Question | Answer | Rules it changes |
@@ -39,11 +54,14 @@ they disagree, the application is wrong, and D7 is the case in point.
 | D9 | Stating the SMTP port range | 1 through 65535, a type constraint | `INT-007` |
 | D10 | Which stylesheet the desktop overflow contract requires | The assertion was wrong, not the stylesheet; action completed 12 September 2026 | none |
 | D11 | Whether approving the specification waits for the Iteration 3 integrated review | No; resolving every code and specification disagreement is the condition instead | §22.2 |
-| D12 | Whether a Project may be deleted | Only an empty `PLANNED` Project; any other Project that will not run is cancelled | `PRJ-002`, `PRJ-023` |
-| D13 | Whether an owning Mentor may change a Task's status | Only block, unblock, and reopen, decided by role, scope, and state | `AUTH-005`, `AUTH-008`, `TSK-007`, `TSK-023` |
-| D14 | Whether a late arrival or early departure can be excused | Yes, as a separate approval; not yet written as rules | none yet |
+| D12 | Whether a Project may be deleted | Only an empty `PLANNED` Project, with its notifications; any other Project that will not run is cancelled and stays in reports. Provisional | `PRJ-002`, `PRJ-023`, `RPT-003`, `RPT-011` |
+| D13 | Whether an owning Mentor may change a Task's status | Only block, unblock to the previous status, and reopen with a reason, decided by role, scope, and state. Provisional | `AUTH-005`, `AUTH-008`, `TSK-007`, `TSK-023`, `TSK-025`, `NOT-003` |
+| D14 | Whether a late arrival or early departure can be excused | Yes, as a separate decision by the responsible Mentor, who also decides leave and corrections. Provisional; four points open | `EXC-001`–`EXC-006`, `ACC-026`, `LEV-008`, `COR-005` |
 | D15 | What Remaining effort and variance mean, and who the Daily report is for | Estimate is the baseline; Remaining is a current forecast; two report perspectives | `GOV-015`, `TSK-021`, `TSK-024`, `RPT-012`, `RPT-014` |
 | D16 | When a rule change needs an ADR | Only when it moves an architectural boundary | constitution, Amendment |
+| D17 | What to do with `work/tasks-lab-b5` and `work/tasks-sync` | Superseded history; not merged, not a source of truth | none |
+| D18 | Whether native SQL may stay in a service | No; special queries go through the data-access layer | `ARC-006` |
+| D19 | Whether the suite must pass on Windows without extra flags | Yes; the timezone is normalized in test configuration | none |
 
 D1 through D5 came from reading the specification against its own history. D6
 through D9 came from the audit described at the end of this page, which read the
@@ -852,7 +870,12 @@ are revoked with a ninth resolution code `PROJECT_CANCELLED`, pending exit reque
 superseded, Tasks and history stay unchanged, and the Project becomes read-only. Only
 `CANCELLED` was added; `ARCHIVED` has no meaning yet that `COMPLETED` and `CANCELLED`
 lack. Deleting an empty draft leaves no audit record, which `GOV-009` would forbid.
-The constitution's `GOV-014` row still needs new wording agreed.
+
+**Refined the same day.** Deleting an empty draft also deletes the notifications raised
+for it, so no link is left pointing at nothing. A cancelled Project stays in the
+Project/Task report, labelled, and its Daily history is kept; an all-Projects Daily
+request leaves it out unless a filter includes it. The constitution's `GOV-014` rows
+now say the same. **Status:** provisional, pending instructor confirmation.
 
 ## D13. May an owning Mentor change a Task's status?
 
@@ -886,6 +909,14 @@ or `REJECTED` state is added, and `GOV-015` now says that reopening for correcti
 not an acceptance workflow. The code that lets an owning Mentor set any status, and the
 two tests asserting it, change with the implementation.
 
+**Refined the same day.** Unblocking returns a Task to the status it held before the
+block, so a Leader or Mentor cannot start a `TODO` Task by blocking and unblocking it.
+A reopen needs a reason. Every block, unblock, and reopen leaves a transition record
+(`TSK-025`), because a comment alone is not an audit trail; `GOV-009` now lists that
+narrow history beside correction and leadership history. The assignee is notified
+when someone else acts, and the current Leader too when the owning Mentor does
+(`NOT-003`). **Status:** provisional, pending instructor confirmation.
+
 ## D14. May a late arrival or early departure be excused?
 
 **Affects** `ATT-011`, `ATT-015`, `ATT-016`, `COR-006`, `ACC-019`. Raised by the
@@ -900,11 +931,20 @@ systems that keep a time correction apart from an attendance exception.
 - The approver is the Mentor responsible for that Intern, not any active Mentor. No such relation exists today, so the Intern profile needs a responsible Mentor assigned by an Admin, unless the laboratory confirms a central approver.
 - A Leader never approves, and an Admin never decides.
 
-**Not yet written as rules**, because three things are open: who starts an exception, the
-Intern by request or the Mentor directly; the deadlines for submitting and deciding it,
-which are deliberately not copied from corrections; and whether leave and corrections,
-which `LEV-008` and `COR-005` give to any active Mentor, should move to the responsible
-Mentor as well.
+**Completed the same day and written as rules.**
+
+- Either the Intern requests an excuse with a reason, or the responsible Mentor marks one excused with a reason; both record actor and time (`EXC-002`–`EXC-004`).
+- The Intern may request through 24 hours after scheduled end, and the Mentor decides within 24 hours of the request. **LAB-POLICY, provisional.**
+- An excused violation does not lower compliance and stays in history and statistics (`EXC-005`). **LAB-POLICY.**
+- The responsible Mentor is set before the internship becomes `ACTIVE`, not necessarily at account creation; an Admin may replace them, and earlier decisions keep the Mentor who made them (`ACC-021`, `ACC-026`).
+- Leave, corrections, and exceptions are all decided by the responsible Mentor (`LEV-008`, `COR-005`, `AUTH-003`), unless the laboratory later names a central attendance approver. An Intern Leader never approves.
+
+**Still open:** what happens to an exception request nobody decides within 24 hours; how
+long after a work date the Mentor may still mark an excuse; whether a decided exception
+can be changed within its window; and who decides pending leave, correction, and
+exception requests while the responsible Mentor is locked or deactivated.
+
+**Status:** provisional, pending instructor confirmation.
 
 ## D15. What do Remaining effort and variance mean, and who is the Daily report for?
 
@@ -937,6 +977,11 @@ planning values once and its contributors, and an Intern view with minutes only,
 Task's variance is never shown as if it belonged to one Intern. Ordinary Interns are not
 given the Daily report; they see their own work logs in their Task pages.
 
+**Refined the same day.** The current Remaining effort uses the latest effective forecast,
+the most recent one no correction has superseded; earlier forecasts stay as history and
+never feed the current value (`TSK-021`). The Daily report gained its own use case,
+`UC-16`. **Status:** provisional, pending instructor confirmation.
+
 ## D16. When does a rule change need an ADR?
 
 **Decided on 14 September 2026 by Loc-LX.** The constitution's Amendment table required
@@ -946,6 +991,29 @@ now reads: a rule change goes to the spec that holds it and its `CHANGELOG.md`, 
 decision recorded on this page, and an ADR is written only when an architectural
 boundary moves. Under that rule `D12` to `D15` are recorded here, and the one
 architectural decision of the day, a single authorization policy, is `ADR-005`.
+
+## D17. What happens to `work/tasks-lab-b5` and `work/tasks-sync`?
+
+**Decided on 14 September 2026 by Loc-LX.** Both carry the same two commits of 24 August
+2026: Task complexity, effort totals, Leader estimation defaults, per-member metrics on
+the Task list, and early design records of the membership-exit flow. Iteration 4 chose a
+different effort model two days later. The branches are superseded history. They are not
+merged and are not a source of truth, though they may be read to trace history. They stay
+on the remote untouched.
+
+## D18. May a service keep native SQL?
+
+**Decided on 14 September 2026 by Loc-LX.** No. `ARC-006` stays as written. The native
+SQL in `ProjectService#deleteProjectRows` moves behind the data-access layer when the
+deletion is reimplemented for `PRJ-002`. No named exception is created to legitimize the
+current code.
+
+## D19. Must the suite pass on Windows without extra flags?
+
+**Decided on 14 September 2026 by Loc-LX.** Yes. `./mvnw test` has to run deterministically
+on Windows without anyone remembering `-Duser.timezone`, so the timezone is normalized in
+test configuration that every Spring test context reaches. This answers the question
+`ADR-003` left for a future decision.
 
 ## What the audit checked and found sound
 
@@ -1006,11 +1074,11 @@ reverses it.
 | Item | Current answer | Why it needs the instructor |
 |---|---|---|
 | `D1` | **Confirmed 14 September 2026.** An Admin views and exports every report read-only. | Nothing open. |
-| `D12` | **Decided 14 September 2026.** Only an empty draft is deleted; everything else is cancelled. | Nothing open. |
+| `D12` | Decided 14 September 2026, **provisional**. Only an empty draft is deleted, with its notifications; everything else is cancelled and stays in reports. | Instructor confirmation. |
 | `ACC-024` | **Confirmed 14 September 2026.** A withdrawn Intern cannot sign in; a completed Intern keeps a read-only account and may change their password. | Nothing open. |
-| `COR-006` and `D14` | An approved correction confirms the time only. Excused violations are decided in principle under `D14`. | Who starts an exception, its deadlines, and whether leave and corrections move to the responsible Mentor. |
-| Daily Project Work Report | **Decided 14 September 2026** under `D15`: a Task view and an Intern view, so variance is shown once per Task. | Nothing open. |
-| `D13` | **Decided 14 September 2026.** Block, unblock, and reopen only. | Nothing open. |
+| `COR-006` and `D14` | An approved correction confirms the time only. Excused violations are written as `EXC-001`–`EXC-006`, **provisional**, with LAB-POLICY limits. | Instructor confirmation, and the four open points under `D14`. |
+| Daily Project Work Report | Decided 14 September 2026 under `D15`, **provisional**: a Task view and an Intern view, so variance is shown once per Task. | Instructor confirmation. |
+| `D13` | Decided 14 September 2026, **provisional**. Block, unblock to the previous status, and reopen with a reason. | Instructor confirmation. |
 
 ## Earlier record: Task estimate and remaining-effort forecasts
 

@@ -3,6 +3,16 @@
 Each entry records a change to [SPEC.md](SPEC.md): the version, the date, what changed,
 and why. A change that alters a rule raises the version.
 
+## 1.2.0 — 2026-09-14
+
+Decisions `D13`, `D14`, `D15` and the maintainer's constitution choices, recorded in [`.sdd/decisions.md`](../../decisions.md). Marked provisional, pending instructor confirmation.
+
+- `AUTH-003`, the §5.2 matrix, and `UI-019` give leave, correction, and attendance exception decisions to the Intern's responsible Mentor only, with Mentor queues limited to those Interns and a new exception workflow.
+- `GOV-009` adds Task block, unblock, and reopen history to the narrow histories it retains; `DB-003` adds one attendance exception per attendance row and violation kind.
+- The glossary defines the current Remaining effort from the latest effective forecast.
+- **Added `ARC-009`** (an applied migration is never edited) and **`TST-011`** (an assertion is never weakened to pass), both declared without a system scenario; the EARS exceptions now number thirty.
+- §22.2 no longer calls `D13` unresolved, the recovered-appendices note names `UC-15` and `UC-16`, and the counts are 285 rules and 135 scenarios.
+
 ## 1.1.0 — 2026-09-14
 
 Decisions `D1`, `D12`, `D13`, `D15` and `D16`, recorded in [`.sdd/decisions.md`](../../decisions.md).

@@ -3,6 +3,12 @@
 Each entry records a change to [SPEC.md](SPEC.md): the version, the date, what changed,
 and why. A change that alters a rule raises the version.
 
+## 1.2.0 — 2026-09-14
+
+Decision `D12`, recorded in [`.sdd/decisions.md`](../../decisions.md). Marked provisional, pending instructor confirmation.
+
+- `PRJ-002` and `AC-PRJ-014`: deleting an empty draft also deletes the notifications raised for it.
+
 ## 1.1.0 — 2026-09-14
 
 Decision `D12`, recorded in [`.sdd/decisions.md`](../../decisions.md).
