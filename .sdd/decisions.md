@@ -1,6 +1,6 @@
 # Decisions behind the specification
 
-Each entry is a place where [the specification](../requirements.md) stated
+Each entry is a place where [the specification](specs) stated
 something that no recorded decision supported. Section 1.1 names who may settle
 one. Until an answer is recorded here and applied to the numbered rules, the
 specification stays unapproved and no test written against the affected rule is
@@ -99,7 +99,7 @@ instructor still owed.
 | What the earlier text said | Admins have no Attendance-report scope or report dataset. |
 
 The rule has moved three times.
-[ADR 0002](../rfcs/ADR-002-attendance-report-scope.md) reconstructs the
+[ADR 0002](rfcs/ADR-002-attendance-report-scope.md) reconstructs the
 sequence from commits: granted on 17 August 2026, the specification carrying it
 deleted on 20 August, withdrawn on 27 August, the specification deleted again on
 29 August, restored on 30 August.
@@ -925,8 +925,8 @@ tool as the reference without copying the product.
 The current Leader may record a new forecast whenever the prediction changes
 (`TSK-024`). That is not re-baselining and not the continuous replanning `GOV-015` used
 to forbid; `GOV-015` now forbids re-baselining instead. Forecasts are appended, never
-overwritten. `ADR-001` described forecasts only at reassignment; it stays as written
-because it is a dated record.
+overwritten. `ADR-001` described forecasts only at reassignment; its text is kept
+unchanged at the end of this page.
 
 Remaining decreases as work is logged, which was chosen over keeping it fixed: a fixed
 Remaining would add every logged minute to Current Work without anyone re-estimating.
@@ -980,7 +980,7 @@ listed so that a reviewer can object rather than discover them later.
 | `TSK-021` | Variance for an estimated Task that is unfinished or reopened renders `Pending`; for an unestimated Task it renders `N/A`. The rule had said "undefined" for both. | The EARS rewrite of 12 September 2026 merged two states the earlier wording kept apart ("undefined variance" and "no variance"). `TaskVarianceState` has held both since 26 August 2026. A change of notation should not change meaning. |
 | `ACC-024` | "Refuse normal authentication" now names what withdrawal does: the account becomes `DEACTIVATED`, its sessions end, login is refused, and no password reset is issued. | "Normal" implied another path stayed open. None does: `AccountService#withdrawInternship` has deactivated the account and expired its sessions since 20 August 2026. That decision exists only in code, so it is listed below for the instructor. |
 | `NOT-010` | "The relevant Leader and Mentor" on revocation or supersession is now the issuing Leader and the owning Mentor. | The code notifies exactly those two, the same pair the rule already named for an answered invitation. |
-| `UI-010` | "Adequate target size" is now at least 24 by 24 CSS pixels. | `product.md` already commits the interface to WCAG 2.2 AA interaction requirements, and success criterion 2.5.8 sets that minimum. The smallest icon-only control today, a collapsed sidebar link, is 39 pixels wide. |
+| `UI-010` | "Adequate target size" is now at least 24 by 24 CSS pixels. | `shared_context.md` already commits the interface to WCAG 2.2 AA interaction requirements, and success criterion 2.5.8 sets that minimum. The smallest icon-only control today, a collapsed sidebar link, is 39 pixels wide. |
 | `PRJ-009` | States first that direct removal is refused while the member owns a worked unfinished Task, pointing to `TSK-022`. | Read alone, the rule promised a transfer that `TSK-022` and the code refuse. |
 | Appendix C, UC-02, UC-05, UC-06, UC-14 | UC-14 still described the 17 August exit flow, in which approval itself moved the Tasks. It now describes the flow `PRJ-008`, `PRJ-010` and `PRJ-022` require: replacement first, Leader transfer batches, approval refused until nothing is left. UC-05 and UC-06 gained the worked-Task refusal, the estimate, the forecast and the `D12` deletion; UC-02 no longer says "normal write access". | The use cases were kept almost word for word from 17 August while 52 of their traced rules changed. `ProjectService#approveExit` and `#directRemoveMember` confirm the current rules. |
 | §5.2 and Appendix F | The permission matrix gained rows for deleting a `PLANNED` Project and for the Task estimate. Two message families no longer offer the old "assisted transfer to current Leader". | Same cause as the row above. |
@@ -1011,3 +1011,11 @@ reverses it.
 | `COR-006` and `D14` | An approved correction confirms the time only. Excused violations are decided in principle under `D14`. | Who starts an exception, its deadlines, and whether leave and corrections move to the responsible Mentor. |
 | Daily Project Work Report | **Decided 14 September 2026** under `D15`: a Task view and an Intern view, so variance is shown once per Task. | Nothing open. |
 | `D13` | **Decided 14 September 2026.** Block, unblock, and reopen only. | Nothing open. |
+
+## Earlier record: Task estimate and remaining-effort forecasts
+
+Formerly `.sdd/rfcs/ADR-001-task-effort-forecast.md`, moved here unchanged on 14
+September 2026 because it records a business decision rather than an architectural
+one. `D15` has since widened when a forecast may be recorded.
+
+> The original Task estimate remains the immutable whole-Task planning baseline after the first work log. When an unfinished Task with retained work is reassigned, the current Project Leader records an append-only Remaining effort forecast with the actual-effort snapshot and reassignment context; this preserves both original planning variance and the latest delivery forecast without overwriting history. We rejected replacing the baseline because it would compare lifetime multi-author effort with the latest assignee context, and rejected per-assignment estimates because the product does not retain assignment periods and does not use estimates to evaluate individual Interns.

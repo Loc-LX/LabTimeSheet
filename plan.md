@@ -25,8 +25,7 @@ and integration commits, is in git history: `git show 702d1a5:plan.md`.
 
 ## Now
 
-- Nothing is in progress. The documentation restructure finished on 14 September 2026: guides under `docs/guides/`, `.sdd/shared_context.md` as the stack reference, this file as the tracker, the dead verification script removed, and `src/test/js/spec-structure-contract.test.mjs` checking the specs in CI.
-- Small leftover: assumptions `A1`, `A3` and `A4` in `.sdd/product.md` still describe evidence records and fixture dates that no longer exist.
+- Nothing is in progress. The documentation restructure finished on 14 September 2026. Documents now live in two places: `.sdd/` for the specs, decisions and context, and the repository root for how to work. `src/test/js/spec-structure-contract.test.mjs` checks the specs and every documentation link in CI.
 
 ## Next
 
@@ -39,7 +38,7 @@ and integration commits, is in git history: `git show 702d1a5:plan.md`.
 
 | Item | Waiting on | Recorded in |
 |---|---|---|
-| `D14`: who starts an attendance exception, its deadlines, whether leave and corrections move to a responsible Mentor | the laboratory | `open-decisions.md` `D14`, attendance spec notes |
+| `D14`: who starts an attendance exception, its deadlines, whether leave and corrections move to a responsible Mentor | the laboratory | `decisions.md` `D14`, attendance spec notes |
 | Move the sixteen rules that belong to one feature out of `feature-platform` | maintainer | not yet recorded |
 | Split rules that span several features (`UI-019`, `AUTH-003`, `AUTH-004`, `AUTH-009`, `AUTH-011`, `DB-008`) | after the platform plan | not yet recorded |
 | Constitution: the `GOV-014` row in Known enforcement gaps still proposes a test that cannot be written | maintainer, specific wording | platform spec notes |
@@ -54,7 +53,7 @@ Work that checks the code against the specification. It follows the plans, not
 the other way round.
 
 - **A test suite derived from the specification.** Agreed method: derive each rule's expectation from the spec first, then look for an existing test. Agreement keeps the test and tags it with the rule; disagreement is a finding; absence means a new test. Needs Docker.
-- **Rule identifiers in 88 existing test classes**, so that `.sdd/reviews/traceability.md` can be generated. It currently has 34 rows whose status is unreconciled.
+- **Rule identifiers in 88 existing test classes**, so that a rule-to-test report can be generated instead of kept by hand.
 - **The Iteration 3 and 4 integration gates.** Most of their checks are acceptance scenarios now: `AC-RPT-001` (format parity), `AC-SEC-004` (production refusal), `AC-OPS-003` (bundled and external PostgreSQL), plus historical stability and concurrency.
 - **The end-to-end suite has never run.** No workflow runs `npm run test:e2e`, and it needs the application and PostgreSQL.
 - **Known test gaps:** the edit clause of `LEV-012` and the eligible-workday clause of `LEV-002` survived mutation.

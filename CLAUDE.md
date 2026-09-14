@@ -136,7 +136,7 @@ current specification, not older wording in either direction.
 them. Do not edit the specification back to match the code.
 
 **Verify a path before trusting its name.** The specification lives in
-`.sdd/specs/`, one spec per feature, indexed by `.sdd/requirements.md`. Some dated records cite an
+`.sdd/specs/`, one spec per feature, with shared rules in `feature-platform`. Some dated records cite an
 older location; they are left as written.
 
 ## Useful commands

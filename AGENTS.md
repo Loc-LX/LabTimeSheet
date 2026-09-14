@@ -23,10 +23,9 @@ Check these before assuming anything. When two disagree, the higher row wins.
 | Question | Authority |
 |---|---|
 | What must always be true | [`.sdd/constitution.md`](.sdd/constitution.md) |
-| What the system must do | [`.sdd/specs/`](.sdd/specs), eight specs of numbered rules, indexed by [`.sdd/requirements.md`](.sdd/requirements.md) |
+| What the system must do | [`.sdd/specs/`](.sdd/specs), one spec per feature; shared rules in `feature-platform` |
 | Why a decision was made | [`.sdd/rfcs/`](.sdd/rfcs) |
 | What is being worked on now, and what waits | [`plan.md`](plan.md) |
-| What behavior is already proven | [`.sdd/reviews/traceability.md`](.sdd/reviews/traceability.md), rule to test class |
 
 `plan.md` is the only progress tracker. A feature's `PLAN.md` under `.sdd/specs/` is its technical design, not a second tracker.
 
@@ -123,7 +122,7 @@ you skipped a step, say which. Do not claim a suite is green unless you ran it.
 If the requirements and the code disagree, stop and say so. Do not silently
 change working code to match a document, and do not silently change a document
 to match code. That disagreement is a decision for a person. It is recorded in
-`.sdd/reviews/open-decisions.md`, and produces an ADR only when it moves an
+`.sdd/decisions.md`, and produces an ADR only when it moves an
 architectural boundary.
 
 ---

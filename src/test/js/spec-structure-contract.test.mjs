@@ -68,7 +68,7 @@ function markdownFiles(dir) {
  * by hand at least once during that restructuring.
  *
  * Expected values are derived from GOV-016 and the spec layout recorded in
- * .sdd/requirements.md: eight numbered sections plus notes, in that order; one
+ * .sdd/specs/_template.md: eight numbered sections plus notes, in that order; one
  * row per identifier across all specs; the newest changelog heading equal to
  * the version in the spec header.
  */

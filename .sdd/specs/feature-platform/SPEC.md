@@ -2,8 +2,7 @@
 
 **Version:** 1.1.0 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-14
 
-Part of the Lab Timesheet specification. [`.sdd/requirements.md`](../../requirements.md) indexes every
-spec, rule prefix, and original section number. Rules every feature shares, including the
+Part of the Lab Timesheet specification. Rules every feature shares, including the
 glossary, the authorization model, the domain model, and failure handling, are in
 [the platform spec](../feature-platform/SPEC.md). Section numbers marked `§` are the
 numbers the rules carried in the single-file specification and are kept so existing
@@ -54,7 +53,7 @@ error" can be written and approved without anyone deciding what the error is;
 `WHERE report generation fails, THE system SHALL return an error` forces the
 sentence to name it. Rewriting this document into EARS on 12 September 2026
 surfaced four such gaps, recorded as D6 through D9 in
-[`reviews/open-decisions.md`](../../reviews/open-decisions.md).
+[`decisions.md`](../../decisions.md).
 
 **Twenty-eight rules are deliberately not in EARS**, because they bind people
 rather than the system and no `THE system SHALL` sentence would be true of them:
@@ -117,7 +116,7 @@ When statements conflict, use this precedence from highest to lowest:
 > or Task and decides no leave, correction, or attendance exception, and the Admin dashboard stays
 > as `UI-019` states. The instructor expects to withdraw part of this later, so each Admin
 > capability is its own row of the §5.2 matrix and is decided by the one authorization policy of
-> `AUTH-012`. Recorded as `D1` in `.sdd/reviews/open-decisions.md`.
+> `AUTH-012`. Recorded as `D1` in `.sdd/decisions.md`.
 
 | ID | Requirement |
 |---|---|
@@ -1167,13 +1166,13 @@ approval. They validate the code against the specification, so they need the
 specification fixed first and follow approval rather than preceding it. Until
 14 September 2026 this list named that review as its third condition, which made
 approval wait for a check that could only run after approval. The change and its
-reasoning are recorded as `D11` in [`reviews/open-decisions.md`](../../reviews/open-decisions.md).
+reasoning are recorded as `D11` in [`decisions.md`](../../decisions.md).
 
 **Approved on 14 September 2026** by Loc-LX, the maintainer, as version 1.0.0 of each spec under
 `.sdd/specs/`. The approval was given knowing that questions remain for the instructor, who
 holds domain authority, and that `D13` is a disagreement between code and rules not yet
 resolved; each is listed in the Notes section of the spec it affects and in
-[`reviews/open-decisions.md`](../../reviews/open-decisions.md). An answer that changes a rule
+[`decisions.md`](../../decisions.md). An answer that changes a rule
 changes that spec's version and is recorded in its `CHANGELOG.md`.
 
 A document may

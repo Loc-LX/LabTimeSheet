@@ -48,7 +48,7 @@ class ProjectTaskShellContractTest {
      * classed {@code <main>}. The assertion now states the intent the method is named after, that
      * the tab strip is the first thing inside {@code <main>}, and it is stricter than the text it
      * replaced because the replaced fragment must be {@code projectTabs} rather than any fragment.
-     * Same finding as {@code D10} in {@code .sdd/reviews/open-decisions.md}, second instance.
+     * Same finding as {@code D10} in {@code .sdd/decisions.md}, second instance.
      *
      * @param relativeTemplate template path below {@code src/main/resources/templates}
      */

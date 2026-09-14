@@ -2,8 +2,7 @@
 
 **Version:** 1.0.0 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-14
 
-Part of the Lab Timesheet specification. [`.sdd/requirements.md`](../../requirements.md) indexes every
-spec, rule prefix, and original section number. Rules every feature shares, including the
+Part of the Lab Timesheet specification. Rules every feature shares, including the
 glossary, the authorization model, the domain model, and failure handling, are in
 [the platform spec](../feature-platform/SPEC.md). Section numbers marked `§` are the
 numbers the rules carried in the single-file specification and are kept so existing

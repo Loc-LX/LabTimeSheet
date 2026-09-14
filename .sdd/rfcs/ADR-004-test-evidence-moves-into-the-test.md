@@ -53,13 +53,13 @@ that a milestone is not green until affected suites pass all stand. Only the
 place the evidence lives has changed.
 
 `docs/tests/` is deleted. The rule-to-test mapping it carried was extracted first
-and lives in [`../reviews/traceability.md`](../reviews/traceability.md).
+and lives in `.sdd/reviews/traceability.md`, a hand-kept file removed on 14 September 2026.
 
 ## Rationale
 
 1. **A trace in the source survives a rename.** Two records already pointed at classes that no longer exist, and nothing detected it, because a Markdown file has no compiler.
 2. **A trace in the source can be read back mechanically.** The report of which rules have no test becomes generated rather than maintained, which removes the class of error where the report and the tests disagree.
-3. **The records could not be reproduced.** 104 of 150 embed a path from a machine this project no longer has. A contributor on another platform cannot follow them, which A1 in [`../product.md`](../product.md) already records as a live risk.
+3. **The records could not be reproduced.** 104 of 150 embed a path from a machine this project no longer has. A contributor on another platform cannot follow them, which A1 in [`../shared_context.md`](../shared_context.md) already records as a live risk.
 4. **The rule that forbids this practice was already written.** `TST-008` says a Markdown claim does not replace executable evidence. The practice it forbids is the one `TST-005` mandated.
 
 ## Consequences

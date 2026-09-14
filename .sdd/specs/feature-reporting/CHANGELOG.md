@@ -5,7 +5,7 @@ and why. A change that alters a rule raises the version.
 
 ## 1.1.0 — 2026-09-14
 
-Decisions `D1` and `D15`, recorded in [`.sdd/reviews/open-decisions.md`](../../reviews/open-decisions.md).
+Decisions `D1` and `D15`, recorded in [`.sdd/decisions.md`](../../decisions.md).
 
 - `RPT-005` and `RPT-011` give an active Admin read-only Project/Task and Daily reports with export; `AC-RPT-002`, `AC-RPT-004` and `UC-12` follow.
 - `RPT-012` uses the new effort terms. **Added `RPT-014`** and `AC-RPT-006`: a Task view with planning values once per Task, and an Intern view with minutes only.
@@ -21,4 +21,4 @@ specification at `.sdd/requirements.md` (commit `fdd5ee1`), with one exception:
 Sections 1, 2, 4, 5, 6 and 8 and the notes were written for this spec.
 
 Changes made to these rules during the review before approval are recorded in
-[`.sdd/reviews/open-decisions.md`](../../reviews/open-decisions.md).
+[`.sdd/decisions.md`](../../decisions.md).

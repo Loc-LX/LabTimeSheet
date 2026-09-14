@@ -10,7 +10,7 @@
 | Signed by | — |
 | Last updated | 2026-09-14 |
 | Amendment | see [Amendment](#amendment); the mechanism depends on the kind of change |
-| Full rule text | [`.sdd/requirements.md`](requirements.md) |
+| Full rule text | [`.sdd/specs/`](specs) |
 
 **Status is `DRAFT` on purpose.** A constitution is normally signed at the start
 of a project, because without one a team ends up working to several conventions
@@ -263,7 +263,7 @@ referenced from everywhere else.
 
 | Change | What it needs |
 |---|---|
-| Change or withdraw a rule that already exists | The spec that holds the rule and an entry in its `CHANGELOG.md`, with the decision and its evidence recorded in `.sdd/reviews/open-decisions.md`. An ADR under [`.sdd/rfcs/`](rfcs) only when the change sets or moves an architectural boundary. |
+| Change or withdraw a rule that already exists | The spec that holds the rule and an entry in its `CHANGELOG.md`, with the decision and its evidence recorded in `.sdd/decisions.md`. An ADR under [`.sdd/rfcs/`](rfcs) only when the change sets or moves an architectural boundary. |
 | Add a rule inside the scope already agreed | A numbered requirement in the spec of the feature it belongs to and an acceptance scenario in section 7 of that spec. No ADR. |
 | Cross something `GOV-007`, `GOV-008` or `GOV-015` declares excluded | A recorded decision lifting the exclusion, and an ADR when the exclusion is architectural (`GOV-007`); then the numbered requirement and scenario. |
 

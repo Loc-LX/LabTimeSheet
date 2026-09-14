@@ -60,7 +60,7 @@ class FrontendSourceContractTest {
      * {@code src/test/js/narrow-screen-contract.test.mjs} requires that block to exist, so the two
      * assertions demanded incompatible stylesheets and this one contradicted {@code UI-015}, which
      * asks a narrower viewport to wrap or scroll rather than be blocked. Recorded as {@code D10} in
-     * {@code .sdd/reviews/open-decisions.md}. Containment is asserted through the two declarations
+     * {@code .sdd/decisions.md}. Containment is asserted through the two declarations
      * that still carry it.
      */
     @Test

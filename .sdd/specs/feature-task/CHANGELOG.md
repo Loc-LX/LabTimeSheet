@@ -5,7 +5,7 @@ and why. A change that alters a rule raises the version.
 
 ## 1.1.0 — 2026-09-14
 
-Decisions `D13` and `D15`, recorded in [`.sdd/reviews/open-decisions.md`](../../reviews/open-decisions.md).
+Decisions `D13` and `D15`, recorded in [`.sdd/decisions.md`](../../decisions.md).
 
 - `TSK-007` keeps the transition graph and gives the assignee all of it; **added `TSK-023`** for block, unblock and reopen by the current Leader and owning Mentor, decided by role, scope, current and target status. `TSK-009` lets a `DONE` Task be reopened by either route before reassignment.
 - `TSK-021` defines current Remaining effort, Current Work, and variance as Current Work minus the estimate; **added `TSK-024`** so the Leader can append a forecast whenever the prediction changes.
@@ -17,4 +17,4 @@ Approved by Loc-LX. The rules moved here unchanged from the single-file
 specification at `.sdd/requirements.md` (commit `fdd5ee1`). Sections 1, 2, 4, 5, 6 and 8 and the notes were written for this spec.
 
 Changes made to these rules during the review before approval are recorded in
-[`.sdd/reviews/open-decisions.md`](../../reviews/open-decisions.md).
+[`.sdd/decisions.md`](../../decisions.md).

@@ -5,7 +5,7 @@ and why. A change that alters a rule raises the version.
 
 ## 1.1.0 — 2026-09-14
 
-Decisions `D1`, `D12`, `D13`, `D15` and `D16`, recorded in [`.sdd/reviews/open-decisions.md`](../../reviews/open-decisions.md).
+Decisions `D1`, `D12`, `D13`, `D15` and `D16`, recorded in [`.sdd/decisions.md`](../../decisions.md).
 
 - **Added `AUTH-012`** and `AC-AUTH-011`: one authorization policy decides every business permission from role, scope, current state and target state, with one entry per matrix capability. The architectural decision is `ADR-005`.
 - **Admin reads every report.** §1.1 gains a revision block, the §5.2 matrix splits report access into one row per report, `UI-019`, `AC-UI-005` and the page map give an Admin read-only Attendance, Project/Task and Daily navigation.
@@ -26,4 +26,4 @@ specification at `.sdd/requirements.md` (commit `fdd5ee1`), with these exception
 - The single-file header was replaced by the document table in section 1. Its quality-gate statement, that no open question remained, was dropped because it is no longer true.
 
 Changes made to these rules during the review before approval are recorded in
-[`.sdd/reviews/open-decisions.md`](../../reviews/open-decisions.md).
+[`.sdd/decisions.md`](../../decisions.md).
