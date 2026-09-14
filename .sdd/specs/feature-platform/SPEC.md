@@ -1,6 +1,6 @@
 # Platform Spec
 
-**Version:** 1.2.6 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-14
+**Version:** 1.2.7 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-14
 
 Part of the Lab Timesheet specification. Rules every feature shares, including the
 glossary, the authorization model, the domain model, and failure handling, are in
@@ -76,12 +76,14 @@ something false.
 
 When statements conflict, use this precedence from highest to lowest:
 
-1. Current decisions made by the primary implementor.
-2. Decisions explicitly approved during the Codex brainstorming review.
-3. The current Codex handoff.
-4. Instructor-confirmed requirements.
-5. The friend's earlier requirements answers.
-6. The original Claude document, which is superseded.
+1. [`.sdd/constitution.md`](../../constitution.md).
+2. The feature specs under `.sdd/specs/`, where each rule has its one canonical location (`GOV-016`). Within a spec, a dated revision supersedes the text it names.
+3. `AGENTS.md`, `CONTRIBUTING.md`, and `CLAUDE.md`.
+4. Code and tests. Where they disagree with a spec, the code changes.
+
+[`.sdd/decisions.md`](../../decisions.md) and the ADRs under `.sdd/rfcs/` record why a rule reads as it does; they do not outrank the spec. Where one is newer than the spec it concerns, the spec is stale and is corrected. The maintainer decides a change under the constitution's Amendment section, and the instructor confirms decisions marked provisional.
+
+Until 14 September 2026 this list ranked sources by who produced them: the primary implementor's current decisions, an earlier brainstorming review and handoff, instructor-confirmed requirements, earlier requirements answers, and a superseded first draft. The dated revisions below still cite that order as it stood.
 
 > **Latest reporting-role revision — 27 August 2026.** The current approved handoff supersedes
 > earlier Admin-positive reporting language in this review draft and its historical evidence.
@@ -1207,7 +1209,7 @@ This split becomes active only after this specification and DDL are approved.
 | ID | Requirement |
 |---|---|
 | OPS-018 | Platform shall publish a reviewed baseline containing shared build, security, schema, and package contracts before parallel feature work begins. |
-| OPS-019 | Shared build, migration, security, navigation, and base-template files shall have one named owner at a time. A targeted fix shall use a clean, isolated `work/fix/<feature>/<what-fix>` branch from the taskmaster-verified current `main`; `work/<feature>/fix/<what-fix>` is invalid because a persistent `work/<feature>` ref already occupies that Git ref prefix. Contributors shall not revert or rewrite another branch's work. |
+| OPS-019 | Shared build, migration, security, navigation, and base-template files shall have one named owner at a time. A targeted fix shall use a clean, isolated `work/fix/<feature>/<what-fix>` branch from the current `main`; `work/<feature>/fix/<what-fix>` is invalid because a persistent `work/<feature>` ref already occupies that Git ref prefix. Contributors shall not revert or rewrite another branch's work. |
 | OPS-020 | Integration order shall be platform, projects, tasks and attendance after their dependencies pass, then reports/UI. Cross-module conflicts shall be resolved by the integrator. |
 | OPS-021 | Team members shall commit medium-sized green milestones to their respective branches; no plan item authorizes push, merge, deployment, or publication by this documentation task. |
 
@@ -1269,6 +1271,7 @@ Validation performed on 14 August 2026 established the review artifacts below. T
 
 > Since 14 September 2026 each use case sits in section 3 of the spec of the feature it exercises; `UC-04` sits in the attendance spec. `UC-06` has covered Task estimates and Remaining effort forecasts since the same date.
 
-### Constitution changes awaiting agreement
+### Constitution changes
 
-- On 14 September 2026 the constitution's Amendment table, its `GOV-014` rows, its `GOV-015` summary, and its engineering standards (`ARC-009`, `TST-011`) were changed with the maintainer's agreement. Ten wording ambiguities remain to be drafted and reviewed before the constitution is locked.
+- On 14 September 2026 the constitution's Amendment table, its `GOV-014` rows, its `GOV-015` summary, and its engineering standards (`ARC-009`, `TST-011`) were changed with the maintainer's agreement.
+- The same day its layers were ranked by how strictly a rule binds (`D20`): `TST-011`, `ARC-009` and `GOV-006` moved to Layer 1, `AUTH-002` and `SEC-013` joined Layer 1, `AUTH-012` and `SEC-007` joined Layer 2, and the ten wording ambiguities were resolved. The constitution stays `DRAFT` until a last contradiction check.

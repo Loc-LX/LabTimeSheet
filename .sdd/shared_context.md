@@ -70,7 +70,7 @@ records and fixture dates they described no longer exist.
 | A2 | The separate `labtimesheet-docs-hub` repository stays reachable. | The design DDL and the reference and mockup images live only there. The specification names them and cannot render them. |
 | A5 | The programme runs on one server in one timezone. | `GOV-011` resolves business dates in the policy timezone and `SEC-007` keeps login throttle state in memory. Neither survives multi-node deployment. |
 | A6 | Interns hold at most one internship at a time. | `intern_profiles` carries one lifecycle per account; a second concurrent internship has no representation. |
-| A7 | The instructor or product owner is available to decide requirement conflicts. | `GOV-001` puts the primary implementor at the top of the authority order. With nobody in that role, a requirement conflict has no tiebreaker and stalls. |
+| A7 | The instructor or product owner is available to confirm provisional business decisions. | The maintainer decides changes under the constitution's Amendment section and the instructor confirms decisions marked provisional (`GOV-001`). Without the instructor, provisional decisions stay provisional rather than stall. |
 
 # Part 2 — Technology stack
 

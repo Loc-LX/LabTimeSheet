@@ -62,6 +62,7 @@ changes one, its status here changes first.
 | D17 | What to do with `work/tasks-lab-b5` and `work/tasks-sync` | Superseded history; not merged, not a source of truth | none |
 | D18 | Whether native SQL may stay in a service | No; special queries go through the data-access layer | `ARC-006` |
 | D19 | Whether the suite must pass on Windows without extra flags | Yes; the timezone is normalized in test configuration | none |
+| D20 | How the constitution ranks rules, and what outranks what | Layers by how strictly a rule binds; one authority order by document type | `GOV-001`, `OPS-019`, constitution |
 
 D1 through D5 came from reading the specification against its own history. D6
 through D9 came from the audit described at the end of this page, which read the
@@ -1043,6 +1044,20 @@ current code.
 on Windows without anyone remembering `-Duser.timezone`, so the timezone is normalized in
 test configuration that every Spring test context reaches. This answers the question
 `ADR-003` left for a future decision.
+
+## D20. How does the constitution rank rules, and what outranks what?
+
+**Decided on 14 September 2026 by Loc-LX**, after reviewing the ten constitution
+ambiguities listed in `plan.md`.
+
+- The three layers rank rules by how strictly they bind. Layer 1 admits no exception, Layer 2 only through an approved ADR, Layer 3 a documented deviation. Subject is a grouping inside a layer. Before, the layers named who may authorize an exception while eleven of fourteen Layer 3 rows admitted none, so Layer 3 could not be told apart from Layer 1.
+- `TST-011`, `ARC-009` and `GOV-006` move to Layer 1, because no reason excuses weakening an assertion, editing an applied migration, or silently widening scope. `AUTH-002` and `SEC-013` join Layer 1; `AUTH-012` and `SEC-007` join Layer 2, `SEC-007` because it rests on production running one instance.
+- A standing deviation names its owner, its reason, and the condition that ends it. The first covers `TST-005` and `TST-007` for test classes written before `ADR-004`.
+- The authority order of `GOV-001` named superseded sources and not the constitution, the specs, or this page. It now ranks by document type: the constitution, the feature specs, the agent and contributor guides, then code and tests. This page and the ADRs explain the specs rather than outrank them.
+- `OPS-019` drops "taskmaster-verified", a role from the retired iteration plan.
+- The constitution header names the instructor as business reviewer, not signer, and carries version `1.0.0-draft` until it is locked.
+
+**Status:** decided. The constitution stays `DRAFT` until a last contradiction check.
 
 ## What the audit checked and found sound
 

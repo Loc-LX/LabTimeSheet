@@ -2,11 +2,11 @@
 
 | Field | Value |
 |---|---|
-| Version | 1.0.0 |
+| Version | `1.0.0-draft`; becomes `1.0.0` when the status becomes `LOCKED` |
 | Status | `DRAFT`, awaiting sign-off |
 | Applies to | every developer, every AI agent, every pull request |
 | Maintainer | Loc-LX |
-| Supervisor | not yet assigned |
+| Business reviewer | the instructor; confirms decisions marked provisional in [`.sdd/decisions.md`](decisions.md) and does not sign this document |
 | Signed by | — |
 | Last updated | 2026-09-14 |
 | Amendment | see [Amendment](#amendment); the mechanism depends on the kind of change |
@@ -31,14 +31,20 @@ specification, states how strictly it binds, and names the test that enforces it
 The full normative wording stays in one place so the two documents cannot drift
 apart.
 
-Three layers. They say who may authorize an exception, not how negotiable a rule
-is. Whether an exception exists at all is stated by the rule's own row.
+A rule is indexed here when it is a hard rule, an architectural constraint, or an
+engineering standard that holds across features. Feature business rules, such as who
+approves a request, a deadline, or a quota, are not indexed. They change under
+Amendment in their own spec, and the tests that protect them name them in their own
+source (`TST-005`).
 
-| Layer | Meaning | Who may authorize an exception |
+Three layers, ranked by how strictly a rule binds. Within a layer, rules are grouped
+by subject.
+
+| Layer | Meaning | Exception |
 |---|---|---|
-| 1 | Domain and security invariants. A breach is a defect regardless of deadline. | Nobody |
-| 2 | Architectural boundary. | An approved ADR |
-| 3 | Engineering standard binding the people who work here. | Per rule. Most admit none, and the row says so. |
+| 1 | Hard rule. A breach is a defect regardless of deadline. | None, and nobody may grant one. |
+| 2 | Architectural constraint. | Only through an approved ADR. |
+| 3 | Engineering standard that holds across features. | A documented deviation, as Layer 3 describes. |
 
 ---
 
@@ -59,7 +65,8 @@ is. Whether an exception exists at all is stated by the rule's own row.
 
 | ID | Rule | Enforced by |
 |---|---|---|
-| `SEC-001` | Session authentication, server-side authorization, object ownership checks, CSRF protection, Bean Validation, and output escaping are always on. | no single test; see the note below |
+| `AUTH-002` | A hidden control is never authorization. An unauthenticated caller is sent to sign-in; a record the caller may not see and a record that does not exist return the same not-found response. | Partly. `ProjectControllerTest#guessedProjectIdReturnsTheSameNotFoundResponseAsAMissingProject` shows a denied Project read becomes a 404, but it mocks the denial and never compares it with a missing Project. Nothing asserts the hidden-control clause. |
+| `SEC-001` | Session authentication, server-side authorization, object ownership checks, CSRF protection, Bean Validation, output escaping, and password hashing stay on under every profile, including development and test. | no single test; see [Known enforcement gaps](#known-enforcement-gaps) |
 | `SEC-002` | Passwords are 12 to 128 characters and use the delegating adaptive encoder. No composition rules. | `PasswordResetIntegrationTest#resetPostRejectsPasswordsOutsideTheTwelveToOneTwentyEightCharacterBounds` |
 | `SEC-003` | Activation and reset tokens use cryptographically secure random bytes. Only the 32-byte SHA-256 hash is stored. | `PasswordResetIntegrationTest#resetTokenPersistsOnlyItsHashExpiresExclusivelyAndIsSingleUse` |
 | `SEC-004` | Activation tokens expire after 24 hours, reset tokens after 30 minutes. Issuing a token invalidates the older one. | `PasswordResetIntegrationTest#resetTokenExpiresAtExactlyThirtyMinutes`, `AccountRecoveryIntegrationTest#resendInvalidatesPriorActivationTokenBeforeSendingFreshLink` |
@@ -68,20 +75,23 @@ is. Whether an exception exists at all is stated by the rule's own row.
 | `SEC-008` | Redirect targets are allow-listed and local. State-changing endpoints reject open redirects and user-supplied class names. | `NotificationActionContractTest#acceptsOnlySafeRelativeApplicationRoutes`, `OriginEnforcementFilterTest#mismatchedOriginIsRejectedForStateChangingRequests` |
 | `SEC-009` | Error pages never expose stack traces, SQL, secrets, internal IDs from unauthorized records, or existence signals. | `SharedErrorTemplateWebTest` |
 | `SEC-010` | Production requires an HTTPS public base URL and explicit trusted-proxy configuration before it is considered ready. | `ProductionReadinessTest#productionOriginIsCanonicalAndRejectsBracketedIpv6Loopback` |
-| `SEC-011` | Production responses carry HSTS, a restrictive content policy, frame denial, and referrer suppression. Session cookies are `Secure`, `HttpOnly`, `SameSite=Strict`. | referrer only, in `SecurityResponseIntegrationTest#authenticationAndActivationResponsesDoNotSendReferrers`; the rest is a gap |
+| `SEC-011` | Production responses carry HSTS, a restrictive content policy, frame denial, and referrer suppression. Session cookies are `Secure`, `HttpOnly`, `SameSite=Strict`. | referrer only, in `SecurityResponseIntegrationTest#authenticationAndActivationResponsesDoNotSendReferrers`; see [Known enforcement gaps](#known-enforcement-gaps) |
 | `SEC-012` | Forwarded headers are trusted only on an explicitly enabled and constrained proxy path. | `TrustedForwardedHeaderFilterTest#untrustedSocketWithForwardedHeadersIsRejectedBeforeHeaderAdaptation` |
+| `SEC-013` | Development and test profiles may relax HTTPS, localhost origins, `SameSite`, HSTS, and `Secure` cookies. The relaxations come only from development or test profile state and never reach production. | Partly. `ProductionReadinessTest#unsafeProductionInputsFailWithoutEchoingSecrets` shows production readiness refusing a localhost origin, a non-`Secure` cookie, and `lax` cookies together with other unsafe inputs, so no single relaxation is shown to be refused alone. Nothing checks HSTS under the production profile. |
 | `SEC-014` | Production startup fails when the master key, public origin, datasource, or proxy policy is absent or unsafe. | `ProductionReadinessTest#unsafeProductionInputsFailWithoutEchoingSecrets` |
 
-`SEC-001` is too broad for one test. `SecurityConfiguration` builds the filter
-chain, and every `*WebTest` that asserts a denial exercises one slice of it. No
-test asserts the rule as a whole, so treat the row as a description of intent
-rather than a claim of coverage.
+Gaps in the rows above are listed under [Known enforcement gaps](#known-enforcement-gaps).
 
-`SEC-011` is the sharpest gap on this page. `AC-SEC-008` fixes exact directive
-values for `Strict-Transport-Security`, the content policy, frame ancestors, and
-the cookie attributes, and no test reads a single one of them back. The headers
-are configured in `SecurityConfiguration`; nothing proves they survive a change
-to it.
+### Process integrity
+
+These bind the people who build the system rather than the running system, and no
+deadline or documented reason excuses a breach.
+
+| ID | Rule | Enforced by |
+|---|---|---|
+| `TST-011` | A test assertion is never weakened or deleted to make a test pass. | review; nothing automated can tell a weakened assertion from a corrected one |
+| `ARC-009` | An applied Flyway migration is never edited; a schema change adds a new migration. | Flyway's checksum validation, which neither `application-dev.yaml` nor `application-prod.yaml` disables; no test edits a migration to show it |
+| `GOV-006` | A feature absent from the specification needs a new reviewed decision. Adjacent scope is never silently authorized. | review; nothing checks it |
 
 ### Secrets
 
@@ -121,6 +131,8 @@ stated so that a reviewer knows to ask, not because anything here enforces them.
 | `ARC-006` | Controllers bind validated DTOs and delegate to services; services use repositories and entities. A feature may call another feature's service contract and DTOs but never its repositories or entities. No business SQL. Flyway and schema verification are the only direct-SQL boundary. | `LayerStructureTest` |
 | `ARC-007` | Flyway is the sole production schema authority. JPA schema generation is validation-only outside disposable tests. | `PlatformFoundationTest#flywayCreatesApprovedPostgresCatalog` |
 | `ARC-008` | The reviewed `database-schema.sql` is a design baseline rather than an executable artifact. It is adapted into Flyway migrations and never executed against production. | nothing here; the artifact is not in this repository and the adaptation is already done. `ARC-007` carries the obligation that still binds |
+| `AUTH-012` | Every business permission is decided by one authorization policy from the actor's role, the actor's scope, the record's current state, and the target state. No role check outside the policy decides a business permission; route protection may stay coarse, and a template only asks the policy what to show. | nothing yet; not implemented. `ADR-005` records the decision and `AC-AUTH-011` the scenario |
+| `SEC-007` | Login throttle state may live in bounded memory and resets on restart, because production runs one application instance. A manual account lock is persisted separately. | `LoginThrottleTest#capacityPressureNeverEvictsAnActiveBlock` covers the bounded memory; nothing shows a manual lock is kept apart from throttle state |
 
 ### Delivery
 
@@ -160,25 +172,28 @@ document overrides the canonical location of a rule.
 
 ## Layer 3 — Engineering standards
 
-These bind the people who work here rather than the running system, which is why
-they carry no enforcement column. Most admit no exception at all.
+These are engineering standards that hold across features. They carry no enforcement
+column, because review and the definition of done below are what hold them.
 
-| ID | Rule | Exception |
+A contributor may deviate from one only with a documented reason. A one-off deviation
+names the rule and the reason in its commit message or pull request. A standing
+deviation is listed under [Standing deviations](#standing-deviations) with its owner,
+its reason, and the condition that ends it. A rule that must never be deviated from
+belongs in Layer 1.
+
+| ID | Rule | Deviation |
 |---|---|---|
-| `TST-001` | Every feature, fix, refactor, or behavior change follows strict RED, verified failure, minimal GREEN, verified narrow pass. | None in practice; see `TST-009` |
-| `TST-002` | Production behavior written before its failing test is discarded and reimplemented from the failing test. | None |
-| `TST-003` | Each test names the observable break it catches and derives expected values independently, never mirroring production code. | None |
+| `TST-001` | Every feature, fix, refactor, or behavior change follows strict RED, verified failure, minimal GREEN, verified narrow pass. | Documented reason; `TST-009` names where it does not apply |
+| `TST-002` | Production behavior written before its failing test is discarded and reimplemented from the failing test. | Documented reason |
+| `TST-003` | Each test names the observable break it catches and derives expected values independently, never mirroring production code. | Documented reason |
 | `TST-004` | Real components are used at the relevant boundary. Only slow or external dependencies such as SMTP and HolidayAPI are faked. | Documented reason |
-| `TST-005` | Each test names, in its own source, the numbered requirements it protects. | None |
-| `TST-006` | One test class covers one cohesive behavior, not one production class. Test packages mirror the feature packages they exercise. | None |
-| `TST-007` | The trace records the requirement and scenario identifiers, the observable break, and the hand-derived expected result. | None |
-| `TST-008` | A verification run records its own commands, results, and resolved tool versions. A written claim never replaces an executable run. | None |
-| `TST-009` | Human prose and simple configuration do not receive artificial unit tests. Their evidence is the smallest executable validation. | This rule is itself the documented exception to `TST-001` |
-| `TST-010` | A milestone is committed only when evidence is current, narrow and affected suites are green, and no unexplained error or warning remains. | None |
-| `TST-011` | A test assertion is never weakened or deleted to make a test pass. | None |
-| `ARC-009` | An applied Flyway migration is never edited; a schema change adds a new migration. | None |
-| `GOV-006` | A feature absent from the specification needs a new reviewed decision. Adjacent scope is never silently authorized. | None |
-| `OPS-019` | Shared build, migration, security, navigation, and base-template files have one named owner at a time. | None |
+| `TST-005` | Each test names, in its own source, the numbered requirements it protects. | Documented reason; see [Standing deviations](#standing-deviations) |
+| `TST-006` | One test class covers one cohesive behavior, not one production class. Test packages mirror the feature packages they exercise. | Documented reason |
+| `TST-007` | The trace records the requirement and scenario identifiers, the observable break, and the hand-derived expected result. | Documented reason; see [Standing deviations](#standing-deviations) |
+| `TST-008` | A verification run records its own commands, results, and resolved tool versions. A written claim never replaces an executable run. | Documented reason |
+| `TST-009` | Human prose and simple configuration do not receive artificial unit tests. Their evidence is the smallest executable validation. | This rule names where `TST-001` does not apply |
+| `TST-010` | A milestone is committed only when evidence is current, narrow and affected suites are green, and no unexplained error or warning remains. | Documented reason |
+| `OPS-019` | Shared build, migration, security, navigation, and base-template files have one named owner at a time. A targeted fix uses a clean, isolated `work/fix/<feature>/<what-fix>` branch from the current `main`, never `work/<feature>/fix/<what-fix>`. Contributors do not revert or rewrite another branch's work. | Documented reason, coordinated with the owner |
 
 `TST-008` is the rule that the errors in this document's own enforcement columns
 violated: a written claim that a test protects a rule never replaces the run that
@@ -190,6 +205,12 @@ This row carried the superseded wording until 12 September 2026. `ADR-004`
 replaced it, the specification was updated, and the index was not. The error is
 recorded rather than quietly overwritten because it is the same failure the
 paragraph above describes.
+
+### Standing deviations
+
+| Rule | Deviation | Owner | Reason | Ends when |
+|---|---|---|---|---|
+| `TST-005`, `TST-007` | Test classes written before `ADR-004` (12 September 2026) do not name the rules they protect or record their trace. On 14 September 2026, 15 of 123 test classes named a rule identifier. | Loc-LX | Retrofitting every class at once would rewrite tests without changing what they prove. | Each class names its rules and records its trace the next time it is changed. |
 
 ### Definition of done
 
@@ -207,8 +228,9 @@ A tracked item is `DONE` only when all of the following hold.
 - Authorization and negative cases are covered where applicable.
 - PostgreSQL-specific rules are tested against PostgreSQL, not H2.
 - Concurrency, deadline, and history behavior has proportionate evidence.
-- UI behavior uses server-side authorization and shared fragments.
-- Documentation and evidence paths are recorded in the tracker.
+- UI behavior is authorized on the server, never by hiding a control (`AUTH-002`), and pages use the reusable fragments of `UI-008` rather than page-local copies.
+- Each test names the numbered rules it protects in its own source (`TST-005`), and the run that shows it passing records its commands, results, and tool versions (`TST-008`). The tracker records the item's state, never its evidence.
+- Where the item changes business behavior, the spec that holds the rule already says so, with its `CHANGELOG.md` entry (`GOV-016`).
 - New or changed production types and public or protected methods carry accurate Javadoc written during implementation. The Iteration 1 retrofit is the only exception.
 - No unrelated files or another branch's ownership area were changed without coordination, which is `OPS-019`.
 - The final branch head is green.
@@ -308,13 +330,19 @@ name looks plausible.
 
 | Rule | What is missing | What would close it |
 |---|---|---|
-| `SEC-011` | No test reads back any security header. `AC-SEC-008` fixes exact values for HSTS, the content policy, frame ancestors, and the cookie attributes, and none is asserted. | One web test that inspects the response headers against `AC-SEC-008`. |
-| `SEC-001` | The rule is broader than any single test. Slices are covered by the denial assertions scattered through the web tests. | Accept it as an intent statement, or narrow it into rules that can each be asserted. |
+| `SEC-011` | The highest-priority gap on this page. No test reads back any security header. `AC-SEC-008` fixes exact values for HSTS, the content policy, frame ancestors, and the cookie attributes, and none is asserted. | One web test that inspects the response headers against `AC-SEC-008`. |
+| `SEC-001` | The rule is broader than any single test. `SecurityConfiguration` builds the filter chain, and every web test that asserts a denial exercises one slice of it. | Accept it as an intent statement, or narrow it into rules that can each be asserted. |
+| `AUTH-002` | No test compares the response for a record the caller may not see with the response for a record that does not exist, and none asserts that a hidden control grants nothing. | A web test per protected record type that requests an existing unauthorized identifier and an absent one and asserts the same status, view, and model. |
+| `SEC-013` | Production readiness is tested only against all development values at once, and nothing checks HSTS or `Secure` cookies under the production profile. | Fold into the `SEC-011` header test: under the production profile, assert each relaxation is absent. |
 | `GOV-004` | Relies on the two domains staying in separate features with no shared read path. | A test asserting that no reporting query joins attendance to work logs. |
 | `GOV-011` | The cited test only canonicalizes a timezone alias before startup. Nothing asserts that a business date resolves against the applicable policy version's timezone. | A test that sets a JVM default different from the policy timezone and checks the resulting business date. |
 | `GOV-014` | Relies on schema constraints in `V1__baseline.sql`. | A test asserting that only an eligible empty `PLANNED` draft can be physically deleted, and that no other route, service, or interface operation physically deletes the Project data `GOV-014` protects. |
 | `ARC-001` | The build fails on the wrong Java version, which proves the version and not the architecture. | An architecture test asserting the module shape, alongside `LayerStructureTest`. |
 | `ARC-002` | `ReportingDependencyContractTest` covers the reporting libraries only. | Extend it to the rest of the declared stack, or accept the narrower claim. |
+| `AUTH-012` | Not implemented. Role checks in `SecurityConfiguration`, services, and templates still decide business permissions. | The matrix-driven test of `AC-AUTH-011`, run through the policy `ADR-005` describes. |
+| `SEC-007` | Nothing shows that a manual account lock is kept apart from the in-memory throttle state. | A test that recreates the throttle and asserts a manually locked account is still refused. |
+| `TST-011`, `GOV-006` | Review is the only control. | Nothing automated can close it; a reviewer checks that a changed assertion follows a recorded decision and that new scope has one. |
+| `ARC-009` | Relies on Flyway checksum validation staying enabled; no test shows an edited migration is refused. | A test that applies the migrations, alters one, and expects validation to fail. |
 | `ARC-008` | Nothing in this repository can enforce it. `database-schema.sql` was authored in the separate documentation repository, stayed there, and has never appeared in any commit here, which the specification header states. The row previously claimed a Flyway catalog test as its enforcement; that test cannot observe an absent file. | Nothing, and that is the point. The rule records a completed one-time adaptation. `ARC-007` is what binds future schema work, and it is enforced. |
 | `OPS-016`, `OPS-017` | Both describe runner configuration. A repository cannot verify its own runner. | An operator confirms it outside this repository; nothing here can. |
 

@@ -3,6 +3,14 @@
 Each entry records a change to [SPEC.md](SPEC.md): the version, the date, what changed,
 and why. A change that alters a rule raises the version.
 
+## 1.2.7 — 2026-09-14
+
+Decision `D20`, recorded in [`.sdd/decisions.md`](../../decisions.md).
+
+- §1.1, the authority order of `GOV-001`, now ranks by document type: the constitution, the feature specs, the agent and contributor guides, then code and tests. The old list named superseded sources and not the constitution, the specs, or the decision record.
+- `OPS-019` drops "taskmaster-verified", a role from the retired iteration plan.
+- The notes record the constitution's new layer semantics; no rule text of `TST-011`, `ARC-009`, `GOV-006`, `SEC-007`, `SEC-013`, `AUTH-002` or `AUTH-012` changed.
+
 ## 1.2.6 — 2026-09-14
 
 Decision `D14`, recorded in [`.sdd/decisions.md`](../../decisions.md).

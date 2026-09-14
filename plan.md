@@ -29,7 +29,7 @@ and integration commits, is in git history: `git show b71fc29:plan.md`.
 
 ## Next
 
-1. Draft the ten constitution ambiguities for one review; lock the constitution only after that review and a last contradiction check (items 13, 15).
+1. A last contradiction and enforcement-gap check of the constitution, then lock it (item 15). The ten ambiguities of item 13 are resolved (`D20`).
 2. Make `./mvnw test` pass on Windows without the timezone flag (`D19`).
 3. Run the full Maven suite, including the integration tests, and the end-to-end suite. `npm run test:ui` passing alone is not enough to merge.
 4. Merge into `main` only after step 3 passes (item 22). Pushing the branch as a backup and merging into `main` are separate actions, each needing its own permission.
@@ -42,7 +42,6 @@ and integration commits, is in git history: `git show b71fc29:plan.md`.
 |---|---|---|
 | Confirmation of `D12`, `D13`, `D14`, `D15`, all provisional | the instructor | `decisions.md` |
 | Split rules that span several features (`UI-019`, `AUTH-003`, `AUTH-004`, `AUTH-009`, `AUTH-011`, `DB-008`) | after the platform plan | this file |
-| Constitution: no stated criterion for which rules it indexes; no `AUTH` row although `AUTH-002` is a Layer 1 kind of invariant; `SEC-007` and `SEC-013` omitted, and `SEC-001` loses "under every profile"; `OPS-019` row keeps half its rule; the definition-of-done bullet on "evidence paths in the tracker" predates `ADR-004`; "shared fragments" undefined; unused `Supervisor` row; version `1.0.0` while unsigned; `SEC-011`'s gap stated twice | drafts from the agent, then the maintainer | this file |
 
 ## Validation backlog
 
