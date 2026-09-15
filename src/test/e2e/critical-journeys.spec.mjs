@@ -115,7 +115,8 @@ test('Iteration 3 setup and critical Admin/Intern/Mentor journeys', async ({ pag
   await page.getByRole('button', { name: 'Change status' }).click();
   await expect(page.getByText('IN_PROGRESS', { exact: true })).toBeVisible();
   await page.getByLabel('Work date').fill(dates.today);
-  await page.getByLabel('Minutes').fill('90');
+  // The Task page also has "Estimate (minutes; …)", so match the work-log field's exact label.
+  await page.getByLabel('Minutes', { exact: true }).fill('90');
   await page.getByLabel('Note').fill('Browser-created work log');
   await page.getByRole('button', { name: 'Log work' }).click();
   await expect(page.getByText('Browser-created work log')).toBeVisible();
@@ -123,7 +124,10 @@ test('Iteration 3 setup and critical Admin/Intern/Mentor journeys', async ({ pag
   await expect(page.getByRole('heading', { name: 'Project History' })).toBeVisible();
   await page.getByRole('tab', { name: 'Task activity' }).click();
   await expect(page.getByText(taskTitle, { exact: true })).toBeVisible();
-  await expect(page.getByText('Browser-created work log')).toBeVisible();
+  // Each Task's retained activity is a collapsed <details> entry; open this Task's entry first.
+  const taskHistoryEntry = page.locator('details.history-task-item').filter({ hasText: taskTitle });
+  await taskHistoryEntry.locator('summary').click();
+  await expect(taskHistoryEntry.getByText('Browser-created work log')).toBeVisible();
 
   await signIn(page, mentor);
   await page.goto('/reports/project-tasks');
