@@ -1,6 +1,6 @@
 # Platform Spec
 
-**Version:** 1.2.9 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-15
+**Version:** 1.2.10 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-15
 
 Part of the Lab Timesheet specification. Rules every feature shares, including the
 glossary, the authorization model, the domain model, and failure handling, are in
@@ -22,8 +22,8 @@ This spec holds what every feature shares. It is not a feature in the code; the 
 | Database baseline | PostgreSQL 18.4, 24 application tables |
 | Companion DDL | `database-schema.sql`, not tracked in this repository |
 | Review state | Approved as version 1.0.0 on 14 September 2026; open questions are listed in each spec |
-| Normative rules | 293 across the eight specs |
-| Acceptance scenarios | 141 across the eight specs |
+| Normative rules | 294 across the eight specs |
+| Acceptance scenarios | 142 across the eight specs |
 
 > **Companion files.** This document was authored in a separate documentation
 > repository and copied here on 26 August 2026. Its companion `database-schema.sql`
@@ -1142,10 +1142,10 @@ documents a working product.
 
 | Measure | Value |
 |---|---:|
-| Normative rules, sections 1–22 | 293 |
-| Rules with a §20 acceptance scenario | 274 |
+| Normative rules, sections 1–22 | 294 |
+| Rules with a §20 acceptance scenario | 275 |
 | Rules declared without one, with reason | 19 |
-| Acceptance scenarios | 141 |
+| Acceptance scenarios | 142 |
 | Flyway application tables | 24 |
 
 The specification quality review in §20 and the twelve-point gate once recorded in the

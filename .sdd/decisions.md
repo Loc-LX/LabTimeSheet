@@ -63,6 +63,7 @@ changes one, its status here changes first.
 | D18 | Whether native SQL may stay in a service | No; special queries go through the data-access layer | `ARC-006` |
 | D19 | Whether the suite must pass on Windows without extra flags | Yes; the timezone is normalized in test configuration; done 15 September 2026 | none |
 | D20 | How the constitution ranks rules, and what outranks what | Layers by how strictly a rule binds; one authority order by document type | `GOV-001`, `OPS-019`, constitution |
+| D21 | Whether a Project may start before the day it is entered | Yes; the start date is Project metadata, and retroactive work stays governed by `TSK-014`. Provisional | `PRJ-024` |
 
 D1 through D5 came from reading the specification against its own history. D6
 through D9 came from the audit described at the end of this page, which read the
@@ -1075,6 +1076,19 @@ ambiguities listed in `plan.md`.
 **Status:** decided. **Locked on 15 September 2026** by Loc-LX as version `1.0.0`, after
 `./mvnw -B test` passed 755 tests on Windows with no timezone flag (`D19`) and the reverse
 enforcement check corrected `GOV-004` and `GOV-011`.
+
+## D21. May a Project start before the day it is entered?
+
+**Decided on 15 September 2026 by Loc-LX**, after the first end-to-end run failed because
+the Project form and `ProjectService` refused any start date before today. That check
+had been in the code since 25 August 2026, and no rule in the specification asked for it.
+
+- Yes. A Project may be created with a start date in the past, today, or in the future, and its end date must not precede its start (`PRJ-024`). A Project that began a week ago can be entered today without falsifying its history. ENTERPRISE-BACKED: project-scheduling tools default a new project to today but let its start date be set earlier, and record actual starts that already happened.
+- A past start date does not open retroactive Task work. Which dates a work log may carry stays with `TSK-014`, which refuses a date before the member joined; the initial Leader joins when the Project is entered. ADAPTED: the laboratory keeps the Project's dates and the right to log work as separate rules.
+- The earlier suggestion to keep the check by analogy with `LEV-012` was rejected. Refusing retroactive leave says nothing about when a Project may have started.
+- The code changes to match the rule; the end-to-end journey that enters a Project starting seven days earlier stays as it is and now proves the case.
+
+**Status:** provisional, pending instructor confirmation.
 
 ## What the audit checked and found sound
 

@@ -3,6 +3,13 @@
 Each entry records a change to [SPEC.md](SPEC.md): the version, the date, what changed,
 and why. A change that alters a rule raises the version.
 
+## 1.3.0 — 2026-09-15
+
+Decision `D21`, recorded in [`.sdd/decisions.md`](../../decisions.md). Marked provisional, pending instructor confirmation.
+
+- **Added `PRJ-024`**: a Project may be created with a start date in the past, today, or in the future; the end date must not precede it. A past start date does not open retroactive Task work, which `TSK-014` still limits to dates within the member's membership. The code had refused past start dates since 25 August 2026 with no rule behind it; the first end-to-end run found it on 15 September 2026.
+- Added `AC-PRJ-016`.
+
 ## 1.2.1 — 2026-09-14
 
 Relocation only; no rule text changed. `AUTH-006`, `AUTH-007`, `DB-011`, `DB-012` moved here from the platform spec because they concern only this feature, with `AC-AUTH-003`, `AC-AUTH-007`, `AC-DB-002`.
