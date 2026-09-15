@@ -31,7 +31,7 @@ and integration commits, is in git history: `git show b71fc29:plan.md`.
 
 ## Next
 
-1. Merge into `main` (item 22) after one more full Maven run on the branch head. The 15 September run (755 tests, no timezone flag, `D19`) predates `PRJ-024`, whose 118 Project tests pass; the end-to-end suite passes. Pushing the branch as a backup and merging into `main` are separate actions, each needing its own permission.
+1. Merge into `main` (item 22). Every check before it has passed on the branch head `1ee043e`: the full Maven suite (757 tests, no timezone flag, `D19`), the end-to-end suite, and `npm run test:ui`. The merge reaches `main` by review, not by an agent's commit. Pushing the branch as a backup and merging into `main` are separate actions, each needing its own permission.
 2. Verify the application end to end: `scripts/demo-seed.sql` loads, the end-to-end suite passes, the main business flows work; then demonstrate to the instructor (item 23).
 3. `PLAN.md` for `feature-platform` (`AUTH-012`, `ADR-005`), then `feature-task`, `feature-project`, `feature-reporting`, `feature-attendance`.
 
@@ -58,6 +58,6 @@ the other way round.
 ## Environment
 
 - Maven needs JDK 25; the default `JAVA_HOME` on the maintainer's machine is JDK 8. JDK 25 is at `/c/Users/Admin/AppData/Roaming/Code/User/globalStorage/pleiades.java-extension-pack-jdk/java/25`.
-- On Windows run the suite as `./mvnw -B test`, with Docker Desktop running and browsers closed. The last full run, on 15 September 2026, passed 755 tests with no failures and no timezone flag. An earlier attempt the same day stopped after 238 passing tests when the machine ran out of memory.
+- On Windows run the suite as `./mvnw -B test`, with Docker Desktop running and browsers closed. The last full run, on 15 September 2026 at `1ee043e`, passed 757 tests with no failures and no timezone flag. An earlier attempt the same day stopped after 238 passing tests when the machine ran out of memory.
 - `npm run test:ui` passes 26 of 26, including the six spec-structure checks.
 - Playwright 1.62.1 needs Chromium build 1234; run `npx playwright install chromium` after a Playwright update. The end-to-end run of 15 September used `LAB_E2E_START_INSTANT=2026-09-15T01:00:00Z`, `E2E_BUSINESS_DATE=2026-09-15` and `E2E_DB_CONTAINER=labtimesheet-e2e-postgres`, as `CONTRIBUTING.md` describes.
