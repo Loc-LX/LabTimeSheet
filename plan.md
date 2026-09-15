@@ -15,6 +15,7 @@ ahead of `origin/main`, nothing pushed.
 |---|---|
 | Delivery, Iterations 1–4 | Built. Every tracked item is done; the Iteration 3 and 4 integration gates were never run. |
 | Specification | Approved. Eight specs; each version is in its spec header and `CHANGELOG.md`. `D14` is closed and, like `D12`, `D13` and `D15`, provisional. |
+| Constitution | Locked as version `1.0.0` on 15 September 2026 (`D20`). |
 | Technical plans (`PLAN.md`) | Not started. |
 | Task breakdown (`TASKS.md`) | Not started. |
 | Implementation of the 14 September decisions | Not started; the code still follows the earlier rules. |
@@ -29,11 +30,10 @@ and integration commits, is in git history: `git show b71fc29:plan.md`.
 
 ## Next
 
-1. Lock the constitution (item 15). Its ten ambiguities and the last contradiction and enforcement-gap check are done (`D20`), and the full Maven suite, including the integration tests, passed on Windows on 15 September 2026 without a timezone flag (`D19`). Locking waits only for the maintainer's agreement.
-2. Run the end-to-end suite. `npm run test:ui` passing alone is not enough to merge.
-3. Merge into `main` only after steps 1 and 2 (item 22). Pushing the branch as a backup and merging into `main` are separate actions, each needing its own permission.
-4. Verify the application end to end: `scripts/demo-seed.sql` loads, the end-to-end suite passes, the main business flows work; then demonstrate to the instructor (item 23).
-5. `PLAN.md` for `feature-platform` (`AUTH-012`, `ADR-005`), then `feature-task`, `feature-project`, `feature-reporting`, `feature-attendance`.
+1. Run the end-to-end suite. The full Maven suite, including the integration tests, passed on Windows on 15 September 2026 without a timezone flag (`D19`); `npm run test:ui` passing alone is not enough to merge.
+2. Merge into `main` only after step 1 (item 22). Pushing the branch as a backup and merging into `main` are separate actions, each needing its own permission.
+3. Verify the application end to end: `scripts/demo-seed.sql` loads, the end-to-end suite passes, the main business flows work; then demonstrate to the instructor (item 23).
+4. `PLAN.md` for `feature-platform` (`AUTH-012`, `ADR-005`), then `feature-task`, `feature-project`, `feature-reporting`, `feature-attendance`.
 
 ## Waiting on a decision
 

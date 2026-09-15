@@ -1072,7 +1072,9 @@ ambiguities listed in `plan.md`.
 - Changing the constitution itself needs the maintainer's agreement, a decision here, and a new version: major when an obligation is removed or weakened, minor when one is added, patch for wording.
 - The constitution is locked only after a current full test run backs its enforcement column; the last one was on 13 September 2026.
 
-**Status:** decided. The constitution stays `DRAFT` until that run.
+**Status:** decided. **Locked on 15 September 2026** by Loc-LX as version `1.0.0`, after
+`./mvnw -B test` passed 755 tests on Windows with no timezone flag (`D19`) and the reverse
+enforcement check corrected `GOV-004` and `GOV-011`.
 
 ## What the audit checked and found sound
 

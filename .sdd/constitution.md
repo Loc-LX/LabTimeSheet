@@ -2,27 +2,28 @@
 
 | Field | Value |
 |---|---|
-| Version | `1.0.0-draft`; becomes `1.0.0` when the status becomes `LOCKED` |
-| Status | `DRAFT`; locked after a current full test run backs the enforcement column |
+| Version | `1.0.0` |
+| Status | `LOCKED` |
 | Applies to | every developer, every AI agent, every pull request |
 | Maintainer | Loc-LX |
 | Business reviewer | the instructor; confirms decisions marked provisional in [`.sdd/decisions.md`](decisions.md) and does not sign this document |
-| Signed by | — |
-| Last updated | 2026-09-14 |
+| Signed by | Loc-LX, 2026-09-15 |
+| Last updated | 2026-09-15 |
 | Amendment | see [Amendment](#amendment); the mechanism depends on the kind of change |
 | Full rule text | [`.sdd/specs/`](specs) |
 
-**Status is `DRAFT` on purpose.** A constitution is normally signed at the start
+**Locked on 15 September 2026.** A constitution is normally signed at the start
 of a project, because without one a team ends up working to several conventions
-at once. This project reached iteration four
-before the document existed, so the signature is outstanding rather than early.
+at once. This project reached iteration four before the document existed, so it
+was signed late rather than early. It was locked once its layers, its enforcement
+column and its gaps had been checked, and a full run of `./mvnw -B test` had passed
+755 tests the same day.
 
-Unsigned does not mean optional. These rules bind now, both as the practice this
-project already follows and as the authority `AGENTS.md` defers to in its own
-opening paragraph. What the signature changes is the amendment path. Once the
-maintainer accepts the rules below the status becomes `LOCKED`, and from then on
-a rule changes through the process under Amendment rather than by editing this
-file.
+The rules bound before the signature too, both as the practice this project
+already followed and as the authority `AGENTS.md` defers to in its own opening
+paragraph. What the signature changed is the amendment path. From now on this
+document changes only through the last row of the table under Amendment, and a
+rule it indexes changes through the row that fits that change.
 
 This document is canonical for four things only: each indexed rule's layer and
 exception, the standing deviations, the definition of done, and the AI agent policy.

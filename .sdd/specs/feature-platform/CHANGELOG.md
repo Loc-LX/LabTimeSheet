@@ -3,6 +3,10 @@
 Each entry records a change to [SPEC.md](SPEC.md): the version, the date, what changed,
 and why. A change that alters a rule raises the version.
 
+## 1.2.9 — 2026-09-15
+
+Notes only; no rule changed. The note on constitution changes records that the constitution was locked as version `1.0.0` on 15 September 2026.
+
 ## 1.2.8 — 2026-09-14
 
 Decision `D20`, recorded in [`.sdd/decisions.md`](../../decisions.md).
