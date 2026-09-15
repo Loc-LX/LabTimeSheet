@@ -469,6 +469,34 @@ class ProjectServiceIntegrationTest {
         assertEquals(1, count("select count(*) from tasks where project_id = ? and deleted_at is null", projectId));
     }
 
+    /**
+     * Protects {@code PRJ-024}. Observable break: a Mentor entering a Project that began a week
+     * ago is refused, so the Project is either not recorded or recorded with a false start date.
+     * Expected: the Project commits with its 7 August start while the server date is 14 August,
+     * and the initial Leader's membership still begins at the server time of creation, not on
+     * 7 August, so the past start opens no work dates before the Leader joined ({@code TSK-014}).
+     */
+    @Test
+    void mentorEntersAProjectThatStartedAWeekBeforeItWasCreated() {
+        long mentorId = user("mentor-past-start@example.test", "MENTOR");
+        long leaderId = intern("leader-past-start@example.test", "I024");
+
+        long projectId = projectService.create(
+                mentorId,
+                new ProjectCreateCommand(
+                        "Already Running Project",
+                        null,
+                        LocalDate.of(2026, 8, 7),
+                        LocalDate.of(2026, 9, 30),
+                        leaderId));
+
+        assertEquals("2026-08-07", text("select start_date::text from projects where id = ?", projectId));
+        assertEquals("PLANNED", text("select status from projects where id = ?", projectId));
+        assertEquals(NOW, jdbc.queryForObject(
+                "select joined_at from project_memberships where project_id = ? and left_at is null",
+                OffsetDateTime.class, projectId).toInstant());
+    }
+
     private long createProject(long mentorId, long leaderId, String name) {
         return projectService.create(
                 mentorId,
