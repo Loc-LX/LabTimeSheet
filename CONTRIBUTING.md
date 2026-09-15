@@ -183,6 +183,25 @@ npx playwright test src/test/e2e/report-journeys.spec.mjs --project=chromium
 npx playwright show-report
 ```
 
+Run the journeys against a disposable database, never the development one: the
+critical journey bootstraps the first administrator, so it needs an empty schema. A
+throwaway container on another port works, with the application pointed at it through
+`LAB_DB_URL`, `LAB_DB_USERNAME` and `LAB_DB_PASSWORD`:
+
+```bash
+docker run -d --name labtimesheet-e2e-postgres -e POSTGRES_DB=labtimesheet \
+  -e POSTGRES_USER=labtimesheet -e POSTGRES_PASSWORD=e2e-disposable \
+  -p 127.0.0.1:55433:5432 --tmpfs /var/lib/postgresql postgres:18.4
+```
+
+The correction journey seeds its own precondition, a previous-workday attendance row
+with no checkout, from `src/test/e2e/fixtures/missed-checkout.sql`. Set
+`E2E_DB_CONTAINER=labtimesheet-e2e-postgres` so it can, or it is skipped. Because a
+correction opens after the checkout cutoff and closes at the next day's scheduled end,
+run it with `E2E_BUSINESS_DATE` on a Tuesday to Friday and the application's `e2e` clock
+before that day's scheduled end, for example
+`LAB_E2E_START_INSTANT=<business date>T01:00:00Z` (08:00 in Vietnam).
+
 Set `PLAYWRIGHT_BASE_URL` only when the application is not at
 `http://127.0.0.1:8080`. The credential-gated report journey reads `E2E_EMAIL` and
 `E2E_PASSWORD` from the shell and never stores a password in the repository.
