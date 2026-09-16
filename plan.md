@@ -16,7 +16,7 @@ ahead of `origin/main`, nothing pushed.
 | Delivery, Iterations 1–4 | Built. Every tracked item is done; the Iteration 3 and 4 integration gates were never run. |
 | Specification | Approved. Eight specs; each version is in its spec header and `CHANGELOG.md`. `D14` is closed and, like `D12`, `D13`, `D15`, `D21` and `D23`–`D25`, provisional. |
 | Constitution | Locked as version `1.0.0` on 15 September 2026 (`D20`). |
-| Technical plans (`PLAN.md`) | Not started. |
+| Technical plans (`PLAN.md`) | `feature-platform` drafted on 16 September 2026 and awaiting approval; the other seven not started. |
 | Task breakdown (`TASKS.md`) | Not started. |
 | Implementation of the 14 and 16 September decisions | Not started; the code still follows the earlier rules. |
 | Validation against the specification | Not started. |
@@ -34,7 +34,7 @@ and integration commits, is in git history: `git show b71fc29:plan.md`.
 
 1. Merge into `main` (item 22). Every check before it has passed on the branch head `1ee043e`: the full Maven suite (757 tests, no timezone flag, `D19`), the end-to-end suite, and `npm run test:ui`. The merge reaches `main` by review, not by an agent's commit. Pushing the branch as a backup and merging into `main` are separate actions, each needing its own permission.
 2. Verify the application end to end: `scripts/demo-seed.sql` loads, the end-to-end suite passes, the main business flows work; then demonstrate to the instructor (item 23).
-3. `PLAN.md` for `feature-platform` (`AUTH-012`, `ADR-005`), then `feature-task`, `feature-project`, `feature-reporting`, `feature-attendance`.
+3. `PLAN.md` for each feature. The platform plan is drafted and carries two things the others depend on: the one authorization policy of `AUTH-012`, and the single `V3` migration the recorded decisions need. Then `feature-attendance`, `feature-task`, `feature-project`, `feature-reporting`, and the three that change least.
 
 ## Waiting on a decision
 
