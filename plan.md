@@ -16,7 +16,7 @@ ahead of `origin/main`, nothing pushed.
 | Delivery, Iterations 1–4 | Built. Every tracked item is done; the Iteration 3 and 4 integration gates were never run. |
 | Specification | Approved. Eight specs; each version is in its spec header and `CHANGELOG.md`. `D12`–`D15`, `D21` and `D23`–`D25` were confirmed for build by the maintainer on 16 September 2026, so no rule waits on a signature. |
 | Constitution | Locked on 15 September 2026 (`D20`); amended to `1.0.1` on 16 September for wording (`D26`). |
-| Technical plans (`PLAN.md`) | `feature-platform` approved at `1.0` on 16 September 2026, with no open question; the other seven not started. |
+| Technical plans (`PLAN.md`) | `feature-platform` approved at `1.0`; `feature-attendance` drafted at `0.1`, awaiting approval. Six not started: task, project, reporting, account, notification, integration. |
 | Task breakdown (`TASKS.md`) | Not started. |
 | Implementation of the 14 and 16 September decisions | Not started; the code still follows the earlier rules. |
 | Validation against the specification | Not started. |
@@ -35,7 +35,7 @@ and integration commits, is in git history: `git show b71fc29:plan.md`.
 
 1. Merge into `main` (item 22). Every check passed at `1ee043e`: the full Maven suite (757 tests, no timezone flag, `D19`), the end-to-end suite, and `npm run test:ui`. Since then the only change under `src/` is `src/test/js/spec-structure-contract.test.mjs`, which Maven neither compiles nor runs; it passes 29 of 29 under `npm run test:ui` at the current head. No Java source, resource or `pom.xml` has changed, so the Maven and end-to-end results still stand. This line expires the moment a commit touches a Java source, a resource, or `pom.xml`: from then on it is stale until the suites are run again and this line names the new commit. The merge reaches `main` by review, not by an agent's commit. Pushing the branch as a backup and merging into `main` are separate actions, each needing its own permission.
 2. Verify the application end to end: `scripts/demo-seed.sql` loads, the end-to-end suite passes, the main business flows work; then demonstrate to the instructor (item 23).
-3. `PLAN.md` for each feature. The platform plan is drafted, carries no open question since `D27`, and holds two things the others depend on: the one authorization policy of `AUTH-012`, and the single `V3` migration the recorded decisions need. Then `feature-attendance`, `feature-task`, `feature-project`, `feature-reporting`, and the three that change least.
+3. `PLAN.md` for each feature. The platform plan is approved and holds two things the others depend on: the one authorization policy of `AUTH-012`, and the single `V3` migration the recorded decisions need. The attendance plan follows it and is the largest of the seven, because `D14`, `D23` and `D24` put periods, exceptions and one adjustment clock into a feature that has none of them. Then `feature-task`, `feature-project`, `feature-reporting`, and the three that change least.
 
 ## Waiting on a decision
 
