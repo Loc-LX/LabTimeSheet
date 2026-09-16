@@ -1,6 +1,6 @@
 # Platform Plan
 
-**Version:** 0.4 · **Owner:** Loc-LX · **Status:** DRAFT, awaiting approval · **Date:** 2026-09-16
+**Version:** 0.5 · **Owner:** Loc-LX · **Status:** DRAFT, awaiting approval · **Date:** 2026-09-16
 
 How the platform rules of [SPEC.md](SPEC.md) will be built. It is a technical design, not
 a tracker: progress belongs in [`plan.md`](../../../plan.md). The rules themselves are in
@@ -25,12 +25,12 @@ single feature.
 own `PLAN.md`. Also out: `GOV-007`, `GOV-008` and `GOV-015` exclusions, the deployment
 pipeline, and any change to the specification itself.
 
-**No longer blocked on the instructor.** `D12`–`D15`, `D21` and `D23`–`D25` were
-confirmed for build by the maintainer on 16 September 2026, so the rules each of them adds
-or removes a column for are settled and the schema of §3 may be written. One question is
-still open and still blocks step 5: §3.3 below asks what the migration does with the
-months that predate it. If the instructor later revises one of these decisions, it arrives
-as a new decision and this plan is amended with the spec.
+**Nothing in this plan is blocked.** `D12`–`D15`, `D21` and `D23`–`D25` were confirmed
+for build by the maintainer on 16 September 2026, and `D27` answered the last open
+question the same day: the migration gives every month worked before it a period and then
+applies `ATT-020` to it as the running system would. So the schema of §3 may be written
+and every step of §4 may start. If the instructor later revises one of these decisions, it
+arrives as a new decision and this plan is amended with the spec.
 
 ## 2. Design: one authorization policy
 
@@ -168,7 +168,7 @@ each one is a business question as much as a technical one.
 
 | Case | What must happen | Why it is not obvious |
 |---|---|---|
-| Months already worked | Create a period per Intern and month that has attendance, and decide its state | Closing them retroactively locks data nobody reviewed; leaving them open means a Mentor can still change months from August. The plan proposes: create them, close every month before the migration, and record the migration itself as the actor |
+| Months already worked | Create a period per Intern and month that has attendance, then apply `ATT-020` to each: finalize it where 23:59 on the fifth day of its following month has passed and no leave or correction affecting it is pending or overdue, and leave it open otherwise | Closing them retroactively locks data nobody reviewed; leaving them open means a Mentor can still change months from August. Decided in `D27`: neither, because `ATT-020` already answers it. An earlier draft of this row proposed closing every past month outright with the migration as the actor, which would have contradicted `ATT-020` on exactly the months with something still undecided |
 | The responsible Mentor | Every Intern already `ACTIVE` needs one, because `ACC-026` and `ACC-021` require the assignment before an internship becomes `ACTIVE` | The rule was written after the data. No mentor can be inferred: owning a Project the Intern belongs to is not the same relation. The plan proposes: leave it empty, let `ACC-026` show those Interns to Admins as needing one, and refuse a decision until an Admin assigns |
 | `locked_at` on corrections | `D14` removed the lock, so the column stops being written | Dropping a column with history in it is not reversible. The plan proposes: stop writing it, keep the values as a record of what the old rule did, and let the next schema review drop it |
 | New status values | `CANCELLED`, `OVERDUE`, `WITHDRAWN` widen a constraint rather than narrow it | Widening is safe for existing rows. The 48-hour deadlines are not: `attendance_corrections` stores its two deadlines per row, so rows already submitted keep the deadlines they were given, and only new rows use 48 hours |
@@ -209,11 +209,12 @@ only when the step it depends on is green.
 | 2 | Introduce the policy and the capability catalogue; move the three Admin report checks behind it, and remove from `TaskService#changeStatus` the capability the matrix does not grant, namely an owning Mentor setting any status | `AUTH-012`, the refusal half of `TSK-023` | 1 |
 | 3 | Move the remaining role decisions in services and templates behind the policy, file by file, keeping `SecurityConfiguration` as coarse route protection | `AUTH-012`, `AUTH-002` | 2 |
 | 4 | Withdraw one Admin capability in the catalogue and prove only that cell changes | `AC-AUTH-011` second half, `D1` | 3 |
-| 5 | Write the `V3` migration of §3, its constraints, its data migration, and the specification change §3.4 names | §3 rules, `DB-010`, `GOV-016` | question 1 of §7 |
+| 5 | Write the `V3` migration of §3, its constraints, its data migration, and the specification change §3.4 names | §3 rules, `DB-010`, `GOV-016`, `D27` | — |
 | 6 | Close the platform gaps the constitution lists: security headers read back, development relaxations refused under production, a not-found response identical for unauthorized and absent records, and a build check for business SQL outside a repository | `SEC-011`, `SEC-013`, `AUTH-002`, `ARC-006` | 3 |
 
-Steps 1, 2, 3, 4 and 6 need no schema change and are blocked by nothing. Step 5 waits on
-one answer, question 1 of §7, about the months that predate the migration.
+Steps 1, 2, 3, 4 and 6 need no schema change. Step 5 does, and since `D27` it waits on
+nothing either; it stays last because §3.4 makes it the step that also moves the
+specification, and that is easier to review once the policy of steps 1 to 4 is in place.
 
 **What step 2 deliberately leaves out.** `TSK-023` has two halves. Refusing what the matrix
 does not grant needs no storage, and belongs here. Granting the Leader and the Mentor block,
@@ -249,14 +250,11 @@ identifiers in the test source.
 
 ## 7. Open questions
 
-| # | Question | Owner | Blocks |
-|---|---|---|---|
-| 1 | §3.3 proposes closing every month that predates the migration, with the migration itself recorded as the actor. Does the laboratory accept that, or should those months stay open for a Mentor to review first? | Loc-LX | Step 5 |
-
-A plan with an open question is not ready for implementation. One question remains, it is
-the maintainer's, and it blocks only step 5. Steps 1, 2, 3, 4 and 6 are clear. The
-confirmation of `D12`–`D15`, `D21` and `D23`–`D25` was the other question and was answered
-on 16 September 2026: the maintainer confirmed them for build rather than hold the plan.
+None. A plan with an open question is not ready for implementation, and the two this plan
+carried were both answered on 16 September 2026. The confirmation of `D12`–`D15`, `D21`
+and `D23`–`D25` was one: the maintainer confirmed them for build rather than hold the
+plan. What the migration does with the months that predate it was the other, answered by
+`D27`. Every step of §4 is clear.
 
 ### 7.1 Closed in review, 16 September 2026
 

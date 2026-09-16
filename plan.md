@@ -15,8 +15,8 @@ ahead of `origin/main`, nothing pushed.
 |---|---|
 | Delivery, Iterations 1–4 | Built. Every tracked item is done; the Iteration 3 and 4 integration gates were never run. |
 | Specification | Approved. Eight specs; each version is in its spec header and `CHANGELOG.md`. `D12`–`D15`, `D21` and `D23`–`D25` were confirmed for build by the maintainer on 16 September 2026, so no rule waits on a signature. |
-| Constitution | Locked as version `1.0.0` on 15 September 2026 (`D20`). |
-| Technical plans (`PLAN.md`) | `feature-platform` drafted on 16 September 2026 and awaiting approval; the other seven not started. |
+| Constitution | Locked on 15 September 2026 (`D20`); amended to `1.0.1` on 16 September for wording (`D26`). |
+| Technical plans (`PLAN.md`) | `feature-platform` at `0.5`, awaiting approval, with no open question; the other seven not started. |
 | Task breakdown (`TASKS.md`) | Not started. |
 | Implementation of the 14 and 16 September decisions | Not started; the code still follows the earlier rules. |
 | Validation against the specification | Not started. |
@@ -28,20 +28,20 @@ and integration commits, is in git history: `git show b71fc29:plan.md`.
 
 - The 24 decisions of 14 September 2026 are applied to the specs, the constitution, and `.sdd/decisions.md`. The local history was rewritten to drop citations of an outside source, and the branch and its spec tags were pushed to Gitea as a backup; commits after that backup are local. Nothing is merged into `main`. The sixteen single-feature rules have moved out of `feature-platform`, and `cspell.json` holds the project dictionary.
 - The end-to-end suite ran for the first time on 15 September 2026, against a disposable PostgreSQL, and all six journeys pass. The runs found a code check with no rule behind it, a Project start date refused when in the past, which `D21` removed (`PRJ-024`), and journey steps written for an older interface. The correction journey now seeds a previous-workday attendance row instead of correcting a row checked in minutes earlier, which `COR-001` never allowed.
-- Four more business decisions on 16 September 2026, benchmarked against large work-management and HR systems: no `ARCHIVED` Project state (`D22`), one 48-hour adjustment policy for corrections and exceptions (`D23`), a Mentor mark bounded by the attendance period instead of a separate limit (`D24`), and an Intern view of their own attendance (`D25`, `RPT-015`).
+- Six more decisions on 16 September 2026. Four are business, benchmarked against large work-management and HR systems: no `ARCHIVED` Project state (`D22`), one 48-hour adjustment policy for corrections and exceptions (`D23`), a Mentor mark bounded by the attendance period instead of a separate limit (`D24`), and an Intern view of their own attendance (`D25`, `RPT-015`). Two are about how the project decides: the maintainer confirms a business decision and the instructor reviews rather than gates it (`D26`, constitution `1.0.1`), and the `V3` migration gives every month worked before it a period and then applies `ATT-020` to it as the running system would, closing nothing that still has a request open (`D27`).
+- A sweep on 16 September 2026 found three statements that had fallen behind the rules they restate: `D14` still carried the deadlines `D23` and `D24` replaced, the platform spec miscounted the rules it excludes from acceptance testing, and three use cases had no actor line in section 2. All three are fixed, and three checks in `npm run test:ui` now fail the build on each kind, each proved to fail on the defect it guards before being kept.
 
 ## Next
 
-1. Merge into `main` (item 22). Every check passed at `1ee043e`: the full Maven suite (757 tests, no timezone flag, `D19`), the end-to-end suite, and `npm run test:ui`. Every commit since then changes documentation only, so the suites still stand. This line expires the moment a commit touches `src/` or `pom.xml`: from then on it is stale until the suites are run again and this line names the new commit. The merge reaches `main` by review, not by an agent's commit. Pushing the branch as a backup and merging into `main` are separate actions, each needing its own permission.
+1. Merge into `main` (item 22). Every check passed at `1ee043e`: the full Maven suite (757 tests, no timezone flag, `D19`), the end-to-end suite, and `npm run test:ui`. Since then the only change under `src/` is `src/test/js/spec-structure-contract.test.mjs`, which Maven neither compiles nor runs; it passes 29 of 29 under `npm run test:ui` at the current head. No Java source, resource or `pom.xml` has changed, so the Maven and end-to-end results still stand. This line expires the moment a commit touches a Java source, a resource, or `pom.xml`: from then on it is stale until the suites are run again and this line names the new commit. The merge reaches `main` by review, not by an agent's commit. Pushing the branch as a backup and merging into `main` are separate actions, each needing its own permission.
 2. Verify the application end to end: `scripts/demo-seed.sql` loads, the end-to-end suite passes, the main business flows work; then demonstrate to the instructor (item 23).
-3. `PLAN.md` for each feature. The platform plan is drafted and carries two things the others depend on: the one authorization policy of `AUTH-012`, and the single `V3` migration the recorded decisions need. Then `feature-attendance`, `feature-task`, `feature-project`, `feature-reporting`, and the three that change least.
+3. `PLAN.md` for each feature. The platform plan is drafted, carries no open question since `D27`, and holds two things the others depend on: the one authorization policy of `AUTH-012`, and the single `V3` migration the recorded decisions need. Then `feature-attendance`, `feature-task`, `feature-project`, `feature-reporting`, and the three that change least.
 
 ## Waiting on a decision
 
 | Item | Waiting on | Recorded in |
 |---|---|---|
 | Split rules that span several features (`UI-019`, `AUTH-003`, `AUTH-004`, `AUTH-009`, `AUTH-011`, `DB-008`) | after step 3 of the platform plan, which produces the evidence of which rule each matrix cell cites | this file |
-| What the `V3` migration does with the months that predate it: close them, or leave them open for a Mentor to review | Loc-LX | `feature-platform/PLAN.md` §7 |
 
 ## Validation backlog
 
@@ -61,5 +61,5 @@ the other way round.
 
 - Maven needs JDK 25, and the default `JAVA_HOME` on the maintainer's machine is JDK 8, so `JAVA_HOME` has to point at a JDK 25 before `./mvnw`. [CONTRIBUTING.md](CONTRIBUTING.md) explains the setup; the path itself is machine-specific and is not recorded here.
 - On Windows run the suite as `./mvnw -B test`, with Docker Desktop running and browsers closed. The last full run, on 15 September 2026 at `1ee043e`, passed 757 tests with no failures and no timezone flag. An earlier attempt the same day stopped after 238 passing tests when the machine ran out of memory.
-- `npm run test:ui` passes 26 of 26, including the six spec-structure checks.
+- `npm run test:ui` passes 29 of 29, including nine spec-structure checks: six on the shape of the documents and three on whether their prose agrees with their own rules.
 - Playwright 1.62.1 needs Chromium build 1234; run `npx playwright install chromium` after a Playwright update. The end-to-end run of 15 September used `LAB_E2E_START_INSTANT=2026-09-15T01:00:00Z`, `E2E_BUSINESS_DATE=2026-09-15` and `E2E_DB_CONTAINER=labtimesheet-e2e-postgres`, as `CONTRIBUTING.md` describes.

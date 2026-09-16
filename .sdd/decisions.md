@@ -75,6 +75,7 @@ came from, not whether the choice is settled.
 | D24 | How long a Mentor may mark an excuse without a request | Until the attendance period closes, with no separate limit | `EXC-004` |
 | D25 | Whether an Intern may see their own attendance report | Yes, their own date only, without export in this version | `RPT-015` |
 | D26 | Who confirms a business decision | The maintainer; the instructor reviews and a revision arrives as a new decision, not as a gate | constitution, `shared_context.md` |
+| D27 | What the `V3` migration does with months worked before it | Create a period for each, then apply `ATT-020` to it as the running system would: close the ones whose deadline has passed with nothing pending, leave the rest open | none; `ATT-019`–`ATT-024` already say it |
 
 D1 through D5 came from reading the specification against its own history. D6
 through D9 came from the audit described at the end of this page, which read the
@@ -1173,6 +1174,29 @@ under *Decided for build* above stopped waiting on the instructor.
 - The instructor reviews as a reader. A change they ask for arrives as a **new decision that supersedes the one it replaces**, under the first row of the constitution's Amendment table, and the earlier decision keeps its wording with a pointer to what replaced it. Nothing is rewritten backwards.
 - This removes nothing from the instructor. It removes a queue: a decision that has not been reviewed yet is now *decided and reviewable*, not *blocked*.
 - Two documents said otherwise and were corrected with this decision: the `Business reviewer` row of the constitution, which named the instructor as the person who confirms decisions marked provisional, and assumption `A7` of `shared_context.md`, which assumed the instructor is available for that confirmation. The constitution went to `1.0.1`; the change is wording, so it is a patch.
+
+**Status:** decided.
+
+## D27. What does the `V3` migration do with the months that predate it?
+
+**Decided on 16 September 2026 by Loc-LX.** `D14` gave attendance monthly periods that
+finalize, and `ATT-019`–`ATT-024` describe them. The database holds months worked before
+any of that existed, so the migration has to give them a state.
+
+- The migration creates one period per Intern and month that has attendance, and then **applies `ATT-020` to each of them exactly as the running system would**: finalize it if 23:59 on the fifth day of its following month has passed, and leave it open otherwise.
+- **Nothing is force-closed.** `ATT-020` already refuses to finalize a period while a leave or correction request affecting it is pending or overdue. Those months stay open and finalize on their own when the last request is decided or withdrawn, which is what the rule says everywhere else.
+- An earlier draft of the platform plan proposed closing every month before the migration outright, with the migration recorded as the actor. That would have contradicted `ATT-020` on exactly the months that most need a human: the ones with something still undecided. It is not what is being built.
+- Because finalization under `ATT-020` is automatic, it records no person as the actor, so the migration introduces no new kind of actor and no new column. Which migration closed them is answerable from the Flyway history and the server time on the period.
+- A month closed this way is not frozen forever. `ATT-022` reopens a finalized period on a request with a reason, decided by an Admin, and that route is unchanged for these months.
+
+**Why not leave every past month open.** Open means a Mentor may still change August from
+any later date, which is the retroactive editing `GOV-005` and the whole period design
+exist to stop. Leaving them open would also make the first real closing day, the fifth of
+the month after go-live, close a year of history at once with no warning.
+
+**Consequence for the plan.** Step 5 of the platform plan is no longer blocked. The other
+three cases of §3.3, the responsible Mentor, `locked_at` on corrections, and the widened
+status constraints, were already decided there and are unchanged.
 
 **Status:** decided.
 
