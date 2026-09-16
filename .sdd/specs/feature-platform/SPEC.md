@@ -1,6 +1,6 @@
 # Platform Spec
 
-**Version:** 1.2.12 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-16
+**Version:** 1.3.0 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-16
 
 Part of the Lab Timesheet specification. Rules every feature shares, including the
 glossary, the authorization model, the domain model, and failure handling, are in
@@ -22,8 +22,8 @@ This spec holds what every feature shares. It is not a feature in the code; the 
 | Database baseline | PostgreSQL 18.4, 24 application tables |
 | Companion DDL | `database-schema.sql`, not tracked in this repository |
 | Review state | Approved as version 1.0.0 on 14 September 2026; open questions are listed in each spec |
-| Normative rules | 295 across the eight specs |
-| Acceptance scenarios | 143 across the eight specs |
+| Normative rules | 296 across the eight specs |
+| Acceptance scenarios | 144 across the eight specs |
 
 > **Companion files.** This document was authored in a separate documentation
 > repository and copied here on 26 August 2026. Its companion `database-schema.sql`
@@ -277,6 +277,7 @@ separation of attendance from Task work exist to prevent.
 | ARC-007 | THE system SHALL treat Flyway as the sole production schema authority, and SHALL restrict JPA schema generation to validation outside disposable tests. |
 | ARC-008 | The reviewed `database-schema.sql` is a design baseline rather than an executable artifact. The platform owner adapts it into Flyway migrations; it is never executed against production. |
 | ARC-009 | A Flyway migration that has been applied is never edited. A schema change adds a new migration. |
+| ARC-010 | THE system SHALL keep the number of authorization decisions and database queries a request performs independent of the number of rows it renders. WHERE a page, report, or export renders more rows, THE system SHALL NOT ask the authorization policy of `AUTH-012` once per row and SHALL NOT issue a query per row. THE system SHALL NOT state a time budget while no deployment environment exists to measure one; `RPT-008` bounds what a single request may demand until then. |
 
 Reference versions and primary documentation:
 
@@ -1077,6 +1078,7 @@ Scenarios for a feature are in section 7 of that feature's spec. The scenarios b
 | AC-GOV-001 | GOV-011 | The server runs with a JVM default timezone other than the policy timezone, an Intern checks in, and the attendance row is read back | The business date is derived from the applicable policy version's timezone rather than the JVM default; the persisted instant is `timestamptz` and reads back as the same moment in UTC. |
 | AC-GOV-002 | GOV-013 | Two clients concurrently submit leave that would exceed the monthly quota, and separately two clients concurrently log Task work on the same Intern and date | Exactly one leave request commits within quota and the other fails with an explicit conflict; the daily work total never exceeds 1 440 minutes and no partial row survives either race. |
 | AC-ARC-001 | ARC-001–ARC-008 | The architecture and persistence structure suites run against the compiled application | Package layout, layer subpackages, mirrored test packages, the absence of cross-feature repository and entity imports, the absence of business SQL in services, and Flyway-only schema authority are each asserted by an automated structural test rather than by review. |
+| AC-ARC-002 | ARC-010, AUTH-012 | The same authorized list page and the same report are rendered twice, once with one row and once with fifty, counting the authorization decisions and the statements the data source runs | Both counts are equal at both sizes, so neither grows with the rows rendered; the rendered rows themselves differ only in number. |
 | AC-AUTH-001 | AUTH-001–AUTH-002, AUTH-011 | User guesses an unauthorized Intern, Project, invitation, membership, exit request, Task, leave, or correction ID | No record details are disclosed and no mutation occurs. |
 | AC-AUTH-002 | AUTH-003 | Mentor who owns no Project views global leave/correction queue | Mentor may inspect and decide eligible requests but cannot mutate another Mentor's Project. |
 | AC-AUTH-005 | AUTH-004–AUTH-005, TSK-023 | Leader opens one assigned and one unassigned Task on an `ACTIVE` Project | Leader manages definitions for both; on the assigned Task every `TSK-007` transition and work logging succeed; on the unassigned Task only block, unblock, and reopen succeed, and starting it, marking it `DONE`, and logging work are denied. |
@@ -1144,10 +1146,10 @@ documents a working product.
 
 | Measure | Value |
 |---|---:|
-| Normative rules, sections 1–22 | 295 |
-| Rules with a §20 acceptance scenario | 276 |
+| Normative rules, sections 1–22 | 296 |
+| Rules with a §20 acceptance scenario | 277 |
 | Rules declared without one, with reason | 19 |
-| Acceptance scenarios | 143 |
+| Acceptance scenarios | 144 |
 | Flyway application tables | 24 |
 
 The specification quality review in §20 and the twelve-point gate once recorded in the

@@ -41,7 +41,7 @@ and integration commits, is in git history: `git show b71fc29:plan.md`.
 | Item | Waiting on | Recorded in |
 |---|---|---|
 | Confirmation of `D12`–`D15` and `D21`, `D23`–`D25`, all provisional | the instructor | `decisions.md` |
-| Split rules that span several features (`UI-019`, `AUTH-003`, `AUTH-004`, `AUTH-009`, `AUTH-011`, `DB-008`) | after the platform plan | this file |
+| Split rules that span several features (`UI-019`, `AUTH-003`, `AUTH-004`, `AUTH-009`, `AUTH-011`, `DB-008`) | after step 3 of the platform plan, which produces the evidence of which rule each matrix cell cites | this file |
 
 ## Validation backlog
 

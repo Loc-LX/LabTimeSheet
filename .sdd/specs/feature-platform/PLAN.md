@@ -1,6 +1,6 @@
 # Platform Plan
 
-**Version:** 0.2 · **Owner:** Loc-LX · **Status:** DRAFT, awaiting approval · **Date:** 2026-09-16
+**Version:** 0.3 · **Owner:** Loc-LX · **Status:** DRAFT, awaiting approval · **Date:** 2026-09-16
 
 How the platform rules of [SPEC.md](SPEC.md) will be built. It is a technical design, not
 a tracker: progress belongs in [`plan.md`](../../../plan.md). The rules themselves are in
@@ -42,17 +42,33 @@ no business permission is decided by a role check outside the policy.
 ### 2.2 The capability catalogue
 
 The §5.2 matrix has **36 capabilities across 4 actor columns, so 144 cells**. The catalogue
-is the policy's data, not its code: one entry per capability and role, so a single entry
-can be withdrawn without touching another. That is what `D1` needs, since the instructor
+is the policy's data, not its code: one entry per capability and actor column, so a single
+entry can be withdrawn without touching another. That is what `D1` needs, since the instructor
 expects to withdraw part of the Admin read access later.
 
 | Element | Source | Note |
 |---|---|---|
 | Capability | one §5.2 row | Named after the row, not after a controller method |
-| Role | one §5.2 column | `ADMIN`, `MENTOR`, `INTERN`, plus the Leader term, which is scope rather than a role |
+| **Actor** | one §5.2 column | Not a role. It is derived from the pair (signed-in user, target record) |
 | Scope predicate | the rule the row cites | Ownership, active membership, current leadership term, current assignee, own record |
 | State predicate | the rule the row cites | Project status, Task status, request status, attendance period state |
 | Target state | `TSK-007`, `TSK-023`, `PRJ-002`, `ATT-024` | Only for transitions |
+
+The word **role** keeps the three values `app_users` stores, which `DB-005` protects with a
+trigger that rejects any change. The word **actor** names a §5.2 column. The distinction is
+not pedantry: none of the four columns is a role. "Owning Mentor" means a Mentor who owns
+*that* Project, "Active member / assignee" means the user assigned *that* Task, and
+**"Current Leader" means an `INTERN` account holding a current leadership term on the
+Project the target record belongs to**. Leadership is the most visible case, not the
+exception. `AUTH-004` withdraws Task management the moment a term ends, which no stored role
+and no authority in a session can do, and `CLAUDE.md` already records the hour someone lost
+looking for a `ROLE_LEADER` that does not exist.
+
+Two consequences the implementation must carry, decided with the maintainer on 16 September
+2026:
+
+- **A user can satisfy several columns at once for the same record**, as a Leader who is also the assignee, or an owning Mentor who is also a Mentor. The policy takes the **union** of the cells those columns grant. It never picks the "highest" column, because ranking columns is exactly the inference `AUTH-012` and `TSK-023` forbid: a higher role implying a capability the matrix does not grant. A refusal is simply the absence of any granting cell.
+- **`LEADER` never becomes a Spring Security authority.** It appears in no `hasRole`, no `hasAnyRole`, no `sec:authorize`, and no granted authority, because the term it depends on can end between two requests. §6 carries a test for exactly that, since this is how the trap returns.
 
 Reading the matrix into a test fixture is what `AC-AUTH-011` asks for: every cell is
 exercised for each role, then one Admin capability is withdrawn and only that cell changes.
@@ -223,7 +239,8 @@ for step 5 and belongs to the task plan, which cites this dependency.
 | Web tests | The route gate and the not-found response that reveals nothing (`AUTH-002`) |
 | Schema tests | Status constraints, append-only decision tables, one open period per Intern and month, run against PostgreSQL (`ARC-003`) |
 | End-to-end | One journey per role that the matrix says may act, and one that may not |
-| Query-count test | A list page and a report page ask the policy, and query the database, a number of times that does not grow with the number of rows |
+| Query-count test | `AC-ARC-002`: a list page and a report page ask the policy, and query the database, the same number of times at one row and at fifty |
+| Authority test | The strings `LEADER` and `ROLE_LEADER` appear in no granted authority, `hasRole`, `hasAnyRole` or `sec:authorize`, so leadership stays a term read from storage (`AUTH-004`) |
 
 No step is done until the rules it names are covered; `TST-005` puts those rule
 identifiers in the test source.
@@ -233,10 +250,15 @@ identifiers in the test source.
 | # | Question | Owner | Blocks |
 |---|---|---|---|
 | 1 | Confirmation of `D12`, `D13`, `D14`, `D15`, `D21`, `D23`, `D24`, `D25` | the instructor | Step 5, and the attendance, project, task and reporting plans |
-| 2 | Does the Leader belong in the catalogue as a fourth role, or stay a scope predicate over the Intern role? The §5.2 matrix gives it a column, while `app_users` has three roles and leadership is an interval | maintainer | Step 2 |
-| 3 | Are the six cross-feature rules `UI-019`, `AUTH-003`, `AUTH-004`, `AUTH-009`, `AUTH-011` and `DB-008` split into their features before or after this work? `plan.md` defers the split to after this plan | maintainer | Step 3 |
-| 4 | The specification states no performance requirement with a number anywhere, so this plan has no threshold to design against. Does a rule belong in the spec, such as a list page answering within a stated time for a stated number of rows, or does the laboratory accept only the weaker requirement that work per request must not grow with the number of rows? | maintainer, then the instructor if it becomes a rule | The performance risk and its test in §5 and §6 |
-| 5 | §3.3 proposes closing every month that predates the migration, with the migration itself recorded as the actor. Does the laboratory accept that, or should those months stay open for a Mentor to review first? | the instructor | Step 5 |
+| 2 | §3.3 proposes closing every month that predates the migration, with the migration itself recorded as the actor. Does the laboratory accept that, or should those months stay open for a Mentor to review first? | the instructor | Step 5 |
 
-A plan with an open question is not ready for implementation. Questions 2, 3 and 4 are the
-maintainer's and can be closed in review; questions 1 and 5 are the instructor's.
+A plan with an open question is not ready for implementation. Both remaining questions are
+the instructor's, and both block only step 5. Steps 1, 2, 3, 4 and 6 are clear.
+
+### 7.1 Closed in review, 16 September 2026
+
+| Question | Answer |
+|---|---|
+| Is the Leader a fourth role or a scope? | A scope, and the question was the wrong shape: no §5.2 column is a role. The catalogue keys on (capability, actor column), and an actor is derived from the pair of signed-in user and target record. Columns combine as a union, never as a ranking, and `LEADER` never becomes a Spring Security authority. §2.2 carries this, and §6 tests it |
+| Do the six cross-feature rules split before or after this work? | After step 3, which is the step that produces the evidence: which rule each of the 144 cells cites. `GOV-016` asks for one canonical location, not for that location to be a feature spec, so a genuinely shared rule may stay in the platform spec and nothing is being violated meanwhile. Expect fewer than six to move: `AUTH-011` may be absorbed by `AUTH-012` rather than relocated, `DB-008` locks one Intern profile for both leave quota and daily work minutes and would break if split, and `AUTH-003` and `UI-019` each carry several clauses, so moving them means rewriting them. `plan.md` now names step 3 as the trigger instead of "after this plan" |
+| Does the specification get a performance number? | No number, but an invariant, and in the specification rather than only in this plan: `ARC-010` keeps the authorization decisions and queries of a request independent of the rows it renders, and says plainly that no time budget is stated while there is no environment to measure one. `AC-ARC-002` measures it at one row and at fifty. Same pattern as `ARC-004` choosing a compatible range over an exact version and `RPT-008` bounding a request instead of naming milliseconds. Its blind spot, a policy call that is itself expensive, is covered by loading the catalogue once at startup (§2.2.1) and by the policy receiving resolved context (§2.3) |

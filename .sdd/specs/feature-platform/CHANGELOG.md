@@ -3,6 +3,13 @@
 Each entry records a change to [SPEC.md](SPEC.md): the version, the date, what changed,
 and why. A change that alters a rule raises the version.
 
+## 1.3.0 — 2026-09-16
+
+Added during the review of the platform plan. A technical rule inside the agreed scope, so it needs no ADR and no instructor decision.
+
+- **Added `ARC-010`**: the authorization decisions and database queries a request performs stay independent of the number of rows it renders. The plan for `AUTH-012` puts a policy question behind every business permission, and without this rule nothing stops a list of fifty rows from asking it fifty times. It states no time budget, because no deployment environment exists to measure one; that follows `ARC-004`, which chose a compatible range over an exact version, and `RPT-008`, which bounds a request instead of naming milliseconds.
+- Added `AC-ARC-002`. Counts are 296 rules and 144 scenarios.
+
 ## 1.2.12 — 2026-09-16
 
 Decision `D24`, recorded in [`.sdd/decisions.md`](../../decisions.md).
