@@ -1,6 +1,6 @@
 # Platform Plan
 
-**Version:** 0.5 · **Owner:** Loc-LX · **Status:** DRAFT, awaiting approval · **Date:** 2026-09-16
+**Version:** 1.0 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-16
 
 How the platform rules of [SPEC.md](SPEC.md) will be built. It is a technical design, not
 a tracker: progress belongs in [`plan.md`](../../../plan.md). The rules themselves are in

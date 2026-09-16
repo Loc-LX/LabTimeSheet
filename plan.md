@@ -16,7 +16,7 @@ ahead of `origin/main`, nothing pushed.
 | Delivery, Iterations 1–4 | Built. Every tracked item is done; the Iteration 3 and 4 integration gates were never run. |
 | Specification | Approved. Eight specs; each version is in its spec header and `CHANGELOG.md`. `D12`–`D15`, `D21` and `D23`–`D25` were confirmed for build by the maintainer on 16 September 2026, so no rule waits on a signature. |
 | Constitution | Locked on 15 September 2026 (`D20`); amended to `1.0.1` on 16 September for wording (`D26`). |
-| Technical plans (`PLAN.md`) | `feature-platform` at `0.5`, awaiting approval, with no open question; the other seven not started. |
+| Technical plans (`PLAN.md`) | `feature-platform` approved at `1.0` on 16 September 2026, with no open question; the other seven not started. |
 | Task breakdown (`TASKS.md`) | Not started. |
 | Implementation of the 14 and 16 September decisions | Not started; the code still follows the earlier rules. |
 | Validation against the specification | Not started. |
@@ -54,8 +54,8 @@ the other way round.
 - **No workflow runs the end-to-end suite.** It passed locally on 15 September 2026; CI still runs only Maven and the UI contract tests, and the suite needs the application, a disposable PostgreSQL and Mailpit.
 - **Known test gaps:** the edit clause of `LEV-012` and the eligible-workday clause of `LEV-002` survived mutation.
 - **Known code findings:** `ProjectService#deleteProjectRows` does not delete `task_remaining_effort_forecasts`, and its native SQL moves behind the data-access layer (`D18`).
-- **`app.css` trip-wire:** a local Tailwind build emits `.block{display:block}`, which the committed file lacks, and CI compares the file with `git diff --exit-code`.
-- **A rollback guard in `.gitea/workflows/container.yml` can never match.** Line 264 requires the previous image tag to look like `:sha-` and forty hex characters, while this repository uses SHA-256 object names, so its commit identifiers are sixty-four. The deployment job is dormant behind `DEPLOY_ENABLED`, so the guard has never run. The constitution describes it under its known gaps; it is tracked here because it is a pipeline defect, not a documentation one.
+- ~~**`app.css` trip-wire.**~~ Closed on 16 September 2026. The record here had it backwards: the committed file carried `.block{display:block}` and a local build does **not** emit it, so `Verify generated assets are committed` would have failed on any run. Tailwind scans `templates/**/*.html` only; the sole match was the custom class `project-overview-status-block`, no template uses the `block` utility, and no shipped script touches `classList`. The file is regenerated and the rule is gone.
+- ~~**A rollback guard in `.gitea/workflows/container.yml` can never match.**~~ Closed on 16 September 2026. The guard required the previous image tag to be `:sha-` and forty hex characters, while this repository uses SHA-256 object names and tags images with all sixty-four. It now accepts forty to sixty-four, so it matches both formats. The deployment job is still dormant behind `DEPLOY_ENABLED`, so this has not been exercised against a real deployment.
 
 ## Environment
 

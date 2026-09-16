@@ -261,7 +261,7 @@ jobs:
           test -f "$compose_file"
           mkdir -p "$state_dir"
           previous_image="$(sed -n 's/^LAB_IMAGE=//p' "$compose_env" | head -n 1)"
-          if ! printf '%s\n' "$previous_image" | grep -Eq ':sha-[0-9a-f]{40}(-amd64)?$'; then
+          if ! printf '%s\n' "$previous_image" | grep -Eq ':sha-[0-9a-f]{40,64}(-amd64)?$'; then
             echo "remote LAB_IMAGE is not an immutable SHA image" >&2
             exit 1
           fi
