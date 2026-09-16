@@ -3,6 +3,12 @@
 Each entry records a change to [SPEC.md](SPEC.md): the version, the date, what changed,
 and why. A change that alters a rule raises the version.
 
+## 1.2.12 — 2026-09-16
+
+Decision `D24`, recorded in [`.sdd/decisions.md`](../../decisions.md).
+
+- The glossary follows `ATT-020`: an attendance period closes at 23:59 on the fifth day of the next month.
+
 ## 1.2.11 — 2026-09-16
 
 Decisions `D23` and `D25`, recorded in [`.sdd/decisions.md`](../../decisions.md).

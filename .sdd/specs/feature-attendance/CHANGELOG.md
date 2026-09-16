@@ -3,6 +3,12 @@
 Each entry records a change to [SPEC.md](SPEC.md): the version, the date, what changed,
 and why. A change that alters a rule raises the version.
 
+## 1.3.3 — 2026-09-16
+
+Decision `D24`, recorded in [`.sdd/decisions.md`](../../decisions.md). Marked provisional, pending instructor confirmation.
+
+- The attendance period now closes at 23:59 on the **fifth** day of the following month, not the third (`ATT-020`). Since `D24` made that close the only boundary on a Mentor's own mark, three days left almost no time to review a work date at month end. `AC-ATT-009` follows.
+
 ## 1.3.2 — 2026-09-16
 
 Decisions `D23` and `D24`, recorded in [`.sdd/decisions.md`](../../decisions.md). Marked provisional, pending instructor confirmation.

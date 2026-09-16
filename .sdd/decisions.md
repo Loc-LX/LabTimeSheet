@@ -954,7 +954,7 @@ systems that keep a time correction apart from an attendance exception.
 
 **Finalization and overdue handling, decided the same day.**
 
-- Attendance is finalized by period. Each month is a period that finalizes at 23:59 on the third day of the next month (`ATT-019`, `ATT-020`). Period-based finalization is ENTERPRISE-BACKED; the three-day grace is LAB-POLICY, provisional.
+- Attendance is finalized by period. Each month is a period that finalizes at 23:59 on the fifth day of the next month (`ATT-019`, `ATT-020`); it was the third day until `D24` moved it. Period-based finalization is ENTERPRISE-BACKED; the grace is LAB-POLICY, provisional.
 - A period does not finalize while a request affecting it is pending or overdue; those are resolved or reassigned first.
 - After finalization nothing changes directly. The Intern or the responsible Mentor asks to reopen with a reason; an Admin reopens only the records or dates needed and is recorded doing so, but never approves or decides; the responsible Mentor then acts and finalizes again (`ATT-021`–`ATT-023`).
 - The same rule now holds for leave, corrections, and exceptions: a requester who misses a submission deadline is refused, while an approver who misses a decision deadline leaves the request `OVERDUE`, reminded and reassignable, never rejected (`LEV-010`, `COR-007`, `EXC-003`, `NOT-011`). ENTERPRISE-BACKED.
@@ -1130,7 +1130,7 @@ close of `ATT-020`: a work date on the 30th would have lost its window on the 3r
 
 - The Mentor may mark a late arrival or early departure excused **while the attendance period of that work date is open**, with no separate limit of its own (`EXC-004`). Afterwards the change goes through the reopen workflow of `ATT-022`. ENTERPRISE-BACKED: a manager adjusts attendance until the period closes, and after that through an explicit retroactive route with a higher approval.
 - One boundary instead of two removes the contradiction and matches what the system already enforces everywhere else.
-- The cost is that the window is uneven: a work date early in the month has weeks, one at month end has days. The single lever for that is the closing day, currently 23:59 on the third day of the next month and LAB-POLICY.
+- The cost is that the window is uneven: a work date early in the month has weeks, one at month end has days. The single lever for that is the closing day, and it moves with this decision from the third to the fifth day of the next month, 23:59, in `ATT-020`. Three days left a Mentor almost no time to review a work date at month end; five keeps two more working days without holding the month open long enough to disturb reporting. Eight was considered and refused as too late. LAB-POLICY, provisional.
 
 **Status:** provisional, pending instructor confirmation.
 
@@ -1206,7 +1206,7 @@ reverses it.
 | `D1` | **Confirmed 14 September 2026.** An Admin views and exports every report read-only. | Nothing open. |
 | `D12` | Decided 14 September 2026, **provisional**. Only an empty draft is deleted, with its notifications; everything else is cancelled and stays in reports. | Instructor confirmation. |
 | `ACC-024` | **Confirmed 14 September 2026.** A withdrawn Intern cannot sign in; a completed Intern keeps a read-only account and may change their password. | Nothing open. |
-| `COR-006` and `D14` | An approved correction confirms the time only. Excused violations are written as `EXC-001`–`EXC-007`, **provisional**, with LAB-POLICY limits. | Instructor confirmation, including the three-day grace and the points marked to confirm under `D14`. |
+| `COR-006` and `D14` | An approved correction confirms the time only. Excused violations are written as `EXC-001`–`EXC-007`, **provisional**, with LAB-POLICY limits. | Instructor confirmation, including the five-day grace and the points marked to confirm under `D14`. |
 | Daily Project Work Report | Decided 14 September 2026 under `D15`, **provisional**: a Task view and an Intern view, so variance is shown once per Task. | Instructor confirmation. |
 | `D13` | Decided 14 September 2026, **provisional**. Block, unblock to the previous status, and reopen with a reason. | Instructor confirmation. |
 
