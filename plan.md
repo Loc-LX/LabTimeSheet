@@ -16,7 +16,7 @@ ahead of `origin/main`, nothing pushed.
 | Delivery, Iterations 1–4 | Built. Every tracked item is done; the Iteration 3 and 4 integration gates were never run. |
 | Specification | Approved. Eight specs; each version is in its spec header and `CHANGELOG.md`. `D12`–`D15`, `D21` and `D23`–`D25` were confirmed for build by the maintainer on 16 September 2026, so no rule waits on a signature. |
 | Constitution | Locked on 15 September 2026 (`D20`); amended to `1.0.1` on 16 September for wording (`D26`). |
-| Technical plans (`PLAN.md`) | `feature-platform` approved at `1.0`; `feature-attendance` drafted at `0.1`, awaiting approval. Six not started: task, project, reporting, account, notification, integration. |
+| Technical plans (`PLAN.md`) | `feature-platform` approved at `1.0`; `feature-attendance` and `feature-task` drafted at `0.1`, awaiting approval. Five not started: project, reporting, account, notification, integration. |
 | Task breakdown (`TASKS.md`) | Not started. |
 | Implementation of the 14 and 16 September decisions | Not started; the code still follows the earlier rules. |
 | Validation against the specification | Not started. |
