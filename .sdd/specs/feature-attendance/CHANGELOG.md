@@ -3,6 +3,13 @@
 Each entry records a change to [SPEC.md](SPEC.md): the version, the date, what changed,
 and why. A change that alters a rule raises the version.
 
+## 1.3.5 — 2026-09-16
+
+Two corrections and one status change; no rule text changed in substance.
+
+- **§2 named only four of its six use cases.** `UC-15`, excusing a late arrival or early departure, and `UC-17`, reopening a finalized attendance period, are specified in full in §3 but had no actor line in §2, so the two workflows added by `D14` had no declared actors where a reader looks for them first. Both are listed now, with the actors their own use-case blocks name.
+- **The word provisional is gone from six rules.** `COR-003`, `LEV-011`, `EXC-002`, `EXC-003`, `EXC-005` and `ATT-020` each called their limit a *provisional* laboratory policy. The limits are unchanged and still the laboratory's own choice rather than an industry standard; what changed is that they are no longer waiting on a signature. Recorded as provisional on that date and confirmed for build by the maintainer on 16 September 2026; see the note above the decision table in [`.sdd/decisions.md`](../../decisions.md).
+
 ## 1.3.4 — 2026-09-16
 
 Wording only; no rule changed. A review found three places that still carried the numbers `D23` and `D24` replaced.

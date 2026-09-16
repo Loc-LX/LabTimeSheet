@@ -1,6 +1,6 @@
 # Account Spec
 
-**Version:** 1.1.2 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-14
+**Version:** 1.1.3 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-16
 
 Part of the Lab Timesheet specification. Rules every feature shares, including the
 glossary, the authorization model, the domain model, and failure handling, are in
@@ -198,4 +198,4 @@ Exclusions stated inside this spec's own rules: `ACC-020`.
 ## Notes / Open Questions
 
 - `ACC-023` and `ACC-024` were confirmed by the instructor on 14 September 2026: a withdrawn Intern cannot sign in; a completed Intern keeps a read-only account and may still change their password and manage sessions.
-- `ACC-026` follows `D14`, which is provisional pending instructor confirmation. When a responsible Mentor becomes unavailable, an Admin reassigns the Intern and the pending requests move with them; the Admin never becomes an approver.
+- `ACC-026` follows `D14`, decided on 14 September 2026 and confirmed for build on 16 September. When a responsible Mentor becomes unavailable, an Admin reassigns the Intern and the pending requests move with them; the Admin never becomes an approver.

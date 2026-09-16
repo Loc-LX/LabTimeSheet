@@ -3,6 +3,13 @@
 Each entry records a change to [SPEC.md](SPEC.md): the version, the date, what changed,
 and why. A change that alters a rule raises the version.
 
+## 1.3.2 — 2026-09-16
+
+One correction and one status change; no rule changed.
+
+- **§2 named only `UC-12`.** `UC-16`, the Daily Project Work Report, is specified in full in §3 and has scope rules of its own under `RPT-011`, but had no actor line in §2. It is listed now.
+- `D12` and `D15` are no longer held provisional. Recorded as provisional on that date and confirmed for build by the maintainer on 16 September 2026; see the note above the decision table in [`.sdd/decisions.md`](../../decisions.md).
+
 ## 1.3.1 — 2026-09-16
 
 Wording only; no rule changed. §2 still described the Admin scope that `D1` replaced on 14 September 2026.

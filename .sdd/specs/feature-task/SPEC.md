@@ -1,6 +1,6 @@
 # Task Spec
 
-**Version:** 1.2.1 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-14
+**Version:** 1.2.2 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-16
 
 Part of the Lab Timesheet specification. Rules every feature shares, including the
 glossary, the authorization model, the domain model, and failure handling, are in
@@ -176,6 +176,6 @@ Exclusions stated inside this spec's own rules: `TSK-008`, `TSK-011`.
 
 ## Notes / Open Questions
 
-- `D13` and `D15`, decided on 14 September 2026, are **provisional, pending instructor confirmation**. Status changes follow role, scope, current status, and target status (`TSK-023`); unblocking restores the earlier status and every block, unblock, and reopen is recorded, a reopen with its reason (`TSK-025`). The estimate is the baseline and the current Remaining effort comes from the latest effective forecast (`TSK-021`, `TSK-024`).
+- `D13` and `D15`, decided on 14 September 2026 and confirmed for build on 16 September, are settled. Status changes follow role, scope, current status, and target status (`TSK-023`); unblocking restores the earlier status and every block, unblock, and reopen is recorded, a reopen with its reason (`TSK-025`). The estimate is the baseline and the current Remaining effort comes from the latest effective forecast (`TSK-021`, `TSK-024`).
 - The code still lets an owning Mentor set any status (`TaskService#changeStatus`), keeps no transition record, and computes variance for `DONE` Tasks only; two tests assert the Mentor behavior. All of it changes with the implementation.
 - A forecast recorded outside a reassignment can use the existing forecast columns with the current assignee and assignment start; the implementation plan confirms it.

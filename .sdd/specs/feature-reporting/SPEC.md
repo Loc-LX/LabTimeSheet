@@ -1,6 +1,6 @@
 # Reporting Spec
 
-**Version:** 1.3.1 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-16
+**Version:** 1.3.2 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-16
 
 Part of the Lab Timesheet specification. Rules every feature shares, including the
 glossary, the authorization model, the domain model, and failure handling, are in
@@ -18,6 +18,7 @@ In code this is `feature/reporting`: the Attendance, Project/Task, and Daily Pro
 Primary actors named by this feature's use cases:
 
 - **UC-12 — Review and export reports:** Admin, read-only, for every report under `RPT-004`, `RPT-005` and `RPT-011`; Mentor; authorized Intern/Leader for their own or current scope; an active Intern for their own attendance under `RPT-015`. Read-only means what `D1` says it means: an Admin reads every report and its exports, edits no Project or Task, and decides no leave, correction or attendance exception.
+- **UC-16 — Review the Daily Project Work Report:** Owning Mentor for owned Projects; current Leader of an eligible currently led `PLANNED` or `ACTIVE` Project; Admin, read-only. Its scope rules are `RPT-011`, which is why it is a use case of its own rather than part of `UC-12`.
 
 Every capability by role is in the permission matrix, [platform spec](../feature-platform/SPEC.md) §5.2. Authorization is resolved from stored context, never from the global role alone (§5.1).
 
@@ -140,4 +141,4 @@ No rule in this spec states an exclusion of its own.
 ## Notes / Open Questions
 
 - `D1` was confirmed by the instructor on 14 September 2026: an Admin views and exports every report read-only, edits no Project or Task, and decides nothing. The instructor expects to withdraw part of this later; `AUTH-012` and `ADR-005` make each capability withdrawable alone. `RPT-004` lists the Attendance fields.
-- `D12` and `D15`, which set how cancelled Projects appear (`RPT-003`, `RPT-011`) and the two Daily perspectives (`RPT-014`, `UC-16`), are **provisional, pending instructor confirmation**. The Daily report is mainly for the owning Mentor and the current Leader and is not opened to ordinary Interns, who see their own work logs in their Task pages.
+- `D12` and `D15`, which set how cancelled Projects appear (`RPT-003`, `RPT-011`) and the two Daily perspectives (`RPT-014`, `UC-16`), were confirmed for build on 16 September 2026. The Daily report is mainly for the owning Mentor and the current Leader and is not opened to ordinary Interns, who see their own work logs in their Task pages.

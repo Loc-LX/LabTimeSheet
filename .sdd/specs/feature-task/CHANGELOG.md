@@ -3,6 +3,10 @@
 Each entry records a change to [SPEC.md](SPEC.md): the version, the date, what changed,
 and why. A change that alters a rule raises the version.
 
+## 1.2.2 — 2026-09-16
+
+Status only; no rule changed. `D13` and `D15` are no longer held provisional. Recorded as provisional on that date and confirmed for build by the maintainer on 16 September 2026; see the note above the decision table in [`.sdd/decisions.md`](../../decisions.md).
+
 ## 1.2.1 — 2026-09-14
 
 Relocation only; no rule text changed. `AUTH-005`, `AUTH-008`, `DB-013` moved here from the platform spec because they concern only this feature, with `AC-AUTH-004`, `AC-DB-003`.

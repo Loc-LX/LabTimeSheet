@@ -1,6 +1,6 @@
 # Platform Spec
 
-**Version:** 1.3.1 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-16
+**Version:** 1.3.2 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-16
 
 Part of the Lab Timesheet specification. Rules every feature shares, including the
 glossary, the authorization model, the domain model, and failure handling, are in
@@ -1062,7 +1062,7 @@ the wording is not.
 
 These scenarios define reviewable behavior. During implementation, each scenario shall map to one or more TDD evidence files and automated tests at the narrowest useful layer.
 
-**Rules with no system-level acceptance criterion.** Seventeen requirements govern how the team
+**Rules with no system-level acceptance criterion.** Nineteen requirements govern how the team
 works rather than how the system behaves, so no scenario can assert them and none is written.
 They are listed here so that a reader can tell a deliberate exclusion from an oversight.
 

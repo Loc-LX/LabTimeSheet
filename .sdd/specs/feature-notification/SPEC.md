@@ -1,6 +1,6 @@
 # Notification Spec
 
-**Version:** 1.1.4 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-14
+**Version:** 1.1.5 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-16
 
 Part of the Lab Timesheet specification. Rules every feature shares, including the
 glossary, the authorization model, the domain model, and failure handling, are in
@@ -105,4 +105,4 @@ No rule in this spec states an exclusion of its own.
 ## Notes / Open Questions
 
 - Deleting an empty `PLANNED` draft also deletes the notifications raised for it (`PRJ-002`), so no notification is left pointing at a Project that no longer exists. A cancelled Project stays readable, so its notifications keep working links; cancellation notifies closed members under `NOT-002` (`PRJ-023`).
-- `NOT-011` follows `D14`, which is provisional pending instructor confirmation.
+- `NOT-011` follows `D14`, decided on 14 September 2026 and confirmed for build on 16 September. It notifies every active user the authorization policy lets decide a reopen request, not every Admin by role.

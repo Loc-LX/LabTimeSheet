@@ -14,7 +14,7 @@ ahead of `origin/main`, nothing pushed.
 | Stage | State |
 |---|---|
 | Delivery, Iterations 1–4 | Built. Every tracked item is done; the Iteration 3 and 4 integration gates were never run. |
-| Specification | Approved. Eight specs; each version is in its spec header and `CHANGELOG.md`. `D14` is closed and, like `D12`, `D13`, `D15`, `D21` and `D23`–`D25`, provisional. |
+| Specification | Approved. Eight specs; each version is in its spec header and `CHANGELOG.md`. `D12`–`D15`, `D21` and `D23`–`D25` were confirmed for build by the maintainer on 16 September 2026, so no rule waits on a signature. |
 | Constitution | Locked as version `1.0.0` on 15 September 2026 (`D20`). |
 | Technical plans (`PLAN.md`) | `feature-platform` drafted on 16 September 2026 and awaiting approval; the other seven not started. |
 | Task breakdown (`TASKS.md`) | Not started. |
@@ -40,8 +40,8 @@ and integration commits, is in git history: `git show b71fc29:plan.md`.
 
 | Item | Waiting on | Recorded in |
 |---|---|---|
-| Confirmation of `D12`–`D15` and `D21`, `D23`–`D25`, all provisional | the instructor | `decisions.md` |
 | Split rules that span several features (`UI-019`, `AUTH-003`, `AUTH-004`, `AUTH-009`, `AUTH-011`, `DB-008`) | after step 3 of the platform plan, which produces the evidence of which rule each matrix cell cites | this file |
+| What the `V3` migration does with the months that predate it: close them, or leave them open for a Mentor to review | Loc-LX | `feature-platform/PLAN.md` §7 |
 
 ## Validation backlog
 

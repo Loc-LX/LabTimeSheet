@@ -35,9 +35,15 @@ laboratory choice is never presented as an industry standard.
 | ADAPTED | The pattern, shaped to this product | A blocked Task returning to its previous status; a reason required to reopen; notifying the assignee and the Leader; the Mentor, Intern Leader, Intern responsibility chain; two Daily report perspectives |
 | LAB-POLICY | A choice of this laboratory, not a standard | The 48-hour limits for attendance adjustments and the day the attendance period closes; an excused violation not lowering compliance |
 
-**Provisional.** `D12`, `D13`, `D14`, and `D15` were decided by the maintainer from
-analysis and are not yet confirmed by the instructor. When the instructor confirms or
-changes one, its status here changes first.
+**Decided for build.** `D12`–`D15`, `D21` and `D23`–`D25` were decided by the
+maintainer from analysis and held provisional while they waited on the instructor. On
+16 September 2026 the maintainer confirmed them for build, so that planning and
+implementation work from a fixed rule set instead of a queue of open questions. The
+instructor still reviews them, but as a reader rather than as a gate: a change they ask
+for arrives as a new decision that supersedes the one it replaces, and the specification
+is amended then, the way every other rule changes. Nothing on this page is waiting for a
+signature. The `LAB-POLICY` label stays where it applies, because it says where a choice
+came from, not whether the choice is settled.
 
 ## Where these stand
 
@@ -887,7 +893,7 @@ lack. Deleting an empty draft leaves no audit record, which `GOV-009` would forb
 for it, so no link is left pointing at nothing. A cancelled Project stays in the
 Project/Task report, labelled, and its Daily history is kept; an all-Projects Daily
 request leaves it out unless a filter includes it. The constitution's `GOV-014` rows
-now say the same. **Status:** provisional, pending instructor confirmation.
+now say the same. **Status:** decided; confirmed for build on 16 September 2026.
 
 ## D13. May an owning Mentor change a Task's status?
 
@@ -927,9 +933,14 @@ A reopen needs a reason. Every block, unblock, and reopen leaves a transition re
 (`TSK-025`), because a comment alone is not an audit trail; `GOV-009` now lists that
 narrow history beside correction and leadership history. The assignee is notified
 when someone else acts, and the current Leader too when the owning Mentor does
-(`NOT-003`). **Status:** provisional, pending instructor confirmation.
+(`NOT-003`). **Status:** decided; confirmed for build on 16 September 2026.
 
 ## D14. May a late arrival or early departure be excused?
+
+**Three of the limits below were replaced later.** `D23` made the correction and
+exception deadlines 48 hours on 16 September 2026, and `D24` bounded the Mentor's mark by
+the attendance period on the same day. Each superseded line is marked where it stands; the
+wording is kept, because this is the dated record of what was decided on 14 September.
 
 **Affects** `ATT-011`, `ATT-015`, `ATT-016`, `COR-006`, `ACC-019`. Raised by the
 question under `COR-006` of whether an approved correction excuses an early departure.
@@ -946,26 +957,26 @@ systems that keep a time correction apart from an attendance exception.
 **Completed the same day and written as rules.**
 
 - Either the Intern requests an excuse with a reason, or the responsible Mentor marks one excused with a reason; both record actor and time (`EXC-002`–`EXC-004`).
-- The Intern may request through 24 hours after scheduled end, and the Mentor decides within 24 hours of the request. **LAB-POLICY, provisional.**
+- The Intern may request through 24 hours after scheduled end, and the Mentor decides within 24 hours of the request. LAB-POLICY. **Superseded by `D23` on 16 September 2026: both limits are 48 hours (`COR-003`, `COR-004`, `EXC-002`, `EXC-003`).**
 - An excused violation does not lower compliance and stays in history and statistics (`EXC-005`). **LAB-POLICY.**
 - The responsible Mentor is set before the internship becomes `ACTIVE`, not necessarily at account creation; an Admin may replace them, and earlier decisions keep the Mentor who made them (`ACC-021`, `ACC-026`).
 - Leave, corrections, and exceptions are all decided by the responsible Mentor (`LEV-008`, `COR-005`, `AUTH-003`), unless the laboratory later names a central attendance approver. An Intern Leader never approves.
 
 **The last four points, decided the same day.**
 
-- A request undecided after 24 hours becomes **overdue**, and the responsible Mentor is notified again. It is neither excused nor unexcused until the Mentor decides; overdue is not rejected (`EXC-003`, `NOT-011`). ENTERPRISE-BACKED.
-- A Mentor may mark an excuse without a request up to **48 hours** after scheduled end (`EXC-004`). LAB-POLICY, provisional.
+- A request undecided after 24 hours becomes **overdue**, and the responsible Mentor is notified again. It is neither excused nor unexcused until the Mentor decides; overdue is not rejected (`EXC-003`, `NOT-011`). ENTERPRISE-BACKED. **Superseded by `D23` on 16 September 2026 in its number only: the window is 48 hours, and what overdue means is unchanged.**
+- A Mentor may mark an excuse without a request up to **48 hours** after scheduled end (`EXC-004`). LAB-POLICY. **Superseded by `D24` on 16 September 2026: the mark is bounded by the attendance period of the work date instead, with no separate limit of its own.**
 - A decision changes only inside the attendance finalization window, by appending a new decision or a reversal with actor, time, and reason; the latest effective decision is current and history is immutable. After the window, only an explicit reopen flow may change it (`EXC-007`). ENTERPRISE-BACKED.
 - When the responsible Mentor is locked or deactivated, an Admin assigns another active Mentor and every pending leave, correction, and exception request moves to them. The Admin does not become an approver, and past decisions keep their original approver (`ACC-026`). ENTERPRISE-BACKED.
 
 **Finalization and overdue handling, decided the same day.**
 
-- Attendance is finalized by period. Each month is a period that finalizes at 23:59 on the fifth day of the next month (`ATT-019`, `ATT-020`); it was the third day until `D24` moved it. Period-based finalization is ENTERPRISE-BACKED; the grace is LAB-POLICY, provisional.
+- Attendance is finalized by period. Each month is a period that finalizes at 23:59 on the fifth day of the next month (`ATT-019`, `ATT-020`); it was the third day until `D24` moved it. Period-based finalization is ENTERPRISE-BACKED; the grace is LAB-POLICY.
 - A period does not finalize while a request affecting it is pending or overdue; those are resolved or reassigned first.
 - After finalization nothing changes directly. The Intern or the responsible Mentor asks to reopen with a reason; an Admin reopens only the records or dates needed and is recorded doing so, but never approves or decides; the responsible Mentor then acts and finalizes again (`ATT-021`–`ATT-023`).
 - The same rule now holds for leave, corrections, and exceptions: a requester who misses a submission deadline is refused, while an approver who misses a decision deadline leaves the request `OVERDUE`, reminded and reassignable, never rejected (`LEV-010`, `COR-007`, `EXC-003`, `NOT-011`). ENTERPRISE-BACKED.
 
-**Interpreted, to confirm.** A period belongs to one Intern. A reopened range is finalized
+**Interpreted from the decision, not stated in it.** A period belongs to one Intern. A reopened range is finalized
 again by the responsible Mentor. An overdue leave request keeps its quota reservation and
 blocks overlaps, and `LEV-012` allows approving it after its start.
 
@@ -973,19 +984,19 @@ blocks overlaps, and `LEV-012` allows approving it after its start.
 
 - An Intern may withdraw a `PENDING` or `OVERDUE` leave request until its period is finalized. Withdrawal releases the quota reservation and the overlap block and keeps the request and its history. It never deletes or changes an attendance fact: a day the Intern was absent is still absent (`LEV-013`). ENTERPRISE-BACKED.
 - An Admin approves or rejects a reopen request, deciding only whether to reopen, from the reason, the records or range, and the data-governance and finalization rules, never the attendance, leave, correction, or exception itself. A rejection keeps actor, time, and reason (`ATT-022`). The request notifies every active user the authorization policy lets decide it, not every Admin by role, so narrowing Admin rights or adding an attendance-administration role later needs no notification change (`NOT-011`). ENTERPRISE-BACKED.
-- A correction no longer locks when its 24-hour decision window ends.
+- A correction no longer locks when its 24-hour decision window ends. **The window became 48 hours under `D23` on 16 September 2026; that a decided correction does not lock is unchanged.**
 - Leave, corrections, and exceptions reuse one mechanism, not one workflow: immutable decision history, the latest effective decision as current, amendments and reversals audited with actor, time, and reason, and finalization with reopen (`ATT-024`). Each keeps its own actions and states. An **amendment** changes the content of the current decision; a **reversal** reverses its outcome. Neither returns a decision to pending, and a change that needs a new approval is a new request. ENTERPRISE-BACKED.
 - Corrections and exceptions may be amended or reversed until the period is finalized (`COR-005`, `EXC-007`).
-- Approved leave is never reversed. Before it begins, the Intern cancels it under the cancellation rule; after it begins, only an audited amendment by the responsible Mentor changes it, and the attendance fact stays (`LEV-011`). ENTERPRISE-BACKED. Recalculating attendance and compliance when an amendment leaves a past date without leave is LAB-POLICY, provisional.
+- Approved leave is never reversed. Before it begins, the Intern cancels it under the cancellation rule; after it begins, only an audited amendment by the responsible Mentor changes it, and the attendance fact stays (`LEV-011`). ENTERPRISE-BACKED. Recalculating attendance and compliance when an amendment leaves a past date without leave is LAB-POLICY.
 
-**Derived from those points, to confirm.**
+**Derived from those points, not stated in them.**
 
 - A Mentor sets only an outcome and a note on a correction or an exception today, so an amendment there changes the note; any other amendable value would need a rule of its own.
 - An amendment to approved leave can only withdraw approval from dates, because adding a date needs a new approval.
 - A leave decision is never reversed, so a rejected request stays rejected and those dates need a new request. Since `LEV-012` forbids retroactive leave, a rejected request whose dates have passed can no longer become leave.
 - Under `COR-001` a row keeps one correction request, so after a decision only the responsible Mentor's amendment or reversal changes it.
 
-**Status:** closed on 14 September 2026; provisional, pending instructor confirmation.
+**Status:** closed on 14 September 2026; decided, and confirmed for build on 16 September 2026.
 
 ## D15. What do Remaining effort and variance mean, and who is the Daily report for?
 
@@ -1021,7 +1032,7 @@ given the Daily report; they see their own work logs in their Task pages.
 **Refined the same day.** The current Remaining effort uses the latest effective forecast,
 the most recent one no correction has superseded; earlier forecasts stay as history and
 never feed the current value (`TSK-021`). The Daily report gained its own use case,
-`UC-16`. **Status:** provisional, pending instructor confirmation.
+`UC-16`. **Status:** decided; confirmed for build on 16 September 2026.
 
 ## D16. When does a rule change need an ADR?
 
@@ -1098,7 +1109,7 @@ had been in the code since 25 August 2026, and no rule in the specification aske
 - The earlier suggestion to keep the check by analogy with `LEV-012` was rejected. Refusing retroactive leave says nothing about when a Project may have started.
 - The code changes to match the rule; the end-to-end journey that enters a Project starting seven days earlier stays as it is and now proves the case.
 
-**Status:** provisional, pending instructor confirmation.
+**Status:** decided; confirmed for build on 16 September 2026.
 
 ## D22. Does a Project need an `ARCHIVED` status?
 
@@ -1122,12 +1133,12 @@ page numbers decisions in the order the project took them, so they are `D22` to 
 missed-checkout correction had 24 hours to submit and 24 hours to decide, while an
 attendance exception had 48 and 48.
 
-- Both are **attendance adjustment requests**: raised after the attendance event, decided by the responsible Mentor, affecting the attendance result. They now share one policy, 48 hours to submit and 48 hours to decide (`COR-003`, `COR-004`, `EXC-002`, `EXC-003`). ENTERPRISE-BACKED: time-and-attendance systems put every post-event change through one adjustment framework and let the period close be the hard boundary. The 48-hour numbers are LAB-POLICY, provisional.
+- Both are **attendance adjustment requests**: raised after the attendance event, decided by the responsible Mentor, affecting the attendance result. They now share one policy, 48 hours to submit and 48 hours to decide (`COR-003`, `COR-004`, `EXC-002`, `EXC-003`). ENTERPRISE-BACKED: time-and-attendance systems put every post-event change through one adjustment framework and let the period close be the hard boundary. The 48-hour numbers are LAB-POLICY.
 - Each request is also bounded by its attendance period, so the real deadline is whichever comes first.
 - What stays different is the evidence, not the clock. A correction carries a proposed checkout with a reason, leaves the raw record untouched, and is decided by the responsible Mentor alone.
 - 48 hours covers a single weekend, which 24 did not, and still keeps the event fresh enough for the Mentor to judge.
 
-**Status:** provisional, pending instructor confirmation.
+**Status:** decided; confirmed for build on 16 September 2026.
 
 ## D24. How long may a Mentor mark an excuse without a request?
 
@@ -1137,9 +1148,9 @@ close of `ATT-020`: a work date on the 30th would have lost its window on the 3r
 
 - The Mentor may mark a late arrival or early departure excused **while the attendance period of that work date is open**, with no separate limit of its own (`EXC-004`). Afterwards the change goes through the reopen workflow of `ATT-022`. ENTERPRISE-BACKED: a manager adjusts attendance until the period closes, and after that through an explicit retroactive route with a higher approval.
 - One boundary instead of two removes the contradiction and matches what the system already enforces everywhere else.
-- The cost is that the window is uneven: a work date early in the month has weeks, one at month end has days. The single lever for that is the closing day, and it moves with this decision from the third to the fifth day of the next month, 23:59, in `ATT-020`. Three days left a Mentor almost no time to review a work date at month end; five keeps two more working days without holding the month open long enough to disturb reporting. Eight was considered and refused as too late. LAB-POLICY, provisional.
+- The cost is that the window is uneven: a work date early in the month has weeks, one at month end has days. The single lever for that is the closing day, and it moves with this decision from the third to the fifth day of the next month, 23:59, in `ATT-020`. Three days left a Mentor almost no time to review a work date at month end; five keeps two more working days without holding the month open long enough to disturb reporting. Eight was considered and refused as too late. LAB-POLICY.
 
-**Status:** provisional, pending instructor confirmation.
+**Status:** decided; confirmed for build on 16 September 2026.
 
 ## D25. May an Intern see their own attendance report?
 
@@ -1150,7 +1161,7 @@ close of `ATT-020`: a work date on the 30th would have lost its window on the 3r
 - Without it the 48-hour window of `D23` is not usable in practice: an Intern who cannot see a missing checkout learns of it only when someone else notices.
 - No export in this version. That limits the first release rather than protecting the data, which is the Intern's own, so adding an export later breaks no principle.
 
-**Status:** provisional, pending instructor confirmation.
+**Status:** decided; confirmed for build on 16 September 2026.
 
 ## What the audit checked and found sound
 
@@ -1201,21 +1212,21 @@ consistent and they match the code. Neither of those facts establishes that they
 describe what the laboratory actually wants. Only a reading by the authority named
 in section 1.1 can establish that, and section 22.2 already requires it.
 
-## To confirm with the instructor
+## Judgement calls about the laboratory, open to the instructor's review
 
-These were settled from evidence under the rule that the most recent earlier
-decision applies. Each is a judgement about the laboratory rather than a fact about
-the code, and each is the current candidate until the instructor confirms or
-reverses it.
+These were settled from evidence under the rule that the most recent earlier decision
+applies. Each is a judgement about the laboratory rather than a fact about the code, so
+the instructor is the person most likely to revise one. None of them is waiting: all were
+confirmed for build on 16 September 2026, and a revision arrives as a new decision.
 
-| Item | Current answer | Why it needs the instructor |
+| Item | Current answer | What a revision would move |
 |---|---|---|
 | `D1` | **Confirmed 14 September 2026.** An Admin views and exports every report read-only. | Nothing open. |
-| `D12` | Decided 14 September 2026, **provisional**. Only an empty draft is deleted, with its notifications; everything else is cancelled and stays in reports. | Instructor confirmation. |
+| `D12` | Decided 14 September 2026, confirmed for build 16 September. Only an empty draft is deleted, with its notifications; everything else is cancelled and stays in reports. | `PRJ-002`, `PRJ-023`, and how cancelled Projects appear in `RPT-003` and `RPT-011`. |
 | `ACC-024` | **Confirmed 14 September 2026.** A withdrawn Intern cannot sign in; a completed Intern keeps a read-only account and may change their password. | Nothing open. |
-| `COR-006` and `D14` | An approved correction confirms the time only. Excused violations are written as `EXC-001`–`EXC-007`, **provisional**, with LAB-POLICY limits. | Instructor confirmation, including the five-day grace and the points marked to confirm under `D14`. |
-| Daily Project Work Report | Decided 14 September 2026 under `D15`, **provisional**: a Task view and an Intern view, so variance is shown once per Task. | Instructor confirmation. |
-| `D13` | Decided 14 September 2026, **provisional**. Block, unblock to the previous status, and reopen with a reason. | Instructor confirmation. |
+| `COR-006` and `D14` | An approved correction confirms the time only. Excused violations are written as `EXC-001`–`EXC-007`, confirmed for build 16 September, with LAB-POLICY limits. | The 48-hour limits of `D23`, the five-day grace of `D24`, and the `V3` tables those rules need. |
+| Daily Project Work Report | Decided 14 September 2026 under `D15`, confirmed for build 16 September: a Task view and an Intern view, so variance is shown once per Task. | `RPT-011`–`RPT-014` and `UC-16`. |
+| `D13` | Decided 14 September 2026, confirmed for build 16 September. Block, unblock to the previous status, and reopen with a reason. | `TSK-023`, `TSK-025`, `NOT-003`, and step 2 of the platform plan. |
 
 ## Earlier record: Task estimate and remaining-effort forecasts
 

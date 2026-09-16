@@ -1,6 +1,6 @@
 # Platform Plan
 
-**Version:** 0.3 · **Owner:** Loc-LX · **Status:** DRAFT, awaiting approval · **Date:** 2026-09-16
+**Version:** 0.4 · **Owner:** Loc-LX · **Status:** DRAFT, awaiting approval · **Date:** 2026-09-16
 
 How the platform rules of [SPEC.md](SPEC.md) will be built. It is a technical design, not
 a tracker: progress belongs in [`plan.md`](../../../plan.md). The rules themselves are in
@@ -25,10 +25,12 @@ single feature.
 own `PLAN.md`. Also out: `GOV-007`, `GOV-008` and `GOV-015` exclusions, the deployment
 pipeline, and any change to the specification itself.
 
-**Blocked until the instructor confirms.** `D12`, `D13`, `D14`, `D15`, `D21`, `D23`, `D24`
-and `D25` are provisional. The migration in §3 must not be written before they are
-confirmed, because each of them adds or removes a column. The design may be approved now;
-the schema is frozen only when the decisions are.
+**No longer blocked on the instructor.** `D12`–`D15`, `D21` and `D23`–`D25` were
+confirmed for build by the maintainer on 16 September 2026, so the rules each of them adds
+or removes a column for are settled and the schema of §3 may be written. One question is
+still open and still blocks step 5: §3.3 below asks what the migration does with the
+months that predate it. If the instructor later revises one of these decisions, it arrives
+as a new decision and this plan is amended with the spec.
 
 ## 2. Design: one authorization policy
 
@@ -207,11 +209,11 @@ only when the step it depends on is green.
 | 2 | Introduce the policy and the capability catalogue; move the three Admin report checks behind it, and remove from `TaskService#changeStatus` the capability the matrix does not grant, namely an owning Mentor setting any status | `AUTH-012`, the refusal half of `TSK-023` | 1 |
 | 3 | Move the remaining role decisions in services and templates behind the policy, file by file, keeping `SecurityConfiguration` as coarse route protection | `AUTH-012`, `AUTH-002` | 2 |
 | 4 | Withdraw one Admin capability in the catalogue and prove only that cell changes | `AC-AUTH-011` second half, `D1` | 3 |
-| 5 | Write the `V3` migration of §3, its constraints, its data migration, and the specification change §3.4 names | §3 rules, `DB-010`, `GOV-016` | instructor confirmation |
+| 5 | Write the `V3` migration of §3, its constraints, its data migration, and the specification change §3.4 names | §3 rules, `DB-010`, `GOV-016` | question 1 of §7 |
 | 6 | Close the platform gaps the constitution lists: security headers read back, development relaxations refused under production, a not-found response identical for unauthorized and absent records, and a build check for business SQL outside a repository | `SEC-011`, `SEC-013`, `AUTH-002`, `ARC-006` | 3 |
 
-Steps 1, 2, 3, 4 and 6 need no schema change and are not blocked by the instructor. Step 5
-is.
+Steps 1, 2, 3, 4 and 6 need no schema change and are blocked by nothing. Step 5 waits on
+one answer, question 1 of §7, about the months that predate the migration.
 
 **What step 2 deliberately leaves out.** `TSK-023` has two halves. Refusing what the matrix
 does not grant needs no storage, and belongs here. Granting the Leader and the Mentor block,
@@ -249,11 +251,12 @@ identifiers in the test source.
 
 | # | Question | Owner | Blocks |
 |---|---|---|---|
-| 1 | Confirmation of `D12`, `D13`, `D14`, `D15`, `D21`, `D23`, `D24`, `D25` | the instructor | Step 5, and the attendance, project, task and reporting plans |
-| 2 | §3.3 proposes closing every month that predates the migration, with the migration itself recorded as the actor. Does the laboratory accept that, or should those months stay open for a Mentor to review first? | the instructor | Step 5 |
+| 1 | §3.3 proposes closing every month that predates the migration, with the migration itself recorded as the actor. Does the laboratory accept that, or should those months stay open for a Mentor to review first? | Loc-LX | Step 5 |
 
-A plan with an open question is not ready for implementation. Both remaining questions are
-the instructor's, and both block only step 5. Steps 1, 2, 3, 4 and 6 are clear.
+A plan with an open question is not ready for implementation. One question remains, it is
+the maintainer's, and it blocks only step 5. Steps 1, 2, 3, 4 and 6 are clear. The
+confirmation of `D12`–`D15`, `D21` and `D23`–`D25` was the other question and was answered
+on 16 September 2026: the maintainer confirmed them for build rather than hold the plan.
 
 ### 7.1 Closed in review, 16 September 2026
 

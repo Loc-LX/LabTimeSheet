@@ -1,6 +1,6 @@
 # Project Spec
 
-**Version:** 1.3.0 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-15
+**Version:** 1.3.1 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-16
 
 Part of the Lab Timesheet specification. Rules every feature shares, including the
 glossary, the authorization model, the domain model, and failure handling, are in
@@ -195,6 +195,6 @@ No rule in this spec states an exclusion of its own.
 
 ## Notes / Open Questions
 
-- `D12`, decided on 14 September 2026, is **provisional, pending instructor confirmation**. Only an empty `PLANNED` draft is deleted, with the notifications raised for it; any other Project that will not run is cancelled under `PRJ-023` and keeps its history. `ARCHIVED` was not added, because nothing yet gives it a meaning `COMPLETED` and `CANCELLED` lack. How cancelled Projects appear in reports is `RPT-003` and `RPT-011`.
+- `D12`, decided on 14 September 2026 and confirmed for build on 16 September, is settled. Only an empty `PLANNED` draft is deleted, with the notifications raised for it; any other Project that will not run is cancelled under `PRJ-023` and keeps its history. `ARCHIVED` was not added, because nothing yet gives it a meaning `COMPLETED` and `CANCELLED` lack. How cancelled Projects appear in reports is `RPT-003` and `RPT-011`.
 - Deleting an empty draft leaves no audit record, since `GOV-009` forbids generic domain events.
 - Code finding, not a rule: `ProjectService#deleteProjectRows` deletes with native SQL, which `ARC-006` forbids (`D18`), and does not delete `task_remaining_effort_forecasts`. An empty Project has no Task, so no forecast can exist for it.

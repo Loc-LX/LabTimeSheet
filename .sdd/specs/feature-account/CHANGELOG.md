@@ -3,6 +3,10 @@
 Each entry records a change to [SPEC.md](SPEC.md): the version, the date, what changed,
 and why. A change that alters a rule raises the version.
 
+## 1.1.3 — 2026-09-16
+
+Status only; no rule changed. `D14` is no longer held provisional, so the note under `ACC-026` says it is decided. Recorded as provisional on that date and confirmed for build by the maintainer on 16 September 2026; see the note above the decision table in [`.sdd/decisions.md`](../../decisions.md).
+
 ## 1.1.2 — 2026-09-14
 
 The remaining points of decision `D14`, recorded in [`.sdd/decisions.md`](../../decisions.md). Marked provisional, pending instructor confirmation.
