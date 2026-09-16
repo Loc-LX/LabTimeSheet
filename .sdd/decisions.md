@@ -60,20 +60,21 @@ came from, not whether the choice is settled.
 | D9 | Stating the SMTP port range | 1 through 65535, a type constraint | `INT-007` |
 | D10 | Which stylesheet the desktop overflow contract requires | The assertion was wrong, not the stylesheet; action completed 12 September 2026 | none |
 | D11 | Whether approving the specification waits for the Iteration 3 integrated review | No; resolving every code and specification disagreement is the condition instead | §22.2 |
-| D12 | Whether a Project may be deleted | Only an empty `PLANNED` Project, with its notifications; any other Project that will not run is cancelled and stays in reports. Provisional | `PRJ-002`, `PRJ-023`, `RPT-003`, `RPT-011` |
-| D13 | Whether an owning Mentor may change a Task's status | Only block, unblock to the previous status, and reopen with a reason, decided by role, scope, and state. Provisional | `AUTH-005`, `AUTH-008`, `TSK-007`, `TSK-023`, `TSK-025`, `NOT-003` |
-| D14 | Whether a late arrival or early departure can be excused | Yes, as a separate, append-only decision by the responsible Mentor, who also decides leave and corrections, all three reusing one decision-history and finalization mechanism; overdue is never rejected; results finalize by monthly period and reopen with Admin approval. Provisional | `EXC-001`–`EXC-007`, `ATT-019`–`ATT-024`, `ACC-026`, `LEV-008`, `LEV-010`, `LEV-013`, `COR-005`, `COR-007`, `NOT-011` |
+| D12 | Whether a Project may be deleted | Only an empty `PLANNED` Project, with its notifications; any other Project that will not run is cancelled and stays in reports | `PRJ-002`, `PRJ-023`, `RPT-003`, `RPT-011` |
+| D13 | Whether an owning Mentor may change a Task's status | Only block, unblock to the previous status, and reopen with a reason, decided by role, scope, and state | `AUTH-005`, `AUTH-008`, `TSK-007`, `TSK-023`, `TSK-025`, `NOT-003` |
+| D14 | Whether a late arrival or early departure can be excused | Yes, as a separate, append-only decision by the responsible Mentor, who also decides leave and corrections, all three reusing one decision-history and finalization mechanism; overdue is never rejected; results finalize by monthly period and reopen with Admin approval | `EXC-001`–`EXC-007`, `ATT-019`–`ATT-024`, `ACC-026`, `LEV-008`, `LEV-010`, `LEV-013`, `COR-005`, `COR-007`, `NOT-011` |
 | D15 | What Remaining effort and variance mean, and who the Daily report is for | Estimate is the baseline; Remaining is a current forecast; two report perspectives | `GOV-015`, `TSK-021`, `TSK-024`, `RPT-012`, `RPT-014` |
 | D16 | When a rule change needs an ADR | Only when it moves an architectural boundary | constitution, Amendment |
 | D17 | What to do with `work/tasks-lab-b5` and `work/tasks-sync` | Superseded history; not merged, not a source of truth | none |
 | D18 | Whether native SQL may stay in a service | No; special queries go through the data-access layer | `ARC-006` |
 | D19 | Whether the suite must pass on Windows without extra flags | Yes; the timezone is normalized in test configuration; done 15 September 2026 | none |
 | D20 | How the constitution ranks rules, and what outranks what | Layers by how strictly a rule binds; one authority order by document type | `GOV-001`, `OPS-019`, constitution |
-| D21 | Whether a Project may start before the day it is entered | Yes; the start date is Project metadata, and retroactive work stays governed by `TSK-014`. Provisional | `PRJ-024` |
+| D21 | Whether a Project may start before the day it is entered | Yes; the start date is Project metadata, and retroactive work stays governed by `TSK-014` | `PRJ-024` |
 | D22 | Whether a Project needs an `ARCHIVED` status | No; `COMPLETED` and `CANCELLED` are the final business states, and archiving is a display concern | none |
-| D23 | Whether a correction and an exception keep different deadlines | No; both are attendance adjustment requests with 48 hours to submit and 48 hours to decide. Provisional | `COR-003`, `COR-004`, `EXC-002`, `EXC-003` |
-| D24 | How long a Mentor may mark an excuse without a request | Until the attendance period closes, with no separate limit. Provisional | `EXC-004` |
-| D25 | Whether an Intern may see their own attendance report | Yes, their own date only, without export in this version. Provisional | `RPT-015` |
+| D23 | Whether a correction and an exception keep different deadlines | No; both are attendance adjustment requests with 48 hours to submit and 48 hours to decide | `COR-003`, `COR-004`, `EXC-002`, `EXC-003` |
+| D24 | How long a Mentor may mark an excuse without a request | Until the attendance period closes, with no separate limit | `EXC-004` |
+| D25 | Whether an Intern may see their own attendance report | Yes, their own date only, without export in this version | `RPT-015` |
+| D26 | Who confirms a business decision | The maintainer; the instructor reviews and a revision arrives as a new decision, not as a gate | constitution, `shared_context.md` |
 
 D1 through D5 came from reading the specification against its own history. D6
 through D9 came from the audit described at the end of this page, which read the
@@ -1115,7 +1116,7 @@ had been in the code since 25 August 2026, and no rule in the specification aske
 
 **Decided on 16 September 2026 by Loc-LX**, reviewing the Project lifecycle against how
 large work-management systems separate state from storage. Recorded by the maintainer as
-The maintainer numbered these four `D36` to `D39` while reviewing them on 16 September
+The maintainer numbered these four D36 to D39 while reviewing them on 16 September
 2026. That numbering exists only in that conversation, not in any document here, and this
 page numbers decisions in the order the project took them, so they are `D22` to `D25`.
 
@@ -1162,6 +1163,18 @@ close of `ATT-020`: a work date on the 30th would have lost its window on the 3r
 - No export in this version. That limits the first release rather than protecting the data, which is the Intern's own, so adding an export later breaks no principle.
 
 **Status:** decided; confirmed for build on 16 September 2026.
+
+## D26. Who confirms a business decision, now that none is held provisional?
+
+**Decided on 16 September 2026 by Loc-LX**, on the same day the decisions listed
+under *Decided for build* above stopped waiting on the instructor.
+
+- The maintainer decides, and the decision is in force from the moment it is recorded. Waiting for a countersignature was holding eight decisions, and through them the migration, the technical plans, and every rule that depends on them.
+- The instructor reviews as a reader. A change they ask for arrives as a **new decision that supersedes the one it replaces**, under the first row of the constitution's Amendment table, and the earlier decision keeps its wording with a pointer to what replaced it. Nothing is rewritten backwards.
+- This removes nothing from the instructor. It removes a queue: a decision that has not been reviewed yet is now *decided and reviewable*, not *blocked*.
+- Two documents said otherwise and were corrected with this decision: the `Business reviewer` row of the constitution, which named the instructor as the person who confirms decisions marked provisional, and assumption `A7` of `shared_context.md`, which assumed the instructor is available for that confirmation. The constitution went to `1.0.1`; the change is wording, so it is a patch.
+
+**Status:** decided.
 
 ## What the audit checked and found sound
 

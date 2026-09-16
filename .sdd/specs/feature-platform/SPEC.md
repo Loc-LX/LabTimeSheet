@@ -1,6 +1,6 @@
 # Platform Spec
 
-**Version:** 1.3.2 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-16
+**Version:** 1.3.3 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-16
 
 Part of the Lab Timesheet specification. Rules every feature shares, including the
 glossary, the authorization model, the domain model, and failure handling, are in
@@ -81,7 +81,7 @@ When statements conflict, use this precedence from highest to lowest:
 3. `AGENTS.md`, `CONTRIBUTING.md`, and `CLAUDE.md`.
 4. Code and tests. Where they disagree with a spec, the code changes.
 
-[`.sdd/decisions.md`](../../decisions.md) and the ADRs under `.sdd/rfcs/` record why a rule reads as it does; they do not outrank the spec. Where one is newer than the spec it concerns, the spec is stale and is corrected. The maintainer decides a change under the constitution's Amendment section, and the instructor confirms decisions marked provisional.
+[`.sdd/decisions.md`](../../decisions.md) and the ADRs under `.sdd/rfcs/` record why a rule reads as it does; they do not outrank the spec. Where one is newer than the spec it concerns, the spec is stale and is corrected. The maintainer decides a change under the constitution's Amendment section. The instructor reviews those decisions and is not a gate on them (`D26`): a revision they ask for arrives as a new decision that supersedes the one it replaces.
 
 Until 14 September 2026 this list ranked sources by who produced them: the primary implementor's current decisions, an earlier brainstorming review and handoff, instructor-confirmed requirements, earlier requirements answers, and a superseded first draft. The dated revisions below still cite that order as it stood.
 

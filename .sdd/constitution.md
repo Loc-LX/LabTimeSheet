@@ -2,13 +2,13 @@
 
 | Field | Value |
 |---|---|
-| Version | `1.0.0` |
+| Version | `1.0.1` |
 | Status | `LOCKED` |
 | Applies to | every developer, every AI agent, every pull request |
 | Maintainer | Loc-LX |
-| Business reviewer | the instructor; confirms decisions marked provisional in [`.sdd/decisions.md`](decisions.md) and does not sign this document |
+| Business reviewer | the instructor; reviews the maintainer's business decisions in [`.sdd/decisions.md`](decisions.md) and does not sign this document |
 | Signed by | Loc-LX, 2026-09-15 |
-| Last updated | 2026-09-15 |
+| Last updated | 2026-09-16 |
 | Amendment | see [Amendment](#amendment); the mechanism depends on the kind of change |
 | Full rule text | [`.sdd/specs/`](specs) |
 
@@ -296,12 +296,18 @@ referenced from everywhere else.
 A pull request is how any of these reaches the repository. It is the delivery
 mechanism, never an alternative to them.
 
-That process has been exercised once. The Admin Attendance report scope was
+That process has been exercised twice. The Admin Attendance report scope was
 granted on 17 August 2026, withdrawn on 27 August, and restored on 30 August.
 The reasoning is recorded in
 [`.sdd/rfcs/ADR-002-attendance-report-scope.md`](rfcs/ADR-002-attendance-report-scope.md),
 and the superseded wording was left in place rather than rewritten, which is
 `GOV-005` applied to the document itself.
+
+The second was this document's own index row, amended to `1.0.1` on 16 September
+2026 under `D26`. The Business reviewer row described the instructor as the person
+who confirms decisions marked provisional; from that day no decision is held
+provisional, so the row named a state that no longer exists. Wording only, which
+is why it is a patch: no obligation was added, removed or weakened.
 
 ## Known enforcement gaps
 

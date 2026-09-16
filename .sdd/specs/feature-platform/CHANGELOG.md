@@ -3,6 +3,10 @@
 Each entry records a change to [SPEC.md](SPEC.md): the version, the date, what changed,
 and why. A change that alters a rule raises the version.
 
+## 1.3.3 — 2026-09-16
+
+Wording only; no rule changed. The explanation of `GOV-001` in §1.1 still said the instructor confirms decisions marked provisional. Under `D26` no decision is held provisional and the instructor is a reviewer rather than a gate, so the sentence described a step that no longer exists.
+
 ## 1.3.2 — 2026-09-16
 
 Wording only; no rule changed. The exclusion note in §20 said **seventeen** requirements have no acceptance scenario. Its own identifier list holds nineteen, and the counts in §22 give the same answer: 296 rules, 277 with a scenario. The number was right when it was written and stopped being right when `GOV-016`, `OPS-020` and `OPS-021` were added, which is why a count stated in words is worth a test.
