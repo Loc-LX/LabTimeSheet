@@ -76,6 +76,7 @@ came from, not whether the choice is settled.
 | D25 | Whether an Intern may see their own attendance report | Yes, their own date only, without export in this version | `RPT-015` |
 | D26 | Who confirms a business decision | The maintainer; the instructor reviews and a revision arrives as a new decision, not as a gate | constitution, `shared_context.md` |
 | D27 | What the `V3` migration does with months worked before it | Create a period for each, then apply `ATT-020` to it as the running system would: close the ones whose deadline has passed with nothing pending, leave the rest open | none; `ATT-019`–`ATT-024` already say it |
+| D28 | How the code is split into modules, and what may depend on what | Seven features and `platform` by dependency, acyclic, with `config` as wiring; leave stays in attendance, the policy table in calendar, internship on its own; six rules relocated unchanged; documents first, code after | `ARC-005`, `ARC-006`, `AC-ARC-001`, `NOT-003`, `NOT-010`, `NOT-011`, `AUTH-004`, `AUTH-009`, `AUTH-011`, constitution |
 
 D1 through D5 came from reading the specification against its own history. D6
 through D9 came from the audit described at the end of this page, which read the
@@ -1197,6 +1198,161 @@ the month after go-live, close a year of history at once with no warning.
 **Consequence for the plan.** Step 5 of the platform plan is no longer blocked. The other
 three cases of §3.3, the responsible Mentor, `locked_at` on corrections, and the widened
 status constraints, were already decided there and are unchanged.
+
+**Status:** decided.
+
+## D28. How is the code split into modules, and what may depend on what?
+
+**Decided on 17 September 2026 by Loc-LX**, after two independent reviews of a measured
+proposal. The feature packages followed the order in which the product was built, and
+several depended on each other in a circle. This decision redraws them by dependency
+before any of the recorded decisions reaches the code. The architectural record is
+[`ADR-006`](rfcs/ADR-006-module-boundaries.md).
+
+**Evidence.** `scripts/module-boundaries.cjs` assigns all 296 rules to a target module and
+collects 686 dependency edges from rule citations, from rule prose checked phrase by phrase
+against the rule text, and from type references in the code. Before the resolutions below,
+all eight modules form one strongly connected group; after them, none. Business dates are
+derived from every place the code computes one, so the reading of `GOV-011` applies to all
+modules alike.
+
+A concept scan then reads every one of the 296 rules for mentions of a concept another
+module owns. Its dictionary is built from the specification itself: the physical table
+inventory, the terminology table, and the actors and states the rules use. It finds 157 such
+mentions, 58 of them toward a lower layer, which is the allowed direction, and 99 toward the
+same or a higher layer. Each of the 99 has a recorded verdict and reason: 10 dependencies,
+each naming the resolution below that removes it; 49 references, cross-cutting obligations
+that each owning module implements; 22 readers or prohibitions; 12 homonyms; 6 shared
+vocabulary. The run fails on a mention without a verdict, on a dependency that names no
+resolution, and on a verdict that matches no mention, and each of those failures was made to
+happen before the scan was trusted. It reproduces all 12 findings of an independent keyword
+scan by the reviewer, and a finding it could not reproduce would mean a gap in the dictionary,
+to be fixed there. The scan is complete relative to its dictionary; whether the dictionary is
+complete remains a judgment. Widening it to plural forms exposed two mentions the first run
+had missed, `INT-004` and `OPS-004`.
+
+The script uses Node built-ins only. It describes the structure before the split and its
+class tables are judgments tied to the current packages, so after step 6 its cycle check
+becomes a test or the script is retired. The industry references were read,
+not recalled: the Odoo 17.0 module manifests and `resource.calendar`, Spring Modulith's
+module verification, and Shopify Packwerk.
+
+**The modules.**
+
+| Module | Holds |
+|---|---|
+| `identity` | accounts, installation, sign-in, the SMTP administration screen |
+| `internship` | the internship lifecycle, the responsible Mentor, and the Admin's Intern administration composed over identity |
+| `calendar` | the whole attendance policy table, the global calendar, HolidayAPI |
+| `attendance` | punches, attendance periods, corrections, exceptions, leave |
+| `project` | Projects and Tasks |
+| `reporting` | read-only reports and exports |
+| `notification` | inbox, outbox, redelivery |
+| `platform` | code that belongs to no single feature: raw mail and the SMTP configuration, secret encryption, the authorization policy |
+| `config` | wiring only |
+
+Computed layers, bottom first: `platform`; `identity`; `calendar` and `notification`;
+`internship`; `attendance` and `project`; `reporting`. Rules per module, as the script counts
+them: `identity` 24, `internship` 8, `calendar` 14, `attendance` 52, `project` 61, `reporting`
+16, `notification` 8, `platform` 113.
+
+**Choices, each made against an alternative.**
+
+- **Leave stays in attendance.** `ATT-020`, `ATT-021`, `ATT-024` and `LEV-013` bind leave, corrections and exceptions to one period and one decision history, under guards that run in the same transaction (`ERR-003`). Odoo separates attendance from time off because its attendance has no period close; its one crossing sits in the bridge module `hr_holidays_attendance`. Here the bridge would hold the core. An earlier proposal split leave out and had to add an interface at once to join the halves again, which showed the boundary was in the wrong place.
+- **The policy table is not split, and it lives in `calendar`.** `attendance_records` and `leave_request_days` reference it for `GOV-005`, and no business need asks for three tables. Calendar needs its timezone to decide that a past event is immutable (`CAL-007`, `GOV-011`), while attendance needs the calendar (`CAL-009`, `LEV-002`); placing the table in attendance would close a cycle. So it sits in the lowest module that uses it. The module keeps the name `calendar` although it holds the policy: that is deliberate, not a misplacement to be undone.
+- **Raw mail and the SMTP configuration are in `platform`.** `NOT-008` keeps activation and reset mail out of the outbox, so identity sends it directly. In `notification`, identity and notification would depend on each other.
+- **No interface asks whether a date is an Intern's personal leave day.** The calendar is laboratory-wide (`CAL-001`–`CAL-009`). A personal calendar is a feature nobody specified, which `GOV-006` sends to a decision of its own.
+- **`internship` is a module of its own, built on `identity`.** Merged into identity, activation needs the business date (`ACC-021`) while calendar asks identity who the actor is: the cycle identity and calendar. `--merge-internship` exits with that cycle.
+- **`UI-019`, `AUTH-003` and `DB-008` stay in `platform`.** Each spans several modules. Their citations of module rules are references to definitions; the authorization policy receives scope resolved by the owning module.
+- **Global roles are platform vocabulary.** The terminology table of the platform spec defines them, and `AUTH-012` decides on the actor's role, so the role type belongs to `platform`; the concept scan counts roles as platform's. In step 6 `GlobalRole` leaves the account package, and `AttendanceRole`, a copy of it, is removed.
+- **`NOT-002` is shared vocabulary, not a dependency.** It names attendance and Project notification types, but `NotificationType` is owned by notification and chosen by the module that publishes the event, and notification imports nothing of attendance or project. `NOT-003`, `NOT-010` and `NOT-011` are different: each chooses recipients from another module's data, which is why they move.
+- **The spec directory keeps the name `feature-platform`.** Lines 11 and 12 of the platform spec already record the `feature-{name}` convention. Renaming would touch 65 places in 16 files and the structure tests, and would leave the 17 `spec/feature-platform/…` tags named unlike every later tag, for a gain in appearance only.
+- **`UC-04` is split by where its rules live, not by where its screen is.** `UC-04` keeps its number and moves to the calendar spec for policy, calendar and HolidayAPI. SMTP becomes `UC-19` in the platform spec, tracing `INT-001`–`INT-008`. `UC-18` takes the internship lifecycle out of `UC-03`. Gate: the rules traced by the new `UC-04` and `UC-19` together equal exactly those the old `UC-04` traced, `ATT-001`–`ATT-006`, `CAL-001`–`CAL-009` and `INT-001`–`INT-008`, with nothing added and nothing lost. The new `UC-04` still traces `ATT-004`–`ATT-006`, which live in attendance; a trace across specs is allowed.
+- **`INT-009` has no use case today**, only `AC-INT-002`. The defect predates this decision and is not fixed while the specification moves; it is tracked as its own item in `plan.md`.
+- **No rule text changes in this restructure** except `ARC-005`, `ARC-006` and `AC-ARC-001`, which describe the structure itself.
+
+**Six rules move with their identifiers and words unchanged.**
+
+- `NOT-003` to project: it notifies the assignee and, when the actor is the owning Mentor, the current Leader. Choosing those recipients needs Project data. The code analysis missed it because project already computes the recipients before calling notification, and no chosen phrase covered the rule.
+- `NOT-010` to project: it notifies the invitee, the issuing Leader, the owning Mentor, the target of a removal and the current Leader. Every recipient is Project data.
+- `NOT-011` to attendance: every clause concerns leave, corrections, exceptions or the attendance period. Left in notification, it makes notification depend on attendance and internship.
+- `AUTH-004` to project: Leader permissions and the order of a Leader's exit.
+- `AUTH-009` to project: what an active member of an open Project may view and comment on.
+- `AUTH-011` to project: the authorization of invitation, membership-exit, exit-transfer, self-Task, Task-definition and history operations.
+
+**Resolutions, none of which changes a rule's text.**
+
+| | Dependency in a cycle | Resolution |
+|---|---|---|
+| R1 | internship and project | option A below |
+| R2 | internship and attendance | Requests store no assigned approver; the responsible Mentor is resolved when a decision is made. V1 already forces `decided_by_mentor_user_id` to NULL while a request is `PENDING`, and every new request table keeps that shape |
+| R3 | identity and internship | internship composes Intern creation, correction and the Student Code directory over identity |
+| R4 | platform and identity | Platform services receive the verified actor and the recipient; the SMTP screen sits in identity beside the bootstrap that offers SMTP setup |
+| R5 | notification with attendance, internship and project | `NOT-011` moves to attendance; `NOT-003` and `NOT-010` move to project |
+| R6 | platform rules citing module rules | The authorization policy receives scope resolved by the owning module |
+| R7 | calendar asking attendance who the actor is | Calendar asks identity; `AttendanceRole` copies `GlobalRole` |
+| R8 | calendar asking attendance for the business date | Computed in calendar, which owns the policy timezone |
+| R9 | calendar needing leave reservations and Task due dates for a change preview | Calendar declares an interface each affected module implements with the data it owns. Not built today: `TaskQueryService.dueDateImpacts` has no caller |
+| R10 | platform reading `SecurityProperties` from `config` | `SecurityProperties` moves to platform |
+
+**R1, three options.** `ACC-022` refuses to complete or withdraw an Intern who leads a Project
+or owns an unfinished Task. Today `AccountService.completeInternship` and
+`withdrawInternship` accept a guard computed by their caller, and `ProjectService` is the only
+caller.
+
+- **A, chosen.** internship declares an interface asking whether the Intern still holds a leadership term or an unfinished Task, calls it itself, and project implements it. The owner of `ACC-022` checks the rule, so no caller can pass a guard that reads "ready". Behavior seen from outside does not change: the same refusals, the same Admin screen. It needs the exception added to `ARC-006`.
+- **B, rejected.** No interface: move the readiness panel and both actions to a route owned by project. The Admin screen changes, and step 6 changes no behavior.
+- **C, rejected.** Keep the screen and place its controller in a module above both, such as project. An account-administration controller inside project repeats the misplacement just corrected for `AdminSettingsController`, and the public method would still trust its caller: safe by convention only.
+
+**Conditions on R3.** It is a task of its own in step 6, done last together with R1. Before
+the code moves, a test asserts the invariant of `ACC-019` on committed data after a forced
+failure: every `INTERN` account has exactly one Intern profile, no other account has one, and a
+creation that fails midway leaves neither row behind. `ACC-019` does not say "in one
+transaction"; the test checks the invariant, not the mechanism, so it stays valid after the
+move. The test must be seen failing first: break the code so that an `INTERN` account commits
+without a profile, confirm the test fails for that reason, restore the code, and record this in
+the commit. No such test exists today: the duplicate Student Code test checks the message, not
+that no account row remains.
+
+**On `GOV-004`.** Attendance and project have no edge between them, in the rules or in the
+code. That supports `GOV-004` without proving it, because reporting reads both;
+`AttendanceAndTaskWorkSeparationTest` stays.
+
+**Sequence.** Documents come first, then plan, tasks, code and validation, for this
+restructure as for any other work. The first order recorded here moved the code before the
+specification; the maintainer reversed it on the day of the decision.
+
+1. Revise the decision documents.
+2. Check all 296 rules systematically for mentions of another module's concepts.
+3. Lock the decision documents (`D28`, `ADR-006`, `ARC-005`, `ARC-006`, `AC-ARC-001`, the constitution) in one commit.
+4. Move the specification into directories by the new modules. Gate: a dump of rules with none lost and no word changed. `UC-03` and `UC-04` are reviewed separately, because they are rewritten prose rather than moved text.
+5. Write `PLAN.md` and `TASKS.md` for moving the code, and submit them for the maintainer's approval.
+6. Move the code by those tasks on a branch of its own, `work/fix/structure/<name>` from `main` as `OPS-019` requires. Before this step the documentation branch is merged into `main`, with the maintainer's permission, so that the branch carries the documents it follows. Gates: the full Maven suite, the end-to-end suite, `npm run test:ui`, and the cycle test.
+7. Check that the code matches the documents, then merge with the maintainer's permission.
+8. Plan each part of the business decisions of `D12`–`D27`, then implement it.
+
+Steps 1 to 5 happen on the current documentation branch. `feature-attendance/PLAN.md` and
+`feature-task/PLAN.md` are superseded.
+
+**How work is divided from here.**
+
+- One `SPEC.md` per module, with no sub-directories of specs; a long spec is divided into sections inside the file.
+- Work is divided into parts, each a cluster of rules that goes through plan, tasks, code and validation.
+- One `PLAN.md` per module with a section per part, and one `TASKS.md` per module with tasks grouped by part. `plan.md` tracks the state of each part.
+- Depth follows risk. A part that changes the schema, a state machine, or anything historical gets a full plan with a state diagram and a review before code; a read-only or simple part gets a short plan; a part that only moves documents needs no plan.
+- Three things never shrink, however small the part: the rules of the part are named; every test names the rule it protects and is seen failing before it passes; and the validation gate holds, with every `SHALL` backed by code and a test and the whole suite still green.
+
+**Conditions on step 6.**
+
+- The cycle test is written first, in plain Java like `LayerStructureTest`, with the list of violations known at that moment. Every task shortens the list; the last leaves it empty. ArchUnit and Spring Modulith are not used without an ADR, because either would be a new dependency.
+- R8 only moves `currentBusinessDate` to calendar. It does not change where the timezone comes from.
+- R3 and R1 are separate tasks, done last.
+
+**Tracked for after step 6.**
+
+- Task and internship compute business dates from the `BUSINESS_ZONE` constant, which contradicts `GOV-011`. Fixing it changes behavior, so it is a part of its own after step 6, not part of the move.
+- `AttendanceRole` is removed: it appears in 15 production files and 18 test files.
+- `INT-009` gets a use case.
 
 **Status:** decided.
 

@@ -2,13 +2,13 @@
 
 | Field | Value |
 |---|---|
-| Version | `1.0.1` |
+| Version | `2.0.0` |
 | Status | `LOCKED` |
 | Applies to | every developer, every AI agent, every pull request |
 | Maintainer | Loc-LX |
 | Business reviewer | the instructor; reviews the maintainer's business decisions in [`.sdd/decisions.md`](decisions.md) and does not sign this document |
 | Signed by | Loc-LX, 2026-09-15 |
-| Last updated | 2026-09-16 |
+| Last updated | 2026-09-17 |
 | Amendment | see [Amendment](#amendment); the mechanism depends on the kind of change |
 | Full rule text | [`.sdd/specs/`](specs) |
 
@@ -128,8 +128,8 @@ stated so that a reviewer knows to ask, not because anything here enforces them.
 | `ARC-002` | Backend uses Maven, Spring MVC, Security, Data JPA, Bean Validation, Thymeleaf, Spring Mail, and Flyway. | `ReportingDependencyContractTest` covers the reporting libraries only |
 | `ARC-003` | PostgreSQL 18.4 is the database family for production, development, and integration tests. PostgreSQL-specific rules are tested against PostgreSQL, never H2. | Testcontainers configuration in `TestcontainersConfiguration` |
 | `ARC-004` | The UI toolchain pins Node 24 LTS and Tailwind CSS 4, uses `npm ci`, and commits the lockfile. Test tooling is constrained to a compatible range instead, no test asserts equality against a tool version, and each run records the version it resolved. | the `Set up Node 24`, `npm ci`, and `Verify generated assets are committed` steps of `.gitea/workflows/verify.yml`; the compatible-range rule, the ban on version equality, and the recording rule by `src/test/js/playwright-contract.test.mjs` |
-| `ARC-005` | `LabtimesheetApplication` stays in the root package. Shared wiring lives in `config`. Business code groups under `feature.<name>` for `account`, `attendance`, `integration`, `notification`, `project`, `reporting`, and `task`, each adding only the layer subpackages it needs. Tests mirror those packages. | `LayerStructureTest`, `AttendanceLayerStructureTest` |
-| `ARC-006` | Controllers bind validated DTOs and delegate to services; services use repositories and entities. A feature may call another feature's service contract and DTOs but never its repositories or entities. No business SQL. Flyway and schema verification are the only direct-SQL boundary. | `LayerStructureTest` covers cross-feature imports only; nothing fails the build on business SQL. See [Known enforcement gaps](#known-enforcement-gaps) |
+| `ARC-005` | `LabtimesheetApplication` stays in the root package. Shared wiring lives in `config`; code that belongs to no single feature lives in `platform`. Business code groups under `feature.<name>` for `attendance`, `calendar`, `identity`, `internship`, `notification`, `project`, and `reporting`, each adding only the layer subpackages it needs. Dependencies among `platform` and the features form a directed acyclic graph in which `platform` depends on no feature; `config` may depend on `platform` and on any feature, and nothing depends on `config`. Tests mirror those packages, except `architecture` and `ui`. | None yet. `LayerStructureTest` still approves the package list from before `D28`, and `AttendanceLayerStructureTest` still requires `AttendancePolicy` inside `attendance`; both guard the layout this row replaces, and protect this rule again only once step 6 of `D28` updates them. Nothing checks the graph. See [Known enforcement gaps](#known-enforcement-gaps) |
+| `ARC-006` | Controllers bind validated DTOs and delegate to services; services use repositories and entities. A feature may call another feature's or `platform`'s service contract and DTOs but never its repositories or entities. No business SQL. Flyway and schema verification are the only direct-SQL boundary. No one-implementation abstraction layer, except an interface a module declares and calls whose every implementation lives in another module that would depend on the declaring module even without that implementation. | `LayerStructureTest` covers cross-feature imports only; nothing fails the build on business SQL, on imports into `platform` internals, or on the conditions of the exception. See [Known enforcement gaps](#known-enforcement-gaps) |
 | `ARC-007` | Flyway is the sole production schema authority. JPA schema generation is validation-only outside disposable tests. | `PlatformFoundationTest#flywayCreatesApprovedPostgresCatalog` |
 | `ARC-008` | The reviewed `database-schema.sql` is a design baseline rather than an executable artifact. It is adapted into Flyway migrations and never executed against production. | nothing here; the artifact is not in this repository and the adaptation is already done. `ARC-007` carries the obligation that still binds |
 | `AUTH-012` | Every business permission is decided by one authorization policy from the actor's role, the actor's scope, the record's current state, and the target state. No role check outside the policy decides a business permission; route protection may stay coarse, and a template only asks the policy what to show. | nothing yet; not implemented. `ADR-005` records the decision and `AC-AUTH-011` the scenario |
@@ -296,7 +296,7 @@ referenced from everywhere else.
 A pull request is how any of these reaches the repository. It is the delivery
 mechanism, never an alternative to them.
 
-That process has been exercised twice. The Admin Attendance report scope was
+That process has been exercised three times. The Admin Attendance report scope was
 granted on 17 August 2026, withdrawn on 27 August, and restored on 30 August.
 The reasoning is recorded in
 [`.sdd/rfcs/ADR-002-attendance-report-scope.md`](rfcs/ADR-002-attendance-report-scope.md),
@@ -308,6 +308,16 @@ The second was this document's own index row, amended to `1.0.1` on 16 September
 who confirms decisions marked provisional; from that day no decision is held
 provisional, so the row named a state that no longer exists. Wording only, which
 is why it is a patch: no obligation was added, removed or weakened.
+
+The third was `ARC-005` and `ARC-006`, amended to `2.0.0` on 17 September 2026 under
+`D28` and [`ADR-006`](rfcs/ADR-006-module-boundaries.md), when the modules were redrawn by
+dependency instead of by the order in which the product was built. Obligations were added:
+an acyclic dependency graph, nothing depending on `config`, and the repository and entity
+boundary for `platform`. One was weakened: the ban on one-implementation abstraction layers
+gained an exception. A weakened obligation makes the version major even when others are
+added, so this is `2.0.0` rather than a minor version. The exception is held to four
+conditions a structural test can read, and the gaps table says plainly that no test reads
+them yet.
 
 ## Known enforcement gaps
 
@@ -363,6 +373,9 @@ name looks plausible.
 | `ARC-001` | An older JDK fails the build, which proves the minimum version and not the architecture. | An architecture test asserting the module shape, alongside `LayerStructureTest`. |
 | `ARC-002` | `ReportingDependencyContractTest` covers the reporting libraries only. | Extend it to the rest of the declared stack, or accept the narrower claim. |
 | `ARC-006` | `LayerStructureTest` checks imports only. The rule requires the build to fail on business SQL in a service, and `ProjectService#nativeDelete` runs native SQL today (`D18`). | Move that SQL behind the data-access layer under `D18`, and add a check that fails the build on `createNativeQuery` or `JdbcTemplate` outside a `repository` package. |
+| `ARC-005` | Nothing checks the package layout of this rule. `LayerStructureTest` still approves `account`, `integration`, `project`, `task`, `attendance`, `notification` and `reporting`, and `AttendanceLayerStructureTest` still requires `AttendancePolicy` and `AttendanceCurrentUserService` inside `attendance`, which `D28` moves out; until step 6 both pass on the layout the rule replaced. Nothing checks either that the dependencies among `platform` and the features form a directed acyclic graph, or that nothing depends on `config`. `scripts/module-boundaries.cjs` measured the structure before the split and stops being accurate once the code moves. | In step 6 of `D28`, update both tests to the modules of this rule in the change that moves the code, and add a structural test over type references, with comments removed and string literals kept so that entity names inside JPQL count, that fails on any cycle and on any reference into `config`. |
+| `ARC-006` | The boundary does not reach `platform`. `LayerStructureTest` matches `feature\.([^.]+)\.(repository\|model\.entity)` only, so a repository or entity moved into `platform` loses the protection it has today under `feature.integration`; and its approved root packages are `config` and `feature`, so creating `platform` fails the test. | Extend both in the change that creates `platform`, in step 6 of `D28`. |
+| `ARC-006` | Nothing checks the four conditions of the exception: the interface is declared and called by one module, every implementation lives in another module, and that module would still depend on the declaring module without the implementation. Without this row the exception would read as guarded. | The cycle test written in step 6 of `D28` checks the conditions for every interface with an implementation outside its module, against the list in [`ADR-006`](rfcs/ADR-006-module-boundaries.md). |
 | `AUTH-012` | Not implemented. Role checks in `SecurityConfiguration`, services, and templates still decide business permissions. | The matrix-driven test of `AC-AUTH-011`, run through the policy `ADR-005` describes. |
 | `SEC-007` | Nothing shows that a manual account lock is kept apart from the in-memory throttle state. | A test that recreates the throttle and asserts a manually locked account is still refused. |
 | `TST-011`, `GOV-006` | Review is the only control. | Nothing automated can close it; a reviewer checks that a changed assertion follows a recorded decision and that new scope has one. |

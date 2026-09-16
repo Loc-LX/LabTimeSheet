@@ -1,6 +1,6 @@
 # Attendance Plan
 
-**Version:** 0.1 · **Owner:** Loc-LX · **Status:** DRAFT, awaiting approval · **Date:** 2026-09-16
+**Version:** 0.1 · **Owner:** Loc-LX · **Status:** SUPERSEDED by `D28` · **Date:** 2026-09-16
 
 How the attendance rules of [SPEC.md](SPEC.md) will be built. It is a technical design, not
 a tracker: progress belongs in [`plan.md`](../../../plan.md). The rules themselves are in

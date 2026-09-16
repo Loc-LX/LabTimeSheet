@@ -3,6 +3,15 @@
 Each entry records a change to [SPEC.md](SPEC.md): the version, the date, what changed,
 and why. A change that alters a rule raises the version.
 
+## 1.4.0 — 2026-09-17
+
+Rules changed: `ARC-005`, `ARC-006`, and scenario `AC-ARC-001`. Decision `D28` and [`ADR-006`](../../rfcs/ADR-006-module-boundaries.md).
+
+- **`ARC-005`** names the modules by dependency rather than by build order: `attendance`, `calendar`, `identity`, `internship`, `notification`, `project` and `reporting` below `feature`, and a root package `platform` for code that belongs to no single feature. It adds three obligations: the dependencies among `platform` and the features form a directed acyclic graph with `platform` depending on no feature; `config` may depend on everything while nothing depends on `config`; and tests mirror production except the `architecture` and `ui` test packages, which the rule previously did not admit although both existed.
+- **`ARC-006`** extends the repository and entity boundary to `platform`, and bounds one exception to the ban on one-implementation abstraction layers: an interface a module declares and calls, implemented only in modules that would depend on it even without the implementation. Four conditions a structural test can read, so the exception cannot grow into the `Service`/`ServiceImpl` layering the ban exists to prevent.
+- **`AC-ARC-001`** asserts the new obligations. Nothing asserts them yet; the constitution lists the gaps until step 6 of `D28` adds the test.
+- No rule was added or removed, and no other rule's text changed. Counts stay 296 rules and 144 scenarios.
+
 ## 1.3.3 — 2026-09-16
 
 Wording only; no rule changed. The explanation of `GOV-001` in §1.1 still said the instructor confirms decisions marked provisional. Under `D26` no decision is held provisional and the instructor is a reviewer rather than a gate, so the sentence described a step that no longer exists.

@@ -15,8 +15,8 @@ ahead of `origin/main`, nothing pushed.
 |---|---|
 | Delivery, Iterations 1–4 | Built. Every tracked item is done; the Iteration 3 and 4 integration gates were never run. |
 | Specification | Approved. Eight specs; each version is in its spec header and `CHANGELOG.md`. `D12`–`D15`, `D21` and `D23`–`D25` were confirmed for build by the maintainer on 16 September 2026, so no rule waits on a signature. |
-| Constitution | Locked on 15 September 2026 (`D20`); amended to `1.0.1` on 16 September for wording (`D26`). |
-| Technical plans (`PLAN.md`) | `feature-platform` approved at `1.0`; `feature-attendance` and `feature-task` drafted at `0.1`, awaiting approval. Five not started: project, reporting, account, notification, integration. |
+| Constitution | Locked on 15 September 2026 (`D20`); `1.0.1` on 16 September for wording (`D26`); `2.0.0` on 17 September for module boundaries (`D28`, `ADR-006`). |
+| Technical plans (`PLAN.md`) | `feature-platform` approved at `1.0`, to be revised in step 8 of `D28` (its line 108 contradicts line 230 on who resolves scope). `feature-attendance` and `feature-task` superseded by `D28`. The rest are written per module, one section per part, in step 8. |
 | Task breakdown (`TASKS.md`) | Not started. |
 | Implementation of the 14 and 16 September decisions | Not started; the code still follows the earlier rules. |
 | Validation against the specification | Not started. |
@@ -33,21 +33,40 @@ and integration commits, is in git history: `git show b71fc29:plan.md`.
 
 ## Next
 
-1. Merge into `main` (item 22). Every check passed at `1ee043e`: the full Maven suite (757 tests, no timezone flag, `D19`), the end-to-end suite, and `npm run test:ui`. Since then the only change under `src/` is `src/test/js/spec-structure-contract.test.mjs`, which Maven neither compiles nor runs; it passes 29 of 29 under `npm run test:ui` at the current head. No Java source, resource or `pom.xml` has changed, so the Maven and end-to-end results still stand. This line expires the moment a commit touches a Java source, a resource, or `pom.xml`: from then on it is stale until the suites are run again and this line names the new commit. The merge reaches `main` by review, not by an agent's commit. Pushing the branch as a backup and merging into `main` are separate actions, each needing its own permission.
-2. Verify the application end to end: `scripts/demo-seed.sql` loads, the end-to-end suite passes, the main business flows work; then demonstrate to the instructor (item 23).
-3. `PLAN.md` for each feature. The platform plan is approved and holds two things the others depend on: the one authorization policy of `AUTH-012`, and the single `V3` migration the recorded decisions need. The attendance plan follows it and is the largest of the seven, because `D14`, `D23` and `D24` put periods, exceptions and one adjustment clock into a feature that has none of them. Then `feature-task`, `feature-project`, `feature-reporting`, and the three that change least.
+Documents come first, then plan, tasks, code and validation, including for the module split
+of `D28`. Savepoint before it: `savepoint/pre-module-split-2026-09-17`.
+
+Numbered as the steps of `D28`, so that "step 6" means the same thing here, in `ADR-006`
+and in the constitution.
+
+1. **Step 1 — revise the decision documents.** Done in the working tree.
+2. **Step 2 — check all 296 rules for mentions of another module's concepts.** Done: `node scripts/module-boundaries.cjs` exits 0 with 99 verdicts and reproduces the reviewer's 12 findings.
+3. **Step 3 — lock** `D28`, `ADR-006`, `ARC-005`, `ARC-006`, `AC-ARC-001` and the constitution `2.0.0` in one commit.
+4. **Step 4 — move the specification** into directories by module. Gate: a rule dump with none lost and no word changed. Review `UC-03` and `UC-04` separately; the rules of the new `UC-04` and `UC-19` together equal the old `UC-04` exactly.
+5. **Step 5 — write `PLAN.md` and `TASKS.md` for moving the code**, for the maintainer's approval. Then this documentation branch is merged into `main`, with the maintainer's permission, so the code branch starts from the documents it follows. Pushing and merging each need their own permission.
+6. **Step 6 — move the code** on `work/fix/structure/<name>` from `main` (`OPS-019`), needing Docker and enough memory.
+   - The cycle test first, in plain Java, with the violations known at the start; every task shortens the list and the last empties it.
+   - GitNexus impact analysis on every symbol before it moves.
+   - `LayerStructureTest` and `AttendanceLayerStructureTest` take the new modules in the change that moves the code; until then both guard the layout `ARC-005` replaced.
+   - R8 only moves `currentBusinessDate`; the timezone source does not change.
+   - R3 and R1 last, as their own tasks, after the `ACC-019` invariant test has been seen failing and then passing.
+   - Gates: full Maven suite, end-to-end suite, `npm run test:ui`, the cycle test.
+7. **Step 7 — check the code against the documents, then merge**, with the maintainer's permission. The Maven and end-to-end evidence of `1ee043e` (757 tests) expires with the first Java change.
+8. **Step 8 — the business decisions `D12`–`D27`**, part by part: plan, tasks, code, validation, with a demonstration to the instructor (item 23).
 
 ## Waiting on a decision
 
 | Item | Waiting on | Recorded in |
 |---|---|---|
-| Split rules that span several features (`UI-019`, `AUTH-003`, `AUTH-004`, `AUTH-009`, `AUTH-011`, `DB-008`) | after step 3 of the platform plan, which produces the evidence of which rule each matrix cell cites | this file |
+| Split rules that span several features (`UI-019`, `AUTH-003`, `AUTH-004`, `AUTH-009`, `AUTH-011`, `DB-008`) | Settled by `D28`: `AUTH-004`, `AUTH-009` and `AUTH-011` move to project in step 4 of `D28`; `UI-019`, `AUTH-003` and `DB-008` stay in platform because each spans several modules. Row kept until step 4 lands | `decisions.md` |
 
 ## Validation backlog
 
 Work that checks the code against the specification. It follows the plans, not
 the other way round.
 
+- **Parts after the code move of `D28`.** Task and internship compute business dates from the `BUSINESS_ZONE` constant, contradicting `GOV-011`; fixing it changes behavior, so it is a part of its own. `AttendanceRole`, a copy of `GlobalRole` in 15 production and 18 test files, is removed, and `GlobalRole` moves to `platform`.
+- **`INT-009` has no use case**, only `AC-INT-002`. Predates `D28`; not fixed while the specification moves.
 - **A test suite derived from the specification.** Agreed method: derive each rule's expectation from the spec first, then look for an existing test. Agreement keeps the test and tags it with the rule; disagreement is a finding; absence means a new test. Needs Docker.
 - **Rule identifiers in the 108 of 123 existing test classes that lack them**, so that a rule-to-test report can be generated instead of kept by hand.
 - **The Iteration 3 and 4 integration gates.** Most of their checks are acceptance scenarios now: `AC-RPT-001` (format parity), `AC-SEC-004` (production refusal), `AC-OPS-003` (bundled and external PostgreSQL), plus historical stability and concurrency.

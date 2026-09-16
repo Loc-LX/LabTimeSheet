@@ -133,7 +133,10 @@ current specification, not older wording in either direction.
 
 **The specification is ahead of the code.** The 14 September 2026 decisions
 (`D1`, `D12`–`D15`) and the 16 September ones (`D23`–`D25`) are approved and not yet
-implemented; `plan.md` lists them. Do not edit the specification back to match the code.
+implemented; `plan.md` lists them. The module split of `D28` (17 September) waits for
+its step 6, so the package layout above is the one `ARC-005` has already replaced: the
+mismatch is deliberate until the code moves. Do not edit the specification back to match
+the code.
 
 **Verify a path before trusting its name.** The specification lives in
 `.sdd/specs/`, one spec per feature, with shared rules in `feature-platform`. Some dated records cite an
