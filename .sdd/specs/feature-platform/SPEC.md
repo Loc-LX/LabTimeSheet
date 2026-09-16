@@ -1,6 +1,6 @@
 # Platform Spec
 
-**Version:** 1.3.0 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-16
+**Version:** 1.3.1 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-16
 
 Part of the Lab Timesheet specification. Rules every feature shares, including the
 glossary, the authorization model, the domain model, and failure handling, are in
@@ -85,6 +85,8 @@ When statements conflict, use this precedence from highest to lowest:
 
 Until 14 September 2026 this list ranked sources by who produced them: the primary implementor's current decisions, an earlier brainstorming review and handoff, instructor-confirmed requirements, earlier requirements answers, and a superseded first draft. The dated revisions below still cite that order as it stood.
 
+> **Superseded on 14 September 2026 by the Admin read-scope revision below (`D1`). Kept as the dated record of what applied between 27 August and 14 September.**
+>
 > **Latest reporting-role revision — 27 August 2026.** The current approved handoff supersedes
 > earlier Admin-positive reporting language in this review draft and its historical evidence.
 > Admin is limited to account lifecycle and system configuration: Admin has no Attendance,
@@ -99,6 +101,8 @@ Until 14 September 2026 this list ranked sources by who produced them: the prima
 > `PLANNED` or `ACTIVE` Project. Mentor demand for additional Daily reporting remains out-of-system
 > operational communication without persisted delegation.
 
+> **Superseded on 14 September 2026 by the Admin read-scope revision below (`D1`). Kept as the dated record of what applied between 30 August and 14 September.**
+>
 > **Admin Attendance-scope revision — 30 August 2026. Supersedes the 27 August block above on
 > Attendance only.** Admin regains detailed Intern Attendance scope: navigation, the HTML report
 > page, the XLSX and PDF exports, and the report dataset, with the same target scope an active
@@ -1267,11 +1271,12 @@ Validation performed on 14 August 2026 established the review artifacts below. T
 >
 > Admin reporting scope inside Appendix C follows the decision recorded in
 > [`.sdd/rfcs/ADR-002-attendance-report-scope.md`](../../rfcs/ADR-002-attendance-report-scope.md).
-> `UC-12` states it directly: an Admin holds detailed Intern Attendance report scope
-> and neither Project/Task nor Daily Project Work Report scope. This note previously
-> warned that a flow might say an Admin has no Attendance report; on 14 September 2026
-> no flow in this appendix said that, and `UC-12` instead named Admin as a report actor
-> without either exclusion, which is what was corrected.
+> Since `D1` on 14 September 2026 an Admin reads every report, including the detailed
+> Intern Attendance, Project and Task, and Daily Project Work Reports, with their exports,
+> and `UC-12` names the Admin as a read-only actor for all of them. `ADR-002` records why
+> that scope moved three times in August; it is the history, not the current rule. Until
+> 16 September this note still said an Admin held neither Project/Task nor Daily scope,
+> which contradicted `RPT-005` and `RPT-011`.
 
 > Since 14 September 2026 each use case sits in section 3 of the spec of the feature it exercises; `UC-04` sits in the attendance spec. `UC-06` has covered Task estimates and Remaining effort forecasts since the same date.
 

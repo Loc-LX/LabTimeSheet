@@ -1,6 +1,6 @@
 # Reporting Spec
 
-**Version:** 1.3.0 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-16
+**Version:** 1.3.1 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-16
 
 Part of the Lab Timesheet specification. Rules every feature shares, including the
 glossary, the authorization model, the domain model, and failure handling, are in
@@ -17,7 +17,7 @@ In code this is `feature/reporting`: the Attendance, Project/Task, and Daily Pro
 
 Primary actors named by this feature's use cases:
 
-- **UC-12 — Review and export reports:** Admin for detailed Intern Attendance reports only; Mentor; authorized Intern/Leader for their own/current scope. An Admin has no Project/Task report scope under `RPT-005` and no Daily Project Work Report scope under `RPT-011`.
+- **UC-12 — Review and export reports:** Admin, read-only, for every report under `RPT-004`, `RPT-005` and `RPT-011`; Mentor; authorized Intern/Leader for their own or current scope; an active Intern for their own attendance under `RPT-015`. Read-only means what `D1` says it means: an Admin reads every report and its exports, edits no Project or Task, and decides no leave, correction or attendance exception.
 
 Every capability by role is in the permission matrix, [platform spec](../feature-platform/SPEC.md) §5.2. Authorization is resolved from stored context, never from the global role alone (§5.1).
 

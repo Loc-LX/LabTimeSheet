@@ -138,6 +138,12 @@ against the current wording.
 
 The written ruling is on the side of denial. The code is on the side of access.
 
+**Read the rest of this section together with the widening at its end.** The paragraphs
+below describe the position as it stood on the morning of 14 September 2026, when the
+question was only about attendance detail. Later that day the instructor granted read
+access to every report, so the sentences here that say an Admin holds no Project, Task or
+Daily scope are the record of that moment, not the current rule.
+
 Three facts worth weighing before answering.
 
 - An Admin already administers accounts, the internship lifecycle, and attendance policy. Attendance detail is adjacent to work they already do.

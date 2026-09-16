@@ -3,6 +3,13 @@
 Each entry records a change to [SPEC.md](SPEC.md): the version, the date, what changed,
 and why. A change that alters a rule raises the version.
 
+## 1.3.1 — 2026-09-16
+
+Wording only; no rule changed. Two places still carried the Admin report scope that `D1` replaced.
+
+- The dated blocks of 27 and 30 August now open by saying they were superseded on 14 September, so a reader meets that before the text itself. The wording stays: a dated record is not rewritten.
+- The Appendix C note said `UC-12` gives an Admin no Project/Task and no Daily scope. That was a current statement, not a dated one, and it contradicted `RPT-005` and `RPT-011`.
+
 ## 1.3.0 — 2026-09-16
 
 Added during the review of the platform plan. A technical rule inside the agreed scope, so it needs no ADR and no instructor decision.

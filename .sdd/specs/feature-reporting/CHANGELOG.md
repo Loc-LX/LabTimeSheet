@@ -3,6 +3,13 @@
 Each entry records a change to [SPEC.md](SPEC.md): the version, the date, what changed,
 and why. A change that alters a rule raises the version.
 
+## 1.3.1 — 2026-09-16
+
+Wording only; no rule changed. §2 still described the Admin scope that `D1` replaced on 14 September 2026.
+
+- The actors of `UC-12` said an Admin had detailed Intern Attendance reports only, and named `RPT-005` and `RPT-011` as excluding an Admin. Both rules in the same file grant an Admin read-only scope, and the use case itself already named the Admin as a read-only actor for every report. §2 now says so too, and names `RPT-015` for the Intern's own attendance.
+- The contradiction mattered beyond tidiness: §2 is what a reader of a feature spec meets first, and the plan for `AUTH-012` builds its permission fixture from these rules.
+
 ## 1.3.0 — 2026-09-16
 
 Decision `D25`, recorded in [`.sdd/decisions.md`](../../decisions.md). Marked provisional, pending instructor confirmation.
