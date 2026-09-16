@@ -6,7 +6,7 @@ This file tracks progress only. What the system must do is in
 `PLAN.md`, and its task breakdown in `TASKS.md`. The rules for working here are
 in [AGENTS.md](AGENTS.md) and [`.sdd/constitution.md`](.sdd/constitution.md).
 
-**Last updated:** 2026-09-15 · **Branch:** `work/fix/docs/restore-and-restructure`,
+**Last updated:** 2026-09-16 · **Branch:** `work/fix/docs/restore-and-restructure`,
 ahead of `origin/main`, nothing pushed.
 
 ## Where the project is
@@ -14,11 +14,11 @@ ahead of `origin/main`, nothing pushed.
 | Stage | State |
 |---|---|
 | Delivery, Iterations 1–4 | Built. Every tracked item is done; the Iteration 3 and 4 integration gates were never run. |
-| Specification | Approved. Eight specs; each version is in its spec header and `CHANGELOG.md`. `D14` is closed and, like `D12`, `D13` and `D15`, provisional. |
+| Specification | Approved. Eight specs; each version is in its spec header and `CHANGELOG.md`. `D14` is closed and, like `D12`, `D13`, `D15`, `D21` and `D23`–`D25`, provisional. |
 | Constitution | Locked as version `1.0.0` on 15 September 2026 (`D20`). |
 | Technical plans (`PLAN.md`) | Not started. |
 | Task breakdown (`TASKS.md`) | Not started. |
-| Implementation of the 14 September decisions | Not started; the code still follows the earlier rules. |
+| Implementation of the 14 and 16 September decisions | Not started; the code still follows the earlier rules. |
 | Validation against the specification | Not started. |
 
 The delivery plan that tracked Iterations 1–4 item by item, with owners, branches
@@ -28,6 +28,7 @@ and integration commits, is in git history: `git show b71fc29:plan.md`.
 
 - The 24 decisions of 14 September 2026 are applied to the specs, the constitution, and `.sdd/decisions.md`. The local history was rewritten to drop citations of an outside source, and the branch and its spec tags were pushed to Gitea as a backup; commits after that backup are local. Nothing is merged into `main`. The sixteen single-feature rules have moved out of `feature-platform`, and `cspell.json` holds the project dictionary.
 - The end-to-end suite ran for the first time on 15 September 2026, against a disposable PostgreSQL, and all six journeys pass. The runs found a code check with no rule behind it, a Project start date refused when in the past, which `D21` removed (`PRJ-024`), and journey steps written for an older interface. The correction journey now seeds a previous-workday attendance row instead of correcting a row checked in minutes earlier, which `COR-001` never allowed.
+- Four more business decisions on 16 September 2026, benchmarked against large work-management and HR systems: no `ARCHIVED` Project state (`D22`), one 48-hour adjustment policy for corrections and exceptions (`D23`), a Mentor mark bounded by the attendance period instead of a separate limit (`D24`), and an Intern view of their own attendance (`D25`, `RPT-015`).
 
 ## Next
 
@@ -39,7 +40,7 @@ and integration commits, is in git history: `git show b71fc29:plan.md`.
 
 | Item | Waiting on | Recorded in |
 |---|---|---|
-| Confirmation of `D12`, `D13`, `D14`, `D15`, all provisional | the instructor | `decisions.md` |
+| Confirmation of `D12`–`D15` and `D21`, `D23`–`D25`, all provisional | the instructor | `decisions.md` |
 | Split rules that span several features (`UI-019`, `AUTH-003`, `AUTH-004`, `AUTH-009`, `AUTH-011`, `DB-008`) | after the platform plan | this file |
 
 ## Validation backlog

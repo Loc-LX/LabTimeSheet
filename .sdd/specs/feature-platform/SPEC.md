@@ -1,6 +1,6 @@
 # Platform Spec
 
-**Version:** 1.2.10 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-15
+**Version:** 1.2.11 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-16
 
 Part of the Lab Timesheet specification. Rules every feature shares, including the
 glossary, the authorization model, the domain model, and failure handling, are in
@@ -22,8 +22,8 @@ This spec holds what every feature shares. It is not a feature in the code; the 
 | Database baseline | PostgreSQL 18.4, 24 application tables |
 | Companion DDL | `database-schema.sql`, not tracked in this repository |
 | Review state | Approved as version 1.0.0 on 14 September 2026; open questions are listed in each spec |
-| Normative rules | 294 across the eight specs |
-| Acceptance scenarios | 142 across the eight specs |
+| Normative rules | 295 across the eight specs |
+| Acceptance scenarios | 143 across the eight specs |
 
 > **Companion files.** This document was authored in a separate documentation
 > repository and copied here on 26 August 2026. Its companion `database-schema.sql`
@@ -195,6 +195,7 @@ Legend: **Yes** = permitted within the stated scope; **Own** = own Project or ow
 | View and export the Attendance report (`RPT-004`) | Yes | Yes | Own history only | Own history only |
 | View and export the Project/Task report (`RPT-005`) | Yes, read-only | Own | Project scope | Aggregate only |
 | View and export the Daily Project Work Report (`RPT-011`) | Yes, read-only | Own | Led `PLANNED` or `ACTIVE` Project | No |
+| View own attendance for a date (`RPT-015`) | No | No | Own, if active Intern | Own, if active Intern |
 
 | ID | Requirement |
 |---|---|
@@ -232,6 +233,7 @@ Legend: **Yes** = permitted within the stated scope; **Own** = own Project or ow
 | Current Work | Actual Task effort plus current Remaining effort. |
 | Attendance period | One Intern's attendance for one calendar month. It finalizes at 23:59 on the third day of the next month once no request affecting it is pending or overdue, and after that changes only inside a range reopened when an Admin approves a reopen request (`ATT-019`–`ATT-024`). |
 | Overdue request | A leave, correction, or attendance exception request submitted in time whose approver missed the decision deadline. It is neither approved nor rejected and is never held against the Intern. |
+| Attendance adjustment request | A missed-checkout correction or an attendance exception request. Both are raised after the attendance event, both are decided by the responsible Mentor, and both share one submission and decision window (`COR-003`, `COR-004`, `EXC-002`, `EXC-003`). What differs is the evidence each carries. |
 | Decision amendment | A new decision entry that changes the content of the current decision on a leave, correction, or attendance exception request, such as its note or the dates an approved leave still covers. It never overwrites the earlier entry (`ATT-024`). |
 | Decision reversal | A new decision entry that reverses the outcome of the previous decision, such as excused to unexcused. It never returns a request to pending, and a leave decision is never reversed (`ATT-024`, `LEV-011`). |
 | Report date | A local business date used to select dated Task work logs for reporting. Attendance policy and calendar context may describe the date but never remove otherwise valid Task work from the report. |
@@ -1142,10 +1144,10 @@ documents a working product.
 
 | Measure | Value |
 |---|---:|
-| Normative rules, sections 1–22 | 294 |
-| Rules with a §20 acceptance scenario | 275 |
+| Normative rules, sections 1–22 | 295 |
+| Rules with a §20 acceptance scenario | 276 |
 | Rules declared without one, with reason | 19 |
-| Acceptance scenarios | 142 |
+| Acceptance scenarios | 143 |
 | Flyway application tables | 24 |
 
 The specification quality review in §20 and the twelve-point gate once recorded in the

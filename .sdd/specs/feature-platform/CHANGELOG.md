@@ -3,6 +3,12 @@
 Each entry records a change to [SPEC.md](SPEC.md): the version, the date, what changed,
 and why. A change that alters a rule raises the version.
 
+## 1.2.11 — 2026-09-16
+
+Decisions `D23` and `D25`, recorded in [`.sdd/decisions.md`](../../decisions.md).
+
+- The §5.2 matrix adds the Intern's own attendance view (`RPT-015`), and the glossary defines the attendance adjustment request that a correction and an exception now share. Counts are 295 rules and 143 scenarios.
+
 ## 1.2.10 — 2026-09-15
 
 Counts only, after decision `D21` added `PRJ-024` and `AC-PRJ-016` to the project spec: 294 rules and 142 scenarios.

@@ -3,6 +3,14 @@
 Each entry records a change to [SPEC.md](SPEC.md): the version, the date, what changed,
 and why. A change that alters a rule raises the version.
 
+## 1.3.2 — 2026-09-16
+
+Decisions `D23` and `D24`, recorded in [`.sdd/decisions.md`](../../decisions.md). Marked provisional, pending instructor confirmation.
+
+- **One adjustment policy (`D23`).** A correction and an exception request now share the same limits: 48 hours to submit and 48 hours to decide. `EXC-002`, `EXC-003`, `COR-003` and `COR-004` carry the same numbers, and each is bounded by the attendance period as well. What stays different is the evidence a correction needs: a proposed checkout with a reason, decided by the responsible Mentor alone.
+- **The Mentor's own mark follows the period (`D24`).** `EXC-004` drops its 48-hour limit; a Mentor may mark a late arrival or early departure excused while the period of that work date is open, and afterwards only inside a range reopened under `ATT-022`. The old limit contradicted the monthly close for every work date after the 27th.
+- `AC-COR-001`, `AC-EXC-001`, `AC-EXC-002`, `AC-EXC-003` and `UC-09` follow.
+
 ## 1.3.1 — 2026-09-14
 
 Decision `D14`, reviewed and closed, recorded in [`.sdd/decisions.md`](../../decisions.md). Still provisional, pending instructor confirmation.

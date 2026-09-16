@@ -3,6 +3,13 @@
 Each entry records a change to [SPEC.md](SPEC.md): the version, the date, what changed,
 and why. A change that alters a rule raises the version.
 
+## 1.3.0 — 2026-09-16
+
+Decision `D25`, recorded in [`.sdd/decisions.md`](../../decisions.md). Marked provisional, pending instructor confirmation.
+
+- **Added `RPT-015`**: an active Intern can read their own attendance for a date, including whether a late arrival or early departure is excused. The view resolves the Intern from the authenticated account, carries no Task planning value and no other Intern's data, and has no export in this version. It is what makes the 48-hour adjustment window of `D23` usable: an Intern who cannot see a missing checkout cannot report it in time.
+- Added `AC-RPT-007`.
+
 ## 1.2.1 — 2026-09-14
 
 Relocation only; no rule text changed. `ERR-006` moved here from the platform spec because they concern only this feature, with `AC-ERR-006`.

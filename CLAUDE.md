@@ -132,8 +132,8 @@ explains the August moves, and `D1` widened it on 14 September 2026. Follow the
 current specification, not older wording in either direction.
 
 **The specification is ahead of the code.** The 14 September 2026 decisions
-(`D1`, `D12`, `D13`, `D15`) are approved and not yet implemented; `plan.md` lists
-them. Do not edit the specification back to match the code.
+(`D1`, `D12`–`D15`) and the 16 September ones (`D23`–`D25`) are approved and not yet
+implemented; `plan.md` lists them. Do not edit the specification back to match the code.
 
 **Verify a path before trusting its name.** The specification lives in
 `.sdd/specs/`, one spec per feature, with shared rules in `feature-platform`. Some dated records cite an

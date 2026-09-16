@@ -64,6 +64,10 @@ changes one, its status here changes first.
 | D19 | Whether the suite must pass on Windows without extra flags | Yes; the timezone is normalized in test configuration; done 15 September 2026 | none |
 | D20 | How the constitution ranks rules, and what outranks what | Layers by how strictly a rule binds; one authority order by document type | `GOV-001`, `OPS-019`, constitution |
 | D21 | Whether a Project may start before the day it is entered | Yes; the start date is Project metadata, and retroactive work stays governed by `TSK-014`. Provisional | `PRJ-024` |
+| D22 | Whether a Project needs an `ARCHIVED` status | No; `COMPLETED` and `CANCELLED` are the final business states, and archiving is a display concern | none |
+| D23 | Whether a correction and an exception keep different deadlines | No; both are attendance adjustment requests with 48 hours to submit and 48 hours to decide. Provisional | `COR-003`, `COR-004`, `EXC-002`, `EXC-003` |
+| D24 | How long a Mentor may mark an excuse without a request | Until the attendance period closes, with no separate limit. Provisional | `EXC-004` |
+| D25 | Whether an Intern may see their own attendance report | Yes, their own date only, without export in this version. Provisional | `RPT-015` |
 
 D1 through D5 came from reading the specification against its own history. D6
 through D9 came from the audit described at the end of this page, which read the
@@ -1087,6 +1091,57 @@ had been in the code since 25 August 2026, and no rule in the specification aske
 - A past start date does not open retroactive Task work. Which dates a work log may carry stays with `TSK-014`, which refuses a date before the member joined; the initial Leader joins when the Project is entered. ADAPTED: the laboratory keeps the Project's dates and the right to log work as separate rules.
 - The earlier suggestion to keep the check by analogy with `LEV-012` was rejected. Refusing retroactive leave says nothing about when a Project may have started.
 - The code changes to match the rule; the end-to-end journey that enters a Project starting seven days earlier stays as it is and now proves the case.
+
+**Status:** provisional, pending instructor confirmation.
+
+## D22. Does a Project need an `ARCHIVED` status?
+
+**Decided on 16 September 2026 by Loc-LX**, reviewing the Project lifecycle against how
+large work-management systems separate state from storage. Recorded by the maintainer as
+`D36` in that review; it is `D22` here, because this page numbers decisions in the order
+the project took them.
+
+- No. A Project keeps `PLANNED`, `ACTIVE`, `COMPLETED` and `CANCELLED`. ENTERPRISE-BACKED: those systems keep one axis for the business state, which says how work ended, and a separate archive mechanism, which says whether it still appears in a working list. Archiving there is an administrative, reversible operation, not a step in the workflow.
+- A long list of finished Projects is a display problem. The list shows `PLANNED` and `ACTIVE` by default and offers a filter for the rest.
+- Should archiving ever be needed, it arrives as `archived_at` and `archived_by` with the actor retained, never as a new value in the status column. That keeps the state machine, its transition rules, the schema constraint and every report untouched.
+
+**No rule changed.** This decision exists so the question is not reopened.
+
+**Status:** decided.
+
+## D23. Do a correction and an exception keep different deadlines?
+
+**Decided on 16 September 2026 by Loc-LX** (`D37` in that review). Until now a
+missed-checkout correction had 24 hours to submit and 24 hours to decide, while an
+attendance exception had 48 and 48.
+
+- Both are **attendance adjustment requests**: raised after the attendance event, decided by the responsible Mentor, affecting the attendance result. They now share one policy, 48 hours to submit and 48 hours to decide (`COR-003`, `COR-004`, `EXC-002`, `EXC-003`). ENTERPRISE-BACKED: time-and-attendance systems put every post-event change through one adjustment framework and let the period close be the hard boundary. The 48-hour numbers are LAB-POLICY, provisional.
+- Each request is also bounded by its attendance period, so the real deadline is whichever comes first.
+- What stays different is the evidence, not the clock. A correction carries a proposed checkout with a reason, leaves the raw record untouched, and is decided by the responsible Mentor alone.
+- 48 hours covers a single weekend, which 24 did not, and still keeps the event fresh enough for the Mentor to judge.
+
+**Status:** provisional, pending instructor confirmation.
+
+## D24. How long may a Mentor mark an excuse without a request?
+
+**Decided on 16 September 2026 by Loc-LX** (`D38` in that review), after noticing that
+the 7-day proposal, and the 48 hours in `EXC-004` before it, contradicted the monthly
+close of `ATT-020`: a work date on the 30th would have lost its window on the 3rd.
+
+- The Mentor may mark a late arrival or early departure excused **while the attendance period of that work date is open**, with no separate limit of its own (`EXC-004`). Afterwards the change goes through the reopen workflow of `ATT-022`. ENTERPRISE-BACKED: a manager adjusts attendance until the period closes, and after that through an explicit retroactive route with a higher approval.
+- One boundary instead of two removes the contradiction and matches what the system already enforces everywhere else.
+- The cost is that the window is uneven: a work date early in the month has weeks, one at month end has days. The single lever for that is the closing day, currently 23:59 on the third day of the next month and LAB-POLICY.
+
+**Status:** provisional, pending instructor confirmation.
+
+## D25. May an Intern see their own attendance report?
+
+**Decided on 16 September 2026 by Loc-LX** (`D39` in that review).
+
+- Yes. An active Intern reads their own attendance for a selected date: check-in, raw and effective checkout, counted minutes, the late and early-departure flags, and whether each is excused (`RPT-015`). ENTERPRISE-BACKED: self-service attendance is standard, because someone who cannot see what the system recorded cannot correct it in time.
+- The view resolves the Intern from the authenticated account, and carries no other Intern's data, no Task effort, estimate, Current Work or variance, and no Project total. It is not the Daily Project Work Report, which stays with the owning Mentor and the current Leader (`RPT-011`).
+- Without it the 48-hour window of `D23` is not usable in practice: an Intern who cannot see a missing checkout learns of it only when someone else notices.
+- No export in this version. That limits the first release rather than protecting the data, which is the Intern's own, so adding an export later breaks no principle.
 
 **Status:** provisional, pending instructor confirmation.
 
