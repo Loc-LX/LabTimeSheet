@@ -1,6 +1,6 @@
 # Platform Plan
 
-**Version:** 0.1 · **Owner:** Loc-LX · **Status:** DRAFT, awaiting approval · **Date:** 2026-09-16
+**Version:** 0.2 · **Owner:** Loc-LX · **Status:** DRAFT, awaiting approval · **Date:** 2026-09-16
 
 How the platform rules of [SPEC.md](SPEC.md) will be built. It is a technical design, not
 a tracker: progress belongs in [`plan.md`](../../../plan.md). The rules themselves are in
@@ -57,6 +57,26 @@ expects to withdraw part of the Admin read access later.
 Reading the matrix into a test fixture is what `AC-AUTH-011` asks for: every cell is
 exercised for each role, then one Admin capability is withdrawn and only that cell changes.
 
+### 2.2.1 Where the catalogue lives
+
+Saying the catalogue is data is empty until the plan says where that data sits, because
+`D1` and step 4 both promise that withdrawing one Admin capability changes no code.
+
+| Option | Withdrawal means | Cost |
+|---|---|---|
+| A. A configuration file read at startup, one line per capability and role | Edit a line, restart | No schema, no admin screen; the file is versioned with the code, so a withdrawal is still a commit and a deployment |
+| B. A database table with a screen for an Admin | Clear a row | A new table, a new screen, new rules, and a permission to manage permissions, which `GOV-007` never granted |
+| C. Constants in Java | Edit code | Fails the promise |
+
+**This plan takes option A.** The catalogue is a resource file beside the application, its
+shape mirrors the §5.2 table, and the policy loads it at startup and refuses to start when a
+capability named there is unknown or a matrix row has no entry. Option B is the natural next
+step if the laboratory ever wants an Admin to change permissions without a deployment; it is
+not in this scope, and `GOV-006` says a feature nobody specified needs a new decision.
+
+The spec does not name the mechanism, so this is a plan-level design choice and the
+maintainer approves it here.
+
 ### 2.3 Where the decision is taken
 
 Three layers keep the jobs `ADR-005` assigns them.
@@ -73,10 +93,16 @@ the security context, because leadership and membership are intervals that close
 
 ### 2.4 What the current code offers
 
-The code is material, not the design. Sixty role checks sit in ten production files, three
-templates use `sec:authorize`, and `SecurityConfiguration` carries route rules. Each is
-read once, mapped to the matrix row it was trying to express, and then replaced by a policy
-call. Two known cases contradict the specification and change with this work: the branch in
+The code is material, not the design. A survey on 16 September 2026 counted **50 places in
+13 files that compare a role or gate on one**, counting `equals` or `==` against `"ADMIN"`,
+`"MENTOR"` or `"INTERN"`, `hasRole`, `hasAnyRole` and `sec:authorize`, across
+`src/main/java` and the templates. Counting every mention of those three words in Java
+instead gives 142 in 33 files, which is why the rule used here is stated rather than the
+number alone. The survey orients the work; the fixture of step 1 is what enumerates it,
+because a survey by text search cannot see a role decision expressed another way.
+
+Each site is read once, mapped to the matrix row it was trying to express, and then
+replaced by a policy call. Two known cases contradict the specification and change with this work: the branch in
 `TaskService#changeStatus` that lets an owning Mentor set any status, and the three separate
 Admin checks on the Attendance report that `ADR-005` names.
 
@@ -116,7 +142,38 @@ written. Every line names the rules that ask for it.
 | `intern_profiles` | Keep the responsible Mentor, replaceable by an Admin | `ACC-026`, `ACC-021` |
 | `attendance_records` | No change | — |
 
-### 3.3 Invariants the migration must carry
+### 3.3 Existing data
+
+A migration that only creates tables and tightens constraints leaves the rows already in
+the database behind. Four cases have to be answered before the migration is written, and
+each one is a business question as much as a technical one.
+
+| Case | What must happen | Why it is not obvious |
+|---|---|---|
+| Months already worked | Create a period per Intern and month that has attendance, and decide its state | Closing them retroactively locks data nobody reviewed; leaving them open means a Mentor can still change months from August. The plan proposes: create them, close every month before the migration, and record the migration itself as the actor |
+| The responsible Mentor | Every Intern already `ACTIVE` needs one, because `ACC-026` and `ACC-021` require the assignment before an internship becomes `ACTIVE` | The rule was written after the data. No mentor can be inferred: owning a Project the Intern belongs to is not the same relation. The plan proposes: leave it empty, let `ACC-026` show those Interns to Admins as needing one, and refuse a decision until an Admin assigns |
+| `locked_at` on corrections | `D14` removed the lock, so the column stops being written | Dropping a column with history in it is not reversible. The plan proposes: stop writing it, keep the values as a record of what the old rule did, and let the next schema review drop it |
+| New status values | `CANCELLED`, `OVERDUE`, `WITHDRAWN` widen a constraint rather than narrow it | Widening is safe for existing rows. The 48-hour deadlines are not: `attendance_corrections` stores its two deadlines per row, so rows already submitted keep the deadlines they were given, and only new rows use 48 hours |
+
+The demo seed of `scripts/` is data too. It is regenerated after the migration, not patched.
+
+### 3.4 What the migration does to the specification
+
+The specification pins the schema in three places, and a migration that adds six tables
+makes all three false at once:
+
+- the §1 note and §19.4, which both say the schema has **24 tables**;
+- `AC-DB-001`, which asserts that each database has **exactly 24 tables**;
+- the physical Mermaid diagram of §19.4, which draws 24 entities today, and which `DB-010`
+  requires to describe the same tables as the SQL.
+
+So the migration is never a code-only step. Writing `V3` means, in the same change: the
+diagram gains its entities and relationships, the two counts move, `AC-DB-001` moves with
+them, and the feature specs that own the new tables gain their `DB` rules. Anything less
+leaves the specification describing a database that no longer exists, which is the drift
+`GOV-016` exists to prevent.
+
+### 3.5 Invariants the migration must carry
 
 - Exactly one open period per Intern per month, and no attendance result inside a finalized period changes except through a reopened range (`ATT-020`, `ATT-021`).
 - A decision table is append-only: no update, no delete, and the current value is the latest effective entry (`ATT-024`).
@@ -130,14 +187,21 @@ only when the step it depends on is green.
 
 | # | Step | Satisfies | Depends on |
 |---|---|---|---|
-| 1 | Read the §5.2 matrix into a test fixture and assert every one of the 144 cells against the current code, marking the cells that fail | `AC-AUTH-011` first half | — |
-| 2 | Introduce the policy and the capability catalogue; move the three Admin report checks and the Mentor branch of `TaskService#changeStatus` behind it | `AUTH-012`, `TSK-023` | 1 |
-| 3 | Move the remaining role checks in services and templates behind the policy, file by file, keeping `SecurityConfiguration` as coarse route protection | `AUTH-012`, `AUTH-002` | 2 |
+| 1 | Read the §5.2 matrix into a test fixture and assert every one of the 144 cells against **what the matrix grants**. Cells that fail are the work list of steps 2 and 3, and each one is a finding to record, not a baseline to keep | `AC-AUTH-011` first half | — |
+| 2 | Introduce the policy and the capability catalogue; move the three Admin report checks behind it, and remove from `TaskService#changeStatus` the capability the matrix does not grant, namely an owning Mentor setting any status | `AUTH-012`, the refusal half of `TSK-023` | 1 |
+| 3 | Move the remaining role decisions in services and templates behind the policy, file by file, keeping `SecurityConfiguration` as coarse route protection | `AUTH-012`, `AUTH-002` | 2 |
 | 4 | Withdraw one Admin capability in the catalogue and prove only that cell changes | `AC-AUTH-011` second half, `D1` | 3 |
-| 5 | Write the `V3` migration of §3 with its constraints | §3 rules | instructor confirmation |
+| 5 | Write the `V3` migration of §3, its constraints, its data migration, and the specification change §3.4 names | §3 rules, `DB-010`, `GOV-016` | instructor confirmation |
 | 6 | Close the platform gaps the constitution lists: security headers read back, development relaxations refused under production, a not-found response identical for unauthorized and absent records, and a build check for business SQL outside a repository | `SEC-011`, `SEC-013`, `AUTH-002`, `ARC-006` | 3 |
 
-Steps 1 to 4 need no schema change and are not blocked by the instructor. Step 5 is.
+Steps 1, 2, 3, 4 and 6 need no schema change and are not blocked by the instructor. Step 5
+is.
+
+**What step 2 deliberately leaves out.** `TSK-023` has two halves. Refusing what the matrix
+does not grant needs no storage, and belongs here. Granting the Leader and the Mentor block,
+unblock and reopen does need storage: unblocking returns a Task to the status it held
+before the block, and only `task_status_transitions` remembers that status. That half waits
+for step 5 and belongs to the task plan, which cites this dependency.
 
 ## 5. Risks
 
@@ -148,6 +212,7 @@ Steps 1 to 4 need no schema change and are not blocked by the instructor. Step 5
 | Templates keep deciding | `AUTH-002` says a hidden control is not authorization; step 3 removes `sec:authorize` from business decisions, and the gap row for `AUTH-002` gets a test |
 | The migration is written against a decision the instructor then changes | Step 5 waits for confirmation. This is the cheapest veto point, and it is deliberate |
 | The schema change is large and touches attendance, leave, task and project at once | One migration, one review, one rollback point, rather than four migrations that must be applied in order |
+| The policy is asked once per row, so a list of 200 Tasks or a report of 30 dates asks it 200 or 30 times | A list decides one capability for one scope, not one per row: the policy is asked once for the scope, and the answer is applied to the rows. Where a row carries its own state, such as a Task status, the policy takes the rows it has already loaded and answers without another query. No policy call issues a database query of its own; it receives resolved context (§2.3). §6 adds a test that a list page and a report page each ask the policy a number of times that does not grow with the number of rows |
 
 ## 6. Verification
 
@@ -158,6 +223,7 @@ Steps 1 to 4 need no schema change and are not blocked by the instructor. Step 5
 | Web tests | The route gate and the not-found response that reveals nothing (`AUTH-002`) |
 | Schema tests | Status constraints, append-only decision tables, one open period per Intern and month, run against PostgreSQL (`ARC-003`) |
 | End-to-end | One journey per role that the matrix says may act, and one that may not |
+| Query-count test | A list page and a report page ask the policy, and query the database, a number of times that does not grow with the number of rows |
 
 No step is done until the rules it names are covered; `TST-005` puts those rule
 identifiers in the test source.
@@ -169,6 +235,8 @@ identifiers in the test source.
 | 1 | Confirmation of `D12`, `D13`, `D14`, `D15`, `D21`, `D23`, `D24`, `D25` | the instructor | Step 5, and the attendance, project, task and reporting plans |
 | 2 | Does the Leader belong in the catalogue as a fourth role, or stay a scope predicate over the Intern role? The §5.2 matrix gives it a column, while `app_users` has three roles and leadership is an interval | maintainer | Step 2 |
 | 3 | Are the six cross-feature rules `UI-019`, `AUTH-003`, `AUTH-004`, `AUTH-009`, `AUTH-011` and `DB-008` split into their features before or after this work? `plan.md` defers the split to after this plan | maintainer | Step 3 |
+| 4 | The specification states no performance requirement with a number anywhere, so this plan has no threshold to design against. Does a rule belong in the spec, such as a list page answering within a stated time for a stated number of rows, or does the laboratory accept only the weaker requirement that work per request must not grow with the number of rows? | maintainer, then the instructor if it becomes a rule | The performance risk and its test in §5 and §6 |
+| 5 | §3.3 proposes closing every month that predates the migration, with the migration itself recorded as the actor. Does the laboratory accept that, or should those months stay open for a Mentor to review first? | the instructor | Step 5 |
 
-A plan with an open question is not ready for implementation. Questions 2 and 3 are the
-maintainer's and can be closed in review; question 1 is the instructor's.
+A plan with an open question is not ready for implementation. Questions 2, 3 and 4 are the
+maintainer's and can be closed in review; questions 1 and 5 are the instructor's.

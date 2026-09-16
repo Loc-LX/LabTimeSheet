@@ -1,6 +1,6 @@
 # Attendance Spec
 
-**Version:** 1.3.3 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-16
+**Version:** 1.3.4 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-16
 
 Part of the Lab Timesheet specification. Rules every feature shares, including the
 glossary, the authorization model, the domain model, and failure handling, are in
@@ -265,14 +265,14 @@ For an applicable Intern/date, classification precedence is:
 
 **Main success flow**
 
-1. The Intern submits a request with a reason within 24 hours after scheduled end.
-2. The responsible Mentor sees it in their queue and decides it excused or unexcused; a request still undecided after 24 hours is marked overdue and the Mentor is reminded.
+1. The Intern submits a request with a reason within 48 hours after scheduled end, while the attendance period is open.
+2. The responsible Mentor sees it in their queue and decides it excused or unexcused; a request still undecided after 48 hours is marked overdue and the Mentor is reminded.
 3. The Intern is notified of the decision.
 4. An excused violation stops lowering compliance and still appears, marked excused, in history and reports.
 
 **Alternatives and exceptions**
 
-- The responsible Mentor marks a violation excused without a request, giving a reason, within 48 hours after scheduled end.
+- The responsible Mentor marks a violation excused without a request, giving a reason, while the attendance period of that work date is open; there is no separate limit.
 - Until the period is finalized, the Mentor amends or reverses a decision with a reason; each change is a new entry and earlier decisions stay in history.
 - A late request, or a decision by anyone other than the responsible Mentor, is refused.
 
@@ -329,7 +329,7 @@ Scenarios from the §20 acceptance catalogue whose identifiers start with `AC-AT
 | AC-ATT-006 | ATT-013–ATT-017 | Period has 20 eligible days, one approved-leave day, 17 present, and two absent | Attendance rate is `17/19 = 89.47%`; compliance uses historical daily policy and absent days score zero. |
 | AC-ATT-007 | ATT-014, ATT-017 | Filtered period has no expected workdays | Attendance and compliance display `N/A` without division error. |
 | AC-ATT-008 | ATT-018 | An Intern checks in, the Admin completes the internship later the same local date, and the Intern attempts a second check-in the next workday | The already-recorded attendance row for the terminal date is retained unchanged and still appears in reports; the next-day check-in is refused because the lifecycle is terminal. |
-| AC-ATT-009 | ATT-019–ATT-021, LEV-010, COR-007 | On 5 October at 23:59 one Intern's September period has no open request, while another's has a correction left undecided past its window; the correction is decided on 5 October | The correction became `OVERDUE`, not rejected; the first period finalizes at the deadline and every later change to its September results is refused; the second stays open, finalizes when the correction is decided, and then refuses changes too. |
+| AC-ATT-009 | ATT-019–ATT-021, LEV-010, COR-007 | On 5 October at 23:59 one Intern's September period has no open request, while another's has a correction left undecided past its window; that correction is decided on 7 October | The correction became `OVERDUE`, not rejected; the first period finalizes at the deadline and every later change to its September results is refused; the second stays open, finalizes when the correction is decided, and then refuses changes too. |
 | AC-ATT-010 | ATT-022–ATT-023, NOT-011 | After September is finalized, the Intern asks to reopen one date with a reason and an Admin rejects it, first without a reason and then with one; the responsible Mentor asks to reopen another date, an Admin approves it and tries to decide an exception in it, and the Mentor reverses the exception decision and finalizes the date again | Admins are notified of each request and the requester of each outcome; the rejection without a reason is refused, and the rejection with one keeps the Admin, time, and reason and leaves the date finalized; the approval records the Admin and time and reopens only the second date; the Admin's exception decision is refused; the Mentor's reversal commits and the date is finalized again with the Mentor and time; every other September date stays finalized throughout. |
 | AC-CAL-001 | CAL-002–CAL-005 | HolidayAPI unavailable or unconfigured | Preview reports actionable failure; Admin can add custom event; attendance/reporting continue from local data. |
 | AC-CAL-002 | CAL-003–CAL-004 | Preview returns public and non-public Vietnam events | Public is preselected only; Admin can toggle either; selected rows preserve provenance and duplicate UUID import is rejected/idempotent. |

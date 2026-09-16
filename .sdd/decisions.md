@@ -33,7 +33,7 @@ laboratory choice is never presented as an industry standard.
 |---|---|---|
 | ENTERPRISE-BACKED | Follows a pattern common to enterprise work-management, time-and-labour, and access-control products | Permission from role, scope, and allowed workflow transition; Admin is not unlimited business authority; Project lifecycle and retained history instead of casual deletion; an attendance fact kept apart from its approved exception; an approver chosen by management responsibility; baseline, actual, remaining, current work, and variance |
 | ADAPTED | The pattern, shaped to this product | A blocked Task returning to its previous status; a reason required to reopen; notifying the assignee and the Leader; the Mentor, Intern Leader, Intern responsibility chain; two Daily report perspectives |
-| LAB-POLICY | A choice of this laboratory, not a standard | The 24-hour limits for attendance exceptions; an excused violation not lowering compliance |
+| LAB-POLICY | A choice of this laboratory, not a standard | The 48-hour limits for attendance adjustments and the day the attendance period closes; an excused violation not lowering compliance |
 
 **Provisional.** `D12`, `D13`, `D14`, and `D15` were decided by the maintainer from
 analysis and are not yet confirmed by the instructor. When the instructor confirms or
@@ -1098,8 +1098,9 @@ had been in the code since 25 August 2026, and no rule in the specification aske
 
 **Decided on 16 September 2026 by Loc-LX**, reviewing the Project lifecycle against how
 large work-management systems separate state from storage. Recorded by the maintainer as
-`D36` in that review; it is `D22` here, because this page numbers decisions in the order
-the project took them.
+The maintainer numbered these four `D36` to `D39` while reviewing them on 16 September
+2026. That numbering exists only in that conversation, not in any document here, and this
+page numbers decisions in the order the project took them, so they are `D22` to `D25`.
 
 - No. A Project keeps `PLANNED`, `ACTIVE`, `COMPLETED` and `CANCELLED`. ENTERPRISE-BACKED: those systems keep one axis for the business state, which says how work ended, and a separate archive mechanism, which says whether it still appears in a working list. Archiving there is an administrative, reversible operation, not a step in the workflow.
 - A long list of finished Projects is a display problem. The list shows `PLANNED` and `ACTIVE` by default and offers a filter for the rest.
@@ -1111,7 +1112,7 @@ the project took them.
 
 ## D23. Do a correction and an exception keep different deadlines?
 
-**Decided on 16 September 2026 by Loc-LX** (`D37` in that review). Until now a
+**Decided on 16 September 2026 by Loc-LX.** Until now a
 missed-checkout correction had 24 hours to submit and 24 hours to decide, while an
 attendance exception had 48 and 48.
 
@@ -1124,7 +1125,7 @@ attendance exception had 48 and 48.
 
 ## D24. How long may a Mentor mark an excuse without a request?
 
-**Decided on 16 September 2026 by Loc-LX** (`D38` in that review), after noticing that
+**Decided on 16 September 2026 by Loc-LX**, after noticing that
 the 7-day proposal, and the 48 hours in `EXC-004` before it, contradicted the monthly
 close of `ATT-020`: a work date on the 30th would have lost its window on the 3rd.
 
@@ -1136,7 +1137,7 @@ close of `ATT-020`: a work date on the 30th would have lost its window on the 3r
 
 ## D25. May an Intern see their own attendance report?
 
-**Decided on 16 September 2026 by Loc-LX** (`D39` in that review).
+**Decided on 16 September 2026 by Loc-LX**.
 
 - Yes. An active Intern reads their own attendance for a selected date: check-in, raw and effective checkout, counted minutes, the late and early-departure flags, and whether each is excused (`RPT-015`). ENTERPRISE-BACKED: self-service attendance is standard, because someone who cannot see what the system recorded cannot correct it in time.
 - The view resolves the Intern from the authenticated account, and carries no other Intern's data, no Task effort, estimate, Current Work or variance, and no Project total. It is not the Daily Project Work Report, which stays with the owning Mentor and the current Leader (`RPT-011`).

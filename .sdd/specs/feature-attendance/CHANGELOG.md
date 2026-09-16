@@ -3,6 +3,13 @@
 Each entry records a change to [SPEC.md](SPEC.md): the version, the date, what changed,
 and why. A change that alters a rule raises the version.
 
+## 1.3.4 — 2026-09-16
+
+Wording only; no rule changed. A review found three places that still carried the numbers `D23` and `D24` replaced.
+
+- `UC-15` said 24 hours to submit, 24 hours to decide, and a separate 48-hour limit for the Mentor's own mark. It now matches `EXC-002`, `EXC-003` and `EXC-004`: 48 hours, 48 hours, and the attendance period as the Mentor's only boundary.
+- `AC-ATT-009` lost its point when the closing day moved to the fifth: the correction it describes was also decided on 5 October, so both Interns finalized at once. The correction is now decided on 7 October, and the scenario again contrasts a period that closes at the deadline with one held open by an undecided request.
+
 ## 1.3.3 — 2026-09-16
 
 Decision `D24`, recorded in [`.sdd/decisions.md`](../../decisions.md). Marked provisional, pending instructor confirmation.

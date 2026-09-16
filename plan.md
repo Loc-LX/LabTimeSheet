@@ -32,7 +32,7 @@ and integration commits, is in git history: `git show b71fc29:plan.md`.
 
 ## Next
 
-1. Merge into `main` (item 22). Every check before it has passed on the branch head `1ee043e`: the full Maven suite (757 tests, no timezone flag, `D19`), the end-to-end suite, and `npm run test:ui`. The merge reaches `main` by review, not by an agent's commit. Pushing the branch as a backup and merging into `main` are separate actions, each needing its own permission.
+1. Merge into `main` (item 22). Every check passed at `1ee043e`: the full Maven suite (757 tests, no timezone flag, `D19`), the end-to-end suite, and `npm run test:ui`. Every commit since then changes documentation only, so the suites still stand for the current head. The merge reaches `main` by review, not by an agent's commit. Pushing the branch as a backup and merging into `main` are separate actions, each needing its own permission.
 2. Verify the application end to end: `scripts/demo-seed.sql` loads, the end-to-end suite passes, the main business flows work; then demonstrate to the instructor (item 23).
 3. `PLAN.md` for each feature. The platform plan is drafted and carries two things the others depend on: the one authorization policy of `AUTH-012`, and the single `V3` migration the recorded decisions need. Then `feature-attendance`, `feature-task`, `feature-project`, `feature-reporting`, and the three that change least.
 
