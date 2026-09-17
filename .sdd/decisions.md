@@ -78,6 +78,7 @@ came from, not whether the choice is settled.
 | D27 | What the `V3` migration does with months worked before it | Create a period for each, then apply `ATT-020` to it as the running system would: close the ones whose deadline has passed with nothing pending, leave the rest open | none; `ATT-019`–`ATT-024` already say it |
 | D28 | How the code is split into modules, and what may depend on what | Seven features and `platform` by dependency, acyclic, with `config` as wiring; leave stays in attendance, the policy table in calendar, internship on its own; six rules relocated unchanged; documents first, code after | `ARC-005`, `ARC-006`, `AC-ARC-001`, `NOT-003`, `NOT-010`, `NOT-011`, `AUTH-004`, `AUTH-009`, `AUTH-011`, constitution |
 | D29 | Whether the constitution and ADR-006 keep history and three false statements | No: constitution `2.0.1` states current rules only and corrects three facts; `ADR-006` corrects one; the `INT-009` item of `D28` is closed | none |
+| D30 | Which rules about team branches still bind | `OPS-018`, `OPS-020` and `OPS-021` are withdrawn with their identifiers kept; `OPS-019` keeps one owner per shared file, a person or an agent session, and names branches by module | `OPS-018`–`OPS-021`; constitution `2.0.2` |
 
 D1 through D5 came from reading the specification against its own history. D6
 through D9 came from the audit described at the end of this page, which read the
@@ -1328,7 +1329,7 @@ specification; the maintainer reversed it on the day of the decision.
 3. Lock the decision documents (`D28`, `ADR-006`, `ARC-005`, `ARC-006`, `AC-ARC-001`, the constitution) in one commit.
 4. Move the specification into directories by the new modules. Gate: a dump of rules with none lost and no word changed. `UC-03` and `UC-04` are reviewed separately, because they are rewritten prose rather than moved text.
 5. Write `PLAN.md` and `TASKS.md` for moving the code, and submit them for the maintainer's approval.
-6. Move the code by those tasks on a branch of its own, `work/fix/structure/<name>` from `main` as `OPS-019` requires. Before this step the documentation branch is merged into `main`, with the maintainer's permission, so that the branch carries the documents it follows. Gates: the full Maven suite, the end-to-end suite, `npm run test:ui`, and the cycle test.
+6. Move the code by those tasks on a branch of its own, `work/fix/structure/<name>` from `main` as `OPS-019` requires (named `work/fix/architecture/<name>` since `D30`). Before this step the documentation branch is merged into `main`, with the maintainer's permission, so that the branch carries the documents it follows. Gates: the full Maven suite, the end-to-end suite, `npm run test:ui`, and the cycle test.
 7. Check that the code matches the documents, then merge with the maintainer's permission.
 8. Plan each part of the business decisions of `D12`–`D27`, then implement it.
 
@@ -1368,6 +1369,26 @@ the changelogs and git.
 - **Two replacements were reworded on review.** The definition of done says no other document restates it, which a search can check, rather than that `plan.md` points to it, which `plan.md` does not. The gaps table gives a rule for whoever writes a row, that a test is named only for what it asserts, rather than a sentence implying a check nobody runs.
 - **`ADR-006` corrects the same false statement** in its consequences, and its status line reads *Implemented: not yet* without narrating what a later step will do.
 - **The `INT-009` item of `D28` is closed.** `UC-04` traces `INT-009` since version 1.0.1 of the calendar spec, so the rule has a use case and no backlog item remains.
+
+**Status:** decided.
+
+## D30. Which rules about team branches still bind?
+
+**Decided on 17 September 2026 by Loc-LX.** §18 of the platform spec described how a
+five-person team split the first build into persistent feature branches. That team structure
+no longer holds, while one person and several agent sessions may work at once.
+
+| Rule | Decision | Reason |
+|---|---|---|
+| `OPS-018` | Withdrawn | A reviewed baseline before parallel work was a one-time step, and it is done |
+| `OPS-019` | Kept, rewritten | One owner per shared file still matters when a person and agent sessions work in parallel |
+| `OPS-020` | Withdrawn | It ordered the integration of team branches; the order that binds is the layering of `ARC-005` in `ADR-006` |
+| `OPS-021` | Withdrawn | Its limit on push and merge is already held by the constitution's AI agent policy and `AGENTS.md` |
+
+- **Withdrawn rules keep their identifiers.** Each row says it is withdrawn and by this decision, the way `AUTH-010` and `TSK-017` stay as pointers, so the count stays 296 and no identifier is reused.
+- **Branches are named by what they change.** `work/fix/<area>/<what>`, where `<area>` is a module of `ARC-005`, `platform`, `architecture` for a change across modules, or `docs`. The step-6 branch of `D28` was `work/fix/structure/<name>`, which named no feature and so broke the rule it cited; it becomes `work/fix/architecture/<name>`.
+- **A name Git refuses is invalid, in both directions.** Git cannot hold `a/b` beside `a/b/c`, whichever exists first; `a/b-c` is fine. `origin/work/fix/project`, merged into `main` on 4 September 2026, is someone else's branch on the shared remote and stays, as `D17` kept older branches, so a change to `project` uses `work/fix/project-<what>`. A first wording said only that an existing name must not be a prefix, which also forbade the `-` form it prescribed; the wording kept was checked against Git in both directions.
+- **Changed with it:** the platform spec to `1.5.0`; the `OPS-019` row and the agent policy of the constitution, to `2.0.2`, wording only; `AGENTS.md` §4, the branch section of `CONTRIBUTING.md`, two sentences of `shared_context.md`, and `plan.md`.
 
 **Status:** decided.
 

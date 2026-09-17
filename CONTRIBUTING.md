@@ -238,20 +238,13 @@ failed first is rejected and redone.
 
 ```bash
 git checkout main && git pull
-git checkout -b work/fix/<feature>/<what-fix>
+git checkout -b work/fix/<area>/<what>
 ```
 
-Start from the latest verified `main`. `<feature>` is one of the persistent
-areas below. Do not write `work/<feature>/fix/<what-fix>`: the persistent
-`work/<feature>` refs already occupy that prefix and Git refuses it.
-
-| Persistent branch | Area |
-|---|---|
-| `work/platform` | Application baseline, schema, accounts, security, integrations |
-| `work/projects` | Projects, membership, leadership, lifecycle |
-| `work/tasks` | Tasks, comments, status, progress |
-| `work/attendance` | Policy, calendar, attendance workflows |
-| `work/reports-ui` | Shared UI, dashboards, reporting presentation |
+Start from the latest verified `main`. `<area>` is a module of `ARC-005` (`attendance`,
+`calendar`, `identity`, `internship`, `notification`, `project`, `reporting`), `platform`,
+`architecture` for a change that spans modules, or `docs` for documentation only
+(`OPS-019`). A branch name is invalid when it begins with an existing branch name followed by `/`, or when an existing branch name begins with it followed by `/`: `work/<area>/fix/<what>` is invalid where a persistent `work/<area>` exists, and where a branch named `work/fix/<area>` exists the change uses `work/fix/<area>-<what>` instead. Git refuses such a name.
 
 ### Red
 

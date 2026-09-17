@@ -62,7 +62,7 @@ answer, not for the folder to be tidied.
 
 ## 4. Branch naming
 
-- A targeted repair uses a clean, isolated `work/fix/<feature>/<what-fix>` branch and worktree from the latest verified `main`. Do not use `work/<feature>/fix/<what-fix>`: the persistent `work/<feature>` ref already occupies that Git ref prefix.
+- A targeted change uses a clean, isolated `work/fix/<area>/<what>` branch and worktree from the latest verified `main`, where `<area>` is a module of `ARC-005`, `platform`, `architecture` for a change that spans modules, or `docs` for documentation only (`OPS-019`). A branch name is invalid when it begins with an existing branch name followed by `/`, or when an existing branch name begins with it followed by `/`: `work/<area>/fix/<what>` is invalid where a persistent `work/<area>` exists, and where a branch named `work/fix/<area>` exists the change uses `work/fix/<area>-<what>` instead.
 
 Every targeted repair starts from the latest verified `main`, follows TDD from RED to GREEN,
 adds Javadoc as it goes, names the rules each test protects in that test's Javadoc,

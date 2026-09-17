@@ -42,7 +42,7 @@ and in the constitution.
 3. **Step 3 — lock** `D28`, `ADR-006`, `ARC-005`, `ARC-006`, `AC-ARC-001` and the constitution `2.0.0` in one commit. Done: `9123150`.
 4. **Step 4 — one spec per module.** Done: `58711c5`. Gate: 296 rules with none lost and no word changed, and the rules of the new `UC-03` and `UC-18`, and of the new `UC-04` and `UC-19`, equal those of the use case each pair replaced.
 5. **Step 5 — the plan and tasks that implement `ARC-005` and `ARC-006`**, for the maintainer's approval. Then this documentation branch is merged into `main`, with the maintainer's permission, so the implementation branch starts from the documents it follows. Pushing and merging each need their own permission.
-6. **Step 6 — implement the module boundaries** on `work/fix/structure/<name>` from `main` (`OPS-019`), needing Docker and enough memory.
+6. **Step 6 — implement the module boundaries** on `work/fix/architecture/<name>` from `main` (`OPS-019`), needing Docker and enough memory.
    - The cycle test first, in plain Java, with the violations known at the start; every task shortens the list and the last empties it.
    - GitNexus impact analysis on every symbol before it changes.
    - `LayerStructureTest` and `AttendanceLayerStructureTest` take the new modules in the same change as the code they check; until then both guard the layout `ARC-005` replaced.

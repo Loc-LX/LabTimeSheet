@@ -1,6 +1,6 @@
 # Calendar Spec
 
-**Version:** 1.0.1 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-17
+**Version:** 1.0.2 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-17
 
 Part of the Lab Timesheet specification. Rules every feature shares, including the
 glossary, the authorization model, the domain model, and failure handling, are in
@@ -77,7 +77,7 @@ HolidayAPI field behavior is based on its [official API documentation](https://h
 | Trigger | An Admin changes future attendance policy, global calendar, or HolidayAPI configuration. |
 | Preconditions | The Admin is active and has the deployment-provided encryption master key available to the application. |
 | Postconditions | New decisions use the new effective configuration; historical calculations remain stable. |
-| Traced requirements | ATT-001–ATT-006, CAL-001–CAL-009, INT-009 |
+| Traced requirements | ATT-001–ATT-006, CAL-001–CAL-009, INT-001–INT-005, INT-009 |
 
 **Main success flow**
 

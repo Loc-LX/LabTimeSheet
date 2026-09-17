@@ -3,6 +3,10 @@
 Each entry records a change to [SPEC.md](SPEC.md): the version, the date, what changed,
 and why. A change that alters a rule raises the version.
 
+## 1.0.2 — 2026-09-17
+
+Trace only; no rule changed. `UC-04` now traces `INT-001`–`INT-005`, the rules its HolidayAPI flow depends on: administration through the application (`INT-001`), the master key its precondition names (`INT-002`), and the encrypted key that is never redisplayed or leaked (`INT-003`–`INT-005`). Until now only `UC-19` traced them.
+
 ## 1.0.1 — 2026-09-17
 
 Trace only; no rule changed. `UC-04` now traces `INT-009`. Its flow already described creating, testing and activating a HolidayAPI draft, which is what `INT-009` governs, but no use case traced the rule, a gap that predated `D28`. The note recording the gap is removed.

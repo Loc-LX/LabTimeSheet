@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Version | `2.0.1` |
+| Version | `2.0.2` |
 | Status | `LOCKED` |
 | Applies to | every developer, every AI agent, every pull request |
 | Maintainer | Loc-LX |
@@ -182,7 +182,7 @@ belongs in Layer 1.
 | `TST-008` | A verification run records its own commands, results, and resolved tool versions. A written claim never replaces an executable run. | Documented reason |
 | `TST-009` | Human prose and simple configuration do not receive artificial unit tests. Their evidence is the smallest executable validation. | This rule names where `TST-001` does not apply |
 | `TST-010` | A milestone is committed only when evidence is current, narrow and affected suites are green, and no unexplained error or warning remains. | Documented reason |
-| `OPS-019` | Shared build, migration, security, navigation, and base-template files have one named owner at a time. A targeted fix uses a clean, isolated `work/fix/<feature>/<what-fix>` branch from the current `main`, never `work/<feature>/fix/<what-fix>`. Contributors do not revert or rewrite another branch's work. | Documented reason, coordinated with the owner |
+| `OPS-019` | Shared build, migration, security, navigation, and base-template files have one named owner at a time, a person or an agent session. A targeted change uses a clean, isolated `work/fix/<area>/<what>` branch from the current `main`, where `<area>` is a module of `ARC-005`, `platform`, `architecture` or `docs`, never a name Git refuses beside an existing branch, such as `a/b` beside `a/b/c`. Contributors do not revert or rewrite another branch's work. | Documented reason, coordinated with the owner |
 
 ### Standing deviations
 
@@ -235,7 +235,7 @@ passing. They are stated here rather than only in `AGENTS.md`, because this
 document outranks that one, and an absolute prohibition held only by the lower
 authority dissolves against the higher one under `GOV-001`.
 
-- Commit to `main`. Work lands on a `work/fix/<feature>/<what-fix>` branch under `OPS-019` and reaches `main` by review.
+- Commit to `main`. Work lands on a `work/fix/<area>/<what>` branch under `OPS-019` and reaches `main` by review.
 - Read or print `.env`. The committed `.env.example` files hold placeholders only under `OPS-004`; the real file holds a database password and the AES-256 master key.
 
 **Must do.**

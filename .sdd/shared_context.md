@@ -73,7 +73,7 @@ says what breaks. Confirm or retire them rather than letting them stay implicit.
 # Part 2 — Technology stack
 
 The team reference for the technologies and development tools used by Lab
-Timesheet. The five-person development team uses Windows 11 and IntelliJ IDEA.
+Timesheet. Contributors use Windows 11 and IntelliJ IDEA.
 Versions controlled by the repository must not be changed in one developer's
 environment without a reviewed project-wide update.
 
@@ -83,7 +83,7 @@ environment without a reviewed project-wide update.
 |---|---|---|
 | Server-rendered modular monolith | One Spring Boot application organized by the modules of `ARC-005`: identity, internship, calendar, attendance, project, reporting, and notification, with `platform` for code that belongs to no single module | A single deployable application keeps transactions, authorization, testing, and deployment manageable for a small team while feature packages preserve clear ownership. |
 | Spring MVC with Thymeleaf | Controllers return HTML pages rendered on the server | The product is a form- and workflow-heavy desktop web application. Server rendering avoids the extra API, SPA state, and authentication complexity of a separate frontend application. |
-| Feature-first Java packages | Each feature owns its controllers, DTOs, entities, repositories, services, and exceptions | Related code stays together, while cross-feature access is limited to public services and DTOs. This supports the five-branch team workflow without duplicating database models. |
+| Feature-first Java packages | Each feature owns its controllers, DTOs, entities, repositories, services, and exceptions | Related code stays together, while cross-feature access is limited to public services and DTOs. This lets people and agent sessions work on different modules in parallel without duplicating database models. |
 | Executable WAR | Maven packages the application as a WAR that can still run with `java -jar` | It works with the current Spring Boot deployment while keeping conventional servlet-container compatibility. |
 | HTML sessions and CSRF protection | Spring Security manages authenticated browser sessions | The application is server-rendered. Session cookies and CSRF protection are simpler and safer here than introducing JWTs. |
 

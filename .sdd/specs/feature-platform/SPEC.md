@@ -1,6 +1,6 @@
 # Platform Spec
 
-**Version:** 1.4.3 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-17
+**Version:** 1.5.0 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-17
 
 Part of the Lab Timesheet specification. Rules every feature shares, including the
 glossary, the authorization model, the domain model, and failure handling, are in
@@ -61,7 +61,8 @@ rather than the system and no `THE system SHALL` sentence would be true of them:
 | `ARC-008`, `ARC-009`, `ACC-004`, `OPS-010` | a design baseline, a migration discipline, an operational instruction, a recovery procedure |
 | `AUTH-010`, `TSK-017` | pointers to the rule that actually decides, kept so a reader arrives there |
 | `OPS-001`–`OPS-004` | the development environment a contributor sets up |
-| `OPS-018`–`OPS-021` | ownership, integration order, and commit discipline across branches |
+| `OPS-019` | file ownership and branch naming |
+| `OPS-018`, `OPS-020`, `OPS-021` | nothing: withdrawn, and kept so that their identifiers are never reused |
 | `TST-001`–`TST-011` | the test-driven workflow a contributor follows |
 
 Forcing those into the notation would make the document look uniform and say
@@ -1063,7 +1064,7 @@ They are listed here so that a reader can tell a deliberate exclusion from an ov
 |---|---|---|
 | Governance | `GOV-001`, `GOV-002`, `GOV-003`, `GOV-005`–`GOV-010`, `GOV-012`, `GOV-014`–`GOV-016` | Authority order, terminology, scope discipline, non-goals, and retention intent. These bind the people writing requirements and code; an automated scenario cannot observe them. `GOV-004`, `GOV-011`, and `GOV-013` describe system behavior and are covered by `AC-ATT-*`, `AC-GOV-001`, and `AC-GOV-002`. |
 | Engineering discipline | `ARC-009`, `TST-011` | Migration immutability and assertion integrity bind contributors; no running system can observe them. |
-| Coordination | `OPS-018`–`OPS-021` | Baseline publication, file ownership, branch naming, integration order, and commit discipline. Enforced by review and by branch policy, not by the running application. |
+| Coordination | `OPS-018`–`OPS-021` | `OPS-019`, file ownership and branch naming, is enforced by review and by branch policy, not by the running application. `OPS-018`, `OPS-020` and `OPS-021` are withdrawn and bind nothing. |
 
 Excluding them is a choice, not a gap. Writing a scenario for a rule that no test can observe
 produces ceremony without protection.
@@ -1172,22 +1173,14 @@ with authority can close that gap.
 An open question means the specification cannot yet answer something an implementer
 needs. None is open: every question listed in a spec's Notes section already has a current answer in the rules, which the instructor may confirm or change.
 
-### §18. Five-owner implementation split
-
-| Branch | Primary ownership |
-|---|---|
-| `work/platform` | Maven/application baseline, approved Flyway baseline, accounts/security/bootstrap, integrations/notifications, Docker, and Gitea Actions. |
-| `work/projects` | Projects, membership intervals, invitations, exit requests/readiness, leadership terms, Project lifecycle, Project-history authorization, and transfer orchestration. |
-| `work/tasks` | Tasks, generic creator/assignment actors, pending-exit assignment exclusion, batch reassignment operations, self-Task rules, comments, work logs, transitions, and Project progress/history queries. |
-| `work/attendance` | Policy/calendar, attendance, corrections, leave, expiry guards, metrics, and retained policy/calendar history queries. |
-| `work/reports-ui` | Shared Thymeleaf shell/design system, dashboards, invitation/exit/transfer surfaces, Project and Admin-setting History tabs, report queries, Excel, and PDF. |
+### §18. Ownership and branches
 
 | ID | Requirement |
 |---|---|
-| OPS-018 | Platform shall publish a reviewed baseline containing shared build, security, schema, and package contracts before parallel feature work begins. |
-| OPS-019 | Shared build, migration, security, navigation, and base-template files shall have one named owner at a time. A targeted fix shall use a clean, isolated `work/fix/<feature>/<what-fix>` branch from the current `main`; `work/<feature>/fix/<what-fix>` is invalid because a persistent `work/<feature>` ref already occupies that Git ref prefix. Contributors shall not revert or rewrite another branch's work. |
-| OPS-020 | Integration order shall be platform, projects, tasks and attendance after their dependencies pass, then reports/UI. Cross-module conflicts shall be resolved by the integrator. |
-| OPS-021 | Team members shall commit medium-sized green milestones to their respective branches; no plan item authorizes push, merge, deployment, or publication by this documentation task. |
+| OPS-018 | Withdrawn by `D30`. It required a reviewed platform baseline before parallel feature work began, which is complete. The entry keeps the identifier so that it is never reused. |
+| OPS-019 | Shared build, migration, security, navigation, and base-template files shall have one named owner at a time, whether that owner is a person or an agent session. A targeted change shall use a clean, isolated `work/fix/<area>/<what>` branch from the current `main`, where `<area>` is a module of `ARC-005`, `platform`, `architecture` for a change that spans modules, or `docs` for documentation only. A branch name is invalid when it begins with an existing branch name followed by `/`, or when an existing branch name begins with it followed by `/`: `work/<area>/fix/<what>` is invalid where a persistent `work/<area>` exists, and where a branch named `work/fix/<area>` exists the change uses `work/fix/<area>-<what>` instead. Contributors shall not revert or rewrite another branch's work. |
+| OPS-020 | Withdrawn by `D30`. It set the integration order of the team's feature branches; the order that binds now is the dependency layering of `ARC-005`, recorded in `ADR-006`. The entry keeps the identifier so that it is never reused. |
+| OPS-021 | Withdrawn by `D30`. Its limit on push, merge, deployment and publication is held by the constitution's AI agent policy and `AGENTS.md`. The entry keeps the identifier so that it is never reused. |
 
 ### Appendix A. Implementation dependency notes
 

@@ -3,6 +3,14 @@
 Each entry records a change to [SPEC.md](SPEC.md): the version, the date, what changed,
 and why. A change that alters a rule raises the version.
 
+## 1.5.0 — 2026-09-17
+
+Rules changed; decision `D30`. Counts stay 296 rules and 145 scenarios.
+
+- **Withdrawn, identifiers kept:** `OPS-018` (a baseline before parallel work, which is done), `OPS-020` (the integration order of team branches, replaced by the layering of `ARC-005` in `ADR-006`) and `OPS-021` (commit discipline, whose limit on push and merge the constitution and `AGENTS.md` hold). Each row now says it is withdrawn, as `AUTH-010` and `TSK-017` stay as pointers, so no identifier is reused.
+- **`OPS-019` rewritten:** an owner may be a person or an agent session, and a branch is named `work/fix/<area>/<what>` by a module of `ARC-005`, `platform`, `architecture` or `docs`, instead of by the five team features. A name is invalid where Git refuses it beside an existing branch, in either direction; where `work/fix/<area>` itself exists as a branch, as `work/fix/project` does, the change uses `work/fix/<area>-<what>`.
+- §18 loses the table of five team branches and is named for what it holds. The non-EARS table and the §20 exclusion table say which of the four rules still binds.
+
 ## 1.4.3 — 2026-09-17
 
 Wording only; no rule or scenario changed. A specification states what the system must do, so the history it carried was removed. Each piece is already recorded where history belongs:
