@@ -6,7 +6,7 @@ This file tracks progress only. What the system must do is in
 `PLAN.md`, and its task breakdown in `TASKS.md`. The rules for working here are
 in [AGENTS.md](AGENTS.md) and [`.sdd/constitution.md`](.sdd/constitution.md).
 
-**Last updated:** 2026-09-16 · **Branch:** `work/fix/docs/restore-and-restructure`,
+**Last updated:** 2026-09-17 · **Branch:** `work/fix/docs/restore-and-restructure`,
 ahead of `origin/main`, nothing pushed.
 
 ## Where the project is
@@ -14,9 +14,9 @@ ahead of `origin/main`, nothing pushed.
 | Stage | State |
 |---|---|
 | Delivery, Iterations 1–4 | Built. Every tracked item is done; the Iteration 3 and 4 integration gates were never run. |
-| Specification | Approved. Eight specs; each version is in its spec header and `CHANGELOG.md`. `D12`–`D15`, `D21` and `D23`–`D25` were confirmed for build by the maintainer on 16 September 2026, so no rule waits on a signature. |
+| Specification | Approved. Eight specs, one per module of `D28` since step 4: identity, internship, calendar, attendance, project, reporting, notification, and platform for what no single module owns; each version is in its spec header and `CHANGELOG.md`. `D12`–`D15`, `D21` and `D23`–`D25` were confirmed for build by the maintainer on 16 September 2026, so no rule waits on a signature. |
 | Constitution | Locked on 15 September 2026 (`D20`); `1.0.1` on 16 September for wording (`D26`); `2.0.0` on 17 September for module boundaries (`D28`, `ADR-006`). |
-| Technical plans (`PLAN.md`) | `feature-platform` approved at `1.0`, to be revised in step 8 of `D28` (its line 108 contradicts line 230 on who resolves scope). `feature-attendance` and `feature-task` superseded by `D28`. The rest are written per module, one section per part, in step 8. |
+| Technical plans (`PLAN.md`) | `feature-platform` approved at `1.0`, to be revised in step 8 of `D28` (its line 108 contradicts line 230 on who resolves scope). `feature-attendance` and `feature-task` were superseded by `D28` and deleted in step 4 with the maintainer's consent; both remain in git at `9123150`. The rest are written per module, one section per part, in step 8. |
 | Task breakdown (`TASKS.md`) | Not started. |
 | Implementation of the 14 and 16 September decisions | Not started; the code still follows the earlier rules. |
 | Validation against the specification | Not started. |
@@ -39,10 +39,10 @@ of `D28`. Savepoint before it: `savepoint/pre-module-split-2026-09-17`.
 Numbered as the steps of `D28`, so that "step 6" means the same thing here, in `ADR-006`
 and in the constitution.
 
-1. **Step 1 — revise the decision documents.** Done in the working tree.
-2. **Step 2 — check all 296 rules for mentions of another module's concepts.** Done: `node scripts/module-boundaries.cjs` exits 0 with 99 verdicts and reproduces the reviewer's 12 findings.
-3. **Step 3 — lock** `D28`, `ADR-006`, `ARC-005`, `ARC-006`, `AC-ARC-001` and the constitution `2.0.0` in one commit.
-4. **Step 4 — move the specification** into directories by module. Gate: a rule dump with none lost and no word changed. Review `UC-03` and `UC-04` separately; the rules of the new `UC-04` and `UC-19` together equal the old `UC-04` exactly.
+1. **Step 1 — revise the decision documents.** Done, committed in `9123150`.
+2. **Step 2 — check all 296 rules for mentions of another module's concepts.** Done, in `9123150`: `node scripts/module-boundaries.cjs` exits 0 with 99 verdicts and reproduces the reviewer's 12 findings.
+3. **Step 3 — lock** `D28`, `ADR-006`, `ARC-005`, `ARC-006`, `AC-ARC-001` and the constitution `2.0.0` in one commit. Done: `9123150`.
+4. **Step 4 — move the specification** into directories by module. Gate: a rule dump with none lost and no word changed. Review `UC-03` and `UC-04` separately; the rules of the new `UC-04` and `UC-19` together equal the old `UC-04` exactly. Done on 17 September 2026: 296 rules and 144 scenarios with none lost and none changed, every rule in the module the script assigns, both trace unions equal, spec-structure checks green. The new prose of `UC-03`, `UC-18`, `UC-04` and `UC-19` went to the maintainer for review, and `UC-19` was corrected after it.
 5. **Step 5 — write `PLAN.md` and `TASKS.md` for moving the code**, for the maintainer's approval. Then this documentation branch is merged into `main`, with the maintainer's permission, so the code branch starts from the documents it follows. Pushing and merging each need their own permission.
 6. **Step 6 — move the code** on `work/fix/structure/<name>` from `main` (`OPS-019`), needing Docker and enough memory.
    - The cycle test first, in plain Java, with the violations known at the start; every task shortens the list and the last empties it.
@@ -56,9 +56,7 @@ and in the constitution.
 
 ## Waiting on a decision
 
-| Item | Waiting on | Recorded in |
-|---|---|---|
-| Split rules that span several features (`UI-019`, `AUTH-003`, `AUTH-004`, `AUTH-009`, `AUTH-011`, `DB-008`) | Settled by `D28`: `AUTH-004`, `AUTH-009` and `AUTH-011` move to project in step 4 of `D28`; `UI-019`, `AUTH-003` and `DB-008` stay in platform because each spans several modules. Row kept until step 4 lands | `decisions.md` |
+Nothing is waiting on a decision.
 
 ## Validation backlog
 
@@ -66,6 +64,7 @@ Work that checks the code against the specification. It follows the plans, not
 the other way round.
 
 - **Parts after the code move of `D28`.** Task and internship compute business dates from the `BUSINESS_ZONE` constant, contradicting `GOV-011`; fixing it changes behavior, so it is a part of its own. `AttendanceRole`, a copy of `GlobalRole` in 15 production and 18 test files, is removed, and `GlobalRole` moves to `platform`.
+- **`AC-ACC-012` spans two modules.** It searches the account directory by Student Code and corrects accounts in internship states, and `R3` of `D28` gives the Student Code directory and Intern correction to internship. Splitting it rewrites its words, so it waits for a part of its own rather than the specification move.
 - **`INT-009` has no use case**, only `AC-INT-002`. Predates `D28`; not fixed while the specification moves.
 - **A test suite derived from the specification.** Agreed method: derive each rule's expectation from the spec first, then look for an existing test. Agreement keeps the test and tags it with the rule; disagreement is a finding; absence means a new test. Needs Docker.
 - **Rule identifiers in the 108 of 123 existing test classes that lack them**, so that a rule-to-test report can be generated instead of kept by hand.

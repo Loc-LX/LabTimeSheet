@@ -3,6 +3,14 @@
 Each entry records a change to [SPEC.md](SPEC.md): the version, the date, what changed,
 and why. A change that alters a rule raises the version.
 
+## 1.3.6 — 2026-09-17
+
+Relocation only; no rule text changed. Decision `D28`.
+
+- `ATT-001`–`ATT-003`, `CAL-001`–`CAL-009` and `DB-009` moved to the [calendar spec](../feature-calendar/SPEC.md), with `AC-CAL-001`–`AC-CAL-005`, `AC-ATT-001` and `UC-04`. `ATT-004`–`ATT-006` stay: they apply the policy to attendance rows and leave. `AC-ATT-001` moved although it names them, because its Given/When configures the policy and names them only for the result; the principle is in the calendar changelog.
+- `NOT-011` moved here from the [notification spec](../feature-notification/SPEC.md), with its note. Every clause concerns leave, corrections, exceptions or the attendance period, and left in notification it would make notification depend on attendance.
+- Sections 1, 2, 5, 6, 7 and 8 and the notes were updated for what the spec now holds; the note pointing `UC-04` at the integration spec went with `UC-04`.
+
 ## 1.3.5 — 2026-09-16
 
 Two corrections and one status change; no rule text changed in substance.

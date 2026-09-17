@@ -1,6 +1,6 @@
-# Account Spec
+# Identity Spec
 
-**Version:** 1.1.3 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-16
+**Version:** 1.1.4 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-17
 
 Part of the Lab Timesheet specification. Rules every feature shares, including the
 glossary, the authorization model, the domain model, and failure handling, are in
@@ -10,8 +10,8 @@ references still resolve.
 
 ## 1. Context & Goal
 
-Account and internship administration, the first area named by the product objective (§1.2 of the platform spec).
-In code this is `feature/account`: users, internships, activation and reset tokens, bootstrap, and the login throttle.
+Accounts, installation, and sign-in, part of the first area named by the product objective (§1.2 of the platform spec). The internship lifecycle, the other part of that area, is in [the internship spec](../feature-internship/SPEC.md).
+In code this becomes `feature/identity` in step 6 of `D28`: users, activation and reset tokens, bootstrap, the login throttle, and the SMTP administration screen. Until then that code sits in `feature/account` and `feature/integration`.
 
 ## 2. Actors & Roles
 
@@ -19,7 +19,7 @@ Primary actors named by this feature's use cases:
 
 - **UC-01 — Initialize the installation:** First Admin (installer)
 - **UC-02 — Activate, authenticate, and recover an account:** Admin-created user
-- **UC-03 — Administer accounts and internship lifecycle:** Admin
+- **UC-03 — Administer accounts:** Admin
 
 Every capability by role is in the permission matrix, [platform spec](../feature-platform/SPEC.md) §5.2. Authorization is resolved from stored context, never from the global role alone (§5.1).
 
@@ -28,6 +28,8 @@ Every capability by role is in the permission matrix, [platform spec](../feature
 ### §4. Accounts, bootstrap, and internship lifecycle
 
 #### §4.1 Bootstrap and accounts
+
+`ACC-019`–`ACC-026`, the internship lifecycle of §4.2, are in [the internship spec](../feature-internship/SPEC.md).
 
 | ID | Requirement |
 |---|---|
@@ -49,19 +51,6 @@ Every capability by role is in the permission matrix, [platform spec](../feature
 | ACC-016 | WHILE an account is `DEACTIVATED`, THE system SHALL refuse authentication for it and SHALL keep its historical attribution visible. |
 | ACC-017 | THE system SHALL allow a user to manage their own display and profile fields and their password. THE system SHALL give an Admin a server-filtered account directory searchable by display name, email, or Student Code and filterable by immutable global role. An Admin MAY correct the email identity and the permitted Intern fields; THE system SHALL NOT allow an Admin to edit a display name or a global role, SHALL change account and internship state only through the explicit lifecycle actions, and SHALL NOT fabricate session history it never stored. |
 | ACC-018 | WHEN a password change, password reset, Admin email correction, lock, or deactivation succeeds, THE system SHALL invalidate that user's existing authenticated sessions. WHERE the corrected account is pending, THE system SHALL invalidate prior activation tokens and deliver a fresh activation to the corrected address; WHERE it is active or locked, THE system SHALL deliver notice to the corrected address. The identity change and its required delivery SHALL succeed or fail together. |
-
-#### §4.2 Internship lifecycle
-
-| ID | Requirement |
-|---|---|
-| ACC-019 | THE system SHALL give every `INTERN` account exactly one Intern profile carrying a case-insensitively unique Student Code, internship start and end dates, and an internship status, and SHALL NOT create a profile for a non-Intern account. An Admin MAY correct the Student Code WHILE the internship is `NOT_STARTED` or `ACTIVE`, and MAY correct the dates only WHILE it is `NOT_STARTED`. WHILE a profile is `COMPLETED` or `WITHDRAWN`, THE system SHALL keep it read-only. |
-| ACC-020 | THE system SHALL permit only these internship transitions: `NOT_STARTED → ACTIVE → COMPLETED` and `NOT_STARTED/ACTIVE → WITHDRAWN`. A `SUSPENDED` state SHALL NOT exist. |
-| ACC-021 | WHEN the configured internship start date is reached, THE system SHALL activate an eligible `NOT_STARTED` Intern through both a scheduled guard and a guard applied at request time, so that correctness does not depend on scheduler timing. WHILE an Intern has no responsible Mentor under `ACC-026`, THE system SHALL NOT activate the internship. |
-| ACC-022 | WHEN an Admin marks an Intern `COMPLETED` or `WITHDRAWN`, THE system SHALL apply it only through that explicit action. WHILE that Intern holds a current leadership term or owns an unfinished Task, THE system SHALL refuse both actions until the leader-transfer and Task-reassignment workflows have succeeded. |
-| ACC-023 | WHILE an Intern is `COMPLETED`, THE system SHALL allow authentication in read-only mode to view retained history and manage password and session security, and SHALL refuse any attempt to create or mutate attendance, leave, correction, Project, Task, comment, or work-log data. |
-| ACC-024 | WHEN an Admin withdraws an Intern, THE system SHALL set the account to `DEACTIVATED` in the same transaction, SHALL end every session of that account, SHALL thereafter refuse its login under `ACC-016`, SHALL issue it no password-reset token and refuse any it already holds, and SHALL keep their historical memberships, Tasks, work logs, attendance, leave, and corrections attributable. |
-| ACC-025 | WHEN a terminal lifecycle action is applied, THE system SHALL enforce it for authorization from that instant. Attendance already recorded on that local date SHALL remain reportable, and an otherwise empty terminal date SHALL NOT be newly classified as an absence. |
-| ACC-026 | THE system SHALL let an Admin assign one active Mentor as an Intern's responsible Mentor and replace that assignment. WHEN the assignment changes, THE system SHALL move every pending or overdue leave, correction, and attendance exception request of that Intern to the new Mentor, SHALL leave every earlier decision attributed to the Mentor who made it, and SHALL NOT make the Admin an approver. WHILE an Intern's responsible Mentor is `LOCKED` or `DEACTIVATED`, THE system SHALL show that Intern to Admins as needing a new responsible Mentor, and SHALL NOT let an Admin or any other Mentor decide the Intern's requests. |
 
 ### Authentication controls (from platform §13.1)
 
@@ -126,29 +115,26 @@ Every capability by role is in the permission matrix, [platform spec](../feature
 - Password recovery delivery is unavailable without active SMTP.
 - Pending, locked, and deactivated accounts cannot sign in, and withdrawing an Intern deactivates the account; a completed Intern signs in read-only.
 
-#### UC-03 — Administer accounts and internship lifecycle
+#### UC-03 — Administer accounts
 
 | Field | Specification |
 |---|---|
 | Primary actor(s) | Admin |
-| Trigger | An Admin creates an account or changes account/internship lifecycle state. |
+| Trigger | An Admin creates an account or changes account lifecycle state. |
 | Preconditions | The Admin is active; SMTP is active for non-bootstrap account creation. |
-| Postconditions | Account and internship state change transactionally while historical attribution remains. |
-| Traced requirements | ACC-008–ACC-025, AUTH-001–AUTH-002 |
+| Postconditions | Account state changes transactionally while historical attribution remains. |
+| Traced requirements | ACC-008–ACC-018, AUTH-001–AUTH-002 |
 
 **Main success flow**
 
 1. Choose immutable global role and enter identity fields.
-2. For an Intern, enter unique student code and internship dates.
-3. Create a pending account and deliver a 24-hour activation link.
-4. Inspect activation, account, session, membership, leadership, and unfinished-task context.
-5. Lock, unlock, deactivate, complete, or withdraw only when guards pass.
+2. Create a pending account and deliver a 24-hour activation link.
+3. Inspect activation, account, and session context.
+4. Lock, unlock, or deactivate only when guards pass.
 
 **Alternatives and exceptions**
 
 - Failed activation delivery retains the pending account, invalidates the token, and exposes explicit resend.
-- Completion or withdrawal is blocked while the Intern is a Leader or owns unfinished Tasks.
-- Completed Interns retain read-only historical access; withdrawal deactivates the account, ends its sessions, and refuses further login.
 
 ## 4. Non-functional Requirements
 
@@ -156,19 +142,19 @@ System-wide non-functional rules apply unchanged: architecture §3 (`ARC`), auth
 
 ## 5. Data
 
-Tables this feature's entities map to: `system_state`, `app_users`, `user_action_tokens`, `intern_profiles`. The Intern profile will also need the responsible Mentor of `ACC-026`.
+Tables this feature's entities map to: `system_state`, `app_users`, `user_action_tokens`.
 
 The conceptual model, the table inventory, the integrity rules (`DB`), and both diagrams are §19 of the [platform spec](../feature-platform/SPEC.md).
 
 ## 6. Error Handling
 
-Rules in section 3 whose text names a refusal, rejection, denial, or failure: `ACC-011`, `ACC-012`, `ACC-016`, `ACC-018`, `ACC-022`, `ACC-023`, `ACC-024`.
+Rules in section 3 whose text names a refusal, rejection, denial, or failure: `ACC-011`, `ACC-012`, `ACC-016`, `ACC-018`.
 
 System-wide failure behavior is §21 (`ERR-001`–`ERR-007`), and the interface message families are Appendix F, both in the [platform spec](../feature-platform/SPEC.md).
 
 ## 7. Acceptance Criteria
 
-Scenarios from the §20 acceptance catalogue whose identifiers start with `AC-ACC`. The catalogue's introduction, including the rules deliberately written without a scenario, is in the [platform spec](../feature-platform/SPEC.md).
+Scenarios from the §20 acceptance catalogue whose identifiers start with `AC-ACC` or `AC-SEC`, except `AC-ACC-010`, `AC-ACC-013` and `AC-ACC-014`, which cover only internship rules and are in [the internship spec](../feature-internship/SPEC.md). The catalogue's introduction, including the rules deliberately written without a scenario, is in the [platform spec](../feature-platform/SPEC.md).
 
 | Scenario | Requirements | Given / when | Expected result |
 |---|---|---|---|
@@ -181,11 +167,8 @@ Scenarios from the §20 acceptance catalogue whose identifiers start with `AC-AC
 | AC-ACC-007 | ACC-008, ACC-014 | Admin creates another Admin and it activates | New account authenticates as Admin; original Admin remains unchanged. |
 | AC-ACC-008 | DB-005 | Any code path attempts to update an existing `global_role` | PostgreSQL rejects the update even if application authorization is bypassed. |
 | AC-ACC-009 | ACC-014–ACC-018 | Admin locks, unlocks, then deactivates a user | Sessions are invalidated; login follows state; attribution remains; role never changes. |
-| AC-ACC-010 | ACC-019–ACC-025 | Start date arrives, then Admin completes an Intern | Scheduler/access guard activates once; completion is blocked until transfer guards pass; completed login is read-only. |
 | AC-ACC-011 | ACC-008, ACC-017, ACC-019, UI-014 | Admin switches account creation between Intern and non-Intern roles, then submits a crafted non-Intern request containing Intern fields | The browser disables and clears inapplicable fields; the server independently rejects crafted incompatible data; role remains immutable. |
 | AC-ACC-012 | ACC-009, ACC-017–ACC-019 | Admin searches and filters the account directory, then corrects account data in pending, active, locked, and terminal states | Search matches normalized display name/email/Student Code and role filtering is exact; pending email change replaces activation safely; active/locked email change invalidates sessions; SMTP/delivery/uniqueness failure leaves identity unchanged; Student Code and date edits obey their lifecycle boundaries; deactivated/terminal data and role/display name remain read-only. |
-| AC-ACC-013 | ACC-021, ACC-026 | An Intern's start date arrives before an Admin assigns a responsible Mentor; the Admin then assigns one, and later replaces them after that Mentor has decided a leave request | The internship stays `NOT_STARTED` until a responsible Mentor is assigned and activates once one is; after replacement, new requests go to the new Mentor and the earlier decision still names the Mentor who made it. |
-| AC-ACC-014 | ACC-026 | An Intern's responsible Mentor is locked while the Intern has a pending leave request, a pending correction, and an overdue exception request | The Intern appears to Admins as needing a new responsible Mentor; neither an Admin nor another Mentor can decide the requests; after an Admin assigns a new Mentor all three move to that Mentor, and decisions made earlier still name the original Mentor. |
 | AC-SEC-002 | SEC-002–SEC-005 | Password is 11, 12, 128, then 129 characters; reset email is unknown | Only 12 and 128 pass length validation; response for unknown email remains generic. |
 | AC-SEC-003 | SEC-006–SEC-007 | Same normalized email/IP fails login five times inside window | Sixth attempt is throttled for 15 minutes; restart may clear throttle but does not unlock a manually locked account. |
 
@@ -193,9 +176,8 @@ Scenarios from the §20 acceptance catalogue whose identifiers start with `AC-AC
 
 System-wide exclusions are §1.3 of the [platform spec](../feature-platform/SPEC.md): `GOV-007` through `GOV-010` and `GOV-015`.
 
-Exclusions stated inside this spec's own rules: `ACC-020`.
+No rule in this spec states an exclusion of its own.
 
 ## Notes / Open Questions
 
-- `ACC-023` and `ACC-024` were confirmed by the instructor on 14 September 2026: a withdrawn Intern cannot sign in; a completed Intern keeps a read-only account and may still change their password and manage sessions.
-- `ACC-026` follows `D14`, decided on 14 September 2026 and confirmed for build on 16 September. When a responsible Mentor becomes unavailable, an Admin reassigns the Intern and the pending requests move with them; the Admin never becomes an approver.
+None recorded.

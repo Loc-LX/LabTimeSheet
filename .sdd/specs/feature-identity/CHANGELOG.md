@@ -1,7 +1,15 @@
-# Changelog — Account spec
+# Changelog — Identity spec
 
 Each entry records a change to [SPEC.md](SPEC.md): the version, the date, what changed,
 and why. A change that alters a rule raises the version.
+
+## 1.1.4 — 2026-09-17
+
+Relocation only; no rule text changed. Decision `D28` splits the account spec by module, and this spec keeps what belongs to `identity`, under a new name. The entries below are the account spec's history.
+
+- `ACC-019`–`ACC-026` moved to [the internship spec](../feature-internship/SPEC.md), with `AC-ACC-010`, `AC-ACC-013` and `AC-ACC-014`, which cover only those rules. `AC-ACC-011` and `AC-ACC-012` cover rules of both specs, so they stay here.
+- `UC-03` was rewritten rather than moved, and is reviewed on its own. It keeps accounts: its trace is `ACC-008`–`ACC-018` and `AUTH-001`–`AUTH-002`, and its title is now *Administer accounts*. The internship lifecycle it also described is `UC-18` in the internship spec. The two traces together equal the old trace of `UC-03` exactly.
+- Sections 1, 5, 6, 7 and 8 were rewritten for what the spec now holds. The two notes about `ACC-023`, `ACC-024` and `ACC-026` moved with those rules.
 
 ## 1.1.3 — 2026-09-16
 

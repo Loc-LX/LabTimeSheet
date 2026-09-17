@@ -3,6 +3,17 @@
 Each entry records a change to [SPEC.md](SPEC.md): the version, the date, what changed,
 and why. A change that alters a rule raises the version.
 
+## 1.4.1 — 2026-09-17
+
+Relocation only; no rule text changed. Step 4 of decision `D28` moves the specification into one spec per module. Rules and scenarios move with their identifiers and words unchanged; counts stay 296 rules and 144 scenarios in eight specs.
+
+- The account spec is now the [identity spec](../feature-identity/SPEC.md), and the internship lifecycle has its own [internship spec](../feature-internship/SPEC.md). The policy, the global calendar and HolidayAPI moved from the attendance spec to a new [calendar spec](../feature-calendar/SPEC.md). The task spec merged into the [project spec](../feature-project/SPEC.md). The integration spec was divided by owner and no longer exists.
+- Moved here from the integration spec: `INT-001`–`INT-008` and `INT-010` under §12.1, with `AC-INT-001`, `AC-INT-002`, `AC-INT-004` and `AC-INT-005`. `INT-009` went to the calendar spec. `AC-INT-002` covers `INT-006`–`INT-009`, three of its four rules here, so it came here too. The integration spec's history is in git, `.sdd/specs/feature-integration/CHANGELOG.md` at commit `9123150`.
+- Every scenario is placed by one principle. A scenario sits in the spec of the module that owns the rules its Given/When actually exercises. A rule named only for the expected result, or a shared platform rule, does not decide where it sits. `AC-AUTH-001` stays here: its Given/When exercises `AUTH-001`–`AUTH-002` across every kind of record, and naming `AUTH-011` does not move it.
+- `UC-19` is new prose, reviewed on its own: SMTP configuration, taken out of `UC-04` and tracing `INT-001`–`INT-008`. Section 2 names its actor.
+- Moved to the project spec: `AUTH-004`, `AUTH-009` and `AUTH-011`, with `AC-AUTH-005`, `AC-AUTH-006` and `AC-AUTH-010`.
+- The pointers in §5.1, §13.1 and §19.3 name the new specs. Section 6 names `INT-007` and section 8 names `INT-010`, as each spec does for its own rules. The note on where use cases sit names `UC-04`, `UC-18` and `UC-19`.
+
 ## 1.4.0 — 2026-09-17
 
 Rules changed: `ARC-005`, `ARC-006`, and scenario `AC-ARC-001`. Decision `D28` and [`ADR-006`](../../rfcs/ADR-006-module-boundaries.md).

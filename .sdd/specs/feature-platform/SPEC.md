@@ -1,6 +1,6 @@
 # Platform Spec
 
-**Version:** 1.4.0 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-17
+**Version:** 1.4.1 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-17
 
 Part of the Lab Timesheet specification. Rules every feature shares, including the
 glossary, the authorization model, the domain model, and failure handling, are in
@@ -145,18 +145,21 @@ The system supports a university laboratory or internship program in four connec
 
 ## 2. Actors & Roles
 
+Primary actors named by this spec's use cases:
+
+- **UC-19 — Configure SMTP:** Admin
+
 ### §5. Authorization model
 
 #### §5.1 Authorization evaluation
 
-`AUTH-005` and `AUTH-008` are in [the task spec](../feature-task/SPEC.md); `AUTH-006` and `AUTH-007` are in [the project spec](../feature-project/SPEC.md).
+`AUTH-004`–`AUTH-009` and `AUTH-011` are in [the project spec](../feature-project/SPEC.md).
 
 | ID | Requirement |
 |---|---|
 | AUTH-001 | WHEN a state-changing operation is requested, THE system SHALL authorize it on the server from the global role, account and internship state, record ownership, active membership, current leadership term, current Task assignee, and aggregate lifecycle, as applicable to that operation. |
 | AUTH-002 | THE system SHALL NOT treat a hidden Thymeleaf control as authorization. WHERE the caller is not authenticated, THE system SHALL redirect to the sign-in page. WHERE the caller is authenticated but holds the wrong role for the whole route, THE system SHALL return an authenticated access-denied response, which implies no record. WHERE the caller may reach the route but the record is not theirs or does not exist, THE system SHALL return the same not-found response in both cases, so that the response cannot be used to discover which records exist. |
 | AUTH-003 | WHILE a Mentor account is active, THE system SHALL permit it to view any Intern's attendance, and SHALL permit only an Intern's responsible Mentor under `ACC-026` to decide that Intern's leave, correction, and attendance exception requests. THE system SHALL restrict Project-management authority to the Project's owning Mentor. |
-| AUTH-004 | WHILE a leadership term is current, THE system SHALL grant its holder Leader permissions, and WHEN that term ends, THE system SHALL withdraw Task-management permission immediately. WHERE a Leader exit is pending, THE system SHALL require the owning Mentor to appoint the replacement before any exit-transfer work, and SHALL NOT move a Task merely because leadership changed. |
 
 #### §5.2 Permission matrix
 
@@ -203,9 +206,7 @@ Legend: **Yes** = permitted within the stated scope; **Own** = own Project or ow
 
 | ID | Requirement |
 |---|---|
-| AUTH-009 | WHILE a Project is open, THE system SHALL permit its active members to view every non-deleted Task, assignee, status, aggregate progress, comment thread, and authorized history entry in that Project, and to comment on any non-deleted Task. |
 | AUTH-010 | Per-member Task-hour visibility is defined by `RPT-005`. This entry exists so that a reader of the authorization model reaches that rule; it adds nothing of its own. |
-| AUTH-011 | WHEN an invitation, membership-exit, exit-transfer batch, self-Task, Task-definition, or history-read operation is requested, THE system SHALL authorize it inside the transaction or read boundary from the authenticated user, the owning Project, active membership, pending-exit state, the issuing or current leadership term, the Task creator or current assignee, and aggregate state. WHERE the identifier is cross-Project or stale, THE system SHALL disclose no protected record and SHALL commit no part of the change. |
 | AUTH-012 | THE system SHALL decide every business permission through one authorization policy that takes the actor's role, the actor's scope in stored context, the current state of the record, and, for a transition, the target state. THE system SHALL NOT infer from a higher role a capability the §5.2 matrix does not grant, SHALL give each capability of that matrix its own entry in the policy so that it can be withdrawn from one role alone, and SHALL NOT decide a business permission from a role check outside the policy. Route protection MAY remain coarse; the service SHALL enforce the policy's decision; a template SHALL ask the same policy only to decide what to show. The decision is `ADR-005`. |
 
 ## 3. Functional Requirements
@@ -266,6 +267,46 @@ separation of attendance from Task work exist to prevent.
 | GOV-013 | THE system SHALL perform every mutable aggregate update inside a transaction with optimistic locking. WHERE the update affects leave quota, a daily work total, bootstrap, or a Task transfer, THE system SHALL additionally serialize on the narrow affected record. |
 | GOV-014 | THE system SHALL retain historical records behind restrictive foreign keys and lifecycle or soft-delete fields. THE system SHALL NOT physically delete an account, Project, membership, Task, attendance row, leave request, correction, comment, work log, or notification through a normal interface operation, except the deletion of a `PLANNED` Project and the rows it owns that `PRJ-002` permits. |
 
+### §12. Integrations and notifications
+
+#### §12.1 Secret-bearing integration configuration
+
+`INT-009`, which applies these rules to HolidayAPI, is in [the calendar spec](../feature-calendar/SPEC.md).
+
+| ID | Requirement |
+|---|---|
+| INT-001 | THE system SHALL administer SMTP and HolidayAPI settings through the application. THE system SHALL NOT take SMTP configuration from a deployment environment variable, and an operator SHALL NOT configure either by editing the database directly. |
+| INT-002 | WHILE running under the production profile, THE system SHALL require a deployment-provided 256-bit application master key. WHILE running under a development or test profile, THE system SHALL take an explicit non-production key from Spring configuration. |
+| INT-003 | THE system SHALL store an SMTP password or HolidayAPI key only as AES-256-GCM ciphertext with a fresh 96-bit nonce and key-version metadata. THE system SHALL NOT store the master key in PostgreSQL. |
+| INT-004 | THE system SHALL NOT redisplay a secret after it is submitted, and SHALL require a new value to replace a saved one. THE system SHALL omit ciphertext, nonce, passwords, API keys, tokens, and master-key material from every Configuration History view. |
+| INT-005 | THE system SHALL NOT place a raw integration secret or authentication token in a log, exception message, rendered page, export, notification body, pipeline artifact, or database diagnostic view. |
+| INT-006 | THE system SHALL move an SMTP revision through `DRAFT → ACTIVE → RETIRED`, and SHALL permit at most one draft and one active revision at a time. WHEN an Admin edits an active configuration, THE system SHALL create a draft and leave the active revision operational. THE system SHALL expose a read-only SMTP History carrying non-secret revision metadata, test, activation and retirement outcomes, and the responsible users. |
+| INT-007 | THE system SHALL store, for SMTP, a host, a port from 1 through 65535, a security mode, an optional username and password, a From address, and a From name. WHILE running under the production profile, THE system SHALL permit `STARTTLS` or `TLS` and SHALL reject plaintext `NONE`. |
+| INT-008 | WHEN an Admin tests SMTP, THE system SHALL send a message to that Admin. THE system SHALL permit activation of a draft only after a successful test, and WHEN a draft is activated SHALL retire the previous active revision in the same transaction. |
+| INT-010 | THE system SHALL NOT provide master-key rotation or external secret-store integration in v1. THE system SHALL carry key-version metadata in every cipher envelope so that an operator-led migration remains possible later. |
+
+### Use cases
+
+#### UC-19 — Configure SMTP
+
+| Field | Specification |
+|---|---|
+| Primary actor(s) | Admin |
+| Trigger | An Admin changes SMTP configuration. |
+| Preconditions | The Admin is active and has the deployment-provided encryption master key available to the application. |
+| Postconditions | Mail uses the newly activated revision; any previously active revision is retired and remains in SMTP History without its secrets. |
+| Traced requirements | INT-001–INT-008 |
+
+**Main success flow**
+
+1. Create a draft SMTP revision.
+2. Test the draft before activation.
+3. Activate the tested draft.
+
+**Alternatives and exceptions**
+
+- A failed SMTP test cannot replace the working active revision.
+
 ## 4. Non-functional Requirements
 
 ### §3. Architecture and runtime
@@ -296,7 +337,7 @@ Reference versions and primary documentation:
 
 #### §13.1 Controls active in every profile
 
-`SEC-002`–`SEC-007`, which concern accounts, are in [the account spec](../feature-account/SPEC.md).
+`SEC-002`–`SEC-007`, which concern accounts, are in [the identity spec](../feature-identity/SPEC.md).
 
 | ID | Requirement |
 |---|---|
@@ -601,7 +642,7 @@ The schema contains **24 tables**. The earlier 21-table baseline was superseded 
 
 #### §19.3 Integrity boundary
 
-`DB-002` and `DB-009` are in [the attendance spec](../feature-attendance/SPEC.md), `DB-011` and `DB-012` in [the project spec](../feature-project/SPEC.md), and `DB-013` in [the task spec](../feature-task/SPEC.md).
+`DB-002` is in [the attendance spec](../feature-attendance/SPEC.md), `DB-009` in [the calendar spec](../feature-calendar/SPEC.md), and `DB-011`–`DB-013` in [the project spec](../feature-project/SPEC.md).
 
 | ID | Requirement |
 |---|---|
@@ -1026,6 +1067,8 @@ erDiagram
 | ERR-005 | WHERE HolidayAPI or ordinary SMTP delivery fails, THE system SHALL keep local attendance and Project data available. WHERE the action depends on identity mail, THE system SHALL keep it blocked or explicitly failed as specified, because it cannot complete safely without delivery. |
 | ERR-007 | WHERE a database migration fails, THE system SHALL fail readiness and SHALL NOT serve requests against a partially migrated schema. |
 
+Outside this catalogue, `INT-007` in section 3 also names a rejection.
+
 ### Appendix F. Interface message families
 
 The section that stood here listing eleven high-impact business rules has been
@@ -1085,11 +1128,8 @@ Scenarios for a feature are in section 7 of that feature's spec. The scenarios b
 | AC-ARC-002 | ARC-010, AUTH-012 | The same authorized list page and the same report are rendered twice, once with one row and once with fifty, counting the authorization decisions and the statements the data source runs | Both counts are equal at both sizes, so neither grows with the rows rendered; the rendered rows themselves differ only in number. |
 | AC-AUTH-001 | AUTH-001–AUTH-002, AUTH-011 | User guesses an unauthorized Intern, Project, invitation, membership, exit request, Task, leave, or correction ID | No record details are disclosed and no mutation occurs. |
 | AC-AUTH-002 | AUTH-003 | Mentor who owns no Project views global leave/correction queue | Mentor may inspect and decide eligible requests but cannot mutate another Mentor's Project. |
-| AC-AUTH-005 | AUTH-004–AUTH-005, TSK-023 | Leader opens one assigned and one unassigned Task on an `ACTIVE` Project | Leader manages definitions for both; on the assigned Task every `TSK-007` transition and work logging succeed; on the unassigned Task only block, unblock, and reopen succeed, and starting it, marking it `DONE`, and logging work are denied. |
-| AC-AUTH-006 | AUTH-005, AUTH-009 | Ordinary member opens Project Tasks | Member sees and comments on all Tasks; status/log controls exist only on their assigned Task. |
 | AC-AUTH-008 | AUTH-010 | An Admin or ordinary member requests the Project/Task report, per-member hours endpoint, or export | No Admin report dataset/project option list or detailed breakdown is constructed; the authenticated Admin request is denied at the report boundary, while an ordinary member receives only the permitted aggregate Project progress and hours. |
 | AC-AUTH-009 | AUTH-001–AUTH-010 | A parameterized authorization suite evaluates every permission-matrix and history-visibility row for Admin, owning/non-owning Mentor, current/former Leader, assigned/unassigned active member, removed member in open/completed Project, and unrelated user contexts | Each allow/deny result matches the matrix; dedicated-report Admin requests are denied before target/Project option resolution and report reads, every other denial leaves state unchanged, and no unauthorized object details are revealed. |
-| AC-AUTH-010 | AUTH-011 | A stale former Leader or unrelated member submits an invitation, exit, self-Task, or Task-management request by direct identifier | Authorization is re-evaluated inside the transaction; the request is denied without existence leakage or partial mutation. |
 | AC-AUTH-011 | AUTH-012 | Every cell of the §5.2 permission matrix is exercised for each role, then one Admin capability is withdrawn from the policy | Each granted cell succeeds and each refused cell is denied at the service; no route or template grants what the service refuses; withdrawing the one Admin capability changes that capability's outcome and no other. |
 | AC-SEC-001 | SEC-001, SEC-013 | Dev/test request a state-changing form without CSRF | Request is denied despite relaxed transport/cookie settings. |
 | AC-SEC-004 | SEC-010–SEC-014 | Production starts without public origin/master key or with untrusted forwarded headers | Readiness/startup fails for missing required config; client headers cannot spoof origin/scheme/IP. |
@@ -1117,6 +1157,10 @@ Scenarios for a feature are in section 7 of that feature's spec. The scenarios b
 | AC-ERR-004 | ERR-004 | A scheduled worker runs, is interrupted, and is invoked again over the same window | Each affected row transitions once and each recipient receives one notification; the second invocation finds nothing left to do and processes no more than its bounded batch size. |
 | AC-ERR-005 | ERR-005 | SMTP and HolidayAPI are both unreachable, then an Intern checks in, a Mentor opens an attendance report, and an Admin attempts to create an account | Check-in and the report succeed from local data; account creation is blocked before token creation with an actionable message naming the unavailable dependency. |
 | AC-ERR-007 | ERR-007 | The application starts against a database whose Flyway migration fails | Readiness reports down and stays down; no request is served against the partially migrated schema; the failure names the migration that stopped. |
+| AC-INT-001 | INT-002–INT-005, UI-019 | Database, logs, and Admin History pages are inspected after saving SMTP/HolidayAPI secrets | Persistence contains only AES-GCM envelopes/nonces/version; History pages show user-meaningful non-secret metadata and never expose raw secret, token, ciphertext, nonce, password, API key, master key, bootstrap state, or internal retry records. |
+| AC-INT-002 | INT-006–INT-009, UI-019 | Admin tests a bad draft while active config exists, then tests a valid draft and opens both integration History tabs; Mentor/Intern request those tabs | Failure leaves active config untouched; success atomically activates draft and retires old revision; Admin sees non-secret revision/outcome/actor metadata while non-Admins are denied without record disclosure. |
+| AC-INT-005 | INT-001 | SMTP settings are supplied through deployment environment variables while none is configured in the Admin console, then an Admin edits SMTP in the console | The environment values are ignored and SMTP remains unconfigured; the console edit is the only change that takes effect, and it is stored through the application rather than requiring direct database editing. |
+| AC-INT-004 | INT-010 | An operator inspects a stored SMTP and a stored HolidayAPI cipher envelope | Each envelope carries key-version metadata alongside the ciphertext; no rotation or external secret-store endpoint exists in the application. |
 
 ## 8. Out of Scope
 
@@ -1129,6 +1173,8 @@ Scenarios for a feature are in section 7 of that feature's spec. The scenarios b
 | GOV-009 | THE system SHALL NOT persist generic domain events, login-attempt history, daily calendar materializations, or Task-assignment history. Narrow correction, leave and attendance exception decision, leadership, Task block, unblock and reopen, and attendance period reopen request and decision history SHALL be retained because current requirements depend on them. |
 | GOV-010 | WHILE the deployment host and its secrets do not exist, THE delivery pipeline SHALL keep the SSH deployment job disabled and SHALL NOT attempt to connect to a deployment target. |
 | GOV-015 | THE system SHALL keep the Task effort-planning slice local to this product. It SHALL NOT integrate with external Jira or Tempo, SHALL NOT mirror Jira issues, sprints, or story points, SHALL NOT hold Tempo accounts or synchronization, and SHALL NOT add a `SUBMITTED`, `ACCEPTED`, or `REJECTED` state or any acceptance and rejection state machine for Tasks. Reopening a `DONE` Task under `TSK-023` so that its assignee corrects it is a status transition, not such a workflow. THE system SHALL NOT re-baseline a Task: once work is retained the estimate stays as `TSK-020` fixes it, and recording a Remaining effort forecast under `TSK-022` or `TSK-024` is not re-baselining. Any of these requires a new numbered requirement and a recorded decision. |
+
+Exclusions stated inside this spec's other rules: `INT-010`.
 
 **Deferred, which is not the same as excluded.** Weekly and Monthly report
 presets sit outside the v1 acceptance scope and are postponed for later
@@ -1278,7 +1324,7 @@ Validation performed on 14 August 2026 established the review artifacts below. T
 > 16 September this note still said an Admin held neither Project/Task nor Daily scope,
 > which contradicted `RPT-005` and `RPT-011`.
 
-> Since 14 September 2026 each use case sits in section 3 of the spec of the feature it exercises; `UC-04` sits in the attendance spec. `UC-06` has covered Task estimates and Remaining effort forecasts since the same date.
+> Since 14 September 2026 each use case sits in section 3 of the spec of the feature it exercises. Since 17 September 2026 (`D28`) `UC-04` sits in the calendar spec, SMTP configuration is `UC-19` in this spec, and the internship lifecycle is `UC-18` in the internship spec. `UC-06` has covered Task estimates and Remaining effort forecasts since the same date.
 
 ### Constitution changes
 

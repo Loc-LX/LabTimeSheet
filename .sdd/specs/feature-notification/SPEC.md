@@ -1,6 +1,6 @@
 # Notification Spec
 
-**Version:** 1.1.5 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-16
+**Version:** 1.1.6 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-17
 
 Part of the Lab Timesheet specification. Rules every feature shares, including the
 glossary, the authorization model, the domain model, and failure handling, are in
@@ -27,19 +27,18 @@ Every capability by role is in the permission matrix, [platform spec](../feature
 
 #### §12.2 Notification channels and retry
 
+`NOT-003` and `NOT-010` are in [the project spec](../feature-project/SPEC.md), and `NOT-011` is in [the attendance spec](../feature-attendance/SPEC.md): each chooses its recipients from data those specs own.
+
 | ID | Requirement |
 |---|---|
 | NOT-001 | WHEN a notification is raised, THE system SHALL create an in-app record for its recipient. THE system SHALL attach email delivery only to an event designated for email. |
 | NOT-002 | WHEN leave, a correction, or an attendance exception is submitted, decided, or marked, membership or leadership changes, a Project invitation is created or resolved, a membership exit is requested or resolved, or a Task is assigned or reassigned, THE system SHALL request both in-app and email delivery. THE system SHALL use the types `PROJECT_INVITATION_CREATED`, `PROJECT_INVITATION_RESOLVED`, `MEMBERSHIP_EXIT_REQUESTED`, and `MEMBERSHIP_EXIT_RESOLVED` for the Project workflow. |
-| NOT-003 | WHEN a Task comment is added or a Task status changes, THE system SHALL create an in-app notification only. WHEN someone other than the assignee blocks, unblocks, or reopens a Task, THE system SHALL notify the assignee, and WHERE that actor is the owning Mentor, SHALL also notify the current Leader. |
 | NOT-004 | WHERE SMTP is absent or transiently failing, THE system SHALL still commit the domain action listed in `NOT-002`. WHERE SMTP is absent, THE system SHALL record delivery as `UNAVAILABLE`; WHERE delivery fails transiently, THE system SHALL retain `PENDING` retry state. |
 | NOT-005 | WHEN SMTP is later configured, THE system SHALL NOT fabricate or retroactively send an email for an event already recorded `UNAVAILABLE`. THE system SHALL keep that event's in-app record available. |
 | NOT-006 | WHEN non-secret email is raised, THE system SHALL attempt delivery immediately and, after a failure, retry after 1 minute, 5 minutes, 30 minutes, 2 hours, and 12 hours. WHERE the fifth retry also fails, THE system SHALL mark delivery terminally `FAILED`. |
 | NOT-007 | THE system SHALL permit an Admin to inspect failed ordinary email and invoke a manual retry. WHEN that retry is invoked, THE system SHALL re-enter bounded retry state without duplicating the in-app notification. |
 | NOT-008 | THE system SHALL NOT route activation or password-reset mail through the ordinary notification outbox, because the raw link must not be persisted. WHERE such a send fails, THE system SHALL invalidate the token and require explicit regeneration. |
 | NOT-009 | THE system SHALL scope the unread count and the notification list to the authenticated recipient, and SHALL make mark-read idempotent. |
-| NOT-010 | WHEN an invitation is created, THE system SHALL notify the invitee. WHEN it is answered, THE system SHALL notify the issuing Leader and the owning Mentor. WHEN it is revoked or superseded, THE system SHALL notify the invitee, the issuing Leader, and the owning Mentor, collapsing duplicate recipients. WHEN a Leader requests a removal, THE system SHALL notify the owning Mentor and the target; WHEN a member requests their own leave, THE system SHALL notify the owning Mentor and the current Leader; WHEN such a request is decided or cancelled, THE system SHALL notify the requester, the target, and the current Leader, collapsing duplicate recipients. WHEN a member creates a self-Task, THE system SHALL send no notification. |
-| NOT-011 | WHEN leave, a correction, or an attendance exception request is submitted, THE system SHALL notify the Intern's responsible Mentor under `ACC-026`, and WHEN any such request becomes overdue, SHALL notify that Mentor again. WHEN such a request is decided, or its decision is amended or reversed under `ATT-024`, or a late arrival or early departure is marked excused without a request, THE system SHALL notify the Intern. WHEN a request to reopen a finalized attendance period is made under `ATT-022`, THE system SHALL notify every active user whom the authorization policy of `AUTH-012` permits to approve or reject it, and SHALL NOT choose those recipients by role; under the §5.2 matrix they are the active Admins today. WHEN it is approved or rejected, THE system SHALL notify the requester and, where different, the Intern's responsible Mentor. |
 
 ### Use cases
 
@@ -105,4 +104,3 @@ No rule in this spec states an exclusion of its own.
 ## Notes / Open Questions
 
 - Deleting an empty `PLANNED` draft also deletes the notifications raised for it (`PRJ-002`), so no notification is left pointing at a Project that no longer exists. A cancelled Project stays readable, so its notifications keep working links; cancellation notifies closed members under `NOT-002` (`PRJ-023`).
-- `NOT-011` follows `D14`, decided on 14 September 2026 and confirmed for build on 16 September. It notifies every active user the authorization policy lets decide a reopen request, not every Admin by role.
