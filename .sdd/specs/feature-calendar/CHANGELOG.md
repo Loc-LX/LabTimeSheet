@@ -3,6 +3,18 @@
 Each entry records a change to [SPEC.md](SPEC.md): the version, the date, what changed,
 and why. A change that alters a rule raises the version.
 
+## 1.0.1 — 2026-09-17
+
+Trace only; no rule changed. `UC-04` now traces `INT-009`. Its flow already described creating, testing and activating a HolidayAPI draft, which is what `INT-009` governs, but no use case traced the rule, a gap that predated `D28`. The note recording the gap is removed.
+
+Section 1 names the module the spec describes, as `ARC-005` names it. The state of the code belongs in `plan.md`, not in a specification.
+
+The note on SMTP no longer tells how `UC-04` was split, which the 1.0.0 entry records; it says where SMTP configuration is.
+
+The opening paragraph no longer says the section numbers come from a single-file specification; it states the numbering convention they follow.
+
+Section 7 names both prefixes of the scenarios it holds, `AC-CAL` and `AC-ATT`.
+
 ## 1.0.0 — 2026-09-17
 
 Relocation only; no rule text changed. Decision `D28` places the whole attendance policy, the global calendar and HolidayAPI in the module `calendar`, and this spec holds their rules.

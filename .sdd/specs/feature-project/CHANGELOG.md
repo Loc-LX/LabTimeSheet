@@ -3,6 +3,18 @@
 Each entry records a change to [SPEC.md](SPEC.md): the version, the date, what changed,
 and why. A change that alters a rule raises the version.
 
+## 1.3.3 — 2026-09-17
+
+Trace only; no rule changed. `UC-05` now traces `PRJ-024`, which `D21` added on 15 September 2026 without extending the use case that creates Projects, and one alternative says what the rule allows.
+
+Section 1 names the module the spec describes, as `ARC-005` names it. The state of the code belongs in `plan.md`, not in a specification.
+
+The notes no longer say when `D12`, `D13` and `D15` were decided and confirmed, which `decisions.md` records. Two notes about the current code, `ProjectService#deleteProjectRows` and the owning Mentor's status change in `TaskService#changeStatus`, moved to `plan.md`, which tracks the code.
+
+The opening paragraph no longer says the section numbers come from a single-file specification; it states the numbering convention they follow.
+
+Section 6 now lists `PRJ-024`, `TSK-023` and `AUTH-008`, which each refuse something and were missing. Section 7 names the `AC-AUTH` and `AC-DB` scenarios it holds.
+
 ## 1.3.2 — 2026-09-17
 
 Relocation only; no rule text changed. Decision `D28` makes Projects and Tasks one module, `project`.

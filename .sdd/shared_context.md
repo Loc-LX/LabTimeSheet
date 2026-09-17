@@ -62,15 +62,13 @@ The product joins attendance oversight and Project delivery without pretending t
 Each item below is believed true but has not been confirmed with the instructor or
 product owner. Each is a risk if it turns out false, and the consequence column
 says what breaks. Confirm or retire them rather than letting them stay implicit.
-Assumptions `A1`, `A3` and `A4` were retired on 14 September 2026: the evidence
-records and fixture dates they described no longer exist.
 
 | # | Assumption | Consequence if false |
 |---:|---|---|
 | A2 | The separate `labtimesheet-docs-hub` repository stays reachable. | The design DDL and the reference and mockup images live only there. The specification names them and cannot render them. |
 | A5 | The programme runs on one server in one timezone. | `GOV-011` resolves business dates in the policy timezone and `SEC-007` keeps login throttle state in memory. Neither survives multi-node deployment. |
 | A6 | Interns hold at most one internship at a time. | `intern_profiles` carries one lifecycle per account; a second concurrent internship has no representation. |
-| A7 | The instructor or product owner reviews the maintainer's business decisions, but is not a gate on them. | The maintainer decides changes under the constitution's Amendment section (`GOV-001`). On 16 September 2026 the decisions that had been held provisional were confirmed for build, so work proceeds from a fixed rule set; a later revision by the instructor arrives as a new decision that supersedes the one it replaces. |
+| A7 | The instructor or product owner reviews the maintainer's business decisions, but is not a gate on them. | Work would wait on a review that is not a gate. The maintainer decides changes under the constitution's Amendment section (`GOV-001`), and a revision the instructor asks for arrives as a new decision that supersedes the one it replaces. |
 
 # Part 2 — Technology stack
 
@@ -83,7 +81,7 @@ environment without a reviewed project-wide update.
 
 | Choice | Use | Rationale |
 |---|---|---|
-| Server-rendered modular monolith | One Spring Boot application organized by account, integration, Project, Task, attendance, notification, and reporting features | A single deployable application keeps transactions, authorization, testing, and deployment manageable for a small team while feature packages preserve clear ownership. |
+| Server-rendered modular monolith | One Spring Boot application organized by the modules of `ARC-005`: identity, internship, calendar, attendance, project, reporting, and notification, with `platform` for code that belongs to no single module | A single deployable application keeps transactions, authorization, testing, and deployment manageable for a small team while feature packages preserve clear ownership. |
 | Spring MVC with Thymeleaf | Controllers return HTML pages rendered on the server | The product is a form- and workflow-heavy desktop web application. Server rendering avoids the extra API, SPA state, and authentication complexity of a separate frontend application. |
 | Feature-first Java packages | Each feature owns its controllers, DTOs, entities, repositories, services, and exceptions | Related code stays together, while cross-feature access is limited to public services and DTOs. This supports the five-branch team workflow without duplicating database models. |
 | Executable WAR | Maven packages the application as a WAR that can still run with `java -jar` | It works with the current Spring Boot deployment while keeping conventional servlet-container compatibility. |

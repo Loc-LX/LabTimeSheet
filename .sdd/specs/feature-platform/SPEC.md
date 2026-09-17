@@ -1,12 +1,12 @@
 # Platform Spec
 
-**Version:** 1.4.1 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-17
+**Version:** 1.4.3 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-17
 
 Part of the Lab Timesheet specification. Rules every feature shares, including the
 glossary, the authorization model, the domain model, and failure handling, are in
-[the platform spec](../feature-platform/SPEC.md). Section numbers marked `§` are the
-numbers the rules carried in the single-file specification and are kept so existing
-references still resolve.
+[the platform spec](../feature-platform/SPEC.md). Section numbers marked `§` are one
+numbering shared by all the specs, so a reference such as §5.2 names the same section
+wherever it appears.
 
 This spec holds what every feature shares. It is not a feature in the code; the name keeps the
 `feature-{name}` convention of the other specs so every spec is found and tagged the same way.
@@ -16,20 +16,19 @@ This spec holds what every feature shares. It is not a feature in the code; the 
 | Field | Value |
 |---|---|
 | Document type | Requirements, domain design, database reference, and acceptance catalogue, split into eight specs |
-| Audience | Primary implementor, five-person student team, instructor/reviewer |
+| Audience | Maintainer, contributors, instructor/reviewer |
 | Product language | English |
 | Business timezone | `Asia/Ho_Chi_Minh` |
 | Database baseline | PostgreSQL 18.4, 24 application tables |
 | Companion DDL | `database-schema.sql`, not tracked in this repository |
-| Review state | Approved as version 1.0.0 on 14 September 2026; open questions are listed in each spec |
+| Review state | Approved; each spec's version is in its header, its changes in its `CHANGELOG.md`, and its open questions in its Notes section |
 | Normative rules | 296 across the eight specs |
-| Acceptance scenarios | 144 across the eight specs |
+| Acceptance scenarios | 145 across the eight specs |
 
-> **Companion files.** This document was authored in a separate documentation
-> repository and copied here on 26 August 2026. Its companion `database-schema.sql`
-> and the `assets/` images stayed behind and have never been tracked in this
-> repository. Every image embed below is therefore written as a named reference
-> rather than a link, so nothing renders as a broken image.
+> **Companion files.** The companion `database-schema.sql` and the reference images
+> under `assets/` are not tracked in this repository. Every image embed below is
+> therefore written as a named reference rather than a link, so nothing renders as a
+> broken image.
 > The live schema is [`V1__baseline.sql`](../../../src/main/resources/db/migration/V1__baseline.sql)
 > plus [`V2__add_task_effort_planning.sql`](../../../src/main/resources/db/migration/V2__add_task_effort_planning.sql),
 > which together create twenty-four tables; §19.4 below carries the physical
@@ -51,9 +50,7 @@ implicit.
 The point of the form is what it prevents. "Export failure shall return an
 error" can be written and approved without anyone deciding what the error is;
 `WHERE report generation fails, THE system SHALL return an error` forces the
-sentence to name it. Rewriting this document into EARS on 12 September 2026
-surfaced four such gaps, recorded as D6 through D9 in
-[`decisions.md`](../../decisions.md).
+sentence to name it.
 
 **Thirty rules are deliberately not in EARS**, because they bind people
 rather than the system and no `THE system SHALL` sentence would be true of them:
@@ -77,52 +74,11 @@ something false.
 When statements conflict, use this precedence from highest to lowest:
 
 1. [`.sdd/constitution.md`](../../constitution.md), for what it states canonically: each indexed rule's layer and exception, the standing deviations, the definition of done, and the AI agent policy. The wording of a rule is in its spec.
-2. The feature specs under `.sdd/specs/`, where each rule has its one canonical location (`GOV-016`). Within a spec, a dated revision supersedes the text it names.
+2. The feature specs under `.sdd/specs/`, where each rule has its one canonical location (`GOV-016`).
 3. `AGENTS.md`, `CONTRIBUTING.md`, and `CLAUDE.md`.
 4. Code and tests. Where they disagree with a spec, the code changes.
 
 [`.sdd/decisions.md`](../../decisions.md) and the ADRs under `.sdd/rfcs/` record why a rule reads as it does; they do not outrank the spec. Where one is newer than the spec it concerns, the spec is stale and is corrected. The maintainer decides a change under the constitution's Amendment section. The instructor reviews those decisions and is not a gate on them (`D26`): a revision they ask for arrives as a new decision that supersedes the one it replaces.
-
-Until 14 September 2026 this list ranked sources by who produced them: the primary implementor's current decisions, an earlier brainstorming review and handoff, instructor-confirmed requirements, earlier requirements answers, and a superseded first draft. The dated revisions below still cite that order as it stood.
-
-> **Superseded on 14 September 2026 by the Admin read-scope revision below (`D1`). Kept as the dated record of what applied between 27 August and 14 September.**
->
-> **Latest reporting-role revision — 27 August 2026.** The current approved handoff supersedes
-> earlier Admin-positive reporting language in this review draft and its historical evidence.
-> Admin is limited to account lifecycle and system configuration: Admin has no Attendance,
-> Project/Task, or Daily Project Work Report scope, navigation, HTML/XLSX/PDF export, or report
-> dataset. Attendance and Project/Task Admin requests are denied before target/Project option
-> resolution or downstream reads and return the authenticated access-denied response; Daily Admin
-> requests retain the existing non-disclosing `Project unavailable` behavior. The Admin dashboard
-> contains account-lifecycle counts and configuration guidance only, without an Active Projects
-> metric or report-like Project/Task summary. Active Interns retain own Attendance, active Mentors
-> retain authorized detailed Intern Attendance, owning Mentors retain their existing Project/Task
-> and Daily scopes, and current Leaders gain discoverable Daily access for each currently-led
-> `PLANNED` or `ACTIVE` Project. Mentor demand for additional Daily reporting remains out-of-system
-> operational communication without persisted delegation.
-
-> **Superseded on 14 September 2026 by the Admin read-scope revision below (`D1`). Kept as the dated record of what applied between 30 August and 14 September.**
->
-> **Admin Attendance-scope revision — 30 August 2026. Supersedes the 27 August block above on
-> Attendance only.** Admin regains detailed Intern Attendance scope: navigation, the HTML report
-> page, the XLSX and PDF exports, and the report dataset, with the same target scope an active
-> Mentor holds. The acting Admin account must be active, and the target account's immutable role
-> must be `INTERN`. Every other restriction in the 27 August block stands unchanged: Admin still
-> has no Project/Task scope and no Daily Project Work Report scope, Admin Project/Task requests are
-> still denied before Project option resolution or downstream reads, Daily Admin requests still
-> return the non-disclosing `Project unavailable` response, and the Admin dashboard still carries
-> account-lifecycle counts and configuration guidance only. This revision restores the position
-> held by the 17 August SRS and is the current decision of the primary implementor under the
-> `GOV-001` authority order; it is recorded in `.sdd/rfcs/ADR-002-attendance-report-scope.md`.
-
-> **Admin read-scope revision — 14 September 2026. Supersedes the 27 and 30 August blocks above
-> on reports.** The instructor confirmed that an Admin may, for now, view every report and its
-> data: detailed Intern Attendance, Project/Task, and the Daily Project Work Report, with their
-> HTML pages and XLSX and PDF exports. This is read access only. An Admin still edits no Project
-> or Task and decides no leave, correction, or attendance exception, and the Admin dashboard stays
-> as `UI-019` states. The instructor expects to withdraw part of this later, so each Admin
-> capability is its own row of the §5.2 matrix and is decided by the one authorization policy of
-> `AUTH-012`. Recorded as `D1` in `.sdd/decisions.md`.
 
 | ID | Requirement |
 |---|---|
@@ -411,11 +367,8 @@ Primary UI dependency references:
 
 ### Appendix D. Screen inventory
 
-Every row is a route that exists in a controller today. The earlier version of
-this appendix listed forty-eight screen identifiers such as `admin-users` and
-`intern-leave`; forty-five of them appeared nowhere in the source and none
-resolved to a route, so a reader holding one could not find anything. The real
-paths are `/admin/accounts` and `/leave`.
+Every row is a route that exists in a controller. Routes are named by their paths, such as
+`/admin/accounts` and `/leave`, so a reader can find each one in the source.
 
 The **Filter chain** column is what `SecurityConfiguration` admits before a
 controller runs. It is coarse on purpose. Whether a particular Mentor may open a
@@ -611,7 +564,7 @@ erDiagram
 
 #### §19.2 Physical table inventory
 
-The schema contains **24 tables**. The earlier 21-table baseline was superseded by explicit invitation and membership-exit history, and migration `V2` added the Remaining effort forecast table required by `DB-013`.
+The schema contains **24 tables**: migration `V1` creates twenty-three, and `V2` adds the Remaining effort forecast table required by `DB-013`.
 
 | # | Table | Responsibility | Retention |
 |---:|---|---|---|
@@ -1071,11 +1024,6 @@ Outside this catalogue, `INT-007` in section 3 also names a rejection.
 
 ### Appendix F. Interface message families
 
-The section that stood here listing eleven high-impact business rules has been
-removed. Every one of them restated a numbered rule in different words, which is
-a second place for the same requirement and is what `GOV-016` forbids. A reader
-who needs those rules reads sections 2 through 15.
-
 What follows is not a rule set. It is guidance for whoever writes interface copy,
 stating what each family of message has to communicate. The behavior behind these
 messages is normative and lives in the `ERR` rules and in each feature section;
@@ -1103,7 +1051,9 @@ the wording is not.
 
 ### §20. Acceptance catalogue
 
-These scenarios define reviewable behavior. During implementation, each scenario shall map to one or more TDD evidence files and automated tests at the narrowest useful layer.
+These scenarios define reviewable behavior. During implementation, each scenario shall map to automated tests at the narrowest useful layer that name the scenario and its rules in their own source (`TST-005`).
+
+**Where a scenario lives.** A scenario lives in the spec of the module that owns the rules its Given and When actually exercise. Steps that only set up or trigger the behavior under test, rules cited only in the expected result, and shared platform rules do not decide where it lives; a scenario whose exercised rules are platform rules lives in the platform spec. Where a reading could still place it in two specs, the CHANGELOG entry that places it records the reason.
 
 **Rules with no system-level acceptance criterion.** Nineteen requirements govern how the team
 works rather than how the system behaves, so no scenario can assert them and none is written.
@@ -1180,17 +1130,13 @@ Exclusions stated inside this spec's other rules: `INT-010`.
 presets sit outside the v1 acceptance scope and are postponed for later
 consideration. The rules above forbid their subjects; this paragraph does not.
 Deferral is equally not a promise: building one later needs a numbered
-requirement and an acceptance scenario like any other feature. The distinction is
-recorded because `GOV-015` previously forbade these presets while the decision
-behind it only postponed them.
+requirement and an acceptance scenario like any other feature.
 
 ## Notes / Open Questions
 
 ### §22. Review and implementation gate
 
-This section described a gate for a system that had not been built. Four iterations
-have since shipped, so it now states what approval means for a specification that
-documents a working product.
+What approval means for a specification that documents a working product.
 
 #### §22.1 What this document currently holds
 
@@ -1199,30 +1145,23 @@ documents a working product.
 | Normative rules, sections 1–22 | 296 |
 | Rules with a §20 acceptance scenario | 277 |
 | Rules declared without one, with reason | 19 |
-| Acceptance scenarios | 144 |
+| Acceptance scenarios | 145 |
 | Flyway application tables | 24 |
-
-The specification quality review in §20 and the twelve-point gate once recorded in the
-header of the single-file specification both passed. Passing them was not approval.
 
 #### §22.2 What approval requires
 
 - The holder of the highest applicable authority in §1.1 accepts the rule set, the acceptance catalogue, and the declared exclusions.
-- The open question in §22.3 is answered. Closed on 11 September 2026.
+- No question in §22.3 is open.
 - Every disagreement between the code and this specification found during review is resolved and recorded, either by correcting the specification to match a decision that already exists or by a new decision stating which of the two is intended.
 
-The Iteration 3 integrated review and its exit demonstration are not a condition of
-approval. They validate the code against the specification, so they need the
-specification fixed first and follow approval rather than preceding it. Until
-14 September 2026 this list named that review as its third condition, which made
-approval wait for a check that could only run after approval. The change and its
-reasoning are recorded as `D11` in [`decisions.md`](../../decisions.md).
+Integrated reviews and demonstrations of the code are not a condition of approval. They
+validate the code against the specification, so they need the specification fixed first
+and follow approval rather than preceding it (`D11` in [`decisions.md`](../../decisions.md)).
 
-**Approved on 14 September 2026** by Loc-LX, the maintainer, as version 1.0.0 of each spec under
-`.sdd/specs/`. The approval was given knowing that questions remain for the instructor, who
-holds domain authority, and that the decisions of 14 September 2026 are ahead of the code; each is listed in the Notes section of the spec it affects and in
-[`decisions.md`](../../decisions.md). An answer that changes a rule
-changes that spec's version and is recorded in its `CHANGELOG.md`.
+Each spec under `.sdd/specs/` is approved by Loc-LX, the maintainer. Decisions the code does
+not implement yet are recorded in [`decisions.md`](../../decisions.md) and tracked in
+[`plan.md`](../../../plan.md). A change to a rule changes that spec's version and is recorded
+in its `CHANGELOG.md`.
 
 A document may
 satisfy every mechanical check and still be wrong about the business; only a person
@@ -1231,26 +1170,9 @@ with authority can close that gap.
 #### §22.3 Open questions
 
 An open question means the specification cannot yet answer something an implementer
-needs. None is outstanding in that sense: every question listed in a spec's Notes section already has a current answer in the rules, which the instructor may confirm or change.
-
-| # | Question | Answer | Closed |
-|---:|---|---|---|
-| OQ-1 | Does this product require exact version pinning for test tooling, or is a compatible range sufficient? | A compatible range is sufficient. Each verification run records the version it resolved, and no test asserts equality against a tool version. `ARC-004` now states this. | 11 September 2026 |
-
-Closing OQ-1 settled the specification question and did not by itself repair the
-pipeline. `src/test/js/playwright-contract.test.mjs` asserted equality against
-`1.55.0` while `package.json` declared `^1.62.1`, and that assertion contradicted
-`ARC-004`. The repair was an ordinary defect fix with its own verification rather
-than a specification change, and it waited on the four checks recorded under D4
-in the decision record: why the pin existed, what the upgrade altered, what the
-lockfile resolves to, and an actual run rather than an inference. All four are
-answered there. The assertion now requires a compatible range, refuses an exact
-pin, checks that the lockfile resolves inside that range, and records the
-resolved version on every run.
+needs. None is open: every question listed in a spec's Notes section already has a current answer in the rules, which the instructor may confirm or change.
 
 ### §18. Five-owner implementation split
-
-This split becomes active only after this specification and DDL are approved.
 
 | Branch | Primary ownership |
 |---|---|
@@ -1280,53 +1202,3 @@ The implementation plan shall pin exact dependency versions in Maven/npm lockfil
 - current compatible OpenPDF 3.0.x `openpdf-html`.
 
 Patch upgrades after review require normal dependency verification but do not change domain requirements. Major upgrades or library substitutions require a documented compatibility decision.
-
-### Appendix B. Documentation validation record
-
-Validation performed on 14 August 2026 established the review artifacts below. These checks validate the documentation baseline; they do not approve application implementation.
-
-| Check | Observed result |
-|---|---|
-| Requirement identifiers | Exactly 260 unique normative rows exist in the authoritative, explained, simple, and generated-SRS catalogues; prefix totals match the approved 13-ID addition. |
-| Diagram boundary | Mermaid CLI 11.16.0 rendered all seven copies: authoritative 2, explained 2, simple 1, and generated SRS 2. Every block uses the exact ELK ER frontmatter. |
-| Schema replay | `psql -v ON_ERROR_STOP=1` applied both DDL files independently to empty PostgreSQL 18.4 databases. |
-| Seed/catalog | Each replay produced exactly 23 public tables, 56 named foreign keys, one `1970-01-01` policy with both grace values 30, and five ISO workdays. Column, constraint, and index metadata hashes match between copies. |
-| Integrity probes | Positive invitation/exit/notification histories committed. Twenty-four expected-failure probes rejected normalized duplicate identities, role mutation, duplicate live/pending rows, cross-Project invitation/exit/Task actors, invalid resolution shapes, duplicate attendance, overlapping leave, second active integrations, unsupported notification type, and invalid checkout grace. |
-| FK indexing | PostgreSQL catalog audit found zero foreign keys without a valid, ready, full non-partial child index whose leading columns equal the complete foreign-key column sequence. |
-| Diagram/schema parity | The byte-equivalent physical blocks contain exactly 23 catalog entities, all 267 columns in order/type, and 56 unique relationship labels matching every PostgreSQL `fk_*` constraint. The explained DDL adds comments, so catalog/executable parity—not byte equality—is authoritative. |
-| SRS and links | Deterministic regeneration produced exactly 14 use cases and 48 unchanged mockup embeds; every local Markdown target resolves. |
-| UI assets | All three reference PNGs are byte-identical to the supplied screenshots. The 48 mockup images and protected screen/render sources retain their pre-update hashes. |
-| Git hygiene | `git diff --check` passed, and `git check-ignore -v` resolved this hub through the root `/labtimesheet-docs-hub/` rule. No hub artifact was staged or committed. |
-
-### Recovered appendices
-
-> **What these are.** Two appendices, both explanatory rather than normative.
-> Where either disagrees with sections 1 through 22, those sections win.
->
-> - **Appendix C** holds the fourteen use-case flows recovered from the detailed SRS added on 17 August 2026 in commit `0430718` and deleted on 20 August by an unexplained revert in commit `66f0da4`. All 260 requirement identifiers in that document are present here, so nothing normative was lost; the flows are the elaboration that was.
-> - **Appendix D** is not recovered. It was rewritten on 12 September 2026 from the controllers, and every route in it exists.
->
-> Two appendices were removed rather than carried forward. The desktop mockup
-> catalogue repeated Appendix D's own fields across 589 lines and ended each entry
-> with a note that the image lives in a repository not tracked here. The
-> high-impact business rules table restated numbered rules in different words,
-> which `GOV-016` forbids. Appendix F now holds only the message families, which
-> state what interface copy must communicate and are guidance, not rules.
->
-> Since 14 September 2026 every shipped workflow has a use case: the Daily Project Work Report is `UC-16`, and attendance exceptions are `UC-15`.
->
-> Admin reporting scope inside Appendix C follows the decision recorded in
-> [`.sdd/rfcs/ADR-002-attendance-report-scope.md`](../../rfcs/ADR-002-attendance-report-scope.md).
-> Since `D1` on 14 September 2026 an Admin reads every report, including the detailed
-> Intern Attendance, Project and Task, and Daily Project Work Reports, with their exports,
-> and `UC-12` names the Admin as a read-only actor for all of them. `ADR-002` records why
-> that scope moved three times in August; it is the history, not the current rule. Until
-> 16 September this note still said an Admin held neither Project/Task nor Daily scope,
-> which contradicted `RPT-005` and `RPT-011`.
-
-> Since 14 September 2026 each use case sits in section 3 of the spec of the feature it exercises. Since 17 September 2026 (`D28`) `UC-04` sits in the calendar spec, SMTP configuration is `UC-19` in this spec, and the internship lifecycle is `UC-18` in the internship spec. `UC-06` has covered Task estimates and Remaining effort forecasts since the same date.
-
-### Constitution changes
-
-- On 14 September 2026 the constitution's Amendment table, its `GOV-014` rows, its `GOV-015` summary, and its engineering standards (`ARC-009`, `TST-011`) were changed with the maintainer's agreement.
-- The same day its layers were ranked by how strictly a rule binds (`D20`): `TST-011`, `ARC-009` and `GOV-006` moved to Layer 1, `AUTH-002` and `SEC-013` joined Layer 1, `AUTH-012` and `SEC-007` joined Layer 2, and the ten wording ambiguities were resolved. A last check the same day corrected `ARC-006`, `ARC-001` and six shortened rows. On 15 September 2026, after `./mvnw -B test` passed 755 tests, the constitution was locked as version `1.0.0`.

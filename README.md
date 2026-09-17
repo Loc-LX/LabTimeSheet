@@ -13,8 +13,8 @@ results must not change when an Admin later edits policy or the calendar
 
 ## Status
 
-Iterations 1 through 4 are built. The specification was approved on 14 September
-2026 and then changed by decisions the code does not implement yet.
+Iterations 1 through 4 are built. The specification is approved and ahead of the code: it
+records decisions the code does not implement yet.
 [`plan.md`](plan.md) is the only progress tracker and lists that work and
 everything else still open.
 

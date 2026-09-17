@@ -3,6 +3,12 @@
 Each entry records a change to [SPEC.md](SPEC.md): the version, the date, what changed,
 and why. A change that alters a rule raises the version.
 
+## 1.1.7 — 2026-09-17
+
+Trace only; no rule changed. `UC-11` now traces `NOT-009`. Its last step already let the recipient read and mark notifications, which is what `NOT-009` scopes, and now says they are the recipient's own.
+
+The opening paragraph no longer says the section numbers come from a single-file specification; it states the numbering convention they follow.
+
 ## 1.1.6 — 2026-09-17
 
 Relocation only; no rule text changed. Decision `D28`.

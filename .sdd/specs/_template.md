@@ -28,7 +28,7 @@ that needs it points to it instead of restating it.
 <!-- WHERE <failure>, THE system SHALL <response>. -->
 
 ## 7. Acceptance Criteria
-<!-- One scenario per testable behavior. -->
+<!-- One scenario per testable behavior. Which spec a scenario lives in is decided by the platform spec, §20, "Where a scenario lives". -->
 
 | Scenario | Requirements | Given / when | Expected result |
 |---|---|---|---|

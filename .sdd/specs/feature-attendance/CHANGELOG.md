@@ -3,6 +3,18 @@
 Each entry records a change to [SPEC.md](SPEC.md): the version, the date, what changed,
 and why. A change that alters a rule raises the version.
 
+## 1.3.8 — 2026-09-17
+
+Wording only; no rule changed. The notes no longer say when `D14` was decided and confirmed, which `decisions.md` records, and §5 no longer says "today" about the tables, which is the state of the code rather than of the specification.
+
+The opening paragraph no longer says the section numbers come from a single-file specification; it states the numbering convention they follow.
+
+Section 6 now lists every rule of section 3 that makes the system refuse, reject, deny or fail: `ATT-021`, `ATT-024`, `LEV-012` and `EXC-006` were missing, and so were `ATT-022`, which refuses an Admin any decision inside a reopen, and `ATT-023`, which refuses everyone but the responsible Mentor inside a reopened range. `NOT-011` is not listed: "reject" there names a decision it notifies about, not a refusal. Section 7 names the `AC-EXC` and `AC-DB` scenarios it holds.
+
+## 1.3.7 — 2026-09-17
+
+Wording only; no rule changed. Section 1 names the module the spec describes, as `ARC-005` names it. The state of the code belongs in `plan.md`, not in a specification.
+
 ## 1.3.6 — 2026-09-17
 
 Relocation only; no rule text changed. Decision `D28`.

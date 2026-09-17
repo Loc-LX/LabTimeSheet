@@ -1,17 +1,17 @@
 # Attendance Spec
 
-**Version:** 1.3.6 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-17
+**Version:** 1.3.8 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-17
 
 Part of the Lab Timesheet specification. Rules every feature shares, including the
 glossary, the authorization model, the domain model, and failure handling, are in
-[the platform spec](../feature-platform/SPEC.md). Section numbers marked `§` are the
-numbers the rules carried in the single-file specification and are kept so existing
-references still resolve.
+[the platform spec](../feature-platform/SPEC.md). Section numbers marked `§` are one
+numbering shared by all the specs, so a reference such as §5.2 names the same section
+wherever it appears.
 
 ## 1. Context & Goal
 
 Global attendance, leave, and missed-checkout correction, the second area named by the product objective (§1.2 of the platform spec).
-In code this is `feature/attendance`: punches, attendance periods, corrections, attendance exceptions, and leave. The effective-dated policy and the global calendar they apply are in [the calendar spec](../feature-calendar/SPEC.md), and their code moves there in step 6 of `D28`. `GOV-004` keeps it separate from Task work and `GOV-005` keeps its past results fixed; both are in the platform spec.
+Its module is `attendance` (`ARC-005`): punches, attendance periods, corrections, attendance exceptions, and leave. The effective-dated policy and the global calendar they apply are in [the calendar spec](../feature-calendar/SPEC.md). `GOV-004` keeps it separate from Task work and `GOV-005` keeps its past results fixed; both are in the platform spec.
 
 ## 2. Actors & Roles
 
@@ -268,19 +268,19 @@ System-wide non-functional rules apply unchanged: architecture §3 (`ARC`), auth
 
 ## 5. Data
 
-Attendance exceptions (`EXC-001`–`EXC-006`) will need a table of their own. Tables this feature's entities map to today: `attendance_records`, `attendance_corrections`, `attendance_correction_events`, `leave_requests`, `leave_request_days`.
+Attendance exceptions (`EXC-001`–`EXC-006`) need a table of their own. Tables this feature's entities map to: `attendance_records`, `attendance_corrections`, `attendance_correction_events`, `leave_requests`, `leave_request_days`.
 
 The conceptual model, the table inventory, the integrity rules (`DB`), and both diagrams are §19 of the [platform spec](../feature-platform/SPEC.md).
 
 ## 6. Error Handling
 
-Rules in section 3 whose text names a refusal, rejection, denial, or failure: `ATT-008`, `ATT-010`, `ATT-011`, `COR-005`, `COR-007`, `COR-008`, `COR-009`, `LEV-004`, `LEV-006`, `LEV-008`, `LEV-010`.
+Rules in section 3 whose text names a refusal, rejection, denial, or failure: `ATT-008`, `ATT-010`, `ATT-011`, `ATT-021`, `ATT-022`, `ATT-023`, `ATT-024`, `COR-005`, `COR-007`, `COR-008`, `COR-009`, `LEV-004`, `LEV-006`, `LEV-008`, `LEV-010`, `LEV-012`, `EXC-006`.
 
 System-wide failure behavior is §21 (`ERR-001`–`ERR-007`), and the interface message families are Appendix F, both in the [platform spec](../feature-platform/SPEC.md).
 
 ## 7. Acceptance Criteria
 
-Scenarios from the §20 acceptance catalogue whose identifiers start with `AC-ATT` or `AC-COR` or `AC-LEV`. The catalogue's introduction, including the rules deliberately written without a scenario, is in the [platform spec](../feature-platform/SPEC.md).
+Scenarios from the §20 acceptance catalogue whose identifiers start with `AC-ATT`, `AC-COR`, `AC-LEV`, `AC-EXC` or `AC-DB`. The catalogue's introduction, including the rules deliberately written without a scenario, is in the [platform spec](../feature-platform/SPEC.md).
 
 | Scenario | Requirements | Given / when | Expected result |
 |---|---|---|---|
@@ -321,7 +321,7 @@ Exclusions stated inside this spec's own rules: `LEV-001`.
 ## Notes / Open Questions
 
 - `COR-006`: approving a correction confirms the effective checkout only; a checkout before scheduled end remains an early departure under `ATT-011`.
-- `D14`, closed on 14 September 2026 and confirmed for build on 16 September, covers `EXC-001`–`EXC-007`, leave withdrawal under `LEV-013`, approved leave under `LEV-011`, and the monthly periods and shared decision-history mechanism of `ATT-019`–`ATT-024`. Enterprise-backed: the fact kept apart from the approval; approval by a responsible Mentor; overdue never meaning rejected; one mechanism for decision history and finalization reused by leave, corrections, and exceptions, each keeping its own actions and states; withdrawal by the requester before a decision; no silent reversal of approved leave; reopening decided on data-governance grounds only; reassignment when the approver is unavailable. Laboratory policy, not a standard: the 48-hour submission and decision limits shared by corrections and exceptions (`D23`), the five-day finalization grace, leaving excused violations out of compliance, and recalculating attendance and compliance when an amendment leaves a past date without leave.
+- `D14` covers `EXC-001`–`EXC-007`, leave withdrawal under `LEV-013`, approved leave under `LEV-011`, and the monthly periods and shared decision-history mechanism of `ATT-019`–`ATT-024`. Enterprise-backed: the fact kept apart from the approval; approval by a responsible Mentor; overdue never meaning rejected; one mechanism for decision history and finalization reused by leave, corrections, and exceptions, each keeping its own actions and states; withdrawal by the requester before a decision; no silent reversal of approved leave; reopening decided on data-governance grounds only; reassignment when the approver is unavailable. Laboratory policy, not a standard: the 48-hour submission and decision limits shared by corrections and exceptions (`D23`), the five-day finalization grace, leaving excused violations out of compliance, and recalculating attendance and compliance when an amendment leaves a past date without leave.
 - **Interpreted from `D14`, not stated in it.** A period belongs to one Intern, so one Intern's open request never holds back anyone else's month. A reopened range is finalized again by the responsible Mentor. An overdue leave request keeps its quota reservation and still blocks overlapping requests.
 - **Derived from `D14`, not stated in it.** A Mentor sets only an outcome and a note on a correction or an exception today, so an amendment there changes the note; any other amendable value would need a rule of its own. An amendment to approved leave can only withdraw approval from dates, because adding a date needs a new approval. A leave decision is never reversed, so a rejected request stays rejected and those dates need a new request; since `LEV-012` forbids retroactive leave, a rejected request whose dates have passed can no longer become leave. Under `COR-001` a row keeps one correction request, so after a decision only the responsible Mentor's amendment or reversal changes it.
-- `NOT-011` follows `D14`, decided on 14 September 2026 and confirmed for build on 16 September. It notifies every active user the authorization policy lets decide a reopen request, not every Admin by role.
+- `NOT-011` follows `D14`. It notifies every active user the authorization policy lets decide a reopen request, not every Admin by role.

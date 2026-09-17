@@ -3,6 +3,30 @@
 Each entry records a change to [SPEC.md](SPEC.md): the version, the date, what changed,
 and why. A change that alters a rule raises the version.
 
+## 1.4.3 — 2026-09-17
+
+Wording only; no rule or scenario changed. A specification states what the system must do, so the history it carried was removed. Each piece is already recorded where history belongs:
+
+- §1: where the document was authored and when it was copied here; the EARS rewrite and the gaps it surfaced (`D6`–`D9`). The companion-files note keeps what is still true: the DDL and the images are not tracked here.
+- §1.1: the earlier authority order, the clause about dated revisions, and the three superseded blocks on Admin report scope of 27 August, 30 August and 14 September 2026. The current scope is in `RPT-004`, `RPT-005`, `RPT-011`, `UI-019` and the §5.2 matrix; its history is `ADR-002` and `D1`.
+- Appendix D and Appendix F: what earlier versions held. §19.2: the 21-table baseline. §1.3: why the deferral note exists.
+- §22: the gate the section once described, the quality review of the single-file specification, the date OQ-1 closed with its table and the Playwright repair (`D4`), the earlier third condition of approval (`D11`), and the approval narrative (version 1.0.0 in each changelog).
+- §18: the condition that the split waits for approval, which it no longer does.
+- Appendix B, the validation record of 14 August 2026 for another repository; "Recovered appendices", which also described an Appendix C that no longer exists here; and "Constitution changes", which is the constitution's own record and `D20`.
+
+The opening paragraph no longer says the section numbers come from a single-file specification; it states the numbering convention they follow.
+
+§1 names the audience the specification has: the maintainer, contributors, and the instructor as reviewer.
+
+## 1.4.2 — 2026-09-17
+
+Wording only; no rule changed. The introduction of §20 gains the principle that decides which spec a scenario lives in, and loses a reference to a practice that no longer exists.
+
+- **Where a scenario lives.** Until now the principle was written only in the changelog entries of 1.4.1 and of the calendar spec, which record how step 4 of `D28` applied it. Those entries stay as history. The principle now lives once, in §20, which section 7 of every spec already points to; the spec template points there too rather than repeating it. It adds that steps which only set up or trigger the behavior under test do not decide, and that a scenario still readable two ways has its reason recorded where it is placed.
+- Applied to the three scenarios that raised the question, nothing moves. `AC-NOT-001` and `AC-NOT-004` stay in notification: approving leave, and the invitation and membership-exit workflows, only trigger the behavior under test, which is mail delivery while SMTP is absent. `AC-ACC-011` stays in identity and is the case the last clause is for: its Given and When exercise account creation under `ACC-008` and `ACC-017` and the Intern-only fields of `ACC-019`, so it reads either way. It stays where it was placed, and this entry is its recorded reason: the request under test is an account-creation request, and refusing Intern data on a non-Intern account is a check on that request.
+- The scenario count in §1 and §22.1 becomes 145. Applying the principle to `AC-ACC-012` split it: the account directory and email correction stay in identity, and the Student Code and internship-date correction is the new `AC-ACC-015` in internship. No rule changed, and the rules with a scenario stay 277.
+- The first sentence of §20 still mapped each scenario to TDD evidence files. `ADR-004` removed those files on 12 September 2026 and moved the trace into the test source, so the sentence now names `TST-005`.
+
 ## 1.4.1 — 2026-09-17
 
 Relocation only; no rule text changed. Step 4 of decision `D28` moves the specification into one spec per module. Rules and scenarios move with their identifiers and words unchanged; counts stay 296 rules and 144 scenarios in eight specs.

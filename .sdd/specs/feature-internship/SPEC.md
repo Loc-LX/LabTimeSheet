@@ -1,17 +1,17 @@
 # Internship Spec
 
-**Version:** 1.0.0 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-17
+**Version:** 1.0.1 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-17
 
 Part of the Lab Timesheet specification. Rules every feature shares, including the
 glossary, the authorization model, the domain model, and failure handling, are in
-[the platform spec](../feature-platform/SPEC.md). Section numbers marked `§` are the
-numbers the rules carried in the single-file specification and are kept so existing
-references still resolve.
+[the platform spec](../feature-platform/SPEC.md). Section numbers marked `§` are one
+numbering shared by all the specs, so a reference such as §5.2 names the same section
+wherever it appears.
 
 ## 1. Context & Goal
 
 The internship lifecycle and the responsible Mentor, part of the first area named by the product objective (§1.2 of the platform spec). Accounts and sign-in, the other part of that area, are in [the identity spec](../feature-identity/SPEC.md).
-In code this becomes `feature/internship` in step 6 of `D28`: Intern profiles, internship transitions, the responsible Mentor, and the Admin's Intern administration composed over identity. Until then that code sits in `feature/account`.
+Its module is `internship` (`ARC-005`): Intern profiles, internship transitions, the responsible Mentor, and the Admin's Intern administration composed over identity.
 
 ## 2. Actors & Roles
 
@@ -81,13 +81,14 @@ System-wide failure behavior is §21 (`ERR-001`–`ERR-007`), and the interface 
 
 ## 7. Acceptance Criteria
 
-Scenarios from the §20 acceptance catalogue that cover only internship rules. They keep the `AC-ACC` identifiers they carried in the account spec. The catalogue's introduction, including the rules deliberately written without a scenario, is in the [platform spec](../feature-platform/SPEC.md).
+Scenarios from the §20 acceptance catalogue that cover only internship rules. They use the `AC-ACC` prefix because the rules they cover carry the `ACC` prefix. The catalogue's introduction, including the rules deliberately written without a scenario, is in the [platform spec](../feature-platform/SPEC.md).
 
 | Scenario | Requirements | Given / when | Expected result |
 |---|---|---|---|
 | AC-ACC-010 | ACC-019–ACC-025 | Start date arrives, then Admin completes an Intern | Scheduler/access guard activates once; completion is blocked until transfer guards pass; completed login is read-only. |
 | AC-ACC-013 | ACC-021, ACC-026 | An Intern's start date arrives before an Admin assigns a responsible Mentor; the Admin then assigns one, and later replaces them after that Mentor has decided a leave request | The internship stays `NOT_STARTED` until a responsible Mentor is assigned and activates once one is; after replacement, new requests go to the new Mentor and the earlier decision still names the Mentor who made it. |
 | AC-ACC-014 | ACC-026 | An Intern's responsible Mentor is locked while the Intern has a pending leave request, a pending correction, and an overdue exception request | The Intern appears to Admins as needing a new responsible Mentor; neither an Admin nor another Mentor can decide the requests; after an Admin assigns a new Mentor all three move to that Mentor, and decisions made earlier still name the original Mentor. |
+| AC-ACC-015 | ACC-019 | Admin corrects the Student Code and the internship dates of Interns whose internships are `NOT_STARTED`, `ACTIVE`, `COMPLETED`, and `WITHDRAWN` | Student Code edits succeed only while `NOT_STARTED` or `ACTIVE`; date edits succeed only while `NOT_STARTED`; completed and withdrawn profiles remain read-only and unchanged. |
 
 ## 8. Out of Scope
 
@@ -97,6 +98,5 @@ Exclusions stated inside this spec's own rules: `ACC-020`.
 
 ## Notes / Open Questions
 
-- `ACC-023` and `ACC-024` were confirmed by the instructor on 14 September 2026: a withdrawn Intern cannot sign in; a completed Intern keeps a read-only account and may still change their password and manage sessions.
-- `ACC-026` follows `D14`, decided on 14 September 2026 and confirmed for build on 16 September. When a responsible Mentor becomes unavailable, an Admin reassigns the Intern and the pending requests move with them; the Admin never becomes an approver.
+- `ACC-026` follows `D14`. When a responsible Mentor becomes unavailable, an Admin reassigns the Intern and the pending requests move with them; the Admin never becomes an approver.
 - `ACC-026` has no use case of its own; `UC-15` and `UC-17` in [the attendance spec](../feature-attendance/SPEC.md) trace it.

@@ -1,17 +1,17 @@
 # Identity Spec
 
-**Version:** 1.1.4 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-17
+**Version:** 1.1.5 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-17
 
 Part of the Lab Timesheet specification. Rules every feature shares, including the
 glossary, the authorization model, the domain model, and failure handling, are in
-[the platform spec](../feature-platform/SPEC.md). Section numbers marked `§` are the
-numbers the rules carried in the single-file specification and are kept so existing
-references still resolve.
+[the platform spec](../feature-platform/SPEC.md). Section numbers marked `§` are one
+numbering shared by all the specs, so a reference such as §5.2 names the same section
+wherever it appears.
 
 ## 1. Context & Goal
 
 Accounts, installation, and sign-in, part of the first area named by the product objective (§1.2 of the platform spec). The internship lifecycle, the other part of that area, is in [the internship spec](../feature-internship/SPEC.md).
-In code this becomes `feature/identity` in step 6 of `D28`: users, activation and reset tokens, bootstrap, the login throttle, and the SMTP administration screen. Until then that code sits in `feature/account` and `feature/integration`.
+Its module is `identity` (`ARC-005`): users, activation and reset tokens, bootstrap, the login throttle, and the SMTP administration screen.
 
 ## 2. Actors & Roles
 
@@ -148,13 +148,13 @@ The conceptual model, the table inventory, the integrity rules (`DB`), and both 
 
 ## 6. Error Handling
 
-Rules in section 3 whose text names a refusal, rejection, denial, or failure: `ACC-011`, `ACC-012`, `ACC-016`, `ACC-018`.
+Rules in section 3 whose text names a refusal, rejection, denial, or failure: `ACC-011`, `ACC-012`, `ACC-016`, `ACC-018`, `SEC-006`.
 
 System-wide failure behavior is §21 (`ERR-001`–`ERR-007`), and the interface message families are Appendix F, both in the [platform spec](../feature-platform/SPEC.md).
 
 ## 7. Acceptance Criteria
 
-Scenarios from the §20 acceptance catalogue whose identifiers start with `AC-ACC` or `AC-SEC`, except `AC-ACC-010`, `AC-ACC-013` and `AC-ACC-014`, which cover only internship rules and are in [the internship spec](../feature-internship/SPEC.md). The catalogue's introduction, including the rules deliberately written without a scenario, is in the [platform spec](../feature-platform/SPEC.md).
+Scenarios from the §20 acceptance catalogue whose identifiers start with `AC-ACC` or `AC-SEC`, except `AC-ACC-010`, `AC-ACC-013`, `AC-ACC-014` and `AC-ACC-015`, which cover only internship rules and are in [the internship spec](../feature-internship/SPEC.md). The catalogue's introduction, including the rules deliberately written without a scenario, is in the [platform spec](../feature-platform/SPEC.md).
 
 | Scenario | Requirements | Given / when | Expected result |
 |---|---|---|---|
@@ -168,7 +168,7 @@ Scenarios from the §20 acceptance catalogue whose identifiers start with `AC-AC
 | AC-ACC-008 | DB-005 | Any code path attempts to update an existing `global_role` | PostgreSQL rejects the update even if application authorization is bypassed. |
 | AC-ACC-009 | ACC-014–ACC-018 | Admin locks, unlocks, then deactivates a user | Sessions are invalidated; login follows state; attribution remains; role never changes. |
 | AC-ACC-011 | ACC-008, ACC-017, ACC-019, UI-014 | Admin switches account creation between Intern and non-Intern roles, then submits a crafted non-Intern request containing Intern fields | The browser disables and clears inapplicable fields; the server independently rejects crafted incompatible data; role remains immutable. |
-| AC-ACC-012 | ACC-009, ACC-017–ACC-019 | Admin searches and filters the account directory, then corrects account data in pending, active, locked, and terminal states | Search matches normalized display name/email/Student Code and role filtering is exact; pending email change replaces activation safely; active/locked email change invalidates sessions; SMTP/delivery/uniqueness failure leaves identity unchanged; Student Code and date edits obey their lifecycle boundaries; deactivated/terminal data and role/display name remain read-only. |
+| AC-ACC-012 | ACC-009, ACC-017–ACC-018 | Admin searches and filters the account directory, then corrects the email identity of pending, active, locked, and deactivated accounts | Search matches normalized display name/email/Student Code and role filtering is exact; pending email change replaces activation safely; active/locked email change invalidates sessions; SMTP/delivery/uniqueness failure leaves identity unchanged; deactivated account data and role/display name remain read-only. |
 | AC-SEC-002 | SEC-002–SEC-005 | Password is 11, 12, 128, then 129 characters; reset email is unknown | Only 12 and 128 pass length validation; response for unknown email remains generic. |
 | AC-SEC-003 | SEC-006–SEC-007 | Same normalized email/IP fails login five times inside window | Sixth attempt is throttled for 15 minutes; restart may clear throttle but does not unlock a manually locked account. |
 

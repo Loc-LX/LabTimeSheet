@@ -1,12 +1,12 @@
 # Notification Spec
 
-**Version:** 1.1.6 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-17
+**Version:** 1.1.7 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-17
 
 Part of the Lab Timesheet specification. Rules every feature shares, including the
 glossary, the authorization model, the domain model, and failure handling, are in
-[the platform spec](../feature-platform/SPEC.md). Section numbers marked `§` are the
-numbers the rules carried in the single-file specification and are kept so existing
-references still resolve.
+[the platform spec](../feature-platform/SPEC.md). Section numbers marked `§` are one
+numbering shared by all the specs, so a reference such as §5.2 names the same section
+wherever it appears.
 
 ## 1. Context & Goal
 
@@ -50,7 +50,7 @@ Every capability by role is in the permission matrix, [platform spec](../feature
 | Trigger | A domain event requires an in-app notification and possibly email. |
 | Preconditions | The domain transaction is valid; email eligibility depends on active SMTP. |
 | Postconditions | The in-app record remains authoritative for delivery visibility; email cannot roll back the domain action. |
-| Traced requirements | NOT-001–NOT-008 |
+| Traced requirements | NOT-001–NOT-009 |
 
 **Main success flow**
 
@@ -58,7 +58,7 @@ Every capability by role is in the permission matrix, [platform spec](../feature
 2. Render non-secret email content from the same event context.
 3. Attempt email through the active SMTP revision.
 4. Retry ordinary email at the configured bounded schedule.
-5. Let the recipient read and mark the in-app notification.
+5. Let the recipient read and mark their own in-app notifications.
 
 **Alternatives and exceptions**
 

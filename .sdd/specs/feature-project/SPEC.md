@@ -1,17 +1,17 @@
 # Project Spec
 
-**Version:** 1.3.2 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-17
+**Version:** 1.3.3 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-17
 
 Part of the Lab Timesheet specification. Rules every feature shares, including the
 glossary, the authorization model, the domain model, and failure handling, are in
-[the platform spec](../feature-platform/SPEC.md). Section numbers marked `§` are the
-numbers the rules carried in the single-file specification and are kept so existing
-references still resolve.
+[the platform spec](../feature-platform/SPEC.md). Section numbers marked `§` are one
+numbering shared by all the specs, so a reference such as §5.2 names the same section
+wherever it appears.
 
 ## 1. Context & Goal
 
 Mentor-owned Projects with contextual Intern leadership, and the single-assignee Tasks inside them with comments, work logs, and effort planning: the third area named by the product objective (§1.2 of the platform spec).
-In code this is `feature/project`: Projects, membership intervals, leadership terms, invitations, and membership exits. Tasks, comments, work logs, exit transfers, and Remaining effort forecasts join it from `feature/task` in step 6 of `D28`.
+Its module is `project` (`ARC-005`): Projects, membership intervals, leadership terms, invitations, and membership exits, together with Tasks, comments, work logs, exit transfers, and Remaining effort forecasts.
 
 ## 2. Actors & Roles
 
@@ -125,7 +125,7 @@ Every capability by role is in the permission matrix, [platform spec](../feature
 | Trigger | A Mentor creates or manages an owned Project. |
 | Preconditions | The Mentor is active and owns the Project for every operation after creation. |
 | Postconditions | Intervals and historical attribution remain intact; a completed Project is terminal and read-only. |
-| Traced requirements | PRJ-001–PRJ-023, AUTH-003–AUTH-011 |
+| Traced requirements | PRJ-001–PRJ-024, AUTH-003–AUTH-011 |
 
 **Main success flow**
 
@@ -139,6 +139,7 @@ Every capability by role is in the permission matrix, [platform spec](../feature
 
 **Alternatives and exceptions**
 
+- A Project may start in the past, today, or in the future; an end date before its start is refused, and a past start does not open Task work before a member joined.
 - Leadership reassignment leaves the former Leader’s Task assignments unchanged.
 - Direct removal moves the member's unfinished Tasks to the current Leader, or to the replacement when the member leads, and is refused while the member owns an unfinished Task that already carries work logs.
 - Removing or approving leave for the current Leader requires a replacement first.
@@ -263,13 +264,13 @@ The conceptual model, the table inventory, the integrity rules (`DB`), and both 
 
 ## 6. Error Handling
 
-Rules in section 3 whose text names a refusal, rejection, denial, or failure: `PRJ-002`, `PRJ-008`, `PRJ-009`, `PRJ-010`, `PRJ-013`, `PRJ-021`, `PRJ-022`, `TSK-005`, `TSK-008`, `TSK-009`, `TSK-014`, `TSK-015`, `TSK-016`, `TSK-019`, `TSK-020`, `TSK-022`.
+Rules in section 3 whose text names a refusal, rejection, denial, or failure: `PRJ-002`, `PRJ-008`, `PRJ-009`, `PRJ-010`, `PRJ-013`, `PRJ-021`, `PRJ-022`, `PRJ-024`, `TSK-005`, `TSK-008`, `TSK-009`, `TSK-014`, `TSK-015`, `TSK-016`, `TSK-019`, `TSK-020`, `TSK-022`, `TSK-023`, `AUTH-008`.
 
 System-wide failure behavior is §21 (`ERR-001`–`ERR-007`), and the interface message families are Appendix F, both in the [platform spec](../feature-platform/SPEC.md).
 
 ## 7. Acceptance Criteria
 
-Scenarios from the §20 acceptance catalogue whose identifiers start with `AC-PRJ` or `AC-TSK`, and the authorization and schema scenarios that cover only this spec's rules. The catalogue's introduction, including the rules deliberately written without a scenario, is in the [platform spec](../feature-platform/SPEC.md).
+Scenarios from the §20 acceptance catalogue whose identifiers start with `AC-PRJ`, `AC-TSK`, `AC-AUTH` or `AC-DB`. The catalogue's introduction, including the rules deliberately written without a scenario, is in the [platform spec](../feature-platform/SPEC.md).
 
 | Scenario | Requirements | Given / when | Expected result |
 |---|---|---|---|
@@ -324,9 +325,7 @@ Exclusions stated inside this spec's own rules: `TSK-008`, `TSK-011`.
 
 ## Notes / Open Questions
 
-- `D12`, decided on 14 September 2026 and confirmed for build on 16 September, is settled. Only an empty `PLANNED` draft is deleted, with the notifications raised for it; any other Project that will not run is cancelled under `PRJ-023` and keeps its history. `ARCHIVED` was not added, because nothing yet gives it a meaning `COMPLETED` and `CANCELLED` lack. How cancelled Projects appear in reports is `RPT-003` and `RPT-011`.
+- `D12`: only an empty `PLANNED` draft is deleted, with the notifications raised for it; any other Project that will not run is cancelled under `PRJ-023` and keeps its history. `ARCHIVED` was not added, because nothing yet gives it a meaning `COMPLETED` and `CANCELLED` lack. How cancelled Projects appear in reports is `RPT-003` and `RPT-011`.
 - Deleting an empty draft leaves no audit record, since `GOV-009` forbids generic domain events.
-- Code finding, not a rule: `ProjectService#deleteProjectRows` deletes with native SQL, which `ARC-006` forbids (`D18`), and does not delete `task_remaining_effort_forecasts`. An empty Project has no Task, so no forecast can exist for it.
-- `D13` and `D15`, decided on 14 September 2026 and confirmed for build on 16 September, are settled. Status changes follow role, scope, current status, and target status (`TSK-023`); unblocking restores the earlier status and every block, unblock, and reopen is recorded, a reopen with its reason (`TSK-025`). The estimate is the baseline and the current Remaining effort comes from the latest effective forecast (`TSK-021`, `TSK-024`).
-- The code still lets an owning Mentor set any status (`TaskService#changeStatus`), keeps no transition record, and computes variance for `DONE` Tasks only; two tests assert the Mentor behavior. All of it changes with the implementation.
+- `D13` and `D15`: status changes follow role, scope, current status, and target status (`TSK-023`); unblocking restores the earlier status and every block, unblock, and reopen is recorded, a reopen with its reason (`TSK-025`). The estimate is the baseline and the current Remaining effort comes from the latest effective forecast (`TSK-021`, `TSK-024`).
 - A forecast recorded outside a reassignment can use the existing forecast columns with the current assignee and assignment start; the implementation plan confirms it.

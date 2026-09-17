@@ -3,6 +3,16 @@
 Each entry records a change to [SPEC.md](SPEC.md): the version, the date, what changed,
 and why. A change that alters a rule raises the version.
 
+## 1.3.3 — 2026-09-17
+
+Trace only; no rule changed. `UC-12` now traces `RPT-015`. Section 2 already named the Intern as an actor under that rule, which `D25` added on 16 September 2026, but the use case did not trace it; one alternative now says what the Intern sees.
+
+The notes no longer say when `D1`, `D12` and `D15` were confirmed, which `decisions.md` records.
+
+The opening paragraph no longer says the section numbers come from a single-file specification; it states the numbering convention they follow.
+
+Section 6 now lists `ERR-006`, the export failure rule this spec holds, and section 7 names its `AC-ERR` scenario.
+
 ## 1.3.2 — 2026-09-16
 
 One correction and one status change; no rule changed.

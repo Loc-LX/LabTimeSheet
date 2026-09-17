@@ -3,6 +3,16 @@
 Each entry records a change to [SPEC.md](SPEC.md): the version, the date, what changed,
 and why. A change that alters a rule raises the version.
 
+## 1.0.1 — 2026-09-17
+
+Scenario added by a split; no rule changed. `AC-ACC-015` takes from `AC-ACC-012` in the [identity spec](../feature-identity/SPEC.md) the correction of the Student Code and the internship dates under `ACC-019`, in every internship state. It keeps the `AC-ACC` prefix so that one numbering covers every scenario that came from the account spec.
+
+Section 1 names the module the spec describes, as `ARC-005` names it. The state of the code belongs in `plan.md`, not in a specification.
+
+The notes no longer record when the instructor confirmed `ACC-023` and `ACC-024`, which the identity changelog keeps, nor when `D14` was decided. The note on `ACC-023` and `ACC-024` only restated the two rules, which `GOV-016` forbids, so it is removed.
+
+The opening paragraph no longer says the section numbers come from a single-file specification; it states the numbering convention they follow. Section 7 explains the `AC-ACC` prefix by the rules the scenarios cover rather than by where they once were.
+
 ## 1.0.0 — 2026-09-17
 
 Relocation only; no rule text changed. Decision `D28` gives the internship lifecycle a module of its own, built on `identity`, and this spec holds its rules.

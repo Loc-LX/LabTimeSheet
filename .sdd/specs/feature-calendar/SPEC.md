@@ -1,17 +1,17 @@
 # Calendar Spec
 
-**Version:** 1.0.0 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-17
+**Version:** 1.0.1 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-17
 
 Part of the Lab Timesheet specification. Rules every feature shares, including the
 glossary, the authorization model, the domain model, and failure handling, are in
-[the platform spec](../feature-platform/SPEC.md). Section numbers marked `§` are the
-numbers the rules carried in the single-file specification and are kept so existing
-references still resolve.
+[the platform spec](../feature-platform/SPEC.md). Section numbers marked `§` are one
+numbering shared by all the specs, so a reference such as §5.2 names the same section
+wherever it appears.
 
 ## 1. Context & Goal
 
 The effective-dated attendance policy, the global calendar, and HolidayAPI import, part of the second area named by the product objective (§1.2 of the platform spec). Attendance, leave, and corrections, which apply them, are in [the attendance spec](../feature-attendance/SPEC.md).
-In code this becomes `feature/calendar` in step 6 of `D28`. The module holds the whole attendance policy although its name says calendar: calendar needs the policy timezone and attendance needs the calendar, so the policy sits in the lower of the two. Until then that code sits in `feature/attendance` and `feature/integration`.
+Its module is `calendar` (`ARC-005`), which holds the whole attendance policy although its name says calendar: calendar needs the policy timezone and attendance needs the calendar, so the policy sits in the lower of the two.
 
 ## 2. Actors & Roles
 
@@ -77,7 +77,7 @@ HolidayAPI field behavior is based on its [official API documentation](https://h
 | Trigger | An Admin changes future attendance policy, global calendar, or HolidayAPI configuration. |
 | Preconditions | The Admin is active and has the deployment-provided encryption master key available to the application. |
 | Postconditions | New decisions use the new effective configuration; historical calculations remain stable. |
-| Traced requirements | ATT-001–ATT-006, CAL-001–CAL-009 |
+| Traced requirements | ATT-001–ATT-006, CAL-001–CAL-009, INT-009 |
 
 **Main success flow**
 
@@ -113,7 +113,7 @@ System-wide failure behavior is §21 (`ERR-001`–`ERR-007`), and the interface 
 
 ## 7. Acceptance Criteria
 
-Scenarios from the §20 acceptance catalogue whose identifiers start with `AC-CAL`, and `AC-ATT-001`, which configures the policy and keeps its identifier. The catalogue's introduction, including the rules deliberately written without a scenario, is in the [platform spec](../feature-platform/SPEC.md).
+Scenarios from the §20 acceptance catalogue whose identifiers start with `AC-CAL` or `AC-ATT`. The catalogue's introduction, including the rules deliberately written without a scenario, is in the [platform spec](../feature-platform/SPEC.md).
 
 | Scenario | Requirements | Given / when | Expected result |
 |---|---|---|---|
@@ -132,6 +132,5 @@ Exclusions stated inside this spec's own rules: `CAL-001`.
 
 ## Notes / Open Questions
 
-- Until 17 September 2026 `UC-04` also configured SMTP. That part is now `UC-19` in [the platform spec](../feature-platform/SPEC.md), where the SMTP rules live, and `UC-04` keeps its number (`D28`). The rules the two trace together are exactly those `UC-04` traced before.
+- SMTP configuration is `UC-19` in [the platform spec](../feature-platform/SPEC.md), where the SMTP rules live.
 - `UC-04` traces `ATT-004`–`ATT-006`, which live in the attendance spec; a trace across specs is allowed.
-- `UC-04` describes HolidayAPI drafts, yet `INT-009`, the rule that governs them, is traced by no use case; only `AC-INT-002` covers it. The gap predates `D28` and is tracked in [`plan.md`](../../../plan.md).

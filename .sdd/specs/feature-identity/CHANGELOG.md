@@ -3,6 +3,16 @@
 Each entry records a change to [SPEC.md](SPEC.md): the version, the date, what changed,
 and why. A change that alters a rule raises the version.
 
+## 1.1.5 — 2026-09-17
+
+Scenario split; no rule changed. `AC-ACC-012` exercised two modules: the account directory and email correction of `ACC-009`, `ACC-017` and `ACC-018`, and the Student Code and internship-date correction of `ACC-019`. Under the principle in §20 of the platform spec it keeps the first and now covers `ACC-009`, `ACC-017` and `ACC-018`; the second is `AC-ACC-015` in the [internship spec](../feature-internship/SPEC.md). Each expected result is the part of the old one that its own Given and When exercise, with no clause dropped: the old "deactivated/terminal data" is split into deactivated account data here and completed and withdrawn profiles there.
+
+Section 1 names the module the spec describes, as `ARC-005` names it. The state of the code belongs in `plan.md`, not in a specification.
+
+The opening paragraph no longer says the section numbers come from a single-file specification; it states the numbering convention they follow.
+
+Section 6 now lists `SEC-006`, which throttles a key after five failed sign-ins and so refuses further attempts.
+
 ## 1.1.4 — 2026-09-17
 
 Relocation only; no rule text changed. Decision `D28` splits the account spec by module, and this spec keeps what belongs to `identity`, under a new name. The entries below are the account spec's history.

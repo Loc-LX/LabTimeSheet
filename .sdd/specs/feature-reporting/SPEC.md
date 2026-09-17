@@ -1,12 +1,12 @@
 # Reporting Spec
 
-**Version:** 1.3.2 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-16
+**Version:** 1.3.3 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-17
 
 Part of the Lab Timesheet specification. Rules every feature shares, including the
 glossary, the authorization model, the domain model, and failure handling, are in
-[the platform spec](../feature-platform/SPEC.md). Section numbers marked `§` are the
-numbers the rules carried in the single-file specification and are kept so existing
-references still resolve.
+[the platform spec](../feature-platform/SPEC.md). Section numbers marked `§` are one
+numbering shared by all the specs, so a reference such as §5.2 names the same section
+wherever it appears.
 
 ## 1. Context & Goal
 
@@ -60,7 +60,7 @@ Every capability by role is in the permission matrix, [platform spec](../feature
 | Trigger | A user opens a report or requests Excel/PDF export. |
 | Preconditions | The user is authorized for every row in the requested dataset. |
 | Postconditions | HTML, XLSX, and PDF expose identical authorized totals without persisting a Report entity. |
-| Traced requirements | RPT-001–RPT-010, AUTH-010 |
+| Traced requirements | RPT-001–RPT-010, RPT-015, AUTH-010 |
 
 **Main success flow**
 
@@ -73,6 +73,7 @@ Every capability by role is in the permission matrix, [platform spec](../feature
 **Alternatives and exceptions**
 
 - Zero denominators render N/A.
+- An active Intern views their own attendance for one date, resolved from the signed-in account, with no export.
 - Ordinary members cannot see per-member work breakdowns.
 - Unauthorized identifiers fail without leaking record existence.
 
@@ -113,13 +114,13 @@ The conceptual model, the table inventory, the integrity rules (`DB`), and both 
 
 ## 6. Error Handling
 
-Rules in section 3 whose text names a refusal, rejection, denial, or failure: `RPT-011`.
+Rules in section 3 whose text names a refusal, rejection, denial, or failure: `RPT-011`, `ERR-006`.
 
 System-wide failure behavior is §21 (`ERR-001`–`ERR-007`), and the interface message families are Appendix F, both in the [platform spec](../feature-platform/SPEC.md).
 
 ## 7. Acceptance Criteria
 
-Scenarios from the §20 acceptance catalogue whose identifiers start with `AC-RPT`. The catalogue's introduction, including the rules deliberately written without a scenario, is in the [platform spec](../feature-platform/SPEC.md).
+Scenarios from the §20 acceptance catalogue whose identifiers start with `AC-RPT` or `AC-ERR`. The catalogue's introduction, including the rules deliberately written without a scenario, is in the [platform spec](../feature-platform/SPEC.md).
 
 | Scenario | Requirements | Given / when | Expected result |
 |---|---|---|---|
@@ -140,5 +141,5 @@ No rule in this spec states an exclusion of its own.
 
 ## Notes / Open Questions
 
-- `D1` was confirmed by the instructor on 14 September 2026: an Admin views and exports every report read-only, edits no Project or Task, and decides nothing. The instructor expects to withdraw part of this later; `AUTH-012` and `ADR-005` make each capability withdrawable alone. `RPT-004` lists the Attendance fields.
-- `D12` and `D15`, which set how cancelled Projects appear (`RPT-003`, `RPT-011`) and the two Daily perspectives (`RPT-014`, `UC-16`), were confirmed for build on 16 September 2026. The Daily report is mainly for the owning Mentor and the current Leader and is not opened to ordinary Interns, who see their own work logs in their Task pages.
+- `D1`: an Admin views and exports every report read-only, edits no Project or Task, and decides nothing. The instructor expects to withdraw part of this later; `AUTH-012` and `ADR-005` make each capability withdrawable alone. `RPT-004` lists the Attendance fields.
+- `D12` and `D15` set how cancelled Projects appear (`RPT-003`, `RPT-011`) and the two Daily perspectives (`RPT-014`, `UC-16`). The Daily report is mainly for the owning Mentor and the current Leader and is not opened to ordinary Interns, who see their own work logs in their Task pages.
