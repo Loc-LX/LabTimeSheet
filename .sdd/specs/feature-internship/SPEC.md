@@ -1,6 +1,6 @@
 # Internship Spec
 
-**Version:** 1.0.1 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-17
+**Version:** 1.1.0 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-17
 
 Part of the Lab Timesheet specification. Rules every feature shares, including the
 glossary, the authorization model, the domain model, and failure handling, are in
@@ -40,6 +40,12 @@ Every capability by role is in the permission matrix, [platform spec](../feature
 | ACC-025 | WHEN a terminal lifecycle action is applied, THE system SHALL enforce it for authorization from that instant. Attendance already recorded on that local date SHALL remain reportable, and an otherwise empty terminal date SHALL NOT be newly classified as an absence. |
 | ACC-026 | THE system SHALL let an Admin assign one active Mentor as an Intern's responsible Mentor and replace that assignment. WHEN the assignment changes, THE system SHALL move every pending or overdue leave, correction, and attendance exception request of that Intern to the new Mentor, SHALL leave every earlier decision attributed to the Mentor who made it, and SHALL NOT make the Admin an approver. WHILE an Intern's responsible Mentor is `LOCKED` or `DEACTIVATED`, THE system SHALL show that Intern to Admins as needing a new responsible Mentor, and SHALL NOT let an Admin or any other Mentor decide the Intern's requests. |
 
+### Integrity (from platform §19.3)
+
+| ID | Requirement |
+|---|---|
+| DB-021 | THE schema SHALL let an Intern profile reference at most one responsible Mentor, whose account's global role is `MENTOR`. |
+
 ### Use cases
 
 #### UC-18 — Administer the internship lifecycle
@@ -69,7 +75,7 @@ System-wide non-functional rules apply unchanged: architecture §3 (`ARC`), auth
 
 ## 5. Data
 
-Tables this feature's entities map to: `intern_profiles`. The Intern profile will also need the responsible Mentor of `ACC-026`.
+Tables this feature's entities map to: `intern_profiles`, which references the responsible Mentor of `ACC-026` (`DB-021`).
 
 The conceptual model, the table inventory, the integrity rules (`DB`), and both diagrams are §19 of the [platform spec](../feature-platform/SPEC.md).
 
@@ -81,7 +87,7 @@ System-wide failure behavior is §21 (`ERR-001`–`ERR-007`), and the interface 
 
 ## 7. Acceptance Criteria
 
-Scenarios from the §20 acceptance catalogue that cover only internship rules. They use the `AC-ACC` prefix because the rules they cover carry the `ACC` prefix. The catalogue's introduction, including the rules deliberately written without a scenario, is in the [platform spec](../feature-platform/SPEC.md).
+Scenarios from the §20 acceptance catalogue that cover only internship rules. They use the `AC-ACC` prefix because the rules they cover carry the `ACC` prefix, except `AC-DB-008`, which covers `DB-021`. The catalogue's introduction, including the rules deliberately written without a scenario, is in the [platform spec](../feature-platform/SPEC.md).
 
 | Scenario | Requirements | Given / when | Expected result |
 |---|---|---|---|
@@ -89,6 +95,7 @@ Scenarios from the §20 acceptance catalogue that cover only internship rules. T
 | AC-ACC-013 | ACC-021, ACC-026 | An Intern's start date arrives before an Admin assigns a responsible Mentor; the Admin then assigns one, and later replaces them after that Mentor has decided a leave request | The internship stays `NOT_STARTED` until a responsible Mentor is assigned and activates once one is; after replacement, new requests go to the new Mentor and the earlier decision still names the Mentor who made it. |
 | AC-ACC-014 | ACC-026 | An Intern's responsible Mentor is locked while the Intern has a pending leave request, a pending correction, and an overdue exception request | The Intern appears to Admins as needing a new responsible Mentor; neither an Admin nor another Mentor can decide the requests; after an Admin assigns a new Mentor all three move to that Mentor, and decisions made earlier still name the original Mentor. |
 | AC-ACC-015 | ACC-019 | Admin corrects the Student Code and the internship dates of Interns whose internships are `NOT_STARTED`, `ACTIVE`, `COMPLETED`, and `WITHDRAWN` | Student Code edits succeed only while `NOT_STARTED` or `ACTIVE`; date edits succeed only while `NOT_STARTED`; completed and withdrawn profiles remain read-only and unchanged. |
+| AC-DB-008 | DB-021 | SQL probes set an Admin account, then an Intern account, then a Mentor account as an Intern's responsible Mentor | The first two are refused; the Mentor commits. |
 
 ## 8. Out of Scope
 

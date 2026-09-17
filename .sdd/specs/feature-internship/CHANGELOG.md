@@ -3,6 +3,10 @@
 Each entry records a change to [SPEC.md](SPEC.md): the version, the date, what changed,
 and why. A change that alters a rule raises the version.
 
+## 1.1.0 — 2026-09-17
+
+Rule added; decision `D32`. **Added `DB-021`**: an Intern profile references at most one responsible Mentor, whose role is `MENTOR`. **Added `AC-DB-008`.** §5 says the profile carries that reference.
+
 ## 1.0.1 — 2026-09-17
 
 Scenario added by a split; no rule changed. `AC-ACC-015` takes from `AC-ACC-012` in the [identity spec](../feature-identity/SPEC.md) the correction of the Student Code and the internship dates under `ACC-019`, in every internship state. It keeps the `AC-ACC` prefix so that one numbering covers every scenario that came from the account spec.

@@ -3,6 +3,13 @@
 Each entry records a change to [SPEC.md](SPEC.md): the version, the date, what changed,
 and why. A change that alters a rule raises the version.
 
+## 1.5.0 — 2026-09-17
+
+Rules added; decision `D32`. The data model the decided attendance rules need is part of the specification.
+
+- **Added `DB-014`–`DB-018`:** one attendance period per Intern and month; reopen requests and their decision; one attendance exception per record and violation kind; append-only decision entries for corrections, exceptions and leave, each carrying the outcome it sets, with the request's status equal to its latest effective entry until it is cancelled, and no new correction event of kind `AUTO_REJECTED` or `LOCKED`; and the widened leave and correction statuses with the withdrawn-day mark.
+- **Added `AC-DB-006`.** §5 names every table the attendance rules use, and §6 lists `DB-017`.
+
 ## 1.4.0 — 2026-09-17
 
 Rule changed; decision `D31`.

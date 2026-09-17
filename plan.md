@@ -16,9 +16,9 @@ ahead of `origin/main`, nothing pushed.
 | Delivery, Iterations 1–4 | Built. Every tracked item is done; the Iteration 3 and 4 integration gates were never run. |
 | Specification | Approved. Eight specs, one per module: identity, internship, calendar, attendance, project, reporting, notification, and platform for what no single module owns. Each version is in its spec header and `CHANGELOG.md`. No rule waits on a signature. |
 | Constitution | Locked, version `2.0.1`. |
-| Technical plans (`PLAN.md`) | `feature-platform` approved at `1.0`; its line 108 contradicts line 230 on who resolves scope, and it is revised in step 8 of `D28`. The other modules have no plan yet; each is written per module, one section per part, in step 8. |
+| Technical plans (`PLAN.md`) | `feature-platform` approved at `1.0`; its line 108 contradicts line 230 on who resolves scope, and its §3 is superseded by `D32`; both are revised in the plan phase. The other modules have no plan yet; each is written per module, one section per part, in step 8. |
 | Task breakdown (`TASKS.md`) | Not started. |
-| Implementation of `D1` and `D12`–`D27` | Not started; the code still follows the earlier rules. |
+| Implementation of `D1`, `D12`–`D27`, `D31` and `D32` | Not started; the code still follows the earlier rules. |
 | Validation against the specification | Not started. |
 
 The delivery plan that tracked Iterations 1–4 item by item, with owners, branches

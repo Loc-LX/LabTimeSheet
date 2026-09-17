@@ -3,6 +3,14 @@
 Each entry records a change to [SPEC.md](SPEC.md): the version, the date, what changed,
 and why. A change that alters a rule raises the version.
 
+## 1.6.0 — 2026-09-17
+
+Decision `D32`: the specification describes the data model the decided rules require. Counts become 304 rules, 285 of them with a scenario, 149 scenarios, and 30 tables.
+
+- §19.1 gains the attendance period, reopen request, attendance exception, exception and leave decisions, Task status transition, and the responsible Mentor relation. §19.2 lists the six added tables. §19.3 points to `DB-014`–`DB-021` in the specs that own them.
+- §19.4 says what its diagram is: the tables the Flyway migrations create, column by column, as `DB-010` requires. It does not name columns for tables no migration creates.
+- `AC-DB-001` counts 30 tables and verifies the six added tables against `DB-014`–`DB-017` and `DB-020`. The companion-files note points to the migrations without counting their tables.
+
 ## 1.5.1 — 2026-09-17
 
 Counts only: `D31` added `AC-EXC-004` to the attendance spec, so §1 and §22.1 count 146 scenarios.

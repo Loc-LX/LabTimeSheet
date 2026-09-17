@@ -1,6 +1,6 @@
 # Project Spec
 
-**Version:** 1.3.3 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-17
+**Version:** 1.4.0 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-17
 
 Part of the Lab Timesheet specification. Rules every feature shares, including the
 glossary, the authorization model, the domain model, and failure handling, are in
@@ -107,6 +107,8 @@ Every capability by role is in the permission matrix, [platform spec](../feature
 | DB-011 | THE schema SHALL preserve, in `project_invitations`, the Project, intended Intern, issuing leadership term, status, optional accepted membership, resolution code, actor and time, and an optimistic version. THE schema SHALL constrain the resolution code to exactly these nine values, each recording why the invitation stopped being pending: `INVITEE_ACCEPTED` when the intended Intern accepted and became a member, `INVITEE_DECLINED` when they declined, `INVITER_REVOKED` when the issuing Leader withdrew it, `MENTOR_REVOKED` when the owning Mentor withdrew it, `LEADER_CHANGED` when the issuing leadership term ended before any response, `PROJECT_COMPLETED` when Project completion superseded it, `PROJECT_CANCELLED` when Project cancellation superseded it, `INVITEE_INELIGIBLE` when the intended Intern stopped satisfying membership eligibility, and `MENTOR_DIRECT_ADD` when a direct Mentor addition superseded it. THE schema SHALL use partial uniqueness and same-Project composite foreign keys so that a duplicate pending invitation and cross-Project provenance are both impossible. |
 | DB-012 | THE schema SHALL preserve, in `project_membership_exit_requests`, the Project, requester and target memberships, request type and reason, status, optional decision details, and an optimistic version. THE schema SHALL enforce same-Project participants, the participant shape each request type requires, and one pending request per target, and SHALL name Task actor columns generically. |
 | DB-013 | THE schema SHALL store a Task estimate as nullable whole-Task integer minutes constrained to `1..527040`, with no backfill. THE schema SHALL store Remaining effort forecasts as append-only rows carrying same-Project Task and membership references, the start of the assignment the forecast applies to, remaining minutes, a nonnegative lifetime-actual snapshot, an optional initial note, the correction reason and supersession shape, linear successors, and indexes for Task history and latest lookup. THE schema SHALL NOT persist a derived forecast total. |
+| DB-019 | THE schema SHALL constrain a Project's status to `PLANNED`, `ACTIVE`, `COMPLETED` or `CANCELLED`, and SHALL require a cancelled Project to carry the cancelling Mentor, the server time and a nonblank reason. |
+| DB-020 | THE schema SHALL store every Task block, unblock and reopen as an append-only transition carrying the previous status, the new status, the actor, the server time and, for a reopen, a nonblank reason, and SHALL refuse an update or deletion of such a transition. |
 
 ### Notifications (from notification §12.2)
 
@@ -258,13 +260,13 @@ System-wide non-functional rules apply unchanged: architecture §3 (`ARC`), auth
 
 ## 5. Data
 
-Tables this feature's entities map to: `projects`, `project_memberships`, `project_leadership_terms`, `project_invitations`, `project_membership_exit_requests`, `tasks`, `task_comments`, `task_work_logs`, `task_remaining_effort_forecasts`.
+Tables this feature's entities map to: `projects`, `project_memberships`, `project_leadership_terms`, `project_invitations`, `project_membership_exit_requests`, `tasks`, `task_comments`, `task_work_logs`, `task_remaining_effort_forecasts`, `task_status_transitions`.
 
 The conceptual model, the table inventory, the integrity rules (`DB`), and both diagrams are §19 of the [platform spec](../feature-platform/SPEC.md).
 
 ## 6. Error Handling
 
-Rules in section 3 whose text names a refusal, rejection, denial, or failure: `PRJ-002`, `PRJ-008`, `PRJ-009`, `PRJ-010`, `PRJ-013`, `PRJ-021`, `PRJ-022`, `PRJ-024`, `TSK-005`, `TSK-008`, `TSK-009`, `TSK-014`, `TSK-015`, `TSK-016`, `TSK-019`, `TSK-020`, `TSK-022`, `TSK-023`, `AUTH-008`.
+Rules in section 3 whose text names a refusal, rejection, denial, or failure: `PRJ-002`, `PRJ-008`, `PRJ-009`, `PRJ-010`, `PRJ-013`, `PRJ-021`, `PRJ-022`, `PRJ-024`, `TSK-005`, `TSK-008`, `TSK-009`, `TSK-014`, `TSK-015`, `TSK-016`, `TSK-019`, `TSK-020`, `TSK-022`, `TSK-023`, `AUTH-008`, `DB-020`.
 
 System-wide failure behavior is §21 (`ERR-001`–`ERR-007`), and the interface message families are Appendix F, both in the [platform spec](../feature-platform/SPEC.md).
 
@@ -313,6 +315,7 @@ Scenarios from the §20 acceptance catalogue whose identifiers start with `AC-PR
 | AC-TSK-018 | TSK-023, TSK-025, NOT-003 | On an `ACTIVE` Project the Leader blocks a `TODO` Task and an `IN_PROGRESS` Task, then unblocks both; the owning Mentor reopens a `DONE` Task first without a reason and then with one | The `TODO` Task returns to `TODO` and the `IN_PROGRESS` Task to `IN_PROGRESS`, and unblocking either to another status is refused; the reasonless reopen is refused; each block, unblock, and reopen leaves a transition record with actor, time, both statuses, and the reopen reason; the assignee receives an in-app notification for each, and the current Leader also for the Mentor's reopen. |
 | AC-AUTH-004 | AUTH-008, TSK-023 | Owning Mentor opens a Task on an `ACTIVE` Project, then one on a `PLANNED` Project | Mentor can view and comment; every Task definition mutation is denied; on the `ACTIVE` Project block, unblock, and reopen succeed while starting the Task and marking it `DONE` are denied; on the `PLANNED` Project every status change is denied. |
 | AC-DB-003 | DB-013 | SQL probes insert a Task estimate of 0, one of 527 041, a forecast whose Task and membership belong to different Projects, a forecast with negative lifetime-actual, and an attempt to update an existing forecast row | Each is rejected by a constraint; estimates accept `NULL` and the inclusive bounds 1 and 527 040; forecasts accept inserts only, and no derived total column exists on any table. |
+| AC-DB-007 | DB-019–DB-020 | SQL probes cancel a Project without a reason, record a reopen transition without a reason, and update and delete an existing Task transition | Each is refused by the database; a cancellation with Mentor, time and reason, and a block transition without a reason, both commit. |
 | AC-AUTH-005 | AUTH-004–AUTH-005, TSK-023 | Leader opens one assigned and one unassigned Task on an `ACTIVE` Project | Leader manages definitions for both; on the assigned Task every `TSK-007` transition and work logging succeed; on the unassigned Task only block, unblock, and reopen succeed, and starting it, marking it `DONE`, and logging work are denied. |
 | AC-AUTH-006 | AUTH-005, AUTH-009 | Ordinary member opens Project Tasks | Member sees and comments on all Tasks; status/log controls exist only on their assigned Task. |
 | AC-AUTH-010 | AUTH-011 | A stale former Leader or unrelated member submits an invitation, exit, self-Task, or Task-management request by direct identifier | Authorization is re-evaluated inside the transaction; the request is denied without existence leakage or partial mutation. |

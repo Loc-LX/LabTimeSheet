@@ -3,6 +3,13 @@
 Each entry records a change to [SPEC.md](SPEC.md): the version, the date, what changed,
 and why. A change that alters a rule raises the version.
 
+## 1.4.0 — 2026-09-17
+
+Rules added; decision `D32`.
+
+- **Added `DB-019`**, the `CANCELLED` Project status with the cancelling Mentor, time and reason, and **`DB-020`**, append-only Task status transitions for block, unblock and reopen.
+- **Added `AC-DB-007`.** §5 names `task_status_transitions`, and §6 lists `DB-020`.
+
 ## 1.3.3 — 2026-09-17
 
 Trace only; no rule changed. `UC-05` now traces `PRJ-024`, which `D21` added on 15 September 2026 without extending the use case that creates Projects, and one alternative says what the rule allows.

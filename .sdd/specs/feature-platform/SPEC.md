@@ -1,6 +1,6 @@
 # Platform Spec
 
-**Version:** 1.5.1 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-17
+**Version:** 1.6.0 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-17
 
 Part of the Lab Timesheet specification. Rules every feature shares, including the
 glossary, the authorization model, the domain model, and failure handling, are in
@@ -19,20 +19,18 @@ This spec holds what every feature shares. It is not a feature in the code; the 
 | Audience | Maintainer, contributors, instructor/reviewer |
 | Product language | English |
 | Business timezone | `Asia/Ho_Chi_Minh` |
-| Database baseline | PostgreSQL 18.4, 24 application tables |
+| Database baseline | PostgreSQL 18.4, 30 application tables |
 | Companion DDL | `database-schema.sql`, not tracked in this repository |
 | Review state | Approved; each spec's version is in its header, its changes in its `CHANGELOG.md`, and its open questions in its Notes section |
-| Normative rules | 296 across the eight specs |
-| Acceptance scenarios | 146 across the eight specs |
+| Normative rules | 304 across the eight specs |
+| Acceptance scenarios | 149 across the eight specs |
 
 > **Companion files.** The companion `database-schema.sql` and the reference images
 > under `assets/` are not tracked in this repository. Every image embed below is
 > therefore written as a named reference rather than a link, so nothing renders as a
 > broken image.
-> The live schema is [`V1__baseline.sql`](../../../src/main/resources/db/migration/V1__baseline.sql)
-> plus [`V2__add_task_effort_planning.sql`](../../../src/main/resources/db/migration/V2__add_task_effort_planning.sql),
-> which together create twenty-four tables; §19.4 below carries the physical
-> table diagram. Ask the document owner for the reference images if you need them.
+> The Flyway migrations under [`db/migration`](../../../src/main/resources/db/migration) are the schema's
+> SQL; §19.4 draws the tables they create. Ask the document owner for the reference images if you need them.
 
 ### How to read a rule
 
@@ -561,11 +559,18 @@ erDiagram
     ATTENDANCE_POLICY ||--o{ LEAVE_REQUEST_DAY : "snapshots"
     GLOBAL_CALENDAR_EVENT }o..o{ ATTENDANCE_RECORD : "classifies dates"
     USER ||--o{ NOTIFICATION : "receives"
+    USER ||--o{ INTERN_PROFILE : "is responsible Mentor for"
+    INTERN_PROFILE ||--o{ ATTENDANCE_PERIOD : "is closed monthly in"
+    ATTENDANCE_PERIOD ||--o{ PERIOD_REOPEN_REQUEST : "may be reopened by"
+    ATTENDANCE_RECORD ||--o{ ATTENDANCE_EXCEPTION : "may be excused through"
+    ATTENDANCE_EXCEPTION ||--o{ EXCEPTION_DECISION : "is decided by"
+    LEAVE_REQUEST ||--o{ LEAVE_DECISION : "is decided by"
+    TASK ||--o{ TASK_STATUS_TRANSITION : "records"
 ```
 
 #### §19.2 Physical table inventory
 
-The schema contains **24 tables**: migration `V1` creates twenty-three, and `V2` adds the Remaining effort forecast table required by `DB-013`.
+The schema contains **30 tables**.
 
 | # | Table | Responsibility | Retention |
 |---:|---|---|---|
@@ -593,10 +598,16 @@ The schema contains **24 tables**: migration `V1` creates twenty-three, and `V2`
 | 22 | `leave_request_days` | Frozen quota-consuming dates | Permanent history |
 | 23 | `notifications` | In-app record and non-secret email retry state | Retained by future explicit policy |
 | 24 | `task_remaining_effort_forecasts` | Append-only Remaining effort forecasts per Task reassignment | Permanent history |
+| 25 | `attendance_periods` | One Intern's attendance for one calendar month and whether it is finalized | Permanent history |
+| 26 | `attendance_period_reopens` | Requests to reopen a finalized period, the Admin's decision, and the range finalized again | Permanent history |
+| 27 | `attendance_exceptions` | A late arrival or early departure raised for excuse by request or mark, and its current outcome | Permanent history |
+| 28 | `attendance_exception_decisions` | Append-only exception decisions, amendments and reversals | Permanent history |
+| 29 | `leave_request_decisions` | Append-only leave decisions and amendments | Permanent history |
+| 30 | `task_status_transitions` | Append-only Task block, unblock and reopen records | Permanent history |
 
 #### §19.3 Integrity boundary
 
-`DB-002` is in [the attendance spec](../feature-attendance/SPEC.md), `DB-009` in [the calendar spec](../feature-calendar/SPEC.md), and `DB-011`–`DB-013` in [the project spec](../feature-project/SPEC.md).
+`DB-002` and `DB-014`–`DB-018` are in [the attendance spec](../feature-attendance/SPEC.md), `DB-009` in [the calendar spec](../feature-calendar/SPEC.md), `DB-011`–`DB-013` and `DB-019`–`DB-020` in [the project spec](../feature-project/SPEC.md), and `DB-021` in [the internship spec](../feature-internship/SPEC.md).
 
 | ID | Requirement |
 |---|---|
@@ -611,7 +622,7 @@ The schema contains **24 tables**: migration `V1` creates twenty-three, and `V2`
 
 #### §19.4 Physical database diagram
 
-The following ELK-rendered Mermaid diagram lists the exact physical tables, columns, and named foreign keys. Mermaid cannot express partial indexes, full composite-key semantics, check/exclusion constraints, triggers, deadlines, authorization, or transactional invariants. When it conflicts with a numbered requirement or `database-schema.sql`, the requirement and DDL win.
+The physical diagram describes the tables the Flyway migrations create, column by column. The following ELK-rendered Mermaid diagram lists the exact physical tables, columns, and named foreign keys. Mermaid cannot express partial indexes, full composite-key semantics, check/exclusion constraints, triggers, deadlines, authorization, or transactional invariants. When it conflicts with a numbered requirement or `database-schema.sql`, the requirement and DDL win.
 
 ```mermaid
 ---
@@ -1100,7 +1111,7 @@ Scenarios for a feature are in section 7 of that feature's spec. The scenarios b
 | AC-OPS-005 | OPS-014–OPS-016 | Future operator enables deployment with all secrets | Job selects immutable SHA, verifies known host, rolls Compose, checks health, and records previous SHA for rollback. |
 | AC-OPS-006 | OPS-010 | An operator replaces the application container while the named volume or external database is retained, then performs a documented restore | Data survives container replacement, and the restore procedure reproduces the database independently of the container lifecycle; documentation states that container replacement is not a backup. |
 | AC-TST-001 | TST-001–TST-010 | Contributor implements a feature | A failing test naming the requirements it protects precedes production code; the run records its own commands, results, and tool versions; the milestone is not green without affected suites. |
-| AC-DB-001 | DB-003–DB-012 | Both review DDL files replay and their catalog metadata is compared with the physical Mermaid block | Each database has exactly 24 tables; the 23 baseline tables and their 56 named foreign keys match the diagram entity and FK names, and the twenty-fourth is verified against `DB-013` rather than against the diagram. |
+| AC-DB-001 | DB-003–DB-012 | Both review DDL files replay and their catalog metadata is compared with the physical Mermaid block | Each database has exactly 30 tables; the 23 baseline tables and their 56 named foreign keys match the diagram entity and FK names, the twenty-fourth is verified against `DB-013`, and the six added tables against `DB-014`–`DB-017` and `DB-020`. |
 | AC-DB-004 | DB-001 | Catalog metadata for every application table is read back after a clean Flyway replay | Identity keys are generated `BIGINT`; local business dates are `date`; schedule times are `time`; every instant column is `timestamptz`; no PostgreSQL enum type exists, and every state column is `varchar` with a check constraint. |
 | AC-ERR-001 | ERR-001 | An Intern submits a Task work log with 0 minutes and a blank note | The same form redisplays with the submitted values retained, a field error on minutes, and an error summary; `task_work_logs` gains no row and the Task's daily total is unchanged. |
 | AC-ERR-002 | ERR-002 | A Mentor loads an exit request, a second actor approves it, then the first Mentor submits the stale form | The stale submission is rejected with a reload invitation; the first decision stands unmodified; no second `project_membership_exit_requests` transition and no duplicate notification. |
@@ -1143,11 +1154,11 @@ What approval means for a specification that documents a working product.
 
 | Measure | Value |
 |---|---:|
-| Normative rules, sections 1–22 | 296 |
-| Rules with a §20 acceptance scenario | 277 |
+| Normative rules, sections 1–22 | 304 |
+| Rules with a §20 acceptance scenario | 285 |
 | Rules declared without one, with reason | 19 |
-| Acceptance scenarios | 146 |
-| Flyway application tables | 24 |
+| Acceptance scenarios | 149 |
+| Application tables | 30 |
 
 #### §22.2 What approval requires
 

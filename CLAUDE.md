@@ -131,8 +131,9 @@ the specification is missing, recover it from history rather than rewriting it.
 and `D1` explain why. Follow the current specification, not older wording in either
 direction.
 
-**The specification is ahead of the code.** Decisions `D1`, `D12`–`D15` and `D23`–`D25`
-are approved and not yet implemented; `plan.md` lists them. The module boundaries of
+**The specification is ahead of the code.** Decisions `D1`, `D12`–`D15`, `D23`–`D25`, `D31`
+and `D32` are approved and not yet implemented, and `plan.md` lists them; `D32` describes
+thirty tables where the migrations above create twenty-four. The module boundaries of
 `ARC-005` (`D28`) are not implemented yet, so the package layout above is the one `ARC-005` has already
 replaced: the mismatch is deliberate until they are. Do not edit the specification back to
 match the code.

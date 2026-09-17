@@ -1,6 +1,6 @@
 # Attendance Spec
 
-**Version:** 1.4.0 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-17
+**Version:** 1.5.0 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-17
 
 Part of the Lab Timesheet specification. Rules every feature shares, including the
 glossary, the authorization model, the domain model, and failure handling, are in
@@ -136,6 +136,11 @@ For an applicable Intern/date, classification precedence is:
 | ID | Requirement |
 |---|---|
 | DB-002 | THE schema SHALL enable `btree_gist` and SHALL use an exclusion constraint so that a pending, overdue, or approved leave range cannot overlap another for the same Intern. |
+| DB-014 | THE schema SHALL hold at most one attendance period per Intern and calendar month, with a status of `OPEN` or `FINALIZED` and the server time of its latest finalization, and SHALL enforce that uniqueness with a constraint. |
+| DB-015 | THE schema SHALL store each request to reopen a finalized period under `ATT-022` with its period, requester, the records or date range requested, a nonblank reason, the server time, and a status of `PENDING`, `APPROVED` or `REJECTED`. A decided request SHALL carry the deciding Admin and the server time, a rejected one a nonblank rejection reason, and a range finalized again under `ATT-023` the Mentor and the server time. |
+| DB-016 | THE schema SHALL store at most one attendance exception per attendance record and violation kind, `LATE_ARRIVAL` or `EARLY_DEPARTURE`, recording whether it was raised as an Intern request with its nonblank reason or as a Mentor mark, its deadlines, and a status of `PENDING`, `OVERDUE`, `EXCUSED` or `UNEXCUSED`. |
+| DB-017 | THE schema SHALL store every decision, amendment and reversal on a correction, an attendance exception, and a leave request as an append-only entry carrying its kind, the outcome and note it sets, for a leave amendment the dates it withdraws from approval, the actor, the server time and, for an amendment or reversal, a nonblank reason, and SHALL refuse an update or deletion of such an entry. WHILE a correction, an attendance exception or a leave request has a decision entry and has not been cancelled, its status SHALL equal the outcome of its latest effective decision entry. THE system SHALL NOT record a new correction event of kind `AUTO_REJECTED` or `LOCKED`. |
+| DB-018 | THE schema SHALL constrain a leave request's status to `PENDING`, `OVERDUE`, `APPROVED`, `REJECTED`, `WITHDRAWN` or `CANCELLED`, and a correction's status to `PENDING`, `OVERDUE`, `APPROVED` or `REJECTED`. THE schema SHALL mark a leave request day whose approval an amendment withdrew, without changing the policy version or monthly quota snapshot that day carries. |
 
 ### Use cases
 
@@ -268,13 +273,13 @@ System-wide non-functional rules apply unchanged: architecture §3 (`ARC`), auth
 
 ## 5. Data
 
-Attendance exceptions (`EXC-001`–`EXC-006`) need a table of their own. Tables this feature's entities map to: `attendance_records`, `attendance_corrections`, `attendance_correction_events`, `leave_requests`, `leave_request_days`.
+Tables this feature's entities map to: `attendance_records`, `attendance_periods`, `attendance_period_reopens`, `attendance_corrections`, `attendance_correction_events`, `attendance_exceptions`, `attendance_exception_decisions`, `leave_requests`, `leave_request_decisions`, `leave_request_days`.
 
 The conceptual model, the table inventory, the integrity rules (`DB`), and both diagrams are §19 of the [platform spec](../feature-platform/SPEC.md).
 
 ## 6. Error Handling
 
-Rules in section 3 whose text names a refusal, rejection, denial, or failure: `ATT-008`, `ATT-010`, `ATT-011`, `ATT-021`, `ATT-022`, `ATT-023`, `ATT-024`, `COR-005`, `COR-007`, `COR-008`, `COR-009`, `LEV-004`, `LEV-006`, `LEV-008`, `LEV-010`, `LEV-012`, `EXC-006`.
+Rules in section 3 whose text names a refusal, rejection, denial, or failure: `ATT-008`, `ATT-010`, `ATT-011`, `ATT-021`, `ATT-022`, `ATT-023`, `ATT-024`, `COR-005`, `COR-007`, `COR-008`, `COR-009`, `LEV-004`, `LEV-006`, `LEV-008`, `LEV-010`, `LEV-012`, `EXC-006`, `DB-017`.
 
 System-wide failure behavior is §21 (`ERR-001`–`ERR-007`), and the interface message families are Appendix F, both in the [platform spec](../feature-platform/SPEC.md).
 
@@ -312,6 +317,7 @@ Scenarios from the §20 acceptance catalogue whose identifiers start with `AC-AT
 | AC-LEV-007 | LEV-013, LEV-004, LEV-006 | An Intern withdraws one pending request before it starts and one overdue request whose two workdays have passed without a check-in, then submits a new request over the first range and tries to withdraw an approved request | Both withdrawals mark the requests `WITHDRAWN`, release their quota and overlap blocking, and keep each request, its day allocations, and its history; the two past workdays are classified `ABSENT`; the new request over the released range is accepted; withdrawing the approved request is refused. |
 | AC-LEV-008 | LEV-004, LEV-011, ATT-024 | On the third day of an approved three-day leave, before the period is finalized, the responsible Mentor tries to reverse the approval, tries to add a fourth day, amends without a reason, and then amends with a reason to withdraw approval from the first day, on which the Intern did not check in | The reversal, the added day, and the amendment without a reason are refused; the amendment appends an entry with the Mentor, time, and reason while the approval and the frozen allocation stay unchanged in history; the first day's quota is released, no attendance record is created, and the day is classified `ABSENT`. |
 | AC-DB-005 | DB-002 | `btree_gist` is queried after replay, then one Intern is given a pending leave range and a second overlapping range is inserted directly by SQL | The extension is present; the second insert is refused by the exclusion constraint; a non-overlapping range for the same Intern and an overlapping range for a different Intern both succeed. |
+| AC-DB-006 | DB-014–DB-018 | SQL probes insert a second period for the same Intern and month, a reopen request with a blank reason, a second exception for the same attendance record and violation kind, an update and a deletion of a decision entry, a correction amendment or reversal without a reason, a status value no rule names, leave requests `OVERDUE` and `WITHDRAWN`, a correction `OVERDUE`, and a change to the policy snapshot of a withdrawn leave day | The duplicate period, blank reason, duplicate exception, update, deletion, reasonless correction amendment or reversal, unknown status and snapshot change are refused by the database; both new leave statuses and the overdue correction commit. |
 
 ## 8. Out of Scope
 

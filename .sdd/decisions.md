@@ -80,6 +80,7 @@ came from, not whether the choice is settled.
 | D29 | Whether the constitution and ADR-006 keep history and three false statements | No: constitution `2.0.1` states current rules only and corrects three facts; `ADR-006` corrects one; the `INT-009` item of `D28` is closed | none |
 | D30 | Which rules about team branches still bind | `OPS-018`, `OPS-020` and `OPS-021` are withdrawn with their identifiers kept; `OPS-019` keeps one owner per shared file, a person or an agent session, and names branches by module | `OPS-018`–`OPS-021`; constitution `2.0.2` |
 | D31 | What an amendment of an attendance exception decision may change | Only the decision note, or the nonblank reason of a mark made without a request; never the outcome, work date, violation kind or the Intern's request | `EXC-007`; adds `AC-EXC-004` |
+| D32 | Whether the data model the decided rules need belongs in the specification now | Yes: 30 tables, the invariants as `DB-014`–`DB-021` with `AC-DB-006`–`AC-DB-008`; column names stay with the migration; supersedes §3.4 of the platform plan | `DB-014`–`DB-021`, `AC-DB-001`, `AC-DB-006`–`AC-DB-008` |
 
 D1 through D5 came from reading the specification against its own history. D6
 through D9 came from the audit described at the end of this page, which read the
@@ -1404,6 +1405,21 @@ decision or a mark but did not say what an amendment may change, while `COR-005`
 - It never changes the outcome, the work date, the violation kind, or the Intern's request, including the reason the Intern wrote under `EXC-002`. Changing the outcome is a reversal under `ATT-024`, with its own reason.
 - `AC-EXC-004` exercises both permitted amendments and each refused one. The two notes that restated `D14` are removed from the attendance spec: every other sentence in them was already a rule.
 - A first wording attached "which stays nonblank" ambiguously, which could have made the optional decision note mandatory, and did not protect the Intern's request; the wording kept fixes both.
+
+**Status:** decided.
+
+## D32. Does the data model the decided rules need belong in the specification now?
+
+**Decided on 17 September 2026 by Loc-LX.** Yes. Documents come before code, and a decision
+newer than an approved plan prevails: §3.4 of the platform plan, approved on 16 September,
+would have moved the table count and `AC-DB-001` only together with the migration. This
+decision supersedes that section; the plan is revised in the plan phase.
+
+- **What the specification states:** which tables exist, what each is for, and their invariants as rules. Column names stay with the migration. §19.2 lists 30 tables; §19.1 draws the new entities; §19.4 keeps the diagram of the tables the Flyway migrations create, column by column, which is what `DB-010` asks of it.
+- **Rules, in the spec of the module that owns each table:** `DB-014`–`DB-018` in attendance, `DB-019`–`DB-020` in project, `DB-021` in internship, with `AC-DB-006`–`AC-DB-008`. `AC-DB-001` counts 30 tables.
+- **New status names:** `OPEN` and `FINALIZED` for a period; `PENDING`, `APPROVED` and `REJECTED` for a reopen request, as leave and corrections name theirs; `LATE_ARRIVAL` and `EARLY_DEPARTURE` for a violation kind; `EXCUSED` and `UNEXCUSED` for an exception outcome.
+- **Found on review, and fixed before any file changed.** Corrections were missing: `attendance_correction_events` allows neither an amendment, a reversal nor `OVERDUE`, requires no reason, and nothing refuses an update or a deletion, so `DB-017` covers corrections too and forbids new `AUTO_REJECTED` and `LOCKED` events. A decision entry records the outcome and note it sets, and for a leave amendment the dates it withdraws, because `ATT-024` derives every result from the latest effective entry. A request keeps its status equal to that entry's outcome, except once it is cancelled, since `LEV-011` cancels an approved request. `AC-DB-001` ties the six added tables to `DB-014`–`DB-017` and `DB-020`, because `DB-018`, `DB-019` and `DB-021` change existing tables.
+- **Consequence:** `AC-DB-001` and `AC-DB-006`–`AC-DB-008` fail against the code until a migration creates the tables, as the rules of `D1` and `D12` do until they are built. `CLAUDE.md` keeps the twenty-four tables of the code and says the specification describes thirty.
 
 **Status:** decided.
 
