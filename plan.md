@@ -15,7 +15,7 @@ ahead of `origin/main`, nothing pushed.
 |---|---|
 | Delivery, Iterations 1–4 | Built. Every tracked item is done; the Iteration 3 and 4 integration gates were never run. |
 | Specification | Approved. Eight specs, one per module: identity, internship, calendar, attendance, project, reporting, notification, and platform for what no single module owns. Each version is in its spec header and `CHANGELOG.md`. No rule waits on a signature. |
-| Constitution | Locked, version `2.0.0`. |
+| Constitution | Locked, version `2.0.1`. |
 | Technical plans (`PLAN.md`) | `feature-platform` approved at `1.0`; its line 108 contradicts line 230 on who resolves scope, and it is revised in step 8 of `D28`. The other modules have no plan yet; each is written per module, one section per part, in step 8. |
 | Task breakdown (`TASKS.md`) | Not started. |
 | Implementation of `D1` and `D12`–`D27` | Not started; the code still follows the earlier rules. |
@@ -26,7 +26,7 @@ and integration commits, is in git history: `git show b71fc29:plan.md`.
 
 ## Now
 
-- Every document is being checked so that it states only what its kind of document is for, with history left to `decisions.md`, the ADRs, the changelogs and git. The specs, `shared_context.md`, `CLAUDE.md`, `README.md` and this file are done; the constitution waits on the maintainer's agreement to its wording.
+- Every document states only what its kind of document is for, with history left to `decisions.md`, the ADRs, the changelogs and git (`D29`).
 - Nothing is merged into `main`. The branch and its spec tags are backed up on Gitea; later commits are local.
 
 ## Next

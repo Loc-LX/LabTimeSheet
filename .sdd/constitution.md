@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Version | `2.0.0` |
+| Version | `2.0.1` |
 | Status | `LOCKED` |
 | Applies to | every developer, every AI agent, every pull request |
 | Maintainer | Loc-LX |
@@ -12,18 +12,7 @@
 | Amendment | see [Amendment](#amendment); the mechanism depends on the kind of change |
 | Full rule text | [`.sdd/specs/`](specs) |
 
-**Locked on 15 September 2026.** A constitution is normally signed at the start
-of a project, because without one a team ends up working to several conventions
-at once. This project reached iteration four before the document existed, so it
-was signed late rather than early. It was locked once its layers, its enforcement
-column and its gaps had been checked, and a full run of `./mvnw -B test` had passed
-755 tests the same day.
-
-The rules bound before the signature too, both as the practice this project
-already followed and as the authority `AGENTS.md` defers to in its own opening
-paragraph. What the signature changed is the amendment path. From now on this
-document changes only through the last row of the table under Amendment, and a
-rule it indexes changes through the row that fits that change.
+**Locked.** This document changes only through the last row of the table under Amendment, and a rule it indexes changes through the row that fits that change.
 
 This document is canonical for four things only: each indexed rule's layer and
 exception, the standing deviations, the definition of done, and the AI agent policy.
@@ -160,8 +149,7 @@ acceptance or rejection states for Tasks, and no re-baselining once work is reta
 
 Weekly and Monthly report presets are **deferred, not excluded**. They sit
 outside the v1 acceptance scope and may be built later, which is the second row
-under Amendment and needs no ADR. The distinction is recorded because `GOV-015`
-once forbade them while the decision behind it only postponed them.
+under Amendment and needs no ADR.
 
 `GOV-016` governs the documents themselves: every requirement has exactly one
 canonical location, a change in business behavior updates that location, and a
@@ -196,30 +184,15 @@ belongs in Layer 1.
 | `TST-010` | A milestone is committed only when evidence is current, narrow and affected suites are green, and no unexplained error or warning remains. | Documented reason |
 | `OPS-019` | Shared build, migration, security, navigation, and base-template files have one named owner at a time. A targeted fix uses a clean, isolated `work/fix/<feature>/<what-fix>` branch from the current `main`, never `work/<feature>/fix/<what-fix>`. Contributors do not revert or rewrite another branch's work. | Documented reason, coordinated with the owner |
 
-`TST-008` is the rule that the errors in this document's own enforcement columns
-violated: a written claim that a test protects a rule never replaces the run that
-would show it. Three rows named a class that exists and tests something else,
-which is exactly the failure `TST-008` describes, committed by the document that
-indexes it.
-
-This row carried the superseded wording until 12 September 2026. `ADR-004`
-replaced it, the specification was updated, and the index was not. The error is
-recorded rather than quietly overwritten because it is the same failure the
-paragraph above describes.
-
 ### Standing deviations
 
 | Rule | Deviation | Owner | Reason | Ends when |
 |---|---|---|---|---|
-| `TST-005`, `TST-007` | Test classes written before `ADR-004` (12 September 2026) do not name the rules they protect or record their trace. On 14 September 2026, 15 of 123 test classes named a rule identifier. | Loc-LX | Retrofitting every class at once would rewrite tests without changing what they prove. | Each class names its rules and records its trace the next time it is changed. |
+| `TST-005`, `TST-007` | Test classes written before `ADR-004` do not name the rules they protect or record their trace; `plan.md` tracks how many still do not. | Loc-LX | Retrofitting every class at once would rewrite tests without changing what they prove. | Each class names its rules and records its trace the next time it is changed. |
 
 ### Definition of done
 
-**This is the canonical list.** It used to live in `plan.md` and be copied here,
-and the copy had already drifted: it said `public methods` where the original said
-`public/protected methods`, and it had dropped the Iteration 1 exception
-altogether. That is `GOV-016` broken by the document that states it, so the list
-moved here and the tracker now points at it.
+**This is the canonical list.** No other document restates it.
 
 A tracked item is `DONE` only when all of the following hold.
 
@@ -271,20 +244,13 @@ authority dissolves against the higher one under `GOV-001`.
 - When the specification does not answer something the work needs, list what is unclear, state the assumption that would be made, say what that assumption changes, and stop. Do not pick an interpretation quietly.
 - Name the rule identifiers a change touches, so the reviewer can check the change against the rule rather than against the diff.
 
-This section exists because the rule was broken before it was written. During the
-September 2026 documentation work an agent deleted a duplicated skills directory
-while the maintainer was still asking what the directory was for. The deletion
-was correct and the timing was not, and no written rule forbade it at the time.
-
 ## Amendment
 
 `GOV-001` sets the authority order. When statements conflict, the highest
 applicable authority wins and a lower-authority rule may not be revived against
 it.
 
-Three kinds of change, three mechanisms. Earlier drafts of this document answered
-this differently in three separate places, so the answer is stated here and
-referenced from everywhere else.
+Each kind of change has one mechanism, stated here and referenced from everywhere else.
 
 | Change | What it needs |
 |---|---|
@@ -296,67 +262,12 @@ referenced from everywhere else.
 A pull request is how any of these reaches the repository. It is the delivery
 mechanism, never an alternative to them.
 
-That process has been exercised three times. The Admin Attendance report scope was
-granted on 17 August 2026, withdrawn on 27 August, and restored on 30 August.
-The reasoning is recorded in
-[`.sdd/rfcs/ADR-002-attendance-report-scope.md`](rfcs/ADR-002-attendance-report-scope.md),
-and the superseded wording was left in place rather than rewritten, which is
-`GOV-005` applied to the document itself.
-
-The second was this document's own index row, amended to `1.0.1` on 16 September
-2026 under `D26`. The Business reviewer row described the instructor as the person
-who confirms decisions marked provisional; from that day no decision is held
-provisional, so the row named a state that no longer exists. Wording only, which
-is why it is a patch: no obligation was added, removed or weakened.
-
-The third was `ARC-005` and `ARC-006`, amended to `2.0.0` on 17 September 2026 under
-`D28` and [`ADR-006`](rfcs/ADR-006-module-boundaries.md), when the modules were redrawn by
-dependency instead of by the order in which the product was built. Obligations were added:
-an acyclic dependency graph, nothing depending on `config`, and the repository and entity
-boundary for `platform`. One was weakened: the ban on one-implementation abstraction layers
-gained an exception. A weakened obligation makes the version major even when others are
-added, so this is `2.0.0` rather than a minor version. The exception is held to four
-conditions a structural test can read, and the gaps table says plainly that no test reads
-them yet.
-
 ## Known enforcement gaps
 
-Every row that names a test was checked against that test on 11 September 2026.
-Three named a class that exists and tests something else, and six more overstated
-how much their test covers. Those nine rows were corrected. The Layer 3 table
-names no test at all, so it was outside that check and remains outside this list.
-
-The table below is not the same nine. It lists every gap known today, whatever
-brought it to light. `OPS-016` and `OPS-017` are here because they were written
-already admitting that nothing in this repository can check them, not because
-they once claimed otherwise.
-
-The whole document was re-read on 12 September 2026. Every test class and method
-name it cites still resolves. That pass found three further defects, of three
-different kinds: `TST-008` stated wording that `ADR-004` had already replaced,
-`ARC-008` claimed an enforcement no file here can provide, and `ARC-004` was not
-merely unenforced but actively broken by a test in this repository.
-
-The first two are recorded in their own rows. The third was repaired the same
-day: the equality assertion in `src/test/js/playwright-contract.test.mjs` became
-a compatible-range check that also records the resolved version, so `ARC-004` is
-no longer a gap and has left the table below. `npm run test:ui` passes.
-
-On 14 September 2026, after the layers were ranked by how strictly a rule binds, all
-29 test classes and methods this document cites still resolved. That shows the names
-exist, not that the tests pass: the last full run was on 13 September 2026, and this
-document is locked only after a current one. The same check found that `ARC-006`
-claimed a build failure `LayerStructureTest` does not provide, that `ARC-001`
-overstated what the compiler setting refuses, and that six rows had dropped a
-prohibition from their rule. Each is corrected in its row.
-
-That check only looked at the tests this document names. On 15 September 2026 the
-reverse check, every test that names an indexed rule, found two rows that understated
-their enforcement: `GOV-004` had been enforced since 13 September by
-`AttendanceAndTaskWorkSeparationTest`, and the storage half of `GOV-011` by
-`PlatformFoundationTest`. Both rows are corrected and `GOV-004` has left the table
-below. The same day `./mvnw -B test` passed 755 tests, which is the current run the
-enforcement column needed.
+Every row below is a rule whose enforcement this repository cannot yet show. A row names a
+test only for what that test asserts, never because its class name looks right. The Layer 3
+table names no test, so its rules are not listed here. `OPS-016` and `OPS-017` are listed
+because a repository cannot verify its own runner.
 
 A constitution that claims enforcement it does not have is worse than one that
 names its own gaps, and worse still when the claim survives because the class
@@ -373,24 +284,15 @@ name looks plausible.
 | `ARC-001` | An older JDK fails the build, which proves the minimum version and not the architecture. | An architecture test asserting the module shape, alongside `LayerStructureTest`. |
 | `ARC-002` | `ReportingDependencyContractTest` covers the reporting libraries only. | Extend it to the rest of the declared stack, or accept the narrower claim. |
 | `ARC-006` | `LayerStructureTest` checks imports only. The rule requires the build to fail on business SQL in a service, and `ProjectService#nativeDelete` runs native SQL today (`D18`). | Move that SQL behind the data-access layer under `D18`, and add a check that fails the build on `createNativeQuery` or `JdbcTemplate` outside a `repository` package. |
-| `ARC-005` | Nothing checks the package layout of this rule. `LayerStructureTest` still approves `account`, `integration`, `project`, `task`, `attendance`, `notification` and `reporting`, and `AttendanceLayerStructureTest` still requires `AttendancePolicy` and `AttendanceCurrentUserService` inside `attendance`, which `D28` moves out; until step 6 both pass on the layout the rule replaced. Nothing checks either that the dependencies among `platform` and the features form a directed acyclic graph, or that nothing depends on `config`. `scripts/module-boundaries.cjs` measured the structure before the split and stops being accurate once the code moves. | In step 6 of `D28`, update both tests to the modules of this rule in the change that moves the code, and add a structural test over type references, with comments removed and string literals kept so that entity names inside JPQL count, that fails on any cycle and on any reference into `config`. |
+| `ARC-005` | `LayerStructureTest` approves the build-order packages `account`, `integration`, `project`, `task`, `attendance`, `notification` and `reporting`, and `AttendanceLayerStructureTest` requires `AttendancePolicy` inside `attendance`, which this rule places in `calendar`; both pass on the layout the rule replaced. Nothing checks that the dependencies among `platform` and the features form a directed acyclic graph, or that nothing depends on `config`. | Update both tests to the modules of this rule in the same change as the code they check, and add a structural test over type references, with comments removed and string literals kept so that entity names inside JPQL count, that fails on any cycle and on any reference into `config` (`D28`). |
 | `ARC-006` | The boundary does not reach `platform`. `LayerStructureTest` matches `feature\.([^.]+)\.(repository\|model\.entity)` only, so a repository or entity moved into `platform` loses the protection it has today under `feature.integration`; and its approved root packages are `config` and `feature`, so creating `platform` fails the test. | Extend both in the change that creates `platform`, in step 6 of `D28`. |
 | `ARC-006` | Nothing checks the four conditions of the exception: the interface is declared and called by one module, every implementation lives in another module, and that module would still depend on the declaring module without the implementation. Without this row the exception would read as guarded. | The cycle test written in step 6 of `D28` checks the conditions for every interface with an implementation outside its module, against the list in [`ADR-006`](rfcs/ADR-006-module-boundaries.md). |
 | `AUTH-012` | Not implemented. Role checks in `SecurityConfiguration`, services, and templates still decide business permissions. | The matrix-driven test of `AC-AUTH-011`, run through the policy `ADR-005` describes. |
 | `SEC-007` | Nothing shows that a manual account lock is kept apart from the in-memory throttle state. | A test that recreates the throttle and asserts a manually locked account is still refused. |
 | `TST-011`, `GOV-006` | Review is the only control. | Nothing automated can close it; a reviewer checks that a changed assertion follows a recorded decision and that new scope has one. |
 | `ARC-009` | Relies on Flyway checksum validation staying enabled; no test shows an edited migration is refused. | A test that applies the migrations, alters one, and expects validation to fail. |
-| `ARC-008` | Nothing in this repository can enforce it. `database-schema.sql` was authored in the separate documentation repository, stayed there, and has never appeared in any commit here, which the specification header states. The row previously claimed a Flyway catalog test as its enforcement; that test cannot observe an absent file. | Nothing, and that is the point. The rule records a completed one-time adaptation. `ARC-007` is what binds future schema work, and it is enforced. |
+| `ARC-008` | Nothing in this repository can enforce it: `database-schema.sql` is not tracked here, as the specification header states. | Nothing, and that is the point. The rule records a completed one-time adaptation. `ARC-007` is what binds future schema work, and it is enforced. |
 | `OPS-016`, `OPS-017` | Both describe runner configuration. A repository cannot verify its own runner. | An operator confirms it outside this repository; nothing here can. |
-
-### A defect found while checking these
-
-`.gitea/workflows/container.yml` line 264 guards a rollback by requiring the
-previous image tag to match `:sha-[0-9a-f]{40}`. This repository uses SHA-256
-object names, so its commit identifiers are 64 characters and no legitimate tag
-this pipeline produces can satisfy that pattern. The deployment job is dormant
-behind `DEPLOY_ENABLED`, so the guard has never run. It is recorded here rather
-than fixed, because it is a pipeline change and not a documentation one.
 
 ## Provenance
 
@@ -398,6 +300,5 @@ The three-layer format and the `LOCKED` status are a methodology choice rather
 than an industry standard; most projects distribute the same content across `CONTRIBUTING.md`,
 architecture decision records, and CI configuration.
 
-The rules themselves are not new. They were written by the project team across
-Iterations 1 to 4 and live in the feature specs and the tests that enforce them. This document only gathers them and says
+The rules themselves are not new. They live in the feature specs and the tests that enforce them. This document only gathers them and says
 which ones have teeth.

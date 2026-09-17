@@ -4,7 +4,7 @@
 - **Date:** 2026-09-17
 - **Changes:** `ARC-005`, `ARC-006`, `AC-ARC-001`
 - **Decision record:** `D28` in [`.sdd/decisions.md`](../decisions.md)
-- **Implemented:** not yet; step 6 of `D28` moves the code
+- **Implemented:** not yet
 
 ## Context
 
@@ -54,7 +54,7 @@ conditions and be added to this table in the same change.
 
 ## Consequences
 
-- Two existing tests guard the layout this decision replaces and must change with the code in step 6. `LayerStructureTest` approves the old feature list; it takes the modules of `ARC-005`, adds `platform` to the approved root packages, and extends the repository and entity check to `platform`. `AttendanceLayerStructureTest` requires `AttendancePolicy` and `AttendanceCurrentUserService` inside `attendance`, which this decision moves out. Until then neither protects `ARC-005`, and the constitution does not credit them for it.
+- Two existing tests guard the layout this decision replaces and must change with the code in step 6. `LayerStructureTest` approves the old feature list; it takes the modules of `ARC-005`, adds `platform` to the approved root packages, and extends the repository and entity check to `platform`. `AttendanceLayerStructureTest` requires `AttendancePolicy` inside `attendance`, which this decision moves to `calendar`; `AttendanceCurrentUserService` stays in `attendance`. Until then neither protects `ARC-005`, and the constitution does not credit them for it.
 - A cycle test is written first in step 6, in plain Java without a new dependency. It reads type references with comments removed and string literals kept, fails on a cycle or a reference into `config`, and checks the four conditions for every interface listed above. It starts with the list of violations known at that moment; every task of step 6 shortens it, and the last leaves it empty. Until the test exists the constitution records three gaps.
 - `scripts/module-boundaries.cjs` describes the structure before the split. After step 6 its cycle check becomes that test or the script is retired.
 - The role type belongs to `platform`, because the authorization policy decides on the actor's role (`AUTH-012`) and `platform` depends on no feature. `GlobalRole` leaves the account package in step 6.

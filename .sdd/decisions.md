@@ -77,6 +77,7 @@ came from, not whether the choice is settled.
 | D26 | Who confirms a business decision | The maintainer; the instructor reviews and a revision arrives as a new decision, not as a gate | constitution, `shared_context.md` |
 | D27 | What the `V3` migration does with months worked before it | Create a period for each, then apply `ATT-020` to it as the running system would: close the ones whose deadline has passed with nothing pending, leave the rest open | none; `ATT-019`–`ATT-024` already say it |
 | D28 | How the code is split into modules, and what may depend on what | Seven features and `platform` by dependency, acyclic, with `config` as wiring; leave stays in attendance, the policy table in calendar, internship on its own; six rules relocated unchanged; documents first, code after | `ARC-005`, `ARC-006`, `AC-ARC-001`, `NOT-003`, `NOT-010`, `NOT-011`, `AUTH-004`, `AUTH-009`, `AUTH-011`, constitution |
+| D29 | Whether the constitution and ADR-006 keep history and three false statements | No: constitution `2.0.1` states current rules only and corrects three facts; `ADR-006` corrects one; the `INT-009` item of `D28` is closed | none |
 
 D1 through D5 came from reading the specification against its own history. D6
 through D9 came from the audit described at the end of this page, which read the
@@ -1352,7 +1353,21 @@ Steps 1 to 5 happen on the current documentation branch. `feature-attendance/PLA
 
 - Task and internship compute business dates from the `BUSINESS_ZONE` constant, which contradicts `GOV-011`. Fixing it changes behavior, so it is a part of its own after step 6, not part of the move.
 - `AttendanceRole` is removed: it appears in 15 production files and 18 test files.
-- `INT-009` gets a use case.
+- `INT-009` gets a use case. Closed by `D29`.
+
+**Status:** decided.
+
+## D29. Does the constitution keep its history, and what was wrong in it?
+
+**Decided on 17 September 2026 by Loc-LX**, who approved the wording of every change below.
+A document states what its kind of document is for; history belongs in this file, the ADRs,
+the changelogs and git.
+
+- **The constitution becomes `2.0.1`.** It loses the account of when it was locked and why late, the story behind the agent policy, the three amendments told by date, the dated checks at the head of the gaps table, and the sentences explaining why a list moved or a row once read otherwise. Each is recorded here (`D20`, `D26`, `D28`) or in `ADR-002` and `ADR-004`. It is a patch: no obligation is added, removed or weakened.
+- **Three statements in it were false and are corrected.** The rollback guard in `.gitea/workflows/container.yml` was described as unable to match, but already accepts forty to sixty-four hex characters. The Amendment section spoke of three kinds of change while its table has four rows. The `ARC-005` gap row said `D28` moves `AttendanceCurrentUserService` out of `attendance`, but `R7` keeps it there and has it delegate to identity; only `AttendancePolicy` moves, to `calendar`.
+- **Two replacements were reworded on review.** The definition of done says no other document restates it, which a search can check, rather than that `plan.md` points to it, which `plan.md` does not. The gaps table gives a rule for whoever writes a row, that a test is named only for what it asserts, rather than a sentence implying a check nobody runs.
+- **`ADR-006` corrects the same false statement** in its consequences, and its status line reads *Implemented: not yet* without narrating what a later step will do.
+- **The `INT-009` item of `D28` is closed.** `UC-04` traces `INT-009` since version 1.0.1 of the calendar spec, so the rule has a use case and no backlog item remains.
 
 **Status:** decided.
 
