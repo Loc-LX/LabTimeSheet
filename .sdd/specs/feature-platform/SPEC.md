@@ -1,6 +1,6 @@
 # Platform Spec
 
-**Version:** 1.5.0 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-17
+**Version:** 1.5.1 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-17
 
 Part of the Lab Timesheet specification. Rules every feature shares, including the
 glossary, the authorization model, the domain model, and failure handling, are in
@@ -23,7 +23,7 @@ This spec holds what every feature shares. It is not a feature in the code; the 
 | Companion DDL | `database-schema.sql`, not tracked in this repository |
 | Review state | Approved; each spec's version is in its header, its changes in its `CHANGELOG.md`, and its open questions in its Notes section |
 | Normative rules | 296 across the eight specs |
-| Acceptance scenarios | 145 across the eight specs |
+| Acceptance scenarios | 146 across the eight specs |
 
 > **Companion files.** The companion `database-schema.sql` and the reference images
 > under `assets/` are not tracked in this repository. Every image embed below is
@@ -1146,7 +1146,7 @@ What approval means for a specification that documents a working product.
 | Normative rules, sections 1–22 | 296 |
 | Rules with a §20 acceptance scenario | 277 |
 | Rules declared without one, with reason | 19 |
-| Acceptance scenarios | 145 |
+| Acceptance scenarios | 146 |
 | Flyway application tables | 24 |
 
 #### §22.2 What approval requires

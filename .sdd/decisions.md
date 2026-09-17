@@ -79,6 +79,7 @@ came from, not whether the choice is settled.
 | D28 | How the code is split into modules, and what may depend on what | Seven features and `platform` by dependency, acyclic, with `config` as wiring; leave stays in attendance, the policy table in calendar, internship on its own; six rules relocated unchanged; documents first, code after | `ARC-005`, `ARC-006`, `AC-ARC-001`, `NOT-003`, `NOT-010`, `NOT-011`, `AUTH-004`, `AUTH-009`, `AUTH-011`, constitution |
 | D29 | Whether the constitution and ADR-006 keep history and three false statements | No: constitution `2.0.1` states current rules only and corrects three facts; `ADR-006` corrects one; the `INT-009` item of `D28` is closed | none |
 | D30 | Which rules about team branches still bind | `OPS-018`, `OPS-020` and `OPS-021` are withdrawn with their identifiers kept; `OPS-019` keeps one owner per shared file, a person or an agent session, and names branches by module | `OPS-018`–`OPS-021`; constitution `2.0.2` |
+| D31 | What an amendment of an attendance exception decision may change | Only the decision note, or the nonblank reason of a mark made without a request; never the outcome, work date, violation kind or the Intern's request | `EXC-007`; adds `AC-EXC-004` |
 
 D1 through D5 came from reading the specification against its own history. D6
 through D9 came from the audit described at the end of this page, which read the
@@ -1389,6 +1390,20 @@ no longer holds, while one person and several agent sessions may work at once.
 - **Branches are named by what they change.** `work/fix/<area>/<what>`, where `<area>` is a module of `ARC-005`, `platform`, `architecture` for a change across modules, or `docs`. The step-6 branch of `D28` was `work/fix/structure/<name>`, which named no feature and so broke the rule it cited; it becomes `work/fix/architecture/<name>`.
 - **A name Git refuses is invalid, in both directions.** Git cannot hold `a/b` beside `a/b/c`, whichever exists first; `a/b-c` is fine. `origin/work/fix/project`, merged into `main` on 4 September 2026, is someone else's branch on the shared remote and stays, as `D17` kept older branches, so a change to `project` uses `work/fix/project-<what>`. A first wording said only that an existing name must not be a prefix, which also forbade the `-` form it prescribed; the wording kept was checked against Git in both directions.
 - **Changed with it:** the platform spec to `1.5.0`; the `OPS-019` row and the agent policy of the constitution, to `2.0.2`, wording only; `AGENTS.md` §4, the branch section of `CONTRIBUTING.md`, two sentences of `shared_context.md`, and `plan.md`.
+
+**Status:** decided.
+
+## D31. What may an amendment of an attendance exception decision change?
+
+**Decided on 17 September 2026 by Loc-LX.** `EXC-007` let the responsible Mentor amend a
+decision or a mark but did not say what an amendment may change, while `COR-005` and
+`LEV-011` each say it for their own kind. The gap sat in a note of the attendance spec
+("Derived from `D14`") instead of in the rule.
+
+- An amendment changes only the decision note or, for a mark made without a request, its reason, which stays nonblank as `EXC-004` requires. The decision note stays optional, as `EXC-003` has it.
+- It never changes the outcome, the work date, the violation kind, or the Intern's request, including the reason the Intern wrote under `EXC-002`. Changing the outcome is a reversal under `ATT-024`, with its own reason.
+- `AC-EXC-004` exercises both permitted amendments and each refused one. The two notes that restated `D14` are removed from the attendance spec: every other sentence in them was already a rule.
+- A first wording attached "which stays nonblank" ambiguously, which could have made the optional decision note mandatory, and did not protect the Intern's request; the wording kept fixes both.
 
 **Status:** decided.
 

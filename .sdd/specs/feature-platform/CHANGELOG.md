@@ -3,6 +3,10 @@
 Each entry records a change to [SPEC.md](SPEC.md): the version, the date, what changed,
 and why. A change that alters a rule raises the version.
 
+## 1.5.1 — 2026-09-17
+
+Counts only: `D31` added `AC-EXC-004` to the attendance spec, so §1 and §22.1 count 146 scenarios.
+
 ## 1.5.0 — 2026-09-17
 
 Rules changed; decision `D30`. Counts stay 296 rules and 145 scenarios.

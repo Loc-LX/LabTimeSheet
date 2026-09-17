@@ -3,6 +3,14 @@
 Each entry records a change to [SPEC.md](SPEC.md): the version, the date, what changed,
 and why. A change that alters a rule raises the version.
 
+## 1.4.0 — 2026-09-17
+
+Rule changed; decision `D31`.
+
+- **`EXC-007`** now says what an amendment may change: the decision note, or the reason of a mark made without a request, which must stay nonblank. It may not change the outcome, the work date, the violation kind, or the Intern's request; changing the outcome is a reversal. `COR-005` already limited a correction amendment in the same way, and `LEV-011` a leave amendment; the exception rule said nothing.
+- **Added `AC-EXC-004`**, which exercises both permitted amendments and each refused one.
+- The notes "Interpreted from `D14`" and "Derived from `D14`" are removed. Each sentence in them restated a rule that already said it (`ATT-019`, `ATT-020`, `ATT-023`, `LEV-004`, `LEV-006`, `LEV-011`, `LEV-012`, `ATT-024`, `COR-001`, `COR-005`), which `GOV-016` forbids, except the limit on exception amendments, which is now `EXC-007`.
+
 ## 1.3.8 — 2026-09-17
 
 Wording only; no rule changed. The notes no longer say when `D14` was decided and confirmed, which `decisions.md` records, and §5 no longer says "today" about the tables, which is the state of the code rather than of the specification.
