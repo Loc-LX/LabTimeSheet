@@ -277,3 +277,45 @@ test("every decision is both listed and written, and none is referenced that doe
     });
   }
 });
+
+/**
+ * A state transition table summarizes rules and adds nothing to them. Observable break: a
+ * table names a status no rule defines, such as a typo or a state the rules never allowed,
+ * and a reader implements the table instead of the rules. Expected values come from the rule
+ * rows themselves: every status in a table's From or To column must appear, in backticks, in
+ * some rule of some spec, alone or inside a transition such as `DRAFT → ACTIVE`. `(none)` and `(deleted)` mark creation and deletion.
+ */
+test("every status a state transition table names is a status some rule names", () => {
+  const all = specs();
+  const named = new Set();
+  for (const { text } of all) {
+    for (const line of text.split("\n")) {
+      if (!/^\| [A-Z]+-\d{3} \|/.test(line)) continue;
+      for (const span of line.matchAll(/`([^`]+)`/g)) {
+        for (const token of span[1].matchAll(/\b[A-Z][A-Z_]{2,}\b/g)) named.add(token[0]);
+      }
+    }
+  }
+  let tables = 0;
+  for (const { dir, text } of all) {
+    const lines = text.split("\n");
+    lines.forEach((line, index) => {
+      if (line !== "| From | Action | To | Who | Rules |") return;
+      tables += 1;
+      for (let row = index + 2; row < lines.length && lines[row].startsWith("| "); row += 1) {
+        const cells = lines[row].split("|").map((cell) => cell.trim());
+        for (const cell of [cells[1], cells[3]]) {
+          for (const state of cell.split(",").map((part) => part.trim())) {
+            if (state === "(none)" || state === "(deleted)") continue;
+            const bare = state.replace(/^`|`$/g, "");
+            assert.ok(
+              /^`[A-Z][A-Z_]+`$/.test(state) && named.has(bare),
+              `${relative(root, dir)}/SPEC.md: a state transition table names ${state}, which no rule names`,
+            );
+          }
+        }
+      }
+    });
+  }
+  assert.ok(tables > 0, "no state transition table found");
+});

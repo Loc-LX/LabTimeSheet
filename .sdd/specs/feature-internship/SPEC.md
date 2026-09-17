@@ -1,6 +1,6 @@
 # Internship Spec
 
-**Version:** 1.1.0 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-17
+**Version:** 1.1.1 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-17
 
 Part of the Lab Timesheet specification. Rules every feature shares, including the
 glossary, the authorization model, the domain model, and failure handling, are in
@@ -39,6 +39,18 @@ Every capability by role is in the permission matrix, [platform spec](../feature
 | ACC-024 | WHEN an Admin withdraws an Intern, THE system SHALL set the account to `DEACTIVATED` in the same transaction, SHALL end every session of that account, SHALL thereafter refuse its login under `ACC-016`, SHALL issue it no password-reset token and refuse any it already holds, and SHALL keep their historical memberships, Tasks, work logs, attendance, leave, and corrections attributable. |
 | ACC-025 | WHEN a terminal lifecycle action is applied, THE system SHALL enforce it for authorization from that instant. Attendance already recorded on that local date SHALL remain reportable, and an otherwise empty terminal date SHALL NOT be newly classified as an absence. |
 | ACC-026 | THE system SHALL let an Admin assign one active Mentor as an Intern's responsible Mentor and replace that assignment. WHEN the assignment changes, THE system SHALL move every pending or overdue leave, correction, and attendance exception request of that Intern to the new Mentor, SHALL leave every earlier decision attributed to the Mentor who made it, and SHALL NOT make the Admin an approver. WHILE an Intern's responsible Mentor is `LOCKED` or `DEACTIVATED`, THE system SHALL show that Intern to Admins as needing a new responsible Mentor, and SHALL NOT let an Admin or any other Mentor decide the Intern's requests. |
+
+#### State transitions: internship
+
+The transitions the rules above allow. The table adds nothing to them: where it and a rule differ, the rule wins.
+
+| From | Action | To | Who | Rules |
+|---|---|---|---|---|
+| `NOT_STARTED` | the start date is reached and a responsible Mentor is assigned | `ACTIVE` | system, by schedule and at request time | `ACC-020`, `ACC-021` |
+| `ACTIVE` | complete, when the Intern holds no leadership term and owns no unfinished Task | `COMPLETED` | Admin | `ACC-020`, `ACC-022` |
+| `NOT_STARTED`, `ACTIVE` | withdraw, under the same guard; the account becomes `DEACTIVATED` | `WITHDRAWN` | Admin | `ACC-020`, `ACC-022`, `ACC-024` |
+
+`NOT_STARTED` is the only status no permitted transition leads to, so an internship starts in it. No transition leaves `COMPLETED` or `WITHDRAWN` (`ACC-020`), and both keep the profile read-only (`ACC-019`).
 
 ### Integrity (from platform §19.3)
 

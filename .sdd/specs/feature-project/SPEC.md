@@ -1,6 +1,6 @@
 # Project Spec
 
-**Version:** 1.4.0 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-17
+**Version:** 1.4.1 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-17
 
 Part of the Lab Timesheet specification. Rules every feature shares, including the
 glossary, the authorization model, the domain model, and failure handling, are in
@@ -55,6 +55,20 @@ Every capability by role is in the permission matrix, [platform spec](../feature
 | PRJ-021 | WHILE an exit request is pending, THE system SHALL keep the target's membership, existing assignments, and existing Task rights active, and SHALL refuse to give that target a newly created or reassigned Task or to let them create a self-Task. THE system SHALL permit the requester to cancel and only the owning Mentor to approve or reject. WHEN the request is cancelled or rejected, THE system SHALL preserve completed transfer batches and restore new-assignment eligibility. WHEN an owning Mentor removes the target directly, THE system SHALL resolve the matching request as `APPROVED`; WHEN the Project completes, THE system SHALL mark unresolved requests `SUPERSEDED`. |
 | PRJ-022 | WHEN exit approval is submitted, THE system SHALL lock and recheck the request, the target membership, current leadership, and the unfinished Task count. WHILE the target is the current Leader or owns any unfinished Task, THE system SHALL refuse approval. WHEN both guards pass, THE system SHALL commit membership closure and request approval together, leaving completed Tasks and all retained attribution unchanged. |
 | PRJ-023 | WHEN the owning Mentor cancels a `PLANNED` or `ACTIVE` Project, THE system SHALL require a nonblank cancellation reason and SHALL record the Mentor, the server time, and the reason. In the same transaction THE system SHALL close the current leadership and membership intervals while retaining them, revoke pending invitations with `PROJECT_CANCELLED`, mark pending exit requests `SUPERSEDED`, leave every Task, comment, work log, estimate, and forecast unchanged, and make the aggregate read-only. THE system SHALL notify every member whose interval it closes under `NOT-002`. |
+
+#### State transitions: Project
+
+The transitions the rules above allow. The table adds nothing to them: where it and a rule differ, the rule wins.
+
+| From | Action | To | Who | Rules |
+|---|---|---|---|---|
+| (none) | create, with the initial Leader membership and leadership term | `PLANNED` | active Mentor | `PRJ-001`, `PRJ-002`, `PRJ-024` |
+| `PLANNED` | delete, while empty | (deleted) | owning Mentor | `PRJ-002` |
+| `PLANNED` | activate, with a current Leader, an active member, valid dates and valid assignees | `ACTIVE` | owning Mentor | `PRJ-002`, `PRJ-012` |
+| `ACTIVE` | complete, when every non-deleted Task is `DONE` | `COMPLETED` | owning Mentor | `PRJ-002`, `PRJ-014` |
+| `PLANNED`, `ACTIVE` | cancel, with a reason | `CANCELLED` | owning Mentor | `PRJ-002`, `PRJ-023`, `DB-019` |
+
+No transition leaves `COMPLETED` or `CANCELLED` (`PRJ-002`). `PLANNED` is the only status no permitted transition leads to, so a new Project starts in it.
 
 ### §7. Tasks, comments, and task work
 

@@ -3,6 +3,10 @@
 Each entry records a change to [SPEC.md](SPEC.md): the version, the date, what changed,
 and why. A change that alters a rule raises the version.
 
+## 1.4.1 — 2026-09-17
+
+No rule changed. The Project gains a state transition table after its rules, which yields to them where they differ.
+
 ## 1.4.0 — 2026-09-17
 
 Rules added; decision `D32`.

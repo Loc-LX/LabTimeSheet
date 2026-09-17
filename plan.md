@@ -56,6 +56,7 @@ and in the constitution.
 
 | Item | Waiting on | Recorded in |
 |---|---|---|
+| State transition tables for Task, Project invitation, membership exit request, account and notification delivery. Each needs a rule first: the status a new Task starts in, and whether an assignee's unblock and reopen follow `TSK-025` or the free choice of `TSK-007`; the status values of invitations and exit requests, which `DB-011` and `DB-012` do not list; the activation transition and the statuses an account may be locked or deactivated from; and `SENT` and `NOT_REQUIRED` for email delivery | The maintainer | This file |
 | Where the plan and tasks of step 5 live. They are not the platform plan, whose subject is the platform rules, and no feature owns them | The maintainer | This file |
 
 ## Validation backlog
@@ -75,5 +76,5 @@ the other way round.
 
 - Maven needs JDK 25, and the default `JAVA_HOME` on the maintainer's machine is JDK 8, so `JAVA_HOME` has to point at a JDK 25 before `./mvnw`. [CONTRIBUTING.md](CONTRIBUTING.md) explains the setup; the path itself is machine-specific and is not recorded here.
 - On Windows run the suite as `./mvnw -B test`, with Docker Desktop running and browsers closed. The last full run, at `1ee043e`, passed 757 tests with no failures and no timezone flag. Run nothing else alongside it: the suite can exhaust the machine's memory.
-- `npm run test:ui` passes 29 of 29, including nine spec-structure checks: six on the shape of the documents and three on whether their prose agrees with their own rules.
+- `npm run test:ui` passes 30 of 30, including ten spec-structure checks: six on the shape of the documents and four on whether their prose and state transition tables agree with their own rules.
 - Playwright 1.62.1 needs Chromium build 1234; run `npx playwright install chromium` after a Playwright update. The end-to-end suite needs `LAB_E2E_START_INSTANT`, `E2E_BUSINESS_DATE` on a Tuesday to Friday, and `E2E_DB_CONTAINER`, as `CONTRIBUTING.md` describes.

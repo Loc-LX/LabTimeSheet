@@ -1,6 +1,6 @@
 # Platform Spec
 
-**Version:** 1.6.0 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-17
+**Version:** 1.6.1 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-17
 
 Part of the Lab Timesheet specification. Rules every feature shares, including the
 glossary, the authorization model, the domain model, and failure handling, are in
@@ -239,6 +239,18 @@ separation of attendance from Task work exist to prevent.
 | INT-007 | THE system SHALL store, for SMTP, a host, a port from 1 through 65535, a security mode, an optional username and password, a From address, and a From name. WHILE running under the production profile, THE system SHALL permit `STARTTLS` or `TLS` and SHALL reject plaintext `NONE`. |
 | INT-008 | WHEN an Admin tests SMTP, THE system SHALL send a message to that Admin. THE system SHALL permit activation of a draft only after a successful test, and WHEN a draft is activated SHALL retire the previous active revision in the same transaction. |
 | INT-010 | THE system SHALL NOT provide master-key rotation or external secret-store integration in v1. THE system SHALL carry key-version metadata in every cipher envelope so that an operator-led migration remains possible later. |
+
+#### State transitions: SMTP revision
+
+The transitions the rules above allow. The table adds nothing to them: where it and a rule differ, the rule wins.
+
+| From | Action | To | Who | Rules |
+|---|---|---|---|---|
+| (none) | save a draft, including by editing the active revision | `DRAFT` | Admin | `INT-006` |
+| `DRAFT` | activate, after a successful test | `ACTIVE` | Admin | `INT-006`, `INT-008` |
+| `ACTIVE` | another draft is activated, in the same transaction | `RETIRED` | system | `INT-006`, `INT-008` |
+
+At most one draft and one active revision exist at a time (`INT-006`), and no transition leaves `RETIRED`.
 
 ### Use cases
 

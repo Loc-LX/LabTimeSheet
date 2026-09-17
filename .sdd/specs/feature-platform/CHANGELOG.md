@@ -3,6 +3,10 @@
 Each entry records a change to [SPEC.md](SPEC.md): the version, the date, what changed,
 and why. A change that alters a rule raises the version.
 
+## 1.6.1 — 2026-09-17
+
+No rule changed. The SMTP revision gains a state transition table after its rules, which yields to them where they differ.
+
 ## 1.6.0 — 2026-09-17
 
 Decision `D32`: the specification describes the data model the decided rules require. Counts become 304 rules, 285 of them with a scenario, 149 scenarios, and 30 tables.

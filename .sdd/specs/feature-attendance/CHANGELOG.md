@@ -3,6 +3,10 @@
 Each entry records a change to [SPEC.md](SPEC.md): the version, the date, what changed,
 and why. A change that alters a rule raises the version.
 
+## 1.5.1 — 2026-09-17
+
+No rule changed. Each object with a status gains a state transition table after its rules: correction, leave request, attendance exception, attendance period, and request to reopen a period. A table summarizes its rules, names the rules behind each transition, and yields to them where they differ; `npm run test:ui` checks that every status a table names is one a rule names.
+
 ## 1.5.0 — 2026-09-17
 
 Rules added; decision `D32`. The data model the decided attendance rules need is part of the specification.

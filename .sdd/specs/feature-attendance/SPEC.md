@@ -1,6 +1,6 @@
 # Attendance Spec
 
-**Version:** 1.5.0 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-17
+**Version:** 1.5.1 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-17
 
 Part of the Lab Timesheet specification. Rules every feature shares, including the
 glossary, the authorization model, the domain model, and failure handling, are in
@@ -84,6 +84,23 @@ For an applicable Intern/date, classification precedence is:
 | COR-008 | THE system SHALL persist the overdue marking and its reminder through a scheduled worker, and SHALL apply the same deadline guard on every correction read and write path before acting. |
 | COR-009 | WHILE the attendance period of a correction is finalized, THE system SHALL refuse any Mentor state change except inside a range reopened under `ATT-022`. THE system SHALL NOT permit an Admin, or any Mentor other than the responsible Mentor, to decide, amend, or reverse a correction. |
 
+#### State transitions: missed-checkout correction
+
+The transitions the rules above allow. The table adds nothing to them: where it and a rule differ, the rule wins.
+
+| From | Action | To | Who | Rules |
+|---|---|---|---|---|
+| (none) | request, with a proposed checkout and a reason | `PENDING` | owning Intern | `COR-001`–`COR-003` |
+| `PENDING` | the decision window expires | `OVERDUE` | system | `COR-004`, `COR-007`, `COR-008` |
+| `PENDING`, `OVERDUE` | approve | `APPROVED` | responsible Mentor | `COR-005`, `COR-006` |
+| `PENDING`, `OVERDUE` | reject | `REJECTED` | responsible Mentor | `COR-005` |
+| `APPROVED` | reverse | `REJECTED` | responsible Mentor | `COR-005`, `COR-007`, `ATT-024` |
+| `REJECTED` | reverse | `APPROVED` | responsible Mentor | `COR-005`, `COR-007`, `ATT-024` |
+| `APPROVED` | amend, never the proposed checkout | `APPROVED` | responsible Mentor | `COR-005`, `ATT-024` |
+| `REJECTED` | amend, never the proposed checkout | `REJECTED` | responsible Mentor | `COR-005`, `ATT-024` |
+
+No transition returns a decided correction to `PENDING` (`ATT-024`). Every Mentor change is refused while the period is finalized, except inside a reopened range, and no Admin or other Mentor may make one (`COR-009`, `ATT-021`, `ATT-023`).
+
 ### §11. Leave
 
 | ID | Requirement |
@@ -102,6 +119,23 @@ For an applicable Intern/date, classification precedence is:
 | LEV-012 | THE system SHALL NOT create leave retroactively. WHILE the first counted start of a request has passed, THE system SHALL refuse every change to it except a decision on an `OVERDUE` request under `LEV-008`, a withdrawal under `LEV-013`, and an amendment under `LEV-011`. |
 | LEV-013 | WHILE a request is `PENDING` or `OVERDUE` and no attendance period it touches is finalized, THE system SHALL permit the owning Intern to withdraw it. WHEN a request is withdrawn, THE system SHALL mark it `WITHDRAWN`, SHALL release its quota reservation and its overlap blocking, SHALL keep the request, its day allocations, and its history unchanged, and SHALL NOT delete or change any attendance record; each of its dates SHALL be classified as a date without leave. |
 
+#### State transitions: leave request
+
+The transitions the rules above allow. The table adds nothing to them: where it and a rule differ, the rule wins.
+
+| From | Action | To | Who | Rules |
+|---|---|---|---|---|
+| (none) | submit | `PENDING` | owning Intern | `LEV-001`–`LEV-003`, `LEV-009`, `LEV-010` |
+| `PENDING` | edit, before the first counted start | `PENDING` | owning Intern | `LEV-007` |
+| `PENDING` | the first counted start is reached | `OVERDUE` | system | `LEV-010` |
+| `PENDING`, `OVERDUE` | approve | `APPROVED` | responsible Mentor | `LEV-008` |
+| `PENDING`, `OVERDUE` | reject | `REJECTED` | responsible Mentor | `LEV-008` |
+| `PENDING`, `OVERDUE` | withdraw | `WITHDRAWN` | owning Intern | `LEV-013` |
+| `APPROVED` | cancel, before the first counted start | `CANCELLED` | owning Intern | `LEV-011` |
+| `APPROVED` | amend after leave begins, only by withdrawing approval from dates | `APPROVED` | responsible Mentor | `LEV-011`, `ATT-024`, `DB-017` |
+
+No transition leaves `REJECTED`, `WITHDRAWN` or `CANCELLED`, and a leave decision is never reversed (`LEV-011`, `ATT-024`). Every change is refused while a period the request touches is finalized, except inside a reopened range (`ATT-021`, `ATT-023`), and after the first counted start every change but those `LEV-012` names is refused.
+
 ### Attendance exceptions
 
 | ID | Requirement |
@@ -114,6 +148,24 @@ For an applicable Intern/date, classification precedence is:
 | EXC-006 | THE system SHALL refuse an exception decision or mark by an Intern Leader, an Admin, or any Mentor other than the Intern's responsible Mentor. |
 | EXC-007 | WHILE the attendance period of the work date is not finalized, THE system SHALL permit the responsible Mentor to amend an exception decision or mark, or reverse it between excused and unexcused, under `ATT-024`. WHERE the current decision changes, THE system SHALL count the violation under `EXC-005` from the new current decision and SHALL leave the classification of `EXC-001` unchanged. An amendment SHALL change only the decision note or, for a mark made without a request, its reason, which SHALL remain nonblank; it SHALL NOT change the outcome, the work date, the violation kind, or the Intern's request, and a change of outcome is a reversal. |
 
+#### State transitions: attendance exception
+
+The transitions the rules above allow. The table adds nothing to them: where it and a rule differ, the rule wins.
+
+| From | Action | To | Who | Rules |
+|---|---|---|---|---|
+| (none) | request an excuse, with a reason | `PENDING` | Intern whose attendance it is | `EXC-002`, `DB-016` |
+| (none) | mark excused without a request, with a reason | `EXCUSED` | responsible Mentor | `EXC-004`, `DB-016` |
+| `PENDING` | 48 hours pass after submission without a decision | `OVERDUE` | system | `EXC-003` |
+| `PENDING`, `OVERDUE` | decide excused | `EXCUSED` | responsible Mentor | `EXC-003` |
+| `PENDING`, `OVERDUE` | decide unexcused | `UNEXCUSED` | responsible Mentor | `EXC-003` |
+| `EXCUSED` | reverse | `UNEXCUSED` | responsible Mentor | `EXC-007`, `ATT-024` |
+| `UNEXCUSED` | reverse | `EXCUSED` | responsible Mentor | `EXC-007`, `ATT-024` |
+| `EXCUSED` | amend the decision note, or the reason of a mark | `EXCUSED` | responsible Mentor | `EXC-007`, `ATT-024` |
+| `UNEXCUSED` | amend the decision note | `UNEXCUSED` | responsible Mentor | `EXC-007`, `ATT-024` |
+
+A decision, mark, amendment or reversal by an Intern Leader, an Admin or any other Mentor is refused (`EXC-006`), and so is every change while the period is finalized, except inside a reopened range (`ATT-021`, `ATT-023`).
+
 ### Attendance periods and finalization
 
 | ID | Requirement |
@@ -124,6 +176,30 @@ For an applicable Intern/date, classification precedence is:
 | ATT-022 | WHEN the Intern's responsible Mentor or the Intern asks to reopen a finalized period, THE system SHALL require a nonblank reason and the attendance records or date range concerned, and SHALL retain the requester and the server time. WHILE the request is undecided, THE system SHALL permit an Admin to approve or reject it, deciding only whether to reopen, from the reason, the records or range requested, and the data-governance and finalization rules. WHEN an Admin approves it, THE system SHALL reopen only those records or that range and SHALL retain the Admin and the server time. WHEN an Admin rejects it, THE system SHALL require a nonblank reason, SHALL retain the Admin, the server time, and that reason, and SHALL leave the period finalized. THE system SHALL NOT let the Admin approve, reject, correct, or decide any leave, correction, or attendance exception. |
 | ATT-023 | WHILE a range is reopened, THE system SHALL permit only the Intern's responsible Mentor under `ACC-026` to approve, reject, correct, decide, or reverse within it under the rules that applied before finalization, and SHALL let that Mentor finalize the range again. WHEN the range is finalized again, THE system SHALL retain the Mentor and the server time. |
 | ATT-024 | WHERE a leave, correction, or attendance exception rule permits a decision to be amended or reversed, THE system SHALL record the amendment or reversal as a new decision entry carrying its kind, the actor, the server time, and a nonblank reason, SHALL treat the latest effective entry as the current decision, SHALL derive every result from it, and SHALL keep the request and every earlier entry unchanged. THE system SHALL NOT return a decided request to `PENDING`, and SHALL require a new request under the rules of its own kind for any change that needs a new approval. WHILE a period the decision touches is finalized, THE system SHALL refuse every amendment or reversal except inside a range reopened under `ATT-022`. This rule shares the history and finalization mechanism only; which amendments and reversals each kind permits is set by `LEV-011`, `COR-005`, and `EXC-007`. |
+
+#### State transitions: attendance period
+
+The transitions the rules above allow. The table adds nothing to them: where it and a rule differ, the rule wins.
+
+| From | Action | To | Who | Rules |
+|---|---|---|---|---|
+| (none) | a calendar month of the Intern's attendance | `OPEN` | system | `ATT-019`, `DB-014` |
+| `OPEN` | 23:59 on the fifth day of the following month with no pending or overdue request affecting it, or later, when the last such request is decided or withdrawn | `FINALIZED` | system | `ATT-020` |
+
+A finalized period stays `FINALIZED`. Its results change only inside a range reopened by a request below (`ATT-021`, `ATT-022`).
+
+#### State transitions: request to reopen a finalized period
+
+The transitions the rules above allow. The table adds nothing to them: where it and a rule differ, the rule wins.
+
+| From | Action | To | Who | Rules |
+|---|---|---|---|---|
+| (none) | ask to reopen, with a reason and the records or range concerned | `PENDING` | Intern, or their responsible Mentor | `ATT-022`, `DB-015` |
+| `PENDING` | approve, reopening only those records or that range | `APPROVED` | Admin | `ATT-022`, `DB-015` |
+| `PENDING` | reject, with a reason | `REJECTED` | Admin | `ATT-022`, `DB-015` |
+| `APPROVED` | finalize the reopened range again | `APPROVED` | responsible Mentor | `ATT-023`, `DB-015` |
+
+Inside an approved range only the responsible Mentor acts, under the rules that applied before finalization (`ATT-023`); the Admin decides nothing but whether to reopen (`ATT-022`).
 
 ### Notifications (from notification §12.2)
 
