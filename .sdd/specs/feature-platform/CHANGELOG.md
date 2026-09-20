@@ -3,6 +3,15 @@
 Each entry records a change to [SPEC.md](SPEC.md): the version, the date, what changed,
 and why. A change that alters a rule raises the version.
 
+## 1.6.2 — 2026-09-20
+
+Structure, acceptance alignment and coverage correction; decision `D33`. All numbered rule wording and the 304-rule/149-scenario catalogue are retained.
+
+- Six scopes connect shared rules/architecture, authorization/security, integration secrets/SMTP, the shared interface, operations, and test evidence/data integrity. They include ownership/dependencies and grouped §7 scenarios without creating modules or copying feature-owned rules.
+- `AC-AUTH-008` and `AC-AUTH-009` now accept the active Admin's dedicated report reads/exports under `D1` and `RPT-004`, `RPT-005`, `RPT-011`. Mutation remains governed by the permission matrix. `AC-AUTH-002` limits attendance decisions and actionable queues to the responsible Mentor under `D14`, `AUTH-003` and `UI-019`.
+- The history-visibility matrix includes cancellation under `AUTH-006`. §22.3 replaces the inaccurate assertion that no clarification remains with the actual affected scopes; approval of the rule baseline does not answer these later gaps.
+- The nineteen rules without a direct scenario reference are distinguished from nineteen untestable rules. `GOV-005`, `GOV-012` and `GOV-014` describe observable behavior and have a trace gap; the catalogue counts do not prove implementation coverage.
+
 ## 1.6.1 — 2026-09-17
 
 No rule changed. The SMTP revision gains a state transition table after its rules, which yields to them where they differ.

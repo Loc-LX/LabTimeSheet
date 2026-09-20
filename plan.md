@@ -6,16 +6,17 @@ This file tracks progress only. What the system must do is in
 `PLAN.md`, and its task breakdown in `TASKS.md`. The rules for working here are
 in [AGENTS.md](AGENTS.md) and [`.sdd/constitution.md`](.sdd/constitution.md).
 
-**Last updated:** 2026-09-17 · **Branch:** `work/fix/docs/restore-and-restructure`,
-ahead of `origin/main`, nothing pushed.
+**Last updated:** 2026-09-20 · **Branch:** `work/fix/docs/spec-parts`.
+Isolated documentation worktree from `fd864ec`; the one-off `OPS-019` baseline reason is
+in `D33`. This change is uncommitted and has not been pushed.
 
 ## Where the project is
 
 | Stage | State |
 |---|---|
 | Delivery, Iterations 1–4 | Built. Every tracked item is done; the Iteration 3 and 4 integration gates were never run. |
-| Specification | Approved. Eight specs, one per module: identity, internship, calendar, attendance, project, reporting, notification, and platform for what no single module owns. Each version is in its spec header and `CHANGELOG.md`. No rule waits on a signature. |
-| Constitution | Locked, version `2.0.1`. |
+| Specification | Approved rule baseline across eight specs. `D33` organizes attendance into five parts, project into six and platform into six. Existing decisions need no new signature; the clarification gaps below still block approval of the affected plans. |
+| Constitution | Locked, version `2.0.2`. |
 | Technical plans (`PLAN.md`) | `feature-platform` approved at `1.0`; its line 108 contradicts line 230 on who resolves scope, and its §3 is superseded by `D32`; both are revised in the plan phase. The other modules have no plan yet; each is written per module, one section per part, in step 8. |
 | Task breakdown (`TASKS.md`) | Not started. |
 | Implementation of `D1`, `D12`–`D27`, `D31` and `D32` | Not started; the code still follows the earlier rules. |
@@ -26,12 +27,24 @@ and integration commits, is in git history: `git show b71fc29:plan.md`.
 
 ## Now
 
-- Every document states only what its kind of document is for, with history left to `decisions.md`, the ADRs, the changelogs and git (`D29`).
-- Nothing is merged into `main`. The branch and its spec tags are backed up on Gitea; later commits are local.
+- `D33` documentation change: three specs organized into parts with rules, use cases, scenarios, data and dependencies. Their changelogs and decision record describe the change; no production/test code changed.
+- Acceptance summaries now follow the existing Admin report grants, responsible-Mentor decisions, limited Leader/Mentor Task transitions and cancellation history. The unresolved questions below were not answered by guessing.
+- Document verification and independent review are reported below; nothing in this change is committed or merged. The base documentation branch has its earlier Gitea backup; this new worktree is local.
+
+### Readiness for the plan phase
+
+| Scope | What can proceed | What still gates approval |
+|---|---|---|
+| Attendance A1–A5 | Draft part-level design against the existing rules, including shared history and finalization guards | Design the cross-part cases in §5 and their evidence; do not treat A5 as an optional later guard |
+| Project P1–P6 | Draft settled behavior and dependency contracts; P2/P6 still reference the P1/P4/P5 guards | Resolve the named creation/status, invitation/exit and cancellation-readiness questions before approving their dependent sections |
+| Platform F1–F6 | Revise the technical plan around the six shared scopes and settled rules | Resolve its scope-context contradiction and superseded data section; include the three observable-rule trace gaps and the business decisions needed by its consumers |
+| Architecture steps 5–7 | Prepare the module-boundary plan from `D28` and `ADR-006` | Maintainer chooses where the cross-module plan/tasks live; document organization does not implement the boundary change |
 
 ## Next
 
-Documents come first, then plan, tasks, code and validation, including for the module boundaries
+First close the affected business questions below and review the `D33` diff. Then prepare
+plans for settled parts with their dependency checks, followed by tasks, code and validation,
+including for the module boundaries
 of `D28`. Savepoint before it: `savepoint/pre-module-split-2026-09-17`.
 
 Numbered as the steps of `D28`, so that "step 6" means the same thing here, in `ADR-006`
@@ -56,8 +69,18 @@ and in the constitution.
 
 | Item | Waiting on | Recorded in |
 |---|---|---|
-| State transition tables for Task, Project invitation, membership exit request, account and notification delivery. Each needs a rule first: the status a new Task starts in, and whether an assignee's unblock and reopen follow `TSK-025` or the free choice of `TSK-007`; the status values of invitations and exit requests, which `DB-011` and `DB-012` do not list; the activation transition and the statuses an account may be locked or deactivated from; and `SENT` and `NOT_REQUIRED` for email delivery | The maintainer | This file |
+| Project P5: initial Task status; whether the assignee must unblock to the recorded pre-block state (`TSK-007` versus `TSK-025`). Reopen reasons already follow `TSK-025` | The maintainer | [Project Notes](.sdd/specs/feature-project/SPEC.md#notes--open-questions) |
+| Project P3/P4: complete invitation and exit-request status sets, not just resolution codes | The maintainer | [Project Notes](.sdd/specs/feature-project/SPEC.md#notes--open-questions) |
+| Project P1 with internship: whether an unfinished Task on a cancelled, immutable Project blocks completion/withdrawal (`PRJ-023`, `ACC-022`) | The maintainer | [Project Notes](.sdd/specs/feature-project/SPEC.md#notes--open-questions) |
+| Identity and notification: activation/lock/deactivation edges; complete email delivery states including SENT and NOT_REQUIRED | The maintainer | [Platform §22.3](.sdd/specs/feature-platform/SPEC.md) |
 | Where the plan and tasks of step 5 live. They are not the platform plan, whose subject is the platform rules, and no feature owns them | The maintainer | This file |
+
+## Evidence for the D33 documentation change
+
+- `npm run test:ui`: 30/30 pass on 20 September 2026, including document structure, counts, versions, references, decision index and relative file links. Node `24.16.0`, npm `11.13.0`; the Playwright contract reads resolved `@playwright/test` `1.62.1` from the lockfile. This run does not execute browser or Java behavior.
+- Read-only comparison against `fd864ec`: all 304 rule rows are text-identical in their original canonical specs; all 149 scenario IDs remain, with six acceptance rows corrected. Exactly the eight approved files changed; no `src/` file changed. All 17 part links resolve to unique anchors; `git diff --check` passes.
+- No Maven or end-to-end run for this prose change (`TST-009`). GitNexus symbol impact/change analysis does not assess prose; there is no code-symbol edit or proposed commit in this step.
+- Independent review is still required before proposing this change for commit/merge; no independent reviewer has examined this diff yet.
 
 ## Validation backlog
 

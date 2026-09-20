@@ -81,6 +81,7 @@ came from, not whether the choice is settled.
 | D30 | Which rules about team branches still bind | `OPS-018`, `OPS-020` and `OPS-021` are withdrawn with their identifiers kept; `OPS-019` keeps one owner per shared file, a person or an agent session, and names branches by module | `OPS-018`–`OPS-021`; constitution `2.0.2` |
 | D31 | What an amendment of an attendance exception decision may change | Only the decision note, or the nonblank reason of a mark made without a request; never the outcome, work date, violation kind or the Intern's request | `EXC-007`; adds `AC-EXC-004` |
 | D32 | Whether the data model the decided rules need belongs in the specification now | Yes: 30 tables, the invariants as `DB-014`–`DB-021` with `AC-DB-006`–`AC-DB-008`; column names stay with the migration; supersedes §3.4 of the platform plan | `DB-014`–`DB-021`, `AC-DB-001`, `AC-DB-006`–`AC-DB-008` |
+| D33 | How to make the large specs manageable before planning | Keep module boundaries and canonical rule IDs; organize attendance into five parts, project into six and platform into six; correct stale acceptance summaries and name unresolved planning questions | No numbered rule changes; structure, acceptance alignment and clarification record |
 
 D1 through D5 came from reading the specification against its own history. D6
 through D9 came from the audit described at the end of this page, which read the
@@ -1422,6 +1423,33 @@ decision supersedes that section; the plan is revised in the plan phase.
 - **Consequence:** `AC-DB-001` and `AC-DB-006`–`AC-DB-008` fail against the code until a migration creates the tables, as the rules of `D1` and `D12` do until they are built. `CLAUDE.md` keeps the twenty-four tables of the code and says the specification describes thirty.
 
 **Status:** decided.
+
+## D33. How should the large specs be divided before planning?
+
+**Agreed by the maintainer on 20 September 2026.** After reviewing the feature division,
+the maintainer agreed to parts within the existing specs and approved the proposed eight-file
+documentation change. This is a document organization decision under `GOV-016`, not a
+revision of the module boundaries decided in `D28` and `ADR-006`.
+
+- **Parts:** attendance A1–A5, project P1–P6, platform F1–F6, defined in each spec's §1. Each maps the business outcome or shared contract to existing rules, use cases/scenarios, data ownership, dependencies and checks across parts. A part includes a complete behavior rather than one technical layer. It need not be independently releasable.
+- **One source per requirement:** all 304 numbered rules keep their text and canonical spec. All 149 scenario identifiers survive. Eight standard sections remain; part labels are navigation and planning scopes, not replacement requirement IDs or new packages. A feature's technical `PLAN.md` can use one section per part; `plan.md` stays the only progress tracker.
+- **Settled contradictions:** report-read scenarios follow the already decided active-Admin grants (`D1`, `RPT-004`, `RPT-005`, `RPT-011`); cancellation history follows `D12` and `AUTH-006`; Task intervention summaries follow `D13`, `TSK-023` and `TSK-025`; attendance decisions and queues follow the responsible Mentor (`D14`, `AUTH-003`, `UI-019`). No business choice was needed to correct those stale summaries.
+- **Unsettled questions:** the assignee-unblock target, new Task status, complete invitation/exit and account/delivery transitions, and whether cancelled-Project unfinished Tasks block internship completion/withdrawal. Notes identify the impact of guessing. This decision does not choose an answer; the affected plan cannot be approved on an inferred answer.
+- **Evidence limits:** `GOV-005`, `GOV-012` and `GOV-014` are observable and lack direct scenario trace. They are not untestable governance exemptions. Grouping existing scenarios does not prove the combined flows or concurrency cases are covered by executable tests.
+- **Authorized files:** the three SPECs and their CHANGELOGs, this record and `plan.md`. This step produces neither technical plans nor tasks and changes no `src/` file, schema or dependency.
+
+**Execution baseline and rollback.** One-off `OPS-019` deviation: the isolated branch
+`work/fix/docs/spec-parts` starts at reviewed documentation commit `fd864ec` on
+`work/fix/docs/restore-and-restructure`. Local `main` (`f7a7c8a`) contains none of
+`.sdd/specs/` and is 97 commits behind that reviewed documentation baseline. Starting from
+it would omit the documents the maintainer approved for this edit. The same agent session
+owns these eight files in a separate worktree; the original worktree is unchanged. The reason
+must accompany any future commit/PR as Layer 3 requires. This does not authorize committing,
+pushing or merging. Undo by reversing only this eight-file diff against `fd864ec`, preserving
+any later edits; no earlier documentation work needs to be discarded.
+
+**Status:** organization and existing-decision alignment agreed; the listed business questions
+are not decisions made by this entry.
 
 ## What the audit checked and found sound
 

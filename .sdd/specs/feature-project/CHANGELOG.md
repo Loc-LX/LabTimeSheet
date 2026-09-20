@@ -3,6 +3,15 @@
 Each entry records a change to [SPEC.md](SPEC.md): the version, the date, what changed,
 and why. A change that alters a rule raises the version.
 
+## 1.4.2 — 2026-09-20
+
+Structure and alignment to existing decisions; `D33`. No numbered rule changed and no scenario identifier was added or removed.
+
+- Six parts: Project lifecycle, membership/leadership, invitations, exits/transfers, Task definition/comments/status, and work logs/effort. Rules and §7 scenarios are grouped accordingly, with data ownership, use cases and cross-part dependencies mapped in place.
+- `AC-TSK-003` no longer denies every non-assignee action; `TSK-023` and `D13` already permit scoped Leader/Mentor interventions. The assignee-unblock ambiguity remains explicitly open. `AC-TSK-004` acknowledges authorized reopen actors and the reason required by `TSK-025`; `UC-05` acknowledges the owning Mentor's limited status actions.
+- `AC-AUTH-007` exercises retained read access after cancellation as well as completion, as `AUTH-006` and `D12` already require.
+- Notes identify missing Task creation/state decisions, invitation/exit status sets, and the cancellation versus internship-readiness interaction. These are questions for the maintainer, not decisions made by this reorganization.
+
 ## 1.4.1 — 2026-09-17
 
 No rule changed. The Project gains a state transition table after its rules, which yields to them where they differ.

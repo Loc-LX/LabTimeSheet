@@ -3,6 +3,14 @@
 Each entry records a change to [SPEC.md](SPEC.md): the version, the date, what changed,
 and why. A change that alters a rule raises the version.
 
+## 1.5.2 — 2026-09-20
+
+Structure only; decision `D33`. No numbered rule or acceptance scenario changed.
+
+- Five parts inside this spec: punches/results, leave, missed-checkout corrections, exceptions, and finalization/reopening. The rule groups and §7 acceptance tables follow those scopes; existing identifiers and the eight standard sections stay intact.
+- Each part maps to its rules, use case, scenarios, owned data and dependencies. Applied policy, decision history, states and notification recipients remain shared contracts with one canonical definition.
+- Cross-part checks call out historical policy, correction-to-exception results, cross-month leave and finalization races. Existing scenarios are distinguished from combinations still needing test evidence; no new business rule is inferred.
+
 ## 1.5.1 — 2026-09-17
 
 No rule changed. Each object with a status gains a state transition table after its rules: correction, leave request, attendance exception, attendance period, and request to reopen a period. A table summarizes its rules, names the rules behind each transition, and yields to them where they differ; `npm run test:ui` checks that every status a table names is one a rule names.

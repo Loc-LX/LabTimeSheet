@@ -1,6 +1,6 @@
 # Platform Spec
 
-**Version:** 1.6.1 · **Owner:** Loc-LX · **Status:** APPROVED · **Date:** 2026-09-17
+**Version:** 1.6.2 · **Owner:** Loc-LX · **Status:** APPROVED BASELINE; OPEN CLARIFICATIONS · **Date:** 2026-09-20
 
 Part of the Lab Timesheet specification. Rules every feature shares, including the
 glossary, the authorization model, the domain model, and failure handling, are in
@@ -21,7 +21,7 @@ This spec holds what every feature shares. It is not a feature in the code; the 
 | Business timezone | `Asia/Ho_Chi_Minh` |
 | Database baseline | PostgreSQL 18.4, 30 application tables |
 | Companion DDL | `database-schema.sql`, not tracked in this repository |
-| Review state | Approved; each spec's version is in its header, its changes in its `CHANGELOG.md`, and its open questions in its Notes section |
+| Review state | Approved rule baseline; later clarification gaps in §22.3 prevent approval of the affected plans. Each spec's version and changes are in its header and `CHANGELOG.md`. |
 | Normative rules | 304 across the eight specs |
 | Acceptance scenarios | 149 across the eight specs |
 
@@ -31,6 +31,38 @@ This spec holds what every feature shares. It is not a feature in the code; the 
 > broken image.
 > The Flyway migrations under [`db/migration`](../../../src/main/resources/db/migration) are the schema's
 > SQL; §19.4 draws the tables they create. Ask the document owner for the reference images if you need them.
+
+### Parts within platform
+
+These six planning scopes organize the shared contracts in this spec (`D33`). They are
+not six new business modules or six independent release gates. Rules stay in the eight
+standard SPEC sections; the labels below connect their scope, data, dependencies and
+acceptance evidence. A feature consumes a platform contract in its own part, and does
+not copy the contract into a second source. Progress belongs only in [plan.md](../../../plan.md).
+
+| Part and outcome | Canonical material in this spec | Use cases and evidence |
+|---|---|---|
+| [F1 — Shared rules and architecture](#platform-f1): common terminology, time/history invariants and module boundaries | §1–§3 and §1.3: `GOV-001`–`GOV-016`, `ARC-001`–`ARC-010` | No standalone actor workflow; `AC-GOV-001`–`AC-GOV-002`, `AC-ARC-001`–`AC-ARC-002`; exclusions below remain explicit |
+| [F2 — Authorization and security](#platform-f2): authorize each capability from current stored context | §5 and §13: `AUTH-001`–`AUTH-003`, `AUTH-010`, `AUTH-012`, `SEC-001`, `SEC-008`–`SEC-014` | Applied in every feature use case; platform `AC-AUTH-*` and `AC-SEC-*` in §7 |
+| [F3 — Integration secrets and SMTP](#platform-f3): configure, test and activate SMTP without exposing secrets | §12.1: `INT-001`–`INT-008`, `INT-010` | `UC-19`; `AC-INT-001`–`AC-INT-002`, `AC-INT-004`–`AC-INT-005` |
+| [F4 — Shared interface](#platform-f4): accessible shell, navigation, forms and history surfaces | §15, Appendix D and Appendix F; `UI-001`–`UI-019`, `ERR-001` | No extra use case; feature workflows consume these contracts; `AC-UI-001`–`AC-UI-005`, `AC-ERR-001` |
+| [F5 — Operations](#platform-f5): reproducible local/runtime delivery and bounded failure recovery | §16 and §18: `OPS-001`–`OPS-021`; `ERR-004`–`ERR-005`, `ERR-007` | Operator/contributor scenarios `AC-OPS-001`–`AC-OPS-006`, `AC-ERR-004`–`AC-ERR-005`, `AC-ERR-007` |
+| [F6 — Test evidence and data integrity](#platform-f6): verify requirements and shared persistence invariants | §17 and §19: `TST-001`–`TST-011`, `DB-001`, `DB-003`–`DB-008`, `DB-010`; `ERR-002`–`ERR-003` | `AC-TST-001`, `AC-DB-001`, `AC-DB-004`, `AC-ERR-002`–`AC-ERR-003`; feature-owned database scenarios stay in their feature specs |
+
+#### Ownership and dependencies by part
+
+| Part | Data authority | Dependencies and boundary checks |
+|---|---|---|
+| F1 | Defines common invariants; does not take ownership of feature history or policy tables | Calendar supplies policy/time facts; features retain their own history. `AC-ATT-001` in calendar checks frozen policy effects. `ARC-005`/`ARC-006` govern every part. |
+| F2 | Uses actor and resource facts owned by identity, internship and the affected feature; adds no authorization-history table | The plan must specify who resolves scope and how the policy receives it without a platform → feature dependency. Exercise report reads with `RPT-005` and task transitions with `TSK-023`, as well as the permission matrix. |
+| F3 | SMTP revisions belong to platform; HolidayAPI configuration remains calendar-owned | Shared encryption/redaction serves both. Notification/identity consume SMTP; activation races keep one active revision, and a failed test leaves the current one usable. `INT-009` stays in calendar. |
+| F4 | Presentation only; no new domain tables or account theme preference | Navigation asks F2; screens consume feature data. `UI-019` names screens across modules: each screen is planned with its owning feature, while shell, accessibility and message contracts stay here. |
+| F5 | Deployment, secrets and recovery configuration; no transfer of domain-table ownership | F3 external outages must not stop local attendance/report reads (`AC-ERR-005`); failed migrations must fail readiness (`AC-ERR-007`). Worker retry checks include notification deduplication. |
+| F6 | Shared constraint conventions and the §19 inventory; each feature still owns its rows and migrations' behavior | Plans tie each changed constraint to the owning feature's scenario and PostgreSQL evidence. TDD and integrity checks accompany each part; they are not a final phase after implementation. |
+
+The part labels describe requirement responsibility, not a service call graph. The technical
+plan must preserve the acyclic dependencies of `ARC-005`, including the interface exception
+in `ARC-006`. Approval of a part needs its cross-part checks, not just its local scenario count.
 
 ### How to read a rule
 
@@ -66,7 +98,11 @@ rather than the system and no `THE system SHALL` sentence would be true of them:
 Forcing those into the notation would make the document look uniform and say
 something false.
 
+<a id="platform-f1"></a>
+
 ### §1. Authority, purpose, and scope
+
+**Part F1.**
 
 #### §1.1 Decision authority
 
@@ -104,7 +140,11 @@ Primary actors named by this spec's use cases:
 
 - **UC-19 — Configure SMTP:** Admin
 
+<a id="platform-f2"></a>
+
 ### §5. Authorization model
+
+**Part F2.**
 
 #### §5.1 Authorization evaluation
 
@@ -146,7 +186,7 @@ Legend: **Yes** = permitted within the stated scope; **Own** = own Project or ow
 | Comment on Task | No | Own | Own | Membership scope |
 | Create/edit own Task work log | No | No | Assigned/own log | Assigned/own log |
 | View aggregate Project progress | Yes | Own | Own | Membership scope |
-| View Project/Task retained history | Yes, read-only | Own | Own | Current membership; former membership only after completion |
+| View Project/Task retained history | Yes, read-only | Own | Own | Current membership; former membership after completion or cancellation (`AUTH-006`) |
 | View per-member Project hours | Yes, read-only | Own | Own | No |
 | View Intern attendance | Yes | Yes | Own history only | Own history only |
 | Decide leave, correction, or attendance exception; amend or reverse that decision where its rule permits (`ATT-024`) | No | Responsible Mentor only (`ACC-026`) | No | No |
@@ -167,6 +207,8 @@ Legend: **Yes** = permitted within the stated scope; **Own** = own Project or ow
 ## 3. Functional Requirements
 
 ### §2. Terminology and system-wide rules
+
+**Part F1.**
 
 | Term | Meaning |
 |---|---|
@@ -222,7 +264,11 @@ separation of attendance from Task work exist to prevent.
 | GOV-013 | THE system SHALL perform every mutable aggregate update inside a transaction with optimistic locking. WHERE the update affects leave quota, a daily work total, bootstrap, or a Task transfer, THE system SHALL additionally serialize on the narrow affected record. |
 | GOV-014 | THE system SHALL retain historical records behind restrictive foreign keys and lifecycle or soft-delete fields. THE system SHALL NOT physically delete an account, Project, membership, Task, attendance row, leave request, correction, comment, work log, or notification through a normal interface operation, except the deletion of a `PLANNED` Project and the rows it owns that `PRJ-002` permits. |
 
+<a id="platform-f3"></a>
+
 ### §12. Integrations and notifications
+
+**Part F3.**
 
 #### §12.1 Secret-bearing integration configuration
 
@@ -256,6 +302,8 @@ At most one draft and one active revision exist at a time (`INT-006`), and no tr
 
 #### UC-19 — Configure SMTP
 
+**Part F3.**
+
 | Field | Specification |
 |---|---|
 | Primary actor(s) | Admin |
@@ -277,6 +325,8 @@ At most one draft and one active revision exist at a time (`INT-006`), and no tr
 ## 4. Non-functional Requirements
 
 ### §3. Architecture and runtime
+
+**Part F1.**
 
 | ID | Requirement |
 |---|---|
@@ -302,6 +352,8 @@ Reference versions and primary documentation:
 
 ### §13. Authentication and security
 
+**Part F2.**
+
 #### §13.1 Controls active in every profile
 
 `SEC-002`–`SEC-007`, which concern accounts, are in [the identity spec](../feature-identity/SPEC.md).
@@ -322,7 +374,11 @@ Reference versions and primary documentation:
 | SEC-013 | WHILE running under a development or test profile, THE system MAY use HTTP, localhost origins, `SameSite=Lax`, and neither HSTS nor Secure cookies. THE system SHALL activate those relaxations only from development or test profile state, and SHALL NOT let production inherit them. |
 | SEC-014 | WHERE the master key, public origin, datasource, or explicit proxy policy required by production is absent or malformed, THE system SHALL fail production readiness. SMTP MAY remain absent, and WHILE it is absent THE system SHALL remain visibly restricted as specified. |
 
+<a id="platform-f4"></a>
+
 ### §15. User interface and accessibility
+
+**Part F4.**
 
 #### §15.1 Normative visual references
 
@@ -467,7 +523,11 @@ here.
 A row proves that a path exists and which coarse gate it sits behind. It proves
 nothing about whether a given account may see a given record.
 
+<a id="platform-f5"></a>
+
 ### §16. Development, containers, and delivery
+
+**Part F5.**
 
 #### §16.1 Spring profiles and local development
 
@@ -503,7 +563,11 @@ nothing about whether a given account may see a given record.
 
 Gitea references: [variables](https://docs.gitea.com/1.24/usage/actions/actions-variables), [secrets](https://docs.gitea.com/next/usage/actions/secrets), [workflow differences](https://docs.gitea.com/usage/actions/comparison), and [runner security](https://docs.gitea.com/1.24/usage/actions/act-runner).
 
+<a id="platform-f6"></a>
+
 ### §17. Development process and test evidence
+
+**Part F6.**
 
 | ID | Requirement |
 |---|---|
@@ -538,6 +602,8 @@ The reasoning, and the measurements behind it, are in
 ## 5. Data
 
 ### §19. Domain model
+
+**Part F6.**
 
 #### §19.1 Conceptual ERD
 
@@ -1079,20 +1145,24 @@ These scenarios define reviewable behavior. During implementation, each scenario
 
 **Where a scenario lives.** A scenario lives in the spec of the module that owns the rules its Given and When actually exercise. Steps that only set up or trigger the behavior under test, rules cited only in the expected result, and shared platform rules do not decide where it lives; a scenario whose exercised rules are platform rules lives in the platform spec. Where a reading could still place it in two specs, the CHANGELOG entry that places it records the reason.
 
-**Rules with no system-level acceptance criterion.** Nineteen requirements govern how the team
-works rather than how the system behaves, so no scenario can assert them and none is written.
-They are listed here so that a reader can tell a deliberate exclusion from an oversight.
+**Rules with no system-level acceptance criterion.** Nineteen requirements have no direct
+rule-ID reference in a scenario's Requirements cell. This is a trace count, not proof that
+all nineteen are unobservable or deliberately excluded. The distinction is recorded below.
 
 | Group | IDs | Why no scenario |
 |---|---|---|
-| Governance | `GOV-001`, `GOV-002`, `GOV-003`, `GOV-005`–`GOV-010`, `GOV-012`, `GOV-014`–`GOV-016` | Authority order, terminology, scope discipline, non-goals, and retention intent. These bind the people writing requirements and code; an automated scenario cannot observe them. `GOV-004`, `GOV-011`, and `GOV-013` describe system behavior and are covered by `AC-ATT-*`, `AC-GOV-001`, and `AC-GOV-002`. |
+| Governance and scope | `GOV-001`, `GOV-002`, `GOV-003`, `GOV-006`–`GOV-010`, `GOV-015`–`GOV-016` | Authority, naming, product intent and scope declarations are reviewed at document/architecture level. They have no dedicated system scenario here; a broad statement such as working product is not established by one scenario. |
+| Observable behavior with a trace gap | `GOV-005`, `GOV-012`, `GOV-014` | Historical stability, server event time and retention are testable. Related scenarios include calendar's `AC-ATT-001`, platform's `AC-GOV-001`, and project's `AC-PRJ-014`–`AC-PRJ-015`; none directly names these three rules, and those scenarios alone do not establish all their clauses. The plan must complete their rule-to-test trace; these are not exempt behaviors. |
 | Engineering discipline | `ARC-009`, `TST-011` | Migration immutability and assertion integrity bind contributors; no running system can observe them. |
 | Coordination | `OPS-018`–`OPS-021` | `OPS-019`, file ownership and branch naming, is enforced by review and by branch policy, not by the running application. `OPS-018`, `OPS-020` and `OPS-021` are withdrawn and bind nothing. |
 
-Excluding them is a choice, not a gap. Writing a scenario for a rule that no test can observe
-produces ceremony without protection.
+Process/scope exclusions and missing behavioral trace are different. The three observable
+rules above stay mandatory. The counts below measure document references, not implementation
+coverage, and do not justify omitting their tests.
 
 Scenarios for a feature are in section 7 of that feature's spec. The scenarios below cover the shared rules.
+
+#### F1 — Shared rules and architecture
 
 | Scenario | Requirements | Given / when | Expected result |
 |---|---|---|---|
@@ -1100,10 +1170,15 @@ Scenarios for a feature are in section 7 of that feature's spec. The scenarios b
 | AC-GOV-002 | GOV-013 | Two clients concurrently submit leave that would exceed the monthly quota, and separately two clients concurrently log Task work on the same Intern and date | Exactly one leave request commits within quota and the other fails with an explicit conflict; the daily work total never exceeds 1 440 minutes and no partial row survives either race. |
 | AC-ARC-001 | ARC-001–ARC-008 | The architecture and persistence structure suites run against the compiled application | Package layout, layer subpackages, test packages that mirror production except `architecture` and `ui`, the absence of repository and entity imports across modules including into `platform`, an acyclic dependency graph among `platform` and the features with no dependency into `config`, the four conditions of the `ARC-006` exception for every interface that uses it, the absence of business SQL in services, and Flyway-only schema authority are each asserted by an automated structural test rather than by review. |
 | AC-ARC-002 | ARC-010, AUTH-012 | The same authorized list page and the same report are rendered twice, once with one row and once with fifty, counting the authorization decisions and the statements the data source runs | Both counts are equal at both sizes, so neither grows with the rows rendered; the rendered rows themselves differ only in number. |
+
+#### F2 — Authorization and security
+
+| Scenario | Requirements | Given / when | Expected result |
+|---|---|---|---|
 | AC-AUTH-001 | AUTH-001–AUTH-002, AUTH-011 | User guesses an unauthorized Intern, Project, invitation, membership, exit request, Task, leave, or correction ID | No record details are disclosed and no mutation occurs. |
-| AC-AUTH-002 | AUTH-003 | Mentor who owns no Project views global leave/correction queue | Mentor may inspect and decide eligible requests but cannot mutate another Mentor's Project. |
-| AC-AUTH-008 | AUTH-010 | An Admin or ordinary member requests the Project/Task report, per-member hours endpoint, or export | No Admin report dataset/project option list or detailed breakdown is constructed; the authenticated Admin request is denied at the report boundary, while an ordinary member receives only the permitted aggregate Project progress and hours. |
-| AC-AUTH-009 | AUTH-001–AUTH-010 | A parameterized authorization suite evaluates every permission-matrix and history-visibility row for Admin, owning/non-owning Mentor, current/former Leader, assigned/unassigned active member, removed member in open/completed Project, and unrelated user contexts | Each allow/deny result matches the matrix; dedicated-report Admin requests are denied before target/Project option resolution and report reads, every other denial leaves state unchanged, and no unauthorized object details are revealed. |
+| AC-AUTH-002 | AUTH-003, UI-019 | An active Mentor who owns no Project opens leave/correction queues, inspects attendance and attempts decisions for an Intern they are responsible for and another they are not | The Mentor may view Intern attendance; actionable queues contain only their responsible Interns. Eligible decisions for those Interns succeed; decisions for the other Intern and mutations of another Mentor's Project are denied. |
+| AC-AUTH-008 | AUTH-010, RPT-005 | An active Admin and an ordinary member request the Project/Task report, per-member hours and exports within their respective scopes | The Admin receives all-Project options, the read-only dataset, per-member hours and XLSX/PDF exports. The ordinary member receives only aggregate Project progress and hours within membership scope; forged per-member detail requests disclose nothing. Admin report access grants no Project or Task mutation. |
+| AC-AUTH-009 | AUTH-001–AUTH-010, RPT-004, RPT-005, RPT-011 | A parameterized suite evaluates every permission-matrix and history-visibility row for active Admin, owning/non-owning Mentor, responsible/non-responsible Mentor, current/former Leader, assigned/unassigned member, removed member in open/completed/cancelled Project, and unrelated user contexts | Each result matches the matrix: the active Admin may read and export the three dedicated report families within their report rules, while Project/Task mutation and attendance decisions remain denied. Former members regain read-only Project history after completion or cancellation. Every denial leaves state unchanged and reveals no unauthorized details. |
 | AC-AUTH-011 | AUTH-012 | Every cell of the §5.2 permission matrix is exercised for each role, then one Admin capability is withdrawn from the policy | Each granted cell succeeds and each refused cell is denied at the service; no route or template grants what the service refuses; withdrawing the one Admin capability changes that capability's outcome and no other. |
 | AC-SEC-001 | SEC-001, SEC-013 | Dev/test request a state-changing form without CSRF | Request is denied despite relaxed transport/cookie settings. |
 | AC-SEC-004 | SEC-010–SEC-014 | Production starts without public origin/master key or with untrusted forwarded headers | Readiness/startup fails for missing required config; client headers cannot spoof origin/scheme/IP. |
@@ -1111,34 +1186,56 @@ Scenarios for a feature are in section 7 of that feature's spec. The scenarios b
 | AC-SEC-005 | SEC-013 | Dev/test run over localhost HTTP | Session works with Lax/no-HSTS profile while hashing, CSRF, validation, and authorization remain active. |
 | AC-SEC-006 | SEC-008 | A state-changing request supplies an absolute external redirect target, a second supplies a user-chosen class name, and a third supplies an arbitrary template path | All three are refused before the mutation; the response redirects only to an allow-listed local path and never to the supplied value. |
 | AC-SEC-007 | SEC-009 | An unauthenticated client requests a record that does not exist and then one that exists but belongs to another user; a controller then throws an unexpected exception | Both record requests produce the same non-disclosing response, so existence cannot be inferred; the exception page shows no stack trace, SQL, secret, or internal identifier. |
+
+#### F3 — Integration secrets and SMTP
+
+| Scenario | Requirements | Given / when | Expected result |
+|---|---|---|---|
+| AC-INT-001 | INT-002–INT-005, UI-019 | Database, logs, and Admin History pages are inspected after saving SMTP/HolidayAPI secrets | Persistence contains only AES-GCM envelopes/nonces/version; History pages show user-meaningful non-secret metadata and never expose raw secret, token, ciphertext, nonce, password, API key, master key, bootstrap state, or internal retry records. |
+| AC-INT-002 | INT-006–INT-009, UI-019 | Admin tests a bad draft while active config exists, then tests a valid draft and opens both integration History tabs; Mentor/Intern request those tabs | Failure leaves active config untouched; success atomically activates draft and retires old revision; Admin sees non-secret revision/outcome/actor metadata while non-Admins are denied without record disclosure. |
+| AC-INT-005 | INT-001 | SMTP settings are supplied through deployment environment variables while none is configured in the Admin console, then an Admin edits SMTP in the console | The environment values are ignored and SMTP remains unconfigured; the console edit is the only change that takes effect, and it is stored through the application rather than requiring direct database editing. |
+| AC-INT-004 | INT-010 | An operator inspects a stored SMTP and a stored HolidayAPI cipher envelope | Each envelope carries key-version metadata alongside the ciphertext; no rotation or external secret-store endpoint exists in the application. |
+
+#### F4 — Shared interface
+
+| Scenario | Requirements | Given / when | Expected result |
+|---|---|---|---|
 | AC-UI-001 | UI-001–UI-007 | First visit follows dark OS, user selects Light, then selects System | No initial theme flash; local override behaves as selected; no account preference row is written. |
 | AC-UI-002 | UI-002–UI-004 | Sidebar is collapsed and restored on a supported desktop viewport | Desktop becomes an icon rail, the state persists locally, and all authorized navigation remains keyboard-accessible. Mobile behavior is not part of this acceptance gate. |
 | AC-UI-003 | UI-009–UI-010 | Screen reader reaches icon-only actions | Local Lucide sprite loads; decorative icons are hidden; controls have distinct accessible names/tooltips. |
 | AC-UI-004 | UI-011–UI-012 | Chart JavaScript disabled or canvas unavailable | Adjacent textual/table summary still conveys the same trend values. |
 | AC-UI-005 | UI-005–UI-019 | Light/dark pages, account/configuration-only Admin dashboard and focused Admin configuration/history pages, role-aware report navigation, persistent exit warnings, transfer drawer, Project History, and separate Intern/Mentor Leave/Correction workflows are reviewed at supported desktop widths | Reference hierarchy, measured AA contrast, focus, keyboard operation, selected/remaining counts, actionable-before-history ordering, confirmation, secret redaction, wrapping, non-color status requirements, presence of Admin Attendance, Project/Task, and Daily report navigation, absence of the Active Projects metric, and conditional current-Leader Daily navigation pass. Legacy settings/request routes redirect as specified. Narrow-screen behavior receives best-effort smoke review only and does not block v1 acceptance. |
+| AC-ERR-001 | ERR-001 | An Intern submits a Task work log with 0 minutes and a blank note | The same form redisplays with the submitted values retained, a field error on minutes, and an error summary; `task_work_logs` gains no row and the Task's daily total is unchanged. |
+
+#### F5 — Operations
+
+| Scenario | Requirements | Given / when | Expected result |
+|---|---|---|---|
 | AC-OPS-001 | OPS-001–OPS-004 | Developer starts PostgreSQL/Mailpit and runs IDE `dev` profile | Application connects using environment-backed Spring properties without production transport hardening. |
 | AC-OPS-002 | OPS-003 | CI executes tests on clean runner | PostgreSQL Testcontainer supplies database; no host database, SMTP, or API key is required. |
 | AC-OPS-003 | OPS-005–OPS-009 | App runs through bundled Compose and against external PostgreSQL | Same non-root image becomes healthy in both topologies with no embedded database assumption. |
 | AC-OPS-004 | OPS-011–OPS-017 | A work branch, pull request, `main` push, and manual container dispatch occur while deployment is disabled | Every pull request and push verifies; work branches and pull requests do not schedule container builds; manual dispatch verifies then builds without publishing; `main` verifies then builds and publishes SHA/main image tags; SSH is skipped and receives no deployment secrets. |
 | AC-OPS-005 | OPS-014–OPS-016 | Future operator enables deployment with all secrets | Job selects immutable SHA, verifies known host, rolls Compose, checks health, and records previous SHA for rollback. |
 | AC-OPS-006 | OPS-010 | An operator replaces the application container while the named volume or external database is retained, then performs a documented restore | Data survives container replacement, and the restore procedure reproduces the database independently of the container lifecycle; documentation states that container replacement is not a backup. |
-| AC-TST-001 | TST-001–TST-010 | Contributor implements a feature | A failing test naming the requirements it protects precedes production code; the run records its own commands, results, and tool versions; the milestone is not green without affected suites. |
-| AC-DB-001 | DB-003–DB-012 | Both review DDL files replay and their catalog metadata is compared with the physical Mermaid block | Each database has exactly 30 tables; the 23 baseline tables and their 56 named foreign keys match the diagram entity and FK names, the twenty-fourth is verified against `DB-013`, and the six added tables against `DB-014`–`DB-017` and `DB-020`. |
-| AC-DB-004 | DB-001 | Catalog metadata for every application table is read back after a clean Flyway replay | Identity keys are generated `BIGINT`; local business dates are `date`; schedule times are `time`; every instant column is `timestamptz`; no PostgreSQL enum type exists, and every state column is `varchar` with a check constraint. |
-| AC-ERR-001 | ERR-001 | An Intern submits a Task work log with 0 minutes and a blank note | The same form redisplays with the submitted values retained, a field error on minutes, and an error summary; `task_work_logs` gains no row and the Task's daily total is unchanged. |
-| AC-ERR-002 | ERR-002 | A Mentor loads an exit request, a second actor approves it, then the first Mentor submits the stale form | The stale submission is rejected with a reload invitation; the first decision stands unmodified; no second `project_membership_exit_requests` transition and no duplicate notification. |
-| AC-ERR-003 | ERR-003 | A correction is submitted at the exact instant its submission deadline passes, with the deadline check and the insert in one transaction | Either the correction commits with its deadline satisfied or the whole transaction rolls back; no correction row exists whose recorded deadline had already passed at commit time. |
 | AC-ERR-004 | ERR-004 | A scheduled worker runs, is interrupted, and is invoked again over the same window | Each affected row transitions once and each recipient receives one notification; the second invocation finds nothing left to do and processes no more than its bounded batch size. |
 | AC-ERR-005 | ERR-005 | SMTP and HolidayAPI are both unreachable, then an Intern checks in, a Mentor opens an attendance report, and an Admin attempts to create an account | Check-in and the report succeed from local data; account creation is blocked before token creation with an actionable message naming the unavailable dependency. |
 | AC-ERR-007 | ERR-007 | The application starts against a database whose Flyway migration fails | Readiness reports down and stays down; no request is served against the partially migrated schema; the failure names the migration that stopped. |
-| AC-INT-001 | INT-002–INT-005, UI-019 | Database, logs, and Admin History pages are inspected after saving SMTP/HolidayAPI secrets | Persistence contains only AES-GCM envelopes/nonces/version; History pages show user-meaningful non-secret metadata and never expose raw secret, token, ciphertext, nonce, password, API key, master key, bootstrap state, or internal retry records. |
-| AC-INT-002 | INT-006–INT-009, UI-019 | Admin tests a bad draft while active config exists, then tests a valid draft and opens both integration History tabs; Mentor/Intern request those tabs | Failure leaves active config untouched; success atomically activates draft and retires old revision; Admin sees non-secret revision/outcome/actor metadata while non-Admins are denied without record disclosure. |
-| AC-INT-005 | INT-001 | SMTP settings are supplied through deployment environment variables while none is configured in the Admin console, then an Admin edits SMTP in the console | The environment values are ignored and SMTP remains unconfigured; the console edit is the only change that takes effect, and it is stored through the application rather than requiring direct database editing. |
-| AC-INT-004 | INT-010 | An operator inspects a stored SMTP and a stored HolidayAPI cipher envelope | Each envelope carries key-version metadata alongside the ciphertext; no rotation or external secret-store endpoint exists in the application. |
+
+#### F6 — Test evidence and data integrity
+
+| Scenario | Requirements | Given / when | Expected result |
+|---|---|---|---|
+| AC-TST-001 | TST-001–TST-010 | Contributor implements a feature | A failing test naming the requirements it protects precedes production code; the run records its own commands, results, and tool versions; the milestone is not green without affected suites. |
+| AC-DB-001 | DB-003–DB-012 | Both review DDL files replay and their catalog metadata is compared with the physical Mermaid block | Each database has exactly 30 tables; the 23 baseline tables and their 56 named foreign keys match the diagram entity and FK names, the twenty-fourth is verified against `DB-013`, and the six added tables against `DB-014`–`DB-017` and `DB-020`. |
+| AC-DB-004 | DB-001 | Catalog metadata for every application table is read back after a clean Flyway replay | Identity keys are generated `BIGINT`; local business dates are `date`; schedule times are `time`; every instant column is `timestamptz`; no PostgreSQL enum type exists, and every state column is `varchar` with a check constraint. |
+| AC-ERR-002 | ERR-002 | A Mentor loads an exit request, a second actor approves it, then the first Mentor submits the stale form | The stale submission is rejected with a reload invitation; the first decision stands unmodified; no second `project_membership_exit_requests` transition and no duplicate notification. |
+| AC-ERR-003 | ERR-003 | A correction is submitted at the exact instant its submission deadline passes, with the deadline check and the insert in one transaction | Either the correction commits with its deadline satisfied or the whole transaction rolls back; no correction row exists whose recorded deadline had already passed at commit time. |
 
 ## 8. Out of Scope
 
 ### §1.3 Explicit non-goals
+
+**Part F1.**
 
 | ID | Requirement |
 |---|---|
@@ -1194,9 +1291,27 @@ with authority can close that gap.
 #### §22.3 Open questions
 
 An open question means the specification cannot yet answer something an implementer
-needs. None is open: every question listed in a spec's Notes section already has a current answer in the rules, which the instructor may confirm or change.
+needs. The approved baseline records decisions already made; it does not settle gaps found
+later. Before approving a plan for an affected part, the maintainer resolves its business
+questions and the canonical rule/scenario is amended. Part organization is not that decision.
+
+| Scope | Clarification still required | Effect on planning |
+|---|---|---|
+| Project P5 | New Task status and the assignee unblock target (`TSK-007`, `TSK-025`) | Do not finalize creation/status-transition expectations by inference. See [project Notes](../feature-project/SPEC.md#notes--open-questions). |
+| Project P3/P4 | Complete invitation and exit-request status sets (`DB-011`, `DB-012`) | Persisted states and transition tables need a canonical decision. |
+| Project P1 and internship | Unfinished Tasks retained by cancellation versus internship completion/withdrawal (`PRJ-023`, `ACC-022`) | The lifecycle readiness port must use one agreed interpretation. |
+| Identity | Activation and the account states from which locking/deactivation are allowed | Account transition planning needs the missing edges, recorded in the identity spec when decided. |
+| Notification | Complete email-delivery states, including the meanings of SENT and NOT_REQUIRED | Delivery persistence and retry expectations need an explicit rule in the notification spec. |
+
+F2 also needs a technical design that states who resolves resource scope before policy
+evaluation; `AUTH-012`, `ARC-005` and `ARC-006` constrain that design. F6 needs explicit
+behavioral evidence for `GOV-005`, `GOV-012` and `GOV-014`. Those are plan work under
+existing rules, not permission to change them. Scheduling and the superseded sections of
+the existing platform plan are tracked only in [plan.md](../../../plan.md).
 
 ### §18. Ownership and branches
+
+**Part F5.**
 
 | ID | Requirement |
 |---|---|
