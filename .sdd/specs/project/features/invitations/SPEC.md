@@ -1,6 +1,6 @@
 # Project invitations Spec
 
-**Version:** 1.1.0 · **Owner:** Loc-LX · **Status:** APPROVED BUSINESS BASELINE · **Date:** 2026-09-21
+**Version:** 1.1.1 · **Owner:** Loc-LX · **Status:** APPROVED BUSINESS BASELINE · **Date:** 2026-09-21
 
 **Module:** `project` · **Shared contract:** [MODULE.md](../../MODULE.md)
 
@@ -155,6 +155,11 @@ schema, dependency, PLAN.md or TASKS.md.
 ## Notes / Open Questions
 
 Invitation statuses (`PENDING`, `ACCEPTED`, `DECLINED`, `REVOKED`, `SUPERSEDED`), resolution codes and the transition graph are settled in `DB-011` and UC-13.
+
+`DB-011` is ahead of the schema in one place, recorded in `D39`: `V1__baseline.sql` accepts
+eight resolution codes, not nine, so `PROJECT_CANCELLED` and therefore `AC-PRJ-015` need the
+migration that `D32` already requires. The rule is correct as written; the plan must carry
+that delta rather than narrow the rule to match today's schema.
 
 Read [shared open questions](../../MODULE.md#notes--open-questions) before approving
 the technical plan. [plan.md](../../../../../plan.md) is the only progress tracker.

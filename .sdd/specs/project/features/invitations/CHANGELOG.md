@@ -1,5 +1,11 @@
 # Changelog — Project invitations
 
+## 1.1.1 — 2026-09-21
+
+Note only (`D39`). Records that `DB-011`'s ninth resolution code `PROJECT_CANCELLED` is
+not yet in `V1__baseline.sql`, so it and `AC-PRJ-015` need the migration `D32` already
+requires. No rule, acceptance row or schema changed; the rule stays as written.
+
 ## 1.1.0 — 2026-09-21
 
 D37 constrains invitation status in DB-011 to PENDING, ACCEPTED, DECLINED, REVOKED, SUPERSEDED matching V1__baseline.sql, aligns PROJECT_COMPLETED and PROJECT_CANCELLED to revoked status, and adds the Project invitation state transition table with public Azure Boards/Atlassian comparison points.

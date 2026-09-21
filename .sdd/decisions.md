@@ -86,6 +86,7 @@ came from, not whether the choice is settled.
 | D35 | Which workflow and logout defaults to adopt | New Tasks start at TODO; all unblocks restore the latest pre-block state; cancelled work does not block internship termination; logout ends the current session | `TSK-003`, `TSK-007`, `TSK-025`, `ACC-022`, new `ACC-027`; related acceptance contracts |
 | D36 | Whether soft-deleted Tasks block internship termination | Exclude them from ACC-022; preserve history and other guards; repair trace-owner checks and the P5 scenario index | `ACC-022`, `AC-ACC-018`, new `AC-ACC-019`; documentation checks |
 | D37 | Whether Task status transitions require a non-deleted Task, and complete invitation/exit status sets | Require non-deleted Task in TSK-007; add AC-TSK-021; align DB-011 and DB-012 status constraints with V1__baseline.sql; define invitation and exit-request state transition tables | `TSK-007`, `DB-011`, `DB-012`, `AC-TSK-021` |
+| D39 | Which migration adds the ninth invitation resolution code the schema lacks | The migration `D32` already requires also alters the two invitation check constraints; `DB-011` owns that delta and `AC-PRJ-015` fails until it lands | `DB-011` unchanged in text; its schema delta and failing scenario are now recorded |
 | D38 | The last open questions: one home per module, the account state machine, delivery states, reset eligibility | Remove the parallel `feature-*` tree after folding its history into each module; a never-activated account can be cancelled and a deactivated one reinstated; state the five delivery states; reset is for `ACTIVE` and `LOCKED` only and never changes account state | `ACC-014`, `ACC-016`; new `ACC-028`, `ACC-029`, `NOT-012`, `SEC-015`, `DB-022`; new `AC-ACC-020`, `AC-ACC-021`, `AC-NOT-007`, `AC-SEC-009`–`AC-SEC-011`, `AC-DB-009` |
 
 D1 through D5 came from reading the specification against its own history. D6
@@ -1840,6 +1841,45 @@ the changelog appends, the two moved links and the hierarchy check. Parts 2 to 4
 reversed by removing the five rules, the two amendments and the six scenarios. The parts
 are independent; either may be reversed without the other. No commit, push or merge is
 authorized here, and independent review remains a separate step.
+
+## D39. Which migration adds the ninth invitation resolution code?
+
+**Found and settled on 21 September 2026,** by editing rather than by a business
+judgement. No rule changes its meaning; what was missing was the record of a schema delta
+that no document owned.
+
+**What was found.** `DB-011` requires the invitation resolution code to be constrained to
+nine values. `V1__baseline.sql` constrains it to eight: `ck_project_invitations_resolution_code`
+has no `PROJECT_CANCELLED`, and neither does the `REVOKED` branch of
+`ck_project_invitations_resolution_state`, which also decides where `resolved_by_user_id`
+may be null. So `PRJ-023` and `AC-PRJ-015`, which both require cancellation to revoke a
+pending invitation with `PROJECT_CANCELLED`, cannot pass against the current schema.
+
+**Why it was missed.** `D12` added the ninth code as a consequence of Project cancellation,
+a business change. `D32` then enumerated the schema deltas its own rules need — six new
+tables, and `DB-018`, `DB-019` and `DB-021` altering existing ones — and this alteration
+belongs to `DB-011`, which `D32` did not touch, so it fell between the two. `D37` later
+aligned `DB-011` with `V1__baseline.sql` and corrected `PROJECT_COMPLETED` from superseded
+to revoked, but compared the status column only, not the resolution-code set.
+
+**Decision.** The migration `D32` already requires also replaces those two constraints, so
+that `PROJECT_CANCELLED` is an accepted resolution code and is one of the codes the
+`REVOKED` branch admits with a null resolving actor, as `LEADER_CHANGED`, `PROJECT_COMPLETED`
+and `INVITEE_INELIGIBLE` already are. `DB-011` owns that delta; its text is already correct
+and does not change. `AC-PRJ-015` joins `AC-DB-001` and `AC-DB-006`–`AC-DB-008` as a
+scenario that fails against the code until the migration lands, which `D32` records for the
+others.
+
+**How far this was checked.** Every enumerated value named in a `DB` rule was compared
+against both migrations. Ten were absent from the schema: `OPEN`, `FINALIZED`,
+`LATE_ARRIVAL`, `EARLY_DEPARTURE`, `EXCUSED`, `UNEXCUSED` and `OVERDUE` are the new status
+names `D32` introduces, two were SQL keywords caught by the pattern, and exactly one,
+`PROJECT_CANCELLED`, was owned by nothing. This is a single omission rather than a class of
+them, and the sweep is the evidence for saying so.
+
+**Scope.** Documentation only. No rule text, acceptance row, schema, dependency or
+architecture boundary changes, and the catalogue stays at 310 rules and 163 scenarios.
+Reverse by removing this entry and the invitations note it added.
 
 ## What the audit checked and found sound
 
