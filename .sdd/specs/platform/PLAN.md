@@ -12,7 +12,7 @@ approved on its own, and `plan.md` tracks where each stands. Its tasks are in
 
 | Part | Subject | Rules | State |
 |---|---|---|---|
-| A | Module boundaries, [below](#part-a--module-boundaries) | `ARC-005`, `ARC-006`, `AC-ARC-001` | Draft of 22 September 2026, for approval on its own |
+| A | Module boundaries, [below](#part-a--module-boundaries) | `ARC-005`, `ARC-006`, `AC-ARC-001` | Draft of 22 September 2026, revised the same day after review, for approval on its own |
 | B | One authorization policy, [§2](#2-design-one-authorization-policy) | `AUTH-012`, [ADR-005](../../rfcs/ADR-005-one-authorization-policy.md) | Approved as version 1.0 on 16 September 2026; revised before it is built, since `D32` and `D35`–`D39` came after it |
 | C | The schema change the decisions require, [§3](#3-data-model-the-one-migration-the-decisions-require) | the shared `DB` rules | Approved as version 1.0 on 16 September 2026; superseded by `D32` and `D39`, and rewritten from the audit `D39` starts |
 
@@ -37,21 +37,22 @@ acyclic dependency graph among `platform` and the features, in which nothing dep
 four conditions of the `ADR-006` exception checked for every interface that uses it.
 
 What a user can observe does not change. Routes, templates, messages, transactions and the
-schema stay as they are, and no dependency or configuration is added. Three resolutions move
-where something is decided without changing what is decided: `R1` moves the readiness check of
-`ACC-022` into the module that owns the rule, `R3` moves Intern creation and correction into
-`internship`, and `R8` moves where the business date is computed but not the timezone it comes
-from. No business decision of `D12`–`D39` is built here. In particular the readiness predicate
-keeps the meaning the code gives it today; `D35` and `D36` change that predicate in step 8.
+schema stay as they are, and no dependency or configuration is added. Some changes move where
+something is decided or read without changing what is decided or read: `R1` moves the readiness
+check of `ACC-022` into the module that owns the rule, `R3` moves Intern creation and correction
+into `internship`, `R8` moves where the business date is computed but not the timezone it comes
+from, and A.4 replaces joins across modules with reads through service contracts that return
+the same rows. No business decision of `D12`–`D39` is built here. In particular the readiness
+predicate keeps the meaning the code gives it today; `D35` and `D36` change it in step 8.
 
 The evidence that behavior did not change is the existing suite: it runs green at the start of
-step 6 and at its end, and the only tests that change are those whose package moves and the
-structure tests of A.4.
+step 6 and at its end. A test changes only where A.7 names it and says what changes.
 
 ### A.2 Where each class goes
 
 Measured on 22 September 2026 by applying the class tables of `scripts/module-boundaries.cjs`
-(`moduleOfClass`) to every class below `feature`:
+(`moduleOfClass`) to every class below `feature`. The table follows `R4` for `SmtpController`,
+corrected on that date:
 
 | From package | To module | Classes |
 |---|---|---:|
@@ -59,8 +60,9 @@ Measured on 22 September 2026 by applying the class tables of `scripts/module-bo
 | `account` | `internship` | 9 |
 | `attendance` | `attendance` | 49 |
 | `attendance` | `calendar` | 18 |
-| `integration` | `platform` | 18 |
+| `integration` | `platform` | 17 |
 | `integration` | `calendar` | 12 |
+| `integration` | `identity` | 1, `SmtpController` |
 | `notification` | `notification` | 12 |
 | `project` | `project` | 46 |
 | `task` | `project` | 42 |
@@ -68,22 +70,25 @@ Measured on 22 September 2026 by applying the class tables of `scripts/module-bo
 | `reporting` | `calendar` | 1, `AdminSettingsController` |
 | `reporting` | `notification` | 1, `NotificationController` |
 
-These are the 281 classes below `feature` at that commit. The table places `SmtpController` in
-`platform` with the rest of `integration`, but `R4` puts the SMTP administration screen in
-`identity`, beside the bootstrap that offers SMTP setup, and a decision outranks the table; so the
-modules end with `project` 88, `attendance` 49, `reporting` 39, `identity` 35, `calendar` 31,
-`platform` 17, `notification` 13 and `internship` 9. `SmtpWarningAdvice` stays in `platform`
-with the SMTP configuration it reports on. `task` and `project` share no class name, so merging them creates no
+These are the 281 classes below `feature` at that commit. The modules end with `project` 88,
+`attendance` 49, `reporting` 39, `identity` 35, `calendar` 31, `platform` 17, `notification` 13
+and `internship` 9. `SmtpWarningAdvice` stays in `platform`, since it depends only on
+`SmtpConfigurationService`. `task` and `project` share no class name, so merging them creates no
 clash of Spring bean names; the one simple name the code uses twice, `AttendanceReportDay`,
 stays in two different modules.
 
-Five placements are finer than a whole class or depart from the table:
+Some placements are finer than a whole class or depart from the table:
 
 - `AccountService` divides. The methods the analyzer lists as `INTERNSHIP_METHODS`, with the
   private helpers only they call, form an `internship` service; the rest stays in `identity`
   (`R3`).
-- The internship handlers of `AccountController` move to an `internship` controller serving the
-  same routes (`R1`, `R3`).
+- `AccountController` divides by what each handler reads. The Admin's account screens join an
+  account with its Intern profile or its readiness, so they are composed in `internship`, the
+  module above both: the directory and the account page (`GET /admin/accounts` and
+  `GET /admin/accounts/{id}`), creation and correction (`/admin/accounts/new`,
+  `POST /admin/accounts`, `/admin/accounts/{id}/edit`), and completion and withdrawal. The
+  account lifecycle actions and activation stay in `identity`: resend activation, lock, unlock,
+  deactivate, and `/activate`. Every route keeps its path and template (`R1`, `R3`).
 - `GlobalRole` moves to `platform`, because the authorization policy decides on the actor's role
   (`AUTH-012`, `ADR-006`); `AttendanceRole`, a copy of it, is removed (`R7`).
 - `SecurityProperties` moves from `config` to `platform` (`R10`).
@@ -101,10 +106,10 @@ edges drawn from the wording of rules. Only the first kind is work for step 6:
 
 | | Edges it removes | Built in step 6 as |
 |---|---|---|
-| `R1` | code | `internship` declares the readiness interface of `ADR-006` and calls it from its own completion and withdrawal; `project` implements it with the predicate the code applies today. Completion and withdrawal stop accepting a guard computed by their caller, so `ProjectService` no longer orchestrates them. Done last, with `R3` |
+| `R1` | code | `internship` declares the readiness interface of `ADR-006`. It calls it from its own completion and withdrawal, and the account page reads the same interface to show readiness, where it now asks `ProjectQueryService.internshipLifecycleGuard`. `project` implements it with the predicate the code applies today. Completion and withdrawal stop accepting a guard computed by their caller, so `ProjectService` no longer orchestrates them. Done last, with `R3` |
 | `R2` | one, from rule wording | Nothing. Requests already store no assigned approver |
-| `R3` | code | `internship` composes Intern creation, correction and the Student Code directory over the service contract of `identity`. Before any of it, the invariant test of `ACC-019` that `D28` requires is written and seen failing, then passing. Done last, with `R1` |
-| `R4` | code | `platform` mail and SMTP services take the verified actor and the recipient from their caller instead of looking them up in `identity`; the SMTP administration screen moves to `identity`, beside the bootstrap that offers SMTP setup |
+| `R3` | code | `internship` composes Intern creation, correction and the account screens over the service contract of `identity`, as A.4 describes. Before any of it, the invariant test of `ACC-019` that `D28` requires is written and seen failing, then passing. Done last, with `R1` |
+| `R4` | code | `platform` mail and SMTP services take the verified actor and the recipient from their caller instead of looking them up in `identity`; `SmtpController` moves to `identity`, beside the bootstrap that offers SMTP setup |
 | `R5` | none | Nothing. `attendance` and `project` already compute the recipients of `NOT-011`, `NOT-003` and `NOT-010` before calling `notification` |
 | `R6` | rule citations only | Nothing in step 6: the policy of `ADR-005` is not built yet. When part B builds it, the owning module resolves the scope and the policy receives it, as `D28` decided; this settles, for part B, the contradiction between §2.3 and the second risk of §5 |
 | `R7` | code | `calendar` resolves its actor through the service contract of `identity`; `AttendanceRole` is removed; `AttendanceCurrentUserService` stays in `attendance` |
@@ -112,19 +117,48 @@ edges drawn from the wording of rules. Only the first kind is work for step 6:
 | `R9` | rule wording | Nothing. The change-impact interface is built with `CAL-007` and `CAL-008` in step 8; `TaskQueryService.dueDateImpacts` has no caller today and is left as it is |
 | `R10` | the one reference into `config` | `SecurityProperties` moves to `platform` |
 
-### A.4 The structure tests
+### A.4 What splitting a package breaks
+
+The resolutions of `D28` remove cycles; they do not cover the repository and entity boundary of
+`ARC-006`. Today no class reaches a repository or entity of another package, because
+`LayerStructureTest` refuses it. When a package splits, references that were inside one package
+cross a module boundary. Counting every class that names, in code or in a query string, a
+repository or JPA entity of its own package which the tables above place in another module,
+fourteen do on 22 September 2026:
+
+| Split | References that cross | How it is resolved |
+|---|---|---|
+| `attendance` into `attendance` and `calendar` | `AttendanceRecordEntity` and `LeaveRequestDayEntity` hold a JPA association to `AttendancePolicyEntity`; `AttendanceApplicationService`, `LeaveApplicationService` and `AttendanceReportQueryService` use `AttendancePolicyEntity` and `AttendancePolicyRepository`; `AttendanceReportQueryService` also uses `GlobalCalendarEventEntity` and `GlobalCalendarEventRepository`. Ten references | The two entities keep the `policy_version_id` column as an identifier instead of an association; the schema and its foreign key do not change. Today `AttendanceRecordEntity#toDomain` builds the `AttendancePolicy` record it embeds from the associated entity; it receives that record instead. `calendar` gains reads in its service contract that return the existing `AttendancePolicy` record for a set of version identifiers and the calendar events of a date range, and the three services use them where they now use the entities and repositories, creating rows with a version identifier where they now take `getReferenceById`. Each read fetches everything one request needs in one call, so the number of queries does not grow with the rows (`ARC-010`) |
+| `account` into `identity` and `internship` | `AppUserRepository` joins `InternProfile` in the two directory queries; `InternProfileRepository` joins `AppUser` in `findEligibleInternOptions` and `findDueUserIds`; `AccountService` uses `InternProfile` and `InternProfileRepository`. Four references | `internship` composes each result over two reads: its own query of Intern profiles, and one call to the service contract of `identity` for the accounts of those users, or the reverse for a search by name or email. Results are joined by user identifier in memory, keeping the same filters and the same order by account identifier. The directory queries return unpaged lists today, so no paging is reimplemented. `AccountService`'s references leave with `R3` |
+
+Both are done while the classes still share a package, before they move, so that each task keeps
+the suite green and the later move stays mechanical.
+
+### A.5 The structure tests
 
 The cycle test comes first, in plain Java without a new dependency, as `D28` and `ADR-006`
-require. It lives in the test package `architecture`. It reads the type references of every
-production class with comments removed and string literals kept, so an entity named inside a
-JPQL string counts; it fails on a cycle among `platform` and the features, on any reference
-into `config`, and on an interface listed in `ADR-006` whose four conditions do not hold.
+require, in the test package `architecture`. It reads the type references of every production
+class with comments removed and string literals kept, so an entity named inside a JPQL string
+counts. It fails on a cycle among `platform` and the features, on any reference into `config`,
+and on an interface listed in `ADR-006` whose four conditions do not hold.
 
-It starts with the list of violations measured when it is written, and it fails if that list
-contains an entry that no longer occurs, so the list can only shrink and can never hide a
-violation that has gone. Every task of step 6 removes entries; the last leaves the list empty.
-Before it is trusted, it is made to fail for each reason: an artificial cycle, a reference into
-`config`, and an interface breaking one of the four conditions.
+It knows each class's module from its package, except for classes listed in its **placement
+list**, which gives the module a class belongs to while it still sits in its old package. That
+list starts as the class tables of A.2 and shrinks as classes reach their packages.
+
+Its **allowance list** holds the violations measured when it is written. Each entry is one
+reference: the simple name of the referring class and the simple name of the type it refers to,
+so an entry survives a move unchanged. A new reference between the same two modules is not
+covered by another entry and fails. The test refuses an entry whose simple names are ambiguous,
+and fails on an entry that no longer occurs, so no entry outlives the violation it records.
+
+Both lists live in one file that the test reads. After the commit that creates it, every change
+to that file deletes lines and adds none: each task checks its own diff of the file, and the
+closing task checks the file's whole history with `git log -p`. Adding an entry to turn a red
+build green would weaken the test, which `TST-011` forbids, and those two checks make any such
+addition visible. Before the test is trusted it is made to fail once for each reason: an
+artificial cycle, a reference into `config`, a new reference between two modules already listed,
+and an `ADR-006` interface breaking one of its four conditions.
 
 `LayerStructureTest` and `AttendanceLayerStructureTest` change in the same task as the code they
 check. `LayerStructureTest` takes the modules of `ARC-005`, adds `platform` to the approved root
@@ -134,64 +168,92 @@ stops requiring `AttendancePolicy` inside `attendance`, which moves to `calendar
 kept and checked against the new packages. After step 6 the cycle check of
 `scripts/module-boundaries.cjs` is retired, since the test replaces it.
 
-### A.5 Order of work
+### A.6 Order of work
 
 Each task leaves the build and the full suite green, and each is one reviewable change. The
-order follows the layers of `ADR-006` from the bottom, so a module is complete before the
-modules above it are rearranged, and it ends with `R3` and `R1`, which `D28` puts last:
+order follows the layers of `ADR-006` from the bottom, decouples a package before it splits, and
+ends with `R3` and `R1`, which `D28` puts last:
 
 1. Baseline: the full Maven suite, the end-to-end suite and `npm run test:ui` pass on the new
    branch, and the GitNexus index is refreshed. That run, not the one of `1ee043e`, is the
    evidence the end of step 6 is compared with.
-2. The cycle test, with its measured list.
-3. `platform`: the non-calendar classes of `integration` except `SmtpController`, `GlobalRole`,
-   `SecurityProperties` (`R10`), and the `platform` side of `R4`.
-4. `identity`: the rest of `account` except its internship classes, and `SmtpController`, the
-   `identity` side of `R4`.
-5. `calendar` and `notification`: the policy and calendar classes of `attendance`, the
-   HolidayAPI classes of `integration`, `AdminSettingsController`, `NotificationController`,
-   and `R7` and `R8`.
-6. `project`: `task` merges into it.
-7. The test package `config` gives its two whole-application tests to `architecture`.
-8. `internship` and `R3`, preceded by the invariant test of `ACC-019`.
-9. `R1`, which empties the cycle test's list.
+2. The cycle test, with its two lists.
+3. `platform`: the classes of `integration` other than HolidayAPI and `SmtpController`,
+   `GlobalRole`, `SecurityProperties` (`R10`), and the `platform` side of `R4`.
+4. `identity`: every class of `account` moves unchanged, the nine internship classes included,
+   so no repository or entity is reached across a package; `SmtpController` joins it (`R4`).
+   The references that `identity` then keeps toward modules above it are allowance entries that
+   tasks 10 and 11 remove.
+5. `attendance` stops reaching the policy and calendar entities and repositories, still inside
+   its package (A.4).
+6. `calendar` and `notification`: the policy and calendar classes of `attendance`, the HolidayAPI
+   classes of `integration`, `AdminSettingsController`, `NotificationController`, and `R7` and
+   `R8`.
+7. `project`: `task` merges into it.
+8. The test package `config` gives its two whole-application tests to `architecture`.
+9. The invariant test of `ACC-019`, seen failing and then passing.
+10. `internship` and `R3`: the joins of A.4 are composed, then the nine classes, the internship
+    methods of `AccountService` and the Admin's account screens move.
+11. `R1`, which empties the allowance list.
 
 Before any symbol changes, GitNexus impact analysis runs on it as `AGENTS.md` requires, and a
 high or critical risk is reported before the edit. Moves use `git mv`, so each file keeps its
 history.
 
-### A.6 When the part is done
+### A.7 Tests this part changes
 
-- The cycle test passes with an empty list, and each of its failure paths has been seen.
+A test changes only where this section names it. Each change below is decided here, before the
+code changes, as `TST-011` requires of any assertion that changes.
+
+| Test | Task | What changes | What stays |
+|---|---|---|---|
+| `AttendanceServiceTest`, `AttendanceConcurrencyIntegrationTest`, `AttendancePersistenceIntegrationTest`, `LeaveEntityFixtures` | 5 | Fixtures build the two attendance entities with a policy version identifier instead of an entity, and read the policy through the `calendar` contract | Every assertion on attendance and leave results |
+| `InternshipLifecycleIntegrationTest` | 10, 11 | Calls move to the `internship` service in task 10 and lose the guard argument in task 11. The two assertions that feed a guard to provoke a refusal, a current Leader and an unfinished Task, are removed with the parameter they test | The assertions on completion, withdrawal and refused withdrawal after completion |
+| `AccountIdentityCorrectionIntegrationTest`, `InternMutationEligibilityIntegrationTest`, `AttendancePersistenceIntegrationTest` | 10, 11 | Their setup calls move to the `internship` service and lose the guard argument | Every assertion |
+| `ProjectServiceIntegrationTest` | 11 | Its readiness tests call the `internship` service instead of `ProjectService`, and read readiness through the new interface instead of `internshipLifecycleGuard` | Every assertion, including the refusal *"Intern is still a current Leader"* built from a real leadership term |
+| `ProjectQueryIndexIntegrationTest` | 11 | Its setup completes an internship through the `internship` service | Every assertion |
+| `AccountAdministrationControllerWebTest` | 10, 11 | Moves with the account screens to `internship`, and verifies that completion and withdrawal delegate to the `internship` service instead of `ProjectService` | Every assertion on routes, redirects and messages |
+| New, in `internship` | 11 | An Intern with no leadership term and one unfinished Task is refused completion with *"Intern still owns unfinished Tasks"*, and the profile is unchanged. It replaces, from real state, the second assertion removed above; it is seen failing by breaking the readiness implementation before it passes | — |
+
+The first assertion removed above, a current Leader, is already covered from real state by
+`ProjectServiceIntegrationTest`. No other test changes, except by moving with its class, and the
+structure tests of A.5.
+
+### A.8 When the part is done
+
+- The cycle test passes with both lists empty, each of its failure paths has been seen, and the
+  history of its list file contains no added line after the commit that created it.
 - `LayerStructureTest`, `AttendanceLayerStructureTest`, `ReportingArchitectureTest` and
   `AttendanceAndTaskWorkSeparationTest` pass against the new packages.
-- The full Maven suite, the end-to-end suite and `npm run test:ui` pass, with no test changed
-  except those that moved and the structure tests above.
+- The full Maven suite, the end-to-end suite and `npm run test:ui` pass, and every test change is
+  one A.7 names.
 - GitNexus change detection covers every changed symbol, and the affected processes it reports
   are the ones the tasks expected.
 - Step 7 of `D28` then checks the code against the documents before the merge, which needs the
   maintainer's permission.
 
-### A.7 Risks
+### A.9 Risks
 
 | Risk | Handling |
 |---|---|
-| A move changes behavior unseen | No task edits logic and moves code in the same change, except `R1`, `R3`, `R4`, `R7` and `R8`, which are their own tasks; the suite runs after every task |
+| A move changes behavior unseen | No task edits logic and moves code in the same change: A.4's decoupling, `R1`, `R3`, `R4`, `R7` and `R8` are their own tasks, and the suite runs after every task |
+| A composed read returns different rows or order than the join it replaces | The same filters and order by account identifier are kept; the directory, eligibility and due-date tests in the suite cover the results |
+| A composed read multiplies queries | Each composition reads each module once per request, whatever the number of rows (`ARC-010`) |
 | The cycle test misses a reference the build does not | It reads string literals as well as imports, and is made to fail for each reason before it is trusted |
-| A stale class list | The placement is the analyzer's table at the time a task runs, not the counts above; a class added since is placed by the same rule, and the analyzer is re-run before step 2 |
+| A stale class list | The placement list is taken from the analyzer when task 2 runs, not from the counts above; a class added since is placed by the same tables |
 | `R3` loses the `ACC-019` invariant in a failed creation | The invariant test is seen failing on deliberately broken code before `R3` begins |
 | Other open branches conflict with the moves | Step 6 starts from `main` after the documentation merge; any branch still open then is rebased or closed first, with the maintainer's decision |
 
-### A.8 Not in this part
+### A.10 Not in this part
 
 Business behavior of `D12`–`D39`; the authorization policy (part B); the schema change (part
 C); the change-impact interface of `R9`; and the structure fixes recorded for later that `ARC-005`
 does not require, such as renaming the demo seed file.
 
-### A.9 Open questions
+### A.11 Open questions
 
 None blocks approval. The name of each new class, such as the readiness interface of `R1`, is
-chosen in the task that creates it and recorded in the `ADR-006` table the same change.
+chosen in the task that creates it and recorded in the `ADR-006` table in the same change.
 
 ## 1. Scope
 

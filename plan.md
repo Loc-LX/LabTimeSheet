@@ -79,7 +79,7 @@ and in the constitution.
 2. **Step 2 — check all 296 rules for mentions of another module's concepts.** Done, in `9123150`: `node scripts/module-boundaries.cjs` exits 0 with 99 verdicts and reproduces the reviewer's 12 findings.
 3. **Step 3 — lock** `D28`, `ADR-006`, `ARC-005`, `ARC-006`, `AC-ARC-001` and the constitution `2.0.0` in one commit. Done: `9123150`.
 4. **Step 4 — one spec per module.** Historical split completed at `58711c5`: 296 rules preserved, and the UC-03/UC-18 and UC-04/UC-19 traces equal those they replaced. D34 refines that document layout into shared MODULE.md plus cohesive feature SPECs, preserving the later baseline of 304 rules and 149 scenarios.
-5. **Step 5 — the plan and tasks that implement `ARC-005` and `ARC-006`**, for the maintainer's approval. Drafted on 22 September 2026 as part A of [`platform/PLAN.md`](.sdd/specs/platform/PLAN.md), with tasks A-01 to A-11 in [`platform/TASKS.md`](.sdd/specs/platform/TASKS.md). Then this documentation branch is merged into `main`, with the maintainer's permission, so the implementation branch starts from the documents it follows. Pushing and merging each need their own permission.
+5. **Step 5 — the plan and tasks that implement `ARC-005` and `ARC-006`**, for the maintainer's approval. Drafted on 22 September 2026 as part A of [`platform/PLAN.md`](.sdd/specs/platform/PLAN.md), with tasks A-01 to A-12 in [`platform/TASKS.md`](.sdd/specs/platform/TASKS.md). Then this documentation branch is merged into `main`, with the maintainer's permission, so the implementation branch starts from the documents it follows. Pushing and merging each need their own permission.
 6. **Step 6 — implement the module boundaries** on `work/fix/architecture/<name>` from `main` (`OPS-019`), needing Docker and enough memory.
    - The cycle test first, in plain Java, with the violations known at the start; every task shortens the list and the last empties it.
    - GitNexus impact analysis on every symbol before it changes.
@@ -96,7 +96,7 @@ and in the constitution.
 
 | Item | Waiting on | Recorded in |
 |---|---|---|
-| Approval of part A of the platform plan and its tasks A-01 to A-11 (step 5 of `D28`) | The maintainer | [`platform/PLAN.md`](.sdd/specs/platform/PLAN.md), [`platform/TASKS.md`](.sdd/specs/platform/TASKS.md) |
+| Approval of part A of the platform plan and its tasks A-01 to A-12 (step 5 of `D28`) | The maintainer | [`platform/PLAN.md`](.sdd/specs/platform/PLAN.md), [`platform/TASKS.md`](.sdd/specs/platform/TASKS.md) |
 | Whether to close or keep Gitea PR #13, which conflicts with main and carries the retired Task branch of `D17` | The maintainer | This file, under *Now* |
 
 Where the plan and tasks of step 5 live was decided by the maintainer on 22 September 2026: in

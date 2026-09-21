@@ -189,7 +189,8 @@ function moduleOfClass(fqn) {
   switch (parts[4]) {
     case 'account': return fold(INTERNSHIP_IN_ACCOUNT.has(cls) ? 'internship' : 'identity');
     case 'attendance': return CALENDAR_IN_ATTENDANCE.has(cls) ? 'calendar' : 'attendance';
-    case 'integration': return cls.startsWith('HolidayApi') ? 'calendar' : 'platform';
+    // R4 puts the SMTP administration screen in identity, beside the bootstrap that offers SMTP setup.
+    case 'integration': return cls.startsWith('HolidayApi') ? 'calendar' : cls === 'SmtpController' ? 'identity' : 'platform';
     case 'task':
     case 'project': return 'project';
     case 'reporting': return cls === 'AdminSettingsController' ? 'calendar' : cls === 'NotificationController' ? 'notification' : 'reporting';
