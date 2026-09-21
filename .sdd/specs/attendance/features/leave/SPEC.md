@@ -1,6 +1,6 @@
 # Leave Spec
 
-**Version:** 1.2.0 · **Owner:** Loc-LX · **Status:** APPROVED BUSINESS BASELINE · **Date:** 2026-09-21
+**Version:** 1.3.0 · **Owner:** Loc-LX · **Status:** APPROVED BUSINESS BASELINE · **Date:** 2026-09-21
 
 **Module:** `attendance` · **Shared contract:** [MODULE.md](../../MODULE.md)
 
@@ -183,10 +183,14 @@ Two facts the migration must carry, recorded in `D39`. First, `ex_leave_requests
 require `OVERDUE` too; widening the status constraint alone would leave overdue leave free to
 overlap, and `AC-DB-010` is the scenario that fails until the exclusion is widened. Second, the
 code has cancelled pending requests as `CANCELLED`, which `LEV-013` now calls `WITHDRAWN`. A
-stored `CANCELLED` row with no decision time is such a request and becomes `WITHDRAWN`; one with a
-decision time was approved and stays `CANCELLED`. That reading is derived from
-`LeaveRequestEntity#cancel`, which never clears the decision, and must be confirmed against the
-stored rows before the migration runs.
+stored `CANCELLED` row with no decision time is such a request and becomes `WITHDRAWN`: its
+`cancelled_at` becomes the withdrawal time `DB-018` requires and is then cleared, because
+`ck_leave_requests_cancellation` allows it only on `CANCELLED`. A row with a decision time was
+approved and stays `CANCELLED`. The rows are reclassified before the tightened decision checks are
+added, or those checks would refuse them. That reading is derived from `LeaveRequestEntity#cancel`,
+which never clears the decision and has been reachable only by the owning Intern, and must be
+confirmed against the stored rows, once the migration history of the database being read is
+known (`D39`).
 
 Read [shared open questions](../../MODULE.md#notes--open-questions) before approving
 the technical plan. [plan.md](../../../../../plan.md) is the only progress tracker.

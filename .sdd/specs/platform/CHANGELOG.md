@@ -1,5 +1,10 @@
 # Changelog — Platform module
 
+## 1.10.0 — 2026-09-22
+
+Counts only, following `D39` as corrected on second review: 311 rules, 292 of them with an
+acceptance scenario, the same 19 without one, and 167 scenarios. No platform rule changed.
+
 ## 1.9.0 — 2026-09-21
 
 Counts only, following `D38` as corrected on review and `D39`: 311 rules, 292 of them

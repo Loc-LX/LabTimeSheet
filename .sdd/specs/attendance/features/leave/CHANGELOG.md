@@ -1,5 +1,11 @@
 # Changelog — Leave
 
+## 1.3.0 — 2026-09-22
+
+`D39`, corrected on second review. The notes add the two data steps for stored
+`CANCELLED` rows that become `WITHDRAWN`, their order before the tightened checks, and the
+need to identify a database's migration history before reading it.
+
 ## 1.2.0 — 2026-09-21
 
 `D39`, corrected on review. `AC-DB-010` covers overlap against an `OVERDUE` range, which

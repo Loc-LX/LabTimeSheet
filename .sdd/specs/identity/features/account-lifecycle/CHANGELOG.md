@@ -1,5 +1,14 @@
 # Changelog — Account lifecycle
 
+## 1.3.0 — 2026-09-22
+
+Corrected on second review (`D38`). `DB-022` protected a kept lock only while the row
+stayed `DEACTIVATED`, so one update could still move a locked `DEACTIVATED` account to
+`ACTIVE` and clear the lock. The lock timestamp is now set only by locking and cleared only by
+unlocking, which with the write-once activation timestamp makes the schema itself force the
+three outcomes of `ACC-029`. The "neither" clause is restated so it stands alone.
+`AC-DB-009` covers the one-update move and the other lock updates.
+
 ## 1.2.0 — 2026-09-21
 
 Corrected on review (`D38`). `DB-022` is restated as what it is: it loosens V1 by one

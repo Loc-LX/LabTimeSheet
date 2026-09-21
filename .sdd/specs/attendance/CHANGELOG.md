@@ -1,5 +1,12 @@
 # Changelog — Attendance module
 
+## 1.10.0 — 2026-09-22
+
+`D39`, corrected on second review. `DB-018` requires a `WITHDRAWN` leave request to carry
+its withdrawal time, the withdrawer always being the owning Intern, and names the approval time
+and approving Mentor a `CANCELLED` request must carry. `AC-DB-011` also covers a `PENDING`
+row, a missing withdrawal time, and each half of the missing approval.
+
 ## 1.9.0 — 2026-09-21
 
 `D39`, corrected on review. `DB-018` states that `PENDING`, `OVERDUE` and a leave

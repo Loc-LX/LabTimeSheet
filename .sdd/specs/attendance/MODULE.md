@@ -2,7 +2,7 @@
 
 <a id="attendance-spec"></a>
 
-**Version:** 1.9.0 · **Owner:** Loc-LX · **Status:** APPROVED BUSINESS BASELINE · **Date:** 2026-09-21
+**Version:** 1.10.0 · **Owner:** Loc-LX · **Status:** APPROVED BUSINESS BASELINE · **Date:** 2026-09-21
 
 Part of the Lab Timesheet specification. Rules every feature shares, including the
 glossary, the authorization model, the domain model, and failure handling, are in
@@ -168,7 +168,7 @@ Canonical workflow: [feature contract](features/period-finalization/SPEC.md).
 | ID | Requirement |
 |---|---|
 | DB-017 | THE schema SHALL store every decision, amendment and reversal on a correction, an attendance exception, and a leave request as an append-only entry carrying its kind, the outcome and note it sets, for a leave amendment the dates it withdraws from approval, the actor, the server time and, for an amendment or reversal, a nonblank reason, and SHALL refuse an update or deletion of such an entry. WHILE a correction, an attendance exception or a leave request has a decision entry and has not been cancelled, its status SHALL equal the outcome of its latest effective decision entry. THE system SHALL NOT record a new correction event of kind `AUTO_REJECTED` or `LOCKED`. |
-| DB-018 | THE schema SHALL constrain a leave request's status to `PENDING`, `OVERDUE`, `APPROVED`, `REJECTED`, `WITHDRAWN` or `CANCELLED`, and a correction's status to `PENDING`, `OVERDUE`, `APPROVED` or `REJECTED`. Every constraint that distinguishes decided from undecided rows SHALL count `PENDING`, `OVERDUE` and a leave request's `WITHDRAWN` as undecided: such a row SHALL carry neither a decision time nor a deciding actor. A `CANCELLED` leave request SHALL carry the decision that approved it, because `LEV-011` cancels only an approved request. THE schema SHALL mark a leave request day whose approval an amendment withdrew, without changing the policy version or monthly quota snapshot that day carries. |
+| DB-018 | THE schema SHALL constrain a leave request's status to `PENDING`, `OVERDUE`, `APPROVED`, `REJECTED`, `WITHDRAWN` or `CANCELLED`, and a correction's status to `PENDING`, `OVERDUE`, `APPROVED` or `REJECTED`. Every constraint that distinguishes decided from undecided rows SHALL count `PENDING`, `OVERDUE` and a leave request's `WITHDRAWN` as undecided: such a row SHALL carry neither a decision time nor a deciding actor. A `WITHDRAWN` leave request SHALL carry the server time it was withdrawn; its actor is always the owning Intern under `LEV-013` and is not stored again. A `CANCELLED` leave request SHALL carry the approval time and the approving Mentor of the decision it cancelled, because `LEV-011` cancels only an approved request. THE schema SHALL mark a leave request day whose approval an amendment withdrew, without changing the policy version or monthly quota snapshot that day carries. |
 
 Feature contracts: [Leave](features/leave/SPEC.md), [Period finalization and reopening](features/period-finalization/SPEC.md), [Attendance exception](features/attendance-exception/SPEC.md).
 
@@ -260,7 +260,7 @@ Feature contracts: [Period finalization and reopening](features/period-finalizat
 | Scenario | Requirements | Given / when | Expected result |
 |---|---|---|---|
 | AC-DB-006 | DB-014–DB-018 | SQL probes insert a second period for the same Intern and month, a reopen request with a blank reason, a second exception for the same attendance record and violation kind, an update and a deletion of a decision entry, a correction amendment or reversal without a reason, a status value no rule names, leave requests `OVERDUE` and `WITHDRAWN`, a correction `OVERDUE`, and a change to the policy snapshot of a withdrawn leave day | The duplicate period, blank reason, duplicate exception, update, deletion, reasonless correction amendment or reversal, unknown status and snapshot change are refused by the database; both new leave statuses and the overdue correction commit. |
-| AC-DB-011 | DB-018, LEV-011, LEV-013, COR-007 | Bypassing the application, a leave request is set to `OVERDUE` and another to `WITHDRAWN`, and a correction to `OVERDUE`, each first without and then with a decision time or a deciding actor; then a `CANCELLED` leave request is written without the approval it cancelled | Each undecided row is accepted without a decision and refused with one, so marking a request overdue never needs a decision it does not have. The `CANCELLED` row that carries no approving decision is refused. |
+| AC-DB-011 | DB-018, LEV-011, LEV-013, COR-007 | Bypassing the application, a leave request is set to `PENDING`, another to `OVERDUE` and another to `WITHDRAWN`, and a correction to `OVERDUE`, each first without and then with a decision time or a deciding actor; the `WITHDRAWN` row is also written without its withdrawal time; then a `CANCELLED` leave request is written once without its approval time and once without its approving Mentor | Each undecided row is accepted without a decision and refused with either a decision time or a deciding actor, so marking a request overdue never needs a decision it does not have. The `WITHDRAWN` row without its withdrawal time is refused. Both `CANCELLED` rows missing part of the approval they cancelled are refused. |
 
 ## 8. Out of Scope
 

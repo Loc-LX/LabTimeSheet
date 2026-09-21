@@ -1,5 +1,12 @@
 # Changelog — Project lifecycle
 
+## 1.2.0 — 2026-09-22
+
+`D39`, corrected on second review. `DB-019` accepts a `CANCELLED` Project with or
+without an activation timestamp, since `PRJ-023` cancels both a `PLANNED` and an `ACTIVE`
+Project; V1's `ck_projects_activation` refuses both. The timestamp is not made write-once:
+nothing reads it and `CANCELLED` is terminal. `AC-DB-012` covers it.
+
 ## 1.1.0 — 2026-09-21
 
 Status only (`D38`). No question affecting this document is open, so its Status
