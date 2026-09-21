@@ -1,6 +1,6 @@
 # Notification email delivery Spec
 
-**Version:** 1.1.0 · **Owner:** Loc-LX · **Status:** APPROVED BUSINESS BASELINE · **Date:** 2026-09-21
+**Version:** 1.1.1 · **Owner:** Loc-LX · **Status:** APPROVED BUSINESS BASELINE · **Date:** 2026-09-21
 
 **Module:** `notification` · **Shared contract:** [MODULE.md](../../MODULE.md)
 
@@ -138,7 +138,7 @@ schema, dependency, PLAN.md or TASKS.md.
 
 ## Notes / Open Questions
 
-`D38` settles the complete delivery status set in `NOT-012`, with the state transition table above. It states what the schema and `AC-NOT-001`/`AC-NOT-004` already required and adds no new delivery behavior; it has not been validated against the running application. UC-11 stays in MODULE.md as the combined domain/inbox/email flow.
+`D38` settles the complete delivery status set in `NOT-012`, with the state transition table above. It states what `AC-NOT-001` and `AC-NOT-004` already required and adds no new delivery behavior. The schema needs one change: `ck_notifications_email_payload` only exempts `NOT_REQUIRED` and `UNAVAILABLE` from carrying a payload, and must forbid one (`D38`). Nothing here has been validated against the running application. UC-11 stays in MODULE.md as the combined domain/inbox/email flow.
 
 Read [shared open questions](../../MODULE.md#notes--open-questions) before approving
 the technical plan. [plan.md](../../../../../plan.md) is the only progress tracker.

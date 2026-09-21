@@ -86,7 +86,7 @@ came from, not whether the choice is settled.
 | D35 | Which workflow and logout defaults to adopt | New Tasks start at TODO; all unblocks restore the latest pre-block state; cancelled work does not block internship termination; logout ends the current session | `TSK-003`, `TSK-007`, `TSK-025`, `ACC-022`, new `ACC-027`; related acceptance contracts |
 | D36 | Whether soft-deleted Tasks block internship termination | Exclude them from ACC-022; preserve history and other guards; repair trace-owner checks and the P5 scenario index | `ACC-022`, `AC-ACC-018`, new `AC-ACC-019`; documentation checks |
 | D37 | Whether Task status transitions require a non-deleted Task, and complete invitation/exit status sets | Require non-deleted Task in TSK-007; add AC-TSK-021; align DB-011 and DB-012 status constraints with V1__baseline.sql; define invitation and exit-request state transition tables | `TSK-007`, `DB-011`, `DB-012`, `AC-TSK-021` |
-| D39 | Which status predicates the migration must change beyond the status constraints | Four: the invitation resolution codes, the leave overlap exclusion, and the decision checks of leave and corrections; undecided rows carry no decision and a cancelled leave request carries its approval. Corrected on review | `DB-018`; new `AC-DB-010`, `AC-DB-011`; `DB-002` and `DB-011` unchanged |
+| D39 | Which schema predicates the migration must change, and how that is decided | A criterion with three verdicts (member, history-bound member, unaffected) applied to every rule; a starting list from the eight tables examined, with no claim of completeness; the audit is finished table by table in the plan, each member proved by a probe test on the migrated schema. Corrected on review three times, then frozen | `DB-018`, `DB-019`; new `AC-DB-010`–`AC-DB-012`; `DB-002` and `DB-011` unchanged |
 | D38 | The last open questions: one home per module, the account state machine, delivery states, reset eligibility | Remove the parallel `feature-*` tree after folding its history into each module; a never-activated account can be cancelled and a deactivated one reinstated, keeping any lock; only an `ACTIVE` account signs in; state the five delivery states; reset is for `ACTIVE` and `LOCKED`, clears the throttle and never changes account state. Corrected on review | `ACC-014`, `ACC-016`; new `ACC-028`, `ACC-029`, `ACC-030`, `NOT-012`, `SEC-015`, `DB-022`; new `AC-ACC-020`–`AC-ACC-022`, `AC-NOT-007`, `AC-SEC-009`–`AC-SEC-011`, `AC-DB-009` |
 
 D1 through D5 came from reading the specification against its own history. D6
@@ -1740,6 +1740,12 @@ back `ACTIVE` with nothing left to say it had been locked. That silently undoes 
 security decision, which is the same harm `SEC-015` guards against for a reset. So a
 deactivated account keeps its lock timestamp, and reinstatement reads it.
 
+That guarantee starts with the migration. Until then V1 clears the lock timestamp on leaving
+`LOCKED` and `AppUser#deactivate` clears it too, and no table records account history, so an
+account deactivated before the migration carries no trace of a lock it may have had and would be
+reinstated to `ACTIVE`. The plan says how such accounts are handled; nothing can restore the lost
+fact.
+
 Public comparison points, read on 21 September 2026. The Microsoft counterpart of
 `DEACTIVATED` is blocking sign-in, not deleting the user: `GOV-014` forbids deleting an
 account, so the deleted-user recovery period has no counterpart here.
@@ -1832,7 +1838,12 @@ timestamps keep the protection `DB-007` already gives them, inside application t
 ### Part 3 — email delivery states
 
 The complete set and its invariants are facts of the schema and
-`NotificationEmailStatus`, so no outside product is cited and no migration is needed.
+`NotificationEmailStatus`, so no outside product is cited. One predicate still needs the
+migration: `ck_notifications_email_payload` only exempts `NOT_REQUIRED` and `UNAVAILABLE` from
+carrying a payload, where `NOT-012` forbids them one, so it admits a row `NOT-012` makes unlawful.
+The code writes a payload only for `PENDING`, so the stored rows are expected to comply; that is
+confirmed against the data with the other stored-row checks of `D39`, and the first version of
+this entry said wrongly that no migration was needed.
 
 > `NOT-012` — THE system SHALL hold each notification's email delivery in exactly one of
 > `NOT_REQUIRED`, `PENDING`, `SENT`, `FAILED` or `UNAVAILABLE`. `NOT_REQUIRED` SHALL mean
@@ -1928,9 +1939,9 @@ amended; no existing rule loses a clause. §22.3 becomes empty, which is what §
 of approval. Part 1 changes no rule at all. `D39` then adds three scenarios.
 
 `ACC-028`, `ACC-029`, `ACC-030` and `DB-022` need the migration described above or code
-that does not exist yet, and none is implemented. `NOT-012` and `SEC-015`, apart from its
-throttle clause, state behavior the code already has, and neither has been validated
-against it. Documentation checks establish consistency, not runtime conformance.
+that does not exist yet, and none is implemented. `NOT-012` needs the narrowed payload check of
+Part 3 and otherwise states behavior the code already has, and `SEC-015` does too apart from its
+throttle clause; neither has been validated against it. Documentation checks establish consistency, not runtime conformance.
 
 **Rollback.** Part 1 cannot be reversed by restoring the eight folders from `c443670`:
 there they are the full specifications from before the `D34` split, holding the rules
@@ -1981,54 +1992,73 @@ the specification map's tree, `CLAUDE.md`, and `plan.md`.
   write-once, rested on a claim that reports read it. Nothing reads it, so it was not adopted,
   and the criterion above now says which columns are protected and why.
 
+**Corrected on third review, 22 September 2026; frozen after it.** A review of commit
+`1faf099` found that Part 3 said no migration was needed while `ck_notifications_email_payload`
+admits a payload `NOT-012` forbids, and that Part 2 did not say its lock guarantee starts with
+the migration, since accounts deactivated earlier have already lost their lock timestamp. Both
+were confirmed and are corrected above. This entry now changes only if the migration fails or
+the business asks for a change.
+
 ## D39. Which schema predicates does the migration have to change, and how is that decided?
 
-**Found on 21 September 2026 and corrected on review twice, the last time on 22 September.**
-Settled by editing rather than by a business judgement. The number of predicates this entry
-reported moved from one to four to six to seven across four sweeps, and each number was stated
-without a criterion anyone could use to check it. This version states the criterion and the
-scope, gives a verdict on every predicate inside that scope, and derives the count from those
-verdicts.
+**Found on 21 September 2026 and corrected on review three times, the last on 22 September;
+frozen after that.** Settled by editing rather than by a business judgement. Across four
+sweeps the number of predicates this entry reported moved from one to four to six to seven to
+seventeen, each time stated as if it were complete. It never was: every sweep read a narrower
+scope than the rules actually reach. This entry therefore records a criterion and a starting
+list, and makes no claim that the list is complete.
 
-**Criterion.** A predicate is a *member* when, once the rules are applied, it refuses a row the
-rules make lawful or admits a row the rules make unlawful. A predicate is a check constraint,
-an exclusion constraint, or a unique constraint, key or index. Two things are not members:
+**Criterion.** A predicate is a check constraint, an exclusion constraint, or a unique
+constraint, key or index. Once the rules are applied, each one receives one of three verdicts:
 
-- A non-unique index constrains no row. One that filters on a status is listed for the plan,
-  because a new status can stop it serving the query it exists for.
-- A rule that forbids an *action*, such as locking a decided correction, is enforced by the
-  application. The predicate that records the old action is not a member, because the rows it
-  already holds remain lawful history.
+- **Member**: it refuses a row the rules make lawful, or admits a row the rules make unlawful,
+  and changing it harms no stored row.
+- **History-bound member**: it admits a row the rules now make unlawful, but tightening it would
+  also refuse rows already stored that were lawful when written. It may not simply be tightened;
+  the plan decides for each one whether to tighten it from a cut-over, check only new writes by
+  trigger, or leave the application to enforce the rule.
+- **Unaffected**: neither.
 
-**Scope.** Every existing table whose lawful rows a decision not yet implemented changes:
-`DB-011` from `D12`; `DB-017`, `DB-018`, `DB-019` and `DB-021` from `D32`; `DB-022` from
-`D38`. That is eight tables. A new table is outside the scope because it has no predicate that
-can be wrong yet.
+A non-unique index constrains no row and so is never a member; one that filters on a status is
+listed for the plan, because a new status can stop it serving its query. An earlier version of
+this entry excused some predicates because their rule "forbids an action rather than a row".
+That distinction cannot be drawn by reading a rule, and the real reason in every case was the
+stored rows, so it is replaced by the second verdict.
 
-**Verdicts.** Every predicate of both migrations on those eight tables is named below. Primary
-and foreign keys are listed as unaffected with the rest; no rule in scope changes a key.
+**Scope.** The criterion applies to every rule and every table, whether or not the code already
+enforces the rule, because it judges the schema. That full audit is plan-phase work, carried
+out table by table. What was examined here is a starting point: the eight existing tables whose
+rows the pending decisions `D12`, `D32` and `D38` change, namely `app_users`, `projects`,
+`project_invitations`, `leave_requests`, `leave_request_days`, `attendance_corrections`,
+`attendance_correction_events` and `intern_profiles`. On those eight tables there are 54 check,
+exclusion and unique predicates, besides each table's primary key. That number describes the
+tables examined, not the schema.
 
-| Table | Member | Why | Owner |
-|---|---|---|---|
-| `app_users` | `ck_app_users_pending_password` | Refuses a never-activated `DEACTIVATED` row, lawful under `DB-022` | `D38` |
-| | `ck_app_users_activated_state` | Same row | `D38` |
-| | `ck_app_users_lock_timestamp` | Refuses a `DEACTIVATED` row keeping its lock | `D38` |
-| `projects` | `ck_projects_status` | Refuses `CANCELLED` | `D32` |
-| | `ck_projects_activation` | Refuses every `CANCELLED` row, with or without an activation timestamp | `D39` |
-| `project_invitations` | `ck_project_invitations_resolution_code` | Refuses `PROJECT_CANCELLED` | `D39` |
-| | `ck_project_invitations_resolution_state` | Its `REVOKED` branch refuses `PROJECT_CANCELLED` | `D39` |
-| `leave_requests` | `ck_leave_requests_status` | Refuses `OVERDUE` and `WITHDRAWN` | `D32` |
-| | `ck_leave_requests_decision` | Refuses an `OVERDUE` or `WITHDRAWN` row without a decision time, and admits a `CANCELLED` row without the approval time it cancelled | `D39` |
-| | `ck_leave_requests_approval_actor` | Admits a `CANCELLED` row without the approving Mentor | `D39` |
-| | `ex_leave_requests_no_overlap` | Admits an overlap with an `OVERDUE` range; silent, since `AC-DB-005` tests only a pending range | `D39` |
-| `attendance_corrections` | `ck_attendance_corrections_status` | Refuses `OVERDUE` | `D32` |
-| | `ck_attendance_corrections_pending_decision` | Admits an `OVERDUE` row carrying a decision | `D39` |
-| | `ck_attendance_corrections_decided_at` | Refuses an `OVERDUE` row without a decision time | `D39` |
-| `attendance_correction_events` | `ck_attendance_correction_events_type` | Refuses the amendment, reversal and overdue entries `DB-017` requires | `D32` |
-| | `ck_attendance_correction_events_from_status` | Refuses a transition from `OVERDUE` | `D32` |
-| | `ck_attendance_correction_events_to_status` | Refuses a transition to `OVERDUE` | `D32` |
+**Verdicts on the eight tables examined.**
 
-Unaffected, by table, each for the same reason: no rule in scope changes what it accepts.
+| Table | Predicate | Verdict | Why | Recorded by |
+|---|---|---|---|---|
+| `app_users` | `ck_app_users_pending_password` | Member | Refuses a never-activated `DEACTIVATED` row, lawful under `DB-022` | `D38` |
+| | `ck_app_users_activated_state` | Member | Same row | `D38` |
+| | `ck_app_users_lock_timestamp` | Member | Refuses a `DEACTIVATED` row keeping its lock | `D38` |
+| `projects` | `ck_projects_status` | Member | Refuses `CANCELLED` | `D32` |
+| | `ck_projects_activation` | Member | Refuses every `CANCELLED` row, with or without an activation timestamp | `D39` |
+| `project_invitations` | `ck_project_invitations_resolution_code` | Member | Refuses `PROJECT_CANCELLED` | `D39` |
+| | `ck_project_invitations_resolution_state` | Member | Its `REVOKED` branch refuses `PROJECT_CANCELLED` | `D39` |
+| `leave_requests` | `ck_leave_requests_status` | Member | Refuses `OVERDUE` and `WITHDRAWN` | `D32` |
+| | `ck_leave_requests_decision` | Member | Refuses an `OVERDUE` or `WITHDRAWN` row without a decision time, and admits a `CANCELLED` row without the approval time it cancelled | `D39` |
+| | `ck_leave_requests_approval_actor` | Member | Admits a `CANCELLED` row without the approving Mentor | `D39` |
+| | `ex_leave_requests_no_overlap` | Member | Admits an overlap with an `OVERDUE` range; silent, since `AC-DB-005` tests only a pending range | `D39` |
+| `leave_request_days` | `ck_leave_request_days_quota` | History-bound member | Admits a snapshot above the 4 days `ATT-003` allows; snapshots taken under earlier policy versions may lawfully exceed it | `D39` |
+| `attendance_corrections` | `ck_attendance_corrections_status` | Member | Refuses `OVERDUE` | `D32` |
+| | `ck_attendance_corrections_pending_decision` | Member | Admits an `OVERDUE` row carrying a decision | `D39` |
+| | `ck_attendance_corrections_decided_at` | Member | Refuses an `OVERDUE` row without a decision time | `D39` |
+| | `ck_attendance_corrections_locked_state` | History-bound member | Admits a lock on a decided correction, which `COR-007` now forbids; corrections locked before it remain lawful history | `D39` |
+| `attendance_correction_events` | `ck_attendance_correction_events_type` | Member, and history-bound in part | Refuses the amendment, reversal and overdue entries `DB-017` requires; also admits new `AUTO_REJECTED` and `LOCKED` entries, which `DB-017` forbids but which stored history holds | `D32` |
+| | `ck_attendance_correction_events_from_status` | Member | Refuses a transition from `OVERDUE` | `D32` |
+| | `ck_attendance_correction_events_to_status` | Member | Refuses a transition to `OVERDUE` | `D32` |
+
+Unaffected on the eight tables examined, each because no rule changes what it accepts.
 `app_users`: `ck_app_users_email`, `ck_app_users_display_name`, `ck_app_users_global_role`,
 `ck_app_users_account_status`, `ck_app_users_deactivation_timestamp`, `ck_app_users_version`,
 `uq_app_users_email_ci`, primary key. `projects`: `ck_projects_name`, `ck_projects_dates`,
@@ -2038,33 +2068,37 @@ Unaffected, by table, each for the same reason: no rule in scope changes what it
 `leave_requests`: `ck_leave_requests_dates`, `ck_leave_requests_reason`,
 `ck_leave_requests_first_start`, `ck_leave_requests_version`, primary key, and
 `ck_leave_requests_cancellation`, which a `WITHDRAWN` row already satisfies by carrying no
-cancellation time. `leave_request_days`: `ck_leave_request_days_quota_month`,
-`ck_leave_request_days_quota`, primary key. `attendance_corrections`:
-`uq_attendance_corrections_record`, `ck_attendance_corrections_reason`,
-`ck_attendance_corrections_approval_actor`, `ck_attendance_corrections_version`, primary key,
+cancellation time. `leave_request_days`: `ck_leave_request_days_quota_month`, primary key.
+`attendance_corrections`: `uq_attendance_corrections_record`, `ck_attendance_corrections_reason`,
+`ck_attendance_corrections_approval_actor`, `ck_attendance_corrections_version`, primary key, and
 `ck_attendance_corrections_submission_window` and `ck_attendance_corrections_decision_window`,
 which compare deadlines with the submission time rather than fixing a duration, so the 48 hours
-of `D23` leave them unchanged, and `ck_attendance_corrections_locked_state`, which concerns an
-action `COR-007` now forbids rather than a row. `attendance_correction_events`: primary key.
-`intern_profiles`: `ck_intern_profiles_student_code`, `ck_intern_profiles_dates`,
-`ck_intern_profiles_status`, `ck_intern_profiles_active_timestamp`,
-`ck_intern_profiles_completed_timestamp`, `ck_intern_profiles_withdrawn_timestamp`,
-`ck_intern_profiles_version`, `uq_intern_profiles_student_code_ci`, primary key.
+of `D23` leave them unchanged. `attendance_correction_events`: primary key. `intern_profiles`:
+`ck_intern_profiles_student_code`, `ck_intern_profiles_dates`, `ck_intern_profiles_status`,
+`ck_intern_profiles_active_timestamp`, `ck_intern_profiles_completed_timestamp`,
+`ck_intern_profiles_withdrawn_timestamp`, `ck_intern_profiles_version`,
+`uq_intern_profiles_student_code_ci`, primary key.
 
-**Count.** Seventeen members: six recorded by `D32`, three by `D38`, and eight that no
-decision recorded until this one. The earlier figures counted rows of a smaller table, with the
-two invitation predicates in one row, and none covered the whole scope; by predicate, the
-seven rows the last review reached are these eight.
+On these eight tables that is 19 members, two of them history-bound, out of 54 predicates:
+six recorded by `D32`, three by `D38`, and ten recorded by no decision until this one.
 
-**Why the earlier sweeps missed some.** Each followed a pattern rather than this criterion:
-values named in `DB` rules, then status predicates on some tables, then on more of them. None
-asked whether an existing status gained a requirement, which is how `CANCELLED` leave came to
-need its approving Mentor, or whether a timestamp was tied to a set of statuses, which is how
-`ck_projects_activation` stayed out of sight.
+**Found so far outside the eight tables.** `ck_notifications_email_payload` is a member: it only
+exempts `NOT_REQUIRED` and `UNAVAILABLE` from carrying a payload, where `NOT-012` forbids them
+one. `D38` records it, correcting its own claim that no migration was needed.
+`ck_attendance_policy_versions_quota` is a history-bound member: it accepts a monthly leave quota
+from 0 through 31, while `ATT-003`, from `D7`, allows 0 through 4, a rule the code enforces and
+the schema does not. These were found by widening the scope, and nothing says they are the last.
+
+**Why the earlier sweeps missed some.** Each read a scope narrower than the criterion: values
+named in `DB` rules, then status predicates on some tables, then on the tables of the pending
+decisions only. None asked whether an existing status gained a requirement, which is how
+`CANCELLED` leave came to need its approving Mentor, or whether a timestamp was tied to a set of
+statuses, which is how `ck_projects_activation` stayed out of sight; and none looked beyond `DB`
+rules, which is how `NOT-012`'s payload rule and `ATT-003`'s quota stayed out.
 
 **What the rules need that V1 has no predicate for.** These are not members, and the migration
-adds them: that an undecided leave request carries no deciding actor, which corrections have
-and leave requests do not; a withdrawal time on a `WITHDRAWN` leave request (`DB-018`); the
+adds them: that an undecided leave request carries no deciding actor, which corrections have and
+leave requests do not; a withdrawal time on a `WITHDRAWN` leave request (`DB-018`); the
 cancelling Mentor, time and reason on a `CANCELLED` Project (`DB-019`); the account trigger of
 `DB-022`; the responsible Mentor reference of `DB-021`; the reason and append-only refusal of
 `DB-017` on correction entries; and the withdrawn-approval marking on leave request days
@@ -2074,28 +2108,25 @@ says whether each must also serve `OVERDUE` rows.
 
 **Stored rows the change reinterprets.** The code cancels a pending leave request as
 `CANCELLED`, where `LEV-013` now calls that `WITHDRAWN`. `LeaveRequestEntity#cancel` has never
-cleared the decision time in any version on this branch or on main, and has been reachable
-only by the owning Intern. So a stored `CANCELLED` row without a decision time was pending: it
-becomes `WITHDRAWN`, its cancellation time becomes its withdrawal time and is then cleared,
-because `ck_leave_requests_cancellation` allows one only on `CANCELLED`, and its withdrawer is
-the owning Intern. A row with a decision time was approved and stays `CANCELLED`. The
-reclassification runs before the tightened decision checks are added. This reading comes from
-the code; before it is applied to a real database, that database's migration history must be
-identified, because a different `V2`, `V2__account_admin_edit_events.sql`, existed on this
+cleared the decision time in any version on this branch or on main, and has been reachable only
+by the owning Intern. So a stored `CANCELLED` row without a decision time was pending: it becomes
+`WITHDRAWN`, its cancellation time becomes its withdrawal time and is then cleared, because
+`ck_leave_requests_cancellation` allows one only on `CANCELLED`, and its withdrawer is the owning
+Intern. A row with a decision time was approved and stays `CANCELLED`. The reclassification runs
+before the tightened decision checks are added. Separately, `D38` records that accounts
+deactivated before the migration have already lost any lock timestamp. Every such reading comes
+from the code; before one is applied to a real database, that database's migration history must
+be identified, because a different `V2`, `V2__account_admin_edit_events.sql`, existed on this
 branch from `4c1fa67` until a later merge removed it.
 
-**Found by the same criterion, outside this scope.** `ck_attendance_policy_versions_quota`
-accepts a monthly leave quota from 0 through 31, while `ATT-003`, from `D7`, allows 0 through 4,
-and `ck_leave_request_days_quota` copies that range into every snapshot. Whether the check can
-be narrowed depends on the policy versions already stored, so it is named here and in
-`plan.md` and not decided. Separately, `ck_notifications_type` has no code for the exception,
-overdue and reopen notices of `NOT-011`; `SYSTEM` exists, so no rule forces the set wider, and
-the plan decides.
-
-**Guard.** The migration's plan carries this table and gives, for each member, what the
-predicate becomes; `plan.md` makes that a condition of approving it. Anyone can recheck the
-count by listing every check, exclusion and unique predicate on the eight tables from both
-migrations and applying the criterion, since every predicate is named above.
+**How the plan uses this, and what no check can prove.** The migration's plan carries out the
+audit with this criterion, table by table across the whole schema, starting from the table
+above. Each member and history-bound member it finds gets a probe test that runs against the
+migrated schema and shows the predicate now accepts and refuses what the rules say; that proves
+each verdict. No test, and no reading, can prove that no member remains undiscovered, since a
+test checks only what a scenario was written for: `AC-DB-005` passes while the overlap gap stands.
+This entry therefore claims no completeness. The gate is in the plan: the migration is not
+accepted until every `AC-DB-*` scenario runs green as a Testcontainers test.
 
 **Scope of this change.** `DB-018` and `DB-019` are amended; `AC-DB-010`, `AC-DB-011` and
 `AC-DB-012` cover the leave, correction and Project rows; the leave and invitation specs note

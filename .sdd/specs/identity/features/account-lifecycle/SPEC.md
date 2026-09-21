@@ -1,6 +1,6 @@
 # Account lifecycle Spec
 
-**Version:** 1.3.0 · **Owner:** Loc-LX · **Status:** APPROVED BUSINESS BASELINE · **Date:** 2026-09-21
+**Version:** 1.3.1 · **Owner:** Loc-LX · **Status:** APPROVED BUSINESS BASELINE · **Date:** 2026-09-21
 
 **Module:** `identity` · **Shared contract:** [MODULE.md](../../MODULE.md)
 
@@ -174,7 +174,9 @@ schema, dependency, PLAN.md or TASKS.md.
 `D38` settles the complete transition table, adds the two edges that removed the dead ends
 (`ACC-028`, `ACC-029`) and holds the schema to the same set (`DB-022`). `ACC-028`, `ACC-029`
 and `DB-022` need a migration and are not implemented; nothing here claims the running
-application already behaves this way.
+application already behaves this way. The lock that `ACC-029` restores survives only for
+accounts deactivated after that migration: V1 and the current code clear the lock timestamp on
+deactivation, so an account deactivated earlier has no lock left to restore (`D38`).
 
 Read [shared open questions](../../MODULE.md#notes--open-questions) before approving
 the technical plan. [plan.md](../../../../../plan.md) is the only progress tracker.

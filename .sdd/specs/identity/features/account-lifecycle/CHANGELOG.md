@@ -1,5 +1,11 @@
 # Changelog — Account lifecycle
 
+## 1.3.1 — 2026-09-22
+
+Note only (`D38`, third review). The lock that `ACC-029` restores survives only for
+accounts deactivated after the migration: V1 and the current code clear the lock timestamp on
+deactivation. No rule or scenario changed.
+
 ## 1.3.0 — 2026-09-22
 
 Corrected on second review (`D38`). `DB-022` protected a kept lock only while the row

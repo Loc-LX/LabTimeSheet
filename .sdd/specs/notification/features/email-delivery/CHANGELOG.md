@@ -1,5 +1,12 @@
 # Changelog — Notification email delivery
 
+## 1.1.1 — 2026-09-22
+
+Note only (`D38`, third review). The note no longer says the schema already requires what
+`NOT-012` states: `ck_notifications_email_payload` only exempts `NOT_REQUIRED` and
+`UNAVAILABLE` from carrying a payload, and the migration must make it forbid one. No rule or
+scenario changed.
+
 ## 1.1.0 — 2026-09-21
 
 `D38` settles the delivery status set. `NOT-012` names `NOT_REQUIRED`, `PENDING`, `SENT`,
