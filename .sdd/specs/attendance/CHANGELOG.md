@@ -1,0 +1,174 @@
+# Changelog — Attendance module
+
+## 1.8.0 — 2026-09-21
+
+Status only (`D38`). No question affecting this document is open, so its Status
+moves from the inherited baseline to `APPROVED BUSINESS BASELINE`. The specification
+map now defines what that field means and when it must change. No numbered rule,
+acceptance row, schema or dependency changed.
+
+## 1.7.0 — 2026-09-21
+
+Navigation cleanup (`D38`). The parallel `feature-attendance/` compatibility index is
+removed: it defined no rule or scenario and had no reader inside the repository.
+Its entries are retained verbatim below, so this module keeps one changelog and one
+home. Successor links in this module's feature changelogs now point at that section.
+No numbered rule, acceptance row, schema or dependency changed.
+
+## 1.6.0 — 2026-09-21
+
+Organization only (`D34`). Inherits the 1.5.2 baseline from
+[the retained history](#history-before-the-d34-feature-split). Rules and acceptance rows
+move verbatim into cohesive feature contracts; shared rules and cross-feature scenarios
+remain in [MODULE.md](MODULE.md). Canonical use cases and state tables move only
+when one feature owns the workflow; their former headings remain links.
+
+This entry does not approve a new business rule, technical plan or implementation.
+
+---
+
+## History before the D34 feature split
+
+These entries recorded `attendance` while its rules lived in a single `feature-attendance/SPEC.md`.
+They are retained verbatim; only their heading depth changed when they moved here.
+
+### 1.6.0 — 2026-09-21
+
+Navigation migration (`D34`). Canonical rules now live in [MODULE.md](../attendance/MODULE.md)
+and its feature SPECs. This old SPEC.md is a compatibility index. Existing entries below
+record the pre-split baseline and remain historical.
+
+### 1.5.2 — 2026-09-20
+
+Structure only; decision `D33`. No numbered rule or acceptance scenario changed.
+
+- Five parts inside this spec: punches/results, leave, missed-checkout corrections, exceptions, and finalization/reopening. The rule groups and §7 acceptance tables follow those scopes; existing identifiers and the eight standard sections stay intact.
+- Each part maps to its rules, use case, scenarios, owned data and dependencies. Applied policy, decision history, states and notification recipients remain shared contracts with one canonical definition.
+- Cross-part checks call out historical policy, correction-to-exception results, cross-month leave and finalization races. Existing scenarios are distinguished from combinations still needing test evidence; no new business rule is inferred.
+
+### 1.5.1 — 2026-09-17
+
+No rule changed. Each object with a status gains a state transition table after its rules: correction, leave request, attendance exception, attendance period, and request to reopen a period. A table summarizes its rules, names the rules behind each transition, and yields to them where they differ; `npm run test:ui` checks that every status a table names is one a rule names.
+
+### 1.5.0 — 2026-09-17
+
+Rules added; decision `D32`. The data model the decided attendance rules need is part of the specification.
+
+- **Added `DB-014`–`DB-018`:** one attendance period per Intern and month; reopen requests and their decision; one attendance exception per record and violation kind; append-only decision entries for corrections, exceptions and leave, each carrying the outcome it sets, with the request's status equal to its latest effective entry until it is cancelled, and no new correction event of kind `AUTO_REJECTED` or `LOCKED`; and the widened leave and correction statuses with the withdrawn-day mark.
+- **Added `AC-DB-006`.** §5 names every table the attendance rules use, and §6 lists `DB-017`.
+
+### 1.4.0 — 2026-09-17
+
+Rule changed; decision `D31`.
+
+- **`EXC-007`** now says what an amendment may change: the decision note, or the reason of a mark made without a request, which must stay nonblank. It may not change the outcome, the work date, the violation kind, or the Intern's request; changing the outcome is a reversal. `COR-005` already limited a correction amendment in the same way, and `LEV-011` a leave amendment; the exception rule said nothing.
+- **Added `AC-EXC-004`**, which exercises both permitted amendments and each refused one.
+- The notes "Interpreted from `D14`" and "Derived from `D14`" are removed. Each sentence in them restated a rule that already said it (`ATT-019`, `ATT-020`, `ATT-023`, `LEV-004`, `LEV-006`, `LEV-011`, `LEV-012`, `ATT-024`, `COR-001`, `COR-005`), which `GOV-016` forbids, except the limit on exception amendments, which is now `EXC-007`.
+
+### 1.3.8 — 2026-09-17
+
+Wording only; no rule changed. The notes no longer say when `D14` was decided and confirmed, which `decisions.md` records, and §5 no longer says "today" about the tables, which is the state of the code rather than of the specification.
+
+The opening paragraph no longer says the section numbers come from a single-file specification; it states the numbering convention they follow.
+
+Section 6 now lists every rule of section 3 that makes the system refuse, reject, deny or fail: `ATT-021`, `ATT-024`, `LEV-012` and `EXC-006` were missing, and so were `ATT-022`, which refuses an Admin any decision inside a reopen, and `ATT-023`, which refuses everyone but the responsible Mentor inside a reopened range. `NOT-011` is not listed: "reject" there names a decision it notifies about, not a refusal. Section 7 names the `AC-EXC` and `AC-DB` scenarios it holds.
+
+### 1.3.7 — 2026-09-17
+
+Wording only; no rule changed. Section 1 names the module the spec describes, as `ARC-005` names it. The state of the code belongs in `plan.md`, not in a specification.
+
+### 1.3.6 — 2026-09-17
+
+Relocation only; no rule text changed. Decision `D28`.
+
+- `ATT-001`–`ATT-003`, `CAL-001`–`CAL-009` and `DB-009` moved to the [calendar spec](../calendar/MODULE.md), with `AC-CAL-001`–`AC-CAL-005`, `AC-ATT-001` and `UC-04`. `ATT-004`–`ATT-006` stay: they apply the policy to attendance rows and leave. `AC-ATT-001` moved although it names them, because its Given/When configures the policy and names them only for the result; the principle is in the calendar changelog.
+- `NOT-011` moved here from the [notification spec](../notification/MODULE.md), with its note. Every clause concerns leave, corrections, exceptions or the attendance period, and left in notification it would make notification depend on attendance.
+- Sections 1, 2, 5, 6, 7 and 8 and the notes were updated for what the spec now holds; the note pointing `UC-04` at the integration spec went with `UC-04`.
+
+### 1.3.5 — 2026-09-16
+
+Two corrections and one status change; no rule text changed in substance.
+
+- **§2 named only four of its six use cases.** `UC-15`, excusing a late arrival or early departure, and `UC-17`, reopening a finalized attendance period, are specified in full in §3 but had no actor line in §2, so the two workflows added by `D14` had no declared actors where a reader looks for them first. Both are listed now, with the actors their own use-case blocks name.
+- **The word provisional is gone from six rules.** `COR-003`, `LEV-011`, `EXC-002`, `EXC-003`, `EXC-005` and `ATT-020` each called their limit a *provisional* laboratory policy. The limits are unchanged and still the laboratory's own choice rather than an industry standard; what changed is that they are no longer waiting on a signature. Recorded as provisional on that date and confirmed for build by the maintainer on 16 September 2026; see the note above the decision table in [`.sdd/decisions.md`](../../decisions.md).
+
+### 1.3.4 — 2026-09-16
+
+Wording only; no rule changed. A review found three places that still carried the numbers `D23` and `D24` replaced.
+
+- `UC-15` said 24 hours to submit, 24 hours to decide, and a separate 48-hour limit for the Mentor's own mark. It now matches `EXC-002`, `EXC-003` and `EXC-004`: 48 hours, 48 hours, and the attendance period as the Mentor's only boundary.
+- `AC-ATT-009` lost its point when the closing day moved to the fifth: the correction it describes was also decided on 5 October, so both Interns finalized at once. The correction is now decided on 7 October, and the scenario again contrasts a period that closes at the deadline with one held open by an undecided request.
+
+### 1.3.3 — 2026-09-16
+
+Decision `D24`, recorded in [`.sdd/decisions.md`](../../decisions.md). Marked provisional, pending instructor confirmation.
+
+- The attendance period now closes at 23:59 on the **fifth** day of the following month, not the third (`ATT-020`). Since `D24` made that close the only boundary on a Mentor's own mark, three days left almost no time to review a work date at month end. `AC-ATT-009` follows.
+
+### 1.3.2 — 2026-09-16
+
+Decisions `D23` and `D24`, recorded in [`.sdd/decisions.md`](../../decisions.md). Marked provisional, pending instructor confirmation.
+
+- **One adjustment policy (`D23`).** A correction and an exception request now share the same limits: 48 hours to submit and 48 hours to decide. `EXC-002`, `EXC-003`, `COR-003` and `COR-004` carry the same numbers, and each is bounded by the attendance period as well. What stays different is the evidence a correction needs: a proposed checkout with a reason, decided by the responsible Mentor alone.
+- **The Mentor's own mark follows the period (`D24`).** `EXC-004` drops its 48-hour limit; a Mentor may mark a late arrival or early departure excused while the period of that work date is open, and afterwards only inside a range reopened under `ATT-022`. The old limit contradicted the monthly close for every work date after the 27th.
+- `AC-COR-001`, `AC-EXC-001`, `AC-EXC-002`, `AC-EXC-003` and `UC-09` follow.
+
+### 1.3.1 — 2026-09-14
+
+Decision `D14`, reviewed and closed, recorded in [`.sdd/decisions.md`](../../decisions.md). Still provisional, pending instructor confirmation.
+
+- `ATT-024` now shares only the mechanism: new decision entries with kind, actor, time, and reason; the latest effective entry is current; nothing returns to `PENDING`; a change needing a new approval is a new request; no change after finalization except through reopen. Each kind keeps its own actions and states.
+- An amendment changes a decision's content and a reversal its outcome. `COR-005` and `EXC-007` permit both until the period is finalized; a correction amendment never changes the proposed checkout.
+- `LEV-011`: a leave decision is never reversed. Approved leave is cancelled by the Intern before it begins, and after that changes only by the responsible Mentor's amendment withdrawing approval from dates, which releases their quota and leaves attendance as it happened; the resulting recalculation is laboratory policy. `LEV-004` and `LEV-012` follow.
+- `AC-COR-003`, `AC-LEV-008`, `UC-09`, `UC-10` and `UC-15` follow.
+
+### 1.3.0 — 2026-09-14
+
+Decision `D14`, its last three points, recorded in [`.sdd/decisions.md`](../../decisions.md). Marked provisional, pending instructor confirmation.
+
+- **Added `LEV-013`**: an Intern may withdraw a pending or overdue leave request until its period is finalized. Withdrawal releases quota and overlap blocking, keeps the request and its history, and changes no attendance record. `LEV-007` now covers editing only; `LEV-004`, `LEV-005`, `LEV-012` and `DB-002` follow.
+- **Added `ATT-024`**: one decision lifecycle for leave, corrections, and exceptions. Until the period is finalized the responsible Mentor changes a decision only by appending a new decision or a reversal with actor, time, and reason; the latest effective decision is current. `COR-005`, `COR-007` and `COR-009` drop the 24-hour decision lock and the revert to `PENDING`; `EXC-007` and `LEV-011` refer to the shared rule.
+- `ATT-022`: an Admin approves or rejects a reopen request, deciding only whether to reopen; a rejection keeps the Admin, time, and reason. `ATT-020` and `ATT-021` follow.
+- Added `AC-LEV-007` and `AC-LEV-008`; `AC-COR-003`, `AC-LEV-006`, `AC-EXC-003`, `AC-ATT-010`, `UC-09`, `UC-10`, `UC-15` and `UC-17` follow.
+
+### 1.2.0 — 2026-09-14
+
+Decision `D14`, finalization and overdue handling, recorded in [`.sdd/decisions.md`](../../decisions.md). Marked provisional, pending instructor confirmation.
+
+- **Added `ATT-019`–`ATT-023`**: monthly attendance periods per Intern that finalize at 23:59 on the third day of the next month (laboratory policy) unless a request affecting them is pending or overdue; no change after finalization except in a range an Admin reopens with a reason, where only the responsible Mentor acts and finalizes again.
+- Leave and corrections no longer reject automatically when the approver misses the deadline: `LEV-010` and `COR-007` mark them `OVERDUE`, `LEV-004` and `LEV-006` keep an overdue leave reserving quota and blocking overlaps, `LEV-008`, `LEV-012` and `COR-005` let the responsible Mentor still decide, and `COR-008` and `COR-009` follow.
+- `EXC-003` and `EXC-007` use the period instead of an undefined window.
+- Added `AC-ATT-009`, `AC-ATT-010`, and `UC-17`; `AC-LEV-004`, `AC-COR-005`, `AC-EXC-003`, `UC-09`, `UC-10` and `UC-15` follow.
+
+### 1.1.2 — 2026-09-14
+
+The remaining four points of decision `D14`, recorded in [`.sdd/decisions.md`](../../decisions.md). Marked provisional, pending instructor confirmation.
+
+- `EXC-003`: a request undecided after 24 hours becomes overdue, not rejected; only the responsible Mentor's decision makes it excused or unexcused, while the finalization window is open.
+- `EXC-004`: a Mentor may mark an excuse up to 48 hours after scheduled end (laboratory policy).
+- **Added `EXC-007`**: a decision changes only by appending a new decision or reversal with a reason; history stays immutable. `EXC-005` follows the current decision.
+- Added `AC-EXC-003`; `AC-EXC-002` and `UC-15` follow.
+
+### 1.1.1 — 2026-09-14
+
+Relocation only; no rule text changed. `DB-002`, `DB-009` moved here from the platform spec because they concern only this feature, with `AC-DB-005`.
+
+### 1.1.0 — 2026-09-14
+
+Decision `D14`, recorded in [`.sdd/decisions.md`](../../decisions.md). Marked provisional, pending instructor confirmation.
+
+- **Added `EXC-001`–`EXC-006`** and `AC-EXC-001`–`AC-EXC-002`: excused late arrivals and early departures, requested by the Intern or marked by the responsible Mentor, kept apart from the attendance classification. The 24-hour limits and leaving excused violations out of compliance are marked as provisional laboratory policy.
+- `ATT-016` leaves excused violations out of compliance.
+- `LEV-008`, `COR-005`, `COR-009`, `AC-COR-006`, `UC-09` and `UC-10` give decisions to the responsible Mentor. Added `UC-15`.
+
+### 1.0.1 — 2026-09-14
+
+Notes only. Decision `D14` on excused late arrivals and early departures is recorded, with the three points still open that keep it from being written as rules.
+
+### 1.0.0 — 2026-09-14
+
+Approved by Loc-LX. The rules moved here unchanged from the single-file
+specification at `.sdd/requirements.md` (commit `625463b`). Sections 1, 2, 4, 5, 6 and 8 and the notes were written for this spec.
+
+Changes made to these rules during the review before approval are recorded in
+[`.sdd/decisions.md`](../../decisions.md).

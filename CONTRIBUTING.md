@@ -10,7 +10,7 @@ Read three things, in this order:
 
 1. [README.md](README.md) for what the system is and where things live.
 2. [`.sdd/constitution.md`](.sdd/constitution.md) for the rules that are not negotiable.
-3. The spec in [`.sdd/specs/`](.sdd/specs) for the feature you will touch. Rules shared by every feature are in `feature-platform`.
+3. The spec in [`.sdd/specs/`](.sdd/specs) for the feature you will touch. Rules shared by every feature are in [`platform/MODULE.md`](.sdd/specs/platform/MODULE.md).
 
 Two ideas explain most of the design. Attendance and Task work are separate
 domains and neither proves the other. Historical results must not change when

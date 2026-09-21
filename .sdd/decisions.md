@@ -82,6 +82,11 @@ came from, not whether the choice is settled.
 | D31 | What an amendment of an attendance exception decision may change | Only the decision note, or the nonblank reason of a mark made without a request; never the outcome, work date, violation kind or the Intern's request | `EXC-007`; adds `AC-EXC-004` |
 | D32 | Whether the data model the decided rules need belongs in the specification now | Yes: 30 tables, the invariants as `DB-014`–`DB-021` with `AC-DB-006`–`AC-DB-008`; column names stay with the migration; supersedes §3.4 of the platform plan | `DB-014`–`DB-021`, `AC-DB-001`, `AC-DB-006`–`AC-DB-008` |
 | D33 | How to make the large specs manageable before planning | Keep module boundaries and canonical rule IDs; organize attendance into five parts, project into six and platform into six; correct stale acceptance summaries and name unresolved planning questions | No numbered rule changes; structure, acceptance alignment and clarification record |
+| D34 | How to expose cohesive features inside each module | MODULE.md holds shared contracts; nested feature SPECs hold complete workflows with operation headings; preserve legacy navigation and every canonical rule/scenario | Organization only; supersedes D33's single-file layout, not its business clarifications |
+| D35 | Which workflow and logout defaults to adopt | New Tasks start at TODO; all unblocks restore the latest pre-block state; cancelled work does not block internship termination; logout ends the current session | `TSK-003`, `TSK-007`, `TSK-025`, `ACC-022`, new `ACC-027`; related acceptance contracts |
+| D36 | Whether soft-deleted Tasks block internship termination | Exclude them from ACC-022; preserve history and other guards; repair trace-owner checks and the P5 scenario index | `ACC-022`, `AC-ACC-018`, new `AC-ACC-019`; documentation checks |
+| D37 | Whether Task status transitions require a non-deleted Task, and complete invitation/exit status sets | Require non-deleted Task in TSK-007; add AC-TSK-021; align DB-011 and DB-012 status constraints with V1__baseline.sql; define invitation and exit-request state transition tables | `TSK-007`, `DB-011`, `DB-012`, `AC-TSK-021` |
+| D38 | The last open questions: one home per module, the account state machine, delivery states, reset eligibility | Remove the parallel `feature-*` tree after folding its history into each module; a never-activated account can be cancelled and a deactivated one reinstated; state the five delivery states; reset is for `ACTIVE` and `LOCKED` only and never changes account state | `ACC-014`, `ACC-016`; new `ACC-028`, `ACC-029`, `NOT-012`, `SEC-015`, `DB-022`; new `AC-ACC-020`, `AC-ACC-021`, `AC-NOT-007`, `AC-SEC-009`–`AC-SEC-011`, `AC-DB-009` |
 
 D1 through D5 came from reading the specification against its own history. D6
 through D9 came from the audit described at the end of this page, which read the
@@ -1449,7 +1454,392 @@ pushing or merging. Undo by reversing only this eight-file diff against `fd864ec
 any later edits; no earlier documentation work needs to be discarded.
 
 **Status:** organization and existing-decision alignment agreed; the listed business questions
-are not decisions made by this entry.
+are not decisions made by this entry. `D35` later settles Task creation/unblocking
+and cancelled-Project internship readiness.
+
+## D34. How are cohesive features represented inside a module?
+
+**Requested by the maintainer on 20 September 2026; organized on 21 September**, after
+discussing separate Login and Logout sections and approving a backup before restructuring. A module remains the
+boundary of `ARC-005` and `ARC-006`. A feature folder is a planning and specification
+scope inside that module, not an additional Java package boundary or release unit.
+
+- **Hierarchy:** `.sdd/specs/<module>/MODULE.md` contains shared rules, data contracts,
+  cross-feature scenarios and dependencies; `features/<feature>/SPEC.md` contains a
+  cohesive workflow. Operations such as Login/Logout or Start/Complete/Withdraw are
+  headings within that feature. The [map](specs/README.md) lists eight modules and
+  twenty-seven features. Platform governance, architecture, security, authorization,
+  data integrity and delivery standards remain shared contracts.
+- **Preservation:** relocate all 304 canonical rule rows and 149 acceptance rows
+  verbatim from checkpoint `c443670`. Do not split a multi-purpose rule into duplicated
+  definitions. Shared identity password/token rules therefore stay in MODULE.md,
+  while Password management references them. Multi-feature use cases and scenarios
+  likewise stay shared; cohesive use cases and state tables move with their feature.
+- **Navigation/history:** retain `feature-*/SPEC.md` as noncanonical indexes with old
+  section anchors. Retain their CHANGELOG histories. New contracts have their own
+  versions and changelogs; inherited baseline status does not approve open questions.
+- **Planning:** feature PLAN.md and TASKS.md are produced in their respective phases,
+  without empty placeholders now. `plan.md` remains the only progress tracker.
+  The existing platform PLAN at its legacy path needs the already recorded scope and
+  data-model corrections. The cross-module architecture plan location is still open.
+- **Unresolved behavior:** all D33 clarifications remain. Logout lacks a dedicated
+  numbered acceptance contract; the Authentication spec names that gap rather than
+  inventing session scope or redirect behavior. Existing password acceptance coverage
+  is not a complete operation-level contract. Neither gap is answered by this split. `D35` later settles logout; password
+  operation coverage remains a separate gap.
+- **Checks:** extend document discovery to both MODULE.md and nested SPEC.md so rule,
+  scenario, version, actor, state and link assertions still cover all canonical files.
+  Update only input discovery in the historical module-boundary analyzer; its stale
+  assignments and review verdicts remain separately visible, not silently relaxed.
+
+**Backup and baseline.** The branch
+`work/fix/docs/backup-before-feature-split-20260920` and annotated tag
+`backup/pre-feature-split-20260920` are on Gitea, both resolving to `c443670`.
+An additional local Git bundle and patch preserve the preceding state. The work uses
+`work/fix/docs/module-feature-specs` in an isolated worktree from that checkpoint.
+The one-off `OPS-019` source deviation continues D33: verified main `f7a7c8a` lacks
+the reviewed specs and is 97 commits behind `fd864ec`, the checkpoint's parent.
+Any future commit/PR must carry this reason. No main history is rewritten.
+
+**Rollback:** reverse only this restructuring diff against `c443670`, preserving
+later edits; the remote backup remains independently reachable. The change covers
+the spec tree, its root maps/template, README.md, AGENTS.md, CLAUDE.md, this decision,
+plan.md, the JS document contract test and the analyzer's path discovery. It changes
+no Java implementation, migration, dependency or business rule. A final merge still
+requires the independent review and separate authorization required by repository policy.
+
+## D35. Which workflow and logout defaults does the product adopt?
+
+**Agreed by the maintainer on 21 September 2026.** After asking for defaults informed
+by Microsoft/Azure Boards and Atlassian/Jira, the maintainer accepted all four
+recommendations and instructed their completion. This is business approval under
+the constitution's Amendment process and `D26`; implementation and technical-plan
+approval are separate. It settles the corresponding questions recorded by D33/D34.
+
+| Choice | Approved behavior | Canonical contract |
+|---|---|---|
+| Initial Task status | Create at TODO on both PLANNED and ACTIVE Projects; refuse another requested initial status. Starting is a subsequent authorized action. | TSK-003; AC-TSK-019 |
+| Unblock | Every authorized actor, including the assignee, restores exactly the state before the latest block. Starting or finishing after restoration is a separate transition. Keep existing actor permissions and append-only transition history. | TSK-007, TSK-025; AC-TSK-003/016/020 |
+| Cancelled work and internship readiness | Exclude unfinished Tasks belonging to CANCELLED Projects from the completion/withdrawal guard. Preserve their statuses and history; do not mark them DONE. Every other lifecycle guard and terminal Project immutability remains binding. | ACC-022; AC-ACC-018; PRJ-023 unchanged |
+| Logout | Invalidate the current authenticated session and redirect to login. Other independent sessions are unaffected by ordinary logout; existing security-triggered invalidation remains binding. CSRF protection remains on. | New ACC-027; AC-ACC-016/017; ACC-018 and SEC-001 unchanged |
+
+### Evidence and adaptation
+
+- [Jira simplified workflows](https://support.atlassian.com/jira-software-cloud/docs/what-is-a-simplified-jira-workflow/) and [Azure Boards processes](https://learn.microsoft.com/en-us/azure/devops/boards/work-items/guidance/choose-process?view=azure-devops) distinguish work awaiting execution, active work and completed work. **Local choice:** always create at TODO; those products' configurable workflows do not mandate this rule for every installation.
+- [Jira flags](https://support.atlassian.com/jira-software-cloud/docs/flag-an-issue/) represent an impediment separately from workflow status. **Adaptation:** this product retains its existing BLOCKED status and restores the latest recorded origin. It does not introduce a new flag field or copy Jira's data model.
+- [Azure Boards processes](https://learn.microsoft.com/en-us/azure/devops/boards/work-items/guidance/choose-process?view=azure-devops) distinguish Removed from successful completion while retaining work-item records. **Local business choice:** cancelled Project work no longer blocks internship completion/withdrawal. The source does not prescribe internship policy, and Project cancellation does not become Azure's Removed state.
+- [Atlassian session management](https://support.atlassian.com/atlassian-account/docs/manage-recently-used-devices-for-your-atlassian-account/) distinguishes individual-device logout from broader session removal. **Local choice:** ordinary logout ends the current session and returns to login; no all-devices screen is added. Existing security invalidation is unchanged.
+
+These public sources were checked on 21 September 2026. They provide comparison
+points; the maintainer's explicit acceptance authorizes the local behavior.
+
+### Scope and implications
+
+Four existing rules change (TSK-003, TSK-007, TSK-025, ACC-022); ACC-027 is added.
+Two acceptance rows change (AC-TSK-003/016); five are added (AC-TSK-019/020,
+AC-ACC-016/017/018). The resulting catalogue contains 305 rules and 154 scenarios.
+The Task state table is added and the internship use case/state table is aligned.
+All remaining numbered rules and acceptance rows retain their prior text.
+
+The readiness check continues through the internship-owned port implemented by
+project under D28/ADR-006. This decision changes the predicate, not the dependency
+direction or repository ownership, so no new ADR or constitution amendment is needed.
+It changes no production code, schema or dependency. The analyzer learns the owner
+of ACC-027; its existing regression test must first expose the missing assignment.
+
+The existing Java implementation has not been validated against these contracts.
+Implement through approved plans and behavior tests; documentation checks establish
+consistency, not runtime correctness. Remaining invitation/exit, account/delivery
+and password-acceptance gaps are outside these four decisions. Independent review
+and any commit, push or merge remain separate steps.
+
+**Rollback:** restore only this decision's edits from the local pre-D35 snapshot
+and hash manifest, preserving the already completed D34 work and later edits.
+The continuing OPS-019 source exception is recorded in D34. Progress and validation
+evidence remain in plan.md.
+
+## D36. Do soft-deleted Tasks block internship completion or withdrawal?
+
+**Agreed by the maintainer on 21 September 2026.** The self-review of D35 found
+a remaining dead end: TSK-010 can soft-delete an unfinished Task; PRJ-014 permits
+Project completion once every non-deleted Task is DONE; AUTH-006 then forbids
+reassignment, while ACC-022 still counted the retained unfinished Task. The
+maintainer accepted the proposed soft-delete exclusion and the two documentation
+check/index repairs after comparing Azure Boards and Jira behavior.
+
+### Decision and evidence
+
+For ACC-022, a blocking Task must still be assigned to the Intern, be TODO,
+IN_PROGRESS or BLOCKED, be non-deleted, and belong to a Project other than
+CANCELLED. Soft-deleted Tasks are excluded on every Project state, including
+COMPLETED. Current leadership remains an independent blocker; all other lifecycle
+guards remain in force. Exclusion does not restore a Task, mark it DONE, change
+its assignee/history, or reopen a terminal Project. This amends ACC-022 only;
+PRJ-014, TSK-010, AUTH-006 and the D35 creation/unblock/logout decisions remain.
+
+Public comparison points, checked on 21 September 2026:
+
+- [Azure Boards removal/deletion](https://learn.microsoft.com/en-us/azure/devops/boards/backlogs/remove-delete-work-items?view=azure-devops) distinguishes Removed from deletion. Removed work remains queryable unless filtered; deleted work is retained in the Recycle Bin and excluded from ordinary queries and work tracking.
+- [Jira archival](https://support.atlassian.com/jira-software-cloud/docs/archive-an-issue/) retains an archived work item, makes it uneditable and removes it from ordinary board/backlog use until restored.
+
+**Local adaptation:** neither source defines internship readiness. The laboratory
+keeps its existing soft-delete mechanism and explicitly excludes this retained
+work from ACC-022. It adds no archive feature, restoration workflow or schema field.
+PRJ-022 membership-exit semantics are not changed by this decision.
+
+### Acceptance and review repairs
+
+AC-ACC-019 covers the reproduced sequence and both terminal internship actions.
+Hand-derived outcomes (assuming other lifecycle guards pass):
+
+| Task / leadership context | Blocking Task count | Completion or withdrawal |
+|---|---:|---|
+| One soft-deleted TODO Task on a COMPLETED Project, no current leadership | 0 | Permitted |
+| One soft-deleted unfinished Task on a PLANNED/ACTIVE Project, no current leadership | 0 | Permitted |
+| Above history plus one non-deleted unfinished Task on a non-cancelled Project | 1 | Refused |
+| Only excluded Tasks, but a current leadership term | 0 | Refused by leadership guard |
+
+AC-ACC-018's existing negative fixture explicitly uses non-deleted unfinished
+work. No scenario is removed. The catalogue becomes 305 rules and 155 scenarios.
+The project P5 summary now includes AC-TSK-019/020, which D35 introduced.
+
+The document checker validates that a labelled rule/scenario link points to the
+file defining that ID, covering operation maps and required-contract links. Its
+regression check uses both a rule and a scenario pointing to an existing wrong
+file; the earlier checker accepted that mutation. This supplements file/fragment
+existence checks and does not claim to validate the business meaning of prose.
+
+### Scope and rollback
+
+This changes documentation and its JS contract test, not Java behavior, schema,
+dependencies, architecture boundaries or the constitution. The existing readiness
+port remains internship-owned under D28/ADR-006. Runtime conformance follows the
+technical plan and behavioral tests; independent review is still a separate step.
+The OPS-019 baseline exception remains as recorded in D34.
+
+Restore only these edits from the pre-D36 local snapshot and SHA-256 manifest to
+undo this step, preserving D34/D35 and any later work. Progress and verification
+results are tracked only in plan.md. No commit, push or merge is authorized here.
+
+## D37. Does an assignee status change require a non-deleted Task, and what are the complete invitation and exit status sets?
+
+**Agreed by the maintainer on 21 September 2026.** Three specification gaps were resolved:
+
+1. **Assignee Task transition guard (`TSK-007`).** The Task state transition table and Leader/Mentor interventions (`TSK-023`) explicitly require a non-deleted Task, but `TSK-007` did not state this condition for assignee transitions. An assignee directly requesting a status transition on a soft-deleted Task must be refused without modifying the Task or transition history (`AC-TSK-021`).
+2. **Database status constraints (`DB-011`, `DB-012`).** `V1__baseline.sql` constrains `project_invitations.status` to `PENDING`, `ACCEPTED`, `DECLINED`, `REVOKED`, and `SUPERSEDED`, and `project_membership_exit_requests.status` to `PENDING`, `APPROVED`, `REJECTED`, `CANCELLED`, and `SUPERSEDED`. In `DB-011`, the resolution codes `PROJECT_COMPLETED` and `PROJECT_CANCELLED` map to `REVOKED` status rather than `SUPERSEDED`.
+3. **State transition tables.** The complete transition graphs for Project invitations and membership exit requests are established. Every status in both tables is named in normative rules (`DB-011` and `DB-012`).
+
+Public comparison points, checked on 21 September 2026:
+
+- [Azure Boards organization access](https://learn.microsoft.com/en-us/azure/devops/organizations/accounts/add-organization-users?view=azure-devops) and [Atlassian user invitation management](https://support.atlassian.com/user-management/docs/invite-a-user/): invitations remain pending until explicitly accepted, declined, or revoked by an authorized role, and direct administrative provisioning supersedes pending invitations without leaving duplicate access.
+- [Azure DevOps work transfer](https://learn.microsoft.com/en-us/azure/devops/boards/work-items/move-work-items?view=azure-devops) and [Jira project role membership](https://support.atlassian.com/jira-software-cloud/docs/manage-project-roles/): departure and removal workflows require all active work items to be redistributed or completed before member closure, and exit requests finalize into terminal resolution states with history preserved.
+
+### Scope and rollback
+
+This amends documentation only (`TSK-007`, `DB-011`, `DB-012`, `AC-TSK-021`, and the two feature SPECs). No Java production code, schema, dependency or architectural boundary changes. The catalogue becomes 305 rules and 156 scenarios. Progress and verification results are tracked in plan.md.
+
+## D38. Where does each module live, and what are the account, delivery and reset contracts?
+
+**Agreed by the maintainer on 21 September 2026,** with the instruction that each choice
+take the answer that makes the product better rather than the one that costs least. This
+closes the last entries of §22.3 and the three questions `D33` left to a later decision.
+
+### Part 1 — one home per module
+
+`D34` kept eight `feature-<module>/` folders as compatibility indexes. Measured on
+21 September 2026, after that split had finished:
+
+| Measure | Value |
+|---|---:|
+| Rule rows still defined in the eight index files | 0 |
+| Acceptance rows still defined in them | 0 |
+| References into them from anywhere else in the repository | 1 |
+
+The single reference was in `plan.md` and pointed at a page that defines nothing, where
+the register it meant is §22.3 of `platform/MODULE.md`. A folder tree therefore showed
+`attendance` beside `feature-attendance` for every module, at the cost of sixteen files,
+while answering no question that the module's own contract did not already answer.
+
+**Decision.** Remove the eight `feature-*` folders. Before removal, the ninety-nine
+changelog entries they held are appended verbatim to the changelog of the module that owns
+them, under *History before the D34 feature split*; only their heading depth changed, so
+that each module keeps one changelog and one home. `feature-platform/PLAN.md` is a
+technical design rather than an index and moves to `platform/PLAN.md`, keeping the
+corrections `plan.md` already tracks for it. Successor links in module and feature
+changelogs are retargeted to that retained section and to the module contracts.
+
+This supersedes the retention clause of `D34` and the naming note in `D28` that kept the
+directory name. Both weighed the cost of moving rules; after `D34` these folders hold no
+rule, so the cost they weighed no longer exists. No module boundary, rule, scenario or
+`ADR-006` decision changes.
+
+**Enforcement.** The document hierarchy check now fails if a `feature-<module>` folder
+reappears, and if a module changelog loses the retained history. It was first run against
+the folders still present and failed for exactly that reason.
+
+### Part 1b — what the Status field means
+
+The header `**Status:**` was carried by all thirty-five contracts and defined nowhere: not
+in the template, whose default is `DRAFT`, not in the specification map, not in the
+constitution, and no check read it. Four documents had been promoted to
+`APPROVED BUSINESS BASELINE` while twenty-five others, holding no open question either,
+still pointed readers at questions to look for. `platform/MODULE.md` called itself approved
+while hosting the register §22.2 gates approval on.
+
+**Decision.** The specification map defines the three values, what each asserts, and when a
+document must move between them. The field states whether that document's own content is
+settled; it never claims the code implements it, and never claims the rules are right for
+the laboratory, which §22.2 reserves for a person. An audit on 21 September 2026 found no
+document still naming an open question, so the twenty-five move to
+`APPROVED BUSINESS BASELINE`, each with its own changelog entry. Sentences that pointed at
+gaps this decision closed were corrected in the same change, including one in Authentication
+that had become false.
+
+**Enforcement.** A check now reads each document's Status against the open questions its
+notes name and fails on either disagreement. It was proved in both directions before being
+kept: a document relabelled to the inherited baseline with nothing open was rejected, and a
+document that gained an open question while still labelled approved was rejected.
+
+### Part 2 — the account state machine
+
+These edges are facts of this repository, read from the code and the schema, so no outside
+product is cited for them:
+
+| From | Action | To | Where it is fixed today |
+|---|---|---|---|
+| (none) | an Admin creates the account | `PENDING_ACTIVATION` | `ACC-010` |
+| `PENDING_ACTIVATION` | the invitee sets a first password | `ACTIVE` | `ACC-011`, `ck_app_users_pending_password` |
+| `ACTIVE` | an Admin locks | `LOCKED` | `AppUser#lock` refuses any other source state |
+| `LOCKED` | an Admin unlocks | `ACTIVE` | `AppUser#unlock` refuses any other source state; `ACC-015` |
+| `ACTIVE`, `LOCKED` | an Admin deactivates | `DEACTIVATED` | `AppUser#deactivate` refuses `PENDING_ACTIVATION` and `DEACTIVATED` |
+
+Two dead ends remain, and both are business questions rather than repository facts.
+
+**An account that was never activated can never be turned off.** An Admin who creates an
+account for the wrong person cannot disable it; resend renews the link indefinitely and
+nothing closes the row. **A deactivated account can never come back.** `ACC-024`
+deactivates an account when an internship is withdrawn, so an Intern returning for a later
+term, or an account deactivated by mistake, has no route back.
+
+**Decision, `ADAPTED`.** An Admin may deactivate a `PENDING_ACTIVATION` account, and may
+reinstate a `DEACTIVATED` one. Reinstating an account that was never activated returns it
+to `PENDING_ACTIVATION` rather than to `ACTIVE`, so a usable link still needs an explicit
+resend. Nothing is physically deleted, and reinstatement restores no internship,
+membership or leadership term.
+
+Public comparison points, read on 21 September 2026:
+
+- [Microsoft Entra, restore or permanently remove a deleted user](https://learn.microsoft.com/en-us/entra/fundamentals/users-restore) (page updated 18 June 2026): a user may be removed whether or not they ever signed in, and *"the account remains in a suspended state for 30 days. During that 30-day window, the user account can be restored, along with all its properties."*
+- [Atlassian, deactivate a managed account](https://support.atlassian.com/user-management/docs/deactivate-a-managed-account/): *"Deactivate an account to temporarily close an Atlassian account. This won't delete personal data associated with the Atlassian account, since you can reactivate the account at any time,"* while *"If you want to permanently close an Atlassian account and delete its data, delete the account instead."*
+- [Azure DevOps, remove users from an organization](https://learn.microsoft.com/en-us/azure/devops/organizations/accounts/delete-organization-users) (page updated 7 May 2026): *"Work items assigned to the user aren't affected by removing their access"* and *"the history of already assigned artifacts is preserved,"* and a removed user *"can be re-added at any time."*
+
+**What is adapted and what is not.** This product takes the shape those three agree on:
+turning an account off is reversible, and it never costs the history attributed to that
+person, which is what `ACC-016` already promises. It does not take Atlassian's second tier,
+because `GOV-014` allows exactly one physical deletion in this product and a second one
+would weaken the retention rule for a rare administrative mistake. It does not take
+Entra's thirty-day window, because this product has no time-boxed recovery mechanism and
+copying the window would import a scale decision rather than a behavior. Reinstatement is
+therefore open-ended and always an explicit Admin action.
+
+**Rules.** `ACC-014` gains the two edges; `ACC-016` states that deactivation is reversible
+under `ACC-029` while it still refuses authentication.
+
+> `ACC-028` — WHILE an account is `PENDING_ACTIVATION`, THE system SHALL permit an Admin to
+> deactivate it. WHEN that happens, THE system SHALL set the account to `DEACTIVATED`,
+> invalidate every unused activation and password-reset token it holds, and leave its
+> identity, global role and historical attribution unchanged. THE system SHALL NOT create a
+> password hash or an activation timestamp for such an account.
+
+> `ACC-029` — WHILE an account is `DEACTIVATED`, THE system SHALL permit an Admin to
+> reinstate it. WHEN a reinstated account holds an activation timestamp, THE system SHALL
+> return it to `ACTIVE` without recreating its credentials. WHERE it holds none, THE system
+> SHALL return it to `PENDING_ACTIVATION`, and a usable activation link SHALL require an
+> explicit resend under `ACC-013`. THE system SHALL NOT restore an internship, a Project
+> membership or a leadership term by reinstating an account.
+
+> `DB-022` — THE schema SHALL constrain `app_users.account_status` to `PENDING_ACTIVATION`,
+> `ACTIVE`, `LOCKED` or `DEACTIVATED`, and SHALL require the password hash and the
+> activation timestamp to agree: both absent WHILE the status is `PENDING_ACTIVATION`, or
+> WHILE it is `DEACTIVATED` and the account was never activated, and both present
+> otherwise. THE schema SHALL require a lock timestamp exactly WHILE the status is `LOCKED`,
+> and a deactivation timestamp exactly WHILE it is `DEACTIVATED`.
+
+`DB-022` tightens rather than loosens: it keeps every pairing the three existing checks
+enforce and adds the one new lawful combination, so a `DEACTIVATED` row can never hold a
+half-populated identity. It needs a migration that replaces
+`ck_app_users_pending_password` and `ck_app_users_activated_state`; that migration joins
+the one `D32` already requires.
+
+### Part 3 — email delivery states
+
+The complete set and its invariants are facts of the schema and
+`NotificationEmailStatus`, so no outside product is cited and no migration is needed.
+
+> `NOT-012` — THE system SHALL hold each notification's email delivery in exactly one of
+> `NOT_REQUIRED`, `PENDING`, `SENT`, `FAILED` or `UNAVAILABLE`. `NOT_REQUIRED` SHALL mean
+> the notification designates no email and SHALL carry no delivery payload. `PENDING` SHALL
+> mean an attempt is scheduled and SHALL carry a payload and a next-attempt time. `SENT`
+> SHALL mean an attempt succeeded and SHALL carry its send time. `FAILED` SHALL mean the
+> attempts of `NOT-006` are exhausted. `UNAVAILABLE` SHALL mean no active SMTP revision
+> existed when the notification committed, SHALL carry no payload, and SHALL NOT be sent
+> once SMTP becomes active again. THE system SHALL permit only these transitions:
+> `NOT_REQUIRED`, `PENDING` or `UNAVAILABLE` at creation; `PENDING` to `SENT`, to `PENDING`
+> for a further attempt, or to `FAILED`; and `FAILED` to `PENDING` on an explicit retry
+> under `NOT-007`. `NOT_REQUIRED`, `SENT` and `UNAVAILABLE` SHALL be terminal.
+
+This states what `AC-NOT-001` and `AC-NOT-004` already assert about `UNAVAILABLE`; it
+decides nothing those scenarios left open.
+
+### Part 4 — password reset eligibility
+
+`AccountService#issuePasswordReset` and the reset completion path both refuse
+`PENDING_ACTIVATION` and `DEACTIVATED` and admit `ACTIVE` and `LOCKED`, and
+`AppUser#changePassword` never touches the account status. One judgement is not settled by
+that code: whether a reset should release an Admin's lock.
+
+**Decision.** It must not. [Microsoft Entra's self-service password reset](https://learn.microsoft.com/en-us/entra/identity/authentication/concept-sspr-howitworks),
+read on 21 September 2026, unlocks an account that a failed-sign-in lockout locked; it is
+not a way around an administrator's decision to block an account. In this product the two
+are separate mechanisms: the login throttle is automatic, while `LOCKED` under `ACC-014` is
+an explicit Admin action. Taking Entra's behavior literally would let a reset undo that
+action, so the comparison is recorded and departed from.
+
+> `SEC-015` — THE system SHALL issue and accept a password-reset token only WHILE the
+> account is `ACTIVE` or `LOCKED`. WHERE the account is `PENDING_ACTIVATION` or
+> `DEACTIVATED`, THE system SHALL refuse both, and SHALL answer with the generic response of
+> `SEC-005` rather than revealing the state. WHEN a reset completes, THE system SHALL
+> replace the password, mark the token used and invalidate that account's sessions, and
+> SHALL NOT change the account status: a `LOCKED` account SHALL remain `LOCKED` and SHALL
+> still be refused authentication.
+
+### Acceptance and scope
+
+Seven scenarios are added. `AC-ACC-020` covers deactivating a pending account and the
+tokens it invalidates; `AC-ACC-021` covers both reinstatement paths and what reinstatement
+does not restore; `AC-DB-009` covers the tightened constraint pair, including the rejection
+of a half-populated `DEACTIVATED` row; `AC-NOT-007` covers the delivery transitions
+including the refusal to send an `UNAVAILABLE` notification after SMTP returns;
+`AC-SEC-009` covers a password change with current-password verification; `AC-SEC-010`
+covers reset eligibility in each account state behind one generic response; `AC-SEC-011`
+covers reset completion, its thirty-minute expiry under `SEC-004`, single use and session
+invalidation. That closes the operation-level gap password management recorded.
+
+The catalogue becomes 310 rules and 163 scenarios, of which 291 carry an acceptance
+scenario and the same 19 as before do not. Five rules are added and two amended;
+no existing rule loses a clause. §22.3 becomes empty, which is what §22.2 requires of
+approval. Part 1 changes no rule at all.
+
+`ACC-028`, `ACC-029` and `DB-022` need the migration described above and are not
+implemented; `NOT-012` and `SEC-015` state behavior the code already has, and neither has
+been validated against it. Documentation checks establish consistency, not runtime
+conformance.
+
+**Rollback.** Part 1 is reversed by restoring the eight folders from `c443670` and undoing
+the changelog appends, the two moved links and the hierarchy check. Parts 2 to 4 are
+reversed by removing the five rules, the two amendments and the six scenarios. The parts
+are independent; either may be reversed without the other. No commit, push or merge is
+authorized here, and independent review remains a separate step.
 
 ## What the audit checked and found sound
 

@@ -4,7 +4,7 @@
 //   node scripts/module-boundaries.cjs [repo-root] [--merge-internship] [--out <dir>]
 //
 // What it does
-//   1. Assigns every rule of .sdd/specs/feature-NAME/SPEC.md to a target module and
+//   1. Assigns every canonical MODULE.md and nested feature SPEC.md rule to a module and
 //      fails unless each rule lands in exactly one.
 //   2. Collects dependency edges between target modules from three sources:
 //      rule citations, dependencies stated only in rule prose (each phrase is
@@ -45,31 +45,41 @@ const MODULES = [...new Set(BASE_MODULES.map(fold))];
  * ------------------------------------------------------------------------- */
 const specDir = path.join(ROOT, '.sdd/specs');
 const rules = new Map();
-for (const dir of fs.readdirSync(specDir).filter(d => d.startsWith('feature-')).sort()) {
-  for (const line of fs.readFileSync(path.join(specDir, dir, 'SPEC.md'), 'utf8').split('\n')) {
-    const m = line.match(/^\| ([A-Z]+-\d{3}) \| (.*) \|$/);
-    if (m) rules.set(m[1], { spec: dir, text: m[2] });
+for (const moduleName of BASE_MODULES) {
+  const moduleDir = path.join(specDir, moduleName);
+  const files = [path.join(moduleDir, 'MODULE.md'),
+    ...fs.readdirSync(path.join(moduleDir, 'features')).sort()
+      .map(name => path.join(moduleDir, 'features', name, 'SPEC.md'))];
+  for (const file of files) {
+    for (const line of fs.readFileSync(file, 'utf8').split('\n')) {
+      const m = line.match(/^\| ([A-Z]+-\d{3}) \| (.*) \|$/);
+      if (m) {
+        if (rules.has(m[1])) throw new Error(`Duplicate canonical rule: ${m[1]}`);
+        rules.set(m[1], { spec: path.relative(specDir, file), text: m[2] });
+      }
+    }
   }
 }
+if (!rules.size) throw new Error('No canonical rules found');
 const num = id => Number(id.split('-')[1]);
 const pre = id => id.split('-')[0];
 const inRange = (id, p, a, b) => pre(id) === p && num(id) >= a && num(id) <= b;
 
 // [module, basis, predicate]
 const RULE_ASSIGNMENT = [
-  ['identity', 'accounts, installation, sign-in', id => inRange(id, 'ACC', 1, 18) || inRange(id, 'SEC', 2, 7)],
-  ['internship', 'internship lifecycle, responsible Mentor', id => inRange(id, 'ACC', 19, 26)],
+  ['identity', 'accounts, installation, sign-in, logout and the account state machine (D35, D38)', id => inRange(id, 'ACC', 1, 18) || inRange(id, 'ACC', 27, 29) || inRange(id, 'SEC', 2, 7) || id === 'SEC-015' || id === 'DB-022'],
+  ['internship', 'internship lifecycle, responsible Mentor and role integrity (D32)', id => inRange(id, 'ACC', 19, 26) || id === 'DB-021'],
   ['calendar', 'policy timeline (timezone, workdays, hours), global calendar, HolidayAPI', id =>
     inRange(id, 'ATT', 1, 3) || pre(id) === 'CAL' || id === 'DB-009' || id === 'INT-009'],
   ['attendance', 'punches, use of policy, periods, corrections, exceptions, leave', id =>
-    inRange(id, 'ATT', 4, 24) || ['COR', 'EXC', 'LEV'].includes(pre(id)) || id === 'DB-002'],
+    inRange(id, 'ATT', 4, 24) || ['COR', 'EXC', 'LEV'].includes(pre(id)) || id === 'DB-002' || inRange(id, 'DB', 14, 18)],
   ['attendance', 'relocated unchanged: recipients of attendance events', id => id === 'NOT-011'],
   ['project', 'projects, membership, leadership, tasks, work logs', id =>
-    ['PRJ', 'TSK'].includes(pre(id)) || inRange(id, 'AUTH', 5, 8) || inRange(id, 'DB', 11, 13)],
+    ['PRJ', 'TSK'].includes(pre(id)) || inRange(id, 'AUTH', 5, 8) || inRange(id, 'DB', 11, 13) || inRange(id, 'DB', 19, 20)],
   ['project', 'relocated unchanged: authorization wholly about projects', id => ['AUTH-004', 'AUTH-009', 'AUTH-011'].includes(id)],
   ['project', 'relocated unchanged: recipients chosen from Project data', id => ['NOT-003', 'NOT-010'].includes(id)],
   ['reporting', 'reports and exports', id => pre(id) === 'RPT' || id === 'ERR-006'],
-  ['notification', 'inbox, outbox, redelivery', id => inRange(id, 'NOT', 1, 10) && !['NOT-003', 'NOT-010'].includes(id)],
+  ['notification', 'inbox, outbox, redelivery', id => (inRange(id, 'NOT', 1, 10) || id === 'NOT-012') && !['NOT-003', 'NOT-010'].includes(id)],
   ['platform', 'cross-cutting rules, raw mail and SMTP configuration, secrets', id =>
     ['GOV', 'ARC', 'OPS', 'TST', 'UI'].includes(pre(id))
     || inRange(id, 'ERR', 1, 5) || id === 'ERR-007'
@@ -494,6 +504,8 @@ const VERDICTS = [
   ['ACC-023', 'attendance', 'reader-or-prohibition', 'attendance refuses the writes by reading internship state; internship reads nothing of attendance'],
   ['ACC-023', 'project', 'reader-or-prohibition', 'project refuses the writes by reading internship state; internship reads nothing of project'],
   ['ACC-024', 'attendance', 'reader-or-prohibition', 'withdrawal leaves attendance history attributable and reads none of it'],
+  ['ACC-029', 'internship', 'reader-or-prohibition', 'reinstating an account is forbidden from restoring an internship; identity writes and reads nothing of internship'],
+  ['ACC-029', 'project', 'reader-or-prohibition', 'reinstating an account is forbidden from restoring a membership or leadership term; identity writes and reads nothing of project'],
   ['ACC-024', 'project', 'reader-or-prohibition', 'withdrawal leaves Project history attributable and reads none of it'],
   ['ACC-026', 'attendance', 'dependency', 'R2: requests store no assigned approver, so reassignment moves nothing'],
   ['ATT-001', 'attendance', 'vocabulary', 'fields of the policy table calendar owns; attendance applies them (D28 keeps the table whole)'],
@@ -571,8 +583,8 @@ const VERDICTS = [
   ['OPS-006', 'reporting', 'homonym', '"report ready" is a health state, not the reporting module'],
   ['OPS-008', 'identity', 'homonym', '"password" of the datasource, not an account password'],
   ['OPS-009', 'calendar', 'reference', 'HolidayAPI credentials stay Admin configuration in calendar'],
-  ['OPS-020', 'reporting', 'reference', 'names reports in the team integration order'],
-  ['OPS-021', 'project', 'homonym', '"team members" are people on the development team, not Project members'],
+  ['OPS-019', 'identity', 'homonym', '"agent session" is a contributor working context, not an authenticated application session'],
+  // D30 retired OPS-020 and OPS-021; their old reporting/project mentions no longer exist.
   ['SEC-001', 'identity', 'reference', 'session authentication and password hashing are wired in config over identity accounts'],
   ['SEC-010', 'reporting', 'homonym', '"reports itself ready" is a health state'],
   ['SEC-011', 'identity', 'reference', 'session cookie flags are set in config'],

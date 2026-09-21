@@ -139,7 +139,9 @@ replaced: the mismatch is deliberate until they are. Do not edit the specificati
 match the code.
 
 **Verify a path before trusting its name.** The specification lives in
-`.sdd/specs/`, one spec per module, with shared rules in `feature-platform`. Some dated records cite an
+[the specification map](.sdd/specs/README.md): each module has a `MODULE.md` shared contract
+and cohesive `features/<feature>/SPEC.md` documents. System-wide rules stay in
+`platform/MODULE.md`. The old `feature-*` paths are compatibility indexes. Some dated records cite an
 older location; they are left as written.
 
 ## Useful commands

@@ -23,7 +23,7 @@ Check these before assuming anything. When two disagree, the higher row wins.
 | Question | Authority |
 |---|---|
 | What must always be true | [`.sdd/constitution.md`](.sdd/constitution.md) |
-| What the system must do | [`.sdd/specs/`](.sdd/specs), one spec per feature; shared rules in `feature-platform` |
+| What the system must do | [Specification map](.sdd/specs/README.md): module `MODULE.md` plus `features/<feature>/SPEC.md`; system-wide rules in `platform/MODULE.md` |
 | Why a decision was made | [`.sdd/rfcs/`](.sdd/rfcs) |
 | What is being worked on now, and what waits | [`plan.md`](plan.md) |
 
