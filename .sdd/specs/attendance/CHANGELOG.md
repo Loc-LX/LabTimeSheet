@@ -1,5 +1,12 @@
 # Changelog — Attendance module
 
+## 1.9.0 — 2026-09-21
+
+`D39`, corrected on review. `DB-018` states that `PENDING`, `OVERDUE` and a leave
+request's `WITHDRAWN` are undecided and carry no decision, and that a `CANCELLED` leave
+request carries the approval it cancelled. `AC-DB-011` covers both; without the first, the
+decision checks of V1 would refuse every overdue leave request and correction.
+
 ## 1.8.0 — 2026-09-21
 
 Status only (`D38`). No question affecting this document is open, so its Status
@@ -11,14 +18,15 @@ acceptance row, schema or dependency changed.
 
 Navigation cleanup (`D38`). The parallel `feature-attendance/` compatibility index is
 removed: it defined no rule or scenario and had no reader inside the repository.
-Its entries are retained verbatim below, so this module keeps one changelog and one
-home. Successor links in this module's feature changelogs now point at that section.
+Its entries are kept below under *Retained history*, so this module keeps one changelog and
+one home; that section states the two edits made when they moved. Successor links in this
+module's feature changelogs now point at it.
 No numbered rule, acceptance row, schema or dependency changed.
 
 ## 1.6.0 — 2026-09-21
 
 Organization only (`D34`). Inherits the 1.5.2 baseline from
-[the retained history](#history-before-the-d34-feature-split). Rules and acceptance rows
+[the retained history](#retained-history). Rules and acceptance rows
 move verbatim into cohesive feature contracts; shared rules and cross-feature scenarios
 remain in [MODULE.md](MODULE.md). Canonical use cases and state tables move only
 when one feature owns the workflow; their former headings remain links.
@@ -27,10 +35,14 @@ This entry does not approve a new business rule, technical plan or implementatio
 
 ---
 
-## History before the D34 feature split
+## Retained history
 
-These entries recorded `attendance` while its rules lived in a single `feature-attendance/SPEC.md`.
-They are retained verbatim; only their heading depth changed when they moved here.
+These are the entries of the former `feature-attendance/CHANGELOG.md`: the history of that
+document from its first version, through the `D34` split that turned it into an index,
+until `D38` removed it. Their version numbers are that document's, not this module's, which
+is why a number here can repeat one above. Their text is kept as it was, with two
+exceptions made when they moved here: headings are one level deeper, and links to
+`feature-*/SPEC.md` files that no longer exist now point at the successor `MODULE.md`.
 
 ### 1.6.0 — 2026-09-21
 

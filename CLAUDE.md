@@ -141,8 +141,10 @@ match the code.
 **Verify a path before trusting its name.** The specification lives in
 [the specification map](.sdd/specs/README.md): each module has a `MODULE.md` shared contract
 and cohesive `features/<feature>/SPEC.md` documents. System-wide rules stay in
-`platform/MODULE.md`. The old `feature-*` paths are compatibility indexes. Some dated records cite an
-older location; they are left as written.
+`platform/MODULE.md`. The old `feature-*` folders no longer exist (`D38`); each module's
+`CHANGELOG.md` keeps their history under *Retained history*, and the platform technical plan
+is `platform/PLAN.md`. Some dated records cite an older location; they are left as written,
+and `git show c443670:<path>` recovers what they point at.
 
 ## Useful commands
 

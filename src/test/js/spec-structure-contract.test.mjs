@@ -21,8 +21,8 @@ const SECTIONS = [
   "## Notes / Open Questions",
 ];
 
-/** D38 folded each removed feature-* index's changelog under this heading. */
-const RETAINED_HISTORY = "## History before the D34 feature split";
+/** D38 folded each removed feature-* changelog into its module under this heading. */
+const RETAINED_HISTORY = "## Retained history";
 const RULE_ROW = /^\| ([A-Z]+-\d{3}) \|/gm;
 const SCENARIO_ROW = /^\| (AC-[A-Z]+-\d{3}) \| ([^|]*)\|/gm;
 

@@ -1,5 +1,12 @@
 # Changelog — Identity module
 
+## 1.5.0 — 2026-09-21
+
+`D38`, corrected on review. `SEC-015` now cites `ACC-030` for a locked account's refused
+sign-in, relies on `SEC-007` for keeping the lock apart from the throttle, and clears the
+throttle of `SEC-006` for that email on every source address when a reset completes. UC-02
+traces `ACC-030`.
+
 ## 1.4.0 — 2026-09-21
 
 `D38` closes this module's open clarifications. `SEC-015` states password-reset eligibility
@@ -13,8 +20,9 @@ is validated against the running application.
 
 Navigation cleanup (`D38`). The parallel `feature-identity/` compatibility index is
 removed: it defined no rule or scenario and had no reader inside the repository.
-Its entries are retained verbatim below, so this module keeps one changelog and one
-home. Successor links in this module's feature changelogs now point at that section.
+Its entries are kept below under *Retained history*, so this module keeps one changelog and
+one home; that section states the two edits made when they moved. Successor links in this
+module's feature changelogs now point at it.
 No numbered rule, acceptance row, schema or dependency changed.
 
 ## 1.2.2 — 2026-09-21
@@ -34,7 +42,7 @@ Java behavior or approve a technical plan.
 ## 1.2.0 — 2026-09-21
 
 Organization only (`D34`). Inherits the 1.1.5 baseline from
-[the retained history](#history-before-the-d34-feature-split). Rules and acceptance rows
+[the retained history](#retained-history). Rules and acceptance rows
 move verbatim into cohesive feature contracts; shared rules and cross-feature scenarios
 remain in [MODULE.md](MODULE.md). Canonical use cases and state tables move only
 when one feature owns the workflow; their former headings remain links.
@@ -43,10 +51,14 @@ This entry does not approve a new business rule, technical plan or implementatio
 
 ---
 
-## History before the D34 feature split
+## Retained history
 
-These entries recorded `identity` while its rules lived in a single `feature-identity/SPEC.md`.
-They are retained verbatim; only their heading depth changed when they moved here.
+These are the entries of the former `feature-identity/CHANGELOG.md`: the history of that
+document from its first version, through the `D34` split that turned it into an index,
+until `D38` removed it. Their version numbers are that document's, not this module's, which
+is why a number here can repeat one above. Their text is kept as it was, with two
+exceptions made when they moved here: headings are one level deeper, and links to
+`feature-*/SPEC.md` files that no longer exist now point at the successor `MODULE.md`.
 
 ### 1.2.0 — 2026-09-21
 

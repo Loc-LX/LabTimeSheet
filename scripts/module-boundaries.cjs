@@ -67,7 +67,7 @@ const inRange = (id, p, a, b) => pre(id) === p && num(id) >= a && num(id) <= b;
 
 // [module, basis, predicate]
 const RULE_ASSIGNMENT = [
-  ['identity', 'accounts, installation, sign-in, logout and the account state machine (D35, D38)', id => inRange(id, 'ACC', 1, 18) || inRange(id, 'ACC', 27, 29) || inRange(id, 'SEC', 2, 7) || id === 'SEC-015' || id === 'DB-022'],
+  ['identity', 'accounts, installation, sign-in, logout and the account state machine (D35, D38)', id => inRange(id, 'ACC', 1, 18) || inRange(id, 'ACC', 27, 30) || inRange(id, 'SEC', 2, 7) || id === 'SEC-015' || id === 'DB-022'],
   ['internship', 'internship lifecycle, responsible Mentor and role integrity (D32)', id => inRange(id, 'ACC', 19, 26) || id === 'DB-021'],
   ['calendar', 'policy timeline (timezone, workdays, hours), global calendar, HolidayAPI', id =>
     inRange(id, 'ATT', 1, 3) || pre(id) === 'CAL' || id === 'DB-009' || id === 'INT-009'],

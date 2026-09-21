@@ -1,5 +1,15 @@
 # Changelog — Account lifecycle
 
+## 1.2.0 — 2026-09-21
+
+Corrected on review (`D38`). `DB-022` is restated as what it is: it loosens V1 by one
+row `ACC-028` needs and by a lock timestamp kept through deactivation, keeps V1's non-blank
+hash, and makes the activation timestamp write-once so a check that cannot see history no
+longer lets an update erase an activation. `ACC-016` keeps a lock through deactivation and
+`ACC-029` restores it, adding `DEACTIVATED → LOCKED` to `ACC-014` and the state table.
+`ACC-014` and the table cite `ACC-010` for activation, not `ACC-011`. `AC-ACC-021` and
+`AC-DB-009` cover the new cases.
+
 ## 1.1.0 — 2026-09-21
 
 `D38` completes the account state machine. `ACC-014` now names every permitted transition
@@ -21,6 +31,6 @@ and joint checks. Follow the public Azure/Jira guidance mapped in the
 ## 1.0.0 — 2026-09-21
 
 Extracted from the identity 1.1.5 baseline under `D34`; existing rule and
-acceptance rows are unchanged. [Earlier history](../../CHANGELOG.md#history-before-the-d34-feature-split)
+acceptance rows are unchanged. [Earlier history](../../CHANGELOG.md#retained-history)
 remains available. Scenarios here exercise this feature; cross-feature scenarios
 remain in [MODULE.md](../../MODULE.md). No new business approval is implied.

@@ -1,6 +1,6 @@
 # Authentication Spec
 
-**Version:** 1.2.0 · **Owner:** Loc-LX · **Status:** APPROVED BUSINESS BASELINE · **Date:** 2026-09-21
+**Version:** 1.3.0 · **Owner:** Loc-LX · **Status:** APPROVED BUSINESS BASELINE · **Date:** 2026-09-21
 
 **Module:** `identity` · **Shared contract:** [MODULE.md](../../MODULE.md)
 
@@ -25,7 +25,7 @@ they do not acquire additional behavior from a heading or summary.
 
 ### Login
 
-Use normalized email, eligible account state and the generic response of SEC-005; UC-02 describes the existing end-to-end flow.
+Use normalized email, the generic response of SEC-005, and ACC-030, which authenticates only an `ACTIVE` account; UC-02 describes the existing end-to-end flow.
 
 ### Logout
 
@@ -44,6 +44,7 @@ SEC-006 and SEC-007 define the email/IP key, failure window, restart behavior an
 | ID | Requirement |
 |---|---|
 | ACC-027 | WHEN an authenticated account holder submits logout with valid CSRF protection, THE system SHALL invalidate only the current authenticated session and redirect the browser to the login page. THE system SHALL refuse subsequent authenticated access using that invalidated session. Other independently authenticated sessions of the same account SHALL remain valid subject to the existing account and lifecycle rules. Logout SHALL NOT change account state or retained business data. Security-triggered session invalidation SHALL continue to follow `ACC-018` and the existing lifecycle rules. |
+| ACC-030 | THE system SHALL authenticate an account only WHILE it is `ACTIVE`. WHILE it is `PENDING_ACTIVATION`, `LOCKED` or `DEACTIVATED`, THE system SHALL refuse authentication even for a correct password and SHALL create no session, answering with the generic response of `SEC-005` so that the refusal does not reveal which of those states applies. |
 | SEC-006 | THE system SHALL key login throttling on the normalized email together with the source IP. WHERE five failures occur inside 15 minutes, THE system SHALL throttle that key for 15 minutes. WHEN a login succeeds, THE system SHALL clear the applicable throttle state. |
 | SEC-007 | THE system MAY hold throttle state in bounded memory in v1. A restart therefore resets it, and multi-node coordination is unsupported because production runs one application instance. THE system SHALL keep manual account lock persisted separately. |
 
@@ -95,7 +96,7 @@ claim full test coverage. Actors and outcomes are summaries of the canonical rul
 
 | Operation | Actor and observable outcome | Canonical rules | Existing acceptance scenarios | Acceptance boundary or open decision |
 |---|---|---|---|---|
-| [Login](#login) | Account holder obtains authorized access after sign-in | [ACC-009](../../MODULE.md), [ACC-014](../account-lifecycle/SPEC.md), [ACC-015](../account-lifecycle/SPEC.md), [ACC-016](../account-lifecycle/SPEC.md), [SEC-005](../../MODULE.md) | [AC-ACC-007](../account-lifecycle/SPEC.md), [AC-ACC-009](../account-lifecycle/SPEC.md) | Successful sign-in is present in UC-02; add focused valid/invalid/state-specific login scenarios before closing this story. |
+| [Login](#login) | Account holder obtains authorized access after sign-in | [ACC-009](../../MODULE.md), [ACC-014](../account-lifecycle/SPEC.md), [ACC-015](../account-lifecycle/SPEC.md), [ACC-016](../account-lifecycle/SPEC.md), [ACC-030](SPEC.md), [SEC-005](../../MODULE.md) | [AC-ACC-007](../account-lifecycle/SPEC.md), [AC-ACC-009](../account-lifecycle/SPEC.md), [AC-ACC-022](SPEC.md) | Covered by `AC-ACC-022`: a correct and a wrong password, and every state other than `ACTIVE` refused behind one generic response. |
 | [Logout](#logout) | Signed-in account holder ends the current session and returns to login | [ACC-027](SPEC.md), [SEC-001](../../../platform/MODULE.md) | [AC-ACC-016](SPEC.md), [AC-ACC-017](SPEC.md) | `D35` settles session scope and redirect; verify independent sessions, old-session rejection and CSRF refusal. |
 | [Session invalidation](#session-invalidation) | Affected account loses existing authenticated sessions after an identity-security change | [ACC-018](../../MODULE.md), [ACC-023](../../../internship/features/lifecycle/SPEC.md), [ACC-024](../../../internship/features/lifecycle/SPEC.md) | [AC-ACC-009](../account-lifecycle/SPEC.md), [AC-ACC-012](../account-lifecycle/SPEC.md) | Existing cases cover lock/deactivation/email changes; password/reset and terminal-internship combinations need explicit session checks. |
 | [Failed login and throttling](#failed-login-and-throttling) | Failed sign-in is throttled for the correct email/IP pair | [SEC-006](SPEC.md), [SEC-007](SPEC.md) | [AC-SEC-003](SPEC.md) | Include exact failure/window boundaries and the distinction from persisted manual lock. |
@@ -107,6 +108,7 @@ claim full test coverage. Actors and outcomes are summaries of the canonical rul
 | AC-SEC-003 | SEC-006–SEC-007 | Same normalized email/IP fails login five times inside window | Sixth attempt is throttled for 15 minutes; restart may clear throttle but does not unlock a manually locked account. |
 | AC-ACC-016 | ACC-027, ACC-018, AUTH-002 | An eligible account has independent authenticated sessions A and B; it logs out from A with a valid CSRF token, then uses A's old session identifier and B to request a protected page | A is invalidated and redirected to login; its old identifier cannot authenticate and a protected-page request goes to sign-in. B remains authenticated subject to the existing account/lifecycle guards. Account state and business data are unchanged. In separate security-change cases, the existing ACC-018 invalidation scope still applies. |
 | AC-ACC-017 | ACC-027, SEC-001 | An authenticated user attempts logout using a state-changing request with a missing or invalid CSRF token, and attempts to cause logout through a GET request | None invalidates the authenticated session or changes account/business data; missing/invalid-CSRF requests are refused. A subsequent valid CSRF-protected logout ends the current session and redirects to login under ACC-027. |
+| AC-ACC-022 | ACC-030, SEC-005 | Sign-in is attempted with the correct password for an account in each of `ACTIVE`, `LOCKED` and `DEACTIVATED`, with any password for a `PENDING_ACTIVATION` account, and with a wrong password for the `ACTIVE` one | Only the `ACTIVE` account with its correct password is authenticated. The other four attempts are refused with one identical generic response, so the caller cannot tell a wrong password from a locked, deactivated or pending account, and none of them creates a session. |
 
 Shared and cross-feature scenarios in [MODULE.md](../../MODULE.md#7-acceptance-criteria)
 also apply. Scenario ownership follows the behavior exercised, not every prerequisite

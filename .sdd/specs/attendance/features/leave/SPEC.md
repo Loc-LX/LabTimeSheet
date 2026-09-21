@@ -1,6 +1,6 @@
 # Leave Spec
 
-**Version:** 1.1.0 · **Owner:** Loc-LX · **Status:** APPROVED BUSINESS BASELINE · **Date:** 2026-09-21
+**Version:** 1.2.0 · **Owner:** Loc-LX · **Status:** APPROVED BUSINESS BASELINE · **Date:** 2026-09-21
 
 **Module:** `attendance` · **Shared contract:** [MODULE.md](../../MODULE.md)
 
@@ -146,7 +146,7 @@ claim full test coverage. Actors and outcomes are summaries of the canonical rul
 
 | Operation | Actor and observable outcome | Canonical rules | Existing acceptance scenarios | Acceptance boundary or open decision |
 |---|---|---|---|---|
-| [Submit, edit or cancel](#submit-edit-or-cancel) | Intern submits, edits, cancels or withdraws only an eligible leave request | [LEV-001](SPEC.md), [LEV-002](SPEC.md), [LEV-003](SPEC.md), [LEV-004](SPEC.md), [LEV-005](SPEC.md), [LEV-006](SPEC.md), [LEV-007](SPEC.md), [LEV-009](SPEC.md), [LEV-011](SPEC.md), [LEV-012](SPEC.md), [LEV-013](SPEC.md) | [AC-LEV-001](SPEC.md), [AC-LEV-002](SPEC.md), [AC-LEV-003](SPEC.md), [AC-LEV-004](SPEC.md), [AC-LEV-005](SPEC.md), [AC-LEV-006](SPEC.md), [AC-LEV-007](SPEC.md), [AC-DB-005](SPEC.md) | Cancellation of approved leave and withdrawal of pending/overdue leave are distinct operations; retain both cases. |
+| [Submit, edit or cancel](#submit-edit-or-cancel) | Intern submits, edits, cancels or withdraws only an eligible leave request | [LEV-001](SPEC.md), [LEV-002](SPEC.md), [LEV-003](SPEC.md), [LEV-004](SPEC.md), [LEV-005](SPEC.md), [LEV-006](SPEC.md), [LEV-007](SPEC.md), [LEV-009](SPEC.md), [LEV-011](SPEC.md), [LEV-012](SPEC.md), [LEV-013](SPEC.md) | [AC-LEV-001](SPEC.md), [AC-LEV-002](SPEC.md), [AC-LEV-003](SPEC.md), [AC-LEV-004](SPEC.md), [AC-LEV-005](SPEC.md), [AC-LEV-006](SPEC.md), [AC-LEV-007](SPEC.md), [AC-DB-005](SPEC.md), [AC-DB-010](SPEC.md) | Cancellation of approved leave and withdrawal of pending/overdue leave are distinct operations; retain both cases. |
 | [Decide and retain allocation](#decide-and-retain-allocation) | Responsible Mentor decides or amends leave without overbooking or rewriting frozen allocations | [LEV-004](SPEC.md), [LEV-005](SPEC.md), [LEV-006](SPEC.md), [LEV-008](SPEC.md), [LEV-010](SPEC.md), [LEV-011](SPEC.md), [LEV-012](SPEC.md), [ATT-024](../../MODULE.md) | [AC-LEV-002](SPEC.md), [AC-LEV-004](SPEC.md), [AC-LEV-006](SPEC.md), [AC-LEV-008](SPEC.md) | Include cross-month requests when only one touched period is finalized; shared finalization/history guards are mandatory. |
 
 ### Canonical acceptance scenarios
@@ -162,6 +162,7 @@ claim full test coverage. Actors and outcomes are summaries of the canonical rul
 | AC-LEV-007 | LEV-013, LEV-004, LEV-006 | An Intern withdraws one pending request before it starts and one overdue request whose two workdays have passed without a check-in, then submits a new request over the first range and tries to withdraw an approved request | Both withdrawals mark the requests `WITHDRAWN`, release their quota and overlap blocking, and keep each request, its day allocations, and its history; the two past workdays are classified `ABSENT`; the new request over the released range is accepted; withdrawing the approved request is refused. |
 | AC-LEV-008 | LEV-004, LEV-011, ATT-024 | On the third day of an approved three-day leave, before the period is finalized, the responsible Mentor tries to reverse the approval, tries to add a fourth day, amends without a reason, and then amends with a reason to withdraw approval from the first day, on which the Intern did not check in | The reversal, the added day, and the amendment without a reason are refused; the amendment appends an entry with the Mentor, time, and reason while the approval and the frozen allocation stay unchanged in history; the first day's quota is released, no attendance record is created, and the day is classified `ABSENT`. |
 | AC-DB-005 | DB-002 | `btree_gist` is queried after replay, then one Intern is given a pending leave range and a second overlapping range is inserted directly by SQL | The extension is present; the second insert is refused by the exclusion constraint; a non-overlapping range for the same Intern and an overlapping range for a different Intern both succeed. |
+| AC-DB-010 | DB-002, LEV-006, LEV-013 | One Intern holds an `OVERDUE` leave range and, separately, a `WITHDRAWN` one; an overlapping range for the same Intern is then inserted directly by SQL against each | The insert overlapping the `OVERDUE` range is refused by the exclusion constraint exactly as one overlapping a `PENDING` or `APPROVED` range is; the insert overlapping the `WITHDRAWN` range succeeds, because withdrawal released its overlap blocking. |
 
 Shared and cross-feature scenarios in [MODULE.md](../../MODULE.md#7-acceptance-criteria)
 also apply. Scenario ownership follows the behavior exercised, not every prerequisite
@@ -175,7 +176,17 @@ schema, dependency, PLAN.md or TASKS.md.
 
 ## Notes / Open Questions
 
-No additional decision is introduced by this split. No question affecting this feature is open; the cross-feature checks and shared contracts in MODULE.md still apply.
+No question affecting this feature is open; the cross-feature checks and shared contracts in MODULE.md still apply.
+
+Two facts the migration must carry, recorded in `D39`. First, `ex_leave_requests_no_overlap` in
+`V1__baseline.sql` blocks only `PENDING` and `APPROVED` ranges, while `DB-002` and `LEV-006`
+require `OVERDUE` too; widening the status constraint alone would leave overdue leave free to
+overlap, and `AC-DB-010` is the scenario that fails until the exclusion is widened. Second, the
+code has cancelled pending requests as `CANCELLED`, which `LEV-013` now calls `WITHDRAWN`. A
+stored `CANCELLED` row with no decision time is such a request and becomes `WITHDRAWN`; one with a
+decision time was approved and stays `CANCELLED`. That reading is derived from
+`LeaveRequestEntity#cancel`, which never clears the decision, and must be confirmed against the
+stored rows before the migration runs.
 
 Read [shared open questions](../../MODULE.md#notes--open-questions) before approving
 the technical plan. [plan.md](../../../../../plan.md) is the only progress tracker.

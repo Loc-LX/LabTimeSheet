@@ -113,17 +113,17 @@ explain choices; [plan.md](../../plan.md) is the only progress tracker.
 │       ├── daily-work-report/
 │       │   ├── SPEC.md
 │       │   └── CHANGELOG.md
-├── platform/
-│   ├── MODULE.md
-│   ├── CHANGELOG.md
-│   └── features/
-│       ├── smtp-configuration/
-│       │   ├── SPEC.md
-│       │   └── CHANGELOG.md
-│       ├── shared-interface/
-│       │   ├── SPEC.md
-│       │   └── CHANGELOG.md
-└── feature-*/                  compatibility indexes and retained histories
+└── platform/
+    ├── MODULE.md
+    ├── CHANGELOG.md
+    ├── PLAN.md                 technical design, revised in the plan phase
+    └── features/
+        ├── smtp-configuration/
+        │   ├── SPEC.md
+        │   └── CHANGELOG.md
+        └── shared-interface/
+            ├── SPEC.md
+            └── CHANGELOG.md
 ```
 
 ## Module and feature entry points
@@ -159,7 +159,7 @@ scenario stays in MODULE.md instead of being copied to every feature it exercise
 The legacy A1–A5/P1–P6 labels map to attendance/project feature folders. Platform F1–F6
 still classify shared responsibilities; only SMTP configuration and the shared interface
 have feature documents. The history each module carries from before the `D34` split is in
-its own `CHANGELOG.md`, under *History before the D34 feature split* (`D38`).
+its own `CHANGELOG.md`, under *Retained history* (`D38`).
 
 ## What the Status field means
 

@@ -1,6 +1,6 @@
 # Password management Spec
 
-**Version:** 1.1.0 · **Owner:** Loc-LX · **Status:** APPROVED BUSINESS BASELINE · **Date:** 2026-09-21
+**Version:** 1.2.0 · **Owner:** Loc-LX · **Status:** APPROVED BUSINESS BASELINE · **Date:** 2026-09-21
 
 **Module:** `identity` · **Shared contract:** [MODULE.md](../../MODULE.md)
 
@@ -89,7 +89,7 @@ claim full test coverage. Actors and outcomes are summaries of the canonical rul
 |---|---|---|---|---|
 | [Change password](#change-password) | Authenticated user changes a password and prior sessions are invalidated | [ACC-017](../../MODULE.md), [ACC-018](../../MODULE.md), [SEC-002](../../MODULE.md) | [AC-SEC-002](SPEC.md), [AC-SEC-009](SPEC.md) | Covered: current-password verification, the length bounds, session invalidation and the refusal to change another user's password. |
 | [Request password reset](#request-password-reset) | Reset requester receives the non-disclosing response and eligible delivery follows the SMTP contract | [ACC-011](../../MODULE.md), [SEC-005](../../MODULE.md), [SEC-015](../../MODULE.md), [NOT-008](../../../notification/features/email-delivery/SPEC.md) | [AC-SEC-002](SPEC.md), [AC-SEC-010](SPEC.md), [AC-NOT-003](../../../notification/features/email-delivery/SPEC.md) | Covered: eligibility in each account state behind one generic response. `SEC-015` settles which states are eligible. |
-| [Complete password reset](#complete-password-reset) | Eligible token holder sets a new password once within the reset-token lifetime | [SEC-002](../../MODULE.md), [SEC-003](../../MODULE.md), [SEC-004](../../MODULE.md), [SEC-015](../../MODULE.md), [ACC-018](../../MODULE.md) | [AC-SEC-011](SPEC.md) | Covered: expiry, reuse, supersession, token hashing, session invalidation, and that completing a reset never releases a lock. |
+| [Complete password reset](#complete-password-reset) | Eligible token holder sets a new password once within the reset-token lifetime | [SEC-002](../../MODULE.md), [SEC-003](../../MODULE.md), [SEC-004](../../MODULE.md), [SEC-015](../../MODULE.md), [ACC-018](../../MODULE.md) | [AC-SEC-011](SPEC.md) | Covered: expiry, reuse, supersession, token hashing, session invalidation, clearing the throttle, and that completing a reset never releases a lock. |
 
 ### Canonical acceptance scenarios
 
@@ -98,7 +98,7 @@ claim full test coverage. Actors and outcomes are summaries of the canonical rul
 | AC-SEC-002 | SEC-002–SEC-005 | Password is 11, 12, 128, then 129 characters; reset email is unknown | Only 12 and 128 pass length validation; response for unknown email remains generic. |
 | AC-SEC-009 | SEC-002, ACC-017, ACC-018 | A signed-in user changes their own password, first supplying a wrong current password, then a correct one, then a new password failing the length bounds; a second user attempts to change someone else's | The wrong current password and the out-of-bounds new password are both refused and the stored hash is unchanged. The valid change replaces the hash, keeps the global role and account status, and invalidates that user's existing sessions. Changing another user's password is refused without revealing whether that account exists. |
 | AC-SEC-010 | SEC-015, SEC-005, ACC-011, ACC-014 | A password reset is requested for an account in each state — `PENDING_ACTIVATION`, `ACTIVE`, `LOCKED`, `DEACTIVATED` — for an address that does not exist, and once while no SMTP configuration is active | Only the `ACTIVE` and `LOCKED` accounts receive a reset token; the pending, deactivated and unknown cases issue none. Every one of the six requests returns the same generic response, so the caller cannot tell the states apart, and no response reveals that SMTP was unavailable. |
-| AC-SEC-011 | SEC-015, SEC-003, SEC-004, ACC-018 | A reset token is used after 30 minutes, used twice, used after a newer token was issued for the same account, and used correctly on a `LOCKED` account | The expired, reused and superseded attempts are each refused and change no password. The valid attempt replaces the password, marks that token used and invalidates the account's sessions; only the 32-byte hash is ever persisted. The `LOCKED` account stays `LOCKED` and is still refused authentication after its password changes. |
+| AC-SEC-011 | SEC-015, SEC-003, SEC-004, SEC-006, ACC-018, ACC-030 | A reset token is used after 30 minutes, used twice, and used after a newer token was issued for the same account; then a valid token is used on an `ACTIVE` account whose email is throttled from two source addresses, and another on a `LOCKED` account | The expired, reused and superseded attempts are each refused and change no password. Each valid attempt replaces the password, marks that token used and invalidates the account's sessions; only the 32-byte hash is ever persisted. The `ACTIVE` account's throttle is cleared on both addresses, so it signs in at once with the new password. The `LOCKED` account stays `LOCKED` and is still refused authentication after its password changes. |
 
 Shared and cross-feature scenarios in [MODULE.md](../../MODULE.md#7-acceptance-criteria)
 also apply. Scenario ownership follows the behavior exercised, not every prerequisite

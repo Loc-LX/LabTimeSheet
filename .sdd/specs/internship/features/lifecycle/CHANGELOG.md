@@ -31,6 +31,6 @@ and joint checks. Follow the public Azure/Jira guidance mapped in the
 ## 1.0.0 — 2026-09-21
 
 Extracted from the internship 1.1.1 baseline under `D34`; existing rule and
-acceptance rows are unchanged. [Earlier history](../../CHANGELOG.md#history-before-the-d34-feature-split)
+acceptance rows are unchanged. [Earlier history](../../CHANGELOG.md#retained-history)
 remains available. Scenarios here exercise this feature; cross-feature scenarios
 remain in [MODULE.md](../../MODULE.md). No new business approval is implied.

@@ -1,5 +1,12 @@
 # Changelog — Authentication
 
+## 1.3.0 — 2026-09-21
+
+`D38`, corrected on review. `ACC-030` states that only an `ACTIVE` account signs in and
+that the three other states are refused behind the generic response of `SEC-005`; no
+numbered rule had said so for `LOCKED` or `PENDING_ACTIVATION`. `AC-ACC-022` covers it and
+closes the login gap this feature recorded.
+
 ## 1.2.0 — 2026-09-21
 
 Status only (`D38`). No question affecting this document is open, so its Status
@@ -24,6 +31,6 @@ and joint checks. Follow the public Azure/Jira guidance mapped in the
 ## 1.0.0 — 2026-09-21
 
 Extracted from the identity 1.1.5 baseline under `D34`; existing rule and
-acceptance rows are unchanged. [Earlier history](../../CHANGELOG.md#history-before-the-d34-feature-split)
+acceptance rows are unchanged. [Earlier history](../../CHANGELOG.md#retained-history)
 remains available. Scenarios here exercise this feature; cross-feature scenarios
 remain in [MODULE.md](../../MODULE.md). No new business approval is implied.

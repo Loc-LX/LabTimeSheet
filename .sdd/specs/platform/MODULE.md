@@ -2,7 +2,7 @@
 
 <a id="platform-spec"></a>
 
-**Version:** 1.8.0 · **Owner:** Loc-LX · **Status:** APPROVED BUSINESS BASELINE · **Date:** 2026-09-21
+**Version:** 1.9.0 · **Owner:** Loc-LX · **Status:** APPROVED BUSINESS BASELINE · **Date:** 2026-09-21
 
 Part of the Lab Timesheet specification. Rules every feature shares, including the
 glossary, the authorization model, the domain model, and failure handling, are in
@@ -24,8 +24,8 @@ This spec holds what every feature shares. It is not a feature in the code; the 
 | Database baseline | PostgreSQL 18.4, 30 application tables |
 | Companion DDL | `database-schema.sql`, not tracked in this repository |
 | Review state | Approved rule baseline; later clarification gaps in §22.3 prevent approval of the affected plans. Each spec's version and changes are in its header and `CHANGELOG.md`. |
-| Normative rules | 310 across the eight module trees |
-| Acceptance scenarios | 163 across the eight module trees |
+| Normative rules | 311 across the eight module trees |
+| Acceptance scenarios | 166 across the eight module trees |
 
 > **Companion files.** The companion `database-schema.sql` and the reference images
 > under `assets/` are not tracked in this repository. Every image embed below is
@@ -1235,10 +1235,10 @@ What approval means for a specification that documents a working product.
 
 | Measure | Value |
 |---|---:|
-| Normative rules, sections 1–22 | 310 |
-| Rules with a §20 acceptance scenario | 291 |
+| Normative rules, sections 1–22 | 311 |
+| Rules with a §20 acceptance scenario | 292 |
 | Rules declared without one, with reason | 19 |
-| Acceptance scenarios | 163 |
+| Acceptance scenarios | 166 |
 | Application tables | 30 |
 
 #### §22.2 What approval requires
@@ -1274,9 +1274,11 @@ questions and the canonical rule/scenario is amended. Part organization is not t
 A closed register is not a claim that the rules are right for the laboratory. §22.2 still
 requires a person with authority to accept them, and no mechanical check can supply that.
 
-`D38` settles the account transition table (`ACC-014`, `ACC-028`, `ACC-029`, `DB-022`), the
-email delivery states (`NOT-012`), and password-reset eligibility (`SEC-015`) with the three
-scenarios that complete password coverage. It also removes the parallel `feature-*` document
+`D38` settles the account transition table (`ACC-014`, `ACC-028`, `ACC-029`, `DB-022`),
+sign-in by account state (`ACC-030`), the email delivery states (`NOT-012`), and
+password-reset eligibility (`SEC-015`) with the three scenarios that complete password
+coverage. `D39` records the status predicates the migration must change beyond the status
+constraints. It also removes the parallel `feature-*` document
 tree after folding its history into each module.
 `D37` settles assignee Task status transitions to require non-deleted Tasks (`TSK-007`),
 adds `AC-TSK-021`, constrains `DB-011` and `DB-012` status sets to match `V1__baseline.sql`,

@@ -2,7 +2,7 @@
 
 <a id="identity-spec"></a>
 
-**Version:** 1.4.0 · **Owner:** Loc-LX · **Status:** APPROVED BUSINESS BASELINE · **Date:** 2026-09-21
+**Version:** 1.5.0 · **Owner:** Loc-LX · **Status:** APPROVED BUSINESS BASELINE · **Date:** 2026-09-21
 
 Part of the Lab Timesheet specification. Rules every feature shares, including the
 glossary, the authorization model, the domain model, and failure handling, are in
@@ -65,7 +65,7 @@ Feature contracts: [First Admin bootstrap](features/first-admin-bootstrap/SPEC.m
 | SEC-003 | THE system SHALL generate activation and reset tokens from cryptographically secure random bytes suitable for URL-safe encoding, and SHALL persist only their 32-byte SHA-256 hashes. |
 | SEC-004 | THE system SHALL expire an activation token after 24 hours and a password-reset token after 30 minutes. WHEN a token is issued, THE system SHALL invalidate that user's older unused token of the same purpose. |
 | SEC-005 | WHEN a login or password-reset form is submitted, THE system SHALL return a generic response that does not reveal whether the email exists, is pending, is locked, or lacks SMTP delivery. |
-| SEC-015 | THE system SHALL issue and accept a password-reset token only WHILE the account is `ACTIVE` or `LOCKED`. WHERE the account is `PENDING_ACTIVATION` or `DEACTIVATED`, THE system SHALL refuse both, and SHALL answer with the generic response of `SEC-005` rather than revealing the state. WHEN a reset completes, THE system SHALL replace the password, mark the token used and invalidate that account's sessions, and SHALL NOT change the account status: a `LOCKED` account SHALL remain `LOCKED` and SHALL still be refused authentication under `ACC-014`. |
+| SEC-015 | THE system SHALL issue and accept a password-reset token only WHILE the account is `ACTIVE` or `LOCKED`. WHERE the account is `PENDING_ACTIVATION` or `DEACTIVATED`, THE system SHALL refuse both, and SHALL answer with the generic response of `SEC-005` rather than revealing the state. WHEN a reset completes, THE system SHALL replace the password, mark the token used, invalidate that account's sessions, and clear the login throttle of `SEC-006` for that normalized email on every source address. THE system SHALL NOT change the account status: a `LOCKED` account SHALL remain `LOCKED` and SHALL still be refused authentication under `ACC-030`, because a manual lock is kept apart from the throttle (`SEC-007`) and only an Admin lifts it. |
 
 Feature contracts: [Authentication](features/authentication/SPEC.md).
 
@@ -83,7 +83,7 @@ Canonical workflow: [feature contract](features/first-admin-bootstrap/SPEC.md).
 | Trigger | A user receives an activation link, signs in, or requests password recovery. |
 | Preconditions | The account and token state permit the selected action. |
 | Postconditions | The user has a valid authorized session, or the attempt fails without changing protected state. |
-| Traced requirements | ACC-009–ACC-018, NOT-005–NOT-008, SEC-002–SEC-010, SEC-015 |
+| Traced requirements | ACC-009–ACC-018, ACC-030, NOT-005–NOT-008, SEC-002–SEC-010, SEC-015 |
 
 **Main success flow**
 
@@ -146,6 +146,7 @@ edges in [Account lifecycle](features/account-lifecycle/SPEC.md), adds `SEC-015`
 password-reset eligibility, and completes the operation-level acceptance coverage of
 [Password management](features/password-management/SPEC.md).
 
-`ACC-028`, `ACC-029` and `DB-022` need a migration and are not implemented. `SEC-015`
-states behavior the code already has and has not been validated against it; a documentation
-check establishes consistency, not runtime conformance.
+`ACC-028`, `ACC-029` and `DB-022` need a migration, and `ACC-030` and the throttle clause of
+`SEC-015` need code that does not exist yet; none is implemented. The rest of `SEC-015` states
+behavior the code already has and has not been validated against it; a documentation check
+establishes consistency, not runtime conformance.

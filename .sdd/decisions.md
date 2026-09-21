@@ -86,8 +86,8 @@ came from, not whether the choice is settled.
 | D35 | Which workflow and logout defaults to adopt | New Tasks start at TODO; all unblocks restore the latest pre-block state; cancelled work does not block internship termination; logout ends the current session | `TSK-003`, `TSK-007`, `TSK-025`, `ACC-022`, new `ACC-027`; related acceptance contracts |
 | D36 | Whether soft-deleted Tasks block internship termination | Exclude them from ACC-022; preserve history and other guards; repair trace-owner checks and the P5 scenario index | `ACC-022`, `AC-ACC-018`, new `AC-ACC-019`; documentation checks |
 | D37 | Whether Task status transitions require a non-deleted Task, and complete invitation/exit status sets | Require non-deleted Task in TSK-007; add AC-TSK-021; align DB-011 and DB-012 status constraints with V1__baseline.sql; define invitation and exit-request state transition tables | `TSK-007`, `DB-011`, `DB-012`, `AC-TSK-021` |
-| D39 | Which migration adds the ninth invitation resolution code the schema lacks | The migration `D32` already requires also alters the two invitation check constraints; `DB-011` owns that delta and `AC-PRJ-015` fails until it lands | `DB-011` unchanged in text; its schema delta and failing scenario are now recorded |
-| D38 | The last open questions: one home per module, the account state machine, delivery states, reset eligibility | Remove the parallel `feature-*` tree after folding its history into each module; a never-activated account can be cancelled and a deactivated one reinstated; state the five delivery states; reset is for `ACTIVE` and `LOCKED` only and never changes account state | `ACC-014`, `ACC-016`; new `ACC-028`, `ACC-029`, `NOT-012`, `SEC-015`, `DB-022`; new `AC-ACC-020`, `AC-ACC-021`, `AC-NOT-007`, `AC-SEC-009`–`AC-SEC-011`, `AC-DB-009` |
+| D39 | Which status predicates the migration must change beyond the status constraints | Four: the invitation resolution codes, the leave overlap exclusion, and the decision checks of leave and corrections; undecided rows carry no decision and a cancelled leave request carries its approval. Corrected on review | `DB-018`; new `AC-DB-010`, `AC-DB-011`; `DB-002` and `DB-011` unchanged |
+| D38 | The last open questions: one home per module, the account state machine, delivery states, reset eligibility | Remove the parallel `feature-*` tree after folding its history into each module; a never-activated account can be cancelled and a deactivated one reinstated, keeping any lock; only an `ACTIVE` account signs in; state the five delivery states; reset is for `ACTIVE` and `LOCKED`, clears the throttle and never changes account state. Corrected on review | `ACC-014`, `ACC-016`; new `ACC-028`, `ACC-029`, `ACC-030`, `NOT-012`, `SEC-015`, `DB-022`; new `AC-ACC-020`–`AC-ACC-022`, `AC-NOT-007`, `AC-SEC-009`–`AC-SEC-011`, `AC-DB-009` |
 
 D1 through D5 came from reading the specification against its own history. D6
 through D9 came from the audit described at the end of this page, which read the
@@ -1661,10 +1661,15 @@ the register it meant is §22.3 of `platform/MODULE.md`. A folder tree therefore
 `attendance` beside `feature-attendance` for every module, at the cost of sixteen files,
 while answering no question that the module's own contract did not already answer.
 
-**Decision.** Remove the eight `feature-*` folders. Before removal, the ninety-nine
-changelog entries they held are appended verbatim to the changelog of the module that owns
-them, under *History before the D34 feature split*; only their heading depth changed, so
-that each module keeps one changelog and one home. `feature-platform/PLAN.md` is a
+**Decision.** Remove the eight `feature-*` folders. Before removal, the changelog entries
+they held are appended to the changelog of the module that owns them, under *Retained
+history*, so that each module keeps one changelog and one home. Those entries are the
+ninety-one committed at `c443670`, all present, eighty-two of them byte for byte and nine
+with a link retargeted, and the eight `D34` entries written after that commit, which were
+never committed on their own and so have no earlier copy in git. Two edits were made as
+they moved, and the section states both: headings are one level deeper, and links to
+`feature-*/SPEC.md` files that no longer exist point at the successor `MODULE.md`.
+`feature-platform/PLAN.md` is a
 technical design rather than an index and moves to `platform/PLAN.md`, keeping the
 corrections `plan.md` already tracks for it. Successor links in module and feature
 changelogs are retargeted to that retained section and to the module contracts.
@@ -1709,7 +1714,7 @@ product is cited for them:
 | From | Action | To | Where it is fixed today |
 |---|---|---|---|
 | (none) | an Admin creates the account | `PENDING_ACTIVATION` | `ACC-010` |
-| `PENDING_ACTIVATION` | the invitee sets a first password | `ACTIVE` | `ACC-011`, `ck_app_users_pending_password` |
+| `PENDING_ACTIVATION` | the invitee sets a first password | `ACTIVE` | `ACC-010`, `ck_app_users_pending_password` |
 | `ACTIVE` | an Admin locks | `LOCKED` | `AppUser#lock` refuses any other source state |
 | `LOCKED` | an Admin unlocks | `ACTIVE` | `AppUser#unlock` refuses any other source state; `ACC-015` |
 | `ACTIVE`, `LOCKED` | an Admin deactivates | `DEACTIVATED` | `AppUser#deactivate` refuses `PENDING_ACTIVATION` and `DEACTIVATED` |
@@ -1723,14 +1728,23 @@ deactivates an account when an internship is withdrawn, so an Intern returning f
 term, or an account deactivated by mistake, has no route back.
 
 **Decision, `ADAPTED`.** An Admin may deactivate a `PENDING_ACTIVATION` account, and may
-reinstate a `DEACTIVATED` one. Reinstating an account that was never activated returns it
-to `PENDING_ACTIVATION` rather than to `ACTIVE`, so a usable link still needs an explicit
-resend. Nothing is physically deleted, and reinstatement restores no internship,
-membership or leadership term.
+reinstate a `DEACTIVATED` one. Reinstatement returns the account to the state its own record
+allows: `LOCKED` if it was locked when deactivated, `PENDING_ACTIVATION` if it was never
+activated, and otherwise `ACTIVE`. Nothing is physically deleted, and reinstatement restores
+no internship, membership or leadership term.
 
-Public comparison points, read on 21 September 2026:
+A lock must survive the round trip. `AppUser#deactivate` clears the lock timestamp today,
+the schema forces it clear outside `LOCKED`, and no table records account history, so an
+account locked on suspicion, then deactivated when its internship is withdrawn, would come
+back `ACTIVE` with nothing left to say it had been locked. That silently undoes an Admin's
+security decision, which is the same harm `SEC-015` guards against for a reset. So a
+deactivated account keeps its lock timestamp, and reinstatement reads it.
 
-- [Microsoft Entra, restore or permanently remove a deleted user](https://learn.microsoft.com/en-us/entra/fundamentals/users-restore) (page updated 18 June 2026): a user may be removed whether or not they ever signed in, and *"the account remains in a suspended state for 30 days. During that 30-day window, the user account can be restored, along with all its properties."*
+Public comparison points, read on 21 September 2026. The Microsoft counterpart of
+`DEACTIVATED` is blocking sign-in, not deleting the user: `GOV-014` forbids deleting an
+account, so the deleted-user recovery period has no counterpart here.
+
+- [Microsoft 365, prevent user sign-in and block access](https://learn.microsoft.com/en-us/microsoft-365/admin/add-users/remove-former-employee-step-1?view=o365-worldwide) (page updated 28 April 2026): blocking sign-in is a separate step from removing the user, and *"If you think the account might be compromised, make sure to block signing in so that no one can use those credentials."* The page does not say whether a block can be lifted; the two sources below do.
 - [Atlassian, deactivate a managed account](https://support.atlassian.com/user-management/docs/deactivate-a-managed-account/): *"Deactivate an account to temporarily close an Atlassian account. This won't delete personal data associated with the Atlassian account, since you can reactivate the account at any time,"* while *"If you want to permanently close an Atlassian account and delete its data, delete the account instead."*
 - [Azure DevOps, remove users from an organization](https://learn.microsoft.com/en-us/azure/devops/organizations/accounts/delete-organization-users) (page updated 7 May 2026): *"Work items assigned to the user aren't affected by removing their access"* and *"the history of already assigned artifacts is preserved,"* and a removed user *"can be re-added at any time."*
 
@@ -1738,13 +1752,14 @@ Public comparison points, read on 21 September 2026:
 turning an account off is reversible, and it never costs the history attributed to that
 person, which is what `ACC-016` already promises. It does not take Atlassian's second tier,
 because `GOV-014` allows exactly one physical deletion in this product and a second one
-would weaken the retention rule for a rare administrative mistake. It does not take
-Entra's thirty-day window, because this product has no time-boxed recovery mechanism and
-copying the window would import a scale decision rather than a behavior. Reinstatement is
+would weaken the retention rule for a rare administrative mistake. It sets no time limit on
+reinstatement: a recovery window exists in Microsoft Entra to hold back a pending permanent
+deletion, and here there is no deletion for a window to hold back. Reinstatement is
 therefore open-ended and always an explicit Admin action.
 
-**Rules.** `ACC-014` gains the two edges; `ACC-016` states that deactivation is reversible
-under `ACC-029` while it still refuses authentication.
+**Rules.** `ACC-014` gains the edges; `ACC-016` states that deactivation keeps any lock and
+is reversible under `ACC-029`; `ACC-030` is added because no numbered rule said that a
+`LOCKED` or `PENDING_ACTIVATION` account is refused sign-in, only a line in UC-02.
 
 > `ACC-028` — WHILE an account is `PENDING_ACTIVATION`, THE system SHALL permit an Admin to
 > deactivate it. WHEN that happens, THE system SHALL set the account to `DEACTIVATED`,
@@ -1753,24 +1768,43 @@ under `ACC-029` while it still refuses authentication.
 > password hash or an activation timestamp for such an account.
 
 > `ACC-029` — WHILE an account is `DEACTIVATED`, THE system SHALL permit an Admin to
-> reinstate it. WHEN a reinstated account holds an activation timestamp, THE system SHALL
-> return it to `ACTIVE` without recreating its credentials. WHERE it holds none, THE system
-> SHALL return it to `PENDING_ACTIVATION`, and a usable activation link SHALL require an
-> explicit resend under `ACC-013`. THE system SHALL NOT restore an internship, a Project
-> membership or a leadership term by reinstating an account.
+> reinstate it without recreating its credentials, and SHALL choose the resulting state
+> from what the account holds: `LOCKED` WHERE it holds a lock timestamp, so that a lock
+> applied before deactivation survives; `ACTIVE` WHERE it holds an activation timestamp and
+> no lock timestamp; and `PENDING_ACTIVATION` WHERE it holds neither, in which case a usable
+> activation link SHALL require an explicit resend under `ACC-013`. THE system SHALL NOT
+> restore an internship, a Project membership or a leadership term by reinstating an account.
+
+> `ACC-030` — THE system SHALL authenticate an account only WHILE it is `ACTIVE`. WHILE it
+> is `PENDING_ACTIVATION`, `LOCKED` or `DEACTIVATED`, THE system SHALL refuse authentication
+> even for a correct password and SHALL create no session, answering with the generic
+> response of `SEC-005` so that the refusal does not reveal which of those states applies.
 
 > `DB-022` — THE schema SHALL constrain `app_users.account_status` to `PENDING_ACTIVATION`,
-> `ACTIVE`, `LOCKED` or `DEACTIVATED`, and SHALL require the password hash and the
-> activation timestamp to agree: both absent WHILE the status is `PENDING_ACTIVATION`, or
-> WHILE it is `DEACTIVATED` and the account was never activated, and both present
-> otherwise. THE schema SHALL require a lock timestamp exactly WHILE the status is `LOCKED`,
-> and a deactivation timestamp exactly WHILE it is `DEACTIVATED`.
+> `ACTIVE`, `LOCKED` or `DEACTIVATED`. THE schema SHALL require a non-blank password hash and
+> an activation timestamp together or not at all: neither WHILE the status is
+> `PENDING_ACTIVATION`, both WHILE it is `ACTIVE` or `LOCKED`, and both or neither WHILE it
+> is `DEACTIVATED`. THE schema SHALL refuse an update that sets an activation timestamp other
+> than the one that moves an account from `PENDING_ACTIVATION` to `ACTIVE`, and SHALL refuse
+> every update that clears or changes an activation timestamp once set, so that a
+> `DEACTIVATED` row without one can only be an account that was never activated. THE schema
+> SHALL require a lock timestamp WHILE the status is `LOCKED`, SHALL permit one WHILE it is
+> `DEACTIVATED` only beside an activation timestamp, and SHALL refuse one in every other
+> status. THE schema SHALL require a deactivation timestamp exactly WHILE the status is
+> `DEACTIVATED`.
 
-`DB-022` tightens rather than loosens: it keeps every pairing the three existing checks
-enforce and adds the one new lawful combination, so a `DEACTIVATED` row can never hold a
-half-populated identity. It needs a migration that replaces
-`ck_app_users_pending_password` and `ck_app_users_activated_state`; that migration joins
-the one `D32` already requires.
+**What `DB-022` changes, stated plainly.** It loosens `V1__baseline.sql` in exactly two
+places and tightens it in one. The four pairing checks of V1 already tie a non-blank hash
+and an activation timestamp to every status other than `PENDING_ACTIVATION`; `DB-022` adds
+the one row `ACC-028` needs, a `DEACTIVATED` account holding neither, and lets a
+`DEACTIVATED` account keep a lock timestamp so `ACC-029` can restore the lock. A check
+cannot see history, so that first loosening would on its own let an update erase the
+activation of an account that had been active; the write-once activation timestamp closes
+that, enforced by a trigger on the pattern `trg_app_users_immutable_role` already uses for
+`DB-005`, and it also stops an activation timestamp from being set outside activation.
+The non-blank hash of V1 is kept. The migration replaces `ck_app_users_pending_password`,
+`ck_app_users_activated_state` and `ck_app_users_lock_timestamp` and adds the trigger; it
+joins the one `D32` already requires.
 
 ### Part 3 — email delivery states
 
@@ -1799,87 +1833,160 @@ decides nothing those scenarios left open.
 `AppUser#changePassword` never touches the account status. One judgement is not settled by
 that code: whether a reset should release an Admin's lock.
 
-**Decision.** It must not. [Microsoft Entra's self-service password reset](https://learn.microsoft.com/en-us/entra/identity/authentication/concept-sspr-howitworks),
-read on 21 September 2026, unlocks an account that a failed-sign-in lockout locked; it is
-not a way around an administrator's decision to block an account. In this product the two
-are separate mechanisms: the login throttle is automatic, while `LOCKED` under `ACC-014` is
-an explicit Admin action. Taking Entra's behavior literally would let a reset undo that
-action, so the comparison is recorded and departed from.
+**Decision.** It must not, and it should clear the throttle. This product has two separate
+mechanisms, and `SEC-007` already keeps them apart: the login throttle of `SEC-006` is
+automatic and held in memory, while `LOCKED` is set only by an Admin, through
+`AccountService#lockAccount`, and persisted.
+
+The comparison with Microsoft follows that split. [Microsoft Entra's self-service password
+reset](https://learn.microsoft.com/en-us/entra/identity/authentication/concept-sspr-howitworks),
+read on 21 September 2026, says under *On-premises integration* that *"By default, Microsoft
+Entra ID unlocks accounts when it performs a password reset."* That unlock concerns a lockout
+caused by failed sign-ins, whose counterpart here is the throttle, so a completed reset
+clears the throttle for that email: `ENTERPRISE-BACKED`. Microsoft's counterpart of `LOCKED`
+is an administrator blocking sign-in. Neither that page nor [the page on blocking
+sign-in](https://learn.microsoft.com/en-us/microsoft-365/admin/add-users/remove-former-employee-step-1?view=o365-worldwide)
+says whether a reset lifts a block, and none of the sources read today says so. Keeping the
+lock through a reset is therefore a local decision, `LAB-POLICY`, not a departure from
+Microsoft.
+
+The reason for it is the order in which a suspected compromise is handled. An Admin locks
+the account, the owner resets the password, which invalidates the credential the intruder
+holds and ends every session, and only then does an Admin unlock it. The blocking-sign-in
+page also combines a password reset with a block where an account may be compromised,
+though there an administrator performs the reset, for an employee who is leaving, so it
+supports pairing the two steps rather than this exact order. Refusing a reset while `LOCKED` would force
+the unlock to come first, reopening the account on the compromised password. The cost is
+recorded rather than hidden: behind the generic response of `SEC-005`, the owner of a locked
+account completes a reset and is still refused sign-in without being told why.
+
+The throttle is keyed on email and source address, and `LoginThrottle` clears one such
+pair. A reset proves control of the mailbox, not of any one address, so it clears that
+email's throttle on every source address; that needs a clear-by-email operation the code
+does not have, which is a matter for the plan.
 
 > `SEC-015` — THE system SHALL issue and accept a password-reset token only WHILE the
 > account is `ACTIVE` or `LOCKED`. WHERE the account is `PENDING_ACTIVATION` or
 > `DEACTIVATED`, THE system SHALL refuse both, and SHALL answer with the generic response of
 > `SEC-005` rather than revealing the state. WHEN a reset completes, THE system SHALL
-> replace the password, mark the token used and invalidate that account's sessions, and
-> SHALL NOT change the account status: a `LOCKED` account SHALL remain `LOCKED` and SHALL
-> still be refused authentication.
+> replace the password, mark the token used, invalidate that account's sessions, and clear
+> the login throttle of `SEC-006` for that normalized email on every source address. THE
+> system SHALL NOT change the account status: a `LOCKED` account SHALL remain `LOCKED` and
+> SHALL still be refused authentication under `ACC-030`, because a manual lock is kept apart
+> from the throttle (`SEC-007`) and only an Admin lifts it.
 
 ### Acceptance and scope
 
-Seven scenarios are added. `AC-ACC-020` covers deactivating a pending account and the
-tokens it invalidates; `AC-ACC-021` covers both reinstatement paths and what reinstatement
-does not restore; `AC-DB-009` covers the tightened constraint pair, including the rejection
-of a half-populated `DEACTIVATED` row; `AC-NOT-007` covers the delivery transitions
-including the refusal to send an `UNAVAILABLE` notification after SMTP returns;
-`AC-SEC-009` covers a password change with current-password verification; `AC-SEC-010`
-covers reset eligibility in each account state behind one generic response; `AC-SEC-011`
-covers reset completion, its thirty-minute expiry under `SEC-004`, single use and session
-invalidation. That closes the operation-level gap password management recorded.
+Eight scenarios are added. `AC-ACC-020` covers deactivating a pending account and the
+tokens it invalidates; `AC-ACC-021` covers the three reinstatement paths, including a lock
+that survives, and what reinstatement does not restore; `AC-ACC-022` covers sign-in in each
+account state behind one generic response; `AC-DB-009` covers every lawful and unlawful
+combination of `DB-022`, a blank hash, and each attempt to clear, change or misplace an
+activation timestamp; `AC-NOT-007` covers the delivery transitions including the refusal to
+send an `UNAVAILABLE` notification after SMTP returns; `AC-SEC-009` covers a password change
+with current-password verification; `AC-SEC-010` covers reset eligibility in each account
+state behind one generic response; `AC-SEC-011` covers reset completion, its thirty-minute
+expiry under `SEC-004`, single use, session invalidation and the cleared throttle. That
+closes the operation-level gap password management recorded, and the login gap
+Authentication recorded.
 
-The catalogue becomes 310 rules and 163 scenarios, of which 291 carry an acceptance
-scenario and the same 19 as before do not. Five rules are added and two amended;
-no existing rule loses a clause. §22.3 becomes empty, which is what §22.2 requires of
-approval. Part 1 changes no rule at all.
+After this decision the catalogue holds 311 rules and 164 scenarios, of which 292 rules
+carry an acceptance scenario and the same 19 as before do not. Six rules are added and two
+amended; no existing rule loses a clause. §22.3 becomes empty, which is what §22.2 requires
+of approval. Part 1 changes no rule at all. `D39` then adds two scenarios.
 
-`ACC-028`, `ACC-029` and `DB-022` need the migration described above and are not
-implemented; `NOT-012` and `SEC-015` state behavior the code already has, and neither has
-been validated against it. Documentation checks establish consistency, not runtime
-conformance.
+`ACC-028`, `ACC-029`, `ACC-030` and `DB-022` need the migration described above or code
+that does not exist yet, and none is implemented. `NOT-012` and `SEC-015`, apart from its
+throttle clause, state behavior the code already has, and neither has been validated
+against it. Documentation checks establish consistency, not runtime conformance.
 
-**Rollback.** Part 1 is reversed by restoring the eight folders from `c443670` and undoing
-the changelog appends, the two moved links and the hierarchy check. Parts 2 to 4 are
-reversed by removing the five rules, the two amendments and the six scenarios. The parts
-are independent; either may be reversed without the other. No commit, push or merge is
-authorized here, and independent review remains a separate step.
+**Rollback.** Part 1 cannot be reversed by restoring the eight folders from `c443670`:
+there they are the full specifications from before the `D34` split, holding the rules
+themselves, so restoring them would give every rule a second home. Reverse it instead by
+moving each module's *Retained history* back into a `feature-<module>/CHANGELOG.md`,
+recreating an index `SPEC.md` that defines no rule, and undoing the moved links, the heading
+rename and the hierarchy check; the index text was never committed, so it is recreated
+rather than restored. Parts 2 to 4 are reversed by removing the six rules, the two
+amendments and the eight scenarios. The parts are independent. No push or merge is
+authorized here.
 
-## D39. Which migration adds the ninth invitation resolution code?
+**Corrected on review, 21 September 2026.** An independent review of the first version of
+this decision, commit `b008c1f`, found the following, and each was confirmed against the
+repository before this correction:
 
-**Found and settled on 21 September 2026,** by editing rather than by a business
-judgement. No rule changes its meaning; what was missing was the record of a schema delta
-that no document owned.
+- It said `DB-022` tightened rather than loosened the schema. It loosened it, dropped V1's
+  non-blank hash, and relied on history a check cannot see, so an update could erase an
+  account's activation. It also counted three pairing checks where V1 has four.
+- It justified an unlimited reinstatement by calling Entra's thirty-day window a matter of
+  scale. That window guards a pending deletion; the counterpart of `DEACTIVATED` is blocking
+  sign-in, and the source is replaced accordingly.
+- It let a reinstated account lose an Admin's lock without trace. The lock now survives.
+- It presented `SEC-015` as departing from Microsoft, and attributed to the SSPR page a
+  sentence about administrator blocks that the page does not contain. It cited `ACC-014`
+  for refusing a locked account's sign-in, which that rule does not say; no numbered rule
+  said it, so `ACC-030` is added. It gave no reason for letting a locked account reset, and
+  left the throttle uncleared after a reset.
+- It called the moved changelog entries verbatim, which nine are not, counted ninety-nine
+  where git can confirm ninety-one, named their section as history before `D34` while it
+  holds the `D34` entry, and left repeated version numbers unexplained.
+- Its rollback of Part 1 would have duplicated every rule, it cited `ACC-011` instead of
+  `ACC-010` for activation in three places, and it stated two different scenario counts.
 
-**What was found.** `DB-011` requires the invitation resolution code to be constrained to
-nine values. `V1__baseline.sql` constrains it to eight: `ck_project_invitations_resolution_code`
-has no `PROJECT_CANCELLED`, and neither does the `REVOKED` branch of
-`ck_project_invitations_resolution_state`, which also decides where `resolved_by_user_id`
-may be null. So `PRJ-023` and `AC-PRJ-015`, which both require cancellation to revoke a
-pending invitation with `PROJECT_CANCELLED`, cannot pass against the current schema.
+The correction also found three places that still described the removed folders as present:
+the specification map's tree, `CLAUDE.md`, and `plan.md`.
 
-**Why it was missed.** `D12` added the ninth code as a consequence of Project cancellation,
-a business change. `D32` then enumerated the schema deltas its own rules need — six new
-tables, and `DB-018`, `DB-019` and `DB-021` altering existing ones — and this alteration
-belongs to `DB-011`, which `D32` did not touch, so it fell between the two. `D37` later
-aligned `DB-011` with `V1__baseline.sql` and corrected `PROJECT_COMPLETED` from superseded
-to revoked, but compared the status column only, not the resolution-code set.
+## D39. Which status predicates does the migration have to change, beyond the status constraints?
 
-**Decision.** The migration `D32` already requires also replaces those two constraints, so
-that `PROJECT_CANCELLED` is an accepted resolution code and is one of the codes the
-`REVOKED` branch admits with a null resolving actor, as `LEADER_CHANGED`, `PROJECT_COMPLETED`
-and `INVITEE_INELIGIBLE` already are. `DB-011` owns that delta; its text is already correct
-and does not change. `AC-PRJ-015` joins `AC-DB-001` and `AC-DB-006`–`AC-DB-008` as a
-scenario that fails against the code until the migration lands, which `D32` records for the
-others.
+**Found and settled on 21 September 2026,** by editing rather than by a business judgement,
+and corrected the same day on independent review. The first version of this entry, commit
+`399dc17`, recorded one omission and concluded from a sweep that it was the only one. The
+review showed the sweep could not see the rest, and three more were found.
 
-**How far this was checked.** Every enumerated value named in a `DB` rule was compared
-against both migrations. Ten were absent from the schema: `OPEN`, `FINALIZED`,
-`LATE_ARRIVAL`, `EARLY_DEPARTURE`, `EXCUSED`, `UNEXCUSED` and `OVERDUE` are the new status
-names `D32` introduces, two were SQL keywords caught by the pattern, and exactly one,
-`PROJECT_CANCELLED`, was owned by nothing. This is a single omission rather than a class of
-them, and the sweep is the evidence for saying so.
+**The class.** When a decision adds a status value, the migration has to revisit every
+schema predicate that lists statuses, not only the check on the status column: exclusion
+constraints, checks that tell decided rows from undecided ones, and resolution-code sets.
+`D32` listed the status columns its rules widen, and the platform plan reasons that
+*"widening is safe for existing rows"*. For a status column it is. For the other predicates
+it is not, and nothing listed them.
 
-**Scope.** Documentation only. No rule text, acceptance row, schema, dependency or
-architecture boundary changes, and the catalogue stays at 310 rules and 163 scenarios.
-Reverse by removing this entry and the invitations note it added.
+| Predicate in `V1__baseline.sql` | What the rules require | Consequence if only the status column is widened | Owner |
+|---|---|---|---|
+| `ck_project_invitations_resolution_code` and the `REVOKED` branch of `ck_project_invitations_resolution_state` | Nine resolution codes including `PROJECT_CANCELLED`, which the `REVOKED` branch admits with no resolving actor (`DB-011`, `PRJ-023`) | Cancelling a Project with a pending invitation fails; `AC-PRJ-015` fails | `DB-011` |
+| `ex_leave_requests_no_overlap`, `WHERE status IN ('PENDING', 'APPROVED')` | `OVERDUE` ranges block overlap too (`DB-002`, `LEV-006`); `WITHDRAWN` ranges do not (`LEV-013`) | **Silent.** Overdue leave can overlap other leave, and `AC-DB-005` still passes because it tests only a pending range | `DB-002`; new `AC-DB-010` |
+| `ck_leave_requests_decision` | `OVERDUE` and `WITHDRAWN` are undecided and carry no decision (`DB-018`) | Marking a request overdue or withdrawing it is refused | `DB-018`; new `AC-DB-011` |
+| `ck_attendance_corrections_decided_at` | `OVERDUE` corrections are undecided (`DB-018`, `COR-007`) | The worker of `COR-008` cannot mark a correction overdue | `DB-018`; new `AC-DB-011` |
+
+The third and fourth rows had no rule saying what an undecided row may carry, so `DB-018`
+now says it: `PENDING`, `OVERDUE` and a leave request's `WITHDRAWN` carry neither a decision
+time nor a deciding actor. It also requires a `CANCELLED` leave request to carry the
+approval it cancelled, because `LEV-011` cancels only an approved request; that makes the
+schema hold the meaning `LEV-013` gave `WITHDRAWN`, instead of leaving it to the code.
+`DB-002` and `DB-011` were already right and do not change.
+
+**Rows the change reinterprets.** The code cancels a pending leave request as `CANCELLED`
+(`LeaveRequestEntity#cancel`), where `LEV-013` now calls that `WITHDRAWN`. The method never
+clears the decision time, so a stored `CANCELLED` row without one was pending and becomes
+`WITHDRAWN`, and one with a decision time was approved and stays `CANCELLED`. That reading
+comes from the code, not from the data, and the plan must confirm it against the stored rows
+before the migration runs. The platform plan's data section did not mention it.
+
+**Why the first sweep missed three of the four.** It compared only enumerated values in
+`DB` rules with the migrations, and counted a value as present if it appeared anywhere in
+them. `DB-002` names its statuses in lower case, `LEV-006` is not a `DB` rule, and `OVERDUE`
+was present in another table's constraint, so none of the leave or correction predicates
+could surface. The statement that the omission was single rested on a check that could not
+have found the others.
+
+**How the class is guarded from now on.** No mechanical check here can read a predicate's
+meaning, so none is claimed. The migration's plan must list, table by table, every predicate
+of `V1__baseline.sql` that names a status whose set the rules widen, and say what each
+becomes; `plan.md` carries that as a condition of approving it. Whether a gap fails loudly or silently decides
+its test: `AC-DB-010` exists because the overlap row would otherwise pass every existing test.
+
+**Scope.** `DB-018` is amended; `AC-DB-010` and `AC-DB-011` are added; the leave and
+invitation specs note what the migration must carry. The catalogue holds 311 rules and 166
+scenarios. No Java, schema or dependency changes. Reverse by restoring the commit
+`399dc17` text of this entry, the `DB-018` row and the two scenarios.
 
 ## What the audit checked and found sound
 
