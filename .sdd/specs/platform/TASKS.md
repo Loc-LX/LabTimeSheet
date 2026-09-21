@@ -5,8 +5,7 @@ that part of the plan; `plan.md` tracks which are done.
 
 ## Part A — Module boundaries
 
-**State:** draft of 22 September 2026, revised the same day after review; approved together with
-part A of the plan.
+**State:** approved on 22 September 2026, together with part A of the plan.
 
 No task starts before part A is approved and the documentation branch is merged into `main`
 with the maintainer's permission; the tasks then run on `work/fix/architecture/<name>`

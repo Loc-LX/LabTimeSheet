@@ -12,7 +12,7 @@ approved on its own, and `plan.md` tracks where each stands. Its tasks are in
 
 | Part | Subject | Rules | State |
 |---|---|---|---|
-| A | Module boundaries, [below](#part-a--module-boundaries) | `ARC-005`, `ARC-006`, `AC-ARC-001` | Draft of 22 September 2026, revised the same day after review, for approval on its own |
+| A | Module boundaries, [below](#part-a--module-boundaries) | `ARC-005`, `ARC-006`, `AC-ARC-001` | Approved on 22 September 2026, after three review rounds the same day |
 | B | One authorization policy, [§2](#2-design-one-authorization-policy) | `AUTH-012`, [ADR-005](../../rfcs/ADR-005-one-authorization-policy.md) | Approved as version 1.0 on 16 September 2026; revised before it is built, since `D32` and `D35`–`D39` came after it |
 | C | The schema change the decisions require, [§3](#3-data-model-the-one-migration-the-decisions-require) | the shared `DB` rules | Approved as version 1.0 on 16 September 2026; superseded by `D32` and `D39`, and rewritten from the audit `D39` starts |
 
