@@ -46,7 +46,8 @@ the same rows. No business decision of `D12`–`D39` is built here. In particula
 predicate keeps the meaning the code gives it today; `D35` and `D36` change it in step 8.
 
 The evidence that behavior did not change is the existing suite: it runs green at the start of
-step 6 and at its end. A test changes only where A.7 names it and says what changes.
+step 6 and at its end. A test changes only in the ways A.7 allows, and an assertion only where
+A.7 names it.
 
 ### A.2 Where each class goes
 
@@ -128,8 +129,8 @@ fourteen do on 22 September 2026:
 
 | Split | References that cross | How it is resolved |
 |---|---|---|
-| `attendance` into `attendance` and `calendar` | `AttendanceRecordEntity` and `LeaveRequestDayEntity` hold a JPA association to `AttendancePolicyEntity`; `AttendanceApplicationService`, `LeaveApplicationService` and `AttendanceReportQueryService` use `AttendancePolicyEntity` and `AttendancePolicyRepository`; `AttendanceReportQueryService` also uses `GlobalCalendarEventEntity` and `GlobalCalendarEventRepository`. Ten references | The two entities keep the `policy_version_id` column as an identifier instead of an association; the schema and its foreign key do not change. Today `AttendanceRecordEntity#toDomain` builds the `AttendancePolicy` record it embeds from the associated entity; it receives that record instead. `calendar` gains reads in its service contract that return the existing `AttendancePolicy` record for a set of version identifiers and the calendar events of a date range, and the three services use them where they now use the entities and repositories, creating rows with a version identifier where they now take `getReferenceById`. Each read fetches everything one request needs in one call, so the number of queries does not grow with the rows (`ARC-010`) |
-| `account` into `identity` and `internship` | `AppUserRepository` joins `InternProfile` in the two directory queries; `InternProfileRepository` joins `AppUser` in `findEligibleInternOptions` and `findDueUserIds`; `AccountService` uses `InternProfile` and `InternProfileRepository`. Four references | `internship` composes each result over two reads: its own query of Intern profiles, and one call to the service contract of `identity` for the accounts of those users, or the reverse for a search by name or email. Results are joined by user identifier in memory, keeping the same filters and the same order by account identifier. The directory queries return unpaged lists today, so no paging is reimplemented. `AccountService`'s references leave with `R3` |
+| `attendance` into `attendance` and `calendar` | `AttendanceRecordEntity` and `LeaveRequestDayEntity` hold a JPA association to `AttendancePolicyEntity`; `AttendanceApplicationService`, `LeaveApplicationService` and `AttendanceReportQueryService` use `AttendancePolicyEntity` and `AttendancePolicyRepository`; `AttendanceReportQueryService` also uses `GlobalCalendarEventEntity` and `GlobalCalendarEventRepository`. Ten references | The two entities keep the `policy_version_id` column as an identifier instead of an association; the schema and its foreign key do not change. Today `AttendanceRecordEntity#toDomain` builds the `AttendancePolicy` record it embeds from the associated entity; it receives that record instead. `calendar` gains reads in its service contract that return the existing `AttendancePolicy` record for a set of version identifiers and the calendar events of a date range. Every service of `attendance` that turns one of the two entities into its domain record, or names the policy or calendar entities or repositories, uses those reads: on 22 September 2026, `AttendanceApplicationService`, `AttendanceCorrectionApplicationService`, `LeaveApplicationService` and `AttendanceReportQueryService`. Rows are created with a version identifier where they now take `getReferenceById`. A service collects the version identifiers of every row a request handles and reads them in one call before it loops over the rows; `AttendanceCorrectionApplicationService` turns history rows into records inside two loops today, so it collects first. The number of queries therefore does not grow with the rows (`ARC-010`) |
+| `account` into `identity` and `internship` | `AppUserRepository` joins `InternProfile` in the two directory queries; `InternProfileRepository` joins `AppUser` in `findEligibleInternOptions` and `findDueUserIds`; `AccountService` uses `InternProfile` and `InternProfileRepository`. Four references | `internship` composes each result from reads of each module's service contract, joined by user identifier in memory, with the filters and order of the query it replaces. The directory search matches a name, an email *or* a Student Code, so its composed result is the union of two reads: accounts whose name or email matches, from `identity`, and accounts whose Intern profile's Student Code matches, from `internship`. Both are restricted to the requested role; the union has no duplicate; every account in it is then joined with its profile if it has one; and it is ordered by account identifier. The unfiltered directory is every account with its profile, in the same order. `findEligibleInternOptions` and `findDueUserIds` filter both modules with *and*, so their result is the intersection; eligibility keeps its order by display name, Student Code and account identifier, sorted once both sides are read, and the due-date read keeps its order by user identifier. The directory returns an unpaged list today, so no paging is reimplemented. Each composition reads each module a fixed number of times per request, whatever the number of rows (`ARC-010`). `AccountService`'s references leave with `R3` |
 
 Both are done while the classes still share a package, before they move, so that each task keeps
 the suite green and the later move stays mechanical.
@@ -202,22 +203,35 @@ history.
 
 ### A.7 Tests this part changes
 
-A test changes only where this section names it. Each change below is decided here, before the
-code changes, as `TST-011` requires of any assertion that changes.
+The tests this part touches cannot be listed by name ahead of time: dozens of files stub the
+policy entity, call the internship methods of `AccountService`, or set up the SMTP and HolidayAPI
+services, and a list built by searching for names has been wrong each time it was tried. So the
+rule constrains the kind of change instead.
 
-| Test | Task | What changes | What stays |
+Besides moving with its class, a test may change in three ways only:
+
+- the receiver of a call, where the called method moved to another class;
+- the arguments of a call or a constructor, and the fixtures that supply them, where a signature
+  changed, such as an attendance entity built with a policy version identifier, or a completion
+  that no longer takes a guard;
+- a stub or a mock, including the mock a `verify` names, but not the call or the arguments it
+  expects.
+
+No assertion changes in any other way. Each task checks this on its own diff of `src/test`: in
+every test file, the number of assertion calls (`assert…`, `assertThat…`, `verify`, and the
+expectations chained to them) is the same before and after, and every changed line that holds
+one keeps the expected values it states and changes only a receiver or an argument. The task's
+commit lists those lines.
+
+The only assertion changes this part intends are these, decided here as `TST-011` requires of
+any assertion that changes. They are the only departures the check above allows.
+
+| Test | Task | Change | Why |
 |---|---|---|---|
-| `AttendanceServiceTest`, `AttendanceConcurrencyIntegrationTest`, `AttendancePersistenceIntegrationTest`, `LeaveEntityFixtures` | 5 | Fixtures build the two attendance entities with a policy version identifier instead of an entity, and read the policy through the `calendar` contract | Every assertion on attendance and leave results |
-| `InternshipLifecycleIntegrationTest` | 10, 11 | Calls move to the `internship` service in task 10 and lose the guard argument in task 11. The two assertions that feed a guard to provoke a refusal, a current Leader and an unfinished Task, are removed with the parameter they test | The assertions on completion, withdrawal and refused withdrawal after completion |
-| `AccountIdentityCorrectionIntegrationTest`, `InternMutationEligibilityIntegrationTest`, `AttendancePersistenceIntegrationTest` | 10, 11 | Their setup calls move to the `internship` service and lose the guard argument | Every assertion |
-| `ProjectServiceIntegrationTest` | 11 | Its readiness tests call the `internship` service instead of `ProjectService`, and read readiness through the new interface instead of `internshipLifecycleGuard` | Every assertion, including the refusal *"Intern is still a current Leader"* built from a real leadership term |
-| `ProjectQueryIndexIntegrationTest` | 11 | Its setup completes an internship through the `internship` service | Every assertion |
-| `AccountAdministrationControllerWebTest` | 10, 11 | Moves with the account screens to `internship`, and verifies that completion and withdrawal delegate to the `internship` service instead of `ProjectService` | Every assertion on routes, redirects and messages |
-| New, in `internship` | 11 | An Intern with no leadership term and one unfinished Task is refused completion with *"Intern still owns unfinished Tasks"*, and the profile is unchanged. It replaces, from real state, the second assertion removed above; it is seen failing by breaking the readiness implementation before it passes | — |
-
-The first assertion removed above, a current Leader, is already covered from real state by
-`ProjectServiceIntegrationTest`. No other test changes, except by moving with its class, and the
-structure tests of A.5.
+| `InternshipLifecycleIntegrationTest` | A-11 | The two assertions that feed a guard to provoke a refusal, a current Leader and an unfinished Task, are removed | The parameter they test is removed. The Leader case is already covered from real state by `ProjectServiceIntegrationTest`, which expects *"Intern is still a current Leader"*; the unfinished-Task case is covered by the new test below |
+| New test of the directory union | A-10, before the composition | Added | One search string matches the email of one account and the Student Code of another Intern: both are returned, once each, in account order, and an account matching on both fields appears once. No existing test covers this, and a wrong composition would pass the existing ones. It is written against the current join first, where it passes, passes again after the composition, and is made to fail once by dropping one side of the union |
+| New test of the unfinished-Task refusal | A-11 | Added | An Intern with no leadership term and one unfinished Task is refused completion with *"Intern still owns unfinished Tasks"*, and the profile is unchanged. It is seen failing by breaking the readiness implementation before it passes |
+| New invariant test of `ACC-019` | A-09 | Added | Required by `D28`; seen failing on deliberately broken code, then passing |
 
 ### A.8 When the part is done
 
@@ -225,8 +239,8 @@ structure tests of A.5.
   history of its list file contains no added line after the commit that created it.
 - `LayerStructureTest`, `AttendanceLayerStructureTest`, `ReportingArchitectureTest` and
   `AttendanceAndTaskWorkSeparationTest` pass against the new packages.
-- The full Maven suite, the end-to-end suite and `npm run test:ui` pass, and every test change is
-  one A.7 names.
+- The full Maven suite, the end-to-end suite and `npm run test:ui` pass; every test change is of a
+  kind A.7 allows, and every assertion change is one A.7 names.
 - GitNexus change detection covers every changed symbol, and the affected processes it reports
   are the ones the tasks expected.
 - Step 7 of `D28` then checks the code against the documents before the merge, which needs the
@@ -237,7 +251,7 @@ structure tests of A.5.
 | Risk | Handling |
 |---|---|
 | A move changes behavior unseen | No task edits logic and moves code in the same change: A.4's decoupling, `R1`, `R3`, `R4`, `R7` and `R8` are their own tasks, and the suite runs after every task |
-| A composed read returns different rows or order than the join it replaces | The same filters and order by account identifier are kept; the directory, eligibility and due-date tests in the suite cover the results |
+| A composed read returns different rows or order than the join it replaces | The directory search is composed as a union, and a test of that union, which no existing test covers, is written against the current join before the change (A.7). Eligibility keeps the filters and the order by display name, Student Code and account identifier that `EligibleInternOptionIntegrationTest` pins; the due-date read keeps its filters, which the activation tests exercise |
 | A composed read multiplies queries | Each composition reads each module once per request, whatever the number of rows (`ARC-010`) |
 | The cycle test misses a reference the build does not | It reads string literals as well as imports, and is made to fail for each reason before it is trusted |
 | A stale class list | The placement list is taken from the analyzer when task 2 runs, not from the counts above; a class added since is placed by the same tables |
