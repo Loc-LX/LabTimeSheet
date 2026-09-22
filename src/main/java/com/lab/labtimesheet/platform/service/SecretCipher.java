@@ -1,11 +1,11 @@
-package com.lab.labtimesheet.feature.integration.service;
+package com.lab.labtimesheet.platform.service;
 
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.SecureRandom;
 
-import com.lab.labtimesheet.config.SecurityProperties;
-import com.lab.labtimesheet.feature.integration.model.dto.EncryptedSecret;
+import com.lab.labtimesheet.platform.SecurityProperties;
+import com.lab.labtimesheet.platform.model.dto.EncryptedSecret;
 import javax.crypto.Cipher;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
@@ -24,7 +24,14 @@ public class SecretCipher {
         key = new SecretKeySpec(properties.decodedMasterKey(), "AES");
     }
 
-    EncryptedSecret encrypt(String plaintext) {
+    /**
+     * Encrypts one plaintext secret with a fresh nonce.
+     *
+     * @param plaintext secret material to protect
+     * @return ciphertext, nonce and key version ready for persistence
+     * @throws IllegalStateException when the platform cipher cannot be initialised
+     */
+    public EncryptedSecret encrypt(String plaintext) {
         byte[] nonce = new byte[NONCE_BYTES];
         random.nextBytes(nonce);
         try {
@@ -36,7 +43,15 @@ public class SecretCipher {
         }
     }
 
-    String decrypt(byte[] ciphertext, byte[] nonce) {
+    /**
+     * Decrypts one stored secret revision.
+     *
+     * @param ciphertext stored ciphertext
+     * @param nonce nonce stored beside the ciphertext
+     * @return recovered plaintext
+     * @throws IllegalStateException when the key does not match or the envelope is malformed
+     */
+    public String decrypt(byte[] ciphertext, byte[] nonce) {
         try {
             Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
             cipher.init(Cipher.DECRYPT_MODE, key, new GCMParameterSpec(GCM_TAG_BITS, nonce));

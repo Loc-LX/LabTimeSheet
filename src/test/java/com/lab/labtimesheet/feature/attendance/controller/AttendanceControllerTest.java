@@ -26,7 +26,7 @@ import com.lab.labtimesheet.feature.attendance.model.dto.GlobalCalendarEvent;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceApplicationService;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceCurrentUserService;
 import com.lab.labtimesheet.feature.attendance.service.CalendarApplicationService;
-import com.lab.labtimesheet.feature.integration.service.SmtpConfigurationService;
+import com.lab.labtimesheet.platform.service.SmtpConfigurationService;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;

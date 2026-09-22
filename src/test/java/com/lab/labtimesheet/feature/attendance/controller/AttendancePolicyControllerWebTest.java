@@ -20,7 +20,7 @@ import com.lab.labtimesheet.feature.attendance.model.dto.AttendancePolicyHistory
 import com.lab.labtimesheet.feature.attendance.service.AttendanceApplicationService;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceCurrentUserService;
 import com.lab.labtimesheet.feature.attendance.service.AttendancePolicyApplicationService;
-import com.lab.labtimesheet.feature.integration.service.SmtpConfigurationService;
+import com.lab.labtimesheet.platform.service.SmtpConfigurationService;
 import java.time.LocalDate;
 import java.util.List;
 import org.junit.jupiter.api.Test;

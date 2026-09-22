@@ -1,12 +1,12 @@
-package com.lab.labtimesheet.feature.integration.service;
+package com.lab.labtimesheet.platform.service;
 
 import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
 import java.util.Properties;
 import java.util.function.Supplier;
 
-import com.lab.labtimesheet.feature.integration.model.dto.SmtpConnection;
-import com.lab.labtimesheet.feature.integration.model.SecurityMode;
+import com.lab.labtimesheet.platform.model.SecurityMode;
+import com.lab.labtimesheet.platform.model.dto.SmtpConnection;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import org.springframework.mail.javamail.JavaMailSenderImpl;

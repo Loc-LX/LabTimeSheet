@@ -15,7 +15,7 @@ import com.lab.labtimesheet.feature.attendance.model.AttendanceRole;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceApplicationService;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceCurrentUserService;
 import com.lab.labtimesheet.feature.attendance.service.CalendarApplicationService;
-import com.lab.labtimesheet.feature.integration.service.SmtpConfigurationService;
+import com.lab.labtimesheet.platform.service.SmtpConfigurationService;
 import java.time.LocalDate;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

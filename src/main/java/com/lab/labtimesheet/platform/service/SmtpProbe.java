@@ -1,6 +1,6 @@
-package com.lab.labtimesheet.feature.integration.service;
+package com.lab.labtimesheet.platform.service;
 
-import com.lab.labtimesheet.feature.integration.model.dto.SmtpConnection;
+import com.lab.labtimesheet.platform.model.dto.SmtpConnection;
 
 /** External SMTP adapter boundary used by setup tests and application email delivery. */
 @FunctionalInterface

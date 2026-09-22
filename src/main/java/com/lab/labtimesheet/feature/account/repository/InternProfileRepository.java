@@ -5,10 +5,10 @@ import java.util.List;
 import java.util.Optional;
 
 import com.lab.labtimesheet.feature.account.model.AccountStatus;
-import com.lab.labtimesheet.feature.account.model.GlobalRole;
 import com.lab.labtimesheet.feature.account.model.InternshipStatus;
 import com.lab.labtimesheet.feature.account.model.dto.EligibleInternOption;
 import com.lab.labtimesheet.feature.account.model.entity.InternProfile;
+import com.lab.labtimesheet.platform.model.GlobalRole;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;

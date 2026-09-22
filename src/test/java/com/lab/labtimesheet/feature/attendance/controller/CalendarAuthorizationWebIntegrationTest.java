@@ -9,14 +9,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.lab.labtimesheet.config.TestcontainersConfiguration;
-import com.lab.labtimesheet.feature.account.model.GlobalRole;
 import com.lab.labtimesheet.feature.account.model.dto.CreateAccountCommand;
 import com.lab.labtimesheet.feature.account.service.AccountService;
-import com.lab.labtimesheet.feature.integration.model.SecurityMode;
-import com.lab.labtimesheet.feature.integration.model.dto.SmtpConnection;
-import com.lab.labtimesheet.feature.integration.model.dto.SmtpDraft;
-import com.lab.labtimesheet.feature.integration.service.SmtpConfigurationService;
-import com.lab.labtimesheet.feature.integration.service.SmtpProbe;
+import com.lab.labtimesheet.platform.model.GlobalRole;
+import com.lab.labtimesheet.platform.model.SecurityMode;
+import com.lab.labtimesheet.platform.model.dto.SmtpConnection;
+import com.lab.labtimesheet.platform.model.dto.SmtpDraft;
+import com.lab.labtimesheet.platform.service.SmtpConfigurationService;
+import com.lab.labtimesheet.platform.service.SmtpProbe;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;

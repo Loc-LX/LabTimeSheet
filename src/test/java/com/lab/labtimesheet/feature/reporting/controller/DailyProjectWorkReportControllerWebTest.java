@@ -15,7 +15,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceReportDateContext;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceApplicationService;
-import com.lab.labtimesheet.feature.integration.service.SmtpConfigurationService;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectActorView;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectSummary;
 import com.lab.labtimesheet.feature.project.service.ProjectQueryService;
@@ -28,6 +27,7 @@ import com.lab.labtimesheet.feature.reporting.service.DailyProjectWorkReportServ
 import com.lab.labtimesheet.feature.task.model.TaskStatus;
 import com.lab.labtimesheet.feature.task.model.TaskVarianceState;
 import com.lab.labtimesheet.feature.task.model.dto.TaskRemainingEffortForecastSummary;
+import com.lab.labtimesheet.platform.service.SmtpConfigurationService;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;

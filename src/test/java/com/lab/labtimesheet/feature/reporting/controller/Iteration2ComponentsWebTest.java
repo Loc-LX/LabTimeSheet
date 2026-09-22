@@ -17,7 +17,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 
-import com.lab.labtimesheet.feature.integration.service.SmtpConfigurationService;
+import com.lab.labtimesheet.platform.service.SmtpConfigurationService;
 
 /**
  * Production-shaped contract for the shared Iteration 2 error, drawer, and chart fragments.

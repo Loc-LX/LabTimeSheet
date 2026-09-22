@@ -9,7 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.lab.labtimesheet.feature.account.model.dto.ActivationForm;
 import com.lab.labtimesheet.feature.account.model.dto.BootstrapForm;
 import com.lab.labtimesheet.feature.account.model.dto.CreateAccountForm;
-import com.lab.labtimesheet.feature.integration.service.SmtpConfigurationService;
+import com.lab.labtimesheet.platform.service.SmtpConfigurationService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;

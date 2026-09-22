@@ -7,7 +7,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
-import com.lab.labtimesheet.config.SecurityProperties;
+import com.lab.labtimesheet.platform.SecurityProperties;
 
 /**
  * Application entry point and root component-scan boundary for Lab Timesheet.

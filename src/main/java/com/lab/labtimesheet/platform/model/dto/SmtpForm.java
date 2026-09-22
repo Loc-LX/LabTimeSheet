@@ -1,6 +1,6 @@
-package com.lab.labtimesheet.feature.integration.model.dto;
+package com.lab.labtimesheet.platform.model.dto;
 
-import com.lab.labtimesheet.feature.integration.model.SecurityMode;
+import com.lab.labtimesheet.platform.model.SecurityMode;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Max;

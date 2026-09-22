@@ -6,7 +6,6 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
 import com.lab.labtimesheet.feature.account.model.AccountStatus;
-import com.lab.labtimesheet.feature.account.model.GlobalRole;
 import com.lab.labtimesheet.feature.account.model.dto.AccountIdentity;
 import com.lab.labtimesheet.feature.account.model.dto.EligibleInternOption;
 import com.lab.labtimesheet.feature.account.service.AccountService;
@@ -18,6 +17,7 @@ import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceReportDay;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceApplicationService;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceCurrentUserService;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceReportQueryService;
+import com.lab.labtimesheet.platform.model.GlobalRole;
 import java.math.BigDecimal;
 import java.security.Principal;
 import java.time.Instant;

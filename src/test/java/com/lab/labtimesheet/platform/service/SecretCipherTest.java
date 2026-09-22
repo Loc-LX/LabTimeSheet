@@ -1,11 +1,11 @@
-package com.lab.labtimesheet.feature.integration.service;
+package com.lab.labtimesheet.platform.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Base64;
 
-import com.lab.labtimesheet.config.SecurityProperties;
+import com.lab.labtimesheet.platform.SecurityProperties;
 import org.junit.jupiter.api.Test;
 
 class SecretCipherTest {

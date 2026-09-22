@@ -15,8 +15,8 @@ import java.util.List;
 
 import com.lab.labtimesheet.config.TestcontainersConfiguration;
 import com.lab.labtimesheet.feature.account.service.BootstrapService;
-import com.lab.labtimesheet.feature.integration.model.dto.SmtpConnection;
-import com.lab.labtimesheet.feature.integration.service.SmtpProbe;
+import com.lab.labtimesheet.platform.model.dto.SmtpConnection;
+import com.lab.labtimesheet.platform.service.SmtpProbe;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

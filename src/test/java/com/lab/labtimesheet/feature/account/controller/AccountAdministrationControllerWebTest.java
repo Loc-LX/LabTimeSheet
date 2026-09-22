@@ -15,16 +15,16 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.lab.labtimesheet.feature.account.model.AccountStatus;
-import com.lab.labtimesheet.feature.account.model.GlobalRole;
 import com.lab.labtimesheet.feature.account.model.InternshipStatus;
 import com.lab.labtimesheet.feature.account.model.dto.AccountAdministrationView;
 import com.lab.labtimesheet.feature.account.model.dto.AccountDirectoryFilter;
 import com.lab.labtimesheet.feature.account.model.dto.AccountIdentityCorrection;
 import com.lab.labtimesheet.feature.account.model.dto.InternshipLifecycleGuard;
 import com.lab.labtimesheet.feature.account.service.AccountService;
-import com.lab.labtimesheet.feature.integration.service.SmtpConfigurationService;
 import com.lab.labtimesheet.feature.project.service.ProjectQueryService;
 import com.lab.labtimesheet.feature.project.service.ProjectService;
+import com.lab.labtimesheet.platform.model.GlobalRole;
+import com.lab.labtimesheet.platform.service.SmtpConfigurationService;
 import java.time.LocalDate;
 import java.util.List;
 import org.hibernate.exception.ConstraintViolationException;

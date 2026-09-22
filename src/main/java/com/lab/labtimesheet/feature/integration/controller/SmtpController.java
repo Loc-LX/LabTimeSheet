@@ -4,9 +4,9 @@ import java.security.Principal;
 import java.util.List;
 
 import com.lab.labtimesheet.feature.account.service.AccountService;
-import com.lab.labtimesheet.feature.integration.model.dto.SmtpActionForm;
-import com.lab.labtimesheet.feature.integration.model.dto.SmtpForm;
-import com.lab.labtimesheet.feature.integration.service.SmtpConfigurationService;
+import com.lab.labtimesheet.platform.model.dto.SmtpActionForm;
+import com.lab.labtimesheet.platform.model.dto.SmtpForm;
+import com.lab.labtimesheet.platform.service.SmtpConfigurationService;
 import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 import lombok.AccessLevel;

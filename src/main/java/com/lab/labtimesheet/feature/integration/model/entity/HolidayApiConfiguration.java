@@ -3,8 +3,8 @@ package com.lab.labtimesheet.feature.integration.model.entity;
 import java.time.Instant;
 
 import com.lab.labtimesheet.feature.integration.model.HolidayApiStatus;
-import com.lab.labtimesheet.feature.integration.model.dto.EncryptedSecret;
 import com.lab.labtimesheet.feature.integration.model.dto.HolidayApiDraft;
+import com.lab.labtimesheet.platform.model.dto.EncryptedSecret;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;

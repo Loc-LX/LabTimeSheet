@@ -6,11 +6,11 @@ import java.time.Instant;
 
 import com.lab.labtimesheet.config.TestcontainersConfiguration;
 import com.lab.labtimesheet.feature.account.model.TokenPurpose;
-import com.lab.labtimesheet.feature.account.model.GlobalRole;
 import com.lab.labtimesheet.feature.account.model.entity.AppUser;
 import com.lab.labtimesheet.feature.account.model.entity.UserActionToken;
 import com.lab.labtimesheet.feature.account.repository.AppUserRepository;
 import com.lab.labtimesheet.feature.account.repository.UserActionTokenRepository;
+import com.lab.labtimesheet.platform.model.GlobalRole;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;

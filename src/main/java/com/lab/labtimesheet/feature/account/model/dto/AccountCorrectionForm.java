@@ -1,8 +1,8 @@
 package com.lab.labtimesheet.feature.account.model.dto;
 
 import com.lab.labtimesheet.feature.account.model.AccountStatus;
-import com.lab.labtimesheet.feature.account.model.GlobalRole;
 import com.lab.labtimesheet.feature.account.model.InternshipStatus;
+import com.lab.labtimesheet.platform.model.GlobalRole;
 import java.time.LocalDate;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Size;

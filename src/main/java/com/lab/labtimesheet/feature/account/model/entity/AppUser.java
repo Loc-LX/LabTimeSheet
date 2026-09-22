@@ -3,7 +3,7 @@ package com.lab.labtimesheet.feature.account.model.entity;
 import java.time.Instant;
 
 import com.lab.labtimesheet.feature.account.model.AccountStatus;
-import com.lab.labtimesheet.feature.account.model.GlobalRole;
+import com.lab.labtimesheet.platform.model.GlobalRole;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;

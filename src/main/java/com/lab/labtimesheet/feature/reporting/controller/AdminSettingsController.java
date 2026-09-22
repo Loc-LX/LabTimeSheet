@@ -13,7 +13,7 @@ import com.lab.labtimesheet.feature.attendance.service.AttendancePolicyApplicati
 import com.lab.labtimesheet.feature.attendance.service.CalendarApplicationService;
 import com.lab.labtimesheet.feature.integration.model.dto.HolidayApiDraft;
 import com.lab.labtimesheet.feature.integration.service.HolidayApiConfigurationService;
-import com.lab.labtimesheet.feature.integration.service.SmtpConfigurationService;
+import com.lab.labtimesheet.platform.service.SmtpConfigurationService;
 import java.math.BigDecimal;
 import java.security.Principal;
 import java.time.DayOfWeek;

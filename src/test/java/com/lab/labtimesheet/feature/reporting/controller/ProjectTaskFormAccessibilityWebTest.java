@@ -9,7 +9,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.lab.labtimesheet.feature.account.service.AccountService;
-import com.lab.labtimesheet.feature.integration.service.SmtpConfigurationService;
 import com.lab.labtimesheet.feature.project.controller.ProjectController;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectActorView;
 import com.lab.labtimesheet.feature.project.service.ProjectQueryService;
@@ -17,6 +16,7 @@ import com.lab.labtimesheet.feature.project.service.ProjectService;
 import com.lab.labtimesheet.feature.task.controller.TaskController;
 import com.lab.labtimesheet.feature.task.model.dto.TaskAssigneeChoice;
 import com.lab.labtimesheet.feature.task.service.TaskService;
+import com.lab.labtimesheet.platform.service.SmtpConfigurationService;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;

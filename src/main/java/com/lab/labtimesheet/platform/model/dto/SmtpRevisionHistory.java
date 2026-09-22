@@ -1,9 +1,9 @@
-package com.lab.labtimesheet.feature.integration.model.dto;
+package com.lab.labtimesheet.platform.model.dto;
 
 import java.time.Instant;
 
-import com.lab.labtimesheet.feature.integration.model.SecurityMode;
-import com.lab.labtimesheet.feature.integration.model.SmtpStatus;
+import com.lab.labtimesheet.platform.model.SecurityMode;
+import com.lab.labtimesheet.platform.model.SmtpStatus;
 
 /**
  * Non-secret, immutable projection of one retained SMTP revision for Admin History.

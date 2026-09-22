@@ -167,6 +167,14 @@ The task is two commits: `R4` in the shared mail and SMTP services first, the cl
 - **Impact analysis:** `SmtpConfigurationService` upstream LOW, three importing files; `testDraft` upstream UNKNOWN as an ambiguous name (two declarations), LOW once disambiguated, and confirmed by text search to 26 call sites. UNKNOWN was not read as an all-clear.
 - **Change analysis:** `node .gitnexus/run.cjs detect-changes --scope all --repo .` reports 23 files, 53 symbols, 18 affected execution flows, risk level **critical**, and no partial or truncated result. The level is the shared SMTP writer being touched: the flows it names (`SaveDraft`, `Activate`, `Test → Email`) are exactly the ones this commit changes, and the whole flow is covered by `SmtpIntegrationTest`, `IntegrationExternalTransactionIntegrationTest`, `SmtpOnboardingWebIntegrationTest` and the sixteen setup call sites, all of which pass. The risk is reported here rather than treated as resolved.
 
+## Evidence for Task A-03 (platform, 23 September 2026)
+
+- **Two commits.** `R4` first, in `9c64c76`: the shared mail and SMTP services take the verified actor and the recipient from their caller instead of reading them through `AccountService`. The placement of the classes followed, with `GlobalRole` and `SecurityProperties`; `SmtpController` and the HolidayAPI classes stay for A-04 and A-06.
+- **Boundary list.** Four `P` rows and one `A` row (`SmtpConfigurationService` to `AccountService`, `R4`) were deleted; nothing was added. 43 placements and 30 allowances remain.
+- **Placements are keyed by simple class name.** A-02 keyed them by fully qualified name, which A-04 could not satisfy: moving the whole `account` package renames the nine internship classes, and their rows could then only be fixed by adding lines, which the list forbids. Keyed by simple name, a row survives a move and goes stale only when the class reaches its module. The reviewer decided this on 23 September 2026 and the rows were rewritten in this commit; from here the list only loses lines.
+- **`LayerStructureTest`** now reads `platform` as one module, so a `platform` class using its own repository or entity is no longer reported as crossing a boundary, while a feature reaching into `platform` persistence still is.
+- **Validation.** `./mvnw -B test`: 762 tests, 0 failures, 0 errors. `npm run test:ui`: 38/38. `git diff --check`: clean. One assertion changed, in `LayerStructureTest`, which plan section A.7 allows as a structure test.
+
 ## Historical evidence for D33 (checkpoint c443670)
 
 - `npm run test:ui`: 30/30 pass on 20 September 2026, including document structure, counts, versions, references, decision index and relative file links. Node `24.16.0`, npm `11.13.0`; the Playwright contract reads resolved `@playwright/test` `1.62.1` from the lockfile. This run does not execute browser or Java behavior.

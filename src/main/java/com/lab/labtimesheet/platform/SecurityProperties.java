@@ -1,4 +1,4 @@
-package com.lab.labtimesheet.config;
+package com.lab.labtimesheet.platform;
 
 import java.util.Base64;
 

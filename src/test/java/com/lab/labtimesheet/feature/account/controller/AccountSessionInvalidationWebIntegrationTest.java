@@ -11,15 +11,15 @@ import static org.springframework.security.test.web.servlet.response.SecurityMoc
 
 import com.lab.labtimesheet.config.TestcontainersConfiguration;
 import com.lab.labtimesheet.feature.account.model.AccountStatus;
-import com.lab.labtimesheet.feature.account.model.GlobalRole;
 import com.lab.labtimesheet.feature.account.model.dto.CreateAccountCommand;
 import com.lab.labtimesheet.feature.account.service.AccountService;
 import com.lab.labtimesheet.feature.account.service.BootstrapService;
-import com.lab.labtimesheet.feature.integration.model.SecurityMode;
-import com.lab.labtimesheet.feature.integration.model.dto.SmtpConnection;
-import com.lab.labtimesheet.feature.integration.model.dto.SmtpDraft;
-import com.lab.labtimesheet.feature.integration.service.SmtpConfigurationService;
-import com.lab.labtimesheet.feature.integration.service.SmtpProbe;
+import com.lab.labtimesheet.platform.model.GlobalRole;
+import com.lab.labtimesheet.platform.model.SecurityMode;
+import com.lab.labtimesheet.platform.model.dto.SmtpConnection;
+import com.lab.labtimesheet.platform.model.dto.SmtpDraft;
+import com.lab.labtimesheet.platform.service.SmtpConfigurationService;
+import com.lab.labtimesheet.platform.service.SmtpProbe;
 import jakarta.servlet.http.HttpSession;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

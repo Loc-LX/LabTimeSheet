@@ -1,4 +1,4 @@
-package com.lab.labtimesheet.feature.integration.model.dto;
+package com.lab.labtimesheet.platform.model.dto;
 
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;

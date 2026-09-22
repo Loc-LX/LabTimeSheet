@@ -1,4 +1,4 @@
-package com.lab.labtimesheet.feature.integration.model.dto;
+package com.lab.labtimesheet.platform.model.dto;
 
 /**
  * AES-GCM output persisted for an integration credential; arrays are defensively copied at every boundary.

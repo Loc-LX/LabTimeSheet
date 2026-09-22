@@ -1,7 +1,6 @@
 package com.lab.labtimesheet.feature.attendance.service;
 
 import com.lab.labtimesheet.feature.account.model.AccountStatus;
-import com.lab.labtimesheet.feature.account.model.GlobalRole;
 import com.lab.labtimesheet.feature.account.model.dto.AccountIdentity;
 import com.lab.labtimesheet.feature.account.model.dto.InternReportingWindow;
 import com.lab.labtimesheet.feature.account.service.AccountService;
@@ -20,6 +19,7 @@ import com.lab.labtimesheet.feature.attendance.repository.AttendancePolicyReposi
 import com.lab.labtimesheet.feature.attendance.repository.AttendanceQueryRepository;
 import com.lab.labtimesheet.feature.attendance.repository.AttendanceRecordRepository;
 import com.lab.labtimesheet.feature.attendance.repository.GlobalCalendarEventRepository;
+import com.lab.labtimesheet.platform.model.GlobalRole;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Clock;

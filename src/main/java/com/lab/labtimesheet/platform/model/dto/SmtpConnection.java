@@ -1,6 +1,6 @@
-package com.lab.labtimesheet.feature.integration.model.dto;
+package com.lab.labtimesheet.platform.model.dto;
 
-import com.lab.labtimesheet.feature.integration.model.SecurityMode;
+import com.lab.labtimesheet.platform.model.SecurityMode;
 
 /**
  * Complete request-local SMTP connection material passed only to the delivery adapter.

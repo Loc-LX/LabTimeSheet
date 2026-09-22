@@ -4,10 +4,10 @@ import java.util.List;
 import java.util.Optional;
 
 import com.lab.labtimesheet.feature.account.model.AccountStatus;
-import com.lab.labtimesheet.feature.account.model.GlobalRole;
 import com.lab.labtimesheet.feature.account.model.dto.AccountAdministrationView;
 import com.lab.labtimesheet.feature.account.model.dto.AccountIdentity;
 import com.lab.labtimesheet.feature.account.model.entity.AppUser;
+import com.lab.labtimesheet.platform.model.GlobalRole;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
@@ -43,7 +43,7 @@ public interface AppUserRepository extends JpaRepository<AppUser, Long> {
             select new com.lab.labtimesheet.feature.account.model.dto.AccountIdentity(
                 u.id, u.email, u.displayName, u.globalRole, u.accountStatus)
             from AppUser u
-            where u.globalRole = com.lab.labtimesheet.feature.account.model.GlobalRole.MENTOR
+            where u.globalRole = com.lab.labtimesheet.platform.model.GlobalRole.MENTOR
               and u.accountStatus = com.lab.labtimesheet.feature.account.model.AccountStatus.ACTIVE
             order by u.id asc
             """)

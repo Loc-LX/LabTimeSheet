@@ -9,12 +9,12 @@ import java.time.LocalDate;
 import java.util.List;
 
 import com.lab.labtimesheet.config.TestcontainersConfiguration;
-import com.lab.labtimesheet.feature.account.model.GlobalRole;
 import com.lab.labtimesheet.feature.account.model.dto.EligibleInternOption;
 import com.lab.labtimesheet.feature.account.model.entity.AppUser;
 import com.lab.labtimesheet.feature.account.model.entity.InternProfile;
 import com.lab.labtimesheet.feature.account.repository.AppUserRepository;
 import com.lab.labtimesheet.feature.account.repository.InternProfileRepository;
+import com.lab.labtimesheet.platform.model.GlobalRole;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
