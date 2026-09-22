@@ -80,7 +80,8 @@ class IntegrationExternalTransactionIntegrationTest {
 
         ExecutorService executor = Executors.newSingleThreadExecutor();
         try {
-            var lateTest = executor.submit(() -> smtp.testDraft(draftId, adminId));
+            var lateTest = executor.submit(
+                    () -> smtp.testDraft(draftId, adminId, "smtp-concurrency-admin@example.com"));
             smtpProbe.awaitStarted();
 
             smtp.saveDraft(adminId, new SmtpDraft(

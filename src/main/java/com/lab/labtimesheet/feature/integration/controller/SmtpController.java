@@ -24,6 +24,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
  * Runs the Admin SMTP draft, connection-test, activation, and ordered setup-deferral browser workflows.
  * Cleartext passwords remain request-local and are cleared before any error view is rendered. Failures crossing the
  * SMTP adapter boundary are represented by fixed operator guidance rather than raw provider diagnostics.
+ *
+ * <p>The handler verifies the signed-in Admin through {@code identity} and resolves the test recipient from that
+ * verified identity before any shared SMTP service is called ({@code R4}).
  */
 @Controller
 @RequestMapping("/admin/smtp")
@@ -73,7 +76,9 @@ class SmtpController {
             return renderActionError(model, bindingResult, principal);
         }
         try {
-            smtp.testDraft(action.getDraftId(), adminId(principal));
+            long verifiedAdminId = adminId(principal);
+            smtp.testDraft(action.getDraftId(), verifiedAdminId,
+                    accounts.requireIdentityById(verifiedAdminId).email());
             return "redirect:/admin/smtp?tested";
         } catch (IllegalArgumentException | IllegalStateException | MailException failure) {
             bindingResult.reject("smtp.test.failed", TEST_FAILURE_MESSAGE);

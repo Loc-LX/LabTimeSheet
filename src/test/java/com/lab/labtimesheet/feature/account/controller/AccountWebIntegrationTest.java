@@ -66,7 +66,7 @@ class AccountWebIntegrationTest {
         long adminId = accounts.requireActiveAdminId("admin@example.com");
         long draftId = smtp.saveDraft(adminId, new SmtpDraft(
                 "mailpit", 1025, SecurityMode.NONE, null, null, "admin@example.com", "Lab Timesheet"));
-        smtp.testDraft(draftId, adminId);
+        smtp.testDraft(draftId, adminId, "admin@example.com");
         smtp.activate(draftId, adminId);
         mail.messages.clear();
     }
