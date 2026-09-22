@@ -15,10 +15,8 @@ import com.lab.labtimesheet.feature.attendance.model.LeaveStatus;
 import com.lab.labtimesheet.feature.attendance.model.dto.CorrectionSummary;
 import com.lab.labtimesheet.feature.attendance.model.dto.LeaveBalance;
 import com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestSummary;
-import com.lab.labtimesheet.feature.attendance.model.entity.AttendancePolicyEntity;
 import com.lab.labtimesheet.feature.attendance.model.entity.LeaveRequestEntity;
 import com.lab.labtimesheet.feature.attendance.repository.AttendanceCorrectionRepository;
-import com.lab.labtimesheet.feature.attendance.repository.AttendancePolicyRepository;
 import com.lab.labtimesheet.feature.attendance.repository.LeaveRequestDayRepository;
 import com.lab.labtimesheet.feature.attendance.repository.LeaveRequestRepository;
 import com.lab.labtimesheet.platform.model.GlobalRole;
@@ -57,7 +55,7 @@ class AttendanceReadModelServiceTest {
 
         LeaveApplicationService service = new LeaveApplicationService(
                 Clock.fixed(Instant.parse("2026-08-20T00:00:00Z"), ZoneOffset.UTC),
-                mock(AttendancePolicyRepository.class), requests, mock(LeaveRequestDayRepository.class),
+                requests, mock(LeaveRequestDayRepository.class),
                 accounts, mock(CalendarApplicationService.class), mock(TransactionTemplate.class),
                 mock(com.lab.labtimesheet.feature.notification.service.NotificationService.class));
 
@@ -68,16 +66,14 @@ class AttendanceReadModelServiceTest {
 
     @Test
     void monthlyBalanceUsesReservedStatusesAndCurrentPolicyQuota() {
-        AttendancePolicyEntity seed = mock(AttendancePolicyEntity.class);
         AttendancePolicy policy = new AttendancePolicy(
                 1L, LocalDate.of(1970, 1, 1), ZoneId.of("Asia/Ho_Chi_Minh"),
                 LocalTime.of(8, 30), LocalTime.of(15, 30), 30, 30, 3,
                 BigDecimal.valueOf(0.25), Set.of(
                         DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY,
                         DayOfWeek.THURSDAY, DayOfWeek.FRIDAY));
-        when(seed.toDomain()).thenReturn(policy);
-        AttendancePolicyRepository policies = mock(AttendancePolicyRepository.class);
-        when(policies.findAllByOrderByEffectiveFromAsc()).thenReturn(List.of(seed));
+        CalendarApplicationService calendar = mock(CalendarApplicationService.class);
+        when(calendar.policyTimeline()).thenReturn(new AttendancePolicyTimeline(List.of(policy)));
         LeaveRequestDayRepository days = mock(LeaveRequestDayRepository.class);
         when(days.countReserved(7L, LocalDate.of(2026, 8, 1),
                 List.of(LeaveStatus.PENDING.name(), LeaveStatus.APPROVED.name()))).thenReturn(2L);
@@ -85,8 +81,8 @@ class AttendanceReadModelServiceTest {
         when(accounts.requireIdentityById(7L)).thenReturn(internIdentity());
 
         LeaveApplicationService service = new LeaveApplicationService(
-                Clock.fixed(Instant.parse("2026-08-20T00:00:00Z"), ZoneOffset.UTC), policies,
-                mock(LeaveRequestRepository.class), days, accounts, mock(CalendarApplicationService.class),
+                Clock.fixed(Instant.parse("2026-08-20T00:00:00Z"), ZoneOffset.UTC),
+                mock(LeaveRequestRepository.class), days, accounts, calendar,
                 mock(TransactionTemplate.class),
                 mock(com.lab.labtimesheet.feature.notification.service.NotificationService.class));
 
@@ -117,7 +113,7 @@ class AttendanceReadModelServiceTest {
                 mock(com.lab.labtimesheet.feature.attendance.repository.AttendanceRecordRepository.class),
                 corrections,
                 mock(com.lab.labtimesheet.feature.attendance.repository.AttendanceCorrectionEventRepository.class),
-                accounts, mock(TransactionTemplate.class),
+                accounts, mock(CalendarApplicationService.class), mock(TransactionTemplate.class),
                 mock(com.lab.labtimesheet.feature.notification.service.NotificationService.class));
 
         assertThat(service.list(new AttendanceActor(7L, AttendanceRole.INTERN)))

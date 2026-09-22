@@ -28,9 +28,8 @@ public class LeaveRequestDayEntity {
     @JoinColumn(name = "leave_request_id", nullable = false)
     private LeaveRequestEntity request;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "policy_version_id", nullable = false)
-    private AttendancePolicyEntity policy;
+    @Column(name = "policy_version_id", nullable = false)
+    private long policyVersionId;
 
     @Column(name = "quota_month", nullable = false)
     private LocalDate quotaMonth;
@@ -43,17 +42,17 @@ public class LeaveRequestDayEntity {
      *
      * @param request persisted leave request
      * @param leaveDate exact requested local date
-     * @param policy attached historical policy version
+     * @param policyVersionId attached historical policy version identifier
      * @param monthlyQuotaSnapshot quota captured for the request month
      */
     public LeaveRequestDayEntity(
             LeaveRequestEntity request,
             LocalDate leaveDate,
-            AttendancePolicyEntity policy,
+            long policyVersionId,
             int monthlyQuotaSnapshot) {
         this.request = request;
         this.id = new LeaveRequestDayId(request.id(), leaveDate);
-        this.policy = policy;
+        this.policyVersionId = policyVersionId;
         this.quotaMonth = leaveDate.withDayOfMonth(1);
         this.monthlyQuotaSnapshot = monthlyQuotaSnapshot;
     }
@@ -91,6 +90,6 @@ public class LeaveRequestDayEntity {
      * @return policy version identifier
      */
     public long policyVersionId() {
-        return policy.toDomain().id();
+        return policyVersionId;
     }
 }

@@ -39,6 +39,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
@@ -64,6 +65,7 @@ public class AttendanceCorrectionApplicationService {
     private final AttendanceCorrectionRepository corrections;
     private final AttendanceCorrectionEventRepository events;
     private final AccountService accounts;
+    private final CalendarApplicationService calendar;
     private final TransactionTemplate transactions;
     private final NotificationService notifications;
 
@@ -186,7 +188,7 @@ public class AttendanceCorrectionApplicationService {
                 .toList();
         AttendanceRecordEntity entity = records.findById(attendanceRecordId)
                 .orElseThrow(() -> new CorrectionException("Attendance record not found"));
-        AttendanceRecord record = entity.toDomain();
+        AttendanceRecord record = recordFrom(entity);
         if (record.internId() != actor.userId()) {
             throw new AccessDeniedException("Only the owning Intern may request a correction");
         }
@@ -306,14 +308,19 @@ public class AttendanceCorrectionApplicationService {
         List<Long> attendanceRecordIds = historyRows.stream()
                 .map(AttendanceRecordEntity::id)
                 .toList();
-        List<Long> internIds = historyRows.stream()
-                .map(AttendanceRecordEntity::toDomain)
+        Map<Long, AttendancePolicy> policiesByVersionId = calendar.policiesByVersionIds(historyRows.stream()
+                .map(AttendanceRecordEntity::policyVersionId)
+                .collect(java.util.stream.Collectors.toSet()));
+        Map<Long, AttendanceRecord> recordsById = historyRows.stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        AttendanceRecordEntity::id, row -> toDomain(row, policiesByVersionId)));
+        List<Long> internIds = recordsById.values().stream()
                 .map(AttendanceRecord::internId)
                 .distinct()
                 .sorted()
                 .toList();
         Map<Long, Long> internByRecordId = new HashMap<>();
-        historyRows.forEach(row -> internByRecordId.put(row.id(), row.toDomain().internId()));
+        recordsById.forEach((recordId, record) -> internByRecordId.put(recordId, record.internId()));
         lockAccounts(internIds);
         Map<Long, AccountIdentity> ownerIdentities = identities(internIds);
         List<AttendanceCorrectionEntity> correctionRows = corrections
@@ -326,7 +333,7 @@ public class AttendanceCorrectionApplicationService {
 
         Map<Long, Instant> effectiveCheckouts = new HashMap<>();
         for (AttendanceRecordEntity historyRow : historyRows) {
-            AttendanceRecord raw = historyRow.toDomain();
+            AttendanceRecord raw = recordsById.get(historyRow.id());
             AttendanceCorrectionEntity correction = byAttendanceRecord.get(historyRow.id());
             effectiveCheckouts.put(
                     historyRow.id(),
@@ -426,8 +433,21 @@ public class AttendanceCorrectionApplicationService {
 
     private AttendanceRecord recordFor(AttendanceCorrectionEntity correction) {
         return records.findById(correction.attendanceRecordId())
-                .map(AttendanceRecordEntity::toDomain)
+                .map(this::recordFrom)
                 .orElseThrow(() -> new CorrectionException("Attendance record not found"));
+    }
+
+    private AttendanceRecord recordFrom(AttendanceRecordEntity entity) {
+        return toDomain(entity, calendar.policiesByVersionIds(Set.of(entity.policyVersionId())));
+    }
+
+    private static AttendanceRecord toDomain(
+            AttendanceRecordEntity entity, Map<Long, AttendancePolicy> policiesByVersionId) {
+        AttendancePolicy policy = policiesByVersionId.get(entity.policyVersionId());
+        if (policy == null) {
+            throw new IllegalStateException("Attendance policy version not found");
+        }
+        return entity.toDomain(policy);
     }
 
     private void expireIfNeeded(
