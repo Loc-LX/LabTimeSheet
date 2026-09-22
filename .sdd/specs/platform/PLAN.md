@@ -13,13 +13,12 @@ approved on its own, and `plan.md` tracks where each stands. Its tasks are in
 | Part | Subject | Rules | State |
 |---|---|---|---|
 | A | Module boundaries, [below](#part-a--module-boundaries) | `ARC-005`, `ARC-006`, `AC-ARC-001` | Approved on 22 September 2026, after three review rounds the same day |
-| B | One authorization policy, [§2](#2-design-one-authorization-policy) | `AUTH-012`, [ADR-005](../../rfcs/ADR-005-one-authorization-policy.md) | Approved as version 1.0 on 16 September 2026; revised before it is built, since `D32` and `D35`–`D39` came after it |
-| C | The schema change the decisions require, [§3](#3-data-model-the-one-migration-the-decisions-require) | the shared `DB` rules | Approved as version 1.0 on 16 September 2026; superseded by `D32` and `D39`, and rewritten from the audit `D39` starts |
+| B | One authorization policy, [below](#part-b--one-authorization-policy) | `AUTH-012`, `AC-AUTH-011`, [ADR-005](../../rfcs/ADR-005-one-authorization-policy.md), and the gaps of `SEC-011`, `SEC-013`, `AUTH-002` and `ARC-006` | Draft of 22 September 2026, for approval on its own; replaces version 1.0 of 16 September |
+| C | The schema change the decisions require, [below](#part-c--the-schema-change-the-decisions-require) | `DB-011`, `DB-014`–`DB-022`, the audit of `D39` | Draft of 22 September 2026, for approval on its own; replaces version 1.0 of 16 September |
 
 Part A is written first because it is on the critical path to the first line of code: `D28`
 orders step 5 (this part), the merge into `main`, step 6 (building it) and only then step 8,
-the business parts that B and C serve. Sections 1 to 7 are the version of 16 September and
-cover parts B and C.
+the business parts that B and C serve. Parts B and C start after part A is done.
 
 ## Part A — Module boundaries
 
@@ -112,7 +111,7 @@ edges drawn from the wording of rules. Only the first kind is work for step 6:
 | `R3` | code | `internship` composes Intern creation, correction and the account screens over the service contract of `identity`, as A.4 describes. Before any of it, the invariant test of `ACC-019` that `D28` requires is written and seen failing, then passing. Done last, with `R1` |
 | `R4` | code | `platform` mail and SMTP services take the verified actor and the recipient from their caller instead of looking them up in `identity`; `SmtpController` moves to `identity`, beside the bootstrap that offers SMTP setup |
 | `R5` | none | Nothing. `attendance` and `project` already compute the recipients of `NOT-011`, `NOT-003` and `NOT-010` before calling `notification` |
-| `R6` | rule citations only | Nothing in step 6: the policy of `ADR-005` is not built yet. When part B builds it, the owning module resolves the scope and the policy receives it, as `D28` decided; this settles, for part B, the contradiction between §2.3 and the second risk of §5 |
+| `R6` | rule citations only | Nothing in step 6: the policy of `ADR-005` is not built yet. When part B builds it, the owning module resolves the scope and the policy receives it, as `D28` decided; this settled the contradiction between sections 2.3 and 5 of version 1.0, and part B states it in section B.4 |
 | `R7` | code | `calendar` resolves its actor through the service contract of `identity`; `AttendanceRole` is removed; `AttendanceCurrentUserService` stays in `attendance` |
 | `R8` | code | `calendar` computes the business date from the policy timezone it owns; the source of that timezone does not change |
 | `R9` | rule wording | Nothing. The change-impact interface is built with `CAL-007` and `CAL-008` in step 8; `TaskQueryService.dueDateImpacts` has no caller today and is left as it is |
@@ -275,253 +274,280 @@ does not require, such as renaming the demo seed file.
 None blocks approval. The name of each new class, such as the readiness interface of `R1`, is
 chosen in the task that creates it and recorded in the `ADR-006` table in the same change.
 
-## 1. Scope
+## Part B — One authorization policy
 
-**In scope.** `AUTH-012` and its scenario `AC-AUTH-011`; the §5.2 permission matrix as the
-source of every capability; the shared schema change that `D12`, `D14`, `D21`, `D23`, `D24`
-and `ACC-026` require; and the platform gaps the constitution lists, `SEC-011`, `SEC-013`,
-`AUTH-002`, `ARC-006` and `GOV-004`, since each is closed by a test that belongs to no
-single feature.
+**Implements** `AUTH-012` and `AC-AUTH-011`, as [ADR-005](../../rfcs/ADR-005-one-authorization-policy.md)
+decides, and closes four platform gaps the constitution lists: `SEC-011`, `SEC-013`,
+`AUTH-002`, and the business-SQL half of `ARC-006`. It starts after part A is done, because the
+policy belongs to `platform` and every scope it needs is resolved by the module that owns the
+record. This text replaces version 1.0 of 16 September 2026; git keeps that version.
 
-**Out of scope.** Business rules of a single feature: they are planned in that feature's
-own `PLAN.md`. Also out: `GOV-007`, `GOV-008` and `GOV-015` exclusions, the deployment
-pipeline, and any change to the specification itself.
-
-**Nothing in this plan is blocked.** `D12`–`D15`, `D21` and `D23`–`D25` were confirmed
-for build by the maintainer on 16 September 2026, and `D27` answered the last open
-question the same day: the migration gives every month worked before it a period and then
-applies `ATT-020` to it as the running system would. So the schema of §3 may be written
-and every step of §4 may start. If the instructor later revises one of these decisions, it
-arrives as a new decision and this plan is amended with the spec.
-
-## 2. Design: one authorization policy
-
-### 2.1 What the rule requires
+### B.1 What the rule requires
 
 `AUTH-012` takes four inputs for every business permission: the actor's role, the actor's
-scope resolved from stored context, the record's current state, and, for a transition, the
-target state. A higher role never implies a capability the §5.2 matrix does not grant, and
-no business permission is decided by a role check outside the policy.
+scope in stored context, the record's current state, and, for a transition, the target state.
+A higher role never implies a capability the §5.2 matrix does not grant, and no business
+permission is decided by a role check outside the policy.
 
-### 2.2 The capability catalogue
+### B.2 The capability catalogue
 
-The §5.2 matrix has **36 capabilities across 4 actor columns, so 144 cells**. The catalogue
-is the policy's data, not its code: one entry per capability and actor column, so a single
-entry can be withdrawn without touching another. That is what `D1` needs, since the instructor
-expects to withdraw part of the Admin read access later.
+The §5.2 matrix has 36 capabilities in 4 actor columns, 144 cells, counted on 22 September
+2026. The catalogue is the policy's data: one entry per capability and actor column, so one
+entry can be withdrawn alone, which `D1` needs.
 
 | Element | Source | Note |
 |---|---|---|
 | Capability | one §5.2 row | Named after the row, not after a controller method |
-| **Actor** | one §5.2 column | Not a role. It is derived from the pair (signed-in user, target record) |
-| Scope predicate | the rule the row cites | Ownership, active membership, current leadership term, current assignee, own record |
+| Actor | one §5.2 column | Not a role: derived from the pair of signed-in user and target record |
+| Scope predicate | the rule the row cites | Ownership, active membership, current leadership term, current assignee, own record, responsible Mentor |
 | State predicate | the rule the row cites | Project status, Task status, request status, attendance period state |
 | Target state | `TSK-007`, `TSK-023`, `PRJ-002`, `ATT-024` | Only for transitions |
 
-The word **role** keeps the three values `app_users` stores, which `DB-005` protects with a
-trigger that rejects any change. The word **actor** names a §5.2 column. The distinction is
-not pedantry: none of the four columns is a role. "Owning Mentor" means a Mentor who owns
-*that* Project, "Active member / assignee" means the user assigned *that* Task, and
-**"Current Leader" means an `INTERN` account holding a current leadership term on the
-Project the target record belongs to**. Leadership is the most visible case, not the
-exception. `AUTH-004` withdraws Task management the moment a term ends, which no stored role
-and no authority in a session can do, and `CLAUDE.md` already records the hour someone lost
-looking for a `ROLE_LEADER` that does not exist.
+**Role** keeps the three values `app_users` stores, which `DB-005` protects. **Actor** names a
+§5.2 column, and none of the four columns is a role: "Current Leader" is an `INTERN` account
+holding a current leadership term on the Project the record belongs to. Two consequences hold:
 
-Two consequences the implementation must carry, decided with the maintainer on 16 September
-2026:
+- A user can satisfy several columns for the same record. The policy takes the **union** of the cells those columns grant and never ranks columns, because ranking is the inference `AUTH-012` and `TSK-023` forbid. A refusal is the absence of any granting cell.
+- `LEADER` never becomes a Spring Security authority, `hasRole`, `hasAnyRole` or `sec:authorize` value, because the term it depends on can end between two requests (`AUTH-004`).
 
-- **A user can satisfy several columns at once for the same record**, as a Leader who is also the assignee, or an owning Mentor who is also a Mentor. The policy takes the **union** of the cells those columns grant. It never picks the "highest" column, because ranking columns is exactly the inference `AUTH-012` and `TSK-023` forbid: a higher role implying a capability the matrix does not grant. A refusal is simply the absence of any granting cell.
-- **`LEADER` never becomes a Spring Security authority.** It appears in no `hasRole`, no `hasAnyRole`, no `sec:authorize`, and no granted authority, because the term it depends on can end between two requests. §6 carries a test for exactly that, since this is how the trap returns.
+The row "Lock/deactivate accounts; manage internship lifecycle" covers every Admin account
+transition of `ACC-014`: lock, unlock, deactivation including that of a pending account
+(`ACC-028`), and reinstatement (`ACC-029`). `ACC-014` requires all of them to be explicit Admin
+actions; the row names lock and deactivation only, so this mapping is recorded here rather than
+left to the implementer.
 
-Reading the matrix into a test fixture is what `AC-AUTH-011` asks for: every cell is
-exercised for each role, then one Admin capability is withdrawn and only that cell changes.
+### B.3 Where the catalogue lives
 
-### 2.2.1 Where the catalogue lives
+A resource file of `platform`, read once at startup, one entry per capability and actor column,
+shaped like the §5.2 table. The application refuses to start when the file names an unknown
+capability or a matrix row has no entry. Withdrawing a capability edits one line, which is still a
+commit and a deployment. A database table with an Admin screen would need a permission to manage
+permissions, which `GOV-007` never granted; Java constants would break the promise of `D1`. This
+is a plan-level choice the spec leaves open.
 
-Saying the catalogue is data is empty until the plan says where that data sits, because
-`D1` and step 4 both promise that withdrawing one Admin capability changes no code.
-
-| Option | Withdrawal means | Cost |
-|---|---|---|
-| A. A configuration file read at startup, one line per capability and role | Edit a line, restart | No schema, no admin screen; the file is versioned with the code, so a withdrawal is still a commit and a deployment |
-| B. A database table with a screen for an Admin | Clear a row | A new table, a new screen, new rules, and a permission to manage permissions, which `GOV-007` never granted |
-| C. Constants in Java | Edit code | Fails the promise |
-
-**This plan takes option A.** The catalogue is a resource file beside the application, its
-shape mirrors the §5.2 table, and the policy loads it at startup and refuses to start when a
-capability named there is unknown or a matrix row has no entry. Option B is the natural next
-step if the laboratory ever wants an Admin to change permissions without a deployment; it is
-not in this scope, and `GOV-006` says a feature nobody specified needs a new decision.
-
-The spec does not name the mechanism, so this is a plan-level design choice and the
-maintainer approves it here.
-
-### 2.3 Where the decision is taken
-
-Three layers keep the jobs `ADR-005` assigns them.
+### B.4 Where the decision is taken
 
 | Layer | May do | May not do |
 |---|---|---|
-| `SecurityConfiguration` | Authenticated or not, and broad role gates on routes | Decide any business permission |
-| Service, inside the transaction | Ask the policy and enforce its answer | Read a role directly |
-| Template | Ask the same policy to decide what to show | Be treated as enforcement (`AUTH-002`) |
+| `SecurityConfiguration` | Authenticated or not, and coarse role gates on routes | Decide a business permission |
+| A module's service, inside its transaction | Resolve the actor's scope from stored context, ask the policy, enforce the answer | Read a role to decide |
+| Template | Ask the same policy what to show | Count as enforcement (`AUTH-002`) |
 
-The policy resolves scope from stored context inside the caller's transaction, never from
-the security context, because leadership and membership are intervals that close
-(`AUTH-004`, `PRJ-005`).
+**The policy decides; it never looks anything up.** The module that owns the record resolves the
+actor's scope from stored context inside its transaction and passes it, with the record's state,
+to the policy, as `R6` of `D28` decided. The policy belongs to `platform`, which depends on no
+feature (`ARC-005`), so it cannot read a membership or a leadership term, and it issues no query
+of its own (`ARC-010`). Version 1.0 said the policy resolves scope from stored context, which
+contradicted its own risk section and `R6`; this paragraph replaces that sentence.
 
-### 2.4 What the current code offers
+Each owning module provides the scope its records need: `project` the owning Mentor, the current
+Leader, active membership and the current assignee; `internship` the responsible Mentor
+(`ACC-026`); `attendance` the owner of a record or request, using the responsible Mentor from
+`internship`; `identity` whether the actor is an active account of a given role. A leadership term
+that ends between two requests is seen by the next one, because the scope is read in its
+transaction.
 
-The code is material, not the design. A survey on 16 September 2026 counted **50 places in
-13 files that compare a role or gate on one**, counting `equals` or `==` against `"ADMIN"`,
-`"MENTOR"` or `"INTERN"`, `hasRole`, `hasAnyRole` and `sec:authorize`, across
-`src/main/java` and the templates. Counting every mention of those three words in Java
-instead gives 142 in 33 files, which is why the rule used here is stated rather than the
-number alone. The survey orients the work; the fixture of step 1 is what enumerates it,
-because a survey by text search cannot see a role decision expressed another way.
+### B.5 What the current code offers
 
-Each site is read once, mapped to the matrix row it was trying to express, and then
-replaced by a policy call. Two known cases contradict the specification and change with this work: the branch in
-`TaskService#changeStatus` that lets an owning Mentor set any status, and the three separate
-Admin checks on the Attendance report that `ADR-005` names.
+The code is material, not the design. On 16 September 2026 a text survey counted 50 places in 13
+files that compare or gate on a role. Part A changes those file locations, so the survey is not
+repeated here: the fixture of B-01 enumerates the work instead, because a text search cannot see a
+role decision expressed another way. Two known cases contradict the specification and change in
+this part: `TaskService#changeStatus` lets an owning Mentor set any status (`TSK-023`), and the
+Attendance report makes three separate Admin checks that `ADR-005` names.
 
-### 2.5 Alternatives rejected
+Native SQL in a service breaks `ARC-006` and `D18`: `ProjectService` deletes a draft Project
+through `nativeDelete`. B-07 places that SQL behind the data-access layer with its behavior
+unchanged; the emptiness check and notification deletion that `PRJ-002` requires belong to the
+project plan, since they change behavior.
+
+### B.6 Alternatives rejected
 
 | Alternative | Why not |
 |---|---|
-| Spring method security annotations per method | Expresses role, not scope and state; a withdrawal would edit dozens of annotations |
-| One service-side `if` per capability, no catalogue | `AC-AUTH-011` cannot iterate the matrix, and withdrawal touches code in many files |
-| Push decisions into `SecurityConfiguration` | Route-level rules cannot see the record's state or the caller's membership |
+| Method security annotations per method | Express role, not scope and state; a withdrawal edits dozens of annotations |
+| One service-side `if` per capability, no catalogue | `AC-AUTH-011` cannot iterate the matrix, and a withdrawal touches many files |
+| Decisions in `SecurityConfiguration` | Route rules cannot see a record's state or the caller's membership |
 
-## 3. Data model: the one migration the decisions require
+### B.7 Order of work
 
-`ARC-009` forbids editing an applied migration, so this is a new `V3` file. The tables below
-are named by what they hold; the exact column names are settled when the migration is
-written. Every line names the rules that ask for it.
+The tasks are B-01 to B-07 in [TASKS.md](TASKS.md). B-01 comes first because its fixture is the work list of B-02 and B-03, and B-04 last among the policy tasks because a withdrawal proves something only once every cell goes through the policy. B-05 to B-07 depend on nothing in B-01 to B-04 and may run in any order after part A.
 
-### 3.1 New tables
+The grant half of `TSK-023`, block, unblock and reopen by the owning Mentor and the Leader, needs
+`task_status_transitions` to restore the status held before a block (`TSK-025`), so it belongs to
+the project plan after part C creates that table.
 
-| Table | Rules | Why it exists |
-|---|---|---|
-| `attendance_periods` | `ATT-019`–`ATT-021` | One row per Intern per month with its state and, when closed, who closed it and when |
-| `attendance_period_reopens` | `ATT-022`, `GOV-009` | The request (requester, range, reason) and the Admin's decision, approval or refusal with its own reason |
-| `attendance_exceptions` | `EXC-001`–`EXC-004`, `D23` | One row per attendance row and violation kind: how it was raised, by whom, its deadlines, and its current outcome |
-| `attendance_exception_decisions` | `EXC-007`, `ATT-024`, `GOV-009` | Append-only: each decision, amendment or reversal with its kind, actor, server time and reason |
-| `leave_request_decisions` | `LEV-011`, `ATT-024`, `GOV-009` | Append-only, the same shape, so an amendment that withdraws approval from dates is auditable |
-| `task_status_transitions` | `TSK-023`, `TSK-025`, `GOV-009` | Block, unblock and reopen with the previous status, actor, time and, for a reopen, the reason |
+### B.8 Tests this part changes
 
-### 3.2 Changed tables
+This part changes behavior on purpose wherever the code grants what the matrix refuses. An
+assertion may change only where it asserts such a capability; the commit names, for each changed
+assertion, the §5.2 row and the rule that refuse it (`TST-011`). Any other test changes only as
+part A's section A.7 allows. A cell that B-01 records as failing is fixed in code, never by
+changing the fixture.
 
-| Table | Change | Rules |
-|---|---|---|
-| `projects` | Add `CANCELLED` to the status constraint; keep who cancelled it, when, and the reason | `PRJ-002`, `PRJ-023`, `D12` |
-| `leave_requests` | Add `OVERDUE` and `WITHDRAWN` to the status constraint; keep who withdrew it and when | `LEV-010`, `LEV-013` |
-| `leave_request_days` | Mark a date whose approval an amendment withdrew, without touching its frozen policy and quota snapshot | `LEV-011`, `GOV-005` |
-| `attendance_corrections` | Add `OVERDUE` to the status constraint; stop writing `locked_at`, which `D14` removed; move both deadlines to 48 hours | `COR-003`, `COR-004`, `COR-007`, `D23` |
-| `intern_profiles` | Keep the responsible Mentor, replaceable by an Admin | `ACC-026`, `ACC-021` |
-| `attendance_records` | No change | — |
-
-### 3.3 Existing data
-
-A migration that only creates tables and tightens constraints leaves the rows already in
-the database behind. Four cases have to be answered before the migration is written, and
-each one is a business question as much as a technical one.
-
-| Case | What must happen | Why it is not obvious |
-|---|---|---|
-| Months already worked | Create a period per Intern and month that has attendance, then apply `ATT-020` to each: finalize it where 23:59 on the fifth day of its following month has passed and no leave or correction affecting it is pending or overdue, and leave it open otherwise | Closing them retroactively locks data nobody reviewed; leaving them open means a Mentor can still change months from August. Decided in `D27`: neither, because `ATT-020` already answers it. An earlier draft of this row proposed closing every past month outright with the migration as the actor, which would have contradicted `ATT-020` on exactly the months with something still undecided |
-| The responsible Mentor | Every Intern already `ACTIVE` needs one, because `ACC-026` and `ACC-021` require the assignment before an internship becomes `ACTIVE` | The rule was written after the data. No mentor can be inferred: owning a Project the Intern belongs to is not the same relation. The plan proposes: leave it empty, let `ACC-026` show those Interns to Admins as needing one, and refuse a decision until an Admin assigns |
-| `locked_at` on corrections | `D14` removed the lock, so the column stops being written | Dropping a column with history in it is not reversible. The plan proposes: stop writing it, keep the values as a record of what the old rule did, and let the next schema review drop it |
-| New status values | `CANCELLED`, `OVERDUE`, `WITHDRAWN` widen a constraint rather than narrow it | Widening is safe for existing rows. The 48-hour deadlines are not: `attendance_corrections` stores its two deadlines per row, so rows already submitted keep the deadlines they were given, and only new rows use 48 hours |
-
-The demo seed of `scripts/` is data too. It is regenerated after the migration, not patched.
-
-### 3.4 What the migration does to the specification
-
-The specification pins the schema in three places, and a migration that adds six tables
-makes all three false at once:
-
-- the §1 note and §19.4, which both say the schema has **24 tables**;
-- `AC-DB-001`, which asserts that each database has **exactly 24 tables**;
-- the physical Mermaid diagram of §19.4, which draws 24 entities today, and which `DB-010`
-  requires to describe the same tables as the SQL.
-
-So the migration is never a code-only step. Writing `V3` means, in the same change: the
-diagram gains its entities and relationships, the two counts move, `AC-DB-001` moves with
-them, and the feature specs that own the new tables gain their `DB` rules. Anything less
-leaves the specification describing a database that no longer exists, which is the drift
-`GOV-016` exists to prevent.
-
-### 3.5 Invariants the migration must carry
-
-- Exactly one open period per Intern per month, and no attendance result inside a finalized period changes except through a reopened range (`ATT-020`, `ATT-021`).
-- A decision table is append-only: no update, no delete, and the current value is the latest effective entry (`ATT-024`).
-- A frozen snapshot stays frozen. An amendment marks a leave date as no longer approved; it never rewrites the policy version or quota snapshot that date carries (`GOV-005`, `LEV-003`).
-- Every status constraint lists its values in the database as well as the service, because `DB-007` puts state graphs inside the transaction and `ARC-003` tests them against PostgreSQL.
-
-## 4. Sequence
-
-Each step is small enough to review on its own and names what it satisfies. A step starts
-only when the step it depends on is green.
-
-| # | Step | Satisfies | Depends on |
-|---|---|---|---|
-| 1 | Read the §5.2 matrix into a test fixture and assert every one of the 144 cells against **what the matrix grants**. Cells that fail are the work list of steps 2 and 3, and each one is a finding to record, not a baseline to keep | `AC-AUTH-011` first half | — |
-| 2 | Introduce the policy and the capability catalogue; move the three Admin report checks behind it, and remove from `TaskService#changeStatus` the capability the matrix does not grant, namely an owning Mentor setting any status | `AUTH-012`, the refusal half of `TSK-023` | 1 |
-| 3 | Move the remaining role decisions in services and templates behind the policy, file by file, keeping `SecurityConfiguration` as coarse route protection | `AUTH-012`, `AUTH-002` | 2 |
-| 4 | Withdraw one Admin capability in the catalogue and prove only that cell changes | `AC-AUTH-011` second half, `D1` | 3 |
-| 5 | Write the `V3` migration of §3, its constraints, its data migration, and the specification change §3.4 names | §3 rules, `DB-010`, `GOV-016`, `D27` | — |
-| 6 | Close the platform gaps the constitution lists: security headers read back, development relaxations refused under production, a not-found response identical for unauthorized and absent records, and a build check for business SQL outside a repository | `SEC-011`, `SEC-013`, `AUTH-002`, `ARC-006` | 3 |
-
-Steps 1, 2, 3, 4 and 6 need no schema change. Step 5 does, and since `D27` it waits on
-nothing either; it stays last because §3.4 makes it the step that also moves the
-specification, and that is easier to review once the policy of steps 1 to 4 is in place.
-
-**What step 2 deliberately leaves out.** `TSK-023` has two halves. Refusing what the matrix
-does not grant needs no storage, and belongs here. Granting the Leader and the Mentor block,
-unblock and reopen does need storage: unblocking returns a Task to the status it held
-before the block, and only `task_status_transitions` remembers that status. That half waits
-for step 5 and belongs to the task plan, which cites this dependency.
-
-## 5. Risks
+### B.9 Risks
 
 | Risk | Handling |
 |---|---|
-| A capability is moved behind the policy and silently loses a scope condition | Step 1 records the current answer of all 144 cells first, so any change of behavior is visible in the diff of that fixture |
-| The policy is asked outside a transaction and reads a stale membership or leadership term | The policy takes the scope it needs as resolved context; the service calls it inside the transaction (`AUTH-011`) |
-| Templates keep deciding | `AUTH-002` says a hidden control is not authorization; step 3 removes `sec:authorize` from business decisions, and the gap row for `AUTH-002` gets a test |
-| The migration is written against a decision the instructor then changes | Step 5 waits for confirmation. This is the cheapest veto point, and it is deliberate |
-| The schema change is large and touches attendance, leave, task and project at once | One migration, one review, one rollback point, rather than four migrations that must be applied in order |
-| The policy is asked once per row, so a list of 200 Tasks or a report of 30 dates asks it 200 or 30 times | A list decides one capability for one scope, not one per row: the policy is asked once for the scope, and the answer is applied to the rows. Where a row carries its own state, such as a Task status, the policy takes the rows it has already loaded and answers without another query. No policy call issues a database query of its own; it receives resolved context (§2.3). §6 adds a test that a list page and a report page each ask the policy a number of times that does not grow with the number of rows |
+| A capability loses a scope condition when it goes through the policy | B-01 records every cell first, so any change of answer shows in the fixture's result |
+| The policy is asked with a stale scope | The owning module resolves scope inside the same transaction as the change it guards |
+| Templates keep deciding | B-03 replaces template role checks with policy calls; B-06 tests that a hidden control grants nothing |
+| A list asks the policy once per row | A list decides one capability for one scope and applies it to the rows; where a row has its own state the policy receives the loaded rows and issues no query. A test counts policy calls and queries at one row and at fifty (`AC-ARC-002`) |
 
-## 6. Verification
+### B.10 When the part is done
 
-| Layer | What it proves here |
+- All 144 cells pass through the policy, and the withdrawal test passes (`AC-AUTH-011`).
+- No `LEADER` or `ROLE_LEADER` value appears as an authority or in `hasRole`, `hasAnyRole` or `sec:authorize`.
+- The tests of B-05, B-06 and B-07 pass, and the query-count test of `AC-ARC-002` passes.
+- The full Maven suite, the end-to-end suite and `npm run test:ui` pass.
+- The constitution's gap rows for `SEC-011`, `SEC-013`, `AUTH-002`, `AUTH-012` and the business-SQL row of `ARC-006` are closed in the same change as the test that closes each.
+
+### B.11 Not in this part
+
+Business rules of a single feature, including the grant half of `TSK-023`; an Admin screen for
+permissions; the schema change (part C).
+
+## Part C — The schema change the decisions require
+
+**Implements** the schema of `DB-011` and `DB-014`–`DB-022`, the predicate audit `D39` starts,
+`DB-002` for overdue leave, `DB-010` for the physical diagram, the stored shape `NOT-012` gives
+email delivery, the link `PRJ-002` needs to delete a draft's notifications, and the treatment of
+months already worked that `D27` decided. Column names are settled when each migration is written
+(`D32`). It starts after part A is done, because the code that obeys each tightened predicate
+lives in the modules part A creates. This text replaces sections 3 and 4 of version 1.0.
+
+### C.1 Expand first, then contract, module by module
+
+Version 1.0 planned one migration. Tightening every predicate at once breaks the running code,
+which the current classes show:
+
+- `AppUser#deactivate` clears the lock timestamp, which the lock rule of `DB-022` refuses.
+- The code cancels a pending leave request as `CANCELLED` with no decision, which `DB-018` refuses.
+- `LeaveStatus` has no `WITHDRAWN`, so rows reclassified to it could not be read.
+
+So the change comes in two kinds of migration. **V3 expands**: it adds tables, columns and status
+values, and relaxes the predicates that refuse newly lawful rows, all of which the running code can
+live with. **Each contract migration tightens** what one module's rules forbid, and ships in the
+same change as that module's code that obeys it. Each migration stays one review and one rollback
+point. Migrations are numbered in the order they ship, and each file name names its module.
+
+### C.2 Before any migration: which database, and what it holds
+
+Each database a migration will run on is identified first by its Flyway history. A database created
+while `V2__account_admin_edit_events.sql` existed, from `4c1fa67` until the merge `787d143` removed
+it, holds a different `V2`; this plan does not guess how to reconcile it, and work on that database
+stops until the maintainer decides. The same step reads the stored rows that the contract steps
+depend on (C.5) and records the counts in `plan.md`.
+
+### C.3 V3, the expansion
+
+New tables, each with its constraints and, where the rule asks, an append-only trigger. No running
+code writes them yet:
+
+| Table | Rules |
 |---|---|
-| Matrix-driven test | `AC-AUTH-011`: every cell of §5.2, and the withdrawal of one capability |
-| Service tests | Scope and state predicates: closed membership, ended leadership term, finalized period, wrong Project |
-| Web tests | The route gate and the not-found response that reveals nothing (`AUTH-002`) |
-| Schema tests | Status constraints, append-only decision tables, one open period per Intern and month, run against PostgreSQL (`ARC-003`) |
-| End-to-end | One journey per role that the matrix says may act, and one that may not |
-| Query-count test | `AC-ARC-002`: a list page and a report page ask the policy, and query the database, the same number of times at one row and at fifty |
-| Authority test | The strings `LEADER` and `ROLE_LEADER` appear in no granted authority, `hasRole`, `hasAnyRole` or `sec:authorize`, so leadership stays a term read from storage (`AUTH-004`) |
+| `attendance_periods` | `DB-014`, `ATT-019`–`ATT-021` |
+| `attendance_period_reopens` | `DB-015`, `ATT-022` |
+| `attendance_exceptions` | `DB-016`, `EXC-001`–`EXC-004` |
+| `attendance_exception_decisions`, `leave_request_decisions` | `DB-017`, `ATT-024` |
+| `task_status_transitions` | `DB-020`, `TSK-023`, `TSK-025` |
 
-No step is done until the rules it names are covered; `TST-005` puts those rule
-identifiers in the test source.
+Changed predicates, each a `D39` member that refuses a row the rules make lawful, or admits a status
+no running code writes yet:
 
-## 7. Open questions
+| Predicate | Becomes | Rules |
+|---|---|---|
+| `ck_projects_status`; `ck_projects_activation` | `CANCELLED` accepted, with or without an activation timestamp | `DB-019` |
+| `ck_project_invitations_resolution_code`; the `REVOKED` branch of `ck_project_invitations_resolution_state` | `PROJECT_CANCELLED` accepted, with no resolving actor | `DB-011`, `PRJ-023` |
+| `ck_leave_requests_status`; `ck_leave_requests_decision` | `OVERDUE` and `WITHDRAWN` accepted as undecided rows without a decision time | `DB-018` |
+| `ck_attendance_corrections_status`; `ck_attendance_corrections_decided_at` | `OVERDUE` accepted as undecided | `DB-018`, `COR-007` |
+| `ck_attendance_correction_events_type`, `_from_status`, `_to_status` | The amendment, reversal and overdue entries accepted; `OVERDUE` as a status | `DB-017` |
+| `ck_app_users_pending_password`, `ck_app_users_activated_state`, `ck_app_users_lock_timestamp` | A `DEACTIVATED` row with neither hash nor activation timestamp accepted, and a `DEACTIVATED` row keeping a lock beside its activation timestamp accepted; the non-blank hash kept | `DB-022` |
+| `ex_leave_requests_no_overlap` | Its predicate covers `PENDING`, `OVERDUE` and `APPROVED`. This tightens, but no `OVERDUE` row exists until the attendance code writes one | `DB-002`, `AC-DB-010` |
 
-None. A plan with an open question is not ready for implementation, and the two this plan
-carried were both answered on 16 September 2026. The confirmation of `D12`–`D15`, `D21`
-and `D23`–`D25` was one: the maintainer confirmed them for build rather than hold the
-plan. What the migration does with the months that predate it was the other, answered by
-`D27`. Every step of §4 is clear.
+New nullable columns: who cancelled a Project, when and why (`DB-019`); when a leave request was
+withdrawn (`DB-018`); the withdrawn-approval mark of a leave request day (`DB-018`); the responsible
+Mentor of an Intern profile, which may reference only a `MENTOR` account (`DB-021`, `AC-DB-008`);
+and the Project a notification was raised for (`PRJ-002`). Existing notifications get that link
+from their action route where it names a Project, which is how the Project services build it today
+(`/projects/{id}` and routes below it); a notification whose route names no Project keeps no link.
 
-### 7.1 Closed in review, 16 September 2026
+Data: V3 creates a period for every Intern and month that has attendance, then applies `ATT-020`
+to each, as `D27` decided.
 
-| Question | Answer |
+### C.4 Contract migrations and the module that ships each
+
+| Module plan | Predicates the contract migration tightens | Code in the same change |
+|---|---|---|
+| `identity` | The exact `DB-022` shapes: a non-blank hash and an activation timestamp together or not at all per status; an activation timestamp set only by `PENDING_ACTIVATION → ACTIVE` and never changed or cleared; a lock timestamp set only by `ACTIVE → LOCKED`, cleared only by `LOCKED → ACTIVE`, and otherwise unchanged. Both timestamp rules by trigger, comparing old and new values with `IS DISTINCT FROM` | Deactivation keeps the lock; `ACC-028`, `ACC-029`, `ACC-030` |
+| `attendance` | `DB-018`: an undecided leave request carries no deciding actor (new predicate); `ck_attendance_corrections_pending_decision` counts `OVERDUE` as undecided; a `CANCELLED` leave request carries its approval time and approving Mentor (`ck_leave_requests_decision`, `ck_leave_requests_approval_actor`); a `WITHDRAWN` one carries its withdrawal time. `DB-017`: correction entries carry a reason for an amendment or reversal and refuse update and delete. Before these checks, the reclassification of C.5 | Withdrawal and cancellation under `LEV-011` and `LEV-013`; overdue marking; decision history; corrections stop writing their lock |
+| `project` | `DB-019`: a `CANCELLED` Project carries the cancelling Mentor, the time and a non-blank reason | `PRJ-023`; `PRJ-002` deleting a draft's notifications by their Project link; the grant half of `TSK-023` |
+| `notification` | `ck_notifications_email_payload`: `NOT_REQUIRED` and `UNAVAILABLE` carry no payload (`NOT-012`) | None, if C.2 finds no stored row that breaks it; otherwise the rows found are reported before this step |
+
+### C.5 Stored rows
+
+| Case | Treatment |
 |---|---|
-| Is the Leader a fourth role or a scope? | A scope, and the question was the wrong shape: no §5.2 column is a role. The catalogue keys on (capability, actor column), and an actor is derived from the pair of signed-in user and target record. Columns combine as a union, never as a ranking, and `LEADER` never becomes a Spring Security authority. §2.2 carries this, and §6 tests it |
-| Do the six cross-feature rules split before or after this work? | After step 3, which is the step that produces the evidence: which rule each of the 144 cells cites. `GOV-016` asks for one canonical location, not for that location to be a feature spec, so a genuinely shared rule may stay in the platform spec and nothing is being violated meanwhile. Expect fewer than six to move: `AUTH-011` may be absorbed by `AUTH-012` rather than relocated, `DB-008` locks one Intern profile for both leave quota and daily work minutes and would break if split, and `AUTH-003` and `UI-019` each carry several clauses, so moving them means rewriting them. `plan.md` now names step 3 as the trigger instead of "after this plan" |
-| Does the specification get a performance number? | No number, but an invariant, and in the specification rather than only in this plan: `ARC-010` keeps the authorization decisions and queries of a request independent of the rows it renders, and says plainly that no time budget is stated while there is no environment to measure one. `AC-ARC-002` measures it at one row and at fifty. Same pattern as `ARC-004` choosing a compatible range over an exact version and `RPT-008` bounding a request instead of naming milliseconds. Its blind spot, a policy call that is itself expensive, is covered by loading the catalogue once at startup (§2.2.1) and by the policy receiving resolved context (§2.3) |
+| Months already worked | `D27`: a period per Intern and month with attendance, then `ATT-020` applied as the running system would |
+| Interns already `ACTIVE` without a responsible Mentor | The reference stays empty; `ACC-026` shows them to Admins as needing one, and a decision waits for the assignment |
+| The lock timestamp on corrections | Kept as a record of what the old rule did and no longer written. `ck_attendance_corrections_locked_state` stays: it is a history-bound member (`D39`) |
+| Correction deadlines | Rows keep the deadlines they were given; only new rows use 48 hours (`D23`) |
+| `CANCELLED` leave requests without a decision time | Reclassified to `WITHDRAWN`: the cancellation time becomes the withdrawal time and is then cleared, and the owning Intern is the withdrawer (`D39`). Rows with a decision time stay `CANCELLED`. The counts C.2 records must match this reading before the attendance contract runs |
+| Accounts deactivated before the identity contract | Their lock timestamp was already cleared and cannot be restored; reinstatement returns them to `ACTIVE` (`D38`) |
+| Monthly leave quota (`ATT-003`) | `ck_attendance_policy_versions_quota` and `ck_leave_request_days_quota` are history-bound members. If C.2 finds no stored policy version above 4 on any database, the calendar module narrows both to 0 through 4 in a contract migration of its own; otherwise both stay at 0 through 31 as lawful history, and `AttendancePolicyCommand` keeps enforcing 0 through 4 for new versions |
+| The demo seed of `scripts/` | Regenerated after each migration it is affected by, not patched |
+
+### C.6 The predicate audit
+
+**Scope.** The 148 check, exclusion and unique predicates, constraints and unique indexes, on the
+24 tables of `V1__baseline.sql` and `V2__add_task_effort_planning.sql`, counted on 22 September
+2026. Primary keys, foreign keys and triggers are not counted. **Criterion**, as `D39` states it: a
+predicate is a member when, once the rules are applied, it refuses a lawful row or admits an
+unlawful one; a history-bound member is one whose tightening would refuse stored rows that were
+lawful when written. **No completeness is claimed**: each verdict below is proved by a probe test
+(C.7), and no test or reading can show that no member remains.
+
+The eight tables `D39` examined hold 54 predicates, with the verdicts of its table: 19 members,
+2 of them history-bound. The other 16 tables hold 94:
+
+| Table | Verdict |
+|---|---|
+| `notifications` | Member: `ck_notifications_email_payload` (`NOT-012`), tightened by the notification contract. Unaffected: `ck_notifications_type`, which keeps `SYSTEM` for the notices of `NOT-011` unless a module plan adds codes in its own contract; `ck_notifications_email_attempts`, since a manual retry resets the attempt count, so "attempts exhausted" in `NOT-012` is not a stored shape; `ck_notifications_title`, `_body`, `_email_status`, `_email_sent`, `_email_retry`, `_version` |
+| `attendance_policy_versions` | History-bound member: `ck_attendance_policy_versions_quota` (C.5). Unaffected: `_timezone`, `_month_boundary`, `_schedule`, `_check_in_grace`, `_checkout_grace`, `_checkout_cutoff`, `_penalty`, `_version`, `uq_attendance_policy_versions_effective_from` |
+| `attendance_policy_workdays`, `global_calendar_events`, `attendance_records` | Unaffected: `D14`, `D24`, `CAL-007` and `CAL-008` add tables and interfaces, not rows here. `ck_attendance_policy_workdays_iso_day`; `ck_global_calendar_events_name`, `_source`, `_api_provenance`, `_version`, `uq_global_calendar_events_source_uuid`; `uq_attendance_records_intern_date`, `ck_attendance_records_checkout`, `_version` |
+| `project_memberships`, `project_leadership_terms`, `project_membership_exit_requests` | Unaffected: `PRJ-023` closes intervals with the cancelling Mentor as actor and marks pending exits `SUPERSEDED`, which the current predicates admit. `uq_project_memberships_id_project`, `ck_project_memberships_interval`, `_removal_actor`, `_version`, `uq_project_memberships_one_active`; `uq_project_leadership_terms_id_project`, `ck_project_leadership_terms_interval`, `_end_actor`, `ex_project_leadership_terms_no_overlap`, `uq_project_leadership_terms_one_current`; `ck_project_membership_exit_requests_type`, `_reason`, `_resolution_note`, `_participants`, `_status`, `_resolution`, `_version`, `uq_project_membership_exit_requests_one_pending_target` |
+| `tasks`, `task_comments`, `task_work_logs`, `task_remaining_effort_forecasts` | Unaffected: `D13`, `D15` and `D35`–`D37` change transitions, which the application enforces, and add `task_status_transitions`. `uq_tasks_id_project`, `ck_tasks_title`, `_status`, `_soft_delete_actor`, `_version`, `_estimated_minutes`; `ck_task_comments_body`; `ck_task_work_logs_minutes`, `_note`, `_version`; `ck_task_forecasts_remaining_minutes`, `_actual_snapshot`, `_initial_or_correction`, `_initial_note`, `uq_task_forecasts_one_successor` |
+| `user_action_tokens` | Unaffected: `ACC-028` invalidates tokens through the invalidation time, which the current predicates admit. `uq_user_action_tokens_hash`, `ck_user_action_tokens_purpose`, `_hash_length`, `_expiry`, `_terminal_state`, `uq_user_action_tokens_one_live` |
+| `system_state`, `smtp_configurations`, `holiday_api_configurations` | Unaffected: no pending decision changes their rows. `ck_system_state_singleton`, `_initialization`, `_version`; `ck_smtp_configurations_status`, `_port`, `_security`, `_host`, `_from`, `_from_name`, `_secret_pair`, `_test_actor`, `_activation`, `_retirement`, `_version`, `uq_smtp_configurations_one_active`, `_one_draft`; `ck_holiday_api_configurations_status`, `_country`, `_ciphertext`, `_nonce`, `_key_version`, `_test_actor`, `_activation`, `_retirement`, `_version`, `uq_holiday_api_configurations_one_active`, `_one_draft` |
+
+Two non-unique indexes filter on `PENDING` alone, `ix_leave_requests_pending_cutoff` and
+`ix_attendance_corrections_pending_deadline`; the attendance plan says whether each must also serve
+`OVERDUE` rows.
+
+### C.7 Tests, written first
+
+Every migration step starts with its probe tests, run on PostgreSQL through Testcontainers and seen
+failing against the schema before the step: the `AC-DB-*` scenarios the step concerns, and one
+probe per member and history-bound member it touches, showing the predicate accepts and refuses what
+the rules say. A step is done when its probes pass and the full Maven suite passes; the part is done
+when every `AC-DB-*` scenario passes, which is the gate `plan.md` holds for accepting the migration.
+Each migration updates, in the same change, the physical diagram of §19.4 for the tables and
+columns it adds or changes (`DB-010`).
+
+### C.8 Order of work
+
+The tasks are C-01 to C-08 in [TASKS.md](TASKS.md). C-01 reads before anything writes; C-02 and C-03 are the expansion; C-04 to C-07 are carried out inside the plans of the modules whose code they need, in the order those plans run; C-08 closes the part.
+
+### C.9 Risks
+
+| Risk | Handling |
+|---|---|
+| A tightened predicate refuses a stored row | C-01 reads the rows first; the contract step's migration runs its data change before its checks |
+| A database with the other `V2` receives V3 | C-01 identifies the history first and stops on it |
+| An expansion admits a row a rule forbids, until its contract | Only statuses and columns no running code writes are admitted, and each contract ships with the code that writes them |
+| The diagram drifts from the SQL | Each migration updates §19.4 in the same change (`DB-010`) |
+
+### C.10 Not in this part
+
+The code of each module that uses the new tables and statuses: each module plan owns it and ships
+its contract migration with it. The decision whether to narrow the quota predicates waits on C-01.
