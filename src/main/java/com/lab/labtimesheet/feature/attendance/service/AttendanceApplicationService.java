@@ -1,6 +1,6 @@
 package com.lab.labtimesheet.feature.attendance.service;
 
-import com.lab.labtimesheet.feature.account.service.AccountService;
+import com.lab.labtimesheet.feature.identity.service.AccountService;
 import com.lab.labtimesheet.feature.attendance.exception.AttendanceException;
 import com.lab.labtimesheet.feature.attendance.exception.AttendanceRejection;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;

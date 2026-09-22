@@ -8,11 +8,11 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.lab.labtimesheet.feature.account.model.AccountStatus;
-import com.lab.labtimesheet.feature.account.model.InternshipStatus;
-import com.lab.labtimesheet.feature.account.model.dto.AccountIdentity;
-import com.lab.labtimesheet.feature.account.model.dto.LockedAccountMutationEligibility;
-import com.lab.labtimesheet.feature.account.service.AccountService;
+import com.lab.labtimesheet.feature.identity.model.AccountStatus;
+import com.lab.labtimesheet.feature.identity.model.InternshipStatus;
+import com.lab.labtimesheet.feature.identity.model.dto.AccountIdentity;
+import com.lab.labtimesheet.feature.identity.model.dto.LockedAccountMutationEligibility;
+import com.lab.labtimesheet.feature.identity.service.AccountService;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
 import com.lab.labtimesheet.feature.attendance.model.AttendancePolicyFixtures;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceRecord;

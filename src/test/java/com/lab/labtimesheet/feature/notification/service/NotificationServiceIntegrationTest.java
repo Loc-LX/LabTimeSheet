@@ -15,9 +15,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import com.lab.labtimesheet.config.TestcontainersConfiguration;
-import com.lab.labtimesheet.feature.account.model.dto.CreateAccountCommand;
-import com.lab.labtimesheet.feature.account.service.AccountService;
-import com.lab.labtimesheet.feature.account.service.BootstrapService;
+import com.lab.labtimesheet.feature.identity.model.dto.CreateAccountCommand;
+import com.lab.labtimesheet.feature.identity.service.AccountService;
+import com.lab.labtimesheet.feature.identity.service.BootstrapService;
 import com.lab.labtimesheet.feature.notification.model.NotificationType;
 import com.lab.labtimesheet.feature.notification.model.dto.NotificationAction;
 import com.lab.labtimesheet.feature.notification.model.dto.NotificationEvent;

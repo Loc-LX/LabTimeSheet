@@ -7,7 +7,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.lab.labtimesheet.feature.account.service.AccountService;
+import com.lab.labtimesheet.feature.identity.service.AccountService;
 import com.lab.labtimesheet.feature.notification.service.NotificationService;
 import com.lab.labtimesheet.feature.project.exception.ProjectAccessDeniedException;
 import com.lab.labtimesheet.feature.project.model.InvitationResponse;

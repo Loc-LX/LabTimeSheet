@@ -2,7 +2,7 @@ package com.lab.labtimesheet.feature.attendance;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.lab.labtimesheet.feature.account.service.AccountService;
+import com.lab.labtimesheet.feature.identity.service.AccountService;
 import com.lab.labtimesheet.feature.attendance.controller.AttendanceController;
 import com.lab.labtimesheet.feature.attendance.controller.CalendarController;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;

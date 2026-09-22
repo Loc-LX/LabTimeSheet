@@ -3,9 +3,9 @@ package com.lab.labtimesheet.feature.attendance.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.doReturn;
 
-import com.lab.labtimesheet.feature.account.model.dto.CreateAccountCommand;
-import com.lab.labtimesheet.feature.account.service.AccountService;
-import com.lab.labtimesheet.feature.account.service.BootstrapService;
+import com.lab.labtimesheet.feature.identity.model.dto.CreateAccountCommand;
+import com.lab.labtimesheet.feature.identity.service.AccountService;
+import com.lab.labtimesheet.feature.identity.service.BootstrapService;
 import com.lab.labtimesheet.feature.attendance.exception.AttendanceException;
 import com.lab.labtimesheet.feature.attendance.exception.AttendanceRejection;
 import com.lab.labtimesheet.feature.attendance.exception.CalendarException;

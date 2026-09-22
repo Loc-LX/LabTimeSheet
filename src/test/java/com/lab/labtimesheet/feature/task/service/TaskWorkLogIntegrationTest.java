@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.lab.labtimesheet.config.TestcontainersConfiguration;
-import com.lab.labtimesheet.feature.account.service.AccountService;
+import com.lab.labtimesheet.feature.identity.service.AccountService;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectTaskContext;
 import com.lab.labtimesheet.feature.project.service.ProjectService;
 import com.lab.labtimesheet.feature.task.exception.TaskConflictException;

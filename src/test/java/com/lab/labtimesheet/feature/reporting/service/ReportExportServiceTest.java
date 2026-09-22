@@ -3,7 +3,7 @@ package com.lab.labtimesheet.feature.reporting.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 
-import com.lab.labtimesheet.feature.account.model.dto.EligibleInternOption;
+import com.lab.labtimesheet.feature.identity.model.dto.EligibleInternOption;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectSummary;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectTaskMemberView;
 import com.lab.labtimesheet.feature.reporting.model.dto.AttendanceReportRow;

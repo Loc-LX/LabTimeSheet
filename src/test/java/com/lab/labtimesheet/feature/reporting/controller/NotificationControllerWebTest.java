@@ -13,9 +13,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 
-import com.lab.labtimesheet.feature.account.model.AccountStatus;
-import com.lab.labtimesheet.feature.account.model.dto.AccountIdentity;
-import com.lab.labtimesheet.feature.account.service.AccountService;
+import com.lab.labtimesheet.feature.identity.model.AccountStatus;
+import com.lab.labtimesheet.feature.identity.model.dto.AccountIdentity;
+import com.lab.labtimesheet.feature.identity.service.AccountService;
 import com.lab.labtimesheet.feature.notification.model.NotificationType;
 import com.lab.labtimesheet.feature.notification.model.dto.NotificationInbox;
 import com.lab.labtimesheet.feature.notification.model.dto.NotificationInboxItem;

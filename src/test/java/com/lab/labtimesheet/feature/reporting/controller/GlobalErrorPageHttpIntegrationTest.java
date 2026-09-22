@@ -8,7 +8,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.lab.labtimesheet.config.TestcontainersConfiguration;
-import com.lab.labtimesheet.feature.account.service.BootstrapService;
+import com.lab.labtimesheet.feature.identity.service.BootstrapService;
 import com.lab.labtimesheet.feature.project.service.ProjectQueryService;
 import com.lab.labtimesheet.platform.service.SmtpConfigurationService;
 import java.net.CookieManager;

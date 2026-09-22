@@ -7,9 +7,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
-import com.lab.labtimesheet.feature.account.model.AccountStatus;
-import com.lab.labtimesheet.feature.account.model.dto.AccountIdentity;
-import com.lab.labtimesheet.feature.account.service.AccountService;
+import com.lab.labtimesheet.feature.identity.model.AccountStatus;
+import com.lab.labtimesheet.feature.identity.model.dto.AccountIdentity;
+import com.lab.labtimesheet.feature.identity.service.AccountService;
 import com.lab.labtimesheet.feature.project.exception.ProjectAccessDeniedException;
 import com.lab.labtimesheet.feature.project.model.ProjectStatus;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectSummary;

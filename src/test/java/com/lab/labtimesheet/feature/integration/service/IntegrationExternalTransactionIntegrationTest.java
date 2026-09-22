@@ -13,8 +13,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.lab.labtimesheet.config.TestcontainersConfiguration;
-import com.lab.labtimesheet.feature.account.service.AccountService;
-import com.lab.labtimesheet.feature.account.service.BootstrapService;
+import com.lab.labtimesheet.feature.identity.service.AccountService;
+import com.lab.labtimesheet.feature.identity.service.BootstrapService;
 import com.lab.labtimesheet.feature.integration.model.dto.HolidayApiCandidate;
 import com.lab.labtimesheet.feature.integration.model.dto.HolidayApiDraft;
 import com.lab.labtimesheet.feature.integration.model.entity.HolidayApiConfiguration;

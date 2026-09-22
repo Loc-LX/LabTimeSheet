@@ -13,11 +13,11 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.lab.labtimesheet.feature.account.model.AccountStatus;
-import com.lab.labtimesheet.feature.account.model.InternshipStatus;
-import com.lab.labtimesheet.feature.account.model.dto.AccountIdentity;
-import com.lab.labtimesheet.feature.account.model.dto.InternWorkWindow;
-import com.lab.labtimesheet.feature.account.service.AccountService;
+import com.lab.labtimesheet.feature.identity.model.AccountStatus;
+import com.lab.labtimesheet.feature.identity.model.InternshipStatus;
+import com.lab.labtimesheet.feature.identity.model.dto.AccountIdentity;
+import com.lab.labtimesheet.feature.identity.model.dto.InternWorkWindow;
+import com.lab.labtimesheet.feature.identity.service.AccountService;
 import com.lab.labtimesheet.feature.attendance.service.CalendarApplicationService;
 import com.lab.labtimesheet.feature.notification.service.NotificationService;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectActorView;

@@ -11,7 +11,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-import com.lab.labtimesheet.feature.account.service.AccountService;
+import com.lab.labtimesheet.feature.identity.service.AccountService;
 import com.lab.labtimesheet.feature.notification.model.NotificationEmailStatus;
 import com.lab.labtimesheet.feature.notification.model.NotificationType;
 import com.lab.labtimesheet.feature.notification.model.dto.NotificationAction;
