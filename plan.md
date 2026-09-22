@@ -11,6 +11,8 @@ Step 6 implementation branch created on 22 September 2026. Task A-01 established
 Documentation work from checkpoint `c443670` through D34–D39 was completed on `work/fix/docs/module-feature-specs`
 at commit `2945975fa43d1f8eb4ddd8b2f90b9c02e800b39ed0cd8f73d1a4aaf2dc90a9db`. Step 6 branches directly from that
 commit ahead of PR #14 merge per maintainer approval.
+Backup checkpoint `c443670` is preserved on Gitea under branch `work/fix/docs/backup-before-feature-split-20260920`
+and tag `backup/pre-feature-split-20260920`.
 
 ## Where the project is
 
@@ -77,7 +79,7 @@ and in the constitution.
 4. **Step 4 — one spec per module.** Historical split completed at `58711c5`: 296 rules preserved, and the UC-03/UC-18 and UC-04/UC-19 traces equal those they replaced. D34 refines that document layout into shared MODULE.md plus cohesive feature SPECs, preserving the later baseline of 304 rules and 149 scenarios.
 5. **Step 5 — the plan and tasks that implement `ARC-005` and `ARC-006`.** Done: approved on 22 September 2026 as part A of [`platform/PLAN.md`](.sdd/specs/platform/PLAN.md), with tasks A-01 to A-12 in [`platform/TASKS.md`](.sdd/specs/platform/TASKS.md). Then this documentation branch is merged into `main`, with the maintainer's permission, so the implementation branch starts from the documents it follows. Pushing and merging each need their own permission.
 6. **Step 6 — implement the module boundaries** on `work/fix/architecture/module-boundaries` (`OPS-019`), needing Docker and enough memory.
-   - **Task A-01 (Baseline)** completed on 22 September 2026: Maven (757 tests), UI contract (38 tests), Playwright E2E (4 passed, 2 skipped), Javadoc, asset diff, collation (`en_US.utf8`, libc provider), GitNexus index refreshed, and placement recorded.
+   - **Task A-01 (Baseline)** completed on 22 September 2026: Maven (757 tests), UI contract (38 tests), Playwright E2E (6 passed, 0 skipped), Javadoc, asset diff, collation (`en_US.utf8`, libc provider), GitNexus index refreshed, and placement recorded.
    - The cycle test first (A-02), in plain Java, with the violations known at the start; every task shortens the list and the last empties it.
    - GitNexus impact analysis on every symbol before it changes.
    - `LayerStructureTest` and `AttendanceLayerStructureTest` take the new modules in the same change as the code they check; until then both guard the layout `ARC-005` replaced.
@@ -93,6 +95,7 @@ and in the constitution.
 
 | Item | Waiting on | Recorded in |
 |---|---|---|
+| A commit on PR #14 replacing the 14 commit hashes the history rewrite broke, before it merges | The maintainer | PR #14 review |
 | Merge of documentation PR #14 into `main` on remote once CI runner is online, to be merged into this branch before opening step 6 PR | The maintainer / CI runner | Task A-01 evidence |
 | Whether to close or keep Gitea PR #13, which conflicts with main and carries the retired Task branch of `D17` | The maintainer | This file, under *Now* |
 
@@ -107,7 +110,7 @@ transition edges, the email delivery states, and password-management operation c
 
 ## Evidence for Task A-01 (Baseline, 22 September 2026)
 
-- **OPS-019 deviation notice:** Step 6 tách từ `2945975fa43d1f8eb4ddd8b2f90b9c02e800b39ed0cd8f73d1a4aaf2dc90a9db` của `work/fix/docs/module-feature-specs` trước khi PR #14 merge. Khi PR #14 merge: `git diff --stat 2945975fa43d1f8eb4ddd8b2f90b9c02e800b39ed0cd8f73d1a4aaf2dc90a9db origin/main` chỉ được có file .md; merge `origin/main` vào nhánh này trước khi mở PR của step 6. PR của step 6 không merge trước PR #14.
+- **OPS-019 deviation:** step 6 branches from 2945975 of work/fix/docs/module-feature-specs before PR #14 merges. When PR #14 merges, git diff --stat 2945975 origin/main must list only .md files, and origin/main is merged into this branch before the step 6 pull request opens. The step 6 pull request does not merge before PR #14.
 - **Branch:** `work/fix/architecture/module-boundaries`, created from commit `2945975fa43d1f8eb4ddd8b2f90b9c02e800b39ed0cd8f73d1a4aaf2dc90a9db` (tip of `work/fix/docs/module-feature-specs`). `git ls-remote --heads origin` confirmed no remote branch named `work/fix/architecture`, so the slash form is valid under OPS-019.
 - **Verification commands and baseline test results:**
   - `npm ci`: pass (added 39 packages, audited 40 packages, 0 vulnerabilities in 22s).
@@ -117,34 +120,28 @@ transition edges, the email delivery states, and password-management operation c
   - `./mvnw -B test`: pass (`Tests run: 757, Failures: 0, Errors: 0, Skipped: 0`, OpenJDK Temurin-25.0.4.1+1, Docker PostgreSQL 18.4 testcontainers).
   - `./mvnw -B -DskipTests -Ddoclint=all javadoc:javadoc`: pass (100 warnings, 0 errors; exit code 0).
   - `git diff --check`: pass (exit code 0; working tree whitespace clean).
-  - `npm run test:e2e`: pass (4 passed, 2 skipped as designed without credentials, 0 failed; Playwright 1.62.1 running against Spring Boot in `e2e` profile with `E2E_BUSINESS_DATE=2026-09-22`, `LAB_E2E_START_INSTANT=2026-09-22T01:00:00Z`, `E2E_DB_CONTAINER=labtimesheet-postgres`, disposable schema `labtimesheet_e2e`, Mailpit on 1025).
+  - `npm run test:e2e`: pass (6 passed, 0 skipped, 0 failed in 47.7s; Playwright 1.62.1 running against Spring Boot in `e2e` profile with `E2E_BUSINESS_DATE=2026-09-22`, `LAB_E2E_START_INSTANT=2026-09-22T01:00:00Z`, `E2E_DB_CONTAINER=labtimesheet-postgres`, `E2E_DB_NAME=labtimesheet_e2e`, `E2E_DB_USER=labtimesheet`, and authorized credentials configured via `E2E_EMAIL`, `E2E_PASSWORD`, `E2E_ADMIN_EMAIL`, `E2E_ADMIN_PASSWORD` from fixture accounts).
   - GitNexus refresh: pass (`node .gitnexus/run.cjs analyze --index-only`; GitNexus 1.6.12 indexed 7,522 nodes, 24,579 edges, 319 clusters, 637 flows).
   - `node scripts/module-boundaries.cjs`: pass (311 rules found and assigned, 0 problems, 0 cycles after resolution).
-- **Database collation and locale provider:**
-  - Query: `select datcollate, datlocprovider from pg_database where datname = current_database();` executed on test image `postgres:18.4`.
-  - Result: `datcollate = en_US.utf8`, `datlocprovider = c` (`libc`).
-  - Provider is `libc` (`c`), confirming deterministic collation semantics for Vietnamese and case-insensitive string ordering as required by the eligibility design in `PLAN.md` section A.4.
-- **Class placement table (`moduleOfClass` at baseline commit 2945975):**
-  Measured by `moduleOfClass` across all 281 classes below `feature` at commit `2945975`:
+- **Database collation and locale provider:** Measured on the development container labtimesheet-postgres, same image postgres:18.4 with no locale override: datcollate en_US.utf8, datlocprovider c (libc). A libc collation is deterministic, which is what the eligibility order of PLAN.md A.4 requires.
+- **Class placement table:** The placement is moduleOfClass of scripts/module-boundaries.cjs at 2945975; its totals equal PLAN.md A.2.
 
-| From package | To module | Classes | Notes / Exceptions |
-|---|---|---:|---|
-| `account` | `identity` | 34 | Core identity, authentication, bootstrap, credentials |
-| `account` | `internship` | 9 | `InternshipStatus`, `EligibleInternOption`, `InternReportingWindow`, `InternWorkWindow`, `InternshipLifecycleGuard`, `InternProfile`, `InternProfileRepository`, `InternshipLifecycleScheduler`, `LockedAccountMutationEligibility` |
-| `attendance` | `attendance` | 49 | Core attendance punches, records, corrections, leave requests |
-| `attendance` | `calendar` | 18 | `CalendarController`, `AttendancePolicyController`, `CalendarException`, `PolicyException`, `AttendancePolicy`, `AttendancePolicyCommand`, `AttendancePolicyHistoryItem`, `CalendarHistoryItem`, `CalendarImportSelection`, `CalendarPreviewItem`, `GlobalCalendarEvent`, `AttendancePolicyEntity`, `GlobalCalendarEventEntity`, `AttendancePolicyRepository`, `GlobalCalendarEventRepository`, `AttendancePolicyApplicationService`, `AttendancePolicyTimeline`, `CalendarApplicationService` |
-| `integration` | `identity` | 1 | `SmtpController` (`R4`) |
-| `integration` | `platform` | 17 | Core integration, mail client, crypto, system state, error advice |
-| `integration` | `calendar` | 12 | `HolidayApi*` configuration, client, entity, and controller classes |
-| `notification` | `notification` | 12 | In-app messaging, event listeners, and inbox models |
-| `project` | `project` | 46 | Core project, memberships, leadership, invitations |
-| `reporting` | `calendar` | 1 | `AdminSettingsController` |
-| `reporting` | `reporting` | 39 | Core daily/monthly reports, exports, navigation |
-| `reporting` | `notification` | 1 | `NotificationController` |
-| `task` | `project` | 42 | Merged into `project` module |
-| **Total** | | **281** | Target totals: `project` 88, `attendance` 49, `reporting` 39, `identity` 35, `calendar` 31, `platform` 17, `notification` 13, `internship` 9 |
-
-This table serves as the initial authoritative placement list for Task A-02.
+| From package | To module | Classes |
+|---|---|---:|
+| `account` | `identity` | 34 |
+| `account` | `internship` | 9 |
+| `attendance` | `attendance` | 49 |
+| `attendance` | `calendar` | 18 |
+| `integration` | `identity` | 1 |
+| `integration` | `platform` | 17 |
+| `integration` | `calendar` | 12 |
+| `notification` | `notification` | 12 |
+| `project` | `project` | 46 |
+| `reporting` | `calendar` | 1 |
+| `reporting` | `reporting` | 39 |
+| `reporting` | `notification` | 1 |
+| `task` | `project` | 42 |
+| **Total** | | **281** |
 
 ## Historical evidence for D33 (checkpoint c443670)
 
