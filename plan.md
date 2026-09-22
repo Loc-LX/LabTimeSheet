@@ -175,6 +175,13 @@ The task is two commits: `R4` in the shared mail and SMTP services first, the cl
 - **`LayerStructureTest`** now reads `platform` as one module, so a `platform` class using its own repository or entity is no longer reported as crossing a boundary, while a feature reaching into `platform` persistence still is.
 - **Validation.** `./mvnw -B test`: 762 tests, 0 failures, 0 errors. `npm run test:ui`: 38/38. `git diff --check`: clean. One assertion changed, in `LayerStructureTest`, which plan section A.7 allows as a structure test.
 
+## Evidence for Task A-04 (identity, 23 September 2026)
+
+- **Placement.** Every class of `feature.account` is now `feature.identity`, the nine internship classes included, and `SmtpController` joined them. The boundary list lost the `account` package row and the `SmtpController` row; nothing was added. The references from `AccountController` to `project` stay as allowances until A-10 and A-11.
+- **Two defects found on review.** `SmtpController` had been moved into the identity directory while its `package` line still read `feature.integration.controller`, which compiles but left the class outside every module; its web test was still in the old test package. Both were corrected, and a check over every source now shows no file whose package declaration differs from its directory.
+- **The E2E clock assertion changed, which `TST-011` requires to be recorded.** `E2eProfileIntegrationTest` asserted the `e2e` clock was within five seconds of its anchor. That clock is anchored when its bean is created, so the distance from the anchor measures the startup left after that moment, which bean order decides; renaming `account` to `identity` changed that order and the distance grew past five seconds. Product behaviour did not change: the clock stayed anchored at the configured instant and advancing. The assertion now bounds the distance by the JVM uptime, which no machine speed or bean order can beat, and adds that the clock advances by the same amount as real time across a 200 ms wait, within 50 ms. It is stricter than the window it replaces: it pins both the anchor and the rate.
+- **Validation.** `./mvnw -B test`: 762 tests, 0 failures, 0 errors. `npm run test:ui`: 38/38. `node scripts/module-boundaries.cjs`: 311 assigned, 0 problems. `git diff --check`: clean. Apart from the clock assertion above, no assertion changed.
+
 ## Historical evidence for D33 (checkpoint c443670)
 
 - `npm run test:ui`: 30/30 pass on 20 September 2026, including document structure, counts, versions, references, decision index and relative file links. Node `24.16.0`, npm `11.13.0`; the Playwright contract reads resolved `@playwright/test` `1.62.1` from the lockfile. This run does not execute browser or Java behavior.

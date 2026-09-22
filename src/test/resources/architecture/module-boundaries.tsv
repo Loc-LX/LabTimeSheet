@@ -1,5 +1,4 @@
 # P\tplacement pattern\tmodule. Only temporary placements belong here.
-P\tcom.lab.labtimesheet.feature.account.*\tidentity
 P\tAttendancePolicyController\tcalendar
 P\tCalendarController\tcalendar
 P\tCalendarException\tcalendar
@@ -18,7 +17,6 @@ P\tGlobalCalendarEventRepository\tcalendar
 P\tAttendancePolicyApplicationService\tcalendar
 P\tAttendancePolicyTimeline\tcalendar
 P\tCalendarApplicationService\tcalendar
-P\tSmtpController\tidentity
 P\tHolidayApiStatus\tcalendar
 P\tHolidayApiCandidate\tcalendar
 P\tHolidayApiDraft\tcalendar

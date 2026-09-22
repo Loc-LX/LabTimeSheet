@@ -3,7 +3,7 @@ package com.lab.labtimesheet.feature.integration.service;
 import java.time.Clock;
 import java.util.List;
 
-import com.lab.labtimesheet.feature.account.service.AccountService;
+import com.lab.labtimesheet.feature.identity.service.AccountService;
 import com.lab.labtimesheet.feature.integration.model.HolidayApiStatus;
 import com.lab.labtimesheet.feature.integration.model.dto.HolidayApiDraft;
 import com.lab.labtimesheet.feature.integration.model.dto.HolidayApiPreview;

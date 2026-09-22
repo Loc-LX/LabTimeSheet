@@ -1,7 +1,7 @@
 package com.lab.labtimesheet.feature.reporting.service;
 
-import com.lab.labtimesheet.feature.account.model.dto.AccountIdentity;
-import com.lab.labtimesheet.feature.account.service.AccountService;
+import com.lab.labtimesheet.feature.identity.model.dto.AccountIdentity;
+import com.lab.labtimesheet.feature.identity.service.AccountService;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceRole;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceReport;
@@ -171,7 +171,7 @@ public class AttendanceReportService {
 
     private static AttendanceReportView emptyDetailSelection(
             LocalDate from, LocalDate to,
-            List<com.lab.labtimesheet.feature.account.model.dto.EligibleInternOption> options) {
+            List<com.lab.labtimesheet.feature.identity.model.dto.EligibleInternOption> options) {
         return new AttendanceReportView(
                 0L,
                 "Select an Intern",
