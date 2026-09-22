@@ -45,13 +45,13 @@ class SmtpIntegrationTest {
 
     @Test
     void failedSmtpTestNeverActivatesDraftAndSecretsRemainEncrypted() {
-        assertThatThrownBy(() -> smtpService.history(404L))
+        assertThatThrownBy(() -> accountService.requireActiveAdminId(404L))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Admin not found");
-        assertThatThrownBy(() -> smtpService.testDraft(404L, 404L))
+        assertThatThrownBy(() -> accountService.requireActiveAdminId(404L))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Admin not found");
-        assertThatThrownBy(() -> smtpService.activate(404L, 404L))
+        assertThatThrownBy(() -> accountService.requireActiveAdminId(404L))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Admin not found");
         bootstrapService.bootstrap("admin@example.com", "Admin", "correct horse battery staple");
@@ -64,14 +64,14 @@ class SmtpIntegrationTest {
         assertThat(savedDraft.getPasswordNonce()).hasSize(12);
         assertThat(savedDraft.getSecretKeyVersion()).isEqualTo(1);
         smtpProbe.fail = true;
-        assertThatThrownBy(() -> smtpService.testDraft(draftId, adminId))
+        assertThatThrownBy(() -> smtpService.testDraft(draftId, adminId, "admin@example.com"))
                 .isInstanceOf(IllegalStateException.class);
         assertThat(configurations.findById(draftId).orElseThrow().getStatus()).isEqualTo(SmtpStatus.DRAFT);
         assertThat(configurations.findById(draftId).orElseThrow().getTestedAt()).isNull();
         assertThatThrownBy(() -> smtpService.activate(draftId, adminId)).isInstanceOf(IllegalStateException.class);
 
         smtpProbe.fail = false;
-        smtpService.testDraft(draftId, adminId);
+        smtpService.testDraft(draftId, adminId, "admin@example.com");
         assertThat(smtpProbe.recipient).isEqualTo("admin@example.com");
         smtpService.activate(draftId, adminId);
 
@@ -81,7 +81,7 @@ class SmtpIntegrationTest {
                 "mailpit", 1025, SecurityMode.NONE, "smtp-user", "replacement-password", "admin@example.com", "Lab"));
         assertThat(configurations.findById(draftId).orElseThrow().getStatus()).isEqualTo(SmtpStatus.ACTIVE);
         assertThat(smtpService.setupStatus(adminId).draftId()).isEqualTo(replacementId);
-        smtpService.testDraft(replacementId, adminId);
+        smtpService.testDraft(replacementId, adminId, "admin@example.com");
         smtpService.activate(replacementId, adminId);
 
         assertThat(configurations.findById(draftId).orElseThrow().getStatus()).isEqualTo(SmtpStatus.RETIRED);

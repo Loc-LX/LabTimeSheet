@@ -6,7 +6,7 @@ This file tracks progress only. What the system must do is in
 `PLAN.md`, and its task breakdown in `TASKS.md`. The rules for working here are
 in [AGENTS.md](AGENTS.md) and [`.sdd/constitution.md`](.sdd/constitution.md).
 
-**Last updated:** 2026-09-22 · **Branch:** `work/fix/architecture/module-boundaries`.
+**Last updated:** 2026-09-23 · **Branch:** `work/fix/architecture/module-boundaries`.
 Step 6 implementation branch created on 22 September 2026. Task A-01 established the baseline.
 Documentation work from checkpoint `c443670` through D34–D39 was completed on `work/fix/docs/module-feature-specs`
 at commit `2945975fa43d1f8eb4ddd8b2f90b9c02e800b39ed0cd8f73d1a4aaf2dc90a9db`. Step 6 branches directly from that
@@ -151,6 +151,21 @@ transition edges, the email delivery states, and password-management operation c
 - **Analyzer comparison:** `node scripts/module-boundaries.cjs` reports 692 edges before resolution, the single baseline strongly connected group, and zero cycles after its R1/R3/R4/R7/R8/R9/R6 resolutions. The test's 31 individual allowance references are all code references inside the module pairs the analyzer resolves by R1, R3, R4, R7 and R8; no analyzer-only or stale item was added. Counts: R1 4, R3 10, R4 1 (`SmtpConfigurationService` to `AccountService`), R7 13, R8 3 (the three calendar screens calling `currentBusinessDate`), R10 0, since `SecurityProperties` is placed in `platform`.
 - **Failure evidence:** Five focused tests pass: the real graph check plus synthetic failures for an artificial cycle, a config reference, a new reference between already-connected modules, and an ARC-006 interface-contract violation. Interface names are read from `ADR-006-module-boundaries.md`, and its four conditions are checked for every cross-module implementation discovered; the dependency that must exist without the implementation is counted only from classes other than the implementation.
 - **Validation:** `npm run test:ui` passed 38/38. The full `./mvnw -B test` passed after the review fixes: 762 tests (757 before A-02 and its 5), 0 failures, 0 errors, 0 skipped, BUILD SUCCESS. No A-02 commit has been made.
+
+## Evidence for Task A-03 (Platform, 23 September 2026)
+
+The task is two commits: `R4` in the shared mail and SMTP services first, the class moves after it.
+
+### Part 1 — `R4`: the shared mail and SMTP services take the verified actor and the recipient from their caller
+
+- **Change:** `SmtpConfigurationService` stops looking an Admin up. `saveDraft`, `testDraft`, `activate`, `setupStatus` and `history` take the identity id the caller has already verified, and `testDraft` takes the recipient address as well; the `AccountService` dependency is removed. `SmtpController` keeps the verification (`accounts.requireActiveAdminId`) and resolves the recipient from the verified identity (`accounts.requireIdentityById(...).email()`) — the same address the service resolved before, still never from request input. `AdminSettingsController` already verified the Admin before asking setup state and history, and `SmtpWarningAdvice` reads only `hasActiveConfiguration`.
+- **Behavior:** an unknown or inactive actor is still refused with `Admin not found`, now by the caller; the probe still sends to the retained address of the signed-in Admin; the draft, test, activation and retirement sequence is unchanged.
+- **Cycle list:** one line deleted, none added. `A SmtpConfigurationService AccountService R4` is gone, because the reference it recorded no longer exists. Allowances 31 → 30. The `P` rows and the `R7`/`R10` allowance rows belong to part 2.
+- **Test changes:** 24 `testDraft` call sites across 19 test files gain the recipient they already passed as the draft's From address; argument-only, per A.7.
+- **Changed assertion lines (A.7):** three lines of `SmtpIntegrationTest` change receiver and nothing else — `assertThatThrownBy(() -> smtpService.history(404L))`, `assertThatThrownBy(() -> smtpService.testDraft(404L, 404L))` and `assertThatThrownBy(() -> smtpService.activate(404L, 404L))` become `assertThatThrownBy(() -> accountService.requireActiveAdminId(404L))`, because the actor check those lines provoke moved from the service to its caller. The expectations chained to them (`isInstanceOf(IllegalArgumentException.class)`, `hasMessage("Admin not found")`) keep the values they stated. One further line of the same file, `assertThatThrownBy(() -> smtpService.testDraft(draftId, adminId))`, changes only its argument. No other file changes an assertion, and no test file changes its number of assertion calls.
+- **Evidence:** `./mvnw -B test` 762 tests, 0 failures, 0 errors, 0 skipped, BUILD SUCCESS; `npm run test:ui` 38/38; `git diff --check` clean. Java 25.0.4.1 (Temurin), Docker 29.7.2, PostgreSQL 18.4 through Testcontainers, nothing else running alongside.
+- **Impact analysis:** `SmtpConfigurationService` upstream LOW, three importing files; `testDraft` upstream UNKNOWN as an ambiguous name (two declarations), LOW once disambiguated, and confirmed by text search to 26 call sites. UNKNOWN was not read as an all-clear.
+- **Change analysis:** `node .gitnexus/run.cjs detect-changes --scope all --repo .` reports 23 files, 53 symbols, 18 affected execution flows, risk level **critical**, and no partial or truncated result. The level is the shared SMTP writer being touched: the flows it names (`SaveDraft`, `Activate`, `Test → Email`) are exactly the ones this commit changes, and the whole flow is covered by `SmtpIntegrationTest`, `IntegrationExternalTransactionIntegrationTest`, `SmtpOnboardingWebIntegrationTest` and the sixteen setup call sites, all of which pass. The risk is reported here rather than treated as resolved.
 
 ## Historical evidence for D33 (checkpoint c443670)
 

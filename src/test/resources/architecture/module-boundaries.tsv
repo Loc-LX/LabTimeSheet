@@ -53,7 +53,6 @@ A\tAppUserRepository\tInternProfile\tR3
 A\tAttendancePolicyController\tAttendanceApplicationService\tR8
 A\tCalendarController\tAttendanceCurrentUserService\tR7
 A\tAttendancePolicyApplicationService\tAttendanceRole\tR7
-A\tSmtpConfigurationService\tAccountService\tR4
 A\tAdminSettingsController\tAttendanceRole\tR7
 A\tAccountController\tProjectQueryService\tR1
 A\tCalendarController\tAttendanceRole\tR7

@@ -238,7 +238,7 @@ class NotificationInboxIntegrationTest {
         String adminEmail = accounts.requireIdentityById(adminId).email();
         long draftId = smtp.saveDraft(adminId,
                 new SmtpDraft("mailpit", 1025, SecurityMode.NONE, null, null, adminEmail, "Lab Timesheet"));
-        smtp.testDraft(draftId, adminId);
+        smtp.testDraft(draftId, adminId, adminEmail);
         smtp.activate(draftId, adminId);
     }
 

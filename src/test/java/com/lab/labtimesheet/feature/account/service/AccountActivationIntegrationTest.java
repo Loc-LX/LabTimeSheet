@@ -162,7 +162,7 @@ class AccountActivationIntegrationTest {
     private void activateSmtp(long adminId) {
         long draftId = smtp.saveDraft(adminId, new SmtpDraft(
                 "mailpit", 1025, SecurityMode.NONE, null, null, "admin@example.com", "Lab Timesheet"));
-        smtp.testDraft(draftId, adminId);
+        smtp.testDraft(draftId, adminId, "admin@example.com");
         smtp.activate(draftId, adminId);
     }
 

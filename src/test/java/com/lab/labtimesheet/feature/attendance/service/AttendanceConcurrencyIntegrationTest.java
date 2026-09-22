@@ -395,7 +395,7 @@ class AttendanceConcurrencyIntegrationTest {
                 null,
                 "concurrency-admin@example.test",
                 "Lab Timesheet"));
-        smtp.testDraft(draftId, adminId);
+        smtp.testDraft(draftId, adminId, "concurrency-admin@example.test");
         smtp.activate(draftId, adminId);
         mail.clear();
 

@@ -3,7 +3,6 @@ package com.lab.labtimesheet.feature.integration.service;
 import java.time.Clock;
 import java.util.List;
 
-import com.lab.labtimesheet.feature.account.service.AccountService;
 import com.lab.labtimesheet.feature.integration.model.SecurityMode;
 import com.lab.labtimesheet.feature.integration.model.SmtpStatus;
 import com.lab.labtimesheet.feature.integration.model.dto.EncryptedSecret;
@@ -23,12 +22,15 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * Owns the Admin SMTP revision workflow: save an encrypted draft, test it, then atomically activate it.
  * A changed draft loses prior test status, and an active revision is retired when its tested successor activates.
+ *
+ * <p>Every operation takes the actor the caller has already verified, and the test probe takes the recipient the
+ * caller resolved, as {@code R4} of the platform plan requires: this service is shared code and reads no other
+ * module, so it cannot look an Admin up in {@code identity} itself.
  */
 @Service
 @RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 public class SmtpConfigurationService {
     private final SmtpConfigurationRepository configurations;
-    private final AccountService accounts;
     private final SecretCipher secrets;
     private final SmtpProbe probe;
     private final Environment environment;
@@ -36,16 +38,15 @@ public class SmtpConfigurationService {
     private final MailDeliveryService mailDelivery;
 
     /**
-     * Creates or replaces the editable draft after validating Admin authority and environment transport rules.
+     * Creates or replaces the editable draft after validating environment transport rules.
      * Any supplied password is encrypted before persistence and prior test status is cleared.
      *
-     * @param adminId active Admin saving the draft
+     * @param verifiedAdminId identity id of the active Admin the caller has verified
      * @param draft SMTP settings and optional request-local password
      * @return persisted draft identifier
      */
     @Transactional
-    public long saveDraft(long adminId, SmtpDraft draft) {
-        long verifiedAdminId = accounts.requireActiveAdminId(adminId);
+    public long saveDraft(long verifiedAdminId, SmtpDraft draft) {
         validate(draft);
         EncryptedSecret password = draft.password() == null ? null : secrets.encrypt(draft.password());
         var now = clock.instant();
@@ -59,16 +60,14 @@ public class SmtpConfigurationService {
     }
 
     /**
-     * Sends a real probe using a draft to the authenticated Admin and records success only after the adapter
-     * returns successfully. The destination is resolved from the retained account identity rather than from
-     * request input.
+     * Sends a real probe using a draft to the recipient the caller resolved for the authenticated Admin, and records
+     * success only after the adapter returns successfully. The destination is never taken from request input.
      *
      * @param draftId draft revision to test
-     * @param adminId active Admin performing the test
+     * @param verifiedAdminId identity id of the active Admin the caller has verified
+     * @param recipient address the caller resolved for that Admin
      */
-    public void testDraft(long draftId, long adminId) {
-        long verifiedAdminId = accounts.requireActiveAdminId(adminId);
-        String recipient = accounts.requireIdentityById(verifiedAdminId).email();
+    public void testDraft(long draftId, long verifiedAdminId, String recipient) {
         SmtpConfiguration draft = configurations.findById(draftId)
                 .filter(configuration -> configuration.getStatus() == SmtpStatus.DRAFT)
                 .orElseThrow(() -> new IllegalStateException("SMTP configuration is not available"));
@@ -81,11 +80,10 @@ public class SmtpConfigurationService {
      * Activates a previously tested draft under a pessimistic lock and retires the prior active revision.
      *
      * @param draftId tested draft revision
-     * @param adminId active Admin authorizing activation
+     * @param verifiedAdminId identity id of the active Admin the caller has verified
      */
     @Transactional
-    public void activate(long draftId, long adminId) {
-        long verifiedAdminId = accounts.requireActiveAdminId(adminId);
+    public void activate(long draftId, long verifiedAdminId) {
         SmtpConfiguration draft = configurations.findWithLockByIdAndStatus(draftId, SmtpStatus.DRAFT)
                 .orElseThrow(() -> new IllegalStateException("SMTP draft must pass a test before activation"));
         var now = clock.instant();
@@ -107,12 +105,11 @@ public class SmtpConfigurationService {
      * Returns the non-secret SMTP state needed by the Admin setup page.
      * Password ciphertext, nonce, and decrypted credentials are never included.
      *
-     * @param adminId active Admin requesting setup state
+     * @param verifiedAdminId identity id of the active Admin the caller has verified
      * @return current active flag and editable draft metadata
      */
     @Transactional(readOnly = true)
-    public SmtpSetupStatus setupStatus(long adminId) {
-        accounts.requireActiveAdminId(adminId);
+    public SmtpSetupStatus setupStatus(long verifiedAdminId) {
         boolean active = configurations.existsByStatus(SmtpStatus.ACTIVE);
         return configurations.findByStatus(SmtpStatus.DRAFT)
                 .map(draft -> new SmtpSetupStatus(
@@ -132,12 +129,11 @@ public class SmtpConfigurationService {
     /**
      * Returns retained SMTP lifecycle metadata newest first without exposing any credential material.
      *
-     * @param adminId active Admin requesting History
+     * @param verifiedAdminId identity id of the active Admin the caller has verified
      * @return immutable non-secret revision history
      */
     @Transactional(readOnly = true)
-    public List<SmtpRevisionHistory> history(long adminId) {
-        accounts.requireActiveAdminId(adminId);
+    public List<SmtpRevisionHistory> history(long verifiedAdminId) {
         return configurations.findAllByOrderByCreatedAtDescIdDesc().stream()
                 .map(configuration -> new SmtpRevisionHistory(
                         configuration.getId(), configuration.getStatus(), configuration.getHost(),

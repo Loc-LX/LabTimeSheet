@@ -70,7 +70,7 @@ class InternMutationEligibilityIntegrationTest {
         long adminId = accounts.requireActiveAdminId("admin@example.com");
         long draftId = smtp.saveDraft(adminId,
                 new SmtpDraft("mailpit", 1025, SecurityMode.NONE, null, null, "admin@example.com", "Lab Timesheet"));
-        smtp.testDraft(draftId, adminId);
+        smtp.testDraft(draftId, adminId, "admin@example.com");
         smtp.activate(draftId, adminId);
 
         var mentor = accounts.create(new CreateAccountCommand(
@@ -168,7 +168,7 @@ class InternMutationEligibilityIntegrationTest {
     private void configureSmtp(long adminId, String adminEmail) {
         long draftId = smtp.saveDraft(adminId,
                 new SmtpDraft("mailpit", 1025, SecurityMode.NONE, null, null, adminEmail, "Lab Timesheet"));
-        smtp.testDraft(draftId, adminId);
+        smtp.testDraft(draftId, adminId, adminEmail);
         smtp.activate(draftId, adminId);
     }
 

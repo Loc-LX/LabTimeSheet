@@ -290,7 +290,7 @@ class AccountIdentityCorrectionIntegrationTest {
     private void enableSmtp(long adminId) {
         long draftId = smtp.saveDraft(adminId, new SmtpDraft(
                 "mailpit", 1025, SecurityMode.NONE, null, null, ADMIN_EMAIL, "Lab Timesheet"));
-        smtp.testDraft(draftId, adminId);
+        smtp.testDraft(draftId, adminId, ADMIN_EMAIL);
         smtp.activate(draftId, adminId);
         mail.clear();
     }
