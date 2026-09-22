@@ -131,10 +131,7 @@ public class ProjectService {
     // Chức năng: lock account → validate Mentor + Leader → dựng entity → INSERT
     // cascade → gửi notification.
     public long create(long actorUserId, ProjectCreateCommand command) {
-        LocalDate today = LocalDate.now(clock);
-        if (command.startDate().isBefore(today)) { // validate ngày bắt đầu không được quá khứ
-            throw new ProjectRuleViolationException("Project start date cannot be in the past");
-        }
+        // PRJ-024: start date được phép ở quá khứ; ngày ghi work log vẫn do TSK-014 giới hạn.
         var lockedAccounts = lockAccountsForTargetMutation( // → AccountService: FOR UPDATE + snapshot
                 List.of(actorUserId, command.initialLeaderUserId())); // lock Mentor + Leader được chọn
         requireActiveMentor(snapshotFor(lockedAccounts, actorUserId)); // Mentor phải ACTIVE

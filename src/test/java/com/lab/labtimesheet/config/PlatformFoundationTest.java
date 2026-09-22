@@ -105,4 +105,66 @@ class PlatformFoundationTest {
         assertThat(clock.instant()).isEqualTo(Instant.parse("2026-08-14T00:00:00Z"));
         assertThat(clock.getZone()).isEqualTo(ZoneId.of("Asia/Ho_Chi_Minh"));
     }
+
+    /**
+     * Protects the schema-wide half of {@code DB-001}. Observable break: one migration introduces a
+     * PostgreSQL enum for a state column, or stores an instant as `timestamp without time zone`.
+     * Both look harmless in a single table and both are expensive later: an enum cannot gain a
+     * value without a migration that locks the type, and a naive timestamp silently drops the offset
+     * that {@code GOV-011} depends on for resolving business dates.
+     *
+     * <p>The existing catalog test asserts one column of one table. These assertions are stated
+     * over the whole public schema, so a new table is covered the day it is created rather than the
+     * day someone remembers to extend a list.
+     *
+     * <p>Each figure is derived from {@code DB-001} itself, which names the permitted types. The
+     * rule's remaining clauses are checked elsewhere: {@code date} and {@code time} columns are not
+     * asserted here because a wrong choice there is visible in the entity mapping and caught by the
+     * behavioural tests, while an enum type and a zoneless instant are invisible to Java and
+     * observable only in the catalog.
+     *
+     * <p>The surrogate-key assertion is written over columns named {@code id} rather than over
+     * every primary key column, and the difference is deliberate. Three tables key on natural
+     * values rather than on a generated one: {@code attendance_policy_workdays} on its policy
+     * version and ISO weekday, {@code leave_request_days} on its request and date, and
+     * {@code system_state} on a singleton guard column. A first attempt asserted over all primary
+     * keys and failed on exactly those three. {@code DB-001} governs generated identity keys, and
+     * a composite natural key is not one.
+     */
+    @Test
+    void theSchemaUsesNoPostgresEnumsAndStoresEveryInstantWithItsZone() {
+        JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+
+        assertThat(jdbc.queryForObject("""
+                select count(*)
+                from pg_type t
+                join pg_namespace n on n.oid = t.typnamespace
+                where n.nspname = 'public' and t.typtype = 'e'
+                """, Integer.class))
+                .as("DB-001 requires checked varchar states rather than PostgreSQL enums")
+                .isZero();
+
+        assertThat(jdbc.queryForList("""
+                select table_name || '.' || column_name
+                from information_schema.columns
+                where table_schema = 'public'
+                  and table_name <> 'flyway_schema_history'
+                  and data_type = 'timestamp without time zone'
+                order by 1
+                """, String.class))
+                .as("DB-001 requires timestamptz for instants, so no column may drop its zone")
+                .isEmpty();
+
+        assertThat(jdbc.queryForList("""
+                select table_name || '.' || column_name || ' is ' || data_type
+                       || ', identity ' || is_identity
+                from information_schema.columns
+                where table_schema = 'public'
+                  and column_name = 'id'
+                  and (data_type <> 'bigint' or is_identity <> 'YES')
+                order by 1
+                """, String.class))
+                .as("DB-001 requires every surrogate key to be a generated BIGINT identity")
+                .isEmpty();
+    }
 }

@@ -1,0 +1,36 @@
+# Changelog — Project lifecycle
+
+## 1.2.0 — 2026-09-22
+
+`D39`, corrected on second review. `DB-019` accepts a `CANCELLED` Project with or
+without an activation timestamp, since `PRJ-023` cancels both a `PLANNED` and an `ACTIVE`
+Project; V1's `ck_projects_activation` refuses both. The timestamp is not made write-once:
+nothing reads it and `CANCELLED` is terminal. `AC-DB-012` covers it.
+
+## 1.1.0 — 2026-09-21
+
+Status only (`D38`). No question affecting this document is open, so its Status
+moves from the inherited baseline to `APPROVED BUSINESS BASELINE`. The specification
+map now defines what that field means and when it must change. No numbered rule,
+acceptance row, schema or dependency changed.
+
+## 1.0.2 — 2026-09-21
+
+D35 closes the cancelled-Project readiness question by linking to internship-owned ACC-022 and AC-ACC-018. PRJ-023 cancellation, retained Task statuses and terminal immutability are unchanged.
+
+Approved business defaults are recorded in `D35`; this revision does not implement
+Java behavior or approve a technical plan.
+
+## 1.0.1 — 2026-09-21
+
+Review correction: add per-operation actor/outcome, canonical rule and acceptance
+trace with explicit gaps; distinguish required contracts from related workflows
+and joint checks. Follow the public Azure/Jira guidance mapped in the
+[specification README](../../../README.md). No numbered rule or acceptance row changed.
+
+## 1.0.0 — 2026-09-21
+
+Extracted from the project 1.4.2 baseline under `D34`; existing rule and
+acceptance rows are unchanged. [Earlier history](../../CHANGELOG.md#retained-history)
+remains available. Scenarios here exercise this feature; cross-feature scenarios
+remain in [MODULE.md](../../MODULE.md). No new business approval is implied.

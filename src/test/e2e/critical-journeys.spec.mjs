@@ -1,5 +1,9 @@
 import { test, expect } from '@playwright/test';
+import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 
+// Serial: the first journey bootstraps the first administrator, which every later
+// journey in this file needs before anyone can sign in.
 test.describe.configure({ mode: 'serial' });
 
 test('Iteration 3 setup and critical Admin/Intern/Mentor journeys', async ({ page, request }, testInfo) => {
@@ -115,7 +119,8 @@ test('Iteration 3 setup and critical Admin/Intern/Mentor journeys', async ({ pag
   await page.getByRole('button', { name: 'Change status' }).click();
   await expect(page.getByText('IN_PROGRESS', { exact: true })).toBeVisible();
   await page.getByLabel('Work date').fill(dates.today);
-  await page.getByLabel('Minutes').fill('90');
+  // The Task page also has "Estimate (minutes; …)", so match the work-log field's exact label.
+  await page.getByLabel('Minutes', { exact: true }).fill('90');
   await page.getByLabel('Note').fill('Browser-created work log');
   await page.getByRole('button', { name: 'Log work' }).click();
   await expect(page.getByText('Browser-created work log')).toBeVisible();
@@ -123,7 +128,10 @@ test('Iteration 3 setup and critical Admin/Intern/Mentor journeys', async ({ pag
   await expect(page.getByRole('heading', { name: 'Project History' })).toBeVisible();
   await page.getByRole('tab', { name: 'Task activity' }).click();
   await expect(page.getByText(taskTitle, { exact: true })).toBeVisible();
-  await expect(page.getByText('Browser-created work log')).toBeVisible();
+  // Each Task's retained activity is a collapsed <details> entry; open this Task's entry first.
+  const taskHistoryEntry = page.locator('details.history-task-item').filter({ hasText: taskTitle });
+  await taskHistoryEntry.locator('summary').click();
+  await expect(taskHistoryEntry.getByText('Browser-created work log')).toBeVisible();
 
   await signIn(page, mentor);
   await page.goto('/reports/project-tasks');
@@ -182,31 +190,8 @@ test('Iteration 3 setup and critical Admin/Intern/Mentor journeys', async ({ pag
   await page.goto('/attendance');
   await page.getByRole('button', { name: 'Check in' }).click();
   await expect(page.getByText('Checked in', { exact: true })).toBeVisible();
-  const correctionLink = page.getByRole('link', { name: 'Request correction' }).first();
-  await expect(correctionLink).toBeVisible();
-  const correctionFormUrl = await correctionLink.getAttribute('href');
-  if (!correctionFormUrl) throw new Error('Checked-in attendance row did not expose correction form');
-  const attendanceRecordId = new URL(correctionFormUrl, page.url()).searchParams.get('attendanceRecordId');
-  if (!attendanceRecordId) throw new Error(`Correction form did not retain attendance record: ${correctionFormUrl}`);
-  const proposedCheckout = await proposedCheckoutAfterCheckIn(page, dates.today);
-  await page.goto(correctionFormUrl);
-  await page.getByLabel('Attendance record').fill(attendanceRecordId);
-  await page.getByLabel('Proposed checkout').fill(proposedCheckout.value);
-  await page.getByLabel('Reason').fill(`E2E correction ${stamp}`);
-  await page.getByRole('button', { name: 'Submit correction' }).click();
-  await expect(page).toHaveURL(/\/attendance\/corrections\/\d+$/);
-  const correctionDetail = page.locator('section').filter({ hasText: 'Correction detail' });
-  await expect(correctionDetail.getByText('Pending decision', { exact: true })).toBeVisible();
-  const correctionUrl = page.url();
-  await signIn(page, mentor);
-  await page.goto(correctionUrl);
-  await expect(page.getByRole('heading', { name: 'Correction detail' })).toBeVisible();
-  const correctionDecisionForm = correctionDetail.locator('form');
-  await correctionDecisionForm.getByLabel('Decision', { exact: true }).selectOption('APPROVE');
-  await correctionDecisionForm.getByLabel('Note', { exact: true }).fill(`E2E correction approved ${stamp}`);
-  await page.getByRole('button', { name: 'Save decision' }).click();
-  await expect(page.getByText('Correction decision saved', { exact: true })).toBeVisible();
-  await expect(correctionDetail.getByText('Approved', { exact: true })).toBeVisible();
+  // A correction for this row opens only after today's checkout cutoff (COR-001), so it is
+  // exercised by the separate correction journey below on a previous workday.
 
   await signIn(page, intern);
   await page.goto('/attendance/corrections');
@@ -229,6 +214,69 @@ test('Iteration 3 setup and critical Admin/Intern/Mentor journeys', async ({ pag
   await page.goto('/attendance/corrections');
   await expect(page.getByRole('heading', { name: 'Correction decisions' })).toBeVisible();
 });
+
+test('Intern corrects a missed checkout from the previous workday and a Mentor approves it', async ({ page }) => {
+  test.setTimeout(120_000);
+  const container = process.env.E2E_DB_CONTAINER;
+  test.skip(!container, 'Set E2E_DB_CONTAINER to the disposable end-to-end PostgreSQL container; this journey seeds its precondition there.');
+
+  // COR-001 opens a correction only after the checkout cutoff, and COR-003 closes it at the
+  // next day's scheduled end, so the row belongs to yesterday and the application clock must
+  // still be before today's scheduled end.
+  const workDate = addDays(zonedToday(), -1);
+  const weekday = new Date(`${workDate}T00:00:00Z`).getUTCDay();
+  if (weekday === 0 || weekday === 6) {
+    throw new Error(`The correction journey needs the day before E2E_BUSINESS_DATE to be a workday; ${workDate} is a weekend day.`);
+  }
+  const stamp = Date.now();
+  seedMissedCheckout(container, { stamp, workDate, checkInAt: `${workDate} 08:20:00+07` });
+  const intern = { ...account(`correction-intern-${stamp}@e2e.test`, `E2E Correction Intern ${stamp}`, 'DemoPassword123!'), role: 'INTERN' };
+  const mentor = { ...account(`correction-mentor-${stamp}@e2e.test`, `E2E Correction Mentor ${stamp}`, 'DemoPassword123!'), role: 'MENTOR' };
+
+  await signIn(page, intern);
+  await page.goto('/attendance');
+  const missedCheckoutRow = page.locator('tbody tr').filter({ hasText: formatDate(workDate) });
+  const correctionLink = missedCheckoutRow.getByRole('link', { name: 'Request correction' });
+  await expect(correctionLink).toBeVisible();
+  const correctionFormUrl = await correctionLink.getAttribute('href');
+  const attendanceRecordId = new URL(correctionFormUrl, page.url()).searchParams.get('attendanceRecordId');
+  if (!attendanceRecordId) throw new Error(`Correction link did not carry the attendance record: ${correctionFormUrl}`);
+  await correctionLink.click();
+  await expect(page.getByLabel('Attendance record')).toHaveValue(attendanceRecordId);
+  await page.getByLabel('Proposed checkout').fill(`${workDate}T17:00`);
+  await page.getByLabel('Reason').fill(`E2E correction ${stamp}`);
+  await page.getByRole('button', { name: 'Submit correction' }).click();
+  await expect(page).toHaveURL(/\/attendance\/corrections\/\d+$/);
+  const correctionDetail = page.locator('section').filter({ hasText: 'Correction detail' });
+  await expect(correctionDetail.getByText('Pending decision', { exact: true })).toBeVisible();
+  const correctionUrl = page.url();
+
+  await signIn(page, mentor);
+  await page.goto(correctionUrl);
+  await expect(page.getByRole('heading', { name: 'Correction detail' })).toBeVisible();
+  const correctionDecisionForm = correctionDetail.locator('form');
+  await correctionDecisionForm.getByLabel('Decision', { exact: true }).selectOption('APPROVE');
+  await correctionDecisionForm.getByLabel('Note', { exact: true }).fill(`E2E correction approved ${stamp}`);
+  await page.getByRole('button', { name: 'Save decision' }).click();
+  await expect(page.getByText('Correction decision saved', { exact: true })).toBeVisible();
+  await expect(correctionDetail.getByText('Approved', { exact: true })).toBeVisible();
+
+  await signIn(page, intern);
+  await page.goto('/attendance/corrections');
+  await expect(page.getByRole('heading', { name: 'My Corrections' })).toBeVisible();
+  const ownCorrectionRow = page.locator('tbody tr').filter({ hasText: `Attendance record ${attendanceRecordId}` });
+  await expect(ownCorrectionRow).toContainText('Approved');
+});
+
+function seedMissedCheckout(container, { stamp, workDate, checkInAt }) {
+  const sql = readFileSync(new URL('./fixtures/missed-checkout.sql', import.meta.url), 'utf8');
+  execFileSync('docker', [
+    'exec', '-i', container,
+    'psql', '-U', process.env.E2E_DB_USER || 'labtimesheet', '-d', process.env.E2E_DB_NAME || 'labtimesheet',
+    '-v', `stamp=${stamp}`, '-v', `work_date=${workDate}`, '-v', `check_in_at=${checkInAt}`,
+    '-f', '-',
+  ], { input: sql, stdio: ['pipe', 'ignore', 'pipe'] });
+}
 
 function runtimeDates() {
   const today = zonedToday();
@@ -289,27 +337,6 @@ function nextWeekday(isoDate) {
 function formatDate(isoDate) {
   const [year, month, day] = isoDate.split('-');
   return `${day}/${month}/${year}`;
-}
-
-async function proposedCheckoutAfterCheckIn(page, businessDate) {
-  const row = page.locator('tbody tr').first();
-  const workDateDisplay = (await row.locator('td').nth(0).textContent()).trim();
-  const checkInDisplay = (await row.locator('td').nth(1).textContent()).trim();
-  const [day, month, year] = workDateDisplay.split('/');
-  const [hour, minute] = checkInDisplay.split(':').map(Number);
-  if (!day || !month || !year || !Number.isInteger(hour) || !Number.isInteger(minute)) {
-    throw new Error(`Attendance row did not expose a parseable server check-in: ${workDateDisplay} ${checkInDisplay}`);
-  }
-  const workDate = `${year}-${month}-${day}`;
-  if (workDate !== businessDate) {
-    throw new Error(`Attendance business date ${workDate} did not match E2E_BUSINESS_DATE ${businessDate}`);
-  }
-  const proposal = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day), hour, minute + 1));
-  const pad = (value) => String(value).padStart(2, '0');
-  await page.waitForTimeout(61_000);
-  return {
-    value: `${proposal.getUTCFullYear()}-${pad(proposal.getUTCMonth() + 1)}-${pad(proposal.getUTCDate())}T${pad(proposal.getUTCHours())}:${pad(proposal.getUTCMinutes())}`,
-  };
 }
 
 async function fillProjectForm(page, projectName, dates, stamp) {

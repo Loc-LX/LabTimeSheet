@@ -13,7 +13,7 @@ import org.springframework.format.annotation.DateTimeFormat;
  *
  * @param name required Project name, limited to the persisted column length
  * @param description optional description
- * @param startDate inclusive Project start date; the service rejects dates before today
+ * @param startDate inclusive Project start date, which may lie in the past ({@code PRJ-024})
  * @param endDate inclusive Project end date
  * @param initialLeaderUserId positive eligible Intern user identifier
  */

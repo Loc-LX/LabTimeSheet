@@ -76,8 +76,8 @@ class Iteration2WorkflowFragmentsWebTest {
         String workflows(Model model) {
             model.addAttribute("readiness", new Readiness(false, 2, false, true));
             model.addAttribute("unfinishedTasks", List.of(
-                    new TransferTask(41L, "Review report", "IN_PROGRESS", 3L),
-                    new TransferTask(42L, "Fix chart", "BLOCKED", 5L)));
+                    new TransferTask(41L, "Review report", "IN_PROGRESS", 3L, List.of("one retained log")),
+                    new TransferTask(42L, "Fix chart", "BLOCKED", 5L, List.of())));
             model.addAttribute("recipients", List.of(new TransferRecipient(8L, "Lan Intern")));
             model.addAttribute("projectHistory", List.of(new HistoryEvent(
                     "Task completed", "20/08/2026 09:00", "Mai Intern", "Completed Task: Review report", "Mai Intern")));
@@ -90,7 +90,7 @@ class Iteration2WorkflowFragmentsWebTest {
         String transferDenied(Model model) {
             model.addAttribute("readiness", new Readiness(false, 2, false, false));
             model.addAttribute("unfinishedTasks", List.of(
-                    new TransferTask(41L, "Review report", "IN_PROGRESS", 3L)));
+                    new TransferTask(41L, "Review report", "IN_PROGRESS", 3L, List.of("one retained log"))));
             model.addAttribute("recipients", List.of(new TransferRecipient(8L, "Lan Intern")));
             model.addAttribute("projectHistory", List.of());
             model.addAttribute("adminHistory", List.of());
@@ -101,7 +101,22 @@ class Iteration2WorkflowFragmentsWebTest {
     record Readiness(boolean replacementRequired, int unfinishedTaskCount,
                      boolean readyForMentorDecision, boolean canOpenTransfer) {}
 
-    record TransferTask(long id, String title, String status, long version) {}
+    /**
+     * Stand-in for the retained unfinished Task the transfer drawer renders.
+     *
+     * <p>{@code workLogs} is read only through {@code #lists.isEmpty} by
+     * {@code fragments/workflows}, which shows the Remaining effort forecast controls for a worked
+     * Task and hides them for an unworked one, so the element type does not matter and the
+     * emptiness does. The property was absent until 13 September 2026 and the fragment could not
+     * render, which is what {@code TSK-022} makes the drawer depend on.
+     *
+     * @param id Task identifier
+     * @param title Task title
+     * @param status Task status name
+     * @param version optimistic version the drawer echoes back
+     * @param workLogs retained work logs; non-empty means the Task has been worked
+     */
+    record TransferTask(long id, String title, String status, long version, List<Object> workLogs) {}
 
     record TransferRecipient(long membershipId, String displayName) {}
 

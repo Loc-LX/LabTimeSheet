@@ -55,7 +55,7 @@ class ProjectLifecycleLockIntegrationTest {
                 new ProjectCreateCommand(
                         "Lock retention",
                         null,
-                        LocalDate.of(2026, 8, 1),
+                        LocalDate.of(2026, 8, 15),
                         LocalDate.of(2026, 12, 31),
                         leaderId)));
         transactions.executeWithoutResult(status -> projects.addMember(mentorId, projectId, memberId));
@@ -114,7 +114,7 @@ class ProjectLifecycleLockIntegrationTest {
                 new ProjectCreateCommand(
                         "Stale route",
                         null,
-                        LocalDate.of(2026, 8, 1),
+                        LocalDate.of(2026, 8, 15),
                         LocalDate.of(2026, 12, 31),
                         leaderId)));
         transactions.executeWithoutResult(status -> projects.addMember(mentorId, projectId, replacementId));
@@ -173,7 +173,7 @@ class ProjectLifecycleLockIntegrationTest {
                 new ProjectCreateCommand(
                         "Exit notification lock order",
                         null,
-                        LocalDate.of(2026, 8, 1),
+                        LocalDate.of(2026, 8, 15),
                         LocalDate.of(2026, 12, 31),
                         leaderId)));
 
@@ -225,7 +225,7 @@ class ProjectLifecycleLockIntegrationTest {
                 new ProjectCreateCommand(
                         "Notification lock order",
                         null,
-                        LocalDate.of(2026, 8, 1),
+                        LocalDate.of(2026, 8, 15),
                         LocalDate.of(2026, 12, 31),
                         outgoingLeaderId)));
         transactions.executeWithoutResult(status -> projects.addMember(mentorId, projectId, replacementId));
@@ -279,7 +279,7 @@ class ProjectLifecycleLockIntegrationTest {
                 new ProjectCreateCommand(
                         "Leadership race",
                         null,
-                        LocalDate.of(2026, 8, 1),
+                        LocalDate.of(2026, 8, 15),
                         LocalDate.of(2026, 12, 31),
                         outgoingLeaderId)));
         transactions.executeWithoutResult(status -> projects.addMembers(
@@ -335,7 +335,7 @@ class ProjectLifecycleLockIntegrationTest {
                 new ProjectCreateCommand(
                         "Leader removal race",
                         null,
-                        LocalDate.of(2026, 8, 1),
+                        LocalDate.of(2026, 8, 15),
                         LocalDate.of(2026, 12, 31),
                         outgoingLeaderId)));
         transactions.executeWithoutResult(status -> projects.addMembers(
@@ -411,7 +411,7 @@ class ProjectLifecycleLockIntegrationTest {
                 new ProjectCreateCommand(
                         "Invitation race",
                         null,
-                        LocalDate.of(2026, 8, 1),
+                        LocalDate.of(2026, 8, 15),
                         LocalDate.of(2026, 12, 31),
                         leaderId)));
         long invitationId = transactions.execute(status -> projects.issueInvitation(
@@ -464,7 +464,7 @@ class ProjectLifecycleLockIntegrationTest {
                 new ProjectCreateCommand(
                         "Exit race",
                         null,
-                        LocalDate.of(2026, 8, 1),
+                        LocalDate.of(2026, 8, 15),
                         LocalDate.of(2026, 12, 31),
                         leaderId)));
         transactions.executeWithoutResult(status -> projects.addMembers(
@@ -575,7 +575,7 @@ class ProjectLifecycleLockIntegrationTest {
                 new ProjectCreateCommand(
                         "Historical requester lock order",
                         null,
-                        LocalDate.of(2026, 8, 1),
+                        LocalDate.of(2026, 8, 15),
                         LocalDate.of(2026, 12, 31),
                         outgoingLeaderId)));
         transactions.executeWithoutResult(status ->

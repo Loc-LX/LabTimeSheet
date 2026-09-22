@@ -109,7 +109,6 @@ public class ProjectController {
         }
         model.addAttribute("projectForm", new ProjectCreateForm());
         model.addAttribute("eligibleInternOptions", eligibleInternOptions()); // → Service: AccountService (helper bên dưới)
-        model.addAttribute("today", LocalDate.now(clock));
         return "projects/form";
     }
 
@@ -136,7 +135,6 @@ public class ProjectController {
         }
         if (bindingResult.hasErrors()) {
             model.addAttribute("eligibleInternOptions", eligibleInternOptions());
-            model.addAttribute("today", LocalDate.now(clock));
             return "projects/form";
         }
         try {
@@ -149,7 +147,6 @@ public class ProjectController {
             bindingResult.rejectValue(
                     field, "project.rule.violation", exception.getMessage());
             model.addAttribute("eligibleInternOptions", eligibleInternOptions());
-            model.addAttribute("today", LocalDate.now(clock));
             return "projects/form";
         }
     }

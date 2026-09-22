@@ -150,4 +150,78 @@ class AttendanceCorrectionApplicationServiceTest {
                 .containsEntry(102L, null);
         verify(corrections).findByAttendanceRecordIdInForUpdate(List.of(101L, 102L));
     }
+
+    /**
+     * Protects {@code COR-003}. Observable break: the submission deadline is anchored to the
+     * checkout cutoff instead of to scheduled end, which silently grants every Intern the checkout
+     * grace as extra time to file a correction.
+     *
+     * <p>Expected value derived from the rule and {@code ATT-002}, not from the implementation.
+     * The seeded policy schedules 08:30 to 15:30 in {@code Asia/Ho_Chi_Minh} with 30 minutes of
+     * checkout grace. For an attendance row on 14 August 2026 that makes scheduled end
+     * 15:30 local, which is {@code 2026-08-14T08:30:00Z}, and the checkout cutoff 16:00 local,
+     * which is {@code 2026-08-14T09:00:00Z}. {@code COR-003} anchors the inclusive submission
+     * deadline to scheduled end plus 24 hours, so it falls at 15:30 local the following day,
+     * {@code 2026-08-15T08:30:00Z}. The rule states that same figure in words.
+     *
+     * <p>The assertion names the wrong anchor as well as the right one, because the two differ by
+     * exactly the checkout grace and a test that only asserted "some instant on 15 August" would
+     * pass against either.
+     */
+    @Test
+    void correctionSubmissionDeadlineAnchorsToScheduledEndRatherThanTheCheckoutCutoff() {
+        Instant scheduledEndOfTheAttendanceDate = Instant.parse("2026-08-14T08:30:00Z");
+        Instant checkoutCutoffOfTheAttendanceDate = Instant.parse("2026-08-14T09:00:00Z");
+        Instant expectedDeadline = scheduledEndOfTheAttendanceDate.plusSeconds(24 * 60 * 60L);
+        Instant cutoffAnchoredDeadline = checkoutCutoffOfTheAttendanceDate.plusSeconds(24 * 60 * 60L);
+
+        AttendanceRecordRepository records = mock(AttendanceRecordRepository.class);
+        AttendanceRecordEntity entity = mock(AttendanceRecordEntity.class);
+        when(entity.toDomain()).thenReturn(new AttendanceRecord(
+                42L,
+                LocalDate.of(2026, 8, 14),
+                AttendancePolicyFixtures.seeded(1L),
+                Instant.parse("2026-08-14T02:00:00Z"),
+                null));
+        when(records.findById(77L)).thenReturn(Optional.of(entity));
+
+        AttendanceCorrectionRepository corrections = mock(AttendanceCorrectionRepository.class);
+        when(corrections.findByAttendanceRecordId(77L)).thenReturn(Optional.empty());
+        // The entity guards id() until JPA assigns one, and submit() reads it while writing the
+        // SUBMITTED event. A spy keeps every value the constructor computed, including the
+        // deadline under test, and supplies only the identifier persistence would have given.
+        when(corrections.saveAndFlush(any(AttendanceCorrectionEntity.class)))
+                .thenAnswer(invocation -> {
+                    AttendanceCorrectionEntity persisted =
+                            org.mockito.Mockito.spy(invocation.<AttendanceCorrectionEntity>getArgument(0));
+                    org.mockito.Mockito.doReturn(1L).when(persisted).id();
+                    return persisted;
+                });
+
+        AccountService accounts = mock(AccountService.class);
+        when(accounts.activeGlobalMentorIdentities()).thenReturn(List.of());
+        when(accounts.lockedAccountMutationEligibility(any())).thenReturn(List.of());
+
+        AttendanceCorrectionApplicationService service = new AttendanceCorrectionApplicationService(
+                Clock.fixed(Instant.parse("2026-08-14T10:00:00Z"), ZoneOffset.UTC),
+                records,
+                corrections,
+                mock(AttendanceCorrectionEventRepository.class),
+                accounts,
+                mock(TransactionTemplate.class),
+                mock(NotificationService.class));
+
+        service.submit(
+                new AttendanceActor(42L, AttendanceRole.INTERN),
+                77L,
+                new CorrectionRequestCommand(LocalDateTime.of(2026, 8, 14, 15, 0), "Forgot to check out"));
+
+        org.mockito.ArgumentCaptor<AttendanceCorrectionEntity> saved =
+                org.mockito.ArgumentCaptor.forClass(AttendanceCorrectionEntity.class);
+        verify(corrections).saveAndFlush(saved.capture());
+        assertThat(saved.getValue().submissionDeadline())
+                .as("COR-003 anchors the submission deadline to scheduled end, not the checkout cutoff")
+                .isEqualTo(expectedDeadline)
+                .isNotEqualTo(cutoffAnchoredDeadline);
+    }
 }
