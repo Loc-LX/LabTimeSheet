@@ -1,6 +1,6 @@
-package com.lab.labtimesheet.feature.integration.model.dto;
+package com.lab.labtimesheet.platform.model.dto;
 
-import com.lab.labtimesheet.feature.integration.model.SecurityMode;
+import com.lab.labtimesheet.platform.model.SecurityMode;
 
 /**
  * Non-secret snapshot used by Admin setup views. No encrypted or cleartext credential material crosses this

@@ -4,6 +4,7 @@ import com.lab.labtimesheet.feature.account.controller.BootstrapAccessFilter;
 import com.lab.labtimesheet.feature.account.controller.LoginThrottleFilter;
 import com.lab.labtimesheet.feature.account.service.BootstrapService;
 import com.lab.labtimesheet.feature.account.service.LoginThrottle;
+import com.lab.labtimesheet.platform.SecurityProperties;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import jakarta.servlet.DispatcherType;

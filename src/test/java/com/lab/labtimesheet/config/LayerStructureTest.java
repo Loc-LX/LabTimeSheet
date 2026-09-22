@@ -15,13 +15,13 @@ import org.junit.jupiter.api.Test;
 
 class LayerStructureTest {
     private static final Path BASE_PACKAGE = Path.of("src/main/java/com/lab/labtimesheet");
-    private static final Set<String> APPROVED_ROOT_PACKAGES = Set.of("config", "feature");
+    private static final Set<String> APPROVED_ROOT_PACKAGES = Set.of("config", "feature", "platform");
     private static final Set<String> APPROVED_FEATURES = Set.of(
             "account", "integration", "project", "task", "attendance", "notification", "reporting");
     private static final Set<String> APPROVED_FEATURE_PACKAGES = Set.of(
             "controller", "exception", "model", "model/dto", "model/entity", "repository", "service");
     private static final Pattern INTERNAL_IMPORT = Pattern.compile(
-            "import com\\.lab\\.labtimesheet\\.feature\\.([^.]+)\\.(?:repository|model\\.entity)\\.");
+            "import com\\.lab\\.labtimesheet\\.(?:feature\\.([^.]+)|platform)\\.(?:repository|model\\.entity)\\.");
 
     @Test
     void applicationUsesOnlyApprovedPackageByFeatureStructure() throws IOException {
@@ -57,23 +57,33 @@ class LayerStructureTest {
             assertThat(featurePackages).allMatch(APPROVED_FEATURE_PACKAGES::contains);
         }
 
-        try (var entries = Files.walk(featurePackage)) {
-            List<String> crossFeaturePersistenceImports = entries
-                    .filter(path -> path.toString().endsWith(".java"))
-                    .flatMap(path -> persistenceImportsFromAnotherFeature(featurePackage, path).stream())
-                    .toList();
+        for (String moduleDirectory : List.of("feature", "platform")) {
+            Path modulePackage = BASE_PACKAGE.resolve(moduleDirectory);
+            try (var entries = Files.walk(modulePackage)) {
+                List<String> crossModulePersistenceImports = entries
+                        .filter(path -> path.toString().endsWith(".java"))
+                        .flatMap(path -> persistenceImportsFromAnotherModule(modulePackage, moduleDirectory, path).stream())
+                        .toList();
 
-            assertThat(crossFeaturePersistenceImports).isEmpty();
+                assertThat(crossModulePersistenceImports).isEmpty();
+            }
         }
     }
 
-    private static List<String> persistenceImportsFromAnotherFeature(Path featurePackage, Path source) {
-        String owningFeature = featurePackage.relativize(source).getName(0).toString();
+    private static List<String> persistenceImportsFromAnotherModule(Path modulePackage, String moduleDirectory,
+            Path source) {
+        String owningModule = moduleDirectory.equals("platform")
+                ? "platform"
+                : modulePackage.relativize(source).getName(0).toString();
         try {
             return Files.readAllLines(source).stream()
                     .filter(line -> {
                         var matcher = INTERNAL_IMPORT.matcher(line);
-                        return matcher.find() && !matcher.group(1).equals(owningFeature);
+                        if (!matcher.find()) {
+                            return false;
+                        }
+                        String importedModule = matcher.group(1) == null ? "platform" : matcher.group(1);
+                        return !owningModule.equals(importedModule);
                     })
                     .map(line -> source + ": " + line.trim())
                     .toList();

@@ -3,16 +3,16 @@ package com.lab.labtimesheet.feature.account.controller;
 import java.security.Principal;
 
 import com.lab.labtimesheet.feature.account.model.AccountStatus;
-import com.lab.labtimesheet.feature.account.model.GlobalRole;
-import com.lab.labtimesheet.feature.account.model.dto.ActivationForm;
 import com.lab.labtimesheet.feature.account.model.dto.AccountAdministrationView;
 import com.lab.labtimesheet.feature.account.model.dto.AccountCorrectionForm;
 import com.lab.labtimesheet.feature.account.model.dto.AccountDirectoryFilter;
+import com.lab.labtimesheet.feature.account.model.dto.ActivationForm;
 import com.lab.labtimesheet.feature.account.model.dto.CreateAccountForm;
 import com.lab.labtimesheet.feature.account.service.AccountService;
 import com.lab.labtimesheet.feature.project.exception.ProjectAccessDeniedException;
 import com.lab.labtimesheet.feature.project.service.ProjectQueryService;
 import com.lab.labtimesheet.feature.project.service.ProjectService;
+import com.lab.labtimesheet.platform.model.GlobalRole;
 import jakarta.validation.Valid;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;

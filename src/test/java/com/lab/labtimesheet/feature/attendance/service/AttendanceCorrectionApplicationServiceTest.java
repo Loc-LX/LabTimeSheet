@@ -8,16 +8,15 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.lab.labtimesheet.feature.account.service.AccountService;
 import com.lab.labtimesheet.feature.account.model.AccountStatus;
-import com.lab.labtimesheet.feature.account.model.GlobalRole;
+import com.lab.labtimesheet.feature.account.model.InternshipStatus;
 import com.lab.labtimesheet.feature.account.model.dto.AccountIdentity;
 import com.lab.labtimesheet.feature.account.model.dto.LockedAccountMutationEligibility;
-import com.lab.labtimesheet.feature.account.model.InternshipStatus;
+import com.lab.labtimesheet.feature.account.service.AccountService;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
-import com.lab.labtimesheet.feature.attendance.model.AttendanceRole;
 import com.lab.labtimesheet.feature.attendance.model.AttendancePolicyFixtures;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceRecord;
+import com.lab.labtimesheet.feature.attendance.model.AttendanceRole;
 import com.lab.labtimesheet.feature.attendance.model.CorrectionStatus;
 import com.lab.labtimesheet.feature.attendance.model.dto.CorrectionRequestCommand;
 import com.lab.labtimesheet.feature.attendance.model.entity.AttendanceCorrectionEntity;
@@ -26,6 +25,7 @@ import com.lab.labtimesheet.feature.attendance.repository.AttendanceCorrectionEv
 import com.lab.labtimesheet.feature.attendance.repository.AttendanceCorrectionRepository;
 import com.lab.labtimesheet.feature.attendance.repository.AttendanceRecordRepository;
 import com.lab.labtimesheet.feature.notification.service.NotificationService;
+import com.lab.labtimesheet.platform.model.GlobalRole;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;

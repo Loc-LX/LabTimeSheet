@@ -16,13 +16,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 
-import com.lab.labtimesheet.feature.task.exception.TaskNotFoundException;
 import com.lab.labtimesheet.feature.task.exception.TaskConflictException;
+import com.lab.labtimesheet.feature.task.exception.TaskNotFoundException;
 import com.lab.labtimesheet.feature.task.exception.TaskValidationException;
 import com.lab.labtimesheet.feature.task.model.TaskProgress;
 import com.lab.labtimesheet.feature.task.model.TaskStatus;
 import com.lab.labtimesheet.feature.task.model.TaskVarianceState;
 import com.lab.labtimesheet.feature.task.model.dto.CreateTaskCommand;
+import com.lab.labtimesheet.feature.task.model.dto.RemainingEffortForecastInput;
 import com.lab.labtimesheet.feature.task.model.dto.TaskAssigneeChoice;
 import com.lab.labtimesheet.feature.task.model.dto.TaskCommentView;
 import com.lab.labtimesheet.feature.task.model.dto.TaskDetails;
@@ -30,9 +31,8 @@ import com.lab.labtimesheet.feature.task.model.dto.TaskEffortPlanningView;
 import com.lab.labtimesheet.feature.task.model.dto.TaskListView;
 import com.lab.labtimesheet.feature.task.model.dto.TaskRemainingEffortForecastView;
 import com.lab.labtimesheet.feature.task.model.dto.TaskView;
-import com.lab.labtimesheet.feature.task.model.dto.RemainingEffortForecastInput;
 import com.lab.labtimesheet.feature.task.service.TaskService;
-import com.lab.labtimesheet.feature.integration.service.SmtpConfigurationService;
+import com.lab.labtimesheet.platform.service.SmtpConfigurationService;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;

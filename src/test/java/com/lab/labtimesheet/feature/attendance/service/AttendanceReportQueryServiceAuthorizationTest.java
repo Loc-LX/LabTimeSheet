@@ -9,7 +9,6 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import com.lab.labtimesheet.feature.account.model.AccountStatus;
-import com.lab.labtimesheet.feature.account.model.GlobalRole;
 import com.lab.labtimesheet.feature.account.model.dto.AccountIdentity;
 import com.lab.labtimesheet.feature.account.service.AccountService;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
@@ -18,6 +17,7 @@ import com.lab.labtimesheet.feature.attendance.repository.AttendancePolicyReposi
 import com.lab.labtimesheet.feature.attendance.repository.AttendanceQueryRepository;
 import com.lab.labtimesheet.feature.attendance.repository.AttendanceRecordRepository;
 import com.lab.labtimesheet.feature.attendance.repository.GlobalCalendarEventRepository;
+import com.lab.labtimesheet.platform.model.GlobalRole;
 import java.time.Clock;
 import java.time.LocalDate;
 import org.junit.jupiter.api.Test;

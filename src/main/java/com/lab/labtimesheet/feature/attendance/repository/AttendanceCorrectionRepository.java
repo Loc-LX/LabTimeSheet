@@ -1,8 +1,8 @@
 package com.lab.labtimesheet.feature.attendance.repository;
 
+import com.lab.labtimesheet.feature.attendance.model.dto.CorrectionSummary;
 import com.lab.labtimesheet.feature.attendance.model.entity.AttendanceCorrectionEntity;
 import com.lab.labtimesheet.feature.attendance.model.entity.AttendanceRecordEntity;
-import com.lab.labtimesheet.feature.attendance.model.dto.CorrectionSummary;
 import jakarta.persistence.LockModeType;
 import java.time.Instant;
 import java.util.Collection;

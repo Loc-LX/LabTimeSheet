@@ -1,10 +1,10 @@
-package com.lab.labtimesheet.feature.integration.repository;
+package com.lab.labtimesheet.platform.repository;
 
 import java.util.List;
 import java.util.Optional;
 
-import com.lab.labtimesheet.feature.integration.model.entity.SmtpConfiguration;
-import com.lab.labtimesheet.feature.integration.model.SmtpStatus;
+import com.lab.labtimesheet.platform.model.SmtpStatus;
+import com.lab.labtimesheet.platform.model.entity.SmtpConfiguration;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;

@@ -13,7 +13,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.lab.labtimesheet.feature.integration.service.SmtpConfigurationService;
 import com.lab.labtimesheet.feature.task.exception.TaskValidationException;
 import com.lab.labtimesheet.feature.task.model.TaskStatus;
 import com.lab.labtimesheet.feature.task.model.dto.TaskAssigneeChoice;
@@ -21,6 +20,7 @@ import com.lab.labtimesheet.feature.task.model.dto.TaskDetails;
 import com.lab.labtimesheet.feature.task.model.dto.TaskView;
 import com.lab.labtimesheet.feature.task.model.dto.TaskWorkLogView;
 import com.lab.labtimesheet.feature.task.service.TaskService;
+import com.lab.labtimesheet.platform.service.SmtpConfigurationService;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;

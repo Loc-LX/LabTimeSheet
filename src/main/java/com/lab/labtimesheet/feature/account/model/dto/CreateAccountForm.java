@@ -2,7 +2,7 @@ package com.lab.labtimesheet.feature.account.model.dto;
 
 import java.time.LocalDate;
 
-import com.lab.labtimesheet.feature.account.model.GlobalRole;
+import com.lab.labtimesheet.platform.model.GlobalRole;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;

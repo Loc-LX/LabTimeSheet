@@ -1,7 +1,7 @@
 package com.lab.labtimesheet.feature.attendance.model.entity;
 
-import com.lab.labtimesheet.feature.attendance.model.dto.GlobalCalendarEvent;
 import com.lab.labtimesheet.feature.attendance.model.dto.CalendarHistoryItem;
+import com.lab.labtimesheet.feature.attendance.model.dto.GlobalCalendarEvent;
 import com.lab.labtimesheet.feature.integration.model.dto.HolidayApiCandidate;
 
 import jakarta.persistence.Column;

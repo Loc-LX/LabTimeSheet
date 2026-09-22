@@ -1,7 +1,7 @@
 package com.lab.labtimesheet.feature.account.model.dto;
 
 import com.lab.labtimesheet.feature.account.model.AccountStatus;
-import com.lab.labtimesheet.feature.account.model.GlobalRole;
+import com.lab.labtimesheet.platform.model.GlobalRole;
 
 /**
  * Non-secret account identity exposed to other features without leaking JPA entities.

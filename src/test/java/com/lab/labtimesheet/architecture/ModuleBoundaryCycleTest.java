@@ -137,9 +137,8 @@ class ModuleBoundaryCycleTest {
             else modules.put(source, module);
         }
         for (Row row : placements.rows) {
-            if (sources.stream().noneMatch(source -> placements.matches(source.fullyQualifiedName()).contains(row.module)
-                    && (row.pattern.endsWith(".*") ? source.fullyQualifiedName().startsWith(row.pattern.substring(0, row.pattern.length() - 1))
-                    : source.fullyQualifiedName().equals(row.pattern)))) placementProblems.add(row.pattern);
+            if (sources.stream().noneMatch(source -> PlacementTable.covers(row, source.fullyQualifiedName())
+                    && placements.matches(source.fullyQualifiedName()).contains(row.module))) placementProblems.add(row.pattern);
         }
         Set<Reference> references = new HashSet<>();
         Set<Reference> allowances = placements.allowances;
@@ -346,9 +345,15 @@ class ModuleBoundaryCycleTest {
             }
             return new PlacementTable(rows, problems, allowances);
         }
+        private static boolean covers(Row row, String fqn) {
+            if (row.pattern.endsWith(".*")) {
+                return fqn.startsWith(row.pattern.substring(0, row.pattern.length() - 1));
+            }
+            return row.pattern.contains(".") ? fqn.equals(row.pattern) : simpleName(fqn).equals(row.pattern);
+        }
+
         private List<String> matches(String fqn) {
-            List<Row> matching = rows.stream().filter(row -> row.pattern.endsWith(".*")
-                ? fqn.startsWith(row.pattern.substring(0, row.pattern.length() - 1)) : fqn.equals(row.pattern)).toList();
+            List<Row> matching = rows.stream().filter(row -> covers(row, fqn)).toList();
             int specificity = matching.stream().mapToInt(row -> row.pattern.endsWith(".*") ? 0 : 1).max().orElse(-1);
             return matching.stream().filter(row -> (row.pattern.endsWith(".*") ? 0 : 1) == specificity)
                 .map(row -> row.module).toList();

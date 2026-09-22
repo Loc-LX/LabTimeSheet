@@ -1,7 +1,6 @@
 package com.lab.labtimesheet.feature.attendance.service;
 
 import com.lab.labtimesheet.feature.account.model.AccountStatus;
-import com.lab.labtimesheet.feature.account.model.GlobalRole;
 import com.lab.labtimesheet.feature.account.model.InternshipStatus;
 import com.lab.labtimesheet.feature.account.model.dto.AccountIdentity;
 import com.lab.labtimesheet.feature.account.model.dto.InternWorkWindow;
@@ -28,6 +27,7 @@ import com.lab.labtimesheet.feature.notification.model.dto.NotificationAction;
 import com.lab.labtimesheet.feature.notification.model.dto.NotificationEvent;
 import com.lab.labtimesheet.feature.notification.model.dto.NotificationRecipient;
 import com.lab.labtimesheet.feature.notification.service.NotificationService;
+import com.lab.labtimesheet.platform.model.GlobalRole;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;

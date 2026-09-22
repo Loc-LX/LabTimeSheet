@@ -8,7 +8,6 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import com.lab.labtimesheet.feature.account.model.AccountStatus;
-import com.lab.labtimesheet.feature.account.model.GlobalRole;
 import com.lab.labtimesheet.feature.account.model.dto.AccountIdentity;
 import com.lab.labtimesheet.feature.account.service.AccountService;
 import com.lab.labtimesheet.feature.project.exception.ProjectAccessDeniedException;
@@ -20,6 +19,7 @@ import com.lab.labtimesheet.feature.project.repository.ProjectInvitationReposito
 import com.lab.labtimesheet.feature.project.repository.ProjectRepository;
 import com.lab.labtimesheet.feature.task.service.TaskQueryService;
 import com.lab.labtimesheet.feature.task.service.TaskTransferService;
+import com.lab.labtimesheet.platform.model.GlobalRole;
 import java.time.LocalDate;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;

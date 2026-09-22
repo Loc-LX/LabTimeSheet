@@ -5,7 +5,6 @@ import java.util.List;
 
 import com.lab.labtimesheet.feature.account.service.AccountService;
 import com.lab.labtimesheet.feature.integration.model.HolidayApiStatus;
-import com.lab.labtimesheet.feature.integration.model.dto.EncryptedSecret;
 import com.lab.labtimesheet.feature.integration.model.dto.HolidayApiDraft;
 import com.lab.labtimesheet.feature.integration.model.dto.HolidayApiPreview;
 import com.lab.labtimesheet.feature.integration.model.dto.HolidayApiPreviewStatus;
@@ -13,6 +12,8 @@ import com.lab.labtimesheet.feature.integration.model.dto.HolidayApiRevisionHist
 import com.lab.labtimesheet.feature.integration.model.dto.HolidayApiSetupStatus;
 import com.lab.labtimesheet.feature.integration.model.entity.HolidayApiConfiguration;
 import com.lab.labtimesheet.feature.integration.repository.HolidayApiConfigurationRepository;
+import com.lab.labtimesheet.platform.model.dto.EncryptedSecret;
+import com.lab.labtimesheet.platform.service.SecretCipher;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;

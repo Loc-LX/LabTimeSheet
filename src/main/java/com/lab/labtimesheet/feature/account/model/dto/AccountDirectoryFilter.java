@@ -2,7 +2,7 @@ package com.lab.labtimesheet.feature.account.model.dto;
 
 import java.util.Locale;
 
-import com.lab.labtimesheet.feature.account.model.GlobalRole;
+import com.lab.labtimesheet.platform.model.GlobalRole;
 
 /**
  * Normalized Admin account-directory filters.

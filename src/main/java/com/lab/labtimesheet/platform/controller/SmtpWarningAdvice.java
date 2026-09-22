@@ -1,6 +1,6 @@
-package com.lab.labtimesheet.feature.integration.controller;
+package com.lab.labtimesheet.platform.controller;
 
-import com.lab.labtimesheet.feature.integration.service.SmtpConfigurationService;
+import com.lab.labtimesheet.platform.service.SmtpConfigurationService;
 import jakarta.servlet.DispatcherType;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.AccessLevel;

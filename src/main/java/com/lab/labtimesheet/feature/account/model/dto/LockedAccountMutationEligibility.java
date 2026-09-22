@@ -4,8 +4,8 @@ import java.util.Objects;
 import java.util.Optional;
 
 import com.lab.labtimesheet.feature.account.model.AccountStatus;
-import com.lab.labtimesheet.feature.account.model.GlobalRole;
 import com.lab.labtimesheet.feature.account.model.InternshipStatus;
+import com.lab.labtimesheet.platform.model.GlobalRole;
 
 /**
  * Immutable Account-owned lifecycle snapshot for a Project invitation or membership-exit mutation.
