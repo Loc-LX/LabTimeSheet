@@ -271,7 +271,7 @@ class AttendancePersistenceIntegrationTest {
 
         var persisted = records.findByInternUserIdAndWorkDate(internId, LocalDate.of(2026, 8, 14))
                 .orElseThrow()
-                .toDomain();
+                .toDomain(entityManager.find(AttendancePolicyEntity.class, 1L).toDomain());
         assertThat(persisted.checkInAt()).isEqualTo(clock.instant());
         assertThat(persisted.policy().id()).isEqualTo(1L);
         assertThatThrownBy(() -> attendance.checkIn(internId)).isInstanceOf(AttendanceException.class);
@@ -309,7 +309,7 @@ class AttendancePersistenceIntegrationTest {
         entityManager.persist(allocatedDay(
                 request,
                 allocatedDate,
-                entityManager.getReference(AttendancePolicyEntity.class, 1L),
+                1L,
                 3));
         entityManager.flush();
 
@@ -1359,13 +1359,13 @@ class AttendancePersistenceIntegrationTest {
         AttendanceRecordEntity firstRecord = new AttendanceRecordEntity(
                 internId,
                 LocalDate.of(2026, 8, 14),
-                policy,
+                policy.toDomain().id(),
                 Instant.parse("2026-08-14T02:00:00Z"),
                 null);
         AttendanceRecordEntity secondRecord = new AttendanceRecordEntity(
                 internId,
                 LocalDate.of(2026, 8, 15),
-                policy,
+                policy.toDomain().id(),
                 Instant.parse("2026-08-15T02:00:00Z"),
                 null);
         entityManager.persist(firstRecord);
@@ -1430,7 +1430,8 @@ class AttendancePersistenceIntegrationTest {
         assertThat(item.checkOutAt()).isEqualTo(effectiveCheckout);
         assertThat(item.violations().missingCheckout()).isFalse();
         assertThat(item.violations().earlyDeparture()).isTrue();
-        assertThat(records.findById(raw.id()).orElseThrow().toDomain().checkOutAt()).isNull();
+        assertThat(records.findById(raw.id()).orElseThrow()
+                .toDomain(entityManager.find(AttendancePolicyEntity.class, 1L).toDomain()).checkOutAt()).isNull();
     }
 
     @Test
@@ -1532,13 +1533,13 @@ class AttendancePersistenceIntegrationTest {
         entityManager.persist(allocatedDay(
                 leave,
                 leaveDate,
-                entityManager.getReference(AttendancePolicyEntity.class, 1L),
+                1L,
                 3));
 
         AttendanceRecordEntity raw = new AttendanceRecordEntity(
                 internId,
                 correctedDate,
-                entityManager.getReference(AttendancePolicyEntity.class, 1L),
+                1L,
                 Instant.parse("2026-08-20T02:15:00Z"),
                 null);
         entityManager.persist(raw);
@@ -1617,7 +1618,7 @@ class AttendancePersistenceIntegrationTest {
         entityManager.persist(allocatedDay(
                 leave,
                 leaveDate,
-                entityManager.getReference(AttendancePolicyEntity.class, 1L),
+                1L,
                 3));
 
         LocalDate firstWorkday = LocalDate.of(2026, 8, 24);
@@ -1643,7 +1644,7 @@ class AttendancePersistenceIntegrationTest {
                 entityManager.persist(new AttendanceRecordEntity(
                         internId,
                         date,
-                        entityManager.getReference(AttendancePolicyEntity.class, policyId),
+                        policyId,
                         checkIn,
                         checkOut));
             }
@@ -1736,7 +1737,7 @@ class AttendancePersistenceIntegrationTest {
         entityManager.persist(new AttendanceRecordEntity(
                 internId,
                 date,
-                entityManager.getReference(AttendancePolicyEntity.class, precisePolicy.policy().id()),
+                precisePolicy.policy().id(),
                 Instant.parse("2026-10-01T09:00:01Z"),
                 Instant.parse("2026-10-01T17:00:00Z")));
         entityManager.flush();
@@ -1791,7 +1792,7 @@ class AttendancePersistenceIntegrationTest {
         entityManager.persist(new AttendanceRecordEntity(
                 terminalIntern,
                 terminalDate,
-                entityManager.getReference(AttendancePolicyEntity.class, 1L),
+                1L,
                 Instant.parse("2026-08-20T01:30:00Z"),
                 Instant.parse("2026-08-20T07:30:00Z")));
         entityManager.flush();
@@ -1831,7 +1832,7 @@ class AttendancePersistenceIntegrationTest {
         entityManager.persist(leave);
         entityManager.flush();
         entityManager.persist(allocatedDay(
-                leave, leaveDate, entityManager.getReference(AttendancePolicyEntity.class, 1L), 3));
+                leave, leaveDate, 1L, 3));
         calendar.createManual(new AttendanceActor(adminId, AttendanceRole.ADMIN), dayOffDate, "Closure", true);
         entityManager.flush();
 

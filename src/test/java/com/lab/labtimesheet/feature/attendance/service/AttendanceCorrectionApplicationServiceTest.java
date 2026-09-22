@@ -32,6 +32,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -49,6 +50,7 @@ class AttendanceCorrectionApplicationServiceTest {
                 mock(AttendanceCorrectionRepository.class),
                 mock(AttendanceCorrectionEventRepository.class),
                 mock(AccountService.class),
+                calendar(),
                 mock(TransactionTemplate.class),
                 mock(NotificationService.class));
 
@@ -86,7 +88,8 @@ class AttendanceCorrectionApplicationServiceTest {
             return Optional.of(locked);
         });
         AttendanceRecordEntity attendance = mock(AttendanceRecordEntity.class);
-        when(attendance.toDomain()).thenReturn(new AttendanceRecord(
+        when(attendance.policyVersionId()).thenReturn(1L);
+        when(attendance.toDomain(any())).thenReturn(new AttendanceRecord(
                 42L,
                 LocalDate.of(2026, 8, 15),
                 AttendancePolicyFixtures.seeded(1L),
@@ -115,6 +118,7 @@ class AttendanceCorrectionApplicationServiceTest {
                 corrections,
                 mock(AttendanceCorrectionEventRepository.class),
                 accounts,
+                calendar(),
                 mock(TransactionTemplate.class),
                 mock(NotificationService.class));
 
@@ -128,10 +132,12 @@ class AttendanceCorrectionApplicationServiceTest {
         AttendanceRecordEntity second = mock(AttendanceRecordEntity.class);
         when(first.id()).thenReturn(101L);
         when(second.id()).thenReturn(102L);
-        when(first.toDomain()).thenReturn(new AttendanceRecord(
+        when(first.policyVersionId()).thenReturn(1L);
+        when(second.policyVersionId()).thenReturn(1L);
+        when(first.toDomain(any())).thenReturn(new AttendanceRecord(
                 42L, LocalDate.of(2026, 8, 14), AttendancePolicyFixtures.seeded(1L),
                 Instant.parse("2026-08-14T02:00:00Z"), null));
-        when(second.toDomain()).thenReturn(new AttendanceRecord(
+        when(second.toDomain(any())).thenReturn(new AttendanceRecord(
                 42L, LocalDate.of(2026, 8, 15), AttendancePolicyFixtures.seeded(1L),
                 Instant.parse("2026-08-15T02:00:00Z"), null));
         when(corrections.findByAttendanceRecordIdInForUpdate(List.of(101L, 102L))).thenReturn(List.of());
@@ -142,6 +148,7 @@ class AttendanceCorrectionApplicationServiceTest {
                 corrections,
                 mock(AttendanceCorrectionEventRepository.class),
                 mock(AccountService.class),
+                calendar(),
                 mock(TransactionTemplate.class),
                 mock(NotificationService.class));
 
@@ -177,7 +184,8 @@ class AttendanceCorrectionApplicationServiceTest {
 
         AttendanceRecordRepository records = mock(AttendanceRecordRepository.class);
         AttendanceRecordEntity entity = mock(AttendanceRecordEntity.class);
-        when(entity.toDomain()).thenReturn(new AttendanceRecord(
+        when(entity.policyVersionId()).thenReturn(1L);
+        when(entity.toDomain(any())).thenReturn(new AttendanceRecord(
                 42L,
                 LocalDate.of(2026, 8, 14),
                 AttendancePolicyFixtures.seeded(1L),
@@ -208,6 +216,7 @@ class AttendanceCorrectionApplicationServiceTest {
                 corrections,
                 mock(AttendanceCorrectionEventRepository.class),
                 accounts,
+                calendar(),
                 mock(TransactionTemplate.class),
                 mock(NotificationService.class));
 
@@ -223,5 +232,11 @@ class AttendanceCorrectionApplicationServiceTest {
                 .as("COR-003 anchors the submission deadline to scheduled end, not the checkout cutoff")
                 .isEqualTo(expectedDeadline)
                 .isNotEqualTo(cutoffAnchoredDeadline);
+    }
+
+    private static CalendarApplicationService calendar() {
+        CalendarApplicationService calendar = mock(CalendarApplicationService.class);
+        when(calendar.policiesByVersionIds(any())).thenReturn(Map.of(1L, AttendancePolicyFixtures.seeded(1L)));
+        return calendar;
     }
 }

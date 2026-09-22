@@ -13,10 +13,8 @@ import com.lab.labtimesheet.feature.identity.model.dto.AccountIdentity;
 import com.lab.labtimesheet.feature.identity.service.AccountService;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceRole;
-import com.lab.labtimesheet.feature.attendance.repository.AttendancePolicyRepository;
 import com.lab.labtimesheet.feature.attendance.repository.AttendanceQueryRepository;
 import com.lab.labtimesheet.feature.attendance.repository.AttendanceRecordRepository;
-import com.lab.labtimesheet.feature.attendance.repository.GlobalCalendarEventRepository;
 import com.lab.labtimesheet.platform.model.GlobalRole;
 import java.time.Clock;
 import java.time.LocalDate;
@@ -29,13 +27,12 @@ class AttendanceReportQueryServiceAuthorizationTest {
     private static final LocalDate TO = LocalDate.of(2026, 8, 31);
 
     private final AccountService accounts = mock(AccountService.class);
-    private final AttendancePolicyRepository policies = mock(AttendancePolicyRepository.class);
     private final AttendanceRecordRepository records = mock(AttendanceRecordRepository.class);
     private final AttendanceQueryRepository queries = mock(AttendanceQueryRepository.class);
-    private final GlobalCalendarEventRepository calendarEvents = mock(GlobalCalendarEventRepository.class);
+    private final CalendarApplicationService calendar = mock(CalendarApplicationService.class);
     private final AttendanceCorrectionApplicationService corrections = mock(AttendanceCorrectionApplicationService.class);
     private final AttendanceReportQueryService reports = new AttendanceReportQueryService(
-            Clock.systemUTC(), accounts, policies, records, queries, calendarEvents, corrections);
+            Clock.systemUTC(), accounts, records, queries, calendar, corrections);
 
     @Test
     void inactivePersistedAdminIsDeniedBeforeTargetOrAttendanceReads() {
@@ -50,7 +47,7 @@ class AttendanceReportQueryServiceAuthorizationTest {
         verify(accounts).requireIdentityById(1L);
         verify(accounts, never()).requireIdentityById(7L);
         verifyNoMoreInteractions(accounts);
-        verifyNoInteractions(policies, records, queries, calendarEvents, corrections);
+        verifyNoInteractions(records, queries, calendar, corrections);
     }
 
     @Test
@@ -66,6 +63,6 @@ class AttendanceReportQueryServiceAuthorizationTest {
         verify(accounts).requireIdentityById(1L);
         verify(accounts, never()).requireIdentityById(7L);
         verifyNoMoreInteractions(accounts);
-        verifyNoInteractions(policies, records, queries, calendarEvents, corrections);
+        verifyNoInteractions(records, queries, calendar, corrections);
     }
 }

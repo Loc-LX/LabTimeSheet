@@ -16,10 +16,8 @@ import com.lab.labtimesheet.feature.attendance.model.dto.LeaveBalance;
 import com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestCommand;
 import com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestSummary;
 import com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestView;
-import com.lab.labtimesheet.feature.attendance.model.entity.AttendancePolicyEntity;
 import com.lab.labtimesheet.feature.attendance.model.entity.LeaveRequestDayEntity;
 import com.lab.labtimesheet.feature.attendance.model.entity.LeaveRequestEntity;
-import com.lab.labtimesheet.feature.attendance.repository.AttendancePolicyRepository;
 import com.lab.labtimesheet.feature.attendance.repository.LeaveRequestDayRepository;
 import com.lab.labtimesheet.feature.attendance.repository.LeaveRequestRepository;
 import com.lab.labtimesheet.feature.notification.model.NotificationType;
@@ -65,7 +63,6 @@ public class LeaveApplicationService {
     private static final List<String> RESERVED = List.of(LeaveStatus.PENDING.name(), LeaveStatus.APPROVED.name());
 
     private final Clock clock;
-    private final AttendancePolicyRepository policies;
     private final LeaveRequestRepository requests;
     private final LeaveRequestDayRepository days;
     private final AccountService accounts;
@@ -500,11 +497,10 @@ public class LeaveApplicationService {
     }
 
     private void validateQuota(long internId, List<AllocatedDate> allocations, Long excludeRequestId) {
-        allocations.stream()
+        calendar.lockPolicyVersions(allocations.stream()
                 .map(item -> item.policy().id())
                 .distinct()
-                .sorted()
-                .forEach(policyId -> policies.findForUpdateById(policyId));
+                .collect(Collectors.toSet()));
         Map<LocalDate, List<AllocatedDate>> byMonth = allocations.stream()
                 .collect(Collectors.groupingBy(AllocatedDate::quotaMonth));
         byMonth.forEach((month, candidates) -> {
@@ -521,7 +517,7 @@ public class LeaveApplicationService {
                 .map(item -> new LeaveRequestDayEntity(
                         request,
                         item.date(),
-                        policies.getReferenceById(item.policy().id()),
+                        item.policy().id(),
                         item.policy().monthlyLeaveQuota()))
                 .toList());
     }
@@ -758,9 +754,7 @@ public class LeaveApplicationService {
     }
 
     private AttendancePolicyTimeline timeline() {
-        return new AttendancePolicyTimeline(policies.findAllByOrderByEffectiveFromAsc().stream()
-                .map(AttendancePolicyEntity::toDomain)
-                .toList());
+        return calendar.policyTimeline();
     }
 
     private record AllocatedDate(

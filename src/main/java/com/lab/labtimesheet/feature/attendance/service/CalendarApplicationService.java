@@ -249,6 +249,64 @@ public class CalendarApplicationService {
         return events.existsByCalendarDateAndDayOffTrue(date);
     }
 
+    /**
+     * Returns the complete effective-dated policy timeline for a consumer that must resolve a local date.
+     *
+     * @return immutable policy timeline in effective-date order
+     */
+    @Transactional(readOnly = true)
+    public AttendancePolicyTimeline policyTimeline() {
+        return new AttendancePolicyTimeline(policies.findAllByOrderByEffectiveFromAsc().stream()
+                .map(AttendancePolicyEntity::toDomain)
+                .toList());
+    }
+
+    /**
+     * Reads the historical policy versions needed to rehydrate a bounded set of attendance rows.
+     *
+     * @param policyVersionIds identifiers collected before the consumer iterates its rows
+     * @return policies indexed by immutable version identifier
+     */
+    @Transactional(readOnly = true)
+    public Map<Long, AttendancePolicy> policiesByVersionIds(Set<Long> policyVersionIds) {
+        if (policyVersionIds.isEmpty()) {
+            return Map.of();
+        }
+        return policies.findAllById(policyVersionIds).stream()
+                .map(AttendancePolicyEntity::toDomain)
+                .collect(java.util.stream.Collectors.toMap(AttendancePolicy::id, policy -> policy));
+    }
+
+    /**
+     * Locks the policy versions that provide quota snapshots before a leave allocation is written.
+     *
+     * @param policyVersionIds identifiers to lock in ascending order
+     */
+    @Transactional
+    public void lockPolicyVersions(Set<Long> policyVersionIds) {
+        for (Long policyVersionId : policyVersionIds.stream().sorted().toList()) {
+            policies.findForUpdateById(policyVersionId)
+                    .orElseThrow(() -> new IllegalStateException("Attendance policy version not found"));
+        }
+    }
+
+    /**
+     * Returns retained calendar-event history over an inclusive range without contacting HolidayAPI.
+     *
+     * @param from inclusive first local date
+     * @param to inclusive last local date
+     * @return events in date and identifier order
+     */
+    @Transactional(readOnly = true)
+    public List<CalendarHistoryItem> historyBetween(LocalDate from, LocalDate to) {
+        if (from.isAfter(to)) {
+            throw new IllegalArgumentException("from must not be after to");
+        }
+        return events.findByCalendarDateBetweenOrderByCalendarDateAscIdAsc(from, to).stream()
+                .map(GlobalCalendarEventEntity::toHistory)
+                .toList();
+    }
+
     private void requireMutableDate(LocalDate date) {
         AttendancePolicy policy = new AttendancePolicyTimeline(policies
                         .findAllByOrderByEffectiveFromAsc()

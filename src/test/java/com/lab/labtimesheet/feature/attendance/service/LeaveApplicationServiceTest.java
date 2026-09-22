@@ -19,9 +19,7 @@ import com.lab.labtimesheet.feature.attendance.model.AttendancePolicyFixtures;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceRole;
 import com.lab.labtimesheet.feature.attendance.model.LeaveStatus;
 import com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestCommand;
-import com.lab.labtimesheet.feature.attendance.model.entity.AttendancePolicyEntity;
 import com.lab.labtimesheet.feature.attendance.model.entity.LeaveRequestEntity;
-import com.lab.labtimesheet.feature.attendance.repository.AttendancePolicyRepository;
 import com.lab.labtimesheet.feature.attendance.repository.LeaveRequestDayRepository;
 import com.lab.labtimesheet.feature.attendance.repository.LeaveRequestRepository;
 import com.lab.labtimesheet.feature.notification.service.NotificationService;
@@ -45,7 +43,6 @@ class LeaveApplicationServiceTest {
     void rejectsBlankReasonBeforeReadingOrWritingLeaveState() {
         LeaveApplicationService service = new LeaveApplicationService(
                 Clock.fixed(Instant.parse("2026-08-20T00:00:00Z"), ZoneOffset.UTC),
-                mock(AttendancePolicyRepository.class),
                 mock(LeaveRequestRepository.class),
                 mock(LeaveRequestDayRepository.class),
                 mock(AccountService.class),
@@ -102,7 +99,6 @@ class LeaveApplicationServiceTest {
 
         LeaveApplicationService service = new LeaveApplicationService(
                 clock,
-                mock(AttendancePolicyRepository.class),
                 requests,
                 mock(LeaveRequestDayRepository.class),
                 accounts,
@@ -175,7 +171,6 @@ class LeaveApplicationServiceTest {
         AccountService accounts = mock(AccountService.class);
         LeaveApplicationService service = new LeaveApplicationService(
                 Clock.fixed(Instant.parse("2026-08-14T01:00:00Z"), ZoneOffset.UTC),
-                mock(AttendancePolicyRepository.class),
                 requests,
                 days,
                 accounts,
@@ -203,11 +198,6 @@ class LeaveApplicationServiceTest {
      * @param requests leave repository, so a caller can assert whether the row was written
      */
     private void submitSameDayLeave(Instant now, LocalDate workday, LeaveRequestRepository requests) {
-        AttendancePolicyRepository policies = mock(AttendancePolicyRepository.class);
-        AttendancePolicyEntity policyEntity = mock(AttendancePolicyEntity.class);
-        when(policyEntity.toDomain()).thenReturn(AttendancePolicyFixtures.seeded(1L));
-        when(policies.findAllByOrderByEffectiveFromAsc()).thenReturn(List.of(policyEntity));
-
         AccountService accounts = mock(AccountService.class);
         when(accounts.activeGlobalMentorIdentities()).thenReturn(List.of());
         when(accounts.lockedInternWorkWindow(eq(42L), any(LocalDate.class)))
@@ -221,10 +211,11 @@ class LeaveApplicationServiceTest {
 
         CalendarApplicationService calendar = mock(CalendarApplicationService.class);
         when(calendar.isGlobalDayOff(any(LocalDate.class))).thenReturn(false);
+        when(calendar.policyTimeline()).thenReturn(new AttendancePolicyTimeline(
+                List.of(AttendancePolicyFixtures.seeded(1L))));
 
         new LeaveApplicationService(
                         Clock.fixed(now, ZoneOffset.UTC),
-                        policies,
                         requests,
                         mock(LeaveRequestDayRepository.class),
                         accounts,

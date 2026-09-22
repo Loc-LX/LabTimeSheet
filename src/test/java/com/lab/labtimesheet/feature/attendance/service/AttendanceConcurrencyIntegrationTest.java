@@ -154,19 +154,19 @@ class AttendanceConcurrencyIntegrationTest {
     @Test
     void overlappingHistoryAndExpiryUseAscendingCorrectionLocksWhenAttendanceOrderDiffers() throws Exception {
         long internId = createActiveIntern();
-        AttendancePolicyEntity policy = policies.findById(1L).orElseThrow();
+        long policyVersionId = policies.findById(1L).orElseThrow().toDomain().id();
 
         clock.set(Instant.parse("2026-10-05T02:00:00Z"));
         long firstRecordId = records.saveAndFlush(new AttendanceRecordEntity(
                 internId,
                 LocalDate.of(2026, 10, 5),
-                policy,
+                policyVersionId,
                 clock.instant(),
                 null)).id();
         long secondRecordId = records.saveAndFlush(new AttendanceRecordEntity(
                 internId,
                 LocalDate.of(2026, 10, 6),
-                policy,
+                policyVersionId,
                 clock.instant().plusSeconds(24 * 60 * 60L),
                 null)).id();
 

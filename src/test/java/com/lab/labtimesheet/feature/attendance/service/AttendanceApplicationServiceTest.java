@@ -18,9 +18,7 @@ import com.lab.labtimesheet.feature.attendance.model.AttendanceRecord;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceRole;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceCurrentState;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceReportDateContext;
-import com.lab.labtimesheet.feature.attendance.model.entity.AttendancePolicyEntity;
 import com.lab.labtimesheet.feature.attendance.model.entity.AttendanceRecordEntity;
-import com.lab.labtimesheet.feature.attendance.repository.AttendancePolicyRepository;
 import com.lab.labtimesheet.feature.attendance.repository.AttendanceQueryRepository;
 import com.lab.labtimesheet.feature.attendance.repository.AttendanceRecordRepository;
 import java.time.Clock;
@@ -29,6 +27,7 @@ import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -42,7 +41,6 @@ class AttendanceApplicationServiceTest {
     private static final Instant NOW = Instant.parse("2026-08-14T02:00:00Z");
     private static final LocalDate WORK_DATE = LocalDate.of(2026, 8, 14);
 
-    private final AttendancePolicyRepository policies = mock(AttendancePolicyRepository.class);
     private final AttendanceRecordRepository records = mock(AttendanceRecordRepository.class);
     private final AccountService accounts = mock(AccountService.class);
     private final AttendanceCorrectionApplicationService corrections = mock(AttendanceCorrectionApplicationService.class);
@@ -51,13 +49,12 @@ class AttendanceApplicationServiceTest {
 
     @BeforeEach
     void setUp() {
-        AttendancePolicyEntity policyEntity = mock(AttendancePolicyEntity.class);
-        when(policyEntity.toDomain()).thenReturn(AttendancePolicyFixtures.seeded(1L));
-        when(policies.findAllByOrderByEffectiveFromAsc()).thenReturn(List.of(policyEntity));
+        when(calendar.policyTimeline()).thenReturn(new AttendancePolicyTimeline(
+                List.of(AttendancePolicyFixtures.seeded(1L))));
+        when(calendar.policiesByVersionIds(any())).thenReturn(Map.of(1L, AttendancePolicyFixtures.seeded(1L)));
         when(accounts.isEligibleIntern(INTERN_ID, WORK_DATE)).thenReturn(true);
         attendance = new AttendanceApplicationService(
                 Clock.fixed(NOW, ZoneOffset.UTC),
-                policies,
                 records,
                 mock(AttendanceQueryRepository.class),
                 accounts,
@@ -164,7 +161,8 @@ class AttendanceApplicationServiceTest {
 
     private static AttendanceRecordEntity entityFor(Instant checkOutAt) {
         AttendanceRecordEntity entity = mock(AttendanceRecordEntity.class);
-        when(entity.toDomain()).thenReturn(new AttendanceRecord(
+        when(entity.policyVersionId()).thenReturn(1L);
+        when(entity.toDomain(any(AttendancePolicy.class))).thenReturn(new AttendanceRecord(
                 INTERN_ID,
                 WORK_DATE,
                 AttendancePolicyFixtures.seeded(1L),
