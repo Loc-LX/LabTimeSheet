@@ -9,7 +9,7 @@ import com.lab.labtimesheet.feature.identity.model.dto.AccountIdentity;
 import com.lab.labtimesheet.feature.identity.service.AccountService;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
 import com.lab.labtimesheet.feature.attendance.model.AttendancePolicy;
-import com.lab.labtimesheet.feature.attendance.model.AttendanceRole;
+import com.lab.labtimesheet.platform.model.GlobalRole;
 import com.lab.labtimesheet.feature.attendance.model.CorrectionStatus;
 import com.lab.labtimesheet.feature.attendance.model.LeaveStatus;
 import com.lab.labtimesheet.feature.attendance.model.dto.CorrectionSummary;
@@ -59,7 +59,7 @@ class AttendanceReadModelServiceTest {
                 accounts, mock(CalendarApplicationService.class), mock(TransactionTemplate.class),
                 mock(com.lab.labtimesheet.feature.notification.service.NotificationService.class));
 
-        assertThat(service.list(new AttendanceActor(7L, AttendanceRole.INTERN)))
+        assertThat(service.list(new AttendanceActor(7L, GlobalRole.INTERN)))
                 .extracting(LeaveRequestSummary::status)
                 .containsExactly(LeaveStatus.PENDING, LeaveStatus.APPROVED);
     }
@@ -87,7 +87,7 @@ class AttendanceReadModelServiceTest {
                 mock(com.lab.labtimesheet.feature.notification.service.NotificationService.class));
 
         LeaveBalance balance = service.balance(
-                new AttendanceActor(7L, AttendanceRole.INTERN), YearMonth.of(2026, 8));
+                new AttendanceActor(7L, GlobalRole.INTERN), YearMonth.of(2026, 8));
 
         assertThat(balance.quotaMonth()).isEqualTo(YearMonth.of(2026, 8));
         assertThat(balance.reservedDays()).isEqualTo(2);
@@ -116,7 +116,7 @@ class AttendanceReadModelServiceTest {
                 accounts, mock(CalendarApplicationService.class), mock(TransactionTemplate.class),
                 mock(com.lab.labtimesheet.feature.notification.service.NotificationService.class));
 
-        assertThat(service.list(new AttendanceActor(7L, AttendanceRole.INTERN)))
+        assertThat(service.list(new AttendanceActor(7L, GlobalRole.INTERN)))
                 .extracting(CorrectionSummary::status)
                 .containsExactly(CorrectionStatus.PENDING.name(), CorrectionStatus.APPROVED.name());
     }

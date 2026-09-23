@@ -16,7 +16,7 @@ import com.lab.labtimesheet.feature.identity.service.AccountService;
 import com.lab.labtimesheet.feature.attendance.exception.LeaveException;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
 import com.lab.labtimesheet.feature.attendance.model.AttendancePolicyFixtures;
-import com.lab.labtimesheet.feature.attendance.model.AttendanceRole;
+import com.lab.labtimesheet.platform.model.GlobalRole;
 import com.lab.labtimesheet.feature.attendance.model.LeaveStatus;
 import com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestCommand;
 import com.lab.labtimesheet.feature.attendance.model.entity.LeaveRequestEntity;
@@ -51,7 +51,7 @@ class LeaveApplicationServiceTest {
                 mock(NotificationService.class));
 
         assertThatThrownBy(() -> service.submit(
-                        new AttendanceActor(42L, AttendanceRole.INTERN),
+                        new AttendanceActor(42L, GlobalRole.INTERN),
                         new LeaveRequestCommand(
                                 LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 1), "  ")))
                 .isInstanceOf(IllegalArgumentException.class);
@@ -157,7 +157,7 @@ class LeaveApplicationServiceTest {
      * privileged role, and an Admin starts approving and rejecting leave, which also moves quota
      * because an approval reserves it.
      *
-     * <p>{@code AttendanceRole} carries `ADMIN`, so an Admin can reach these methods and the
+     * <p>{@code GlobalRole} carries `ADMIN`, so an Admin can reach these methods and the
      * refusal has to be deliberate rather than a consequence of the type. The test asserts the
      * refusal on both decisions and, separately, that nothing was read on the way to it: the guard
      * runs before the request is looked up, so an Admin holding a guessed identifier learns neither
@@ -177,7 +177,7 @@ class LeaveApplicationServiceTest {
                 mock(CalendarApplicationService.class),
                 mock(TransactionTemplate.class),
                 mock(NotificationService.class));
-        AttendanceActor admin = new AttendanceActor(9L, AttendanceRole.ADMIN);
+        AttendanceActor admin = new AttendanceActor(9L, GlobalRole.ADMIN);
 
         assertThatThrownBy(() -> service.approve(admin, 77L))
                 .isInstanceOf(AccessDeniedException.class)
@@ -223,7 +223,7 @@ class LeaveApplicationServiceTest {
                         mock(TransactionTemplate.class),
                         mock(NotificationService.class))
                 .submit(
-                        new AttendanceActor(42L, AttendanceRole.INTERN),
+                        new AttendanceActor(42L, GlobalRole.INTERN),
                         new LeaveRequestCommand(workday, workday, "Family matter"));
     }
 }

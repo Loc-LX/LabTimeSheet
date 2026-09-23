@@ -3,12 +3,9 @@ package com.lab.labtimesheet.feature.reporting.controller;
 import com.lab.labtimesheet.feature.identity.service.AccountService;
 import com.lab.labtimesheet.feature.attendance.exception.CalendarException;
 import com.lab.labtimesheet.feature.attendance.exception.PolicyException;
-import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
-import com.lab.labtimesheet.feature.attendance.model.AttendanceRole;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendancePolicyCommand;
 import com.lab.labtimesheet.feature.attendance.model.dto.CalendarImportSelection;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceApplicationService;
-import com.lab.labtimesheet.feature.attendance.service.AttendanceCurrentUserService;
 import com.lab.labtimesheet.feature.attendance.service.AttendancePolicyApplicationService;
 import com.lab.labtimesheet.feature.attendance.service.CalendarApplicationService;
 import com.lab.labtimesheet.feature.integration.model.dto.HolidayApiDraft;
@@ -50,7 +47,6 @@ public class AdminSettingsController {
     private static final String DECISION_PREFIX = "decision_";
 
     private final AccountService accounts;
-    private final AttendanceCurrentUserService currentUsers;
     private final AttendanceApplicationService attendance;
     private final AttendancePolicyApplicationService policies;
     private final CalendarApplicationService calendar;
@@ -102,7 +98,7 @@ public class AdminSettingsController {
         Set<DayOfWeek> selectedWorkdays = Set.of();
         try {
             selectedWorkdays = requiredWorkdays(workdays);
-            policies.schedule(actor(principal), new AttendancePolicyCommand(
+            policies.schedule(adminId(principal), new AttendancePolicyCommand(
                     requiredDate(effectiveFrom, "Enter valid attendance policy values."),
                     ZoneId.of(zoneId),
                     requiredTime(scheduledStart, "Enter valid attendance policy values."),
@@ -219,11 +215,11 @@ public class AdminSettingsController {
             RedirectAttributes redirectAttributes) {
         try {
             int selectedYear = requiredInt(year, "Enter a valid calendar year.");
-            AttendanceActor actor = actor(principal);
-            var providerPreview = calendar.previewFromProvider(actor, selectedYear);
+            long adminId = adminId(principal);
+            var providerPreview = calendar.previewFromProvider(adminId, selectedYear);
             render(principal, model);
             model.addAttribute("providerPreview", providerPreview);
-            model.addAttribute("calendarPreview", calendar.preview(actor, selectedYear, providerPreview));
+            model.addAttribute("calendarPreview", calendar.preview(adminId, selectedYear, providerPreview));
             model.addAttribute("previewYear", selectedYear);
             return "admin/settings";
         } catch (CalendarException | IllegalArgumentException | IllegalStateException failure) {
@@ -265,7 +261,7 @@ public class AdminSettingsController {
                             }))
                     .toList();
             calendar.importSelected(
-                    actor(principal),
+                    adminId(principal),
                     requiredInt(year, "Enter a valid calendar year."),
                     selections);
             redirectAttributes.addFlashAttribute("message", "Calendar selections imported");
@@ -276,28 +272,23 @@ public class AdminSettingsController {
     }
 
     private void render(Principal principal, Model model) {
-        AttendanceActor actor = actor(principal);
         long adminId = adminId(principal);
         LocalDate today = attendance.currentBusinessDate();
         model.addAttribute("today", today);
         model.addAttribute("defaultYear", today.getYear());
-        model.addAttribute("policyHistory", policies.history(actor));
-        model.addAttribute("calendarHistory", calendar.history(actor));
+        model.addAttribute("policyHistory", policies.history(adminId));
+        model.addAttribute("calendarHistory", calendar.history(adminId));
         model.addAttribute("smtpHistory", smtp.history(adminId));
         model.addAttribute("holidayApiHistory", holidayApi.history(adminId));
         model.addAttribute("holidayApiStatus", holidayApi.setupStatus(adminId));
     }
 
     private long adminId(Principal principal) {
-        return accounts.requireActiveAdminId(principal.getName());
-    }
-
-    private AttendanceActor actor(Principal principal) {
-        AttendanceActor actor = currentUsers.actor(principal);
-        if (actor == null || actor.role() != AttendanceRole.ADMIN) {
-            throw new AccessDeniedException("Only Admin may manage attendance settings");
+        try {
+            return accounts.requireActiveAdminId(principal.getName());
+        } catch (IllegalArgumentException exception) {
+            throw new AccessDeniedException("Only Admin may manage attendance settings", exception);
         }
-        return actor;
     }
 
     private static LocalDate requiredDate(String value, String errorMessage) {

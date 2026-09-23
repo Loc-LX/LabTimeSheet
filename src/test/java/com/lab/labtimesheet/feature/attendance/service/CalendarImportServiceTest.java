@@ -10,7 +10,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
-import com.lab.labtimesheet.feature.attendance.model.AttendanceRole;
+import com.lab.labtimesheet.platform.model.GlobalRole;
 import com.lab.labtimesheet.feature.attendance.model.dto.CalendarImportSelection;
 import com.lab.labtimesheet.feature.attendance.model.entity.GlobalCalendarEventEntity;
 import com.lab.labtimesheet.feature.attendance.repository.GlobalCalendarEventRepository;
@@ -18,6 +18,7 @@ import com.lab.labtimesheet.feature.integration.model.dto.HolidayApiCandidate;
 import com.lab.labtimesheet.feature.integration.model.dto.HolidayApiPreview;
 import com.lab.labtimesheet.feature.integration.model.dto.HolidayApiPreviewStatus;
 import com.lab.labtimesheet.feature.integration.service.HolidayApiConfigurationService;
+import com.lab.labtimesheet.feature.identity.service.AccountService;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -37,12 +38,12 @@ class CalendarImportServiceTest {
         GlobalCalendarEventRepository events = mock(GlobalCalendarEventRepository.class);
         HolidayApiConfigurationService holidayApi = mock(HolidayApiConfigurationService.class);
         CalendarApplicationService service = service(events, holidayApi);
-        AttendanceActor admin = new AttendanceActor(1L, AttendanceRole.ADMIN);
+        AttendanceActor admin = new AttendanceActor(1L, GlobalRole.ADMIN);
         HolidayApiPreview upstream = new HolidayApiPreview(
                 HolidayApiPreviewStatus.SUCCESS, List.of(), "loaded", Instant.parse("2026-08-20T00:00:00Z"));
         when(holidayApi.preview(1L, 2026)).thenReturn(upstream);
 
-        assertThat(service.previewFromProvider(admin, 2026)).isSameAs(upstream);
+        assertThat(service.previewFromProvider(admin.userId(), 2026)).isSameAs(upstream);
         verify(holidayApi).preview(1L, 2026);
 
         HolidayApiConfigurationService localProvider = mock(HolidayApiConfigurationService.class);
@@ -51,7 +52,7 @@ class CalendarImportServiceTest {
         assertThat(localReadService.isGlobalDayOff(LocalDate.of(2026, 8, 20))).isTrue();
         verifyNoInteractions(localProvider);
         assertThatThrownBy(() -> service.previewFromProvider(
-                new AttendanceActor(2L, AttendanceRole.MENTOR), 2026))
+                2L, 2026))
                 .isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
     }
 
@@ -60,17 +61,17 @@ class CalendarImportServiceTest {
         GlobalCalendarEventRepository events = mock(GlobalCalendarEventRepository.class);
         HolidayApiConfigurationService holidayApi = mock(HolidayApiConfigurationService.class);
         CalendarApplicationService service = service(events, holidayApi);
-        AttendanceActor admin = new AttendanceActor(1L, AttendanceRole.ADMIN);
+        AttendanceActor admin = new AttendanceActor(1L, GlobalRole.ADMIN);
         HolidayApiPreview unavailable = new HolidayApiPreview(
                 HolidayApiPreviewStatus.UNAVAILABLE, List.of(),
                 "HolidayAPI is unavailable; use a manual calendar event.", null);
         when(holidayApi.preview(1L, 2026)).thenReturn(unavailable);
 
-        HolidayApiPreview result = service.previewFromProvider(admin, 2026);
+        HolidayApiPreview result = service.previewFromProvider(admin.userId(), 2026);
 
         assertThat(result.status()).isEqualTo(HolidayApiPreviewStatus.UNAVAILABLE);
         assertThat(result.message()).contains("manual calendar event");
-        assertThat(service.preview(admin, 2026, result)).isEmpty();
+        assertThat(service.preview(admin.userId(), 2026, result)).isEmpty();
     }
 
     @Test
@@ -84,8 +85,7 @@ class CalendarImportServiceTest {
                 "loaded",
                 Instant.parse("2026-08-20T00:00:00Z"));
 
-        assertThatThrownBy(() -> service.preview(
-                new AttendanceActor(1L, AttendanceRole.ADMIN), 2026, upstream))
+        assertThatThrownBy(() -> service.preview(1L, 2026, upstream))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Holiday candidate dates must belong to the requested year");
     }
@@ -109,8 +109,7 @@ class CalendarImportServiceTest {
                 "loaded",
                 Instant.parse("2026-08-20T00:00:00Z"));
 
-        assertThat(service.importSelectedFromTrustedPreview(
-                        new AttendanceActor(1L, AttendanceRole.ADMIN), 2026,
+        assertThat(service.importSelectedFromTrustedPreview(1L, 2026,
                         trustedPreview,
                         List.of(new CalendarImportSelection("b-source", false),
                                 new CalendarImportSelection("a-source", false))))
@@ -137,20 +136,19 @@ class CalendarImportServiceTest {
                 List.of(candidate, candidate),
                 "loaded",
                 Instant.parse("2026-08-20T00:00:00Z"));
-        assertThat(service.preview(new AttendanceActor(1L, AttendanceRole.ADMIN), 2026, upstream))
+        assertThat(service.preview(1L, 2026, upstream))
                 .singleElement()
                 .satisfies(item -> {
                     assertThat(item.selectedByDefault()).isTrue();
                     assertThat(item.retrievedAt()).isEqualTo(upstream.retrievedAt());
                 });
-        assertThat(service.preview(new AttendanceActor(1L, AttendanceRole.ADMIN), 2026, upstream)).hasSize(1);
+        assertThat(service.preview(1L, 2026, upstream)).hasSize(1);
 
         GlobalCalendarEventEntity existing = mock(GlobalCalendarEventEntity.class);
         when(events.findForUpdateBySourceAndSourceUuid("HOLIDAY_API", "vn-1"))
                 .thenReturn(Optional.of(existing));
 
-        assertThat(service.importSelectedFromTrustedPreview(
-                        new AttendanceActor(1L, AttendanceRole.ADMIN),
+        assertThat(service.importSelectedFromTrustedPreview(1L,
                         2026,
                         upstream,
                         List.of(new CalendarImportSelection("vn-1", false))))
@@ -171,8 +169,7 @@ class CalendarImportServiceTest {
         when(events.findForUpdateBySourceAndSourceUuid("HOLIDAY_API", "trusted-source"))
                 .thenReturn(Optional.of(mock(GlobalCalendarEventEntity.class)));
 
-        assertThat(service.importSelectedFromTrustedPreview(
-                        new AttendanceActor(1L, AttendanceRole.ADMIN),
+        assertThat(service.importSelectedFromTrustedPreview(1L,
                         2026,
                         trustedPreview,
                         List.of(new CalendarImportSelection("trusted-source", false))))
@@ -184,12 +181,17 @@ class CalendarImportServiceTest {
 
     private static CalendarApplicationService service(
             GlobalCalendarEventRepository events, HolidayApiConfigurationService holidayApi) {
+        AccountService accounts = mock(AccountService.class);
+        when(accounts.requireActiveAdminId(org.mockito.ArgumentMatchers.anyLong()))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(accounts.requireActiveAdminId(2L)).thenThrow(new IllegalArgumentException("An active Admin is required"));
         TransactionTemplate transactions = mock(TransactionTemplate.class);
         PlatformTransactionManager transactionManager = mock(PlatformTransactionManager.class);
         when(transactions.getTransactionManager()).thenReturn(transactionManager);
         when(transactionManager.getTransaction(any())).thenReturn(mock(TransactionStatus.class));
         return new CalendarApplicationService(
                 Clock.fixed(Instant.parse("2026-08-20T00:00:00Z"), ZoneOffset.UTC),
+                accounts,
                 policyRepository(),
                 events,
                 holidayApi,

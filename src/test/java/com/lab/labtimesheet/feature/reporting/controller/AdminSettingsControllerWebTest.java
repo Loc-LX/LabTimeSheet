@@ -17,7 +17,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.lab.labtimesheet.feature.identity.service.AccountService;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
 import com.lab.labtimesheet.feature.attendance.model.AttendancePolicy;
-import com.lab.labtimesheet.feature.attendance.model.AttendanceRole;
+import com.lab.labtimesheet.platform.model.GlobalRole;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendancePolicyHistoryItem;
 import com.lab.labtimesheet.feature.attendance.model.dto.CalendarHistoryItem;
 import com.lab.labtimesheet.feature.attendance.model.dto.CalendarImportSelection;
@@ -47,6 +47,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TimeZone;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -68,6 +69,11 @@ class AdminSettingsControllerWebTest {
     @MockitoBean private HolidayApiConfigurationService holidayApi;
     @MockitoBean private SmtpConfigurationService smtp;
 
+    @BeforeEach
+    void authenticatedAdminUsesTheIdentityContract() {
+        when(accounts.requireActiveAdminId(org.mockito.ArgumentMatchers.anyString())).thenReturn(1L);
+    }
+
     @Test
     void adminOpensAllFourRedactedHistoriesAndNonAdminIsDenied() throws Exception {
         AttendanceActor actor = adminActor();
@@ -80,9 +86,9 @@ class AdminSettingsControllerWebTest {
                 1L, LocalDate.of(2026, 8, 1), ZoneId.of("Asia/Ho_Chi_Minh"),
                 LocalTime.of(8, 0), LocalTime.of(17, 0), 15, 15, 3,
                 BigDecimal.valueOf(0.1), Set.of(DayOfWeek.MONDAY));
-        when(policies.history(actor)).thenReturn(List.of(new AttendancePolicyHistoryItem(
+        when(policies.history(actor.userId())).thenReturn(List.of(new AttendancePolicyHistoryItem(
                 1L, LocalDate.of(2026, 8, 1), policy, 1L, now, now, 0L)));
-        when(calendar.history(actor)).thenReturn(List.of(new CalendarHistoryItem(
+        when(calendar.history(actor.userId())).thenReturn(List.of(new CalendarHistoryItem(
                 1L, LocalDate.of(2026, 9, 2), "National Day", "HOLIDAY_API", "uuid-1",
                 LocalDate.of(2026, 9, 2), LocalDate.of(2026, 9, 2), true, true, now,
                 1L, 1L, now, now, 0L)));
@@ -111,7 +117,9 @@ class AdminSettingsControllerWebTest {
         }
 
         when(currentUsers.actor(org.mockito.ArgumentMatchers.any()))
-                .thenReturn(new AttendanceActor(2L, AttendanceRole.MENTOR));
+                .thenReturn(new AttendanceActor(2L, GlobalRole.MENTOR));
+        when(accounts.requireActiveAdminId("mentor@example.test"))
+                .thenThrow(new IllegalArgumentException("An active Admin is required"));
         mvc.perform(get("/admin/settings").with(user("mentor@example.test").roles("MENTOR")))
                 .andExpect(status().isForbidden());
     }
@@ -127,8 +135,8 @@ class AdminSettingsControllerWebTest {
                 "uuid-1", "National Day", LocalDate.of(2026, 9, 2), LocalDate.of(2026, 9, 2), true);
         HolidayApiPreview preview = new HolidayApiPreview(
                 HolidayApiPreviewStatus.SUCCESS, List.of(candidate), "Available", Instant.parse("2026-08-21T00:00:00Z"));
-        when(calendar.previewFromProvider(actor, 2026)).thenReturn(preview);
-        when(calendar.preview(actor, 2026, preview)).thenReturn(List.of(
+        when(calendar.previewFromProvider(actor.userId(), 2026)).thenReturn(preview);
+        when(calendar.preview(actor.userId(), 2026, preview)).thenReturn(List.of(
                 new CalendarPreviewItem(candidate, true, preview.retrievedAt())));
 
         mvc.perform(post("/admin/settings/calendar/preview")
@@ -139,7 +147,7 @@ class AdminSettingsControllerWebTest {
                 .andExpect(content().string(containsString("Import as day off")))
                 .andExpect(content().string(containsString("Import as working day")));
 
-        verify(calendar).previewFromProvider(actor, 2026);
+        verify(calendar).previewFromProvider(actor.userId(), 2026);
     }
 
     @Test
@@ -156,7 +164,7 @@ class AdminSettingsControllerWebTest {
                         .param("decision_uuid-3", "skip"))
                 .andExpect(status().is3xxRedirection());
 
-        verify(calendar).importSelected(actor, 2026, List.of(
+        verify(calendar).importSelected(actor.userId(), 2026, List.of(
                 new CalendarImportSelection("uuid-1", true),
                 new CalendarImportSelection("uuid-2", false)));
     }
@@ -230,8 +238,8 @@ class AdminSettingsControllerWebTest {
         when(currentUsers.actor(org.mockito.ArgumentMatchers.any())).thenReturn(actor);
         when(accounts.requireActiveAdminId("admin@example.test")).thenReturn(1L);
         when(attendance.currentBusinessDate()).thenReturn(LocalDate.of(2026, 8, 21));
-        when(policies.history(actor)).thenReturn(List.of());
-        when(calendar.history(actor)).thenReturn(List.of());
+        when(policies.history(actor.userId())).thenReturn(List.of());
+        when(calendar.history(actor.userId())).thenReturn(List.of());
         when(smtp.history(1L)).thenReturn(List.of());
         when(holidayApi.history(1L)).thenReturn(List.of());
         when(holidayApi.setupStatus(1L)).thenReturn(new HolidayApiSetupStatus(false, null, false, "VN"));
@@ -269,6 +277,6 @@ class AdminSettingsControllerWebTest {
     }
 
     private static AttendanceActor adminActor() {
-        return new AttendanceActor(1L, AttendanceRole.ADMIN);
+        return new AttendanceActor(1L, GlobalRole.ADMIN);
     }
 }

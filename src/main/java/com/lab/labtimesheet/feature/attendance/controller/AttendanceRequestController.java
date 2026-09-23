@@ -3,7 +3,7 @@ package com.lab.labtimesheet.feature.attendance.controller;
 import com.lab.labtimesheet.feature.attendance.exception.CorrectionException;
 import com.lab.labtimesheet.feature.attendance.exception.LeaveException;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
-import com.lab.labtimesheet.feature.attendance.model.AttendanceRole;
+import com.lab.labtimesheet.platform.model.GlobalRole;
 import com.lab.labtimesheet.feature.attendance.model.dto.CorrectionDecision;
 import com.lab.labtimesheet.feature.attendance.model.dto.CorrectionRequestCommand;
 import com.lab.labtimesheet.feature.attendance.model.dto.LeaveBalance;
@@ -82,11 +82,11 @@ public class AttendanceRequestController {
                     ? YearMonth.from(attendance.currentBusinessDate())
                     : YearMonth.parse(month.strip());
             model.addAttribute("actor", actor);
-            model.addAttribute("intern", actor.role() == AttendanceRole.INTERN);
-            model.addAttribute("mentor", actor.role() == AttendanceRole.MENTOR);
+            model.addAttribute("intern", actor.role() == GlobalRole.INTERN);
+            model.addAttribute("mentor", actor.role() == GlobalRole.MENTOR);
             model.addAttribute("leaveRequests", leave.list(actor));
             model.addAttribute("selectedMonth", selectedMonth);
-            if (actor.role() == AttendanceRole.INTERN) {
+            if (actor.role() == GlobalRole.INTERN) {
                 LeaveBalance balance = leave.balance(actor, selectedMonth);
                 model.addAttribute("balance", balance);
             }
@@ -112,8 +112,8 @@ public class AttendanceRequestController {
             Model model) {
         AttendanceActor actor = currentUsers.actor(principal);
         model.addAttribute("actor", actor);
-        model.addAttribute("intern", actor.role() == AttendanceRole.INTERN);
-        model.addAttribute("mentor", actor.role() == AttendanceRole.MENTOR);
+        model.addAttribute("intern", actor.role() == GlobalRole.INTERN);
+        model.addAttribute("mentor", actor.role() == GlobalRole.MENTOR);
         model.addAttribute("attendanceRecordId", attendanceRecordId);
         model.addAttribute("correctionRequests", corrections.list(actor));
         return "attendance/corrections";
@@ -131,11 +131,11 @@ public class AttendanceRequestController {
     public String leaveRequest(Principal principal, @PathVariable long requestId, Model model) {
         AttendanceActor actor = currentUsers.actor(principal);
         model.addAttribute("actor", actor);
-        model.addAttribute("intern", actor.role() == AttendanceRole.INTERN);
-        model.addAttribute("mentor", actor.role() == AttendanceRole.MENTOR);
+        model.addAttribute("intern", actor.role() == GlobalRole.INTERN);
+        model.addAttribute("mentor", actor.role() == GlobalRole.MENTOR);
         model.addAttribute("leaveRequests", leave.list(actor));
         model.addAttribute("selectedLeave", leave.view(actor, requestId));
-        if (actor.role() == AttendanceRole.INTERN) {
+        if (actor.role() == GlobalRole.INTERN) {
             YearMonth selectedMonth = YearMonth.from(attendance.currentBusinessDate());
             model.addAttribute("selectedMonth", selectedMonth);
             model.addAttribute("balance", leave.balance(actor, selectedMonth));
@@ -155,8 +155,8 @@ public class AttendanceRequestController {
     public String correction(Principal principal, @PathVariable long correctionId, Model model) {
         AttendanceActor actor = currentUsers.actor(principal);
         model.addAttribute("actor", actor);
-        model.addAttribute("intern", actor.role() == AttendanceRole.INTERN);
-        model.addAttribute("mentor", actor.role() == AttendanceRole.MENTOR);
+        model.addAttribute("intern", actor.role() == GlobalRole.INTERN);
+        model.addAttribute("mentor", actor.role() == GlobalRole.MENTOR);
         model.addAttribute("correctionRequests", corrections.list(actor));
         model.addAttribute("selectedCorrection", corrections.view(actor, correctionId));
         return "attendance/corrections";

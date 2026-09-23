@@ -1,12 +1,10 @@
 package com.lab.labtimesheet.feature.attendance.controller;
 
 import com.lab.labtimesheet.feature.attendance.exception.PolicyException;
-import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
-import com.lab.labtimesheet.feature.attendance.model.AttendanceRole;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendancePolicyCommand;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceApplicationService;
-import com.lab.labtimesheet.feature.attendance.service.AttendanceCurrentUserService;
 import com.lab.labtimesheet.feature.attendance.service.AttendancePolicyApplicationService;
+import com.lab.labtimesheet.feature.identity.service.AccountService;
 import java.security.Principal;
 import java.time.DayOfWeek;
 import java.time.LocalTime;
@@ -18,8 +16,8 @@ import java.util.EnumSet;
 import java.util.Map;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Controller;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -41,8 +39,8 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 public class AttendancePolicyController {
 
     private final AttendanceApplicationService attendance;
-    private final AttendanceCurrentUserService currentUsers;
     private final AttendancePolicyApplicationService policies;
+    private final AccountService accounts;
 
     /**
      * Renders the focused policy form and retained non-secret history.
@@ -53,11 +51,11 @@ public class AttendancePolicyController {
      */
     @GetMapping
     public String page(Principal principal, Model model) {
-        AttendanceActor actor = requireAdmin(currentUsers.actor(principal));
+        long adminId = requireAdminId(principal);
         var today = attendance.currentBusinessDate();
         model.addAttribute("today", today);
         model.addAttribute("minimumPolicyMonth", YearMonth.from(today).plusMonths(1));
-        model.addAttribute("policyHistory", policies.history(actor));
+        model.addAttribute("policyHistory", policies.history(adminId));
         return "attendance/policies";
     }
 
@@ -90,12 +88,12 @@ public class AttendancePolicyController {
             @RequestParam(defaultValue = "") String violationPenalty,
             @RequestParam(required = false) Set<String> workdays,
             RedirectAttributes redirectAttributes) {
-        AttendanceActor actor = requireAdmin(currentUsers.actor(principal));
+        long adminId = requireAdminId(principal);
         Set<DayOfWeek> selectedWorkdays = Set.of();
         try {
             selectedWorkdays = requiredWorkdays(workdays);
             YearMonth month = requiredMonth(effectiveMonth);
-            policies.schedule(actor, new AttendancePolicyCommand(
+            policies.schedule(adminId, new AttendancePolicyCommand(
                     month.atDay(1),
                     ZoneId.of(zoneId.strip()),
                     requiredTime(scheduledStart),
@@ -170,10 +168,12 @@ public class AttendancePolicyController {
         }
     }
 
-    private static AttendanceActor requireAdmin(AttendanceActor actor) {
-        if (actor == null || actor.role() != AttendanceRole.ADMIN) {
-            throw new AccessDeniedException("Only Admin may manage attendance policy");
+    private long requireAdminId(Principal principal) {
+        try {
+            return accounts.requireActiveAdminId(principal.getName());
+        } catch (IllegalArgumentException exception) {
+            throw new AccessDeniedException("Only Admin may manage attendance policy", exception);
         }
-        return actor;
     }
+
 }

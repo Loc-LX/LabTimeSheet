@@ -12,7 +12,7 @@ import com.lab.labtimesheet.feature.identity.model.AccountStatus;
 import com.lab.labtimesheet.feature.identity.model.dto.AccountIdentity;
 import com.lab.labtimesheet.feature.identity.service.AccountService;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
-import com.lab.labtimesheet.feature.attendance.model.AttendanceRole;
+import com.lab.labtimesheet.platform.model.GlobalRole;
 import com.lab.labtimesheet.feature.attendance.repository.AttendanceQueryRepository;
 import com.lab.labtimesheet.feature.attendance.repository.AttendanceRecordRepository;
 import com.lab.labtimesheet.platform.model.GlobalRole;
@@ -40,7 +40,7 @@ class AttendanceReportQueryServiceAuthorizationTest {
                 1L, "admin@example.test", "Admin", GlobalRole.ADMIN, AccountStatus.PENDING_ACTIVATION));
 
         assertThatThrownBy(() -> reports.query(
-                new AttendanceActor(1L, AttendanceRole.ADMIN), 7L, FROM, TO))
+                new AttendanceActor(1L, GlobalRole.ADMIN), 7L, FROM, TO))
                 .isInstanceOf(AccessDeniedException.class)
                 .hasMessage("An active Mentor or Admin is required");
 
@@ -56,7 +56,7 @@ class AttendanceReportQueryServiceAuthorizationTest {
                 1L, "admin@example.test", "Admin", GlobalRole.MENTOR, AccountStatus.ACTIVE));
 
         assertThatThrownBy(() -> reports.query(
-                new AttendanceActor(1L, AttendanceRole.ADMIN), 7L, FROM, TO))
+                new AttendanceActor(1L, GlobalRole.ADMIN), 7L, FROM, TO))
                 .isInstanceOf(AccessDeniedException.class)
                 .hasMessage("Attendance actor role does not match the account");
 

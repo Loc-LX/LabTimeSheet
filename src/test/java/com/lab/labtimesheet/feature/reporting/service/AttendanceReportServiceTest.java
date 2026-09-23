@@ -10,7 +10,7 @@ import com.lab.labtimesheet.feature.identity.model.dto.AccountIdentity;
 import com.lab.labtimesheet.feature.identity.model.dto.EligibleInternOption;
 import com.lab.labtimesheet.feature.identity.service.AccountService;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
-import com.lab.labtimesheet.feature.attendance.model.AttendanceRole;
+import com.lab.labtimesheet.platform.model.GlobalRole;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceReport;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceReportClassification;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceReportDay;
@@ -46,7 +46,7 @@ class AttendanceReportServiceTest {
 
     @Test
     void usesAttendanceOwnedClassificationAndExactAggregateFormulas() {
-        AttendanceActor actor = new AttendanceActor(7L, AttendanceRole.INTERN);
+        AttendanceActor actor = new AttendanceActor(7L, GlobalRole.INTERN);
         given(currentUsers.actor(principal)).willReturn(actor);
         given(attendance.currentBusinessDate()).willReturn(LocalDate.of(2026, 8, 31));
         given(accounts.requireIdentityById(7L))
@@ -99,7 +99,7 @@ class AttendanceReportServiceTest {
 
     @Test
     void preservesDistinctRawAndEffectiveCheckoutDisplays() {
-        AttendanceActor actor = new AttendanceActor(7L, AttendanceRole.INTERN);
+        AttendanceActor actor = new AttendanceActor(7L, GlobalRole.INTERN);
         given(currentUsers.actor(principal)).willReturn(actor);
         given(accounts.requireIdentityById(7L))
                 .willReturn(identity(7L, "Mai Intern", GlobalRole.INTERN));
@@ -147,7 +147,7 @@ class AttendanceReportServiceTest {
 
     @Test
     void rejectsInternDetailTargetOutsideOwnAccountBeforeAttendanceRead() {
-        given(currentUsers.actor(principal)).willReturn(new AttendanceActor(7L, AttendanceRole.INTERN));
+        given(currentUsers.actor(principal)).willReturn(new AttendanceActor(7L, GlobalRole.INTERN));
 
         assertThatThrownBy(() -> reports.build(
                 principal,
@@ -160,7 +160,7 @@ class AttendanceReportServiceTest {
     @Test
     void buildsSelectedInternReportForAdmin() {
         Principal admin = () -> "admin@example.test";
-        AttendanceActor actor = new AttendanceActor(1L, AttendanceRole.ADMIN);
+        AttendanceActor actor = new AttendanceActor(1L, GlobalRole.ADMIN);
         LocalDate from = LocalDate.of(2026, 8, 1);
         LocalDate to = LocalDate.of(2026, 8, 31);
         given(currentUsers.actor(admin)).willReturn(actor);
@@ -186,7 +186,7 @@ class AttendanceReportServiceTest {
 
     @Test
     void rendersMentorTargetPickerBeforeReadingAttendanceRows() {
-        given(currentUsers.actor(principal)).willReturn(new AttendanceActor(2L, AttendanceRole.MENTOR));
+        given(currentUsers.actor(principal)).willReturn(new AttendanceActor(2L, GlobalRole.MENTOR));
         given(attendance.currentBusinessDate()).willReturn(LocalDate.of(2026, 8, 31));
         given(accounts.eligibleInternOptions(LocalDate.of(2026, 8, 31)))
                 .willReturn(List.of(new EligibleInternOption(

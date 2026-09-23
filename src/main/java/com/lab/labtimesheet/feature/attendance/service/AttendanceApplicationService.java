@@ -7,7 +7,7 @@ import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceDayContext;
 import com.lab.labtimesheet.feature.attendance.model.AttendancePolicy;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceRecord;
-import com.lab.labtimesheet.feature.attendance.model.AttendanceRole;
+import com.lab.labtimesheet.platform.model.GlobalRole;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceCurrentState;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceHistoryItem;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceReportDateContext;
@@ -139,7 +139,7 @@ public class AttendanceApplicationService {
     @Transactional
     public List<AttendanceHistoryItem> history(
             AttendanceActor actor, long internId, LocalDate from, LocalDate to) {
-        if (actor.role() == AttendanceRole.INTERN && actor.userId() != internId) {
+        if (actor.role() == GlobalRole.INTERN && actor.userId() != internId) {
             throw new AccessDeniedException("Interns may view only their own attendance");
         }
         if (from.isAfter(to)) {

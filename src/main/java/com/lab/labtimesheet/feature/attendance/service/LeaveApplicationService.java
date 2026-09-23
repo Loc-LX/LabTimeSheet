@@ -9,7 +9,7 @@ import com.lab.labtimesheet.feature.identity.service.AccountService;
 import com.lab.labtimesheet.feature.attendance.exception.LeaveException;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
 import com.lab.labtimesheet.feature.attendance.model.AttendancePolicy;
-import com.lab.labtimesheet.feature.attendance.model.AttendanceRole;
+import com.lab.labtimesheet.platform.model.GlobalRole;
 import com.lab.labtimesheet.feature.attendance.model.LeaveStatus;
 import com.lab.labtimesheet.feature.attendance.model.dto.LeaveAllocation;
 import com.lab.labtimesheet.feature.attendance.model.dto.LeaveBalance;
@@ -87,7 +87,7 @@ public class LeaveApplicationService {
         if (identity.status() != AccountStatus.ACTIVE) {
             throw new AccessDeniedException("An active account is required");
         }
-        List<LeaveRequestEntity> visible = actor.role() == AttendanceRole.INTERN
+        List<LeaveRequestEntity> visible = actor.role() == GlobalRole.INTERN
                 ? requests.findByInternUserIdOrderBySubmittedAtDescIdDesc(actor.userId())
                 : requests.findAllByOrderBySubmittedAtDescIdDesc();
         expireVisiblePending(actor, visible);
@@ -233,9 +233,9 @@ public class LeaveApplicationService {
         }
         AccountIdentity identity = accounts.requireIdentityById(actor.userId());
         if (!identity.role().name().equals(actor.role().name())
-                || actor.role() != AttendanceRole.INTERN
-                && actor.role() != AttendanceRole.MENTOR
-                && actor.role() != AttendanceRole.ADMIN) {
+                || actor.role() != GlobalRole.INTERN
+                && actor.role() != GlobalRole.MENTOR
+                && actor.role() != GlobalRole.ADMIN) {
             throw new AccessDeniedException("Leave request list is outside the requested scope");
         }
         return identity;
@@ -557,15 +557,15 @@ public class LeaveApplicationService {
             AttendanceActor actor,
             LeaveRequestEntity request,
             Map<Long, LockedAccountMutationEligibility> lockedAccounts) {
-        if (actor.role() == AttendanceRole.INTERN) {
+        if (actor.role() == GlobalRole.INTERN) {
             requireOwner(request, actor.userId());
             return;
         }
-        if (actor.role() == AttendanceRole.MENTOR) {
+        if (actor.role() == GlobalRole.MENTOR) {
             requireActiveMentor(actor.userId(), lockedAccounts);
             return;
         }
-        if (actor.role() != AttendanceRole.ADMIN) {
+        if (actor.role() != GlobalRole.ADMIN) {
             throw new AccessDeniedException("Leave is outside the requested scope");
         }
     }
@@ -612,13 +612,13 @@ public class LeaveApplicationService {
     }
 
     private static void requireIntern(AttendanceActor actor) {
-        if (actor == null || actor.role() != AttendanceRole.INTERN) {
+        if (actor == null || actor.role() != GlobalRole.INTERN) {
             throw new AccessDeniedException("Only Interns may submit or cancel leave");
         }
     }
 
     private static void requireMentor(AttendanceActor actor) {
-        if (actor == null || actor.role() != AttendanceRole.MENTOR) {
+        if (actor == null || actor.role() != GlobalRole.MENTOR) {
             throw new AccessDeniedException("Only Mentors may decide leave");
         }
     }

@@ -1,9 +1,8 @@
 package com.lab.labtimesheet.feature.attendance.service;
 
 import com.lab.labtimesheet.feature.attendance.exception.PolicyException;
-import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
 import com.lab.labtimesheet.feature.attendance.model.AttendancePolicy;
-import com.lab.labtimesheet.feature.attendance.model.AttendanceRole;
+import com.lab.labtimesheet.feature.identity.service.AccountService;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendancePolicyCommand;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendancePolicyHistoryItem;
 import com.lab.labtimesheet.feature.attendance.model.entity.AttendancePolicyEntity;
@@ -27,18 +26,19 @@ import org.springframework.transaction.annotation.Transactional;
 public class AttendancePolicyApplicationService {
 
     private final Clock clock;
+    private final AccountService accounts;
     private final AttendancePolicyRepository policies;
 
     /**
      * Schedules or replaces a future first-of-month policy and returns non-secret history metadata.
      *
-     * @param actor authenticated Admin actor
+     * @param adminId authenticated Admin account identifier
      * @param command policy values to persist
      * @return retained Policy History projection
      */
     @Transactional
-    public AttendancePolicyHistoryItem schedule(AttendanceActor actor, AttendancePolicyCommand command) {
-        requireAdmin(actor);
+    public AttendancePolicyHistoryItem schedule(long adminId, AttendancePolicyCommand command) {
+        long verifiedAdminId = requireActiveAdminId(adminId);
         validateCommand(command);
         Instant now = clock.instant();
         AttendancePolicy todayPolicy = timeline().resolve(now);
@@ -54,22 +54,22 @@ public class AttendancePolicyApplicationService {
                     if (!existing.effectiveFrom().isAfter(today)) {
                         throw new PolicyException("Effective policy versions are immutable");
                     }
-                    existing.replace(command, actor.userId(), now);
+                    existing.replace(command, verifiedAdminId, now);
                     return existing;
                 })
-                .orElseGet(() -> new AttendancePolicyEntity(command, actor.userId(), now));
+                .orElseGet(() -> new AttendancePolicyEntity(command, verifiedAdminId, now));
         return policies.saveAndFlush(entity).toHistory();
     }
 
     /**
      * Lists all retained versions for the Admin-only Policy History view.
      *
-     * @param actor authenticated Admin actor
+     * @param adminId authenticated Admin account identifier
      * @return versions ordered by effective date
      */
     @Transactional(readOnly = true)
-    public List<AttendancePolicyHistoryItem> history(AttendanceActor actor) {
-        requireAdmin(actor);
+    public List<AttendancePolicyHistoryItem> history(long adminId) {
+        requireActiveAdminId(adminId);
         return policies.findAllByOrderByEffectiveFromAsc().stream()
                 .map(AttendancePolicyEntity::toHistory)
                 .toList();
@@ -98,9 +98,12 @@ public class AttendancePolicyApplicationService {
                 command.workdays());
     }
 
-    private static void requireAdmin(AttendanceActor actor) {
-        if (actor == null || actor.role() != AttendanceRole.ADMIN) {
-            throw new AccessDeniedException("Only Admin may manage attendance policy");
+    private long requireActiveAdminId(long adminId) {
+        try {
+            return accounts.requireActiveAdminId(adminId);
+        } catch (IllegalArgumentException exception) {
+            throw new AccessDeniedException("Only Admin may manage attendance policy", exception);
         }
     }
+
 }
