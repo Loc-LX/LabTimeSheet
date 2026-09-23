@@ -204,6 +204,12 @@ The task is two commits: `R4` in the shared mail and SMTP services first, the cl
 - **Test rule.** 30 changed test files retain exactly the same count of `assert…`, `assertThat…`, `verify` and `andExpect` calls as their pre-move versions. No assertion call or expected value changed; the two structure-test fixture paths are the package-placement evidence required by Part A.
 - **Validation.** `./mvnw -B clean test` on Java 25.0.4.1: 762 tests, 0 failures, 0 errors. `npm run test:ui`: 38/38. `scripts/module-boundaries.cjs`: 311 rules assigned, 0 problems. `git diff --check`: clean.
 
+## Evidence for Task A-08 (whole-application tests, 23 September 2026)
+
+- **Placement.** `LayerStructureTest` and `AttendanceAndTaskWorkSeparationTest` moved with `git mv` from the test package `config` to `architecture`, and both package declarations now match their paths. The ten files left in the test package `config` test configuration classes or application configuration behavior.
+- **Test rule.** Both moved tests retain exactly the same assertion count and expected values; only their package declarations changed. `module-boundaries.tsv` is unchanged in this task: zero lines deleted and zero added.
+- **Validation.** `./mvnw -B clean test` on Java 25.0.4.1: 762 tests, 0 failures, 0 errors. All Java package declarations match their source paths and `git diff --check` is clean.
+
 ## Historical evidence for D33 (checkpoint c443670)
 
 - `npm run test:ui`: 30/30 pass on 20 September 2026, including document structure, counts, versions, references, decision index and relative file links. Node `24.16.0`, npm `11.13.0`; the Playwright contract reads resolved `@playwright/test` `1.62.1` from the lockfile. This run does not execute browser or Java behavior.

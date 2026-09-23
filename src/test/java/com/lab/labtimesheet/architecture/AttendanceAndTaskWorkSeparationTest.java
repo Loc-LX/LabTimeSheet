@@ -1,4 +1,4 @@
-package com.lab.labtimesheet.config;
+package com.lab.labtimesheet.architecture;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
