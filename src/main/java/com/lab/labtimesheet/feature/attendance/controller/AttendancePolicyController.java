@@ -4,6 +4,7 @@ import com.lab.labtimesheet.feature.attendance.exception.PolicyException;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendancePolicyCommand;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceApplicationService;
 import com.lab.labtimesheet.feature.attendance.service.AttendancePolicyApplicationService;
+import com.lab.labtimesheet.feature.attendance.service.CalendarApplicationService;
 import com.lab.labtimesheet.feature.identity.service.AccountService;
 import java.security.Principal;
 import java.time.DayOfWeek;
@@ -40,6 +41,7 @@ public class AttendancePolicyController {
 
     private final AttendanceApplicationService attendance;
     private final AttendancePolicyApplicationService policies;
+    private final CalendarApplicationService calendar;
     private final AccountService accounts;
 
     /**
@@ -52,7 +54,7 @@ public class AttendancePolicyController {
     @GetMapping
     public String page(Principal principal, Model model) {
         long adminId = requireAdminId(principal);
-        var today = attendance.currentBusinessDate();
+        var today = calendar.currentBusinessDate();
         model.addAttribute("today", today);
         model.addAttribute("minimumPolicyMonth", YearMonth.from(today).plusMonths(1));
         model.addAttribute("policyHistory", policies.history(adminId));

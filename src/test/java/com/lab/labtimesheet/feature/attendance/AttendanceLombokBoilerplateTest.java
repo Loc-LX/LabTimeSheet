@@ -80,6 +80,7 @@ class AttendanceLombokBoilerplateTest {
                 constructor(
                         PACKAGE_PRIVATE,
                         AttendanceApplicationService.class,
+                        CalendarApplicationService.class,
                         AttendanceCurrentUserService.class));
         assertConstructors(
                 CalendarController.class,
@@ -479,7 +480,6 @@ class AttendanceLombokBoilerplateTest {
                         long.class,
                         LocalDate.class,
                         LocalDate.class),
-                method(Modifier.PUBLIC, "currentBusinessDate", LocalDate.class),
                 method(
                         Modifier.PUBLIC,
                         "reportDateContext",
@@ -507,6 +507,7 @@ class AttendanceLombokBoilerplateTest {
                         Instant.class));
         assertMethodSurface(
                 CalendarApplicationService.class,
+                method(Modifier.PUBLIC, "currentBusinessDate", LocalDate.class),
                 method(
                         Modifier.PUBLIC,
                         "createManual",

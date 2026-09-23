@@ -8,6 +8,7 @@ import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceReport;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceReportDay;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceApplicationService;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceCurrentUserService;
+import com.lab.labtimesheet.feature.attendance.service.CalendarApplicationService;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceReportQueryService;
 import com.lab.labtimesheet.feature.reporting.model.dto.AttendanceReportRow;
 import com.lab.labtimesheet.feature.reporting.model.dto.AttendanceReportView;
@@ -41,6 +42,7 @@ public class AttendanceReportService {
 
     private final AttendanceCurrentUserService currentUsers;
     private final AttendanceApplicationService attendance;
+    private final CalendarApplicationService calendar;
     private final AttendanceReportQueryService reportQueries;
     private final AccountService accounts;
 
@@ -61,7 +63,7 @@ public class AttendanceReportService {
             LocalDate requestedFrom,
             LocalDate requestedTo) {
         AttendanceActor actor = currentUsers.actor(principal);
-        LocalDate to = requestedTo == null ? attendance.currentBusinessDate() : requestedTo;
+        LocalDate to = requestedTo == null ? calendar.currentBusinessDate() : requestedTo;
         LocalDate from = requestedFrom == null ? to.withDayOfMonth(1) : requestedFrom;
         if (from.isAfter(to)) {
             throw new IllegalArgumentException("from must not be after to");

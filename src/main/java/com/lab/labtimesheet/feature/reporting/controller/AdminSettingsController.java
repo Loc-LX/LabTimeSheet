@@ -273,7 +273,7 @@ public class AdminSettingsController {
 
     private void render(Principal principal, Model model) {
         long adminId = adminId(principal);
-        LocalDate today = attendance.currentBusinessDate();
+        LocalDate today = calendar.currentBusinessDate();
         model.addAttribute("today", today);
         model.addAttribute("defaultYear", today.getYear());
         model.addAttribute("policyHistory", policies.history(adminId));

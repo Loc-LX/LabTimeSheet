@@ -2,6 +2,7 @@ package com.lab.labtimesheet.feature.reporting.service;
 
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceReportDateContext;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceApplicationService;
+import com.lab.labtimesheet.feature.attendance.service.CalendarApplicationService;
 import com.lab.labtimesheet.feature.project.exception.ProjectAccessDeniedException;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectActorView;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectMemberView;
@@ -41,6 +42,7 @@ public class DailyProjectWorkReportService {
     private final ProjectQueryService projects;
     private final TaskQueryService taskQueries;
     private final AttendanceApplicationService attendance;
+    private final CalendarApplicationService calendar;
 
     /**
      * Builds an authorized one-date report for an owning Mentor or the current Leader of one
@@ -82,7 +84,7 @@ public class DailyProjectWorkReportService {
             throw new ProjectAccessDeniedException();
         }
 
-        LocalDate today = attendance.currentBusinessDate();
+        LocalDate today = calendar.currentBusinessDate();
         LocalDate reportDate = requestedDate == null ? today : requestedDate;
         if (reportDate.isAfter(today)) {
             throw new IllegalArgumentException("Report date must not be in the future");

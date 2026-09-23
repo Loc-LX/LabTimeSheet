@@ -15,6 +15,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceReportDateContext;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceApplicationService;
+import com.lab.labtimesheet.feature.attendance.service.CalendarApplicationService;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectActorView;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectSummary;
 import com.lab.labtimesheet.feature.project.service.ProjectQueryService;
@@ -55,6 +56,9 @@ class DailyProjectWorkReportControllerWebTest {
 
     @MockitoBean
     private AttendanceApplicationService attendance;
+
+    @MockitoBean
+    private CalendarApplicationService calendar;
 
     @MockitoBean
     private SmtpConfigurationService smtpConfiguration;
@@ -239,7 +243,7 @@ class DailyProjectWorkReportControllerWebTest {
     @Test
     void currentLeaderWithOneEligibleProjectIsRedirectedToLockedReportAndKeepsDate() throws Exception {
         ProjectSummary project = project(42L, "Portal", "ACTIVE");
-        given(attendance.currentBusinessDate()).willReturn(REPORT_DATE);
+        given(calendar.currentBusinessDate()).willReturn(REPORT_DATE);
         given(projectQueries.authenticatedActor("leader@example.test"))
                 .willReturn(new ProjectActorView(7L, "INTERN"));
         given(projectQueries.hasCurrentLeaderProjectForDailyReport(7L)).willReturn(true);
@@ -258,7 +262,7 @@ class DailyProjectWorkReportControllerWebTest {
     void currentLeaderWithMultipleEligibleProjectsGetsOnlyThoseProjectsInAccessibleSelector() throws Exception {
         ProjectSummary first = project(42L, "Portal", "ACTIVE");
         ProjectSummary second = project(43L, "Research", "PLANNED");
-        given(attendance.currentBusinessDate()).willReturn(REPORT_DATE);
+        given(calendar.currentBusinessDate()).willReturn(REPORT_DATE);
         given(projectQueries.authenticatedActor("leader@example.test"))
                 .willReturn(new ProjectActorView(7L, "INTERN"));
         given(projectQueries.hasCurrentLeaderProjectForDailyReport(7L)).willReturn(true);
@@ -286,7 +290,7 @@ class DailyProjectWorkReportControllerWebTest {
 
     @Test
     void currentLeaderFutureDateCannotReachRedirectOrSelector() throws Exception {
-        given(attendance.currentBusinessDate()).willReturn(REPORT_DATE);
+        given(calendar.currentBusinessDate()).willReturn(REPORT_DATE);
         given(projectQueries.authenticatedActor("leader@example.test"))
                 .willReturn(new ProjectActorView(7L, "INTERN"));
         given(projectQueries.hasCurrentLeaderProjectForDailyReport(7L)).willReturn(true);
@@ -346,7 +350,7 @@ class DailyProjectWorkReportControllerWebTest {
     @Test
     void unqualifiedInternIsDeniedBeforeDateContextForPastCurrentAndFutureDates()
             throws Exception {
-        given(attendance.currentBusinessDate()).willReturn(REPORT_DATE);
+        given(calendar.currentBusinessDate()).willReturn(REPORT_DATE);
         given(projectQueries.authenticatedActor("intern@example.test"))
                 .willReturn(new ProjectActorView(7L, "INTERN"));
         given(projectQueries.hasCurrentLeaderProjectForDailyReport(7L)).willReturn(false);
@@ -368,7 +372,7 @@ class DailyProjectWorkReportControllerWebTest {
                 .hasCurrentLeaderProjectForDailyReport(7L);
         verify(projectQueries, org.mockito.Mockito.never())
                 .listCurrentLeaderProjectsForDailyReport(7L);
-        verify(attendance, org.mockito.Mockito.never()).currentBusinessDate();
+        verify(calendar, org.mockito.Mockito.never()).currentBusinessDate();
         verify(reports, org.mockito.Mockito.never()).build(anyString(), any(), any());
     }
 

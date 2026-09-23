@@ -42,7 +42,7 @@ public class CalendarController {
     @GetMapping
     public String calendar(Principal principal, Model model) {
         long adminId = requireAdminId(principal);
-        LocalDate today = attendance.currentBusinessDate();
+        LocalDate today = calendar.currentBusinessDate();
         model.addAttribute("events", calendar.list(today, today.plusYears(1)));
         model.addAttribute("history", calendar.history(adminId));
         model.addAttribute("today", today);

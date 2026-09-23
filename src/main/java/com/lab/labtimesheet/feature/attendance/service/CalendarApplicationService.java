@@ -47,6 +47,17 @@ public class CalendarApplicationService {
     private final TransactionTemplate transactions;
 
     /**
+     * Resolves the current business date in the timezone of the effective policy owned by calendar.
+     *
+     * @return current policy-local date from the injected server clock
+     */
+    @Transactional(readOnly = true)
+    public LocalDate currentBusinessDate() {
+        AttendancePolicy policy = policyTimeline().resolve(clock.instant());
+        return clock.instant().atZone(policy.zoneId()).toLocalDate();
+    }
+
+    /**
      * Creates an Admin-authored custom event on a non-past policy-local date.
      *
      * @param adminId authenticated Admin account identifier

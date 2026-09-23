@@ -16,6 +16,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendancePolicyHistoryItem;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceApplicationService;
+import com.lab.labtimesheet.feature.attendance.service.CalendarApplicationService;
 import com.lab.labtimesheet.feature.attendance.service.AttendancePolicyApplicationService;
 import com.lab.labtimesheet.feature.identity.service.AccountService;
 import com.lab.labtimesheet.platform.service.SmtpConfigurationService;
@@ -41,6 +42,9 @@ class AttendancePolicyControllerWebTest {
     private AttendanceApplicationService attendance;
 
     @MockitoBean
+    private CalendarApplicationService calendar;
+
+    @MockitoBean
     private AttendancePolicyApplicationService policies;
 
     @MockitoBean
@@ -49,7 +53,7 @@ class AttendancePolicyControllerWebTest {
     @Test
     void nativeFutureMonthBindsToTheFirstDayAndRendersHistory() throws Exception {
         when(accounts.requireActiveAdminId("admin@example.test")).thenReturn(1L);
-        when(attendance.currentBusinessDate()).thenReturn(LocalDate.of(2026, 8, 21));
+        when(calendar.currentBusinessDate()).thenReturn(LocalDate.of(2026, 8, 21));
         when(policies.history(1L)).thenReturn(List.of());
 
         mvc.perform(get("/admin/attendance-policies")

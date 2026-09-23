@@ -121,7 +121,7 @@ class AttendanceControllerTest {
     void mentorCanInspectInternHistory() throws Exception {
         AttendanceActor mentor = new AttendanceActor(7L, GlobalRole.MENTOR);
         when(currentUsers.actor(any())).thenReturn(mentor);
-        when(attendance.currentBusinessDate()).thenReturn(LocalDate.of(2026, 8, 14));
+        when(calendar.currentBusinessDate()).thenReturn(LocalDate.of(2026, 8, 14));
         when(attendance.history(eq(mentor), eq(42L), any(), any())).thenReturn(List.of());
 
         mockMvc.perform(get("/attendance/interns/42")
@@ -166,7 +166,7 @@ class AttendanceControllerTest {
     void adminCalendarRendersEditableVersionedEvents() throws Exception {
         AttendanceActor admin = new AttendanceActor(1L, GlobalRole.ADMIN);
         when(currentUsers.actor(any())).thenReturn(admin);
-        when(attendance.currentBusinessDate()).thenReturn(LocalDate.of(2026, 8, 14));
+        when(calendar.currentBusinessDate()).thenReturn(LocalDate.of(2026, 8, 14));
         when(calendar.list(LocalDate.of(2026, 8, 14), LocalDate.of(2027, 8, 14)))
                 .thenReturn(List.of(new GlobalCalendarEvent(
                         9L, LocalDate.of(2026, 8, 20), "Lab closure", true, 3L)));

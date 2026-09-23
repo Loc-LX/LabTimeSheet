@@ -79,7 +79,7 @@ class AdminSettingsControllerWebTest {
         AttendanceActor actor = adminActor();
         when(currentUsers.actor(org.mockito.ArgumentMatchers.any())).thenReturn(actor);
         when(accounts.requireActiveAdminId("admin@example.test")).thenReturn(1L);
-        when(attendance.currentBusinessDate()).thenReturn(LocalDate.of(2026, 8, 21));
+        when(calendar.currentBusinessDate()).thenReturn(LocalDate.of(2026, 8, 21));
         when(holidayApi.setupStatus(1L)).thenReturn(new HolidayApiSetupStatus(false, null, false, "VN"));
         Instant now = Instant.parse("2026-08-21T00:00:00Z");
         AttendancePolicy policy = new AttendancePolicy(
@@ -129,7 +129,7 @@ class AdminSettingsControllerWebTest {
         AttendanceActor actor = adminActor();
         when(currentUsers.actor(org.mockito.ArgumentMatchers.any())).thenReturn(actor);
         when(accounts.requireActiveAdminId("admin@example.test")).thenReturn(1L);
-        when(attendance.currentBusinessDate()).thenReturn(LocalDate.of(2026, 8, 21));
+        when(calendar.currentBusinessDate()).thenReturn(LocalDate.of(2026, 8, 21));
         when(holidayApi.setupStatus(1L)).thenReturn(new HolidayApiSetupStatus(true, null, false, "VN"));
         HolidayApiCandidate candidate = new HolidayApiCandidate(
                 "uuid-1", "National Day", LocalDate.of(2026, 9, 2), LocalDate.of(2026, 9, 2), true);
@@ -237,7 +237,7 @@ class AdminSettingsControllerWebTest {
         AttendanceActor actor = adminActor();
         when(currentUsers.actor(org.mockito.ArgumentMatchers.any())).thenReturn(actor);
         when(accounts.requireActiveAdminId("admin@example.test")).thenReturn(1L);
-        when(attendance.currentBusinessDate()).thenReturn(LocalDate.of(2026, 8, 21));
+        when(calendar.currentBusinessDate()).thenReturn(LocalDate.of(2026, 8, 21));
         when(policies.history(actor.userId())).thenReturn(List.of());
         when(calendar.history(actor.userId())).thenReturn(List.of());
         when(smtp.history(1L)).thenReturn(List.of());
