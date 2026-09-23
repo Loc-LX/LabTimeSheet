@@ -25,9 +25,9 @@ import com.lab.labtimesheet.feature.reporting.model.dto.DailyProjectWorkReportPr
 import com.lab.labtimesheet.feature.reporting.model.dto.DailyProjectWorkReportTask;
 import com.lab.labtimesheet.feature.reporting.model.dto.DailyProjectWorkReportView;
 import com.lab.labtimesheet.feature.reporting.service.DailyProjectWorkReportService;
-import com.lab.labtimesheet.feature.task.model.TaskStatus;
-import com.lab.labtimesheet.feature.task.model.TaskVarianceState;
-import com.lab.labtimesheet.feature.task.model.dto.TaskRemainingEffortForecastSummary;
+import com.lab.labtimesheet.feature.project.model.TaskStatus;
+import com.lab.labtimesheet.feature.project.model.TaskVarianceState;
+import com.lab.labtimesheet.feature.project.model.dto.TaskRemainingEffortForecastSummary;
 import com.lab.labtimesheet.platform.service.SmtpConfigurationService;
 import java.time.Instant;
 import java.time.LocalDate;

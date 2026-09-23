@@ -8,7 +8,7 @@ import com.lab.labtimesheet.feature.reporting.service.AttendanceReportService;
 import com.lab.labtimesheet.feature.reporting.service.DailyProjectWorkReportService;
 import com.lab.labtimesheet.feature.reporting.service.ProjectTaskReportService;
 import com.lab.labtimesheet.feature.reporting.service.ReportExportService;
-import com.lab.labtimesheet.feature.task.model.TaskStatus;
+import com.lab.labtimesheet.feature.project.model.TaskStatus;
 import java.time.LocalDate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;

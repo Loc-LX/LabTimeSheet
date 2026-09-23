@@ -1,7 +1,7 @@
 package com.lab.labtimesheet.feature.reporting.controller;
 
 import com.lab.labtimesheet.feature.reporting.service.ProjectTaskReportService;
-import com.lab.labtimesheet.feature.task.model.TaskStatus;
+import com.lab.labtimesheet.feature.project.model.TaskStatus;
 import java.time.LocalDate;
 import java.util.List;
 import lombok.RequiredArgsConstructor;

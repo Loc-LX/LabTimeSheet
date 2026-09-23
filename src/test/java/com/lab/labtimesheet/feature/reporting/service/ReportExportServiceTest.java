@@ -12,7 +12,7 @@ import com.lab.labtimesheet.feature.reporting.model.dto.ProjectTaskReportFilter;
 import com.lab.labtimesheet.feature.reporting.model.dto.ProjectTaskReportMemberHours;
 import com.lab.labtimesheet.feature.reporting.model.dto.ProjectTaskReportRow;
 import com.lab.labtimesheet.feature.reporting.model.dto.ProjectTaskReportView;
-import com.lab.labtimesheet.feature.task.model.TaskStatus;
+import com.lab.labtimesheet.feature.project.model.TaskStatus;
 import java.io.ByteArrayInputStream;
 import java.time.Instant;
 import java.time.LocalDate;

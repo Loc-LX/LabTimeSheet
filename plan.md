@@ -197,6 +197,13 @@ The task is two commits: `R4` in the shared mail and SMTP services first, the cl
 - **Boundary list.** 32 placements and 16 allowances were deleted across the three commits and this correction; nothing was added. 10 placements and 14 allowances remain: `R1` four and `R3` ten, which A-10 and A-11 remove.
 - **Validation.** `./mvnw -B clean test`: 762 tests, 0 failures, 0 errors. `npm run test:ui`: 38/38. `git diff --check`: clean.
 
+## Evidence for Task A-07 (merge task into project, 23 September 2026)
+
+- **Placement.** All 42 production classes and 14 tests under `feature/task` moved with `git mv` into the corresponding `feature/project` layers. Their package lines and 353 Java references now name `feature.project`; the Task types retain their simple names, so no Spring bean-name collision is introduced. The empty source and test directories for `task` were removed.
+- **Boundary and structure checks.** The one temporary placement `P\\tcom.lab.labtimesheet.feature.task.*\\tproject` was deleted from `module-boundaries.tsv`; no line was added. Nine placements and 14 allowances remain. `LayerStructureTest` no longer permits a `task` feature and `TaskPersistenceStructureTest` now reads the project source path. The analyzer no longer maps a `task` module.
+- **Test rule.** 30 changed test files retain exactly the same count of `assert…`, `assertThat…`, `verify` and `andExpect` calls as their pre-move versions. No assertion call or expected value changed; the two structure-test fixture paths are the package-placement evidence required by Part A.
+- **Validation.** `./mvnw -B clean test` on Java 25.0.4.1: 762 tests, 0 failures, 0 errors. `npm run test:ui`: 38/38. `scripts/module-boundaries.cjs`: 311 rules assigned, 0 problems. `git diff --check`: clean.
+
 ## Historical evidence for D33 (checkpoint c443670)
 
 - `npm run test:ui`: 30/30 pass on 20 September 2026, including document structure, counts, versions, references, decision index and relative file links. Node `24.16.0`, npm `11.13.0`; the Playwright contract reads resolved `@playwright/test` `1.62.1` from the lockfile. This run does not execute browser or Java behavior.

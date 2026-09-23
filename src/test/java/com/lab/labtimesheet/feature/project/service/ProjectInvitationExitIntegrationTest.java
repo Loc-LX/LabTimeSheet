@@ -11,8 +11,8 @@ import com.lab.labtimesheet.feature.project.exception.ProjectAccessDeniedExcepti
 import com.lab.labtimesheet.feature.project.exception.ProjectRuleViolationException;
 import com.lab.labtimesheet.feature.project.model.InvitationResponse;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectCreateCommand;
-import com.lab.labtimesheet.feature.task.exception.TaskConflictException;
-import com.lab.labtimesheet.feature.task.model.dto.RemainingEffortForecastInput;
+import com.lab.labtimesheet.feature.project.exception.TaskConflictException;
+import com.lab.labtimesheet.feature.project.model.dto.RemainingEffortForecastInput;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import java.time.Instant;

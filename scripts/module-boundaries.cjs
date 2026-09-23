@@ -193,7 +193,6 @@ function moduleOfClass(fqn) {
     case 'calendar': return 'calendar';
     // R4 puts the SMTP administration screen in identity, beside the bootstrap that offers SMTP setup.
     case 'integration': return cls.startsWith('HolidayApi') ? 'calendar' : cls === 'SmtpController' ? 'identity' : 'platform';
-    case 'task':
     case 'project': return 'project';
     case 'reporting': return cls === 'AdminSettingsController' ? 'calendar' : cls === 'NotificationController' ? 'notification' : 'reporting';
     case 'notification': return 'notification';

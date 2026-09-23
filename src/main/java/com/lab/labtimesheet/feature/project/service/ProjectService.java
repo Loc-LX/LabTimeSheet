@@ -31,10 +31,10 @@ import com.lab.labtimesheet.feature.project.model.entity.ProjectMembershipEntity
 import com.lab.labtimesheet.feature.project.repository.ProjectExitRequestRepository;
 import com.lab.labtimesheet.feature.project.repository.ProjectInvitationRepository;
 import com.lab.labtimesheet.feature.project.repository.ProjectRepository;
-import com.lab.labtimesheet.feature.task.model.dto.RemainingEffortForecastInput;
-import com.lab.labtimesheet.feature.task.service.TaskQueryService;
-import com.lab.labtimesheet.feature.task.service.TaskTransferResult;
-import com.lab.labtimesheet.feature.task.service.TaskTransferService;
+import com.lab.labtimesheet.feature.project.model.dto.RemainingEffortForecastInput;
+import com.lab.labtimesheet.feature.project.service.TaskQueryService;
+import com.lab.labtimesheet.feature.project.service.TaskTransferResult;
+import com.lab.labtimesheet.feature.project.service.TaskTransferService;
 import com.lab.labtimesheet.platform.model.GlobalRole;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;

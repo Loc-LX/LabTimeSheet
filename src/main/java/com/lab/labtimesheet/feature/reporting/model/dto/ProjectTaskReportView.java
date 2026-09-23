@@ -2,7 +2,7 @@ package com.lab.labtimesheet.feature.reporting.model.dto;
 
 import com.lab.labtimesheet.feature.project.model.dto.ProjectSummary;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectTaskMemberView;
-import com.lab.labtimesheet.feature.task.model.TaskStatus;
+import com.lab.labtimesheet.feature.project.model.TaskStatus;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
