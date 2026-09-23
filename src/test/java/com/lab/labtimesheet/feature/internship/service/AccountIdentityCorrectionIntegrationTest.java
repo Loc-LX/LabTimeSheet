@@ -15,7 +15,6 @@ import com.lab.labtimesheet.feature.identity.model.AccountStatus;
 import com.lab.labtimesheet.feature.identity.model.dto.AccountDirectoryFilter;
 import com.lab.labtimesheet.feature.identity.model.dto.AccountIdentityCorrection;
 import com.lab.labtimesheet.feature.identity.model.dto.CreateAccountCommand;
-import com.lab.labtimesheet.feature.internship.model.dto.InternshipLifecycleGuard;
 import com.lab.labtimesheet.feature.identity.repository.AppUserRepository;
 import com.lab.labtimesheet.feature.internship.repository.InternProfileRepository;
 import com.lab.labtimesheet.feature.identity.repository.UserActionTokenRepository;
@@ -272,14 +271,14 @@ class AccountIdentityCorrectionIntegrationTest {
         long adminId = accounts.requireActiveAdminId(ADMIN_EMAIL);
         enableSmtp(adminId);
         long completedId = createActiveIntern(adminId, "completed@example.com", "Completed Intern", "STU-COMPLETE");
-        internships.completeInternship(completedId, adminId, new InternshipLifecycleGuard(false, 0));
+        internships.completeInternship(completedId, adminId);
         assertThatThrownBy(() -> internships.correctAccount(completedId, adminId, new AccountIdentityCorrection(
                 null, "STU-COMPLETE-NEW", null, null)))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("read-only");
 
         long withdrawnId = createActiveIntern(adminId, "withdrawn@example.com", "Withdrawn Intern", "STU-WITHDRAW");
-        internships.withdrawInternship(withdrawnId, adminId, new InternshipLifecycleGuard(false, 0));
+        internships.withdrawInternship(withdrawnId, adminId);
         assertThatThrownBy(() -> internships.correctAccount(withdrawnId, adminId, new AccountIdentityCorrection(
                 null, "STU-WITHDRAW-NEW", null, null)))
                 .isInstanceOf(IllegalStateException.class)

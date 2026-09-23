@@ -187,6 +187,11 @@ class ModuleBoundaryCycleTest {
                     ambiguityProblems.add(source.simpleName() + " -> " + referencedName);
                 }
                 if (target == null || target.fullyQualifiedName().equals(source.fullyQualifiedName())) continue;
+                for (InterfaceInfo info : interfaces.values()) {
+                    if (info.name.equals(target.simpleName()) && info.declaringModule.equals(from)) {
+                        info.called = true;
+                    }
+                }
                 String to = modules.get(target);
                 if (to == null || from.equals(to)) continue;
                 for (InterfaceInfo info : interfaces.values()) {
@@ -194,9 +199,6 @@ class ModuleBoundaryCycleTest {
                             && !info.implementations.contains(source)
                             && modules.get(info.source).equals(to) && !info.name.equals(target.simpleName())) {
                         info.implementationDependency = true;
-                    }
-                    if (info.name.equals(target.simpleName()) && modules.get(info.source).equals(from)) {
-                        info.called = true;
                     }
                 }
                 Reference reference = new Reference(source.simpleName(), target.simpleName());

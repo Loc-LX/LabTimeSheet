@@ -43,11 +43,17 @@ import org.springframework.transaction.annotation.Transactional;
 public class InternshipService {
     private final AccountService accounts;
     private final InternProfileRepository internProfiles;
+    private final InternshipLifecycleReadiness lifecycleReadiness;
     private final Clock clock;
 
-    InternshipService(AccountService accounts, InternProfileRepository internProfiles, Clock clock) {
+    InternshipService(
+            AccountService accounts,
+            InternProfileRepository internProfiles,
+            InternshipLifecycleReadiness lifecycleReadiness,
+            Clock clock) {
         this.accounts = accounts;
         this.internProfiles = internProfiles;
+        this.lifecycleReadiness = lifecycleReadiness;
         this.clock = clock;
     }
 
@@ -182,25 +188,37 @@ public class InternshipService {
         return activated;
     }
 
-    /** Completes an Intern after the producer-owned terminal-readiness guard succeeds. */
-    @Transactional
-    public void completeInternship(long internUserId, long adminId, InternshipLifecycleGuard guard) {
-        requireTerminalGuard(guard);
+    /** Returns producer-owned readiness facts for an Admin-managed Intern account page. */
+    @Transactional(readOnly = true)
+    public InternshipLifecycleGuard internshipLifecycleReadiness(long internUserId, long adminId) {
         accounts.requireActiveAdminId(adminId);
-        AccountIdentity intern = lockedInternIdentity(internUserId);
-        if (intern.status() != AccountStatus.ACTIVE) {
+        AccountIdentity intern = accounts.requireIdentityById(internUserId);
+        if (intern.role() != GlobalRole.INTERN) {
+            throw new IllegalArgumentException("An Intern account is required");
+        }
+        return lifecycleReadiness.preview(internUserId);
+    }
+
+    /** Completes an Intern after recomputing producer-owned readiness under the shared lock order. */
+    @Transactional
+    public void completeInternship(long internUserId, long adminId) {
+        List<LockedAccountMutationEligibility> lockedAccounts = lockTerminalAccounts(adminId, internUserId);
+        LockedAccountMutationEligibility intern = terminalIntern(lockedAccounts, adminId, internUserId);
+        requireTerminalGuard(lifecycleReadiness.lockForTerminalAction(internUserId));
+        if (intern.accountStatus() != AccountStatus.ACTIVE) {
             throw new IllegalStateException("Only an active Intern account can complete");
         }
         lockInternProfile(internUserId).complete(clock.instant());
     }
 
-    /** Withdraws an Intern and deactivates its identity after the terminal-readiness guard succeeds. */
+    /** Withdraws an Intern after recomputing readiness, then deactivates its identity atomically. */
     @Transactional
-    public void withdrawInternship(long internUserId, long adminId, InternshipLifecycleGuard guard) {
-        requireTerminalGuard(guard);
-        accounts.requireActiveAdminId(adminId);
-        AccountIdentity intern = lockedInternIdentity(internUserId);
-        if (intern.status() == AccountStatus.PENDING_ACTIVATION || intern.status() == AccountStatus.DEACTIVATED) {
+    public void withdrawInternship(long internUserId, long adminId) {
+        List<LockedAccountMutationEligibility> lockedAccounts = lockTerminalAccounts(adminId, internUserId);
+        LockedAccountMutationEligibility intern = terminalIntern(lockedAccounts, adminId, internUserId);
+        requireTerminalGuard(lifecycleReadiness.lockForTerminalAction(internUserId));
+        if (intern.accountStatus() == AccountStatus.PENDING_ACTIVATION
+                || intern.accountStatus() == AccountStatus.DEACTIVATED) {
             throw new IllegalStateException("Only an activated Intern account can withdraw");
         }
         lockInternProfile(internUserId).withdraw(clock.instant());
@@ -451,6 +469,37 @@ public class InternshipService {
 
     private AccountIdentity identityOrNull(long userId) {
         return accounts.identityById(userId).orElse(null);
+    }
+
+    private List<LockedAccountMutationEligibility> lockTerminalAccounts(long adminId, long internUserId) {
+        try {
+            return lockedAccountMutationEligibility(List.of(adminId, internUserId));
+        } catch (IllegalArgumentException failure) {
+            throw new IllegalArgumentException("Account action could not be completed", failure);
+        }
+    }
+
+    private static LockedAccountMutationEligibility terminalIntern(
+            List<LockedAccountMutationEligibility> lockedAccounts,
+            long adminId,
+            long internUserId) {
+        LockedAccountMutationEligibility admin = lockedEligibility(lockedAccounts, adminId);
+        if (admin.role() != GlobalRole.ADMIN || admin.accountStatus() != AccountStatus.ACTIVE) {
+            throw new IllegalArgumentException("An active Admin is required");
+        }
+        LockedAccountMutationEligibility intern = lockedEligibility(lockedAccounts, internUserId);
+        if (intern.role() != GlobalRole.INTERN) {
+            throw new IllegalArgumentException("An Intern account is required");
+        }
+        return intern;
+    }
+
+    private static LockedAccountMutationEligibility lockedEligibility(
+            List<LockedAccountMutationEligibility> lockedAccounts, long userId) {
+        return lockedAccounts.stream()
+                .filter(snapshot -> snapshot.userId() == userId)
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("Locked Account snapshot is missing"));
     }
 
     private static void activateIfDue(

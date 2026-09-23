@@ -16,7 +16,6 @@ import com.lab.labtimesheet.feature.identity.model.AccountStatus;
 import com.lab.labtimesheet.feature.internship.model.InternshipStatus;
 import com.lab.labtimesheet.feature.identity.model.dto.CreateAccountCommand;
 import com.lab.labtimesheet.feature.internship.model.dto.InternWorkWindow;
-import com.lab.labtimesheet.feature.internship.model.dto.InternshipLifecycleGuard;
 import com.lab.labtimesheet.feature.internship.model.dto.LockedAccountMutationEligibility;
 import com.lab.labtimesheet.feature.identity.service.AccountService;
 import com.lab.labtimesheet.feature.identity.service.BootstrapService;
@@ -737,7 +736,7 @@ class AttendancePersistenceIntegrationTest {
         AttendanceActor intern = new AttendanceActor(internId, GlobalRole.INTERN);
         var submitted = leaves.submit(intern, new LeaveRequestCommand(
                 LocalDate.of(2026, 8, 17), LocalDate.of(2026, 8, 17), "terminal edit"));
-        internships.completeInternship(internId, adminId, new InternshipLifecycleGuard(false, 0));
+        internships.completeInternship(internId, adminId);
 
         assertThatThrownBy(() -> leaves.edit(intern, submitted.id(), new LeaveRequestCommand(
                         LocalDate.of(2026, 8, 18), LocalDate.of(2026, 8, 18), "must reject")))
@@ -1809,8 +1808,7 @@ class AttendancePersistenceIntegrationTest {
         entityManager.flush();
 
         clock.set(terminalDate.atStartOfDay(ZoneOffset.UTC).toInstant());
-        internships.completeInternship(
-                terminalIntern, adminId, new InternshipLifecycleGuard(false, 0));
+        internships.completeInternship(terminalIntern, adminId);
 
         long reportMentorId = createActiveMentor();
         AttendanceReport report = attendanceReports.query(
@@ -1848,11 +1846,11 @@ class AttendancePersistenceIntegrationTest {
         entityManager.flush();
 
         clock.set(emptyDate.atStartOfDay(ZoneOffset.UTC).toInstant());
-        internships.completeInternship(emptyIntern, adminId, new InternshipLifecycleGuard(false, 0));
+        internships.completeInternship(emptyIntern, adminId);
         clock.set(leaveDate.atStartOfDay(ZoneOffset.UTC).toInstant());
-        internships.completeInternship(leaveIntern, adminId, new InternshipLifecycleGuard(false, 0));
+        internships.completeInternship(leaveIntern, adminId);
         clock.set(dayOffDate.atStartOfDay(ZoneOffset.UTC).toInstant());
-        internships.completeInternship(dayOffIntern, adminId, new InternshipLifecycleGuard(false, 0));
+        internships.completeInternship(dayOffIntern, adminId);
 
         long reportMentorId = createActiveMentor();
         AttendanceReport emptyReport = attendanceReports.query(

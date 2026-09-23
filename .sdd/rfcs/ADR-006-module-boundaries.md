@@ -43,7 +43,7 @@ conditions and be added to this table in the same change.
 
 | Interface | Declared and called by | Implemented by | Dependency that exists without it | Built in |
 |---|---|---|---|---|
-| Lifecycle readiness: does an Intern still hold a leadership term or own an unfinished Task (`ACC-022`) | `internship` | `project` | `project` needs internship state for invitation and direct addition (`PRJ-017`) and locks the Intern profile for work-log totals (`DB-008`); 42 code references today | step 6 of `D28` |
+| `InternshipLifecycleReadiness`: does an Intern still hold a leadership term or own an unfinished Task (`ACC-022`) | `internship` | `project` | `project` needs internship state for invitation and direct addition (`PRJ-017`) and locks the Intern profile for work-log totals (`DB-008`); 42 code references today | step 6 of `D28` |
 | Calendar change impact: what a change to the calendar affects (`CAL-007`, `CAL-008`) | `calendar` | `attendance`, `project` | `attendance` needs days off (`CAL-009`, `LEV-002`), the business date and the policy; `project` needs days off for due dates (`CAL-009`) and the business date | when `CAL-007` and `CAL-008` are implemented; if built as two interfaces, each gets its own row |
 
 ## Rationale

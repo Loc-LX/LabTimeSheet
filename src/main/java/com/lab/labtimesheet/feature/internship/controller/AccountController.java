@@ -10,9 +10,6 @@ import com.lab.labtimesheet.feature.identity.model.dto.CreateAccountForm;
 import com.lab.labtimesheet.feature.internship.model.dto.InternshipAccountAdministrationView;
 import com.lab.labtimesheet.feature.identity.service.AccountService;
 import com.lab.labtimesheet.feature.internship.service.InternshipService;
-import com.lab.labtimesheet.feature.project.exception.ProjectAccessDeniedException;
-import com.lab.labtimesheet.feature.project.service.ProjectQueryService;
-import com.lab.labtimesheet.feature.project.service.ProjectService;
 import com.lab.labtimesheet.platform.model.GlobalRole;
 import jakarta.validation.Valid;
 import lombok.AccessLevel;
@@ -34,15 +31,13 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 /**
  * Handles Admin account creation and composed identity/internship administration screens.
  * Known database uniqueness constraints are mapped to their owning form fields without exposing persistence
- * diagnostics. Intern terminal actions recompute Project and Task readiness through the producer-owned services.
+ * diagnostics. Intern terminal actions recompute Project and Task readiness through the Internship service.
  */
 @Controller
 @RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 class AccountController {
     private final AccountService accounts;
     private final InternshipService internships;
-    private final ProjectQueryService projectQueries;
-    private final ProjectService projects;
 
     @GetMapping("/admin/accounts")
     String accountList(
@@ -69,10 +64,10 @@ class AccountController {
             if (account.role() == GlobalRole.INTERN) {
                 model.addAttribute(
                         "readiness",
-                        projectQueries.internshipLifecycleGuard(adminId, targetUserId));
+                        internships.internshipLifecycleReadiness(targetUserId, adminId));
             }
             return "accounts/index";
-        } catch (IllegalArgumentException | ProjectAccessDeniedException failure) {
+        } catch (IllegalArgumentException failure) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND);
         }
     }
@@ -89,7 +84,7 @@ class AccountController {
             model.addAttribute("selectedAccount", account);
             model.addAttribute("correctionForm", correctionForm(account));
             return "accounts/edit";
-        } catch (IllegalArgumentException | ProjectAccessDeniedException failure) {
+        } catch (IllegalArgumentException failure) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND);
         }
     }
@@ -132,7 +127,7 @@ class AccountController {
                 throw new IllegalArgumentException("Account not editable");
             }
             return account;
-        } catch (IllegalArgumentException | ProjectAccessDeniedException failure) {
+        } catch (IllegalArgumentException failure) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND);
         }
     }
@@ -174,7 +169,7 @@ class AccountController {
         return mutateAccount(
                 targetUserId,
                 redirectAttributes,
-                () -> projects.completeInternship(adminId, targetUserId),
+                () -> internships.completeInternship(targetUserId, adminId),
                 "Internship completed");
     }
 
@@ -187,7 +182,7 @@ class AccountController {
         return mutateAccount(
                 targetUserId,
                 redirectAttributes,
-                () -> projects.withdrawInternship(adminId, targetUserId),
+                () -> internships.withdrawInternship(targetUserId, adminId),
                 "Internship withdrawn");
     }
 

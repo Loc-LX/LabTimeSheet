@@ -23,8 +23,6 @@ import com.lab.labtimesheet.feature.identity.model.dto.AccountIdentityCorrection
 import com.lab.labtimesheet.feature.internship.model.dto.InternshipAccountAdministrationView;
 import com.lab.labtimesheet.feature.internship.model.dto.InternshipLifecycleGuard;
 import com.lab.labtimesheet.feature.identity.service.AccountService;
-import com.lab.labtimesheet.feature.project.service.ProjectQueryService;
-import com.lab.labtimesheet.feature.project.service.ProjectService;
 import com.lab.labtimesheet.platform.model.GlobalRole;
 import com.lab.labtimesheet.platform.service.SmtpConfigurationService;
 import java.time.LocalDate;
@@ -53,12 +51,6 @@ class AccountAdministrationControllerWebTest {
     private InternshipService internships;
 
     @MockitoBean
-    private ProjectQueryService projectQueries;
-
-    @MockitoBean
-    private ProjectService projects;
-
-    @MockitoBean
     private SmtpConfigurationService smtpConfiguration;
 
     @Test
@@ -71,7 +63,7 @@ class AccountAdministrationControllerWebTest {
                         null, null, null, null),
                 intern));
         when(internships.administrationView(7L, 1L)).thenReturn(intern);
-        when(projectQueries.internshipLifecycleGuard(1L, 7L))
+        when(internships.internshipLifecycleReadiness(7L, 1L))
                 .thenReturn(new InternshipLifecycleGuard(false, 0));
 
         mvc.perform(get("/admin/accounts").with(user(ADMIN_EMAIL).roles("ADMIN")))
@@ -94,7 +86,7 @@ class AccountAdministrationControllerWebTest {
         InternshipAccountAdministrationView intern = intern();
         when(accounts.requireActiveAdminId(ADMIN_EMAIL)).thenReturn(1L);
         when(internships.administrationView(7L, 1L)).thenReturn(intern);
-        when(projectQueries.internshipLifecycleGuard(1L, 7L))
+        when(internships.internshipLifecycleReadiness(7L, 1L))
                 .thenReturn(new InternshipLifecycleGuard(true, 2));
 
         mvc.perform(get("/admin/accounts/7").with(user(ADMIN_EMAIL).roles("ADMIN")))
@@ -278,8 +270,8 @@ class AccountAdministrationControllerWebTest {
                         .with(user(ADMIN_EMAIL).roles("ADMIN")).with(csrf()))
                 .andExpect(status().is3xxRedirection());
 
-        verify(projects).completeInternship(1L, 7L);
-        verify(projects).withdrawInternship(1L, 7L);
+        verify(internships).completeInternship(7L, 1L);
+        verify(internships).withdrawInternship(7L, 1L);
     }
 
     @Test

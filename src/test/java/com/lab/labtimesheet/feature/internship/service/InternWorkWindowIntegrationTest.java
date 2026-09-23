@@ -5,6 +5,7 @@ import com.lab.labtimesheet.feature.identity.service.BootstrapService;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
 
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.InvocationTargetException;
@@ -142,6 +143,7 @@ class InternWorkWindowIntegrationTest {
         InternshipService scheduler = new InternshipService(
                 schedulerAccounts,
                 gated(internProfiles, InternProfileRepository.class, barrier),
+                mock(InternshipLifecycleReadiness.class),
                 clock);
 
         ExecutorService executor = Executors.newFixedThreadPool(2);

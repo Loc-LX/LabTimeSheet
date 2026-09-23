@@ -1,7 +1,6 @@
 package com.lab.labtimesheet.feature.project.service;
 
 import com.lab.labtimesheet.feature.identity.model.dto.AccountIdentity;
-import com.lab.labtimesheet.feature.internship.model.dto.InternshipLifecycleGuard;
 import com.lab.labtimesheet.feature.identity.service.AccountService;
 import com.lab.labtimesheet.feature.internship.service.InternshipService;
 import com.lab.labtimesheet.feature.project.exception.ProjectAccessDeniedException;
@@ -673,46 +672,6 @@ public class ProjectQueryService {
                     0L);
             default -> throw new ProjectAccessDeniedException();
         };
-    }
-
-    /**
-     * Previews the Project and Task readiness facts for an Admin-managed Intern terminal action.
-     *
-     * <p>This read snapshot drives explanatory UI only. {@link ProjectService} recomputes the same facts while
-     * retaining Account/profile and Project locks before completing or withdrawing the Intern.</p>
-     *
-     * @param adminUserId active Admin requesting the preview
-     * @param internUserId Intern account being inspected
-     * @return current-Leader and unfinished-Task facts across current Project memberships
-     * @throws ProjectAccessDeniedException when the actor or target shape is unavailable
-     */
-    @Transactional(readOnly = true)
-    public InternshipLifecycleGuard internshipLifecycleGuard(long adminUserId, long internUserId) {
-        if (activeActor(adminUserId).role() != GlobalRole.ADMIN) {
-            throw new ProjectAccessDeniedException();
-        }
-        AccountIdentity intern;
-        try {
-            intern = accounts.requireIdentityById(internUserId);
-        } catch (IllegalArgumentException failure) {
-            throw new ProjectAccessDeniedException();
-        }
-        if (intern.role() != GlobalRole.INTERN) {
-            throw new ProjectAccessDeniedException();
-        }
-        var currentMemberships = projects.findMembershipIntervalsByInternUserId(internUserId).stream()
-                .filter(interval -> interval.leftAt() == null)
-                .toList();
-        boolean currentLeader = currentMemberships.stream().anyMatch(interval -> {
-            var route = projects.findMutationRouteById(interval.projectId())
-                    .orElseThrow(ProjectAccessDeniedException::new);
-            return route.currentLeaderUserId() != null && route.currentLeaderUserId() == internUserId;
-        });
-        long unfinishedTaskCount = currentMemberships.stream()
-                .mapToLong(interval -> taskTransfers.unfinishedCount(
-                        interval.projectId(), interval.membershipId()))
-                .sum();
-        return new InternshipLifecycleGuard(currentLeader, unfinishedTaskCount);
     }
 
     // Tải Project và chặn người không thuộc phạm vi xem; lỗi giống nhau dù ID không tồn tại hay không có quyền.

@@ -19,7 +19,6 @@ import com.lab.labtimesheet.config.TestcontainersConfiguration;
 import com.lab.labtimesheet.feature.internship.model.InternshipStatus;
 import com.lab.labtimesheet.feature.identity.model.dto.AccountCreation;
 import com.lab.labtimesheet.feature.identity.model.dto.CreateAccountCommand;
-import com.lab.labtimesheet.feature.internship.model.dto.InternshipLifecycleGuard;
 import com.lab.labtimesheet.feature.internship.model.dto.LockedAccountMutationEligibility;
 import com.lab.labtimesheet.feature.identity.repository.AppUserRepository;
 import com.lab.labtimesheet.feature.internship.repository.InternProfileRepository;
@@ -87,7 +86,7 @@ class InternMutationEligibilityIntegrationTest {
         assertThat(accounts.activate(mail.tokenFor("second@example.com"), "a secure second password")).isTrue();
         assertThat(accounts.activate(mail.tokenFor("first@example.com"), "a secure first password")).isTrue();
         assertThat(internships.activateDueInternships()).isEqualTo(2);
-        internships.completeInternship(second.userId(), adminId, new InternshipLifecycleGuard(false, 0));
+        internships.completeInternship(second.userId(), adminId);
 
         List<LockedAccountMutationEligibility> result = internships.lockedAccountMutationEligibility(
                 List.of(second.userId(), mentor.userId(), first.userId(), second.userId()));

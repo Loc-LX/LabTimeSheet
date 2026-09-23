@@ -13,7 +13,6 @@ import com.lab.labtimesheet.feature.identity.model.AccountStatus;
 import com.lab.labtimesheet.feature.internship.model.InternshipStatus;
 import com.lab.labtimesheet.feature.identity.model.dto.AccountCreation;
 import com.lab.labtimesheet.feature.identity.model.dto.CreateAccountCommand;
-import com.lab.labtimesheet.feature.internship.model.dto.InternshipLifecycleGuard;
 import com.lab.labtimesheet.feature.identity.repository.AppUserRepository;
 import com.lab.labtimesheet.feature.internship.repository.InternProfileRepository;
 import com.lab.labtimesheet.platform.model.GlobalRole;
@@ -72,28 +71,18 @@ class InternshipLifecycleIntegrationTest {
 
         var completed = createAndActivate("completed@example.com", "STU-COMPLETED", adminId);
         internships.activateInternship(completed.userId(), adminId);
-        assertThatThrownBy(() -> internships.completeInternship(
-                completed.userId(), adminId, new InternshipLifecycleGuard(true, 0)))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("Leader");
-        assertThatThrownBy(() -> internships.completeInternship(
-                completed.userId(), adminId, new InternshipLifecycleGuard(false, 1)))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("unfinished");
-
-        internships.completeInternship(completed.userId(), adminId, new InternshipLifecycleGuard(false, 0));
+        internships.completeInternship(completed.userId(), adminId);
         assertThat(profiles.findById(completed.userId()).orElseThrow().getInternshipStatus())
                 .isEqualTo(InternshipStatus.COMPLETED);
         assertThat(users.findById(completed.userId()).orElseThrow().getAccountStatus())
                 .isEqualTo(AccountStatus.ACTIVE);
-        assertThatThrownBy(() -> internships.withdrawInternship(
-                completed.userId(), adminId, new InternshipLifecycleGuard(false, 0)))
+        assertThatThrownBy(() -> internships.withdrawInternship(completed.userId(), adminId))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("withdraw");
 
         var withdrawn = createAndActivate("withdrawn@example.com", "STU-WITHDRAWN", adminId);
         internships.activateInternship(withdrawn.userId(), adminId);
-        internships.withdrawInternship(withdrawn.userId(), adminId, new InternshipLifecycleGuard(false, 0));
+        internships.withdrawInternship(withdrawn.userId(), adminId);
         assertThat(profiles.findById(withdrawn.userId()).orElseThrow().getInternshipStatus())
                 .isEqualTo(InternshipStatus.WITHDRAWN);
         assertThat(users.findById(withdrawn.userId()).orElseThrow().getAccountStatus())
