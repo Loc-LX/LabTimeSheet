@@ -15,7 +15,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceReportDateContext;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceApplicationService;
-import com.lab.labtimesheet.feature.attendance.service.CalendarApplicationService;
+import com.lab.labtimesheet.feature.calendar.service.CalendarApplicationService;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectActorView;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectSummary;
 import com.lab.labtimesheet.feature.project.service.ProjectQueryService;

@@ -18,7 +18,7 @@ import com.lab.labtimesheet.feature.identity.model.InternshipStatus;
 import com.lab.labtimesheet.feature.identity.model.dto.AccountIdentity;
 import com.lab.labtimesheet.feature.identity.model.dto.InternWorkWindow;
 import com.lab.labtimesheet.feature.identity.service.AccountService;
-import com.lab.labtimesheet.feature.attendance.service.CalendarApplicationService;
+import com.lab.labtimesheet.feature.calendar.service.CalendarApplicationService;
 import com.lab.labtimesheet.feature.notification.service.NotificationService;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectActorView;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectMemberView;

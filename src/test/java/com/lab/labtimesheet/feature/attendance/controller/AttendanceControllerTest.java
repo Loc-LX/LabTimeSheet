@@ -1,5 +1,7 @@
 package com.lab.labtimesheet.feature.attendance.controller;
 
+import com.lab.labtimesheet.feature.calendar.controller.CalendarController;
+
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
@@ -17,15 +19,15 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
-import com.lab.labtimesheet.feature.attendance.model.AttendancePolicy;
-import com.lab.labtimesheet.feature.attendance.model.AttendancePolicyFixtures;
+import com.lab.labtimesheet.feature.calendar.model.AttendancePolicy;
+import com.lab.labtimesheet.feature.calendar.model.AttendancePolicyFixtures;
 import com.lab.labtimesheet.platform.model.GlobalRole;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceViolations;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceHistoryItem;
-import com.lab.labtimesheet.feature.attendance.model.dto.GlobalCalendarEvent;
+import com.lab.labtimesheet.feature.calendar.model.dto.GlobalCalendarEvent;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceApplicationService;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceCurrentUserService;
-import com.lab.labtimesheet.feature.attendance.service.CalendarApplicationService;
+import com.lab.labtimesheet.feature.calendar.service.CalendarApplicationService;
 import com.lab.labtimesheet.feature.identity.service.AccountService;
 import com.lab.labtimesheet.platform.service.SmtpConfigurationService;
 import java.time.Instant;

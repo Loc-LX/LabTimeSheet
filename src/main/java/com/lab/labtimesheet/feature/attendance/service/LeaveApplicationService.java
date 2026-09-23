@@ -1,5 +1,8 @@
 package com.lab.labtimesheet.feature.attendance.service;
 
+import com.lab.labtimesheet.feature.calendar.service.CalendarApplicationService;
+import com.lab.labtimesheet.feature.calendar.service.AttendancePolicyTimeline;
+
 import com.lab.labtimesheet.feature.identity.model.AccountStatus;
 import com.lab.labtimesheet.feature.identity.model.InternshipStatus;
 import com.lab.labtimesheet.feature.identity.model.dto.AccountIdentity;
@@ -8,7 +11,7 @@ import com.lab.labtimesheet.feature.identity.model.dto.LockedAccountMutationElig
 import com.lab.labtimesheet.feature.identity.service.AccountService;
 import com.lab.labtimesheet.feature.attendance.exception.LeaveException;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
-import com.lab.labtimesheet.feature.attendance.model.AttendancePolicy;
+import com.lab.labtimesheet.feature.calendar.model.AttendancePolicy;
 import com.lab.labtimesheet.platform.model.GlobalRole;
 import com.lab.labtimesheet.feature.attendance.model.LeaveStatus;
 import com.lab.labtimesheet.feature.attendance.model.dto.LeaveAllocation;

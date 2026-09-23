@@ -9,7 +9,7 @@ import static org.mockito.Mockito.verify;
 
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceReportDateContext;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceApplicationService;
-import com.lab.labtimesheet.feature.attendance.service.CalendarApplicationService;
+import com.lab.labtimesheet.feature.calendar.service.CalendarApplicationService;
 import com.lab.labtimesheet.feature.project.exception.ProjectAccessDeniedException;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectActorView;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectMemberView;

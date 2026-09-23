@@ -1,6 +1,6 @@
 package com.lab.labtimesheet.feature.attendance.model.entity;
 
-import com.lab.labtimesheet.feature.attendance.model.AttendancePolicy;
+import com.lab.labtimesheet.feature.calendar.model.AttendancePolicy;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceRecord;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

@@ -1,5 +1,7 @@
 package com.lab.labtimesheet.feature.attendance.model;
 
+import com.lab.labtimesheet.feature.calendar.model.AttendancePolicy;
+
 import com.lab.labtimesheet.feature.attendance.exception.AttendanceException;
 import com.lab.labtimesheet.feature.attendance.exception.AttendanceRejection;
 

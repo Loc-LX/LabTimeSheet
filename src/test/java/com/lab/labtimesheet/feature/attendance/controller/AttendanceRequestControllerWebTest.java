@@ -16,7 +16,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.lab.labtimesheet.feature.attendance.exception.LeaveException;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
-import com.lab.labtimesheet.feature.attendance.model.AttendancePolicy;
+import com.lab.labtimesheet.feature.calendar.model.AttendancePolicy;
 import com.lab.labtimesheet.platform.model.GlobalRole;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceViolations;
 import com.lab.labtimesheet.feature.attendance.model.CorrectionEventType;
@@ -32,7 +32,7 @@ import com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestCommand;
 import com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestSummary;
 import com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestView;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceApplicationService;
-import com.lab.labtimesheet.feature.attendance.service.CalendarApplicationService;
+import com.lab.labtimesheet.feature.calendar.service.CalendarApplicationService;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceCorrectionApplicationService;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceCurrentUserService;
 import com.lab.labtimesheet.feature.attendance.service.LeaveApplicationService;

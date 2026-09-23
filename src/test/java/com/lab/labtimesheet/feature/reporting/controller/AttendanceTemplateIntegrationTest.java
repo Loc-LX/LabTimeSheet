@@ -7,7 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
-import com.lab.labtimesheet.feature.attendance.model.AttendancePolicyFixtures;
+import com.lab.labtimesheet.feature.calendar.model.AttendancePolicyFixtures;
 import com.lab.labtimesheet.platform.model.GlobalRole;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceViolations;
 import com.lab.labtimesheet.feature.attendance.model.LeaveStatus;
