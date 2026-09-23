@@ -1,7 +1,6 @@
 package com.lab.labtimesheet.feature.calendar.controller;
 
 import com.lab.labtimesheet.feature.calendar.exception.CalendarException;
-import com.lab.labtimesheet.feature.attendance.service.AttendanceApplicationService;
 import com.lab.labtimesheet.feature.calendar.service.CalendarApplicationService;
 import com.lab.labtimesheet.feature.identity.service.AccountService;
 import java.security.Principal;
@@ -29,7 +28,6 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 public class CalendarController {
 
     private final CalendarApplicationService calendar;
-    private final AttendanceApplicationService attendance;
     private final AccountService accounts;
 
     /**

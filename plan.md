@@ -189,6 +189,14 @@ The task is two commits: `R4` in the shared mail and SMTP services first, the cl
 - **Found on review.** The work did not compile: two imports were missing, `AttendancePolicy` in `AttendanceRecordEntity` and `FetchType` in `LeaveRequestDayEntity`. The incremental build hid it, and the Lombok errors that then appeared across `identity` were a symptom of the aborted compile, not a second defect. A clean build is what catches this, and it is run from here on after every task that moves or renames packages.
 - **Validation.** `./mvnw -B clean test`: 762 tests, 0 failures, 0 errors. `npm run test:ui`: 38/38. `git diff --check`: clean. One assertion line changed by wrapping only; no expected value moved.
 
+## Evidence for Task A-06 (calendar and notification, 23 September 2026)
+
+- **Three commits.** `21d667b` resolves the calendar actor through the identity contract and removes `AttendanceRole` in favour of `GlobalRole`; `8c8cc5f` moves the business date to `CalendarApplicationService`, computed from the policy timezone calendar owns; `0671312` places the policy, calendar and HolidayAPI classes in `calendar`, `AdminSettingsController` with them and `NotificationController` in `notification`. The `BUSINESS_ZONE` constants of `task` and `internship` are untouched, as Part A reserves them for a later part.
+- **Found on review.** `R8` was not finished: `AdminSettingsController`, `AttendancePolicyController` and `CalendarController` still injected `AttendanceApplicationService` although nothing called it, so the edge from `calendar` to `attendance` survived and A-06's condition did not hold. The three fields and their imports were removed and the three `R8` allowances deleted with them.
+- **One assertion changed, recorded here as `TST-011` requires.** `AttendanceLombokBoilerplateTest` pins the generated constructor of each class, so removing the unused dependency of `CalendarController` removes it from that pinned list. The assertion still says what it said before, that Lombok generates one package-private constructor over the declared fields; only the field list it mirrors changed.
+- **Boundary list.** 32 placements and 16 allowances were deleted across the three commits and this correction; nothing was added. 10 placements and 14 allowances remain: `R1` four and `R3` ten, which A-10 and A-11 remove.
+- **Validation.** `./mvnw -B clean test`: 762 tests, 0 failures, 0 errors. `npm run test:ui`: 38/38. `git diff --check`: clean.
+
 ## Historical evidence for D33 (checkpoint c443670)
 
 - `npm run test:ui`: 30/30 pass on 20 September 2026, including document structure, counts, versions, references, decision index and relative file links. Node `24.16.0`, npm `11.13.0`; the Playwright contract reads resolved `@playwright/test` `1.62.1` from the lockfile. This run does not execute browser or Java behavior.

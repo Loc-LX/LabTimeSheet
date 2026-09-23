@@ -5,7 +5,6 @@ import com.lab.labtimesheet.feature.calendar.exception.CalendarException;
 import com.lab.labtimesheet.feature.calendar.exception.PolicyException;
 import com.lab.labtimesheet.feature.calendar.model.dto.AttendancePolicyCommand;
 import com.lab.labtimesheet.feature.calendar.model.dto.CalendarImportSelection;
-import com.lab.labtimesheet.feature.attendance.service.AttendanceApplicationService;
 import com.lab.labtimesheet.feature.calendar.service.AttendancePolicyApplicationService;
 import com.lab.labtimesheet.feature.calendar.service.CalendarApplicationService;
 import com.lab.labtimesheet.feature.calendar.model.dto.HolidayApiDraft;
@@ -47,7 +46,6 @@ public class AdminSettingsController {
     private static final String DECISION_PREFIX = "decision_";
 
     private final AccountService accounts;
-    private final AttendanceApplicationService attendance;
     private final AttendancePolicyApplicationService policies;
     private final CalendarApplicationService calendar;
     private final HolidayApiConfigurationService holidayApi;

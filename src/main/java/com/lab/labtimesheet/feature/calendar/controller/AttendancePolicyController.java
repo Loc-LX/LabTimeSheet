@@ -2,7 +2,6 @@ package com.lab.labtimesheet.feature.calendar.controller;
 
 import com.lab.labtimesheet.feature.calendar.exception.PolicyException;
 import com.lab.labtimesheet.feature.calendar.model.dto.AttendancePolicyCommand;
-import com.lab.labtimesheet.feature.attendance.service.AttendanceApplicationService;
 import com.lab.labtimesheet.feature.calendar.service.AttendancePolicyApplicationService;
 import com.lab.labtimesheet.feature.calendar.service.CalendarApplicationService;
 import com.lab.labtimesheet.feature.identity.service.AccountService;
@@ -39,7 +38,6 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 @RequiredArgsConstructor
 public class AttendancePolicyController {
 
-    private final AttendanceApplicationService attendance;
     private final AttendancePolicyApplicationService policies;
     private final CalendarApplicationService calendar;
     private final AccountService accounts;
