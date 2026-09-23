@@ -20,6 +20,7 @@ import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceReport;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceReportClassification;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceReportDay;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceApplicationService;
+import com.lab.labtimesheet.feature.attendance.service.CalendarApplicationService;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceCurrentUserService;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceReportQueryService;
 import com.lab.labtimesheet.feature.reporting.service.AttendanceReportService;
@@ -57,6 +58,9 @@ class AttendanceReportPageWebTest {
     private AttendanceApplicationService attendance;
 
     @MockitoBean
+    private CalendarApplicationService calendar;
+
+    @MockitoBean
     private AttendanceReportQueryService reportQueries;
 
     @MockitoBean
@@ -69,7 +73,7 @@ class AttendanceReportPageWebTest {
     void internRendersOwnClassifiedDaysSummaryAndComplianceChart() throws Exception {
         given(currentUsers.actor(any(Principal.class)))
                 .willReturn(new AttendanceActor(5, GlobalRole.INTERN));
-        given(attendance.currentBusinessDate()).willReturn(TO);
+        given(calendar.currentBusinessDate()).willReturn(TO);
         given(accounts.requireIdentityById(5L)).willReturn(intern(5L, "Mai Intern"));
         given(reportQueries.query(new AttendanceActor(5, GlobalRole.INTERN), 5, FROM, TO))
                 .willReturn(new AttendanceReport(
@@ -111,7 +115,7 @@ class AttendanceReportPageWebTest {
     void mentorInspectsTargetInternAndSeesPerDayScores() throws Exception {
         given(currentUsers.actor(any(Principal.class)))
                 .willReturn(new AttendanceActor(2, GlobalRole.MENTOR));
-        given(attendance.currentBusinessDate()).willReturn(TO);
+        given(calendar.currentBusinessDate()).willReturn(TO);
         given(accounts.requireIdentityById(7L)).willReturn(intern(7L, "Target Intern"));
         given(reportQueries.query(new AttendanceActor(2, GlobalRole.MENTOR), 7, FROM, TO))
                 .willReturn(new AttendanceReport(
@@ -146,7 +150,7 @@ class AttendanceReportPageWebTest {
     void emptyDenominatorRendersNaForRateAndCompliance() throws Exception {
         given(currentUsers.actor(any(Principal.class)))
                 .willReturn(new AttendanceActor(5, GlobalRole.INTERN));
-        given(attendance.currentBusinessDate()).willReturn(TO);
+        given(calendar.currentBusinessDate()).willReturn(TO);
         given(accounts.requireIdentityById(5L)).willReturn(intern(5L, "Mai Intern"));
         given(reportQueries.query(new AttendanceActor(5, GlobalRole.INTERN), 5, FROM, TO))
                 .willReturn(new AttendanceReport(
@@ -171,7 +175,7 @@ class AttendanceReportPageWebTest {
     void internCannotInspectAnotherIntern() throws Exception {
         given(currentUsers.actor(any(Principal.class)))
                 .willReturn(new AttendanceActor(5, GlobalRole.INTERN));
-        given(attendance.currentBusinessDate()).willReturn(TO);
+        given(calendar.currentBusinessDate()).willReturn(TO);
 
         mvc.perform(get("/reports/attendance").with(user("intern@example.test").roles("INTERN"))
                         .param("internId", "7"))
@@ -184,7 +188,7 @@ class AttendanceReportPageWebTest {
     void missingFiltersDefaultToCurrentBusinessDateMonth() throws Exception {
         given(currentUsers.actor(any(Principal.class)))
                 .willReturn(new AttendanceActor(5, GlobalRole.INTERN));
-        given(attendance.currentBusinessDate()).willReturn(LocalDate.of(2026, 8, 15));
+        given(calendar.currentBusinessDate()).willReturn(LocalDate.of(2026, 8, 15));
         given(accounts.requireIdentityById(5L)).willReturn(intern(5L, "Mai Intern"));
         given(reportQueries.query(
                         new AttendanceActor(5, GlobalRole.INTERN), 5,

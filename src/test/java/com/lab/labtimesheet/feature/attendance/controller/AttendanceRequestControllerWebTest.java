@@ -32,6 +32,7 @@ import com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestCommand;
 import com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestSummary;
 import com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestView;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceApplicationService;
+import com.lab.labtimesheet.feature.attendance.service.CalendarApplicationService;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceCorrectionApplicationService;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceCurrentUserService;
 import com.lab.labtimesheet.feature.attendance.service.LeaveApplicationService;
@@ -68,6 +69,9 @@ class AttendanceRequestControllerWebTest {
     private AttendanceApplicationService attendance;
 
     @MockitoBean
+    private CalendarApplicationService calendar;
+
+    @MockitoBean
     private LeaveApplicationService leave;
 
     @MockitoBean
@@ -88,7 +92,7 @@ class AttendanceRequestControllerWebTest {
     void internListsOwnRequestsAndSubmitsLeaveAndCorrection() throws Exception {
         AttendanceActor actor = new AttendanceActor(7L, GlobalRole.INTERN);
         when(currentUsers.actor(org.mockito.ArgumentMatchers.any())).thenReturn(actor);
-        when(attendance.currentBusinessDate()).thenReturn(LocalDate.of(2026, 8, 21));
+        when(calendar.currentBusinessDate()).thenReturn(LocalDate.of(2026, 8, 21));
         when(leave.list(actor)).thenReturn(List.of(new LeaveRequestSummary(
                 10L, 7L, LocalDate.of(2026, 8, 28), LocalDate.of(2026, 9, 2),
                 "Family", LeaveStatus.PENDING, Instant.parse("2026-08-20T00:00:00Z"))));
@@ -157,7 +161,7 @@ class AttendanceRequestControllerWebTest {
         when(currentUsers.actor(org.mockito.ArgumentMatchers.any())).thenReturn(actor);
         when(leave.list(actor)).thenReturn(List.of());
         when(corrections.list(actor)).thenReturn(List.of());
-        when(attendance.currentBusinessDate()).thenReturn(LocalDate.of(2026, 8, 21));
+        when(calendar.currentBusinessDate()).thenReturn(LocalDate.of(2026, 8, 21));
         when(leave.submit(actor, command)).thenThrow(new LeaveException("Leave overlaps an active request"));
         Map<String, Object> input = Map.of(
                 "startDate", "2026-08-28",
@@ -257,7 +261,7 @@ class AttendanceRequestControllerWebTest {
     void leaveEditFormRendersRetainedSafeInputAfterValidationFailure() throws Exception {
         AttendanceActor actor = new AttendanceActor(7L, GlobalRole.INTERN);
         when(currentUsers.actor(org.mockito.ArgumentMatchers.any())).thenReturn(actor);
-        when(attendance.currentBusinessDate()).thenReturn(LocalDate.of(2026, 8, 21));
+        when(calendar.currentBusinessDate()).thenReturn(LocalDate.of(2026, 8, 21));
         when(leave.list(actor)).thenReturn(List.of());
         when(corrections.list(actor)).thenReturn(List.of());
         when(leave.balance(actor, YearMonth.of(2026, 8))).thenReturn(
@@ -327,7 +331,7 @@ class AttendanceRequestControllerWebTest {
     void retainedLeaveAllocationsAndCorrectionEventsRenderWithoutExposingRawMutationState() throws Exception {
         AttendanceActor intern = new AttendanceActor(7L, GlobalRole.INTERN);
         when(currentUsers.actor(org.mockito.ArgumentMatchers.any())).thenReturn(intern);
-        when(attendance.currentBusinessDate()).thenReturn(LocalDate.of(2026, 8, 21));
+        when(calendar.currentBusinessDate()).thenReturn(LocalDate.of(2026, 8, 21));
         when(leave.list(intern)).thenReturn(List.of());
         when(corrections.list(intern)).thenReturn(List.of());
         when(leave.view(intern, 10L)).thenReturn(new LeaveRequestView(

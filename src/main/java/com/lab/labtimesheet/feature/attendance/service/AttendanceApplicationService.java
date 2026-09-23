@@ -168,17 +168,6 @@ public class AttendanceApplicationService {
     }
 
     /**
-     * Resolves the current business date in the effective policy timezone.
-     *
-     * @return current policy-local date from the injected server clock
-     */
-    @Transactional(readOnly = true)
-    public LocalDate currentBusinessDate() {
-        AttendancePolicy policy = calendar.policyTimeline().resolve(clock.instant());
-        return clock.instant().atZone(policy.zoneId()).toLocalDate();
-    }
-
-    /**
      * Resolves policy and local calendar context for one report date without reading attendance
      * rows or filtering Task work.
      *

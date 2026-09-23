@@ -9,6 +9,7 @@ import static org.mockito.Mockito.never;
 
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceReportDateContext;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceApplicationService;
+import com.lab.labtimesheet.feature.attendance.service.CalendarApplicationService;
 import com.lab.labtimesheet.feature.project.exception.ProjectRuleViolationException;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectActorView;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectMemberView;
@@ -37,11 +38,12 @@ class DailyProjectWorkReportServiceTest {
     private final ProjectQueryService projects = mock(ProjectQueryService.class);
     private final TaskQueryService taskQueries = mock(TaskQueryService.class);
     private final AttendanceApplicationService attendance = mock(AttendanceApplicationService.class);
+    private final CalendarApplicationService calendar = mock(CalendarApplicationService.class);
     private DailyProjectWorkReportService reports;
 
     @BeforeEach
     void setUp() {
-        reports = new DailyProjectWorkReportService(projects, taskQueries, attendance);
+        reports = new DailyProjectWorkReportService(projects, taskQueries, attendance, calendar);
     }
 
     @Test
@@ -75,7 +77,7 @@ class DailyProjectWorkReportServiceTest {
                 new ProjectMemberView(
                         8L, 4L, "Nhi Intern", ASSIGNED_AT, null, false, 2L, null)));
         given(taskQueries.dailyReport(42L, REPORT_DATE)).willReturn(List.of(task));
-        given(attendance.currentBusinessDate()).willReturn(REPORT_DATE);
+        given(calendar.currentBusinessDate()).willReturn(REPORT_DATE);
         given(attendance.reportDateContext(REPORT_DATE)).willReturn(
                 new AttendanceReportDateContext(
                         REPORT_DATE, true, false, 1L, LocalDate.of(1970, 1, 1),
@@ -128,7 +130,7 @@ class DailyProjectWorkReportServiceTest {
                 .willThrow(new ProjectRuleViolationException("Project has no current Leader"));
         given(taskQueries.dailyReport(42L, REPORT_DATE)).willReturn(List.of(task));
         given(taskQueries.dailyReport(43L, REPORT_DATE)).willReturn(List.of());
-        given(attendance.currentBusinessDate()).willReturn(REPORT_DATE);
+        given(calendar.currentBusinessDate()).willReturn(REPORT_DATE);
         given(attendance.reportDateContext(REPORT_DATE)).willReturn(
                 new AttendanceReportDateContext(
                         REPORT_DATE, false, true, 2L, LocalDate.of(2026, 1, 1),
@@ -154,7 +156,7 @@ class DailyProjectWorkReportServiceTest {
         given(projects.members(2L, 42L))
                 .willThrow(new ProjectRuleViolationException("Project has no current Leader"));
         given(taskQueries.dailyReport(42L, REPORT_DATE)).willReturn(List.of());
-        given(attendance.currentBusinessDate()).willReturn(REPORT_DATE);
+        given(calendar.currentBusinessDate()).willReturn(REPORT_DATE);
         given(attendance.reportDateContext(REPORT_DATE)).willReturn(
                 new AttendanceReportDateContext(
                         REPORT_DATE, true, false, 1L, LocalDate.of(1970, 1, 1),
@@ -194,7 +196,7 @@ class DailyProjectWorkReportServiceTest {
         given(projects.authenticatedActor("mentor@example.test"))
                 .willReturn(new ProjectActorView(2L, "MENTOR"));
         given(projects.listAllVisibleForReport(2L)).willReturn(List.of());
-        given(attendance.currentBusinessDate()).willReturn(REPORT_DATE);
+        given(calendar.currentBusinessDate()).willReturn(REPORT_DATE);
 
         assertThatThrownBy(() -> reports.build(
                 "mentor@example.test", null, REPORT_DATE.plusDays(1)))
@@ -217,7 +219,7 @@ class DailyProjectWorkReportServiceTest {
         given(projects.listAllVisibleForReport(2L)).willReturn(List.of(project));
         given(projects.members(2L, 42L)).willReturn(List.of(member(7L, "Mai Intern")));
         given(taskQueries.dailyReport(42L, pastDate)).willReturn(List.of(task));
-        given(attendance.currentBusinessDate()).willReturn(REPORT_DATE);
+        given(calendar.currentBusinessDate()).willReturn(REPORT_DATE);
         given(attendance.reportDateContext(pastDate)).willReturn(
                 new AttendanceReportDateContext(
                         pastDate, false, false, 3L, LocalDate.of(2025, 1, 1),
@@ -236,7 +238,7 @@ class DailyProjectWorkReportServiceTest {
         given(projects.authenticatedActor("mentor@example.test"))
                 .willReturn(new ProjectActorView(2L, "MENTOR"));
         given(projects.listAllVisibleForReport(2L)).willReturn(List.of());
-        given(attendance.currentBusinessDate()).willReturn(REPORT_DATE);
+        given(calendar.currentBusinessDate()).willReturn(REPORT_DATE);
         given(attendance.reportDateContext(REPORT_DATE)).willReturn(
                 new AttendanceReportDateContext(
                         REPORT_DATE, true, false, 1L, LocalDate.of(1970, 1, 1),

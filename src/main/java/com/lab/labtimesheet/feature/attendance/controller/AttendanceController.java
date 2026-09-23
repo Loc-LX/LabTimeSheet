@@ -5,6 +5,7 @@ import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
 import com.lab.labtimesheet.platform.model.GlobalRole;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceApplicationService;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceCurrentUserService;
+import com.lab.labtimesheet.feature.attendance.service.CalendarApplicationService;
 import java.security.Principal;
 import java.time.LocalDate;
 import lombok.AccessLevel;
@@ -28,6 +29,7 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 public class AttendanceController {
 
     private final AttendanceApplicationService attendance;
+    private final CalendarApplicationService calendar;
     private final AttendanceCurrentUserService currentUsers;
 
     /**
@@ -117,7 +119,7 @@ public class AttendanceController {
             LocalDate from,
             LocalDate to,
             Model model) {
-        LocalDate effectiveTo = to == null ? attendance.currentBusinessDate() : to;
+        LocalDate effectiveTo = to == null ? calendar.currentBusinessDate() : to;
         LocalDate effectiveFrom = from == null ? effectiveTo.withDayOfMonth(1) : from;
         model.addAttribute("items", attendance.history(actor, internId, effectiveFrom, effectiveTo));
         model.addAttribute("targetInternId", internId);

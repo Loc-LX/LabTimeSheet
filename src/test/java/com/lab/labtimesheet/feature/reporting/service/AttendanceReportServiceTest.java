@@ -15,6 +15,7 @@ import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceReport;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceReportClassification;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceReportDay;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceApplicationService;
+import com.lab.labtimesheet.feature.attendance.service.CalendarApplicationService;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceCurrentUserService;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceReportQueryService;
 import com.lab.labtimesheet.platform.model.GlobalRole;
@@ -34,6 +35,7 @@ class AttendanceReportServiceTest {
 
     private final AttendanceCurrentUserService currentUsers = mock(AttendanceCurrentUserService.class);
     private final AttendanceApplicationService attendance = mock(AttendanceApplicationService.class);
+    private final CalendarApplicationService calendar = mock(CalendarApplicationService.class);
     private final AttendanceReportQueryService reportQueries = mock(AttendanceReportQueryService.class);
     private final AccountService accounts = mock(AccountService.class);
     private final Principal principal = () -> "intern@example.test";
@@ -41,14 +43,14 @@ class AttendanceReportServiceTest {
 
     @BeforeEach
     void setUp() {
-        reports = new AttendanceReportService(currentUsers, attendance, reportQueries, accounts);
+        reports = new AttendanceReportService(currentUsers, attendance, calendar, reportQueries, accounts);
     }
 
     @Test
     void usesAttendanceOwnedClassificationAndExactAggregateFormulas() {
         AttendanceActor actor = new AttendanceActor(7L, GlobalRole.INTERN);
         given(currentUsers.actor(principal)).willReturn(actor);
-        given(attendance.currentBusinessDate()).willReturn(LocalDate.of(2026, 8, 31));
+        given(calendar.currentBusinessDate()).willReturn(LocalDate.of(2026, 8, 31));
         given(accounts.requireIdentityById(7L))
                 .willReturn(identity(7L, "Mai Intern", GlobalRole.INTERN));
         given(reportQueries.query(
@@ -187,7 +189,7 @@ class AttendanceReportServiceTest {
     @Test
     void rendersMentorTargetPickerBeforeReadingAttendanceRows() {
         given(currentUsers.actor(principal)).willReturn(new AttendanceActor(2L, GlobalRole.MENTOR));
-        given(attendance.currentBusinessDate()).willReturn(LocalDate.of(2026, 8, 31));
+        given(calendar.currentBusinessDate()).willReturn(LocalDate.of(2026, 8, 31));
         given(accounts.eligibleInternOptions(LocalDate.of(2026, 8, 31)))
                 .willReturn(List.of(new EligibleInternOption(
                         7L,
