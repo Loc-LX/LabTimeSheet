@@ -8,9 +8,9 @@ import com.lab.labtimesheet.feature.reporting.model.dto.DailyProjectWorkReportMe
 import com.lab.labtimesheet.feature.reporting.model.dto.DailyProjectWorkReportProject;
 import com.lab.labtimesheet.feature.reporting.model.dto.DailyProjectWorkReportTask;
 import com.lab.labtimesheet.feature.reporting.model.dto.DailyProjectWorkReportView;
-import com.lab.labtimesheet.feature.task.model.TaskStatus;
-import com.lab.labtimesheet.feature.task.model.TaskVarianceState;
-import com.lab.labtimesheet.feature.task.model.dto.TaskRemainingEffortForecastSummary;
+import com.lab.labtimesheet.feature.project.model.TaskStatus;
+import com.lab.labtimesheet.feature.project.model.TaskVarianceState;
+import com.lab.labtimesheet.feature.project.model.dto.TaskRemainingEffortForecastSummary;
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;

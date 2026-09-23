@@ -2,51 +2,52 @@ package com.lab.labtimesheet.feature.attendance;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.lab.labtimesheet.feature.account.service.AccountService;
+import com.lab.labtimesheet.feature.identity.service.AccountService;
 import com.lab.labtimesheet.feature.attendance.controller.AttendanceController;
-import com.lab.labtimesheet.feature.attendance.controller.CalendarController;
+import com.lab.labtimesheet.feature.calendar.controller.CalendarController;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceDayContext;
-import com.lab.labtimesheet.feature.attendance.model.AttendancePolicy;
+import com.lab.labtimesheet.feature.calendar.model.AttendancePolicy;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceRecord;
-import com.lab.labtimesheet.feature.attendance.model.AttendanceRole;
+import com.lab.labtimesheet.platform.model.GlobalRole;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceViolations;
 import com.lab.labtimesheet.feature.attendance.model.CorrectionStatus;
 import com.lab.labtimesheet.feature.attendance.model.LeaveStatus;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceCurrentState;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceHistoryItem;
+import com.lab.labtimesheet.feature.calendar.model.dto.AttendancePolicyCommand;
+import com.lab.labtimesheet.feature.calendar.model.dto.AttendancePolicyHistoryItem;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceReportDateContext;
-import com.lab.labtimesheet.feature.attendance.model.dto.AttendancePolicyCommand;
-import com.lab.labtimesheet.feature.attendance.model.dto.AttendancePolicyHistoryItem;
-import com.lab.labtimesheet.feature.attendance.model.dto.CalendarHistoryItem;
-import com.lab.labtimesheet.feature.attendance.model.dto.GlobalCalendarEvent;
-import com.lab.labtimesheet.feature.integration.model.dto.HolidayApiCandidate;
-import com.lab.labtimesheet.feature.attendance.model.entity.AttendancePolicyEntity;
-import com.lab.labtimesheet.feature.attendance.model.entity.AttendanceRecordEntity;
+import com.lab.labtimesheet.feature.calendar.model.dto.CalendarHistoryItem;
+import com.lab.labtimesheet.feature.calendar.model.dto.GlobalCalendarEvent;
 import com.lab.labtimesheet.feature.attendance.model.entity.AttendanceCorrectionEntity;
 import com.lab.labtimesheet.feature.attendance.model.entity.AttendanceCorrectionEventEntity;
-import com.lab.labtimesheet.feature.attendance.model.entity.GlobalCalendarEventEntity;
+import com.lab.labtimesheet.feature.calendar.model.entity.AttendancePolicyEntity;
+import com.lab.labtimesheet.feature.attendance.model.entity.AttendanceRecordEntity;
+import com.lab.labtimesheet.feature.calendar.model.entity.GlobalCalendarEventEntity;
 import com.lab.labtimesheet.feature.attendance.model.entity.LeaveRequestDayEntity;
 import com.lab.labtimesheet.feature.attendance.model.entity.LeaveRequestDayId;
 import com.lab.labtimesheet.feature.attendance.model.entity.LeaveRequestEntity;
-import com.lab.labtimesheet.feature.attendance.repository.AttendancePolicyRepository;
+import com.lab.labtimesheet.feature.attendance.repository.AttendanceCorrectionEventRepository;
+import com.lab.labtimesheet.feature.attendance.repository.AttendanceCorrectionRepository;
+import com.lab.labtimesheet.feature.calendar.repository.AttendancePolicyRepository;
 import com.lab.labtimesheet.feature.attendance.repository.AttendanceQueryRepository;
 import com.lab.labtimesheet.feature.attendance.repository.AttendanceRecordRepository;
-import com.lab.labtimesheet.feature.attendance.repository.AttendanceCorrectionRepository;
-import com.lab.labtimesheet.feature.attendance.repository.AttendanceCorrectionEventRepository;
-import com.lab.labtimesheet.feature.attendance.repository.LeaveRequestRepository;
+import com.lab.labtimesheet.feature.calendar.repository.GlobalCalendarEventRepository;
 import com.lab.labtimesheet.feature.attendance.repository.LeaveRequestDayRepository;
-import com.lab.labtimesheet.feature.attendance.repository.GlobalCalendarEventRepository;
+import com.lab.labtimesheet.feature.attendance.repository.LeaveRequestRepository;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceApplicationService;
-import com.lab.labtimesheet.feature.attendance.service.AttendanceCurrentUserService;
-import com.lab.labtimesheet.feature.attendance.service.AttendanceService;
-import com.lab.labtimesheet.feature.attendance.service.CalendarApplicationService;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceCorrectionApplicationService;
+import com.lab.labtimesheet.feature.attendance.service.AttendanceCurrentUserService;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceDeadlineScheduler;
-import com.lab.labtimesheet.feature.attendance.service.AttendancePolicyApplicationService;
+import com.lab.labtimesheet.feature.calendar.service.AttendancePolicyApplicationService;
+import com.lab.labtimesheet.feature.attendance.service.AttendanceService;
+import com.lab.labtimesheet.feature.calendar.service.AttendancePolicyTimeline;
+import com.lab.labtimesheet.feature.calendar.service.CalendarApplicationService;
 import com.lab.labtimesheet.feature.attendance.service.LeaveApplicationService;
-import com.lab.labtimesheet.feature.integration.model.dto.HolidayApiPreview;
-import com.lab.labtimesheet.feature.integration.service.HolidayApiConfigurationService;
+import com.lab.labtimesheet.feature.calendar.model.dto.HolidayApiCandidate;
+import com.lab.labtimesheet.feature.calendar.model.dto.HolidayApiPreview;
+import com.lab.labtimesheet.feature.calendar.service.HolidayApiConfigurationService;
 import com.lab.labtimesheet.feature.notification.service.NotificationService;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
@@ -79,20 +80,19 @@ class AttendanceLombokBoilerplateTest {
                 constructor(
                         PACKAGE_PRIVATE,
                         AttendanceApplicationService.class,
+                        CalendarApplicationService.class,
                         AttendanceCurrentUserService.class));
         assertConstructors(
                 CalendarController.class,
                 constructor(
                         PACKAGE_PRIVATE,
                         CalendarApplicationService.class,
-                        AttendanceApplicationService.class,
-                        AttendanceCurrentUserService.class));
+                        AccountService.class));
         assertConstructors(
                 AttendanceApplicationService.class,
                 constructor(
                         PACKAGE_PRIVATE,
                         Clock.class,
-                        AttendancePolicyRepository.class,
                         AttendanceRecordRepository.class,
                         AttendanceQueryRepository.class,
                         AccountService.class,
@@ -107,6 +107,7 @@ class AttendanceLombokBoilerplateTest {
                 constructor(
                         PACKAGE_PRIVATE,
                         Clock.class,
+                        AccountService.class,
                         AttendancePolicyRepository.class,
                         GlobalCalendarEventRepository.class,
                         HolidayApiConfigurationService.class,
@@ -114,13 +115,12 @@ class AttendanceLombokBoilerplateTest {
         assertConstructors(AttendanceService.class, constructor(PACKAGE_PRIVATE));
         assertConstructors(
                 AttendancePolicyApplicationService.class,
-                constructor(PACKAGE_PRIVATE, Clock.class, AttendancePolicyRepository.class));
+                constructor(PACKAGE_PRIVATE, Clock.class, AccountService.class, AttendancePolicyRepository.class));
         assertConstructors(
                 LeaveApplicationService.class,
                 constructor(
                         PACKAGE_PRIVATE,
                         Clock.class,
-                        AttendancePolicyRepository.class,
                         LeaveRequestRepository.class,
                         LeaveRequestDayRepository.class,
                         AccountService.class,
@@ -136,6 +136,7 @@ class AttendanceLombokBoilerplateTest {
                         AttendanceCorrectionRepository.class,
                         AttendanceCorrectionEventRepository.class,
                         AccountService.class,
+                        CalendarApplicationService.class,
                         TransactionTemplate.class,
                         NotificationService.class));
         assertConstructors(
@@ -156,7 +157,7 @@ class AttendanceLombokBoilerplateTest {
                         Modifier.PUBLIC,
                         long.class,
                         LocalDate.class,
-                        AttendancePolicyEntity.class,
+                        long.class,
                         Instant.class,
                         Instant.class));
         assertConstructors(
@@ -189,7 +190,7 @@ class AttendanceLombokBoilerplateTest {
                         Modifier.PUBLIC,
                         LeaveRequestEntity.class,
                         LocalDate.class,
-                        AttendancePolicyEntity.class,
+                        long.class,
                         int.class));
         assertConstructors(
                 LeaveRequestDayId.class,
@@ -246,7 +247,7 @@ class AttendanceLombokBoilerplateTest {
         assertRecordComponents(
                 AttendanceActor.class,
                 component("userId", long.class),
-                component("role", AttendanceRole.class));
+                component("role", GlobalRole.class));
         assertRecordComponents(
                 AttendanceDayContext.class,
                 component("activeIntern", boolean.class),
@@ -310,10 +311,11 @@ class AttendanceLombokBoilerplateTest {
                 method(Modifier.PUBLIC, "toHistory", AttendancePolicyHistoryItem.class));
         assertMethodSurface(
                 AttendanceRecordEntity.class,
-                method(Modifier.PUBLIC, "toDomain", AttendanceRecord.class),
+                method(Modifier.PUBLIC, "toDomain", AttendanceRecord.class, AttendancePolicy.class),
                 method(Modifier.PUBLIC, "id", long.class),
                 method(Modifier.PUBLIC, "setCheckOutAt", void.class, Instant.class),
-                method(Modifier.PUBLIC, "workDate", LocalDate.class));
+                method(Modifier.PUBLIC, "workDate", LocalDate.class),
+                method(Modifier.PUBLIC, "policyVersionId", long.class));
         assertMethodSurface(
                 GlobalCalendarEventEntity.class,
                 method(
@@ -477,7 +479,6 @@ class AttendanceLombokBoilerplateTest {
                         long.class,
                         LocalDate.class,
                         LocalDate.class),
-                method(Modifier.PUBLIC, "currentBusinessDate", LocalDate.class),
                 method(
                         Modifier.PUBLIC,
                         "reportDateContext",
@@ -505,11 +506,12 @@ class AttendanceLombokBoilerplateTest {
                         Instant.class));
         assertMethodSurface(
                 CalendarApplicationService.class,
+                method(Modifier.PUBLIC, "currentBusinessDate", LocalDate.class),
                 method(
                         Modifier.PUBLIC,
                         "createManual",
                         GlobalCalendarEvent.class,
-                        AttendanceActor.class,
+                        long.class,
                         LocalDate.class,
                         String.class,
                         boolean.class),
@@ -517,7 +519,7 @@ class AttendanceLombokBoilerplateTest {
                         Modifier.PUBLIC,
                         "updateManual",
                         GlobalCalendarEvent.class,
-                        AttendanceActor.class,
+                        long.class,
                         long.class,
                         long.class,
                         LocalDate.class,
@@ -525,19 +527,23 @@ class AttendanceLombokBoilerplateTest {
                         boolean.class),
                 method(Modifier.PUBLIC, "list", List.class, LocalDate.class, LocalDate.class),
                 method(Modifier.PUBLIC, "isGlobalDayOff", boolean.class, LocalDate.class),
-                method(Modifier.PUBLIC, "previewFromProvider", HolidayApiPreview.class, AttendanceActor.class, int.class),
-                method(Modifier.PUBLIC, "preview", List.class, AttendanceActor.class, int.class, HolidayApiPreview.class),
-                method(Modifier.PUBLIC, "importSelected", List.class, AttendanceActor.class, int.class, List.class),
-                method(Modifier.PUBLIC, "history", List.class, AttendanceActor.class));
+                method(Modifier.PUBLIC, "policyTimeline", AttendancePolicyTimeline.class),
+                method(Modifier.PUBLIC, "policiesByVersionIds", Map.class, Set.class),
+                method(Modifier.PUBLIC, "lockPolicyVersions", void.class, Set.class),
+                method(Modifier.PUBLIC, "historyBetween", List.class, LocalDate.class, LocalDate.class),
+                method(Modifier.PUBLIC, "previewFromProvider", HolidayApiPreview.class, long.class, int.class),
+                method(Modifier.PUBLIC, "preview", List.class, long.class, int.class, HolidayApiPreview.class),
+                method(Modifier.PUBLIC, "importSelected", List.class, long.class, int.class, List.class),
+                method(Modifier.PUBLIC, "history", List.class, long.class));
         assertMethodSurface(
                 AttendancePolicyApplicationService.class,
                 method(
                         Modifier.PUBLIC,
                         "schedule",
                         AttendancePolicyHistoryItem.class,
-                        AttendanceActor.class,
+                        long.class,
                         AttendancePolicyCommand.class),
-                method(Modifier.PUBLIC, "history", List.class, AttendanceActor.class));
+                method(Modifier.PUBLIC, "history", List.class, long.class));
         assertMethodSurface(
                 LeaveApplicationService.class,
                 method(Modifier.PUBLIC, "balance", com.lab.labtimesheet.feature.attendance.model.dto.LeaveBalance.class,

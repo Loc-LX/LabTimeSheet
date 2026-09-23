@@ -1,45 +1,165 @@
-<!-- gitnexus:start -->
-# GitNexus — Code Intelligence
+# CLAUDE.md — Lab Timesheet project map
 
-This project is indexed by GitNexus as **labtimesheet** (8984 symbols, 25659 relationships, 755 execution flows).
+Context for working in this codebase. Rules live in
+[AGENTS.md](AGENTS.md); invariants live in [`.sdd/constitution.md`](.sdd/constitution.md).
+This file is what the system *is*.
 
-> Index stale? Run `node .gitnexus/run.cjs analyze --index-only` from the project root — it auto-selects an available runner. No `.gitnexus/run.cjs` yet? Bootstrap with `npx`, `bunx`, or `pnpm dlx` — e.g. `bunx gitnexus@latest analyze` (npm 11 npx crash; #1939).
+## In sixty seconds
 
-## Always Do
+A university laboratory runs an internship programme. It needs to know two
+separate things: whether interns showed up, and what they produced. This
+application answers both without letting either answer stand in for the other.
 
-- **MUST run impact analysis before editing.** Use `impact({target: "symbolName", direction: "upstream"})` (MCP) or `node .gitnexus/run.cjs impact "symbolName" --direction upstream --repo .` (CLI fallback); report callers, processes, and risk. Never substitute grep for graph analysis.
-- **MUST analyze graph changes before committing.** Use `detect_changes({scope: "all"})` (MCP) or `node .gitnexus/run.cjs detect-changes --scope all --repo .` (CLI fallback). `partial: true` or `truncated: true` is not a clean check — a zero means unseen, not unaffected; re-run it. For regression review: `detect_changes({scope: "compare", base_ref: "main"})` or `node .gitnexus/run.cjs detect-changes --scope compare --base-ref "main" --repo .`.
-- **MUST warn the user** if impact analysis returns HIGH or CRITICAL risk before proceeding with edits.
-- **MUST treat `risk: UNKNOWN` as unresolved, not as low.** An empty caller set is not evidence the symbol is unused — it can also mean the callers are not resolvable by the index (plain-object property access, dynamic dispatch, cross-language calls). `impact` pairs `UNKNOWN` with a `riskNote` saying so. Confirm with a text search before treating the symbol as safe to change or delete; do not proceed on the strength of a zero.
-- When exploring unfamiliar code, use `query({search_query: "concept"})` to find execution flows instead of grepping. It returns process-grouped results ranked by relevance.
-- When you need full context on a specific symbol — callers, callees, which execution flows it participates in — use `context({name: "symbolName"})`.
-- For security review, `explain({target: "fileOrSymbol"})` lists taint findings (source→sink flows; needs `analyze --pdg`).
+Server-rendered Spring MVC with Thymeleaf. No SPA, no REST API for the browser,
+no JWT. Spring Security sessions. PostgreSQL through Spring Data JPA, schema
+owned by Flyway. Tailwind builds through Node but ships as static assets.
+Versions and reasons: [`.sdd/shared_context.md`](.sdd/shared_context.md).
 
-## Never Do
+Four iterations are built. The specification is approved and ahead of the code;
+[`plan.md`](plan.md) says what comes next.
 
-- NEVER edit a function, class, or method before MCP/CLI impact analysis.
-- NEVER ignore HIGH or CRITICAL risk warnings from impact analysis, and never read `UNKNOWN` as an all-clear — it means the walk could not answer, which is the one verdict that requires confirming by other means.
-- NEVER rename symbols with find-and-replace — use `rename` which understands the call graph.
-- NEVER commit before MCP/CLI graph change analysis.
+## The two rules that explain the design
 
-## Resources
+**Attendance and Task work never derive each other** (`GOV-004`). An intern who
+logs eight hours of Task work from home is still absent. An intern who checks in
+every day with no work logs still shows zero Project progress. These are
+different tables, in different features, deliberately never joined.
 
-| Resource | Use for |
-| --- | --- |
-| `gitnexus://repo/labtimesheet/context` | Codebase overview, check index freshness |
-| `gitnexus://repo/labtimesheet/clusters` | All functional areas |
-| `gitnexus://repo/labtimesheet/processes` | All execution flows |
-| `gitnexus://repo/labtimesheet/process/{name}` | Step-by-step execution trace |
+**History does not move** (`GOV-005`). When an Admin changes the workday
+schedule today, last month's attendance report must produce the same numbers it
+produced last month. This is why the schema has twenty-four tables rather than
+about twelve: policy versions are effective-dated, memberships and leadership
+are intervals that close rather than delete, and approved leave freezes the
+policy snapshot it was judged under.
 
-## CLI
+If a change would make either rule false, it is wrong, however convenient.
 
-| Task | Read this skill file |
-| --- | --- |
-| Understand architecture / "How does X work?" | `.claude/skills/gitnexus-exploring/SKILL.md` |
-| Blast radius / "What breaks if I change X?" | `.claude/skills/gitnexus-impact-analysis/SKILL.md` |
-| Trace bugs / "Why is X failing?" | `.claude/skills/gitnexus-debugging/SKILL.md` |
-| Rename / extract / split / refactor | `.claude/skills/gitnexus-refactoring/SKILL.md` |
-| Tools, resources, schema reference | `.claude/skills/gitnexus-guide/SKILL.md` |
-| Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus-cli/SKILL.md` |
+## Code layout
 
-<!-- gitnexus:end -->
+```
+com.lab.labtimesheet
+├── LabtimesheetApplication      root package, do not move
+├── config/                      shared wiring, security, time, filters
+└── feature/
+    ├── account/                 users, internships, tokens, bootstrap, login throttle
+    ├── attendance/              punches, policy versions, calendar, leave, corrections
+    ├── integration/             SMTP and HolidayAPI configuration, encrypted
+    ├── notification/            in-app inbox and email delivery with retry
+    ├── project/                 Projects, membership, leadership, invitations, exits
+    ├── reporting/               attendance, Project/Task, and Daily reports plus exports
+    └── task/                    Tasks, comments, work logs, transfers, effort forecasts
+```
+
+Each feature carries only the layers it needs from `controller`, `exception`,
+`model`, `model.dto`, `model.entity`, `repository`, `service`. Tests under
+`src/test/java` mirror the same packages.
+
+A feature may call another feature's **service and DTOs**. It may never touch
+another feature's repository or entity. `LayerStructureTest` fails the build on
+violation, using a regex over imports.
+
+## The trap that catches everyone
+
+**Project Leader is not a role.** `app_users` has exactly three immutable global
+roles: `ADMIN`, `MENTOR`, `INTERN`. There is no `ROLE_LEADER` and searching for
+one wastes an hour.
+
+Leadership is a row in `project_leadership_terms` with a start and an end, bound
+to one Project. The same intern can lead Project A while being an ordinary
+member of Project B. Authorization for Leader actions therefore resolves from
+the stored term inside the transaction, not from the security context.
+
+The same pattern governs membership. `project_memberships` holds intervals.
+Removing a member closes the interval and leaves completed Tasks pointing at the
+closed membership so history still shows who did the work.
+
+## Data model
+
+Twenty-four tables. `V1__baseline.sql` creates twenty-three;
+`V2__add_task_effort_planning.sql` adds `task_remaining_effort_forecasts` and
+alters `tasks`.
+
+| Group | Tables |
+|---|---|
+| Platform | `system_state`, `app_users`, `user_action_tokens`, `intern_profiles`, `smtp_configurations`, `holiday_api_configurations` |
+| Policy and calendar | `attendance_policy_versions`, `attendance_policy_workdays`, `global_calendar_events` |
+| Project and Task | `projects`, `project_memberships`, `project_leadership_terms`, `project_invitations`, `project_membership_exit_requests`, `tasks`, `task_comments`, `task_work_logs`, `task_remaining_effort_forecasts` |
+| Attendance and leave | `attendance_records`, `attendance_corrections`, `attendance_correction_events`, `leave_requests`, `leave_request_days` |
+| Delivery | `notifications` |
+
+`leave_request_days` is the clearest illustration of `GOV-005`: it materializes
+each quota-consuming date together with the policy version and monthly quota
+snapshot in force when the request was decided. Later policy edits cannot
+retroactively change how much quota a past request consumed.
+
+## Authorization model
+
+Global role alone never grants access. Every check resolves stored context:
+ownership of the Project, active membership, a current leadership term, being
+the current assignee, and the lifecycle state of the aggregate.
+
+- **Admin** manages accounts, internship lifecycle, SMTP, HolidayAPI, attendance policy, and the global calendar. Read-only on Projects. The code gives Admin the Attendance report only, as [`.sdd/rfcs/ADR-002-attendance-report-scope.md`](.sdd/rfcs/ADR-002-attendance-report-scope.md) explains; the specification grants read access to every report (`D1`), not yet implemented.
+- **Mentor** owns the Projects they created, decides every membership exit, and decides leave and missed-checkout corrections: in the code any active Mentor may, while the specification allows only the Intern's responsible Mentor (`ACC-026`, `AUTH-003`). Cannot create or assign Tasks. The specification lets the owning Mentor only block, unblock, or reopen a Task (`TSK-023`); the code still lets it set any status.
+- **Intern** checks in and out, works assigned Tasks, records work logs, requests leave and corrections, answers their own invitations.
+- **Current Leader** invites eligible interns, defines and assigns Tasks within the led Project, and redistributes unfinished Tasks in confirmed batches before a pending exit is approved.
+
+A guessed identifier for a record the caller cannot see must be denied without
+revealing that the record exists.
+
+## Time
+
+Business timezone is `Asia/Ho_Chi_Minh`, resolved from the applicable attendance
+policy version rather than the server default. Persisted instants are
+`timestamptz`, treated as UTC. Server time is authoritative for every punch,
+submission, decision, and expiry. Browser-supplied timestamps are never trusted.
+
+Displayed dates use `dd/MM/yyyy` and 24-hour local time. Product language is
+English.
+
+## Things learned the hard way
+
+**There is exactly one progress tracker.** `plan.md`. A duplicate once sat
+at the repository root, drifted, and misreported finished work as `TODO`. Do not
+recreate it. A feature's `PLAN.md` under `.sdd/specs/` is a technical design, not a
+tracker; progress is never recorded there.
+
+**The requirements have been lost twice and recovered from git both times.** If
+the specification is missing, recover it from history rather than rewriting it.
+
+**Admin report scope has changed more than once.**
+[`.sdd/rfcs/ADR-002-attendance-report-scope.md`](.sdd/rfcs/ADR-002-attendance-report-scope.md)
+and `D1` explain why. Follow the current specification, not older wording in either
+direction.
+
+**The specification is ahead of the code.** Decisions `D1`, `D12`–`D15`, `D23`–`D25`, `D31`
+and `D32` are approved and not yet implemented, and `plan.md` lists them; `D32` describes
+thirty tables where the migrations above create twenty-four. The module boundaries of
+`ARC-005` (`D28`) are not implemented yet, so the package layout above is the one `ARC-005` has already
+replaced: the mismatch is deliberate until they are. Do not edit the specification back to
+match the code.
+
+**Verify a path before trusting its name.** The specification lives in
+[the specification map](.sdd/specs/README.md): each module has a `MODULE.md` shared contract
+and cohesive `features/<feature>/SPEC.md` documents. System-wide rules stay in
+`platform/MODULE.md`. The old `feature-*` folders no longer exist (`D38`); each module's
+`CHANGELOG.md` keeps their history under *Retained history*, and the platform technical plan
+is `platform/PLAN.md`. Some dated records cite an older location; they are left as written,
+and `git show c443670:<path>` recovers what they point at.
+
+## Useful commands
+
+```bash
+npm ci && npm run build          # frontend assets, required before first run
+./mvnw spring-boot:run           # app on :8080, redirects to /bootstrap when empty
+./mvnw test                      # needs Docker for PostgreSQL Testcontainers
+npm run test:ui                  # UI contract tests
+```
+
+Development expects PostgreSQL on `55432` and Mailpit SMTP on `1025`. Details in
+[CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Tooling
+
+This repository is indexed by GitNexus for impact analysis, symbol context, and
+graph change detection. The required commands and the rules for using them are
+in [AGENTS.md](AGENTS.md), which is where agent operating rules belong.

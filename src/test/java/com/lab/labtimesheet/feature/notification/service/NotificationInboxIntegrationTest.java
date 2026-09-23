@@ -20,24 +20,24 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import com.lab.labtimesheet.config.TestcontainersConfiguration;
-import com.lab.labtimesheet.feature.account.model.GlobalRole;
-import com.lab.labtimesheet.feature.account.model.dto.AccountIdentity;
-import com.lab.labtimesheet.feature.account.model.dto.CreateAccountCommand;
-import com.lab.labtimesheet.feature.account.service.AccountService;
-import com.lab.labtimesheet.feature.account.service.BootstrapService;
-import com.lab.labtimesheet.feature.integration.model.SecurityMode;
-import com.lab.labtimesheet.feature.integration.model.dto.SmtpConnection;
-import com.lab.labtimesheet.feature.integration.model.dto.SmtpDraft;
-import com.lab.labtimesheet.feature.integration.service.SmtpConfigurationService;
-import com.lab.labtimesheet.feature.integration.service.SmtpProbe;
+import com.lab.labtimesheet.feature.identity.model.dto.AccountIdentity;
+import com.lab.labtimesheet.feature.identity.model.dto.CreateAccountCommand;
+import com.lab.labtimesheet.feature.identity.service.AccountService;
+import com.lab.labtimesheet.feature.identity.service.BootstrapService;
 import com.lab.labtimesheet.feature.notification.model.NotificationType;
 import com.lab.labtimesheet.feature.notification.model.dto.NotificationAction;
 import com.lab.labtimesheet.feature.notification.model.dto.NotificationEvent;
 import com.lab.labtimesheet.feature.notification.model.dto.NotificationInbox;
 import com.lab.labtimesheet.feature.notification.model.dto.NotificationInboxItem;
 import com.lab.labtimesheet.feature.notification.model.dto.NotificationRecipient;
-import com.lab.labtimesheet.feature.integration.service.MailDeliveryService;
 import com.lab.labtimesheet.feature.notification.repository.NotificationRepository;
+import com.lab.labtimesheet.platform.model.GlobalRole;
+import com.lab.labtimesheet.platform.model.SecurityMode;
+import com.lab.labtimesheet.platform.model.dto.SmtpConnection;
+import com.lab.labtimesheet.platform.model.dto.SmtpDraft;
+import com.lab.labtimesheet.platform.service.MailDeliveryService;
+import com.lab.labtimesheet.platform.service.SmtpConfigurationService;
+import com.lab.labtimesheet.platform.service.SmtpProbe;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -238,7 +238,7 @@ class NotificationInboxIntegrationTest {
         String adminEmail = accounts.requireIdentityById(adminId).email();
         long draftId = smtp.saveDraft(adminId,
                 new SmtpDraft("mailpit", 1025, SecurityMode.NONE, null, null, adminEmail, "Lab Timesheet"));
-        smtp.testDraft(draftId, adminId);
+        smtp.testDraft(draftId, adminId, adminEmail);
         smtp.activate(draftId, adminId);
     }
 

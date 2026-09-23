@@ -34,6 +34,24 @@ class ProjectTaskShellContractTest {
                 .contains("#fields.allErrors()");
     }
 
+    /**
+     * Protects {@code UI-002} and {@code UI-008}. Observable break: a Project section page stops
+     * opening with the shared tab strip, so one section loses the navigation the others carry and
+     * a reader cannot move between them.
+     *
+     * <p>This assertion required the literal text {@code "<main>\n    <th:block th:replace="} until
+     * 13 September 2026, which also required {@code <main>} to carry no attributes.
+     * {@code projects/detail.html} and {@code projects/workflows.html} open with
+     * {@code <main class="project-overview">} and {@code <main class="project-workflow-page">}, and
+     * both classes are styled in {@code src/main/frontend/app.css}, so removing them to satisfy the
+     * assertion would break the layout the rule asks for. Five of this project's templates carry a
+     * classed {@code <main>}. The assertion now states the intent the method is named after, that
+     * the tab strip is the first thing inside {@code <main>}, and it is stricter than the text it
+     * replaced because the replaced fragment must be {@code projectTabs} rather than any fragment.
+     * Same finding as {@code D10} in {@code .sdd/decisions.md}, second instance.
+     *
+     * @param relativeTemplate template path below {@code src/main/resources/templates}
+     */
     @ParameterizedTest
     @MethodSource("projectSectionTemplates")
     void projectSectionsUseTheSharedNavigationDirectlyBelowThePageHeading(String relativeTemplate)
@@ -42,8 +60,8 @@ class ProjectTaskShellContractTest {
                 .replace("\r\n", "\n");
 
         assertThat(template)
-                .contains("fragments/components :: projectTabs(")
-                .contains("<main>\n    <th:block th:replace=");
+                .containsPattern(
+                        "<main[^>]*>\\n\\s*<th:block th:replace=\"~\\{fragments/components :: projectTabs\\(");
     }
 
     private static Stream<String> projectAndTaskTemplates() {

@@ -28,13 +28,17 @@ test.describe('Iteration 3 report journeys', () => {
 
   test('authorized attendance user can open the split Leave and Correction workflows', async ({ page }) => {
     await signIn(page);
+    // The pages also carry a primary action with the same name, so each check is scoped to
+    // the sidebar, which is the navigation between the two split workflows.
+    const sidebar = page.getByRole('complementary', { name: 'Primary navigation' });
+
     await page.goto('/attendance/leave');
     await expect(page.getByText('Submit and review full-day leave requests.')).toBeVisible();
-    await expect(page.getByRole('link', { name: /My Corrections|Correction decisions/ })).toBeVisible();
+    await expect(sidebar.getByRole('link', { name: /^(My Corrections|Correction decisions)$/ })).toBeVisible();
 
     await page.goto('/attendance/corrections');
     await expect(page.getByText('Submit and review missed-checkout corrections.')).toBeVisible();
-    await expect(page.getByRole('link', { name: /My Leave|Leave decisions/ })).toBeVisible();
+    await expect(sidebar.getByRole('link', { name: /^(My Leave|Leave decisions)$/ })).toBeVisible();
   });
 });
 

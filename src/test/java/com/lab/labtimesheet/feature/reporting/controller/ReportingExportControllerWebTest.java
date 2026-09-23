@@ -1,5 +1,6 @@
 package com.lab.labtimesheet.feature.reporting.controller;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -9,7 +10,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.lab.labtimesheet.feature.integration.service.SmtpConfigurationService;
 import com.lab.labtimesheet.feature.reporting.model.dto.AttendanceReportView;
 import com.lab.labtimesheet.feature.reporting.model.dto.ProjectTaskReportFilter;
 import com.lab.labtimesheet.feature.reporting.model.dto.ProjectTaskReportView;
@@ -17,6 +17,7 @@ import com.lab.labtimesheet.feature.reporting.service.AttendanceReportService;
 import com.lab.labtimesheet.feature.reporting.service.DailyProjectWorkReportService;
 import com.lab.labtimesheet.feature.reporting.service.ProjectTaskReportService;
 import com.lab.labtimesheet.feature.reporting.service.ReportExportService;
+import com.lab.labtimesheet.platform.service.SmtpConfigurationService;
 import java.security.Principal;
 import java.time.LocalDate;
 import java.util.List;
@@ -70,7 +71,7 @@ class ReportingExportControllerWebTest {
                 List.of(), List.of(), List.of(), 0L, 0L, "N/A");
         given(projectTaskReports.build(
                 anyString(), nullable(Long.class), nullable(Long.class),
-                nullable(com.lab.labtimesheet.feature.task.model.TaskStatus.class),
+                nullable(com.lab.labtimesheet.feature.project.model.TaskStatus.class),
                 nullable(LocalDate.class), nullable(LocalDate.class), nullable(LocalDate.class), nullable(LocalDate.class)))
                 .willReturn(projectTasks);
         given(exports.attendanceXlsx(any())).willReturn(new byte[] {1});
@@ -166,5 +167,37 @@ class ReportingExportControllerWebTest {
                 Arguments.of("overlong work range", Map.of(
                         "dueFrom", "2026-08-01", "dueTo", "2026-08-31",
                         "workFrom", "2026-01-01", "workTo", "2027-01-02")));
+    }
+
+    /**
+     * Protects {@code ERR-006}. Observable break: the export is refactored to write into the
+     * response as it builds, so a failure part way through leaves the caller holding a truncated
+     * workbook delivered with a success status and an attachment header, and nothing tells them
+     * the file is incomplete.
+     *
+     * <p>What makes the rule true today is the shape of the seam rather than a catch block.
+     * {@code ReportExportService} assembles the whole document into a {@code ByteArrayOutputStream}
+     * inside try-with-resources and returns {@code byte[]}, and the controller returns
+     * {@code ResponseEntity<byte[]>}. A failure therefore happens before any status line, header or
+     * byte reaches the client, and the workbook and its stream are closed on the way out. This test
+     * pins that ordering: when generation fails the request fails, and no response is produced at
+     * all.
+     *
+     * <p>The rule's remaining clause, that no partial report is persisted, has nothing to assert
+     * against by construction. {@code GOV-007} excludes a persisted {@code Report} entity, so the
+     * export writes to no store and there is no partial row a failure could leave behind.
+     */
+    @Test
+    void failedExportGenerationSurfacesAnErrorInsteadOfATruncatedDownload() {
+        given(exports.attendanceXlsx(any()))
+                .willThrow(new IllegalStateException("Unable to create attendance workbook"));
+
+        assertThatThrownBy(() -> mvc.perform(get("/reports/attendance.xlsx")
+                        .with(user("intern@example.test").roles("INTERN"))
+                        .param("from", "2026-08-01")
+                        .param("to", "2026-08-31")))
+                .rootCause()
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Unable to create attendance workbook");
     }
 }

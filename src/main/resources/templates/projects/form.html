@@ -66,7 +66,7 @@
         <div class="form-grid form-grid-two">
             <div class="field">
                 <label class="field-label" for="startDate">Start date</label>
-                <input class="control" id="startDate" type="date" th:field="*{startDate}" required th:attr="min=${today},aria-invalid=${#fields.hasErrors('startDate')},aria-describedby=${#fields.hasErrors('startDate') ? 'startDate-error' : null}">
+                <input class="control" id="startDate" type="date" th:field="*{startDate}" required th:attr="aria-invalid=${#fields.hasErrors('startDate')},aria-describedby=${#fields.hasErrors('startDate') ? 'startDate-error' : null}">
                 <p class="field-error" id="startDate-error" role="alert" th:if="${#fields.hasErrors('startDate')}" th:errors="*{startDate}">Start date error</p>
             </div>
             <div class="field">

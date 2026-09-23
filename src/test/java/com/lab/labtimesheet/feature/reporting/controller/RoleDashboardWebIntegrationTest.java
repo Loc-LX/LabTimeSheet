@@ -9,21 +9,21 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.lab.labtimesheet.config.TestcontainersConfiguration;
-import com.lab.labtimesheet.feature.account.model.GlobalRole;
-import com.lab.labtimesheet.feature.account.model.dto.CreateAccountCommand;
-import com.lab.labtimesheet.feature.account.service.AccountService;
-import com.lab.labtimesheet.feature.account.service.BootstrapService;
-import com.lab.labtimesheet.feature.integration.model.SecurityMode;
-import com.lab.labtimesheet.feature.integration.model.dto.SmtpConnection;
-import com.lab.labtimesheet.feature.integration.model.dto.SmtpDraft;
-import com.lab.labtimesheet.feature.integration.service.SmtpConfigurationService;
-import com.lab.labtimesheet.feature.integration.service.SmtpProbe;
+import com.lab.labtimesheet.feature.identity.model.dto.CreateAccountCommand;
+import com.lab.labtimesheet.feature.identity.service.AccountService;
+import com.lab.labtimesheet.feature.identity.service.BootstrapService;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectCreateCommand;
 import com.lab.labtimesheet.feature.project.service.ProjectQueryService;
 import com.lab.labtimesheet.feature.project.service.ProjectService;
-import com.lab.labtimesheet.feature.task.model.TaskStatus;
-import com.lab.labtimesheet.feature.task.model.dto.CreateTaskCommand;
-import com.lab.labtimesheet.feature.task.service.TaskService;
+import com.lab.labtimesheet.feature.project.model.TaskStatus;
+import com.lab.labtimesheet.feature.project.model.dto.CreateTaskCommand;
+import com.lab.labtimesheet.feature.project.service.TaskService;
+import com.lab.labtimesheet.platform.model.GlobalRole;
+import com.lab.labtimesheet.platform.model.SecurityMode;
+import com.lab.labtimesheet.platform.model.dto.SmtpConnection;
+import com.lab.labtimesheet.platform.model.dto.SmtpDraft;
+import com.lab.labtimesheet.platform.service.SmtpConfigurationService;
+import com.lab.labtimesheet.platform.service.SmtpProbe;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -100,7 +100,7 @@ class RoleDashboardWebIntegrationTest {
                 new ProjectCreateCommand(
                         "Intern Portal",
                         "Portal refresh",
-                        LocalDate.of(2026, 8, 1),
+                        LocalDate.of(2026, 8, 14),
                         LocalDate.of(2026, 9, 30),
                         internId));
         projects.activate(mentorId, projectId);
@@ -165,9 +165,15 @@ class RoleDashboardWebIntegrationTest {
             if ("/attendance/requests".equals(path)) {
                 request.andExpect(status().is3xxRedirection())
                         .andExpect(redirectedUrl("/attendance/leave"));
-            } else if ("/reports/daily".equals(path)) {
-                // A single current-led Project is deliberately resolved by the Daily controller
-                // before report rendering, so the conditional Intern navigation is a redirect.
+            } else if ("/reports/daily".equals(path) && "INTERN".equals(role)) {
+                // UI-019 shows this entry to an Intern only while a current leadership term makes
+                // at least one open Project eligible, and DailyProjectWorkReportController resolves
+                // that single Project before rendering, so the Intern entry is a redirect.
+                //
+                // A Mentor holds the same entry unconditionally and may own several Projects, so
+                // the controller renders the selector and answers 200. This branch tested every
+                // role until 13 September 2026 and the Mentor case was hidden behind a context
+                // failure in the same class.
                 request.andExpect(status().is3xxRedirection());
             } else {
                 request.andExpect(status().isOk());
@@ -180,7 +186,7 @@ class RoleDashboardWebIntegrationTest {
         long adminId = accounts.requireActiveAdminId("admin@example.test");
         long draftId = smtp.saveDraft(adminId, new SmtpDraft(
                 "mailpit", 1025, SecurityMode.NONE, null, null, "admin@example.test", "Lab Timesheet"));
-        smtp.testDraft(draftId, adminId);
+        smtp.testDraft(draftId, adminId, "admin@example.test");
         smtp.activate(draftId, adminId);
         mail.clear();
         return adminId;

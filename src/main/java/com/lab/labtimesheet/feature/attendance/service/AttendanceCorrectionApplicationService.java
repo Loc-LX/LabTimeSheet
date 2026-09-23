@@ -1,16 +1,17 @@
 package com.lab.labtimesheet.feature.attendance.service;
 
-import com.lab.labtimesheet.feature.account.model.AccountStatus;
-import com.lab.labtimesheet.feature.account.model.GlobalRole;
-import com.lab.labtimesheet.feature.account.model.InternshipStatus;
-import com.lab.labtimesheet.feature.account.model.dto.AccountIdentity;
-import com.lab.labtimesheet.feature.account.model.dto.LockedAccountMutationEligibility;
-import com.lab.labtimesheet.feature.account.service.AccountService;
+import com.lab.labtimesheet.feature.calendar.service.CalendarApplicationService;
+
+import com.lab.labtimesheet.feature.identity.model.AccountStatus;
+import com.lab.labtimesheet.feature.identity.model.InternshipStatus;
+import com.lab.labtimesheet.feature.identity.model.dto.AccountIdentity;
+import com.lab.labtimesheet.feature.identity.model.dto.LockedAccountMutationEligibility;
+import com.lab.labtimesheet.feature.identity.service.AccountService;
 import com.lab.labtimesheet.feature.attendance.exception.CorrectionException;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
-import com.lab.labtimesheet.feature.attendance.model.AttendancePolicy;
+import com.lab.labtimesheet.feature.calendar.model.AttendancePolicy;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceRecord;
-import com.lab.labtimesheet.feature.attendance.model.AttendanceRole;
+import com.lab.labtimesheet.platform.model.GlobalRole;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceViolations;
 import com.lab.labtimesheet.feature.attendance.model.CorrectionEventType;
 import com.lab.labtimesheet.feature.attendance.model.CorrectionStatus;
@@ -30,6 +31,7 @@ import com.lab.labtimesheet.feature.notification.model.dto.NotificationAction;
 import com.lab.labtimesheet.feature.notification.model.dto.NotificationEvent;
 import com.lab.labtimesheet.feature.notification.model.dto.NotificationRecipient;
 import com.lab.labtimesheet.feature.notification.service.NotificationService;
+import com.lab.labtimesheet.platform.model.GlobalRole;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -39,6 +41,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
@@ -64,6 +67,7 @@ public class AttendanceCorrectionApplicationService {
     private final AttendanceCorrectionRepository corrections;
     private final AttendanceCorrectionEventRepository events;
     private final AccountService accounts;
+    private final CalendarApplicationService calendar;
     private final TransactionTemplate transactions;
     private final NotificationService notifications;
 
@@ -137,9 +141,9 @@ public class AttendanceCorrectionApplicationService {
 
     private void requireActiveExpiryActor(
             AttendanceActor actor, Map<Long, LockedAccountMutationEligibility> lockedAccounts) {
-        if (actor.role() == AttendanceRole.MENTOR) {
+        if (actor.role() == GlobalRole.MENTOR) {
             requireActiveMentor(actor.userId(), lockedAccounts);
-        } else if (actor.role() == AttendanceRole.INTERN) {
+        } else if (actor.role() == GlobalRole.INTERN) {
             requireActiveIntern(actor.userId(), lockedAccounts);
         } else {
             throw new AccessDeniedException("Correction list is outside the requested scope");
@@ -186,7 +190,7 @@ public class AttendanceCorrectionApplicationService {
                 .toList();
         AttendanceRecordEntity entity = records.findById(attendanceRecordId)
                 .orElseThrow(() -> new CorrectionException("Attendance record not found"));
-        AttendanceRecord record = entity.toDomain();
+        AttendanceRecord record = recordFrom(entity);
         if (record.internId() != actor.userId()) {
             throw new AccessDeniedException("Only the owning Intern may request a correction");
         }
@@ -276,12 +280,12 @@ public class AttendanceCorrectionApplicationService {
         AccountIdentity ownerIdentity = accounts.requireIdentityById(ownerId);
         AttendanceCorrectionEntity correction = lockedCorrection(correctionId);
         AttendanceRecord record = recordFor(correction);
-        if (actor.role() == AttendanceRole.INTERN && actor.userId() != record.internId()) {
+        if (actor.role() == GlobalRole.INTERN && actor.userId() != record.internId()) {
             throw new AccessDeniedException("Correction is outside the requested scope");
         }
-        if (actor.role() == AttendanceRole.MENTOR) {
+        if (actor.role() == GlobalRole.MENTOR) {
             requireActiveMentor(actor.userId(), lockedAccounts);
-        } else if (actor.role() != AttendanceRole.INTERN) {
+        } else if (actor.role() != GlobalRole.INTERN) {
             throw new AccessDeniedException("Only the owning Intern or an active Mentor may inspect corrections");
         }
         expireIfNeeded(correction, clock.instant(), ownerIdentity);
@@ -306,14 +310,19 @@ public class AttendanceCorrectionApplicationService {
         List<Long> attendanceRecordIds = historyRows.stream()
                 .map(AttendanceRecordEntity::id)
                 .toList();
-        List<Long> internIds = historyRows.stream()
-                .map(AttendanceRecordEntity::toDomain)
+        Map<Long, AttendancePolicy> policiesByVersionId = calendar.policiesByVersionIds(historyRows.stream()
+                .map(AttendanceRecordEntity::policyVersionId)
+                .collect(java.util.stream.Collectors.toSet()));
+        Map<Long, AttendanceRecord> recordsById = historyRows.stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        AttendanceRecordEntity::id, row -> toDomain(row, policiesByVersionId)));
+        List<Long> internIds = recordsById.values().stream()
                 .map(AttendanceRecord::internId)
                 .distinct()
                 .sorted()
                 .toList();
         Map<Long, Long> internByRecordId = new HashMap<>();
-        historyRows.forEach(row -> internByRecordId.put(row.id(), row.toDomain().internId()));
+        recordsById.forEach((recordId, record) -> internByRecordId.put(recordId, record.internId()));
         lockAccounts(internIds);
         Map<Long, AccountIdentity> ownerIdentities = identities(internIds);
         List<AttendanceCorrectionEntity> correctionRows = corrections
@@ -326,7 +335,7 @@ public class AttendanceCorrectionApplicationService {
 
         Map<Long, Instant> effectiveCheckouts = new HashMap<>();
         for (AttendanceRecordEntity historyRow : historyRows) {
-            AttendanceRecord raw = historyRow.toDomain();
+            AttendanceRecord raw = recordsById.get(historyRow.id());
             AttendanceCorrectionEntity correction = byAttendanceRecord.get(historyRow.id());
             effectiveCheckouts.put(
                     historyRow.id(),
@@ -426,8 +435,21 @@ public class AttendanceCorrectionApplicationService {
 
     private AttendanceRecord recordFor(AttendanceCorrectionEntity correction) {
         return records.findById(correction.attendanceRecordId())
-                .map(AttendanceRecordEntity::toDomain)
+                .map(this::recordFrom)
                 .orElseThrow(() -> new CorrectionException("Attendance record not found"));
+    }
+
+    private AttendanceRecord recordFrom(AttendanceRecordEntity entity) {
+        return toDomain(entity, calendar.policiesByVersionIds(Set.of(entity.policyVersionId())));
+    }
+
+    private static AttendanceRecord toDomain(
+            AttendanceRecordEntity entity, Map<Long, AttendancePolicy> policiesByVersionId) {
+        AttendancePolicy policy = policiesByVersionId.get(entity.policyVersionId());
+        if (policy == null) {
+            throw new IllegalStateException("Attendance policy version not found");
+        }
+        return entity.toDomain(policy);
     }
 
     private void expireIfNeeded(
@@ -558,13 +580,13 @@ public class AttendanceCorrectionApplicationService {
     }
 
     private static void requireIntern(AttendanceActor actor) {
-        if (actor == null || actor.role() != AttendanceRole.INTERN) {
+        if (actor == null || actor.role() != GlobalRole.INTERN) {
             throw new AccessDeniedException("Only the owning Intern may request corrections");
         }
     }
 
     private static void requireMentor(AttendanceActor actor) {
-        if (actor == null || actor.role() != AttendanceRole.MENTOR) {
+        if (actor == null || actor.role() != GlobalRole.MENTOR) {
             throw new AccessDeniedException("Only a Mentor may decide corrections");
         }
     }

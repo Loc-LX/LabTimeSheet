@@ -11,8 +11,8 @@ import com.lab.labtimesheet.feature.project.exception.ProjectAccessDeniedExcepti
 import com.lab.labtimesheet.feature.project.exception.ProjectRuleViolationException;
 import com.lab.labtimesheet.feature.project.model.InvitationResponse;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectCreateCommand;
-import com.lab.labtimesheet.feature.task.exception.TaskConflictException;
-import com.lab.labtimesheet.feature.task.model.dto.RemainingEffortForecastInput;
+import com.lab.labtimesheet.feature.project.exception.TaskConflictException;
+import com.lab.labtimesheet.feature.project.model.dto.RemainingEffortForecastInput;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import java.time.Instant;
@@ -1331,6 +1331,56 @@ class ProjectInvitationExitIntegrationTest {
             List<String> exits,
             List<String> tasks,
             List<String> notifications) {
+    }
+
+    /**
+     * Protects the "at most one pending invitation per eligible Intern" half of {@code PRJ-018}.
+     * Observable break: the guard is lost and a Leader can queue several pending invitations for
+     * one Intern, so accepting one leaves the rest live, a later acceptance creates a second
+     * membership, and {@code PRJ-017} loses the duplicate-membership property it depends on.
+     *
+     * <p>The rule is enforced twice, and the test exercises the first layer while the second stands
+     * behind it. The service refuses the duplicate with a named rule violation, and the schema
+     * carries the partial unique index {@code uq_project_invitations_one_pending} on
+     * {@code (project_id, invited_intern_user_id) where status = 'PENDING'} for the concurrent case
+     * the service check cannot see. A partial index is a PostgreSQL feature with no H2 equivalent,
+     * which is one reason {@code ARC-003} keeps this suite on PostgreSQL.
+     *
+     * <p>The message is asserted rather than the exception type alone, because this service raises
+     * the same type for many rules and a type-only assertion would pass on an unrelated refusal.
+     * The surviving row count is asserted too, because an implementation that rejected the second
+     * invitation after writing it would satisfy both of the other assertions.
+     *
+     * <p>The rule's other unasserted half, that an invitation never expires by time, is not covered
+     * here. Asserting the absence of an expiry path needs a different instrument than a test that
+     * issues one invitation.
+     */
+    @Test
+    void aSecondPendingInvitationForTheSameInternIsRefused() {
+        long mentorId = user("mentor-one-pending@example.test", "MENTOR");
+        long leaderId = intern("leader-one-pending@example.test", "I181");
+        long inviteeId = intern("invitee-one-pending@example.test", "I182");
+        long projectId = createProject(mentorId, leaderId, "One pending invitation");
+
+        long first = projects.issueInvitation(leaderId, projectId, inviteeId);
+        assertEquals("PENDING", text("select status from project_invitations where id = ?", first));
+
+        ProjectRuleViolationException refusal = assertThrows(
+                ProjectRuleViolationException.class,
+                () -> projects.issueInvitation(leaderId, projectId, inviteeId),
+                "PRJ-018 permits at most one pending invitation per eligible Intern");
+        assertTrue(
+                refusal.getMessage().contains("A pending invitation already exists"),
+                "the refusal must name the duplicate invitation, not an unrelated rule. Actual: "
+                        + refusal.getMessage());
+
+        assertEquals(
+                1,
+                count(
+                        "select count(*) from project_invitations "
+                                + "where project_id = ? and invited_intern_user_id = ? and status = 'PENDING'",
+                        projectId,
+                        inviteeId));
     }
 
     private long createProject(long mentorId, long leaderId, String name) {

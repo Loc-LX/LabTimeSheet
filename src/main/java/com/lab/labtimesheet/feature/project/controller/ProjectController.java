@@ -1,22 +1,22 @@
 package com.lab.labtimesheet.feature.project.controller;
 
-import com.lab.labtimesheet.feature.account.model.dto.EligibleInternOption;
-import com.lab.labtimesheet.feature.account.service.AccountService;
+import com.lab.labtimesheet.feature.identity.model.dto.EligibleInternOption;
+import com.lab.labtimesheet.feature.identity.service.AccountService;
 import com.lab.labtimesheet.feature.project.exception.ProjectAccessDeniedException;
 import com.lab.labtimesheet.feature.project.exception.ProjectRuleViolationException;
+import com.lab.labtimesheet.feature.project.model.InvitationResponse;
+import com.lab.labtimesheet.feature.project.model.ProjectExitRequestType;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectCreateForm;
+import com.lab.labtimesheet.feature.project.model.dto.ProjectExitWorkflowView;
+import com.lab.labtimesheet.feature.project.model.dto.ProjectListPage;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectMemberForm;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectMemberView;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectMembersForm;
-import com.lab.labtimesheet.feature.project.model.dto.ProjectExitWorkflowView;
-import com.lab.labtimesheet.feature.project.model.ProjectExitRequestType;
-import com.lab.labtimesheet.feature.project.model.dto.ProjectListPage;
-import com.lab.labtimesheet.feature.project.model.InvitationResponse;
-import com.lab.labtimesheet.feature.task.model.TaskStatus;
-import com.lab.labtimesheet.feature.task.model.dto.RemainingEffortForecastInput;
-import com.lab.labtimesheet.feature.task.exception.TaskValidationException;
 import com.lab.labtimesheet.feature.project.service.ProjectQueryService;
 import com.lab.labtimesheet.feature.project.service.ProjectService;
+import com.lab.labtimesheet.feature.project.exception.TaskValidationException;
+import com.lab.labtimesheet.feature.project.model.TaskStatus;
+import com.lab.labtimesheet.feature.project.model.dto.RemainingEffortForecastInput;
 import jakarta.validation.Valid;
 import java.security.Principal;
 import java.time.Clock;
@@ -109,7 +109,6 @@ public class ProjectController {
         }
         model.addAttribute("projectForm", new ProjectCreateForm());
         model.addAttribute("eligibleInternOptions", eligibleInternOptions()); // → Service: AccountService (helper bên dưới)
-        model.addAttribute("today", LocalDate.now(clock));
         return "projects/form";
     }
 
@@ -136,7 +135,6 @@ public class ProjectController {
         }
         if (bindingResult.hasErrors()) {
             model.addAttribute("eligibleInternOptions", eligibleInternOptions());
-            model.addAttribute("today", LocalDate.now(clock));
             return "projects/form";
         }
         try {
@@ -149,7 +147,6 @@ public class ProjectController {
             bindingResult.rejectValue(
                     field, "project.rule.violation", exception.getMessage());
             model.addAttribute("eligibleInternOptions", eligibleInternOptions());
-            model.addAttribute("today", LocalDate.now(clock));
             return "projects/form";
         }
     }

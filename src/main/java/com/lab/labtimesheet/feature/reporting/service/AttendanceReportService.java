@@ -1,18 +1,19 @@
 package com.lab.labtimesheet.feature.reporting.service;
 
-import com.lab.labtimesheet.feature.account.model.GlobalRole;
-import com.lab.labtimesheet.feature.account.model.dto.AccountIdentity;
-import com.lab.labtimesheet.feature.account.service.AccountService;
+import com.lab.labtimesheet.feature.identity.model.dto.AccountIdentity;
+import com.lab.labtimesheet.feature.identity.service.AccountService;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
-import com.lab.labtimesheet.feature.attendance.model.AttendanceRole;
+import com.lab.labtimesheet.platform.model.GlobalRole;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceReport;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceReportDay;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceApplicationService;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceCurrentUserService;
+import com.lab.labtimesheet.feature.calendar.service.CalendarApplicationService;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceReportQueryService;
 import com.lab.labtimesheet.feature.reporting.model.dto.AttendanceReportRow;
 import com.lab.labtimesheet.feature.reporting.model.dto.AttendanceReportView;
 import com.lab.labtimesheet.feature.reporting.model.dto.ReportTrendPoint;
+import com.lab.labtimesheet.platform.model.GlobalRole;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.security.Principal;
@@ -41,6 +42,7 @@ public class AttendanceReportService {
 
     private final AttendanceCurrentUserService currentUsers;
     private final AttendanceApplicationService attendance;
+    private final CalendarApplicationService calendar;
     private final AttendanceReportQueryService reportQueries;
     private final AccountService accounts;
 
@@ -61,13 +63,13 @@ public class AttendanceReportService {
             LocalDate requestedFrom,
             LocalDate requestedTo) {
         AttendanceActor actor = currentUsers.actor(principal);
-        LocalDate to = requestedTo == null ? attendance.currentBusinessDate() : requestedTo;
+        LocalDate to = requestedTo == null ? calendar.currentBusinessDate() : requestedTo;
         LocalDate from = requestedFrom == null ? to.withDayOfMonth(1) : requestedFrom;
         if (from.isAfter(to)) {
             throw new IllegalArgumentException("from must not be after to");
         }
 
-        boolean ownScope = actor.role() == AttendanceRole.INTERN;
+        boolean ownScope = actor.role() == GlobalRole.INTERN;
         long targetId = resolveTarget(actor, requestedInternId, ownScope);
         if (!ownScope && requestedInternId == null) {
             return emptyDetailSelection(from, to, accounts.eligibleInternOptions(to));
@@ -171,7 +173,7 @@ public class AttendanceReportService {
 
     private static AttendanceReportView emptyDetailSelection(
             LocalDate from, LocalDate to,
-            List<com.lab.labtimesheet.feature.account.model.dto.EligibleInternOption> options) {
+            List<com.lab.labtimesheet.feature.identity.model.dto.EligibleInternOption> options) {
         return new AttendanceReportView(
                 0L,
                 "Select an Intern",

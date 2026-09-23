@@ -1,10 +1,14 @@
 package com.lab.labtimesheet.feature.project.service;
 
-import com.lab.labtimesheet.feature.account.model.AccountStatus;
-import com.lab.labtimesheet.feature.account.model.GlobalRole;
-import com.lab.labtimesheet.feature.account.model.dto.InternshipLifecycleGuard;
-import com.lab.labtimesheet.feature.account.model.dto.LockedAccountMutationEligibility;
-import com.lab.labtimesheet.feature.account.service.AccountService;
+import com.lab.labtimesheet.feature.identity.model.AccountStatus;
+import com.lab.labtimesheet.feature.identity.model.dto.InternshipLifecycleGuard;
+import com.lab.labtimesheet.feature.identity.model.dto.LockedAccountMutationEligibility;
+import com.lab.labtimesheet.feature.identity.service.AccountService;
+import com.lab.labtimesheet.feature.notification.model.NotificationType;
+import com.lab.labtimesheet.feature.notification.model.dto.NotificationAction;
+import com.lab.labtimesheet.feature.notification.model.dto.NotificationEvent;
+import com.lab.labtimesheet.feature.notification.model.dto.NotificationRecipient;
+import com.lab.labtimesheet.feature.notification.service.NotificationService;
 import com.lab.labtimesheet.feature.project.exception.ProjectAccessDeniedException;
 import com.lab.labtimesheet.feature.project.exception.ProjectRuleViolationException;
 import com.lab.labtimesheet.feature.project.model.InvitationResolutionCode;
@@ -15,8 +19,8 @@ import com.lab.labtimesheet.feature.project.model.ProjectExitRequestType;
 import com.lab.labtimesheet.feature.project.model.ProjectInternEligibility;
 import com.lab.labtimesheet.feature.project.model.ProjectStatus;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectCreateCommand;
-import com.lab.labtimesheet.feature.project.model.dto.ProjectInvitationNotificationRoute;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectExitRequestRoute;
+import com.lab.labtimesheet.feature.project.model.dto.ProjectInvitationNotificationRoute;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectInvitationRoute;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectMutationRoute;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectTaskContext;
@@ -27,15 +31,11 @@ import com.lab.labtimesheet.feature.project.model.entity.ProjectMembershipEntity
 import com.lab.labtimesheet.feature.project.repository.ProjectExitRequestRepository;
 import com.lab.labtimesheet.feature.project.repository.ProjectInvitationRepository;
 import com.lab.labtimesheet.feature.project.repository.ProjectRepository;
-import com.lab.labtimesheet.feature.task.service.TaskQueryService;
-import com.lab.labtimesheet.feature.task.service.TaskTransferResult;
-import com.lab.labtimesheet.feature.task.service.TaskTransferService;
-import com.lab.labtimesheet.feature.task.model.dto.RemainingEffortForecastInput;
-import com.lab.labtimesheet.feature.notification.model.NotificationType;
-import com.lab.labtimesheet.feature.notification.model.dto.NotificationAction;
-import com.lab.labtimesheet.feature.notification.model.dto.NotificationEvent;
-import com.lab.labtimesheet.feature.notification.model.dto.NotificationRecipient;
-import com.lab.labtimesheet.feature.notification.service.NotificationService;
+import com.lab.labtimesheet.feature.project.model.dto.RemainingEffortForecastInput;
+import com.lab.labtimesheet.feature.project.service.TaskQueryService;
+import com.lab.labtimesheet.feature.project.service.TaskTransferResult;
+import com.lab.labtimesheet.feature.project.service.TaskTransferService;
+import com.lab.labtimesheet.platform.model.GlobalRole;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import java.time.Clock;
@@ -131,10 +131,7 @@ public class ProjectService {
     // Chức năng: lock account → validate Mentor + Leader → dựng entity → INSERT
     // cascade → gửi notification.
     public long create(long actorUserId, ProjectCreateCommand command) {
-        LocalDate today = LocalDate.now(clock);
-        if (command.startDate().isBefore(today)) { // validate ngày bắt đầu không được quá khứ
-            throw new ProjectRuleViolationException("Project start date cannot be in the past");
-        }
+        // PRJ-024: start date được phép ở quá khứ; ngày ghi work log vẫn do TSK-014 giới hạn.
         var lockedAccounts = lockAccountsForTargetMutation( // → AccountService: FOR UPDATE + snapshot
                 List.of(actorUserId, command.initialLeaderUserId())); // lock Mentor + Leader được chọn
         requireActiveMentor(snapshotFor(lockedAccounts, actorUserId)); // Mentor phải ACTIVE

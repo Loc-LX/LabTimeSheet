@@ -1,14 +1,12 @@
 package com.lab.labtimesheet.feature.attendance.model.entity;
 
+import com.lab.labtimesheet.feature.calendar.model.AttendancePolicy;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceRecord;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import java.time.Instant;
@@ -34,9 +32,8 @@ public class AttendanceRecordEntity {
     @Column(name = "work_date", nullable = false)
     private LocalDate workDate;
 
-    @ManyToOne(fetch = FetchType.EAGER, optional = false)
-    @JoinColumn(name = "policy_version_id", nullable = false)
-    private AttendancePolicyEntity policy;
+    @Column(name = "policy_version_id", nullable = false)
+    private long policyVersionId;
 
     @Column(name = "check_in_at", nullable = false)
     private Instant checkInAt;
@@ -52,30 +49,34 @@ public class AttendanceRecordEntity {
      *
      * @param internUserId scalar account identifier; account data remains owned by the account feature
      * @param workDate attached-policy local work date
-     * @param policy persisted policy version fixed at check-in
+     * @param policyVersionId persisted policy version identifier fixed at check-in
      * @param checkInAt raw server check-in instant
      * @param checkOutAt raw server checkout instant, normally {@code null} for a new row
      */
     public AttendanceRecordEntity(
             long internUserId,
             LocalDate workDate,
-            AttendancePolicyEntity policy,
+            long policyVersionId,
             Instant checkInAt,
             Instant checkOutAt) {
         this.internUserId = internUserId;
         this.workDate = workDate;
-        this.policy = policy;
+        this.policyVersionId = policyVersionId;
         this.checkInAt = checkInAt;
         this.checkOutAt = checkOutAt;
     }
 
     /**
-     * Rehydrates the immutable domain record without replacing the historical policy.
+     * Rehydrates the immutable domain record with the historical policy read by the Calendar boundary.
      *
+     * @param policy historical policy whose identifier must match this row
      * @return attendance domain record
      */
-    public AttendanceRecord toDomain() {
-        return new AttendanceRecord(internUserId, workDate, policy.toDomain(), checkInAt, checkOutAt);
+    public AttendanceRecord toDomain(AttendancePolicy policy) {
+        if (policy.id() != policyVersionId) {
+            throw new IllegalArgumentException("Attendance policy does not match the persisted policy version");
+        }
+        return new AttendanceRecord(internUserId, workDate, policy, checkInAt, checkOutAt);
     }
 
     /**
@@ -106,5 +107,14 @@ public class AttendanceRecordEntity {
      */
     public LocalDate workDate() {
         return workDate;
+    }
+
+    /**
+     * Returns the immutable policy-version identifier used to load the historical policy through Calendar.
+     *
+     * @return persisted policy version identifier
+     */
+    public long policyVersionId() {
+        return policyVersionId;
     }
 }

@@ -18,24 +18,24 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 
+import com.lab.labtimesheet.feature.identity.model.dto.EligibleInternOption;
+import com.lab.labtimesheet.feature.identity.service.AccountService;
 import com.lab.labtimesheet.feature.project.exception.ProjectAccessDeniedException;
 import com.lab.labtimesheet.feature.project.exception.ProjectRuleViolationException;
-import com.lab.labtimesheet.feature.account.model.dto.EligibleInternOption;
-import com.lab.labtimesheet.feature.account.service.AccountService;
-import com.lab.labtimesheet.feature.project.model.dto.ProjectCreateCommand;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectActorView;
+import com.lab.labtimesheet.feature.project.model.dto.ProjectCreateCommand;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectDetail;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectExitReadinessView;
-import com.lab.labtimesheet.feature.project.model.dto.ProjectSummary;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectLeadershipTermView;
-import com.lab.labtimesheet.feature.project.model.dto.ProjectMemberView;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectListPage;
+import com.lab.labtimesheet.feature.project.model.dto.ProjectMemberView;
+import com.lab.labtimesheet.feature.project.model.dto.ProjectSummary;
 import com.lab.labtimesheet.feature.project.service.ProjectQueryService;
 import com.lab.labtimesheet.feature.project.service.ProjectService;
-import com.lab.labtimesheet.feature.integration.service.SmtpConfigurationService;
-import com.lab.labtimesheet.feature.task.exception.TaskConflictException;
-import com.lab.labtimesheet.feature.task.exception.TaskValidationException;
-import com.lab.labtimesheet.feature.task.model.dto.RemainingEffortForecastInput;
+import com.lab.labtimesheet.feature.project.exception.TaskConflictException;
+import com.lab.labtimesheet.feature.project.exception.TaskValidationException;
+import com.lab.labtimesheet.feature.project.model.dto.RemainingEffortForecastInput;
+import com.lab.labtimesheet.platform.service.SmtpConfigurationService;
 import java.time.Instant;
 import java.time.Clock;
 import java.time.LocalDate;
@@ -513,21 +513,56 @@ class ProjectControllerTest {
                 .andExpect(redirectedUrl("/projects/30"));
     }
 
+    /**
+     * Protects {@code PRJ-024} in the browser form. Observable break: the start date input carries
+     * a {@code min} of today, so the browser blocks a Mentor from entering a Project that has
+     * already started before the request ever reaches the server. Expected: with the server date
+     * at 15 August, the start date input has no {@code min} attribute.
+     *
+     * @throws Exception if the form cannot be rendered
+     */
     @Test
     @WithMockUser(username = "mentor@example.test")
-    void pastStartDateDomainErrorStaysOnStartDateField() throws Exception {
+    void projectCreationFormLetsTheStartDateLieInThePast() throws Exception {
+        when(pages.authenticatedActor("mentor@example.test"))
+                .thenReturn(new ProjectActorView(10L, "MENTOR"));
+        when(accounts.eligibleInternOptions(LocalDate.of(2026, 8, 15)))
+                .thenReturn(List.of(option(20L, "Nguyen An", "STU-020")));
+
+        String html = mvc.perform(get("/projects/new"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        java.util.regex.Matcher startDateInput = java.util.regex.Pattern
+                .compile("<input[^>]*id=\"startDate\"[^>]*>").matcher(html);
+        assertTrue(startDateInput.find(), "the form renders a start date input");
+        assertFalse(startDateInput.group().contains("min="), startDateInput.group());
+    }
+
+    /**
+     * Protects the form's handling of a date rule the domain enforces. Observable break: a
+     * {@code ProjectRuleViolationException} about dates escapes as an error page instead of
+     * re-rendering the form with its message. Expected: the form is shown again with the
+     * message bound to the start date field. Until 15 September 2026 this used the past start
+     * date refusal, which {@code D21} removed; the end-date rule of {@code PRJ-024} remains.
+     *
+     * @throws Exception if the submission cannot be performed
+     */
+    @Test
+    @WithMockUser(username = "mentor@example.test")
+    void domainDateRuleViolationStaysOnStartDateField() throws Exception {
         when(pages.authenticatedActor("mentor@example.test"))
                 .thenReturn(new ProjectActorView(10L, "MENTOR"));
         when(projects.create(
                         10L,
                         new ProjectCreateCommand(
-                                "Past Project", null, LocalDate.of(2026, 8, 14),
+                                "Dated Project", null, LocalDate.of(2026, 8, 14),
                                 LocalDate.of(2026, 9, 30), 20L)))
-                .thenThrow(new ProjectRuleViolationException("Project start date cannot be in the past"));
+                .thenThrow(new ProjectRuleViolationException("Project end date must not precede its start date"));
 
         mvc.perform(post("/projects")
                         .with(csrf())
-                        .param("name", "Past Project")
+                        .param("name", "Dated Project")
                         .param("startDate", "2026-08-14")
                         .param("endDate", "2026-09-30")
                         .param("initialLeaderUserId", "20"))
@@ -535,7 +570,7 @@ class ProjectControllerTest {
                 .andExpect(view().name("projects/form"))
                 .andExpect(model().attributeHasFieldErrors("projectForm", "startDate"))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
-                        .string(containsString("Project start date cannot be in the past")));
+                        .string(containsString("Project end date must not precede its start date")));
     }
 
     @Test

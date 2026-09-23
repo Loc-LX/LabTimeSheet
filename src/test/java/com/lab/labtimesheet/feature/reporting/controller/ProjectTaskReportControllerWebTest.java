@@ -7,10 +7,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 
-import com.lab.labtimesheet.feature.integration.service.SmtpConfigurationService;
 import com.lab.labtimesheet.feature.reporting.model.dto.ProjectTaskReportFilter;
 import com.lab.labtimesheet.feature.reporting.model.dto.ProjectTaskReportView;
 import com.lab.labtimesheet.feature.reporting.service.ProjectTaskReportService;
+import com.lab.labtimesheet.platform.service.SmtpConfigurationService;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

@@ -5,19 +5,20 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
-import com.lab.labtimesheet.feature.account.model.AccountStatus;
-import com.lab.labtimesheet.feature.account.model.GlobalRole;
-import com.lab.labtimesheet.feature.account.model.dto.AccountIdentity;
-import com.lab.labtimesheet.feature.account.model.dto.EligibleInternOption;
-import com.lab.labtimesheet.feature.account.service.AccountService;
+import com.lab.labtimesheet.feature.identity.model.AccountStatus;
+import com.lab.labtimesheet.feature.identity.model.dto.AccountIdentity;
+import com.lab.labtimesheet.feature.identity.model.dto.EligibleInternOption;
+import com.lab.labtimesheet.feature.identity.service.AccountService;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
-import com.lab.labtimesheet.feature.attendance.model.AttendanceRole;
+import com.lab.labtimesheet.platform.model.GlobalRole;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceReport;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceReportClassification;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceReportDay;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceApplicationService;
+import com.lab.labtimesheet.feature.calendar.service.CalendarApplicationService;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceCurrentUserService;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceReportQueryService;
+import com.lab.labtimesheet.platform.model.GlobalRole;
 import java.math.BigDecimal;
 import java.security.Principal;
 import java.time.Instant;
@@ -34,6 +35,7 @@ class AttendanceReportServiceTest {
 
     private final AttendanceCurrentUserService currentUsers = mock(AttendanceCurrentUserService.class);
     private final AttendanceApplicationService attendance = mock(AttendanceApplicationService.class);
+    private final CalendarApplicationService calendar = mock(CalendarApplicationService.class);
     private final AttendanceReportQueryService reportQueries = mock(AttendanceReportQueryService.class);
     private final AccountService accounts = mock(AccountService.class);
     private final Principal principal = () -> "intern@example.test";
@@ -41,14 +43,14 @@ class AttendanceReportServiceTest {
 
     @BeforeEach
     void setUp() {
-        reports = new AttendanceReportService(currentUsers, attendance, reportQueries, accounts);
+        reports = new AttendanceReportService(currentUsers, attendance, calendar, reportQueries, accounts);
     }
 
     @Test
     void usesAttendanceOwnedClassificationAndExactAggregateFormulas() {
-        AttendanceActor actor = new AttendanceActor(7L, AttendanceRole.INTERN);
+        AttendanceActor actor = new AttendanceActor(7L, GlobalRole.INTERN);
         given(currentUsers.actor(principal)).willReturn(actor);
-        given(attendance.currentBusinessDate()).willReturn(LocalDate.of(2026, 8, 31));
+        given(calendar.currentBusinessDate()).willReturn(LocalDate.of(2026, 8, 31));
         given(accounts.requireIdentityById(7L))
                 .willReturn(identity(7L, "Mai Intern", GlobalRole.INTERN));
         given(reportQueries.query(
@@ -99,7 +101,7 @@ class AttendanceReportServiceTest {
 
     @Test
     void preservesDistinctRawAndEffectiveCheckoutDisplays() {
-        AttendanceActor actor = new AttendanceActor(7L, AttendanceRole.INTERN);
+        AttendanceActor actor = new AttendanceActor(7L, GlobalRole.INTERN);
         given(currentUsers.actor(principal)).willReturn(actor);
         given(accounts.requireIdentityById(7L))
                 .willReturn(identity(7L, "Mai Intern", GlobalRole.INTERN));
@@ -147,7 +149,7 @@ class AttendanceReportServiceTest {
 
     @Test
     void rejectsInternDetailTargetOutsideOwnAccountBeforeAttendanceRead() {
-        given(currentUsers.actor(principal)).willReturn(new AttendanceActor(7L, AttendanceRole.INTERN));
+        given(currentUsers.actor(principal)).willReturn(new AttendanceActor(7L, GlobalRole.INTERN));
 
         assertThatThrownBy(() -> reports.build(
                 principal,
@@ -160,7 +162,7 @@ class AttendanceReportServiceTest {
     @Test
     void buildsSelectedInternReportForAdmin() {
         Principal admin = () -> "admin@example.test";
-        AttendanceActor actor = new AttendanceActor(1L, AttendanceRole.ADMIN);
+        AttendanceActor actor = new AttendanceActor(1L, GlobalRole.ADMIN);
         LocalDate from = LocalDate.of(2026, 8, 1);
         LocalDate to = LocalDate.of(2026, 8, 31);
         given(currentUsers.actor(admin)).willReturn(actor);
@@ -186,8 +188,8 @@ class AttendanceReportServiceTest {
 
     @Test
     void rendersMentorTargetPickerBeforeReadingAttendanceRows() {
-        given(currentUsers.actor(principal)).willReturn(new AttendanceActor(2L, AttendanceRole.MENTOR));
-        given(attendance.currentBusinessDate()).willReturn(LocalDate.of(2026, 8, 31));
+        given(currentUsers.actor(principal)).willReturn(new AttendanceActor(2L, GlobalRole.MENTOR));
+        given(calendar.currentBusinessDate()).willReturn(LocalDate.of(2026, 8, 31));
         given(accounts.eligibleInternOptions(LocalDate.of(2026, 8, 31)))
                 .willReturn(List.of(new EligibleInternOption(
                         7L,

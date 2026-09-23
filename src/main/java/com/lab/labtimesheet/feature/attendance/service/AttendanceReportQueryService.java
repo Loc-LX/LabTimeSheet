@@ -1,25 +1,25 @@
 package com.lab.labtimesheet.feature.attendance.service;
 
-import com.lab.labtimesheet.feature.account.model.AccountStatus;
-import com.lab.labtimesheet.feature.account.model.GlobalRole;
-import com.lab.labtimesheet.feature.account.model.dto.AccountIdentity;
-import com.lab.labtimesheet.feature.account.model.dto.InternReportingWindow;
-import com.lab.labtimesheet.feature.account.service.AccountService;
+import com.lab.labtimesheet.feature.calendar.service.CalendarApplicationService;
+import com.lab.labtimesheet.feature.calendar.service.AttendancePolicyTimeline;
+
+import com.lab.labtimesheet.feature.identity.model.AccountStatus;
+import com.lab.labtimesheet.feature.identity.model.dto.AccountIdentity;
+import com.lab.labtimesheet.feature.identity.model.dto.InternReportingWindow;
+import com.lab.labtimesheet.feature.identity.service.AccountService;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
-import com.lab.labtimesheet.feature.attendance.model.AttendancePolicy;
+import com.lab.labtimesheet.feature.calendar.model.AttendancePolicy;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceRecord;
-import com.lab.labtimesheet.feature.attendance.model.AttendanceRole;
+import com.lab.labtimesheet.platform.model.GlobalRole;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceViolations;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceReport;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceReportClassification;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceReportDay;
-import com.lab.labtimesheet.feature.attendance.model.entity.AttendancePolicyEntity;
 import com.lab.labtimesheet.feature.attendance.model.entity.AttendanceRecordEntity;
-import com.lab.labtimesheet.feature.attendance.model.entity.GlobalCalendarEventEntity;
-import com.lab.labtimesheet.feature.attendance.repository.AttendancePolicyRepository;
 import com.lab.labtimesheet.feature.attendance.repository.AttendanceQueryRepository;
 import com.lab.labtimesheet.feature.attendance.repository.AttendanceRecordRepository;
-import com.lab.labtimesheet.feature.attendance.repository.GlobalCalendarEventRepository;
+import com.lab.labtimesheet.feature.calendar.model.dto.CalendarHistoryItem;
+import com.lab.labtimesheet.platform.model.GlobalRole;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Clock;
@@ -59,10 +59,9 @@ public class AttendanceReportQueryService {
 
     private final Clock clock;
     private final AccountService accounts;
-    private final AttendancePolicyRepository policies;
     private final AttendanceRecordRepository records;
     private final AttendanceQueryRepository queries;
-    private final GlobalCalendarEventRepository calendarEvents;
+    private final CalendarApplicationService calendar;
     private final AttendanceCorrectionApplicationService corrections;
 
     /**
@@ -93,12 +92,15 @@ public class AttendanceReportQueryService {
 
         List<AttendanceRecordEntity> recordRows = records
                 .findByInternUserIdAndWorkDateBetweenOrderByWorkDateAsc(internId, from, to);
+        Map<Long, AttendancePolicy> policiesByVersionId = calendar.policiesByVersionIds(recordRows.stream()
+                .map(AttendanceRecordEntity::policyVersionId)
+                .collect(Collectors.toSet()));
         Map<LocalDate, AttendanceRecordEntity> recordsByDate = recordRows.stream()
                 .collect(Collectors.toMap(AttendanceRecordEntity::workDate, row -> row));
         Map<Long, java.time.Instant> effectiveCheckouts = corrections.prepareHistory(recordRows);
         Set<LocalDate> approvedLeaveDates = new HashSet<>(queries.findApprovedLeaveDates(internId, from, to));
         Map<LocalDate, CalendarDayOff> dayOffs = calendarDayOffs(from, to);
-        AttendancePolicyTimeline timeline = timeline();
+        AttendancePolicyTimeline timeline = calendar.policyTimeline();
         java.time.Instant observedAt = clock.instant();
 
         List<AttendanceReportDay> days = new ArrayList<>();
@@ -114,7 +116,7 @@ public class AttendanceReportQueryService {
                 date = date.plusDays(1);
                 continue;
             }
-            AttendanceRecord record = entity == null ? null : entity.toDomain();
+            AttendanceRecord record = entity == null ? null : toDomain(entity, policiesByVersionId);
             AttendancePolicy policy = record == null ? timeline.resolve(date) : record.policy();
             AttendanceReportClassification classification = classify(
                     date, policy, dayOffs.get(date), approvedLeaveDates, record);
@@ -237,24 +239,25 @@ public class AttendanceReportQueryService {
 
     private Map<LocalDate, CalendarDayOff> calendarDayOffs(LocalDate from, LocalDate to) {
         Map<LocalDate, CalendarDayOff> result = new HashMap<>();
-        for (GlobalCalendarEventEntity event : calendarEvents
-                .findByCalendarDateBetweenOrderByCalendarDateAscIdAsc(from, to)) {
-            var history = event.toHistory();
-            if (!history.dayOff()) {
+        for (CalendarHistoryItem event : calendar.historyBetween(from, to)) {
+            if (!event.dayOff()) {
                 continue;
             }
             result.merge(
-                    history.calendarDate(),
-                    new CalendarDayOff(true, "HOLIDAY_API".equals(history.source())),
+                    event.calendarDate(),
+                    new CalendarDayOff(true, "HOLIDAY_API".equals(event.source())),
                     CalendarDayOff::preferImportedHoliday);
         }
         return result;
     }
 
-    private AttendancePolicyTimeline timeline() {
-        return new AttendancePolicyTimeline(policies.findAllByOrderByEffectiveFromAsc().stream()
-                .map(AttendancePolicyEntity::toDomain)
-                .toList());
+    private static AttendanceRecord toDomain(
+            AttendanceRecordEntity entity, Map<Long, AttendancePolicy> policiesByVersionId) {
+        AttendancePolicy policy = policiesByVersionId.get(entity.policyVersionId());
+        if (policy == null) {
+            throw new IllegalStateException("Attendance policy version not found");
+        }
+        return entity.toDomain(policy);
     }
 
     private void authorize(AttendanceActor actor, long internId) {
@@ -266,14 +269,14 @@ public class AttendanceReportQueryService {
         if (identity.role() != expectedRole) {
             throw new AccessDeniedException("Attendance actor role does not match the account");
         }
-        if (actor.role() == AttendanceRole.INTERN) {
+        if (actor.role() == GlobalRole.INTERN) {
             if (actor.userId() != internId || identity.status() != AccountStatus.ACTIVE) {
                 throw new AccessDeniedException("Interns may view only their own attendance");
             }
             return;
         }
-        boolean activeBroadActor = (actor.role() == AttendanceRole.MENTOR && identity.role() == GlobalRole.MENTOR
-                || actor.role() == AttendanceRole.ADMIN && identity.role() == GlobalRole.ADMIN)
+        boolean activeBroadActor = (actor.role() == GlobalRole.MENTOR && identity.role() == GlobalRole.MENTOR
+                || actor.role() == GlobalRole.ADMIN && identity.role() == GlobalRole.ADMIN)
                 && identity.status() == AccountStatus.ACTIVE;
         if (!activeBroadActor) {
             throw new AccessDeniedException("An active Mentor or Admin is required");

@@ -3,7 +3,7 @@ package com.lab.labtimesheet.feature.reporting.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 
-import com.lab.labtimesheet.feature.account.model.dto.EligibleInternOption;
+import com.lab.labtimesheet.feature.identity.model.dto.EligibleInternOption;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectSummary;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectTaskMemberView;
 import com.lab.labtimesheet.feature.reporting.model.dto.AttendanceReportRow;
@@ -12,7 +12,7 @@ import com.lab.labtimesheet.feature.reporting.model.dto.ProjectTaskReportFilter;
 import com.lab.labtimesheet.feature.reporting.model.dto.ProjectTaskReportMemberHours;
 import com.lab.labtimesheet.feature.reporting.model.dto.ProjectTaskReportRow;
 import com.lab.labtimesheet.feature.reporting.model.dto.ProjectTaskReportView;
-import com.lab.labtimesheet.feature.task.model.TaskStatus;
+import com.lab.labtimesheet.feature.project.model.TaskStatus;
 import java.io.ByteArrayInputStream;
 import java.time.Instant;
 import java.time.LocalDate;

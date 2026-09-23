@@ -1,0 +1,66 @@
+package com.lab.labtimesheet.platform.service;
+
+import com.lab.labtimesheet.platform.model.SmtpStatus;
+import com.lab.labtimesheet.platform.model.dto.SmtpConnection;
+import com.lab.labtimesheet.platform.model.entity.SmtpConfiguration;
+import com.lab.labtimesheet.platform.repository.SmtpConfigurationRepository;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+/**
+ * Cross-feature email delivery boundary backed by the single active SMTP revision.
+ * Stored credentials are decrypted only while constructing the immediate adapter call.
+ */
+@Service
+@RequiredArgsConstructor(access = AccessLevel.PACKAGE)
+public class MailDeliveryService {
+    private final SmtpConfigurationRepository configurations;
+    private final SecretCipher secrets;
+    private final SmtpProbe probe;
+
+    /**
+     * Reports whether workflows may emit required email.
+     *
+     * @return {@code true} when an active tested SMTP revision exists
+     */
+    @Transactional(readOnly = true)
+    public boolean isAvailable() {
+        return configurations.existsByStatus(SmtpStatus.ACTIVE);
+    }
+
+    /**
+     * Sends one immediate message through the active configuration.
+     *
+     * @param recipient destination email address
+     * @param subject message subject
+     * @param body plain-text message body
+     * @throws IllegalStateException when no active configuration exists or delivery fails
+     */
+    public void send(String recipient, String subject, String body) {
+        probe.send(activeConnection(), recipient, subject, body);
+    }
+
+    /**
+     * Resolves request-local connection material from the active encrypted configuration.
+     *
+     * @return complete connection values, including the transient decrypted password
+     * @throws IllegalStateException when SMTP is not active
+     */
+    @Transactional(readOnly = true)
+    public SmtpConnection activeConnection() {
+        return configurations.findByStatus(SmtpStatus.ACTIVE)
+                .map(this::connection)
+                .orElseThrow(() -> new IllegalStateException("Active SMTP configuration is required"));
+    }
+
+    SmtpConnection connection(SmtpConfiguration configuration) {
+        byte[] ciphertext = configuration.getPasswordCiphertext();
+        return new SmtpConnection(
+                configuration.getHost(), configuration.getPort(), configuration.getSecurityMode(),
+                configuration.getUsername(),
+                ciphertext == null ? null : secrets.decrypt(ciphertext, configuration.getPasswordNonce()),
+                configuration.getFromAddress(), configuration.getFromName());
+    }
+}

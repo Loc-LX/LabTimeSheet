@@ -11,8 +11,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-import com.lab.labtimesheet.feature.account.service.AccountService;
-import com.lab.labtimesheet.feature.integration.service.MailDeliveryService;
+import com.lab.labtimesheet.feature.identity.service.AccountService;
 import com.lab.labtimesheet.feature.notification.model.NotificationEmailStatus;
 import com.lab.labtimesheet.feature.notification.model.NotificationType;
 import com.lab.labtimesheet.feature.notification.model.dto.NotificationAction;
@@ -23,6 +22,7 @@ import com.lab.labtimesheet.feature.notification.model.dto.NotificationInboxItem
 import com.lab.labtimesheet.feature.notification.model.dto.NotificationRecipient;
 import com.lab.labtimesheet.feature.notification.model.entity.NotificationEntity;
 import com.lab.labtimesheet.feature.notification.repository.NotificationRepository;
+import com.lab.labtimesheet.platform.service.MailDeliveryService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.beans.factory.annotation.Autowired;

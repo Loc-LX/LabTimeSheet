@@ -1,12 +1,13 @@
 package com.lab.labtimesheet.feature.reporting.controller;
 
 import com.lab.labtimesheet.feature.attendance.service.AttendanceApplicationService;
+import com.lab.labtimesheet.feature.calendar.service.CalendarApplicationService;
 import com.lab.labtimesheet.feature.project.exception.ProjectAccessDeniedException;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectActorView;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectSummary;
+import com.lab.labtimesheet.feature.project.service.ProjectQueryService;
 import com.lab.labtimesheet.feature.reporting.model.dto.DailyProjectWorkReportSelection;
 import com.lab.labtimesheet.feature.reporting.service.DailyProjectWorkReportService;
-import com.lab.labtimesheet.feature.project.service.ProjectQueryService;
 import java.time.LocalDate;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +27,7 @@ public class DailyProjectWorkReportController {
     private final DailyProjectWorkReportService reports;
     private final ProjectQueryService projects;
     private final AttendanceApplicationService attendance;
+    private final CalendarApplicationService calendar;
 
     /**
      * Renders the current-business-date report by default, with an optional authorized Project
@@ -83,7 +85,7 @@ public class DailyProjectWorkReportController {
     }
 
     private void validateRequestedDate(LocalDate requestedDate) {
-        if (requestedDate != null && requestedDate.isAfter(attendance.currentBusinessDate())) {
+        if (requestedDate != null && requestedDate.isAfter(calendar.currentBusinessDate())) {
             throw new IllegalArgumentException("Report date must not be in the future");
         }
     }

@@ -2,6 +2,7 @@ package com.lab.labtimesheet.feature.reporting.service;
 
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceReportDateContext;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceApplicationService;
+import com.lab.labtimesheet.feature.calendar.service.CalendarApplicationService;
 import com.lab.labtimesheet.feature.project.exception.ProjectAccessDeniedException;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectActorView;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectMemberView;
@@ -12,9 +13,9 @@ import com.lab.labtimesheet.feature.reporting.model.dto.DailyProjectWorkReportMe
 import com.lab.labtimesheet.feature.reporting.model.dto.DailyProjectWorkReportProject;
 import com.lab.labtimesheet.feature.reporting.model.dto.DailyProjectWorkReportTask;
 import com.lab.labtimesheet.feature.reporting.model.dto.DailyProjectWorkReportView;
-import com.lab.labtimesheet.feature.task.model.dto.TaskDailyReportView;
-import com.lab.labtimesheet.feature.task.model.dto.TaskWorkLogView;
-import com.lab.labtimesheet.feature.task.service.TaskQueryService;
+import com.lab.labtimesheet.feature.project.model.dto.TaskDailyReportView;
+import com.lab.labtimesheet.feature.project.model.dto.TaskWorkLogView;
+import com.lab.labtimesheet.feature.project.service.TaskQueryService;
 import java.time.LocalDate;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -41,6 +42,7 @@ public class DailyProjectWorkReportService {
     private final ProjectQueryService projects;
     private final TaskQueryService taskQueries;
     private final AttendanceApplicationService attendance;
+    private final CalendarApplicationService calendar;
 
     /**
      * Builds an authorized one-date report for an owning Mentor or the current Leader of one
@@ -82,7 +84,7 @@ public class DailyProjectWorkReportService {
             throw new ProjectAccessDeniedException();
         }
 
-        LocalDate today = attendance.currentBusinessDate();
+        LocalDate today = calendar.currentBusinessDate();
         LocalDate reportDate = requestedDate == null ? today : requestedDate;
         if (reportDate.isAfter(today)) {
             throw new IllegalArgumentException("Report date must not be in the future");

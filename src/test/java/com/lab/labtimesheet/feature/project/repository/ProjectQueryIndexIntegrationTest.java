@@ -105,7 +105,7 @@ class ProjectQueryIndexIntegrationTest {
                     new ProjectCreateCommand(
                             "Bounded Project " + index,
                             "Representative list-plan fixture",
-                            LocalDate.of(2026, 8, 1),
+                            LocalDate.of(2026, 8, 15),
                             LocalDate.of(2026, 12, 31),
                             leaderId));
             projectMutations.addMember(mentorId, projectId, completedMemberId);
