@@ -210,6 +210,12 @@ The task is two commits: `R4` in the shared mail and SMTP services first, the cl
 - **Test rule.** Both moved tests retain exactly the same assertion count and expected values; only their package declarations changed. `module-boundaries.tsv` is unchanged in this task: zero lines deleted and zero added.
 - **Validation.** `./mvnw -B clean test` on Java 25.0.4.1: 762 tests, 0 failures, 0 errors. All Java package declarations match their source paths and `git diff --check` is clean.
 
+## Evidence for Task A-09 (ACC-019 invariant, 23 September 2026)
+
+- **Invariant test.** `AccountInternProfileInvariantIntegrationTest` creates an Admin, Mentor and Intern, then checks committed rows directly: every `INTERN` has its shared-key profile and no other role has one. A second Intern creation fails on the case-insensitive Student Code unique index; the test proves that neither its account nor profile remains and that both table counts and the invariant are unchanged.
+- **RED evidence.** With the `InternProfile` save deliberately removed from `AccountService#createPending`, `./mvnw -B -Dtest=AccountInternProfileInvariantIntegrationTest test` ran one test and failed at the invariant check with `expected: 0 but was: 1`: the committed Intern had no profile. The production block was then restored exactly; it has no final diff.
+- **GREEN evidence.** The same focused command then passed 1/1. `./mvnw -B clean test` on Java 25.0.4.1 passed 763 tests with 0 failures and 0 errors. The new assertions are the A-09 addition named by PLAN A.7. `module-boundaries.tsv` is unchanged: zero lines deleted and zero added.
+
 ## Historical evidence for D33 (checkpoint c443670)
 
 - `npm run test:ui`: 30/30 pass on 20 September 2026, including document structure, counts, versions, references, decision index and relative file links. Node `24.16.0`, npm `11.13.0`; the Playwright contract reads resolved `@playwright/test` `1.62.1` from the lockfile. This run does not execute browser or Java behavior.
