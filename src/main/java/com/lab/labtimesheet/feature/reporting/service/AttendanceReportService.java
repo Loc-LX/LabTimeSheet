@@ -3,7 +3,7 @@ package com.lab.labtimesheet.feature.reporting.service;
 import com.lab.labtimesheet.feature.identity.model.dto.AccountIdentity;
 import com.lab.labtimesheet.feature.identity.service.AccountService;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
-import com.lab.labtimesheet.feature.attendance.model.AttendanceRole;
+import com.lab.labtimesheet.platform.model.GlobalRole;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceReport;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceReportDay;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceApplicationService;
@@ -67,7 +67,7 @@ public class AttendanceReportService {
             throw new IllegalArgumentException("from must not be after to");
         }
 
-        boolean ownScope = actor.role() == AttendanceRole.INTERN;
+        boolean ownScope = actor.role() == GlobalRole.INTERN;
         long targetId = resolveTarget(actor, requestedInternId, ownScope);
         if (!ownScope && requestedInternId == null) {
             return emptyDetailSelection(from, to, accounts.eligibleInternOptions(to));

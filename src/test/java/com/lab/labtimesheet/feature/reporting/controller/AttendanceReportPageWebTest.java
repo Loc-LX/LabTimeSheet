@@ -15,7 +15,7 @@ import com.lab.labtimesheet.feature.identity.model.AccountStatus;
 import com.lab.labtimesheet.feature.identity.model.dto.AccountIdentity;
 import com.lab.labtimesheet.feature.identity.service.AccountService;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
-import com.lab.labtimesheet.feature.attendance.model.AttendanceRole;
+import com.lab.labtimesheet.platform.model.GlobalRole;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceReport;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceReportClassification;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceReportDay;
@@ -68,10 +68,10 @@ class AttendanceReportPageWebTest {
     @Test
     void internRendersOwnClassifiedDaysSummaryAndComplianceChart() throws Exception {
         given(currentUsers.actor(any(Principal.class)))
-                .willReturn(new AttendanceActor(5, AttendanceRole.INTERN));
+                .willReturn(new AttendanceActor(5, GlobalRole.INTERN));
         given(attendance.currentBusinessDate()).willReturn(TO);
         given(accounts.requireIdentityById(5L)).willReturn(intern(5L, "Mai Intern"));
-        given(reportQueries.query(new AttendanceActor(5, AttendanceRole.INTERN), 5, FROM, TO))
+        given(reportQueries.query(new AttendanceActor(5, GlobalRole.INTERN), 5, FROM, TO))
                 .willReturn(new AttendanceReport(
                         5,
                         FROM,
@@ -104,16 +104,16 @@ class AttendanceReportPageWebTest {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Attendance compliance trend")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("data-report-chart")));
 
-        verify(reportQueries).query(new AttendanceActor(5, AttendanceRole.INTERN), 5, FROM, TO);
+        verify(reportQueries).query(new AttendanceActor(5, GlobalRole.INTERN), 5, FROM, TO);
     }
 
     @Test
     void mentorInspectsTargetInternAndSeesPerDayScores() throws Exception {
         given(currentUsers.actor(any(Principal.class)))
-                .willReturn(new AttendanceActor(2, AttendanceRole.MENTOR));
+                .willReturn(new AttendanceActor(2, GlobalRole.MENTOR));
         given(attendance.currentBusinessDate()).willReturn(TO);
         given(accounts.requireIdentityById(7L)).willReturn(intern(7L, "Target Intern"));
-        given(reportQueries.query(new AttendanceActor(2, AttendanceRole.MENTOR), 7, FROM, TO))
+        given(reportQueries.query(new AttendanceActor(2, GlobalRole.MENTOR), 7, FROM, TO))
                 .willReturn(new AttendanceReport(
                         7,
                         FROM,
@@ -139,16 +139,16 @@ class AttendanceReportPageWebTest {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Late")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Early departure")));
 
-        verify(reportQueries).query(new AttendanceActor(2, AttendanceRole.MENTOR), 7, FROM, TO);
+        verify(reportQueries).query(new AttendanceActor(2, GlobalRole.MENTOR), 7, FROM, TO);
     }
 
     @Test
     void emptyDenominatorRendersNaForRateAndCompliance() throws Exception {
         given(currentUsers.actor(any(Principal.class)))
-                .willReturn(new AttendanceActor(5, AttendanceRole.INTERN));
+                .willReturn(new AttendanceActor(5, GlobalRole.INTERN));
         given(attendance.currentBusinessDate()).willReturn(TO);
         given(accounts.requireIdentityById(5L)).willReturn(intern(5L, "Mai Intern"));
-        given(reportQueries.query(new AttendanceActor(5, AttendanceRole.INTERN), 5, FROM, TO))
+        given(reportQueries.query(new AttendanceActor(5, GlobalRole.INTERN), 5, FROM, TO))
                 .willReturn(new AttendanceReport(
                         5,
                         FROM,
@@ -164,13 +164,13 @@ class AttendanceReportPageWebTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("N/A")));
 
-        verify(reportQueries).query(new AttendanceActor(5, AttendanceRole.INTERN), 5, FROM, TO);
+        verify(reportQueries).query(new AttendanceActor(5, GlobalRole.INTERN), 5, FROM, TO);
     }
 
     @Test
     void internCannotInspectAnotherIntern() throws Exception {
         given(currentUsers.actor(any(Principal.class)))
-                .willReturn(new AttendanceActor(5, AttendanceRole.INTERN));
+                .willReturn(new AttendanceActor(5, GlobalRole.INTERN));
         given(attendance.currentBusinessDate()).willReturn(TO);
 
         mvc.perform(get("/reports/attendance").with(user("intern@example.test").roles("INTERN"))
@@ -183,11 +183,11 @@ class AttendanceReportPageWebTest {
     @Test
     void missingFiltersDefaultToCurrentBusinessDateMonth() throws Exception {
         given(currentUsers.actor(any(Principal.class)))
-                .willReturn(new AttendanceActor(5, AttendanceRole.INTERN));
+                .willReturn(new AttendanceActor(5, GlobalRole.INTERN));
         given(attendance.currentBusinessDate()).willReturn(LocalDate.of(2026, 8, 15));
         given(accounts.requireIdentityById(5L)).willReturn(intern(5L, "Mai Intern"));
         given(reportQueries.query(
-                        new AttendanceActor(5, AttendanceRole.INTERN), 5,
+                        new AttendanceActor(5, GlobalRole.INTERN), 5,
                         LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 15)))
                 .willReturn(new AttendanceReport(
                         5,
@@ -204,7 +204,7 @@ class AttendanceReportPageWebTest {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("N/A")));
 
         verify(reportQueries).query(
-                new AttendanceActor(5, AttendanceRole.INTERN), 5,
+                new AttendanceActor(5, GlobalRole.INTERN), 5,
                 LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 15));
     }
 

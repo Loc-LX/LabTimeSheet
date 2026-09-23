@@ -10,11 +10,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.lab.labtimesheet.feature.attendance.exception.CalendarException;
-import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
-import com.lab.labtimesheet.feature.attendance.model.AttendanceRole;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceApplicationService;
-import com.lab.labtimesheet.feature.attendance.service.AttendanceCurrentUserService;
 import com.lab.labtimesheet.feature.attendance.service.CalendarApplicationService;
+import com.lab.labtimesheet.feature.identity.service.AccountService;
 import com.lab.labtimesheet.platform.service.SmtpConfigurationService;
 import java.time.LocalDate;
 import org.junit.jupiter.api.Test;
@@ -27,19 +25,19 @@ import org.springframework.test.web.servlet.MockMvc;
 @WebMvcTest(CalendarController.class)
 class CalendarControllerWebTest {
 
-    private static final AttendanceActor ADMIN = new AttendanceActor(1L, AttendanceRole.ADMIN);
+    private static final long ADMIN_ID = 1L;
 
     @Autowired
     private MockMvc mvc;
 
     @MockitoBean private CalendarApplicationService calendar;
     @MockitoBean private AttendanceApplicationService attendance;
-    @MockitoBean private AttendanceCurrentUserService currentUsers;
+    @MockitoBean private AccountService accounts;
     @MockitoBean private SmtpConfigurationService smtpConfiguration;
 
     @Test
     void malformedCreateDateRetainsSafeInputWithoutCallingTheService() throws Exception {
-        when(currentUsers.actor(org.mockito.ArgumentMatchers.any())).thenReturn(ADMIN);
+        when(accounts.requireActiveAdminId("admin@example.test")).thenReturn(ADMIN_ID);
 
         mvc.perform(post("/attendance/calendar")
                         .with(user("admin@example.test").roles("ADMIN"))
@@ -58,9 +56,9 @@ class CalendarControllerWebTest {
 
     @Test
     void serviceConflictRetainsSafeUpdateInputForARetry() throws Exception {
-        when(currentUsers.actor(org.mockito.ArgumentMatchers.any())).thenReturn(ADMIN);
+        when(accounts.requireActiveAdminId("admin@example.test")).thenReturn(ADMIN_ID);
         when(calendar.updateManual(
-                        ADMIN, 9L, 3L, LocalDate.of(2026, 9, 2), "Retained rename", false))
+                        ADMIN_ID, 9L, 3L, LocalDate.of(2026, 9, 2), "Retained rename", false))
                 .thenThrow(new CalendarException("Calendar event was changed by another request"));
 
         mvc.perform(post("/attendance/calendar/9")

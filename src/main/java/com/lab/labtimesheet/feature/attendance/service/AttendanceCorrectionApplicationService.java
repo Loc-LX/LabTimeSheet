@@ -9,7 +9,7 @@ import com.lab.labtimesheet.feature.attendance.exception.CorrectionException;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
 import com.lab.labtimesheet.feature.attendance.model.AttendancePolicy;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceRecord;
-import com.lab.labtimesheet.feature.attendance.model.AttendanceRole;
+import com.lab.labtimesheet.platform.model.GlobalRole;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceViolations;
 import com.lab.labtimesheet.feature.attendance.model.CorrectionEventType;
 import com.lab.labtimesheet.feature.attendance.model.CorrectionStatus;
@@ -139,9 +139,9 @@ public class AttendanceCorrectionApplicationService {
 
     private void requireActiveExpiryActor(
             AttendanceActor actor, Map<Long, LockedAccountMutationEligibility> lockedAccounts) {
-        if (actor.role() == AttendanceRole.MENTOR) {
+        if (actor.role() == GlobalRole.MENTOR) {
             requireActiveMentor(actor.userId(), lockedAccounts);
-        } else if (actor.role() == AttendanceRole.INTERN) {
+        } else if (actor.role() == GlobalRole.INTERN) {
             requireActiveIntern(actor.userId(), lockedAccounts);
         } else {
             throw new AccessDeniedException("Correction list is outside the requested scope");
@@ -278,12 +278,12 @@ public class AttendanceCorrectionApplicationService {
         AccountIdentity ownerIdentity = accounts.requireIdentityById(ownerId);
         AttendanceCorrectionEntity correction = lockedCorrection(correctionId);
         AttendanceRecord record = recordFor(correction);
-        if (actor.role() == AttendanceRole.INTERN && actor.userId() != record.internId()) {
+        if (actor.role() == GlobalRole.INTERN && actor.userId() != record.internId()) {
             throw new AccessDeniedException("Correction is outside the requested scope");
         }
-        if (actor.role() == AttendanceRole.MENTOR) {
+        if (actor.role() == GlobalRole.MENTOR) {
             requireActiveMentor(actor.userId(), lockedAccounts);
-        } else if (actor.role() != AttendanceRole.INTERN) {
+        } else if (actor.role() != GlobalRole.INTERN) {
             throw new AccessDeniedException("Only the owning Intern or an active Mentor may inspect corrections");
         }
         expireIfNeeded(correction, clock.instant(), ownerIdentity);
@@ -578,13 +578,13 @@ public class AttendanceCorrectionApplicationService {
     }
 
     private static void requireIntern(AttendanceActor actor) {
-        if (actor == null || actor.role() != AttendanceRole.INTERN) {
+        if (actor == null || actor.role() != GlobalRole.INTERN) {
             throw new AccessDeniedException("Only the owning Intern may request corrections");
         }
     }
 
     private static void requireMentor(AttendanceActor actor) {
-        if (actor == null || actor.role() != AttendanceRole.MENTOR) {
+        if (actor == null || actor.role() != GlobalRole.MENTOR) {
             throw new AccessDeniedException("Only a Mentor may decide corrections");
         }
     }

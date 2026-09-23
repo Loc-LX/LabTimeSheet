@@ -2,7 +2,7 @@ package com.lab.labtimesheet.feature.attendance.controller;
 
 import com.lab.labtimesheet.feature.attendance.exception.AttendanceException;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
-import com.lab.labtimesheet.feature.attendance.model.AttendanceRole;
+import com.lab.labtimesheet.platform.model.GlobalRole;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceApplicationService;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceCurrentUserService;
 import java.security.Principal;
@@ -67,7 +67,7 @@ public class AttendanceController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             Model model) {
         AttendanceActor actor = currentUsers.actor(principal);
-        if (actor.role() == AttendanceRole.INTERN) {
+        if (actor.role() == GlobalRole.INTERN) {
             throw new AccessDeniedException("Intern inspection is not allowed");
         }
         return history(actor, internId, from, to, model);
@@ -128,7 +128,7 @@ public class AttendanceController {
     }
 
     private static AttendanceActor requireIntern(AttendanceActor actor) {
-        if (actor.role() != AttendanceRole.INTERN) {
+        if (actor.role() != GlobalRole.INTERN) {
             throw new AccessDeniedException("Only Interns may punch attendance");
         }
         return actor;

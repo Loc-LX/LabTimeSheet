@@ -15,7 +15,7 @@ import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
 import com.lab.labtimesheet.feature.attendance.model.AttendancePolicy;
 import com.lab.labtimesheet.feature.attendance.model.AttendancePolicyFixtures;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceRecord;
-import com.lab.labtimesheet.feature.attendance.model.AttendanceRole;
+import com.lab.labtimesheet.platform.model.GlobalRole;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceCurrentState;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceReportDateContext;
 import com.lab.labtimesheet.feature.attendance.model.entity.AttendanceRecordEntity;
@@ -154,7 +154,7 @@ class AttendanceApplicationServiceTest {
         when(corrections.prepareHistory(List.of(first, second))).thenReturn(effectiveCheckouts);
 
         attendance.history(
-                new AttendanceActor(INTERN_ID, AttendanceRole.INTERN), INTERN_ID, WORK_DATE, WORK_DATE);
+                new AttendanceActor(INTERN_ID, GlobalRole.INTERN), INTERN_ID, WORK_DATE, WORK_DATE);
 
         verify(corrections).prepareHistory(List.of(first, second));
     }

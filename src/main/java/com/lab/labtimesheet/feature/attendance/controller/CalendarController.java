@@ -1,19 +1,17 @@
 package com.lab.labtimesheet.feature.attendance.controller;
 
 import com.lab.labtimesheet.feature.attendance.exception.CalendarException;
-import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
-import com.lab.labtimesheet.feature.attendance.model.AttendanceRole;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceApplicationService;
-import com.lab.labtimesheet.feature.attendance.service.AttendanceCurrentUserService;
 import com.lab.labtimesheet.feature.attendance.service.CalendarApplicationService;
+import com.lab.labtimesheet.feature.identity.service.AccountService;
 import java.security.Principal;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.Map;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Controller;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -32,7 +30,7 @@ public class CalendarController {
 
     private final CalendarApplicationService calendar;
     private final AttendanceApplicationService attendance;
-    private final AttendanceCurrentUserService currentUsers;
+    private final AccountService accounts;
 
     /**
      * Renders the next year of locally stored calendar events for an authenticated Admin.
@@ -43,10 +41,10 @@ public class CalendarController {
      */
     @GetMapping
     public String calendar(Principal principal, Model model) {
-        AttendanceActor actor = requireAdmin(currentUsers.actor(principal));
+        long adminId = requireAdminId(principal);
         LocalDate today = attendance.currentBusinessDate();
         model.addAttribute("events", calendar.list(today, today.plusYears(1)));
-        model.addAttribute("history", calendar.history(actor));
+        model.addAttribute("history", calendar.history(adminId));
         model.addAttribute("today", today);
         return "attendance/calendar";
     }
@@ -68,10 +66,10 @@ public class CalendarController {
             @RequestParam(defaultValue = "") String name,
             @RequestParam(defaultValue = "false") String dayOff,
             RedirectAttributes redirectAttributes) {
-        AttendanceActor actor = requireAdmin(currentUsers.actor(principal));
+        long adminId = requireAdminId(principal);
         try {
             calendar.createManual(
-                    actor,
+                    adminId,
                     requiredDate(date),
                     name,
                     requiredBoolean(dayOff));
@@ -107,10 +105,10 @@ public class CalendarController {
             @RequestParam(defaultValue = "") String name,
             @RequestParam(defaultValue = "false") String dayOff,
             RedirectAttributes redirectAttributes) {
-        AttendanceActor actor = requireAdmin(currentUsers.actor(principal));
+        long adminId = requireAdminId(principal);
         try {
             calendar.updateManual(
-                    actor,
+                    adminId,
                     eventId,
                     requiredLong(version),
                     requiredDate(date),
@@ -152,10 +150,12 @@ public class CalendarController {
         };
     }
 
-    private static AttendanceActor requireAdmin(AttendanceActor actor) {
-        if (actor == null || actor.role() != AttendanceRole.ADMIN) {
-            throw new AccessDeniedException("Only Admin may manage the global calendar");
+    private long requireAdminId(Principal principal) {
+        try {
+            return accounts.requireActiveAdminId(principal.getName());
+        } catch (IllegalArgumentException exception) {
+            throw new AccessDeniedException("Only Admin may manage the global calendar", exception);
         }
-        return actor;
     }
+
 }

@@ -16,7 +16,7 @@ import com.lab.labtimesheet.feature.identity.service.AccountService;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
 import com.lab.labtimesheet.feature.attendance.model.AttendancePolicyFixtures;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceRecord;
-import com.lab.labtimesheet.feature.attendance.model.AttendanceRole;
+import com.lab.labtimesheet.platform.model.GlobalRole;
 import com.lab.labtimesheet.feature.attendance.model.CorrectionStatus;
 import com.lab.labtimesheet.feature.attendance.model.dto.CorrectionRequestCommand;
 import com.lab.labtimesheet.feature.attendance.model.entity.AttendanceCorrectionEntity;
@@ -55,7 +55,7 @@ class AttendanceCorrectionApplicationServiceTest {
                 mock(NotificationService.class));
 
         assertThatThrownBy(() -> service.submit(
-                        new AttendanceActor(42L, AttendanceRole.INTERN),
+                        new AttendanceActor(42L, GlobalRole.INTERN),
                         99L,
                         new CorrectionRequestCommand(LocalDateTime.of(2026, 8, 14, 15, 0), "  ")))
                 .isInstanceOf(IllegalArgumentException.class);
@@ -221,7 +221,7 @@ class AttendanceCorrectionApplicationServiceTest {
                 mock(NotificationService.class));
 
         service.submit(
-                new AttendanceActor(42L, AttendanceRole.INTERN),
+                new AttendanceActor(42L, GlobalRole.INTERN),
                 77L,
                 new CorrectionRequestCommand(LocalDateTime.of(2026, 8, 14, 15, 0), "Forgot to check out"));
 

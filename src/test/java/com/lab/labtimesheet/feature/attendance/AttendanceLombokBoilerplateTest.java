@@ -9,7 +9,7 @@ import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceDayContext;
 import com.lab.labtimesheet.feature.attendance.model.AttendancePolicy;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceRecord;
-import com.lab.labtimesheet.feature.attendance.model.AttendanceRole;
+import com.lab.labtimesheet.platform.model.GlobalRole;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceViolations;
 import com.lab.labtimesheet.feature.attendance.model.CorrectionStatus;
 import com.lab.labtimesheet.feature.attendance.model.LeaveStatus;
@@ -87,7 +87,7 @@ class AttendanceLombokBoilerplateTest {
                         PACKAGE_PRIVATE,
                         CalendarApplicationService.class,
                         AttendanceApplicationService.class,
-                        AttendanceCurrentUserService.class));
+                        AccountService.class));
         assertConstructors(
                 AttendanceApplicationService.class,
                 constructor(
@@ -107,6 +107,7 @@ class AttendanceLombokBoilerplateTest {
                 constructor(
                         PACKAGE_PRIVATE,
                         Clock.class,
+                        AccountService.class,
                         AttendancePolicyRepository.class,
                         GlobalCalendarEventRepository.class,
                         HolidayApiConfigurationService.class,
@@ -114,7 +115,7 @@ class AttendanceLombokBoilerplateTest {
         assertConstructors(AttendanceService.class, constructor(PACKAGE_PRIVATE));
         assertConstructors(
                 AttendancePolicyApplicationService.class,
-                constructor(PACKAGE_PRIVATE, Clock.class, AttendancePolicyRepository.class));
+                constructor(PACKAGE_PRIVATE, Clock.class, AccountService.class, AttendancePolicyRepository.class));
         assertConstructors(
                 LeaveApplicationService.class,
                 constructor(
@@ -246,7 +247,7 @@ class AttendanceLombokBoilerplateTest {
         assertRecordComponents(
                 AttendanceActor.class,
                 component("userId", long.class),
-                component("role", AttendanceRole.class));
+                component("role", GlobalRole.class));
         assertRecordComponents(
                 AttendanceDayContext.class,
                 component("activeIntern", boolean.class),
@@ -510,7 +511,7 @@ class AttendanceLombokBoilerplateTest {
                         Modifier.PUBLIC,
                         "createManual",
                         GlobalCalendarEvent.class,
-                        AttendanceActor.class,
+                        long.class,
                         LocalDate.class,
                         String.class,
                         boolean.class),
@@ -518,7 +519,7 @@ class AttendanceLombokBoilerplateTest {
                         Modifier.PUBLIC,
                         "updateManual",
                         GlobalCalendarEvent.class,
-                        AttendanceActor.class,
+                        long.class,
                         long.class,
                         long.class,
                         LocalDate.class,
@@ -530,19 +531,19 @@ class AttendanceLombokBoilerplateTest {
                 method(Modifier.PUBLIC, "policiesByVersionIds", Map.class, Set.class),
                 method(Modifier.PUBLIC, "lockPolicyVersions", void.class, Set.class),
                 method(Modifier.PUBLIC, "historyBetween", List.class, LocalDate.class, LocalDate.class),
-                method(Modifier.PUBLIC, "previewFromProvider", HolidayApiPreview.class, AttendanceActor.class, int.class),
-                method(Modifier.PUBLIC, "preview", List.class, AttendanceActor.class, int.class, HolidayApiPreview.class),
-                method(Modifier.PUBLIC, "importSelected", List.class, AttendanceActor.class, int.class, List.class),
-                method(Modifier.PUBLIC, "history", List.class, AttendanceActor.class));
+                method(Modifier.PUBLIC, "previewFromProvider", HolidayApiPreview.class, long.class, int.class),
+                method(Modifier.PUBLIC, "preview", List.class, long.class, int.class, HolidayApiPreview.class),
+                method(Modifier.PUBLIC, "importSelected", List.class, long.class, int.class, List.class),
+                method(Modifier.PUBLIC, "history", List.class, long.class));
         assertMethodSurface(
                 AttendancePolicyApplicationService.class,
                 method(
                         Modifier.PUBLIC,
                         "schedule",
                         AttendancePolicyHistoryItem.class,
-                        AttendanceActor.class,
+                        long.class,
                         AttendancePolicyCommand.class),
-                method(Modifier.PUBLIC, "history", List.class, AttendanceActor.class));
+                method(Modifier.PUBLIC, "history", List.class, long.class));
         assertMethodSurface(
                 LeaveApplicationService.class,
                 method(Modifier.PUBLIC, "balance", com.lab.labtimesheet.feature.attendance.model.dto.LeaveBalance.class,

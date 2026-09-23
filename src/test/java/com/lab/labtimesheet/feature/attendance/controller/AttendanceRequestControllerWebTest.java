@@ -17,7 +17,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.lab.labtimesheet.feature.attendance.exception.LeaveException;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
 import com.lab.labtimesheet.feature.attendance.model.AttendancePolicy;
-import com.lab.labtimesheet.feature.attendance.model.AttendanceRole;
+import com.lab.labtimesheet.platform.model.GlobalRole;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceViolations;
 import com.lab.labtimesheet.feature.attendance.model.CorrectionEventType;
 import com.lab.labtimesheet.feature.attendance.model.CorrectionStatus;
@@ -86,7 +86,7 @@ class AttendanceRequestControllerWebTest {
 
     @Test
     void internListsOwnRequestsAndSubmitsLeaveAndCorrection() throws Exception {
-        AttendanceActor actor = new AttendanceActor(7L, AttendanceRole.INTERN);
+        AttendanceActor actor = new AttendanceActor(7L, GlobalRole.INTERN);
         when(currentUsers.actor(org.mockito.ArgumentMatchers.any())).thenReturn(actor);
         when(attendance.currentBusinessDate()).thenReturn(LocalDate.of(2026, 8, 21));
         when(leave.list(actor)).thenReturn(List.of(new LeaveRequestSummary(
@@ -135,7 +135,7 @@ class AttendanceRequestControllerWebTest {
 
     @Test
     void mentorDecisionPostsUseOnlyTheServiceStateMachine() throws Exception {
-        AttendanceActor actor = new AttendanceActor(2L, AttendanceRole.MENTOR);
+        AttendanceActor actor = new AttendanceActor(2L, GlobalRole.MENTOR);
         when(currentUsers.actor(org.mockito.ArgumentMatchers.any())).thenReturn(actor);
 
         mvc.perform(post("/attendance/leave/10/approve").with(user("mentor@example.test").roles("MENTOR")).with(csrf()))
@@ -151,7 +151,7 @@ class AttendanceRequestControllerWebTest {
 
     @Test
     void rejectedLeaveRetainsSafeInputWithAnInlineError() throws Exception {
-        AttendanceActor actor = new AttendanceActor(7L, AttendanceRole.INTERN);
+        AttendanceActor actor = new AttendanceActor(7L, GlobalRole.INTERN);
         LeaveRequestCommand command = new LeaveRequestCommand(
                 LocalDate.of(2026, 8, 28), LocalDate.of(2026, 9, 2), "Retain this reason");
         when(currentUsers.actor(org.mockito.ArgumentMatchers.any())).thenReturn(actor);
@@ -185,7 +185,7 @@ class AttendanceRequestControllerWebTest {
     @Test
     void malformedLeaveDatesRetainRawSafeInputInsteadOfReturningBadRequest() throws Exception {
         when(currentUsers.actor(org.mockito.ArgumentMatchers.any()))
-                .thenReturn(new AttendanceActor(7L, AttendanceRole.INTERN));
+                .thenReturn(new AttendanceActor(7L, GlobalRole.INTERN));
 
         mvc.perform(post("/attendance/leave")
                         .with(user("intern@example.test").roles("INTERN")).with(csrf())
@@ -204,7 +204,7 @@ class AttendanceRequestControllerWebTest {
     @Test
     void malformedCorrectionFieldsRetainRawSafeInputInsteadOfReturningBadRequest() throws Exception {
         when(currentUsers.actor(org.mockito.ArgumentMatchers.any()))
-                .thenReturn(new AttendanceActor(7L, AttendanceRole.INTERN));
+                .thenReturn(new AttendanceActor(7L, GlobalRole.INTERN));
 
         mvc.perform(post("/attendance/corrections")
                         .with(user("intern@example.test").roles("INTERN")).with(csrf())
@@ -223,7 +223,7 @@ class AttendanceRequestControllerWebTest {
 
     @Test
     void correctionEntryRetainsAttendanceRecordIdFromHistoryLink() throws Exception {
-        AttendanceActor actor = new AttendanceActor(7L, AttendanceRole.INTERN);
+        AttendanceActor actor = new AttendanceActor(7L, GlobalRole.INTERN);
         when(currentUsers.actor(org.mockito.ArgumentMatchers.any())).thenReturn(actor);
         when(corrections.list(actor)).thenReturn(List.of());
 
@@ -235,7 +235,7 @@ class AttendanceRequestControllerWebTest {
 
     @Test
     void correctionFormRendersRetainedSafeInputAfterValidationFailure() throws Exception {
-        AttendanceActor actor = new AttendanceActor(7L, AttendanceRole.INTERN);
+        AttendanceActor actor = new AttendanceActor(7L, GlobalRole.INTERN);
         when(currentUsers.actor(org.mockito.ArgumentMatchers.any())).thenReturn(actor);
         when(corrections.list(actor)).thenReturn(List.of());
 
@@ -255,7 +255,7 @@ class AttendanceRequestControllerWebTest {
 
     @Test
     void leaveEditFormRendersRetainedSafeInputAfterValidationFailure() throws Exception {
-        AttendanceActor actor = new AttendanceActor(7L, AttendanceRole.INTERN);
+        AttendanceActor actor = new AttendanceActor(7L, GlobalRole.INTERN);
         when(currentUsers.actor(org.mockito.ArgumentMatchers.any())).thenReturn(actor);
         when(attendance.currentBusinessDate()).thenReturn(LocalDate.of(2026, 8, 21));
         when(leave.list(actor)).thenReturn(List.of());
@@ -298,7 +298,7 @@ class AttendanceRequestControllerWebTest {
 
     @Test
     void correctionDecisionFormRendersRetainedSafeInputAfterValidationFailure() throws Exception {
-        AttendanceActor mentor = new AttendanceActor(2L, AttendanceRole.MENTOR);
+        AttendanceActor mentor = new AttendanceActor(2L, GlobalRole.MENTOR);
         when(currentUsers.actor(org.mockito.ArgumentMatchers.any())).thenReturn(mentor);
         when(leave.list(mentor)).thenReturn(List.of());
         when(corrections.list(mentor)).thenReturn(List.of());
@@ -325,7 +325,7 @@ class AttendanceRequestControllerWebTest {
 
     @Test
     void retainedLeaveAllocationsAndCorrectionEventsRenderWithoutExposingRawMutationState() throws Exception {
-        AttendanceActor intern = new AttendanceActor(7L, AttendanceRole.INTERN);
+        AttendanceActor intern = new AttendanceActor(7L, GlobalRole.INTERN);
         when(currentUsers.actor(org.mockito.ArgumentMatchers.any())).thenReturn(intern);
         when(attendance.currentBusinessDate()).thenReturn(LocalDate.of(2026, 8, 21));
         when(leave.list(intern)).thenReturn(List.of());
@@ -341,7 +341,7 @@ class AttendanceRequestControllerWebTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("28/08/2026 · quota month 08/2026")));
 
-        AttendanceActor mentor = new AttendanceActor(2L, AttendanceRole.MENTOR);
+        AttendanceActor mentor = new AttendanceActor(2L, GlobalRole.MENTOR);
         when(currentUsers.actor(org.mockito.ArgumentMatchers.any())).thenReturn(mentor);
         when(leave.list(mentor)).thenReturn(List.of());
         when(corrections.list(mentor)).thenReturn(List.of());
@@ -382,7 +382,7 @@ class AttendanceRequestControllerWebTest {
         TimeZone previousZone = TimeZone.getDefault();
         TimeZone.setDefault(TimeZone.getTimeZone("UTC"));
         try {
-            AttendanceActor mentor = new AttendanceActor(2L, AttendanceRole.MENTOR);
+            AttendanceActor mentor = new AttendanceActor(2L, GlobalRole.MENTOR);
             when(currentUsers.actor(org.mockito.ArgumentMatchers.any())).thenReturn(mentor);
             when(leave.list(mentor)).thenReturn(List.of());
             when(corrections.list(mentor)).thenReturn(List.of());

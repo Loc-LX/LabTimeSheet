@@ -14,12 +14,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
-import com.lab.labtimesheet.feature.attendance.model.AttendanceRole;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendancePolicyHistoryItem;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceApplicationService;
-import com.lab.labtimesheet.feature.attendance.service.AttendanceCurrentUserService;
 import com.lab.labtimesheet.feature.attendance.service.AttendancePolicyApplicationService;
+import com.lab.labtimesheet.feature.identity.service.AccountService;
 import com.lab.labtimesheet.platform.service.SmtpConfigurationService;
 import java.time.LocalDate;
 import java.util.List;
@@ -37,7 +35,7 @@ class AttendancePolicyControllerWebTest {
     private MockMvc mvc;
 
     @MockitoBean
-    private AttendanceCurrentUserService currentUsers;
+    private AccountService accounts;
 
     @MockitoBean
     private AttendanceApplicationService attendance;
@@ -50,10 +48,9 @@ class AttendancePolicyControllerWebTest {
 
     @Test
     void nativeFutureMonthBindsToTheFirstDayAndRendersHistory() throws Exception {
-        AttendanceActor actor = new AttendanceActor(1L, AttendanceRole.ADMIN);
-        when(currentUsers.actor(org.mockito.ArgumentMatchers.any())).thenReturn(actor);
+        when(accounts.requireActiveAdminId("admin@example.test")).thenReturn(1L);
         when(attendance.currentBusinessDate()).thenReturn(LocalDate.of(2026, 8, 21));
-        when(policies.history(actor)).thenReturn(List.of());
+        when(policies.history(1L)).thenReturn(List.of());
 
         mvc.perform(get("/admin/attendance-policies")
                         .with(user("admin@example.test").roles("ADMIN")))
@@ -76,14 +73,13 @@ class AttendancePolicyControllerWebTest {
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl("/admin/attendance-policies"));
 
-        verify(policies).schedule(eq(actor), argThat(command ->
+        verify(policies).schedule(eq(1L), argThat(command ->
                 command.effectiveFrom().equals(LocalDate.of(2026, 9, 1))));
     }
 
     @Test
     void craftedArbitraryDateCannotBypassTheMonthBoundary() throws Exception {
-        AttendanceActor actor = new AttendanceActor(1L, AttendanceRole.ADMIN);
-        when(currentUsers.actor(org.mockito.ArgumentMatchers.any())).thenReturn(actor);
+        when(accounts.requireActiveAdminId("admin@example.test")).thenReturn(1L);
 
         mvc.perform(post("/admin/attendance-policies")
                         .with(user("admin@example.test").roles("ADMIN"))
@@ -105,6 +101,8 @@ class AttendancePolicyControllerWebTest {
 
     @Test
     void nonAdminCannotOpenFocusedPolicyWorkflow() throws Exception {
+        when(accounts.requireActiveAdminId("mentor@example.test"))
+                .thenThrow(new IllegalArgumentException("An active Admin is required"));
         mvc.perform(get("/admin/attendance-policies")
                         .with(user("mentor@example.test").roles("MENTOR")))
                 .andExpect(status().isForbidden());

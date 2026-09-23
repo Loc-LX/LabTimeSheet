@@ -4,7 +4,6 @@ import com.lab.labtimesheet.feature.identity.model.AccountStatus;
 import com.lab.labtimesheet.feature.identity.model.dto.AccountIdentity;
 import com.lab.labtimesheet.feature.identity.service.AccountService;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
-import com.lab.labtimesheet.feature.attendance.model.AttendanceRole;
 import java.security.Principal;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -41,6 +40,6 @@ public class AttendanceCurrentUserService {
             throw new AccessDeniedException(
                     "No active application user matches the authenticated identity");
         }
-        return new AttendanceActor(identity.id(), AttendanceRole.valueOf(identity.role().name()));
+        return new AttendanceActor(identity.id(), identity.role());
     }
 }

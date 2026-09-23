@@ -7,7 +7,7 @@ import com.lab.labtimesheet.feature.identity.service.AccountService;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
 import com.lab.labtimesheet.feature.attendance.model.AttendancePolicy;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceRecord;
-import com.lab.labtimesheet.feature.attendance.model.AttendanceRole;
+import com.lab.labtimesheet.platform.model.GlobalRole;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceViolations;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceReport;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceReportClassification;
@@ -266,14 +266,14 @@ public class AttendanceReportQueryService {
         if (identity.role() != expectedRole) {
             throw new AccessDeniedException("Attendance actor role does not match the account");
         }
-        if (actor.role() == AttendanceRole.INTERN) {
+        if (actor.role() == GlobalRole.INTERN) {
             if (actor.userId() != internId || identity.status() != AccountStatus.ACTIVE) {
                 throw new AccessDeniedException("Interns may view only their own attendance");
             }
             return;
         }
-        boolean activeBroadActor = (actor.role() == AttendanceRole.MENTOR && identity.role() == GlobalRole.MENTOR
-                || actor.role() == AttendanceRole.ADMIN && identity.role() == GlobalRole.ADMIN)
+        boolean activeBroadActor = (actor.role() == GlobalRole.MENTOR && identity.role() == GlobalRole.MENTOR
+                || actor.role() == GlobalRole.ADMIN && identity.role() == GlobalRole.ADMIN)
                 && identity.status() == AccountStatus.ACTIVE;
         if (!activeBroadActor) {
             throw new AccessDeniedException("An active Mentor or Admin is required");

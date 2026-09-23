@@ -12,7 +12,7 @@ import com.lab.labtimesheet.feature.attendance.exception.CalendarException;
 import com.lab.labtimesheet.feature.attendance.exception.CorrectionException;
 import com.lab.labtimesheet.feature.attendance.exception.LeaveException;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
-import com.lab.labtimesheet.feature.attendance.model.AttendanceRole;
+import com.lab.labtimesheet.platform.model.GlobalRole;
 import com.lab.labtimesheet.feature.attendance.model.CorrectionEventType;
 import com.lab.labtimesheet.feature.attendance.model.CorrectionStatus;
 import com.lab.labtimesheet.feature.attendance.model.dto.CalendarHistoryItem;
@@ -131,7 +131,7 @@ class AttendanceConcurrencyIntegrationTest {
     void concurrentLeaveReservationsSerializeOnThePolicyQuotaRow() throws Exception {
         long internId = createActiveIntern();
         clock.set(Instant.parse("2026-08-14T00:00:00Z"));
-        AttendanceActor actor = new AttendanceActor(internId, AttendanceRole.INTERN);
+        AttendanceActor actor = new AttendanceActor(internId, GlobalRole.INTERN);
         AtomicInteger requestNumber = new AtomicInteger();
 
         List<String> outcomes = runConcurrently(() -> {
@@ -201,7 +201,7 @@ class AttendanceConcurrencyIntegrationTest {
         assertThat(runConcurrently(() -> {
             if (operation.getAndIncrement() == 0) {
                 attendance.history(
-                        new AttendanceActor(internId, AttendanceRole.INTERN),
+                        new AttendanceActor(internId, GlobalRole.INTERN),
                         internId,
                         LocalDate.of(2026, 10, 5),
                         LocalDate.of(2026, 10, 6));
@@ -229,13 +229,13 @@ class AttendanceConcurrencyIntegrationTest {
                 .id();
         clock.set(Instant.parse("2026-11-09T09:01:00Z"));
         var submittedCorrection = corrections.submit(
-                new AttendanceActor(internId, AttendanceRole.INTERN),
+                new AttendanceActor(internId, GlobalRole.INTERN),
                 recordId,
                 new CorrectionRequestCommand(
                         LocalDateTime.of(2026, 11, 9, 14, 0),
                         "pool-sized correction"));
         var submittedLeave = leaves.submit(
-                new AttendanceActor(internId, AttendanceRole.INTERN),
+                new AttendanceActor(internId, GlobalRole.INTERN),
                 new LeaveRequestCommand(
                         LocalDate.of(2026, 11, 12),
                         LocalDate.of(2026, 11, 12),
@@ -247,11 +247,11 @@ class AttendanceConcurrencyIntegrationTest {
             try {
                 if (operation.getAndIncrement() == 0) {
                     leaves.approve(
-                            new AttendanceActor(mentorId, AttendanceRole.MENTOR), submittedLeave.id());
+                            new AttendanceActor(mentorId, GlobalRole.MENTOR), submittedLeave.id());
                     return "LEAVE_APPROVED";
                 }
                 corrections.decide(
-                        new AttendanceActor(mentorId, AttendanceRole.MENTOR),
+                        new AttendanceActor(mentorId, GlobalRole.MENTOR),
                         submittedCorrection.id(),
                         CorrectionDecision.APPROVE,
                         "pool-sized approval");
@@ -272,13 +272,13 @@ class AttendanceConcurrencyIntegrationTest {
                 .orElseThrow().id();
         clock.set(Instant.parse("2026-11-10T09:01:00Z"));
         var submitted = corrections.submit(
-                new AttendanceActor(internId, AttendanceRole.INTERN), recordId,
+                new AttendanceActor(internId, GlobalRole.INTERN), recordId,
                 new CorrectionRequestCommand(LocalDateTime.of(2026, 11, 10, 14, 0), "same correction"));
         clock.set(Instant.parse("2026-11-10T10:00:00Z"));
 
         List<String> outcomes = runConcurrently(() -> {
             try {
-                corrections.decide(new AttendanceActor(mentorId, AttendanceRole.MENTOR), submitted.id(),
+                corrections.decide(new AttendanceActor(mentorId, GlobalRole.MENTOR), submitted.id(),
                         CorrectionDecision.APPROVE, "race");
                 return "SUCCESS";
             } catch (CorrectionException failure) {
@@ -297,7 +297,7 @@ class AttendanceConcurrencyIntegrationTest {
     @Test
     void poolSizedInternLeaveMutationBurstCompletesWithoutNestedExpiryConnection() throws Exception {
         long internId = createActiveIntern();
-        AttendanceActor actor = new AttendanceActor(internId, AttendanceRole.INTERN);
+        AttendanceActor actor = new AttendanceActor(internId, GlobalRole.INTERN);
         clock.set(Instant.parse("2026-11-16T00:00:00Z"));
         var first = leaves.submit(actor, new LeaveRequestCommand(
                 LocalDate.of(2026, 11, 18), LocalDate.of(2026, 11, 18), "first cancellation"));
@@ -325,7 +325,7 @@ class AttendanceConcurrencyIntegrationTest {
     void concurrentSameHolidayUuidImportsAreIdempotent() throws Exception {
         createActiveIntern();
         long adminId = accounts.requireActiveAdminId("concurrency-admin@example.test");
-        AttendanceActor admin = new AttendanceActor(adminId, AttendanceRole.ADMIN);
+        AttendanceActor admin = new AttendanceActor(adminId, GlobalRole.ADMIN);
         clock.set(Instant.parse("2026-11-09T00:00:00Z"));
         HolidayApiCandidate candidate = new HolidayApiCandidate(
                 "vn-concurrent-2026-11-10",
@@ -345,7 +345,7 @@ class AttendanceConcurrencyIntegrationTest {
         List<String> outcomes = runConcurrently(() -> {
             try {
                 List<CalendarHistoryItem> imported = calendar.importSelected(
-                        admin, 2026, List.of(selection));
+                        admin.userId(), 2026, List.of(selection));
                 return imported.isEmpty() ? "DUPLICATE" : "IMPORTED";
             } catch (RuntimeException failure) {
                 return "FAILURE:" + failure.getClass().getSimpleName();
@@ -353,7 +353,7 @@ class AttendanceConcurrencyIntegrationTest {
         });
 
         assertThat(outcomes).containsExactlyInAnyOrder("IMPORTED", "DUPLICATE");
-        assertThat(calendar.history(admin)).filteredOn(item ->
+        assertThat(calendar.history(admin.userId())).filteredOn(item ->
                         "vn-concurrent-2026-11-10".equals(item.sourceUuid()))
                 .hasSize(1);
     }
@@ -362,7 +362,7 @@ class AttendanceConcurrencyIntegrationTest {
     void publicImportRejectsClientIdentityOutsideTrustedPreview() {
         createActiveIntern();
         long adminId = accounts.requireActiveAdminId("concurrency-admin@example.test");
-        AttendanceActor admin = new AttendanceActor(adminId, AttendanceRole.ADMIN);
+        AttendanceActor admin = new AttendanceActor(adminId, GlobalRole.ADMIN);
         HolidayApiPreview trustedPreview = new HolidayApiPreview(
                 HolidayApiPreviewStatus.SUCCESS,
                 List.of(new HolidayApiCandidate(
@@ -373,10 +373,10 @@ class AttendanceConcurrencyIntegrationTest {
         doReturn(trustedPreview).when(holidayApi).preview(adminId, 2026);
 
         assertThat(org.assertj.core.api.Assertions.catchThrowable(() -> calendar.importSelected(
-                        admin, 2026, List.of(new CalendarImportSelection("client-altered-source", true)))))
+                        admin.userId(), 2026, List.of(new CalendarImportSelection("client-altered-source", true)))))
                 .isInstanceOf(CalendarException.class)
                 .hasMessage("Selected HolidayAPI candidate was not present in the trusted preview");
-        assertThat(calendar.history(admin)).filteredOn(item ->
+        assertThat(calendar.history(admin.userId())).filteredOn(item ->
                         "client-altered-source".equals(item.sourceUuid()))
                 .isEmpty();
     }

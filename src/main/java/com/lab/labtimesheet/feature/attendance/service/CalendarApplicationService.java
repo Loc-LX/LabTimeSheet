@@ -1,9 +1,8 @@
 package com.lab.labtimesheet.feature.attendance.service;
 
 import com.lab.labtimesheet.feature.attendance.exception.CalendarException;
-import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
 import com.lab.labtimesheet.feature.attendance.model.AttendancePolicy;
-import com.lab.labtimesheet.feature.attendance.model.AttendanceRole;
+import com.lab.labtimesheet.feature.identity.service.AccountService;
 import com.lab.labtimesheet.feature.attendance.model.dto.CalendarHistoryItem;
 import com.lab.labtimesheet.feature.attendance.model.dto.CalendarImportSelection;
 import com.lab.labtimesheet.feature.attendance.model.dto.CalendarPreviewItem;
@@ -41,6 +40,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 public class CalendarApplicationService {
 
     private final Clock clock;
+    private final AccountService accounts;
     private final AttendancePolicyRepository policies;
     private final GlobalCalendarEventRepository events;
     private final HolidayApiConfigurationService holidayApi;
@@ -49,7 +49,7 @@ public class CalendarApplicationService {
     /**
      * Creates an Admin-authored custom event on a non-past policy-local date.
      *
-     * @param actor authenticated Attendance actor; must be Admin
+     * @param adminId authenticated Admin account identifier
      * @param date local event date
      * @param name non-blank display name
      * @param dayOff authoritative attendance/due-date exemption choice
@@ -57,11 +57,11 @@ public class CalendarApplicationService {
      */
     @Transactional
     public GlobalCalendarEvent createManual(
-            AttendanceActor actor, LocalDate date, String name, boolean dayOff) {
-        requireAdmin(actor);
+            long adminId, LocalDate date, String name, boolean dayOff) {
+        long verifiedAdminId = requireActiveAdminId(adminId);
         requireMutableDate(date);
         return events.saveAndFlush(new GlobalCalendarEventEntity(
-                        date, requireName(name), dayOff, actor.userId(), clock.instant()))
+                        date, requireName(name), dayOff, verifiedAdminId, clock.instant()))
                 .toDomain();
     }
 
@@ -69,14 +69,14 @@ public class CalendarApplicationService {
      * Performs the explicit Admin-only external preview action through Platform's public service.
      * Local calendar reads and attendance decisions never call this method.
      *
-     * @param actor authenticated Admin actor
+     * @param adminId authenticated Admin account identifier
      * @param year requested Vietnam calendar year
      * @return immutable provider result with actionable, secret-free status metadata
      */
-    public HolidayApiPreview previewFromProvider(AttendanceActor actor, int year) {
-        requireAdmin(actor);
+    public HolidayApiPreview previewFromProvider(long adminId, int year) {
+        long verifiedAdminId = requireActiveAdminId(adminId);
         requireYear(year);
-        return holidayApi.preview(actor.userId(), year);
+        return holidayApi.preview(verifiedAdminId, year);
     }
 
     /**
@@ -84,15 +84,15 @@ public class CalendarApplicationService {
      * Provider failures remain represented by the returned Platform preview and therefore cannot be mistaken for an
      * empty successful import preview.
      *
-     * @param actor authenticated Admin actor
+     * @param adminId authenticated Admin account identifier
      * @param year requested Vietnam calendar year
      * @param upstream immutable Platform preview result
      * @return deduplicated local review rows, or an empty list for an actionable non-success result
      */
     @Transactional(readOnly = true)
     public List<CalendarPreviewItem> preview(
-            AttendanceActor actor, int year, HolidayApiPreview upstream) {
-        requireAdmin(actor);
+            long adminId, int year, HolidayApiPreview upstream) {
+        requireActiveAdminId(adminId);
         requireYear(year);
         Objects.requireNonNull(upstream, "HolidayAPI preview is required");
         if (upstream.status() != HolidayApiPreviewStatus.SUCCESS) {
@@ -115,49 +115,49 @@ public class CalendarApplicationService {
      * are obtained from Platform in this server-side call, so request-bound calendar data cannot become local
      * HolidayAPI provenance.</p>
      *
-     * @param actor authenticated Admin actor
+     * @param adminId authenticated Admin account identifier
      * @param year requested Vietnam calendar year used to validate every candidate date
      * @param selections source identities and explicit local day-off decisions
      * @return newly imported local history rows; an empty result means every selection was already imported
      */
     public List<CalendarHistoryItem> importSelected(
-            AttendanceActor actor, int year, List<CalendarImportSelection> selections) {
-        requireAdmin(actor);
+            long adminId, int year, List<CalendarImportSelection> selections) {
+        long verifiedAdminId = requireActiveAdminId(adminId);
         requireYear(year);
-        HolidayApiPreview trustedPreview = previewFromProvider(actor, year);
-        return importSelectedFromTrustedPreview(actor, year, trustedPreview, selections);
+        HolidayApiPreview trustedPreview = holidayApi.preview(verifiedAdminId, year);
+        return importSelectedFromTrustedPreview(verifiedAdminId, year, trustedPreview, selections);
     }
 
     /**
      * Copies explicitly selected source identities from a server-trusted Platform preview snapshot.
      *
      * <p>This transaction is the local persistence boundary. The preview must be the immutable result returned by
-     * {@link #previewFromProvider(AttendanceActor, int)} or an equivalent server-side snapshot; it must never be
+     * {@link #previewFromProvider(long, int)} or an equivalent server-side snapshot; it must never be
      * request-bound. Existing rows are never overwritten by a repeated source UUID.</p>
      *
-     * @param actor authenticated Admin actor
+     * @param adminId authenticated Admin account identifier
      * @param year requested Vietnam calendar year used to validate every candidate date
      * @param trustedPreview successful Platform preview retained by the server
      * @param selections source identities and explicit local day-off decisions
      * @return newly imported local history rows; an empty result means every selection was already imported
      */
     List<CalendarHistoryItem> importSelectedFromTrustedPreview(
-            AttendanceActor actor,
+            long adminId,
             int year,
             HolidayApiPreview trustedPreview,
             List<CalendarImportSelection> selections) {
-        requireAdmin(actor);
+        long verifiedAdminId = requireActiveAdminId(adminId);
         requireYear(year);
         if (selections == null) {
             throw new IllegalArgumentException("Calendar selections are required");
         }
         Map<String, HolidayApiCandidate> candidates = trustedCandidates(trustedPreview, year);
         return independentTransactions().execute(status -> importInTransaction(
-                actor, year, trustedPreview.retrievedAt(), candidates, selections));
+                verifiedAdminId, year, trustedPreview.retrievedAt(), candidates, selections));
     }
 
     private List<CalendarHistoryItem> importInTransaction(
-            AttendanceActor actor,
+            long adminId,
             int year,
             Instant retrievedAt,
             Map<String, HolidayApiCandidate> candidates,
@@ -166,7 +166,7 @@ public class CalendarApplicationService {
                 .orElseThrow(() -> new IllegalStateException("Attendance policy seed is required"));
         return selections.stream()
                 .sorted(Comparator.comparing(selection -> canonicalSourceUuid(requireSelection(selection).sourceUuid())))
-                .map(selection -> importOne(actor, year, retrievedAt, candidates, selection))
+                .map(selection -> importOne(adminId, year, retrievedAt, candidates, selection))
                 .flatMap(java.util.Optional::stream)
                 .toList();
     }
@@ -174,12 +174,12 @@ public class CalendarApplicationService {
     /**
      * Lists all retained past/current/future event metadata for the Admin History view.
      *
-     * @param actor authenticated Admin actor
+     * @param adminId authenticated Admin account identifier
      * @return retained events ordered by local date and version
      */
     @Transactional(readOnly = true)
-    public List<CalendarHistoryItem> history(AttendanceActor actor) {
-        requireAdmin(actor);
+    public List<CalendarHistoryItem> history(long adminId) {
+        requireActiveAdminId(adminId);
         return events.findAll().stream()
                 .map(GlobalCalendarEventEntity::toHistory)
                 .sorted(Comparator.comparing(CalendarHistoryItem::calendarDate)
@@ -191,7 +191,7 @@ public class CalendarApplicationService {
      * Updates a future custom event when the submitted optimistic version still matches.
      * Past event dates and attempts to move an event into the past are rejected.
      *
-     * @param actor authenticated Attendance actor; must be Admin
+     * @param adminId authenticated Admin account identifier
      * @param eventId event identifier
      * @param expectedVersion version rendered to the editor
      * @param date replacement local event date
@@ -201,13 +201,13 @@ public class CalendarApplicationService {
      */
     @Transactional
     public GlobalCalendarEvent updateManual(
-            AttendanceActor actor,
+            long adminId,
             long eventId,
             long expectedVersion,
             LocalDate date,
             String name,
             boolean dayOff) {
-        requireAdmin(actor);
+        long verifiedAdminId = requireActiveAdminId(adminId);
         GlobalCalendarEventEntity event = events.findById(eventId)
                 .orElseThrow(() -> new CalendarException("Calendar event not found"));
         requireMutableDate(event.calendarDate());
@@ -215,7 +215,7 @@ public class CalendarApplicationService {
         if (event.version() != expectedVersion) {
             throw new CalendarException("Calendar event was changed by another request");
         }
-        event.update(date, requireName(name), dayOff, actor.userId(), clock.instant());
+        event.update(date, requireName(name), dayOff, verifiedAdminId, clock.instant());
         return events.saveAndFlush(event).toDomain();
     }
 
@@ -320,14 +320,16 @@ public class CalendarApplicationService {
         }
     }
 
-    private static void requireAdmin(AttendanceActor actor) {
-        if (actor == null || actor.role() != AttendanceRole.ADMIN) {
-            throw new AccessDeniedException("Only Admin may manage the global calendar");
+    private long requireActiveAdminId(long adminId) {
+        try {
+            return accounts.requireActiveAdminId(adminId);
+        } catch (IllegalArgumentException exception) {
+            throw new AccessDeniedException("Only Admin may manage the global calendar", exception);
         }
     }
 
     private java.util.Optional<CalendarHistoryItem> importOne(
-            AttendanceActor actor,
+            long adminId,
             int year,
             Instant retrievedAt,
             Map<String, HolidayApiCandidate> candidates,
@@ -343,7 +345,7 @@ public class CalendarApplicationService {
         }
         requireMutableDate(candidate.observedDate());
         GlobalCalendarEventEntity entity = events.saveAndFlush(new GlobalCalendarEventEntity(
-                candidate, checked.dayOff(), actor.userId(), retrievedAt, clock.instant()));
+                candidate, checked.dayOff(), adminId, retrievedAt, clock.instant()));
         return java.util.Optional.of(entity.toHistory());
     }
 
