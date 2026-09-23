@@ -1,5 +1,7 @@
 package com.lab.labtimesheet.feature.attendance.service;
 
+import com.lab.labtimesheet.feature.internship.service.InternshipService;
+
 import com.lab.labtimesheet.feature.calendar.service.CalendarApplicationService;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -11,9 +13,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.lab.labtimesheet.feature.identity.model.AccountStatus;
-import com.lab.labtimesheet.feature.identity.model.InternshipStatus;
+import com.lab.labtimesheet.feature.internship.model.InternshipStatus;
 import com.lab.labtimesheet.feature.identity.model.dto.AccountIdentity;
-import com.lab.labtimesheet.feature.identity.model.dto.LockedAccountMutationEligibility;
+import com.lab.labtimesheet.feature.internship.model.dto.LockedAccountMutationEligibility;
 import com.lab.labtimesheet.feature.identity.service.AccountService;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
 import com.lab.labtimesheet.feature.calendar.model.AttendancePolicyFixtures;
@@ -52,6 +54,7 @@ class AttendanceCorrectionApplicationServiceTest {
                 mock(AttendanceCorrectionRepository.class),
                 mock(AttendanceCorrectionEventRepository.class),
                 mock(AccountService.class),
+                mock(InternshipService.class),
                 calendar(),
                 mock(TransactionTemplate.class),
                 mock(NotificationService.class));
@@ -99,8 +102,9 @@ class AttendanceCorrectionApplicationServiceTest {
                 null));
         when(records.findById(42L)).thenReturn(Optional.of(attendance));
         AccountService accounts = mock(AccountService.class);
+        InternshipService internships = mock(InternshipService.class);
         AtomicBoolean accountLocked = new AtomicBoolean();
-        when(accounts.lockedAccountMutationEligibility(any())).thenAnswer(invocation -> {
+        when(internships.lockedAccountMutationEligibility(any())).thenAnswer(invocation -> {
             accountLocked.set(true);
             return List.of(new LockedAccountMutationEligibility(
                     42L,
@@ -120,6 +124,7 @@ class AttendanceCorrectionApplicationServiceTest {
                 corrections,
                 mock(AttendanceCorrectionEventRepository.class),
                 accounts,
+                internships,
                 calendar(),
                 mock(TransactionTemplate.class),
                 mock(NotificationService.class));
@@ -150,6 +155,7 @@ class AttendanceCorrectionApplicationServiceTest {
                 corrections,
                 mock(AttendanceCorrectionEventRepository.class),
                 mock(AccountService.class),
+                mock(InternshipService.class),
                 calendar(),
                 mock(TransactionTemplate.class),
                 mock(NotificationService.class));
@@ -209,8 +215,9 @@ class AttendanceCorrectionApplicationServiceTest {
                 });
 
         AccountService accounts = mock(AccountService.class);
+        InternshipService internships = mock(InternshipService.class);
         when(accounts.activeGlobalMentorIdentities()).thenReturn(List.of());
-        when(accounts.lockedAccountMutationEligibility(any())).thenReturn(List.of());
+        when(internships.lockedAccountMutationEligibility(any())).thenReturn(List.of());
 
         AttendanceCorrectionApplicationService service = new AttendanceCorrectionApplicationService(
                 Clock.fixed(Instant.parse("2026-08-14T10:00:00Z"), ZoneOffset.UTC),
@@ -218,6 +225,7 @@ class AttendanceCorrectionApplicationServiceTest {
                 corrections,
                 mock(AttendanceCorrectionEventRepository.class),
                 accounts,
+                internships,
                 calendar(),
                 mock(TransactionTemplate.class),
                 mock(NotificationService.class));

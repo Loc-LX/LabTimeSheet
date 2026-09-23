@@ -1,4 +1,6 @@
-package com.lab.labtimesheet.feature.identity.service;
+package com.lab.labtimesheet.feature.internship.service;
+
+import com.lab.labtimesheet.feature.identity.service.AccountService;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -7,11 +9,11 @@ import java.time.LocalDate;
 import java.util.Optional;
 
 import com.lab.labtimesheet.config.TestcontainersConfiguration;
-import com.lab.labtimesheet.feature.identity.model.dto.InternReportingWindow;
+import com.lab.labtimesheet.feature.internship.model.dto.InternReportingWindow;
 import com.lab.labtimesheet.feature.identity.model.entity.AppUser;
-import com.lab.labtimesheet.feature.identity.model.entity.InternProfile;
+import com.lab.labtimesheet.feature.internship.model.entity.InternProfile;
 import com.lab.labtimesheet.feature.identity.repository.AppUserRepository;
-import com.lab.labtimesheet.feature.identity.repository.InternProfileRepository;
+import com.lab.labtimesheet.feature.internship.repository.InternProfileRepository;
 import com.lab.labtimesheet.platform.model.GlobalRole;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,6 +36,9 @@ class HistoricalInternReportingWindowIntegrationTest {
     private AccountService accounts;
 
     @Autowired
+    private InternshipService internships;
+
+    @Autowired
     private AppUserRepository users;
 
     @Autowired
@@ -46,7 +51,7 @@ class HistoricalInternReportingWindowIntegrationTest {
         profile.complete(TERMINATED_AT);
         profiles.saveAndFlush(profile);
 
-        Optional<InternReportingWindow> window = accounts.historicalInternReportingWindow(userId);
+        Optional<InternReportingWindow> window = internships.historicalInternReportingWindow(userId);
 
         assertThat(window).isPresent();
         assertThat(window.orElseThrow().activationDate()).isEqualTo(LocalDate.of(2026, 8, 14));
@@ -67,7 +72,7 @@ class HistoricalInternReportingWindowIntegrationTest {
         user.deactivate(TERMINATED_AT);
         users.saveAndFlush(user);
 
-        Optional<InternReportingWindow> window = accounts.historicalInternReportingWindow(userId);
+        Optional<InternReportingWindow> window = internships.historicalInternReportingWindow(userId);
 
         assertThat(window).isPresent();
         assertThat(window.orElseThrow().terminalDate()).isEqualTo(LocalDate.of(2026, 8, 20));
@@ -85,10 +90,10 @@ class HistoricalInternReportingWindowIntegrationTest {
         deactivated.deactivate(TERMINATED_AT);
         users.saveAndFlush(deactivated);
 
-        assertThat(accounts.historicalInternReportingWindow(pendingId)).isEmpty();
-        assertThat(accounts.historicalInternReportingWindow(notStartedId)).isEmpty();
-        assertThat(accounts.historicalInternReportingWindow(deactivatedId)).isEmpty();
-        assertThat(accounts.historicalInternReportingWindow(99_999L)).isEmpty();
+        assertThat(internships.historicalInternReportingWindow(pendingId)).isEmpty();
+        assertThat(internships.historicalInternReportingWindow(notStartedId)).isEmpty();
+        assertThat(internships.historicalInternReportingWindow(deactivatedId)).isEmpty();
+        assertThat(internships.historicalInternReportingWindow(99_999L)).isEmpty();
     }
 
     private long activeIntern(String email) {

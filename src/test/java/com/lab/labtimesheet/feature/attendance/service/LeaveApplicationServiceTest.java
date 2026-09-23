@@ -1,5 +1,7 @@
 package com.lab.labtimesheet.feature.attendance.service;
 
+import com.lab.labtimesheet.feature.internship.service.InternshipService;
+
 import com.lab.labtimesheet.feature.calendar.service.CalendarApplicationService;
 import com.lab.labtimesheet.feature.calendar.service.AttendancePolicyTimeline;
 
@@ -11,10 +13,10 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.lab.labtimesheet.feature.identity.model.AccountStatus;
-import com.lab.labtimesheet.feature.identity.model.InternshipStatus;
+import com.lab.labtimesheet.feature.internship.model.InternshipStatus;
 import com.lab.labtimesheet.feature.identity.model.dto.AccountIdentity;
-import com.lab.labtimesheet.feature.identity.model.dto.InternWorkWindow;
-import com.lab.labtimesheet.feature.identity.model.dto.LockedAccountMutationEligibility;
+import com.lab.labtimesheet.feature.internship.model.dto.InternWorkWindow;
+import com.lab.labtimesheet.feature.internship.model.dto.LockedAccountMutationEligibility;
 import com.lab.labtimesheet.feature.identity.service.AccountService;
 import com.lab.labtimesheet.feature.attendance.exception.LeaveException;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
@@ -49,6 +51,7 @@ class LeaveApplicationServiceTest {
                 mock(LeaveRequestRepository.class),
                 mock(LeaveRequestDayRepository.class),
                 mock(AccountService.class),
+                mock(InternshipService.class),
                 mock(CalendarApplicationService.class),
                 mock(TransactionTemplate.class),
                 mock(NotificationService.class));
@@ -85,8 +88,9 @@ class LeaveApplicationServiceTest {
             return Optional.of(locked);
         });
         AccountService accounts = mock(AccountService.class);
+        InternshipService internships = mock(InternshipService.class);
         AtomicBoolean accountLocked = new AtomicBoolean();
-        when(accounts.lockedAccountMutationEligibility(any())).thenAnswer(invocation -> {
+        when(internships.lockedAccountMutationEligibility(any())).thenAnswer(invocation -> {
             accountLocked.set(true);
             return List.of(new LockedAccountMutationEligibility(
                     42L,
@@ -105,6 +109,7 @@ class LeaveApplicationServiceTest {
                 requests,
                 mock(LeaveRequestDayRepository.class),
                 accounts,
+                internships,
                 mock(CalendarApplicationService.class),
                 mock(TransactionTemplate.class),
                 mock(NotificationService.class));
@@ -172,11 +177,13 @@ class LeaveApplicationServiceTest {
         LeaveRequestRepository requests = mock(LeaveRequestRepository.class);
         LeaveRequestDayRepository days = mock(LeaveRequestDayRepository.class);
         AccountService accounts = mock(AccountService.class);
+        InternshipService internships = mock(InternshipService.class);
         LeaveApplicationService service = new LeaveApplicationService(
                 Clock.fixed(Instant.parse("2026-08-14T01:00:00Z"), ZoneOffset.UTC),
                 requests,
                 days,
                 accounts,
+                internships,
                 mock(CalendarApplicationService.class),
                 mock(TransactionTemplate.class),
                 mock(NotificationService.class));
@@ -202,8 +209,9 @@ class LeaveApplicationServiceTest {
      */
     private void submitSameDayLeave(Instant now, LocalDate workday, LeaveRequestRepository requests) {
         AccountService accounts = mock(AccountService.class);
+        InternshipService internships = mock(InternshipService.class);
         when(accounts.activeGlobalMentorIdentities()).thenReturn(List.of());
-        when(accounts.lockedInternWorkWindow(eq(42L), any(LocalDate.class)))
+        when(internships.lockedInternWorkWindow(eq(42L), any(LocalDate.class)))
                 .thenReturn(new InternWorkWindow(
                         42L,
                         workday,
@@ -222,6 +230,7 @@ class LeaveApplicationServiceTest {
                         requests,
                         mock(LeaveRequestDayRepository.class),
                         accounts,
+                        internships,
                         calendar,
                         mock(TransactionTemplate.class),
                         mock(NotificationService.class))

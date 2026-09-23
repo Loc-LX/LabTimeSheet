@@ -3,10 +3,11 @@ package com.lab.labtimesheet.feature.attendance.service;
 import com.lab.labtimesheet.feature.calendar.service.CalendarApplicationService;
 
 import com.lab.labtimesheet.feature.identity.model.AccountStatus;
-import com.lab.labtimesheet.feature.identity.model.InternshipStatus;
+import com.lab.labtimesheet.feature.internship.model.InternshipStatus;
 import com.lab.labtimesheet.feature.identity.model.dto.AccountIdentity;
-import com.lab.labtimesheet.feature.identity.model.dto.LockedAccountMutationEligibility;
+import com.lab.labtimesheet.feature.internship.model.dto.LockedAccountMutationEligibility;
 import com.lab.labtimesheet.feature.identity.service.AccountService;
+import com.lab.labtimesheet.feature.internship.service.InternshipService;
 import com.lab.labtimesheet.feature.attendance.exception.CorrectionException;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
 import com.lab.labtimesheet.feature.calendar.model.AttendancePolicy;
@@ -67,6 +68,7 @@ public class AttendanceCorrectionApplicationService {
     private final AttendanceCorrectionRepository corrections;
     private final AttendanceCorrectionEventRepository events;
     private final AccountService accounts;
+    private final InternshipService internships;
     private final CalendarApplicationService calendar;
     private final TransactionTemplate transactions;
     private final NotificationService notifications;
@@ -493,7 +495,7 @@ public class AttendanceCorrectionApplicationService {
 
     private Map<Long, LockedAccountMutationEligibility> lockAccounts(Collection<Long> accountIds) {
         try {
-            return accounts.lockedAccountMutationEligibility(accountIds).stream()
+            return internships.lockedAccountMutationEligibility(accountIds).stream()
                     .collect(java.util.stream.Collectors.toMap(
                             LockedAccountMutationEligibility::userId, eligibility -> eligibility));
         } catch (IllegalArgumentException missingAccount) {

@@ -1,4 +1,7 @@
-package com.lab.labtimesheet.feature.identity.service;
+package com.lab.labtimesheet.feature.internship.service;
+
+import com.lab.labtimesheet.feature.identity.service.AccountService;
+import com.lab.labtimesheet.feature.identity.service.BootstrapService;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -13,13 +16,13 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import com.lab.labtimesheet.config.TestcontainersConfiguration;
-import com.lab.labtimesheet.feature.identity.model.InternshipStatus;
+import com.lab.labtimesheet.feature.internship.model.InternshipStatus;
 import com.lab.labtimesheet.feature.identity.model.dto.AccountCreation;
 import com.lab.labtimesheet.feature.identity.model.dto.CreateAccountCommand;
-import com.lab.labtimesheet.feature.identity.model.dto.InternshipLifecycleGuard;
-import com.lab.labtimesheet.feature.identity.model.dto.LockedAccountMutationEligibility;
+import com.lab.labtimesheet.feature.internship.model.dto.InternshipLifecycleGuard;
+import com.lab.labtimesheet.feature.internship.model.dto.LockedAccountMutationEligibility;
 import com.lab.labtimesheet.feature.identity.repository.AppUserRepository;
-import com.lab.labtimesheet.feature.identity.repository.InternProfileRepository;
+import com.lab.labtimesheet.feature.internship.repository.InternProfileRepository;
 import com.lab.labtimesheet.platform.model.GlobalRole;
 import com.lab.labtimesheet.platform.model.SecurityMode;
 import com.lab.labtimesheet.platform.model.dto.SmtpConnection;
@@ -50,6 +53,9 @@ class InternMutationEligibilityIntegrationTest {
     private AccountService accounts;
 
     @Autowired
+    private InternshipService internships;
+
+    @Autowired
     private SmtpConfigurationService smtp;
 
     @Autowired
@@ -73,17 +79,17 @@ class InternMutationEligibilityIntegrationTest {
         smtp.testDraft(draftId, adminId, "admin@example.com");
         smtp.activate(draftId, adminId);
 
-        var mentor = accounts.create(new CreateAccountCommand(
+        var mentor = internships.create(new CreateAccountCommand(
                 "mentor@example.com", "Mentor", GlobalRole.MENTOR, null, null, null), adminId);
         assertThat(accounts.activate(mail.tokenFor("mentor@example.com"), "a secure mentor password")).isTrue();
         var first = createIntern(adminId, "first@example.com", "STU-FIRST");
         var second = createIntern(adminId, "second@example.com", "STU-SECOND");
         assertThat(accounts.activate(mail.tokenFor("second@example.com"), "a secure second password")).isTrue();
         assertThat(accounts.activate(mail.tokenFor("first@example.com"), "a secure first password")).isTrue();
-        assertThat(accounts.activateDueInternships()).isEqualTo(2);
-        accounts.completeInternship(second.userId(), adminId, new InternshipLifecycleGuard(false, 0));
+        assertThat(internships.activateDueInternships()).isEqualTo(2);
+        internships.completeInternship(second.userId(), adminId, new InternshipLifecycleGuard(false, 0));
 
-        List<LockedAccountMutationEligibility> result = accounts.lockedAccountMutationEligibility(
+        List<LockedAccountMutationEligibility> result = internships.lockedAccountMutationEligibility(
                 List.of(second.userId(), mentor.userId(), first.userId(), second.userId()));
 
         assertThat(result).extracting(LockedAccountMutationEligibility::userId)
@@ -104,7 +110,7 @@ class InternMutationEligibilityIntegrationTest {
         var intern = createIntern(adminId, "due-intern@example.com", "STU-DUE");
         assertThat(accounts.activate(mail.tokenFor("due-intern@example.com"), "a secure due password")).isTrue();
 
-        List<LockedAccountMutationEligibility> result = accounts.lockedAccountMutationEligibility(
+        List<LockedAccountMutationEligibility> result = internships.lockedAccountMutationEligibility(
                 List.of(intern.userId()));
 
         assertThat(result).singleElement()
@@ -123,7 +129,7 @@ class InternMutationEligibilityIntegrationTest {
         var intern = createIntern(adminId, "retention-intern@example.com", "STU-RETENTION");
         assertThat(accounts.activate(mail.tokenFor("retention-intern@example.com"), "a secure retention password"))
                 .isTrue();
-        assertThat(accounts.activateDueInternships()).isEqualTo(1);
+        assertThat(internships.activateDueInternships()).isEqualTo(1);
 
         CountDownLatch methodReturned = new CountDownLatch(1);
         CountDownLatch allowOuterCommit = new CountDownLatch(1);
@@ -132,7 +138,7 @@ class InternMutationEligibilityIntegrationTest {
         ExecutorService executor = Executors.newFixedThreadPool(3);
         try {
             Future<?> outer = executor.submit(() -> transactions.executeWithoutResult(status -> {
-                accounts.lockedAccountMutationEligibility(List.of(intern.userId()));
+                internships.lockedAccountMutationEligibility(List.of(intern.userId()));
                 methodReturned.countDown();
                 awaitLatch(allowOuterCommit);
             }));
@@ -184,7 +190,7 @@ class InternMutationEligibilityIntegrationTest {
     }
 
     private AccountCreation createIntern(long adminId, String email, String studentCode) {
-        return accounts.create(new CreateAccountCommand(
+        return internships.create(new CreateAccountCommand(
                 email, email.substring(0, email.indexOf('@')), GlobalRole.INTERN, studentCode,
                 LocalDate.of(2026, 8, 14), LocalDate.of(2026, 12, 31)), adminId);
     }

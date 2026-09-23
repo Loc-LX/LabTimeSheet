@@ -3,6 +3,7 @@ package com.lab.labtimesheet.feature.attendance;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.lab.labtimesheet.feature.identity.service.AccountService;
+import com.lab.labtimesheet.feature.internship.service.InternshipService;
 import com.lab.labtimesheet.feature.attendance.controller.AttendanceController;
 import com.lab.labtimesheet.feature.calendar.controller.CalendarController;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
@@ -96,6 +97,7 @@ class AttendanceLombokBoilerplateTest {
                         AttendanceRecordRepository.class,
                         AttendanceQueryRepository.class,
                         AccountService.class,
+                        InternshipService.class,
                         CalendarApplicationService.class,
                         AttendanceService.class,
                         AttendanceCorrectionApplicationService.class));
@@ -124,6 +126,7 @@ class AttendanceLombokBoilerplateTest {
                         LeaveRequestRepository.class,
                         LeaveRequestDayRepository.class,
                         AccountService.class,
+                        InternshipService.class,
                         CalendarApplicationService.class,
                         TransactionTemplate.class,
                         NotificationService.class));
@@ -136,6 +139,7 @@ class AttendanceLombokBoilerplateTest {
                         AttendanceCorrectionRepository.class,
                         AttendanceCorrectionEventRepository.class,
                         AccountService.class,
+                        InternshipService.class,
                         CalendarApplicationService.class,
                         TransactionTemplate.class,
                         NotificationService.class));

@@ -3,6 +3,7 @@ package com.lab.labtimesheet.feature.attendance.service;
 import com.lab.labtimesheet.feature.calendar.service.CalendarApplicationService;
 
 import com.lab.labtimesheet.feature.identity.service.AccountService;
+import com.lab.labtimesheet.feature.internship.service.InternshipService;
 import com.lab.labtimesheet.feature.attendance.exception.AttendanceException;
 import com.lab.labtimesheet.feature.attendance.exception.AttendanceRejection;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
@@ -43,6 +44,7 @@ public class AttendanceApplicationService {
     private final AttendanceRecordRepository recordEntities;
     private final AttendanceQueryRepository queries;
     private final AccountService accounts;
+    private final InternshipService internships;
     private final CalendarApplicationService calendar;
     private final AttendanceService attendance;
     private final AttendanceCorrectionApplicationService corrections;
@@ -94,7 +96,7 @@ public class AttendanceApplicationService {
         Optional<AttendanceRecordEntity> entity = recordEntities.findByInternUserIdAndWorkDate(internId, workDate);
         AttendanceRecord checkedOut = attendance.checkOut(entity.map(this::recordFrom), now);
         AttendanceRecordEntity persisted = entity.orElseThrow();
-        if (!accounts.isEligibleIntern(internId, persisted.workDate())) {
+        if (!internships.isEligibleIntern(internId, persisted.workDate())) {
             throw new AttendanceException(AttendanceRejection.INACTIVE_INTERN);
         }
         persisted.setCheckOutAt(checkedOut.checkOutAt());
@@ -116,7 +118,7 @@ public class AttendanceApplicationService {
         Instant now = clock.instant();
         AttendancePolicy policy = calendar.policyTimeline().resolve(now);
         LocalDate workDate = now.atZone(policy.zoneId()).toLocalDate();
-        if (!accounts.isEligibleIntern(internId, workDate)) {
+        if (!internships.isEligibleIntern(internId, workDate)) {
             throw new AttendanceException(AttendanceRejection.INACTIVE_INTERN);
         }
         return recordEntities.findByInternUserIdAndWorkDate(internId, workDate)
@@ -205,7 +207,7 @@ public class AttendanceApplicationService {
 
     private AttendanceDayContext dayContext(long internId, LocalDate workDate) {
         return new AttendanceDayContext(
-                accounts.isEligibleIntern(internId, workDate),
+                internships.isEligibleIntern(internId, workDate),
                 calendar.isGlobalDayOff(workDate),
                 queries.hasApprovedLeave(internId, workDate));
     }

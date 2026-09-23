@@ -1,4 +1,6 @@
-package com.lab.labtimesheet.feature.identity.controller;
+package com.lab.labtimesheet.feature.internship.controller;
+
+import com.lab.labtimesheet.feature.internship.service.InternshipService;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
@@ -15,11 +17,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.lab.labtimesheet.feature.identity.model.AccountStatus;
-import com.lab.labtimesheet.feature.identity.model.InternshipStatus;
-import com.lab.labtimesheet.feature.identity.model.dto.AccountAdministrationView;
+import com.lab.labtimesheet.feature.internship.model.InternshipStatus;
 import com.lab.labtimesheet.feature.identity.model.dto.AccountDirectoryFilter;
 import com.lab.labtimesheet.feature.identity.model.dto.AccountIdentityCorrection;
-import com.lab.labtimesheet.feature.identity.model.dto.InternshipLifecycleGuard;
+import com.lab.labtimesheet.feature.internship.model.dto.InternshipAccountAdministrationView;
+import com.lab.labtimesheet.feature.internship.model.dto.InternshipLifecycleGuard;
 import com.lab.labtimesheet.feature.identity.service.AccountService;
 import com.lab.labtimesheet.feature.project.service.ProjectQueryService;
 import com.lab.labtimesheet.feature.project.service.ProjectService;
@@ -48,6 +50,9 @@ class AccountAdministrationControllerWebTest {
     private AccountService accounts;
 
     @MockitoBean
+    private InternshipService internships;
+
+    @MockitoBean
     private ProjectQueryService projectQueries;
 
     @MockitoBean
@@ -58,14 +63,14 @@ class AccountAdministrationControllerWebTest {
 
     @Test
     void adminListsAccountsAndSeesLockedProjectTaskReadinessOnInternDetail() throws Exception {
-        AccountAdministrationView intern = intern();
+        InternshipAccountAdministrationView intern = intern();
         when(accounts.requireActiveAdminId(ADMIN_EMAIL)).thenReturn(1L);
-        when(accounts.administrationViews(1L)).thenReturn(List.of(
-                new AccountAdministrationView(
+        when(internships.administrationViews(1L)).thenReturn(List.of(
+                new InternshipAccountAdministrationView(
                         1L, ADMIN_EMAIL, "Admin", GlobalRole.ADMIN, AccountStatus.ACTIVE,
                         null, null, null, null),
                 intern));
-        when(accounts.administrationView(7L, 1L)).thenReturn(intern);
+        when(internships.administrationView(7L, 1L)).thenReturn(intern);
         when(projectQueries.internshipLifecycleGuard(1L, 7L))
                 .thenReturn(new InternshipLifecycleGuard(false, 0));
 
@@ -86,9 +91,9 @@ class AccountAdministrationControllerWebTest {
 
     @Test
     void accountDetailSeparatesAccessFromBlockedInternLifecycle() throws Exception {
-        AccountAdministrationView intern = intern();
+        InternshipAccountAdministrationView intern = intern();
         when(accounts.requireActiveAdminId(ADMIN_EMAIL)).thenReturn(1L);
-        when(accounts.administrationView(7L, 1L)).thenReturn(intern);
+        when(internships.administrationView(7L, 1L)).thenReturn(intern);
         when(projectQueries.internshipLifecycleGuard(1L, 7L))
                 .thenReturn(new InternshipLifecycleGuard(true, 2));
 
@@ -112,7 +117,7 @@ class AccountAdministrationControllerWebTest {
     void adminDirectoryAppliesSearchAndImmutableRoleFilter() throws Exception {
         AccountDirectoryFilter filter = new AccountDirectoryFilter("intern", GlobalRole.INTERN);
         when(accounts.requireActiveAdminId(ADMIN_EMAIL)).thenReturn(1L);
-        when(accounts.administrationViews(1L, filter)).thenReturn(List.of(intern()));
+        when(internships.administrationViews(1L, filter)).thenReturn(List.of(intern()));
 
         mvc.perform(get("/admin/accounts")
                         .param("search", " intern ")
@@ -123,13 +128,13 @@ class AccountAdministrationControllerWebTest {
                 .andExpect(content().string(containsString("value=\"INTERN\"")))
                 .andExpect(content().string(containsString("intern@example.test")));
 
-        verify(accounts).administrationViews(1L, filter);
+        verify(internships).administrationViews(1L, filter);
     }
 
     @Test
     void adminCanOpenIdentityCorrectionWithoutRoleOrDisplayNameEditors() throws Exception {
         when(accounts.requireActiveAdminId(ADMIN_EMAIL)).thenReturn(1L);
-        when(accounts.administrationView(7L, 1L)).thenReturn(intern());
+        when(internships.administrationView(7L, 1L)).thenReturn(intern());
 
         mvc.perform(get("/admin/accounts/7/edit").with(user(ADMIN_EMAIL).roles("ADMIN")))
                 .andExpect(status().isOk())
@@ -143,7 +148,7 @@ class AccountAdministrationControllerWebTest {
     @Test
     void adminSubmitsIdentityCorrectionThroughAccountService() throws Exception {
         when(accounts.requireActiveAdminId(ADMIN_EMAIL)).thenReturn(1L);
-        when(accounts.administrationView(7L, 1L)).thenReturn(intern());
+        when(internships.administrationView(7L, 1L)).thenReturn(intern());
 
         mvc.perform(post("/admin/accounts/7/edit")
                         .with(user(ADMIN_EMAIL).roles("ADMIN")).with(csrf())
@@ -153,23 +158,23 @@ class AccountAdministrationControllerWebTest {
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl("/admin/accounts/7"));
 
-        verify(accounts).correctAccount(7L, 1L, new AccountIdentityCorrection(
+        verify(internships).correctAccount(7L, 1L, new AccountIdentityCorrection(
                 "corrected@example.test", "STU-008", null, null));
     }
 
     @Test
     void correctionControlsFollowAccountAndInternshipLifecycle() throws Exception {
-        AccountAdministrationView pending = account(7L, AccountStatus.PENDING_ACTIVATION, InternshipStatus.NOT_STARTED);
-        AccountAdministrationView active = account(8L, AccountStatus.ACTIVE, InternshipStatus.ACTIVE);
-        AccountAdministrationView locked = account(9L, AccountStatus.LOCKED, InternshipStatus.ACTIVE);
-        AccountAdministrationView completed = account(10L, AccountStatus.ACTIVE, InternshipStatus.COMPLETED);
-        AccountAdministrationView withdrawn = account(11L, AccountStatus.ACTIVE, InternshipStatus.WITHDRAWN);
+        InternshipAccountAdministrationView pending = account(7L, AccountStatus.PENDING_ACTIVATION, InternshipStatus.NOT_STARTED);
+        InternshipAccountAdministrationView active = account(8L, AccountStatus.ACTIVE, InternshipStatus.ACTIVE);
+        InternshipAccountAdministrationView locked = account(9L, AccountStatus.LOCKED, InternshipStatus.ACTIVE);
+        InternshipAccountAdministrationView completed = account(10L, AccountStatus.ACTIVE, InternshipStatus.COMPLETED);
+        InternshipAccountAdministrationView withdrawn = account(11L, AccountStatus.ACTIVE, InternshipStatus.WITHDRAWN);
         when(accounts.requireActiveAdminId(ADMIN_EMAIL)).thenReturn(1L);
-        when(accounts.administrationView(7L, 1L)).thenReturn(pending);
-        when(accounts.administrationView(8L, 1L)).thenReturn(active);
-        when(accounts.administrationView(9L, 1L)).thenReturn(locked);
-        when(accounts.administrationView(10L, 1L)).thenReturn(completed);
-        when(accounts.administrationView(11L, 1L)).thenReturn(withdrawn);
+        when(internships.administrationView(7L, 1L)).thenReturn(pending);
+        when(internships.administrationView(8L, 1L)).thenReturn(active);
+        when(internships.administrationView(9L, 1L)).thenReturn(locked);
+        when(internships.administrationView(10L, 1L)).thenReturn(completed);
+        when(internships.administrationView(11L, 1L)).thenReturn(withdrawn);
 
         mvc.perform(get("/admin/accounts/7/edit").with(user(ADMIN_EMAIL).roles("ADMIN")))
                 .andExpect(status().isOk())
@@ -197,7 +202,7 @@ class AccountAdministrationControllerWebTest {
     @Test
     void deactivatedAccountHasNoCorrectionSurface() throws Exception {
         when(accounts.requireActiveAdminId(ADMIN_EMAIL)).thenReturn(1L);
-        when(accounts.administrationView(12L, 1L)).thenReturn(account(12L, AccountStatus.DEACTIVATED, InternshipStatus.ACTIVE));
+        when(internships.administrationView(12L, 1L)).thenReturn(account(12L, AccountStatus.DEACTIVATED, InternshipStatus.ACTIVE));
 
         mvc.perform(get("/admin/accounts/12/edit").with(user(ADMIN_EMAIL).roles("ADMIN")))
                 .andExpect(status().isNotFound());
@@ -206,10 +211,10 @@ class AccountAdministrationControllerWebTest {
     @Test
     void duplicateCorrectionRetainsSafeInputWithoutSqlDiagnostics() throws Exception {
         when(accounts.requireActiveAdminId(ADMIN_EMAIL)).thenReturn(1L);
-        when(accounts.administrationView(7L, 1L)).thenReturn(intern());
+        when(internships.administrationView(7L, 1L)).thenReturn(intern());
         doThrow(new DataIntegrityViolationException("SQL duplicate detail", new ConstraintViolationException(
                 "duplicate", null, "uq_intern_profiles_student_code_ci")))
-                .when(accounts).correctAccount(7L, 1L,
+                .when(internships).correctAccount(7L, 1L,
                         new AccountIdentityCorrection("corrected@example.test", "STU-DUPLICATE", null, null));
 
         mvc.perform(post("/admin/accounts/7/edit")
@@ -226,7 +231,7 @@ class AccountAdministrationControllerWebTest {
     @Test
     void directoryUsesHumanLabelsForEveryInternshipStatus() throws Exception {
         when(accounts.requireActiveAdminId(ADMIN_EMAIL)).thenReturn(1L);
-        when(accounts.administrationViews(1L)).thenReturn(List.of(
+        when(internships.administrationViews(1L)).thenReturn(List.of(
                 account(7L, AccountStatus.ACTIVE, InternshipStatus.NOT_STARTED),
                 account(8L, AccountStatus.ACTIVE, InternshipStatus.ACTIVE),
                 account(9L, AccountStatus.ACTIVE, InternshipStatus.COMPLETED),
@@ -242,13 +247,13 @@ class AccountAdministrationControllerWebTest {
 
     @Test
     void craftedInternFieldsForNonInternRemainServiceDenied() throws Exception {
-        AccountAdministrationView mentor = new AccountAdministrationView(
+        InternshipAccountAdministrationView mentor = new InternshipAccountAdministrationView(
                 8L, "mentor@example.test", "Mentor", GlobalRole.MENTOR, AccountStatus.ACTIVE,
                 null, null, null, null);
         when(accounts.requireActiveAdminId(ADMIN_EMAIL)).thenReturn(1L);
-        when(accounts.administrationView(8L, 1L)).thenReturn(mentor);
+        when(internships.administrationView(8L, 1L)).thenReturn(mentor);
         doThrow(new IllegalArgumentException("Internship fields are allowed only for Intern accounts"))
-                .when(accounts).correctAccount(8L, 1L,
+                .when(internships).correctAccount(8L, 1L,
                         new AccountIdentityCorrection(null, "STU-999", null, null));
 
         mvc.perform(post("/admin/accounts/8/edit")
@@ -258,7 +263,7 @@ class AccountAdministrationControllerWebTest {
                 .andExpect(content().string(containsString("Account correction could not be completed.")))
                 .andExpect(content().string(not(containsString("name=\"role\""))));
 
-        verify(accounts).correctAccount(8L, 1L,
+        verify(internships).correctAccount(8L, 1L,
                 new AccountIdentityCorrection(null, "STU-999", null, null));
     }
 
@@ -266,13 +271,6 @@ class AccountAdministrationControllerWebTest {
     void adminActionsUseAccountAndProjectOwners() throws Exception {
         when(accounts.requireActiveAdminId(ADMIN_EMAIL)).thenReturn(1L);
 
-        mvc.perform(post("/admin/accounts/7/lock").with(user(ADMIN_EMAIL).roles("ADMIN")).with(csrf()))
-                .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/admin/accounts/7"));
-        mvc.perform(post("/admin/accounts/7/unlock").with(user(ADMIN_EMAIL).roles("ADMIN")).with(csrf()))
-                .andExpect(status().is3xxRedirection());
-        mvc.perform(post("/admin/accounts/7/deactivate").with(user(ADMIN_EMAIL).roles("ADMIN")).with(csrf()))
-                .andExpect(status().is3xxRedirection());
         mvc.perform(post("/admin/accounts/7/complete-internship")
                         .with(user(ADMIN_EMAIL).roles("ADMIN")).with(csrf()))
                 .andExpect(status().is3xxRedirection());
@@ -280,9 +278,6 @@ class AccountAdministrationControllerWebTest {
                         .with(user(ADMIN_EMAIL).roles("ADMIN")).with(csrf()))
                 .andExpect(status().is3xxRedirection());
 
-        verify(accounts).lockAccount(7L, 1L);
-        verify(accounts).unlockAccount(7L, 1L);
-        verify(accounts).deactivateAccount(7L, 1L);
         verify(projects).completeInternship(1L, 7L);
         verify(projects).withdrawInternship(1L, 7L);
     }
@@ -290,27 +285,19 @@ class AccountAdministrationControllerWebTest {
     @Test
     void guessedIdentifierDoesNotDiscloseAccountDetails() throws Exception {
         when(accounts.requireActiveAdminId(ADMIN_EMAIL)).thenReturn(1L);
-        when(accounts.administrationView(999L, 1L)).thenThrow(new IllegalArgumentException("Account not found"));
-        doThrow(new IllegalArgumentException("Account not found"))
-                .when(accounts).lockAccount(999L, 1L);
-
+        when(internships.administrationView(999L, 1L)).thenThrow(new IllegalArgumentException("Account not found"));
         mvc.perform(get("/admin/accounts/999").with(user(ADMIN_EMAIL).roles("ADMIN")))
                 .andExpect(status().isNotFound())
                 .andExpect(content().string(not(containsString("Account not found"))));
-        mvc.perform(post("/admin/accounts/999/lock")
-                        .with(user(ADMIN_EMAIL).roles("ADMIN")).with(csrf()))
-                .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/admin/accounts"))
-                .andExpect(flash().attribute("accountError", "Account action could not be completed."));
     }
 
-    private static AccountAdministrationView intern() {
+    private static InternshipAccountAdministrationView intern() {
         return account(7L, AccountStatus.ACTIVE, InternshipStatus.ACTIVE);
     }
 
-    private static AccountAdministrationView account(long id, AccountStatus accountStatus,
+    private static InternshipAccountAdministrationView account(long id, AccountStatus accountStatus,
             InternshipStatus internshipStatus) {
-        return new AccountAdministrationView(
+        return new InternshipAccountAdministrationView(
                 id, id == 7L ? "intern@example.test" : "intern-" + id + "@example.test", "Intern " + id, GlobalRole.INTERN, accountStatus,
                 "STU-" + id, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 12, 31), internshipStatus);
     }

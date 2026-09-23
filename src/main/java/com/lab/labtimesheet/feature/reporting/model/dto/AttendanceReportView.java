@@ -1,6 +1,6 @@
 package com.lab.labtimesheet.feature.reporting.model.dto;
 
-import com.lab.labtimesheet.feature.identity.model.dto.EligibleInternOption;
+import com.lab.labtimesheet.feature.internship.model.dto.EligibleInternOption;
 import java.time.LocalDate;
 import java.util.List;
 

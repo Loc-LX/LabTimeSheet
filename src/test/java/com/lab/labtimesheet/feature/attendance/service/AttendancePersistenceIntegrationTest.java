@@ -1,5 +1,7 @@
 package com.lab.labtimesheet.feature.attendance.service;
 
+import com.lab.labtimesheet.feature.internship.service.InternshipService;
+
 import com.lab.labtimesheet.feature.calendar.service.CalendarApplicationService;
 import com.lab.labtimesheet.feature.calendar.service.AttendancePolicyApplicationService;
 
@@ -11,11 +13,11 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.reset;
 
 import com.lab.labtimesheet.feature.identity.model.AccountStatus;
-import com.lab.labtimesheet.feature.identity.model.InternshipStatus;
+import com.lab.labtimesheet.feature.internship.model.InternshipStatus;
 import com.lab.labtimesheet.feature.identity.model.dto.CreateAccountCommand;
-import com.lab.labtimesheet.feature.identity.model.dto.InternWorkWindow;
-import com.lab.labtimesheet.feature.identity.model.dto.InternshipLifecycleGuard;
-import com.lab.labtimesheet.feature.identity.model.dto.LockedAccountMutationEligibility;
+import com.lab.labtimesheet.feature.internship.model.dto.InternWorkWindow;
+import com.lab.labtimesheet.feature.internship.model.dto.InternshipLifecycleGuard;
+import com.lab.labtimesheet.feature.internship.model.dto.LockedAccountMutationEligibility;
 import com.lab.labtimesheet.feature.identity.service.AccountService;
 import com.lab.labtimesheet.feature.identity.service.BootstrapService;
 import com.lab.labtimesheet.feature.attendance.exception.AttendanceException;
@@ -135,8 +137,14 @@ class AttendancePersistenceIntegrationTest {
     @Autowired
     private AccountService accounts;
 
+    @Autowired
+    private InternshipService internships;
+
     @MockitoSpyBean
     private AccountService accountSpy;
+
+    @MockitoSpyBean
+    private InternshipService internshipSpy;
 
     @MockitoSpyBean
     private HolidayApiConfigurationService holidayApi;
@@ -202,7 +210,7 @@ class AttendancePersistenceIntegrationTest {
 
     private long createActiveMentor() {
         mail.clear();
-        var creation = accounts.create(new CreateAccountCommand(
+        var creation = internships.create(new CreateAccountCommand(
                 "mentor-" + internId + "-" + (++mentorSequence) + "@example.test",
                 "Mentor",
                 GlobalRole.MENTOR,
@@ -218,7 +226,7 @@ class AttendancePersistenceIntegrationTest {
     private long createActiveIntern(
             String email, String studentCode, LocalDate startDate, LocalDate endDate) {
         mail.clear();
-        var creation = accounts.create(new CreateAccountCommand(
+        var creation = internships.create(new CreateAccountCommand(
                 email,
                 "Second report Intern",
                 GlobalRole.INTERN,
@@ -228,7 +236,7 @@ class AttendancePersistenceIntegrationTest {
                 adminId);
         assertThat(creation.deliverySucceeded()).isTrue();
         assertThat(accounts.activate(mail.onlyActivationToken(), "new secure report intern password")).isTrue();
-        accounts.activateInternship(creation.userId(), adminId);
+        internships.activateInternship(creation.userId(), adminId);
         return creation.userId();
     }
 
@@ -249,7 +257,7 @@ class AttendancePersistenceIntegrationTest {
         smtp.activate(draftId, adminId);
         mail.clear();
 
-        var creation = accounts.create(new CreateAccountCommand(
+        var creation = internships.create(new CreateAccountCommand(
                 "intern@example.test",
                 "Intern",
                 GlobalRole.INTERN,
@@ -258,7 +266,7 @@ class AttendancePersistenceIntegrationTest {
                 LocalDate.of(2026, 12, 31)), adminId);
         assertThat(creation.deliverySucceeded()).isTrue();
         assertThat(accounts.activate(mail.onlyActivationToken(), "new secure intern password")).isTrue();
-        accounts.activateInternship(creation.userId(), adminId);
+        internships.activateInternship(creation.userId(), adminId);
 
         mentorId = adminId + 1;
         internId = creation.userId();
@@ -552,7 +560,7 @@ class AttendancePersistenceIntegrationTest {
                 GlobalRole.INTERN,
                 AccountStatus.DEACTIVATED,
                 Optional.of(InternshipStatus.ACTIVE))))
-                .when(accountSpy).lockedAccountMutationEligibility(any());
+                .when(internshipSpy).lockedAccountMutationEligibility(any());
 
         assertThatThrownBy(() -> leaves.list(intern))
                 .isInstanceOf(AccessDeniedException.class)
@@ -560,13 +568,13 @@ class AttendancePersistenceIntegrationTest {
         assertThat(leaveRequests.findById(leave.id()).orElseThrow().status())
                 .isEqualTo(LeaveStatus.PENDING);
 
-        reset(accountSpy);
+        reset(internshipSpy);
         doReturn(List.of(
                 new LockedAccountMutationEligibility(
                         adminId, GlobalRole.ADMIN, AccountStatus.DEACTIVATED, Optional.empty()),
                 new LockedAccountMutationEligibility(
                         internId, GlobalRole.INTERN, AccountStatus.ACTIVE, Optional.of(InternshipStatus.ACTIVE))))
-                .when(accountSpy).lockedAccountMutationEligibility(any());
+                .when(internshipSpy).lockedAccountMutationEligibility(any());
         AttendanceActor admin = new AttendanceActor(adminId, GlobalRole.ADMIN);
         assertThatThrownBy(() -> leaves.list(admin))
                 .isInstanceOf(AccessDeniedException.class)
@@ -574,7 +582,7 @@ class AttendancePersistenceIntegrationTest {
         assertThat(leaveRequests.findById(leave.id()).orElseThrow().status())
                 .isEqualTo(LeaveStatus.PENDING);
 
-        reset(accountSpy);
+        reset(internshipSpy);
         clock.set(Instant.parse("2026-08-14T02:00:00Z"));
         attendance.checkIn(internId);
         long recordId = records.findByInternUserIdAndWorkDate(internId, LocalDate.of(2026, 8, 14))
@@ -588,7 +596,7 @@ class AttendancePersistenceIntegrationTest {
                 GlobalRole.INTERN,
                 AccountStatus.LOCKED,
                 Optional.of(InternshipStatus.ACTIVE))))
-                .when(accountSpy).lockedAccountMutationEligibility(any());
+                .when(internshipSpy).lockedAccountMutationEligibility(any());
 
         assertThatThrownBy(() -> corrections.list(intern))
                 .isInstanceOf(AccessDeniedException.class)
@@ -729,7 +737,7 @@ class AttendancePersistenceIntegrationTest {
         AttendanceActor intern = new AttendanceActor(internId, GlobalRole.INTERN);
         var submitted = leaves.submit(intern, new LeaveRequestCommand(
                 LocalDate.of(2026, 8, 17), LocalDate.of(2026, 8, 17), "terminal edit"));
-        accounts.completeInternship(internId, adminId, new InternshipLifecycleGuard(false, 0));
+        internships.completeInternship(internId, adminId, new InternshipLifecycleGuard(false, 0));
 
         assertThatThrownBy(() -> leaves.edit(intern, submitted.id(), new LeaveRequestCommand(
                         LocalDate.of(2026, 8, 18), LocalDate.of(2026, 8, 18), "must reject")))
@@ -798,7 +806,7 @@ class AttendancePersistenceIntegrationTest {
             workWindowLocked.countDown();
             awaitLatch(releaseWorkWindow);
             return window;
-        }).when(accountSpy).lockedInternWorkWindow(internId, firstLeaveDate);
+        }).when(internshipSpy).lockedInternWorkWindow(internId, firstLeaveDate);
 
         Future<?> policy = executor.submit(() -> policyLocks.hold(1L, policyLocked, releasePolicy));
         Future<LeaveRequestView> submission = null;
@@ -1102,10 +1110,10 @@ class AttendancePersistenceIntegrationTest {
                 }
                 leaveServiceWaiting.countDown();
                 return invocation.callRealMethod();
-            }).when(accountSpy).lockedAccountMutationEligibility(any());
+            }).when(internshipSpy).lockedAccountMutationEligibility(any());
 
             Future<?> holder = executor.submit(() -> transactions.execute(status -> {
-                accountSpy.lockedAccountMutationEligibility(List.of(internId, mentor));
+                internshipSpy.lockedAccountMutationEligibility(List.of(internId, mentor));
                 return null;
             }));
             assertThat(leaveAccountHeld.await(10, TimeUnit.SECONDS)).isTrue();
@@ -1134,7 +1142,7 @@ class AttendancePersistenceIntegrationTest {
                             java.time.LocalDateTime.of(2026, 8, 14, 14, 0), "lock order correction"));
             clock.set(correction.decisionDeadline());
 
-            reset(accountSpy);
+            reset(internshipSpy);
             calls.set(0);
             CountDownLatch secondAccountHeld = new CountDownLatch(1);
             CountDownLatch secondServiceWaiting = new CountDownLatch(1);
@@ -1148,10 +1156,10 @@ class AttendancePersistenceIntegrationTest {
                 }
                 secondServiceWaiting.countDown();
                 return invocation.callRealMethod();
-            }).when(accountSpy).lockedAccountMutationEligibility(any());
+            }).when(internshipSpy).lockedAccountMutationEligibility(any());
 
             Future<?> secondHolder = executor.submit(() -> transactions.execute(status -> {
-                accountSpy.lockedAccountMutationEligibility(List.of(internId));
+                internshipSpy.lockedAccountMutationEligibility(List.of(internId));
                 return null;
             }));
             assertThat(secondAccountHeld.await(10, TimeUnit.SECONDS)).isTrue();
@@ -1801,7 +1809,7 @@ class AttendancePersistenceIntegrationTest {
         entityManager.flush();
 
         clock.set(terminalDate.atStartOfDay(ZoneOffset.UTC).toInstant());
-        accounts.completeInternship(
+        internships.completeInternship(
                 terminalIntern, adminId, new InternshipLifecycleGuard(false, 0));
 
         long reportMentorId = createActiveMentor();
@@ -1840,11 +1848,11 @@ class AttendancePersistenceIntegrationTest {
         entityManager.flush();
 
         clock.set(emptyDate.atStartOfDay(ZoneOffset.UTC).toInstant());
-        accounts.completeInternship(emptyIntern, adminId, new InternshipLifecycleGuard(false, 0));
+        internships.completeInternship(emptyIntern, adminId, new InternshipLifecycleGuard(false, 0));
         clock.set(leaveDate.atStartOfDay(ZoneOffset.UTC).toInstant());
-        accounts.completeInternship(leaveIntern, adminId, new InternshipLifecycleGuard(false, 0));
+        internships.completeInternship(leaveIntern, adminId, new InternshipLifecycleGuard(false, 0));
         clock.set(dayOffDate.atStartOfDay(ZoneOffset.UTC).toInstant());
-        accounts.completeInternship(dayOffIntern, adminId, new InternshipLifecycleGuard(false, 0));
+        internships.completeInternship(dayOffIntern, adminId, new InternshipLifecycleGuard(false, 0));
 
         long reportMentorId = createActiveMentor();
         AttendanceReport emptyReport = attendanceReports.query(

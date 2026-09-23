@@ -1,5 +1,7 @@
 package com.lab.labtimesheet.feature.attendance.controller;
 
+import com.lab.labtimesheet.feature.internship.service.InternshipService;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.response.SecurityMockMvcResultMatchers.authenticated;
@@ -47,6 +49,9 @@ class CalendarAuthorizationWebIntegrationTest {
 
     @Autowired
     private AccountService accounts;
+
+    @Autowired
+    private InternshipService internships;
 
     @Autowired
     private SmtpConfigurationService smtp;
@@ -111,7 +116,7 @@ class CalendarAuthorizationWebIntegrationTest {
     }
 
     private void createAndActivate(long adminId, CreateAccountCommand command) {
-        var creation = accounts.create(command, adminId);
+        var creation = internships.create(command, adminId);
         assertThat(creation.deliverySucceeded()).isTrue();
         assertThat(accounts.activate(mail.activationTokenFor(command.email()), PASSWORD)).isTrue();
     }

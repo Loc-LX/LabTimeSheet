@@ -1,9 +1,10 @@
 package com.lab.labtimesheet.feature.project.service;
 
 import com.lab.labtimesheet.feature.identity.model.AccountStatus;
-import com.lab.labtimesheet.feature.identity.model.dto.InternshipLifecycleGuard;
-import com.lab.labtimesheet.feature.identity.model.dto.LockedAccountMutationEligibility;
+import com.lab.labtimesheet.feature.internship.model.dto.InternshipLifecycleGuard;
+import com.lab.labtimesheet.feature.internship.model.dto.LockedAccountMutationEligibility;
 import com.lab.labtimesheet.feature.identity.service.AccountService;
+import com.lab.labtimesheet.feature.internship.service.InternshipService;
 import com.lab.labtimesheet.feature.notification.model.NotificationType;
 import com.lab.labtimesheet.feature.notification.model.dto.NotificationAction;
 import com.lab.labtimesheet.feature.notification.model.dto.NotificationEvent;
@@ -72,6 +73,7 @@ public class ProjectService {
     private final ProjectInvitationRepository invitations;
     private final ProjectExitRequestRepository exitRequests;
     private final AccountService accounts;
+    private final InternshipService internships;
     private final ProjectQueryService queries;
     private final TaskQueryService taskQueries;
     private final TaskTransferService taskTransfers;
@@ -1499,7 +1501,7 @@ public class ProjectService {
     // task chưa xong trước khi đổi trạng thái tài khoản.
     @Transactional
     public void completeInternship(long adminUserId, long internUserId) {
-        accounts.completeInternship(
+        internships.completeInternship(
                 internUserId,
                 adminUserId,
                 lockedInternshipLifecycleGuard(adminUserId, internUserId));
@@ -1526,7 +1528,7 @@ public class ProjectService {
     // tập.
     @Transactional
     public void withdrawInternship(long adminUserId, long internUserId) {
-        accounts.withdrawInternship(
+        internships.withdrawInternship(
                 internUserId,
                 adminUserId,
                 lockedInternshipLifecycleGuard(adminUserId, internUserId));
@@ -2156,7 +2158,7 @@ public class ProjectService {
     private List<LockedAccountMutationEligibility> lockAccounts(Collection<Long> userIds) {
         try {
             // Khóa tài khoản theo thứ tự cố định để hai thao tác không chen ngang nhau.
-            return accounts.lockedAccountMutationEligibility(userIds);
+            return internships.lockedAccountMutationEligibility(userIds);
         } catch (IllegalArgumentException exception) {
             throw new ProjectAccessDeniedException();
         }
@@ -2168,7 +2170,7 @@ public class ProjectService {
     private InternshipLifecycleGuard lockedInternshipLifecycleGuard(long adminUserId, long internUserId) {
         List<LockedAccountMutationEligibility> lockedAccounts;
         try {
-            lockedAccounts = accounts.lockedAccountMutationEligibility(List.of(adminUserId, internUserId));
+            lockedAccounts = internships.lockedAccountMutationEligibility(List.of(adminUserId, internUserId));
         } catch (IllegalArgumentException failure) {
             throw new IllegalArgumentException("Account action could not be completed", failure);
         }
@@ -2214,7 +2216,7 @@ public class ProjectService {
     private List<LockedAccountMutationEligibility> lockAccountsForTargetMutation(
             Collection<Long> userIds) {
         try {
-            return accounts.lockedAccountMutationEligibility(userIds); // → AccountService (lock + snapshot)
+            return internships.lockedAccountMutationEligibility(userIds); // → InternshipService (lock + snapshot)
         } catch (IllegalArgumentException exception) {
             throw new ProjectRuleViolationException("Intern is not eligible for Project membership");
         }
@@ -2265,7 +2267,7 @@ public class ProjectService {
 
     private boolean eligibleInternForProjectMutation(LockedAccountMutationEligibility account) {
         return account.eligibleForProjectMutation()
-                && accounts.isEligibleIntern(account.userId(), LocalDate.now(clock)); // → AccountService kiểm tra ngày
+                && internships.isEligibleIntern(account.userId(), LocalDate.now(clock)); // → InternshipService kiểm tra ngày
                                                                                       // thực tập
     }
 

@@ -1,4 +1,4 @@
-package com.lab.labtimesheet.feature.identity.model.dto;
+package com.lab.labtimesheet.feature.internship.model.dto;
 
 /**
  * Producer-owned facts required before an Admin can close an Intern lifecycle.

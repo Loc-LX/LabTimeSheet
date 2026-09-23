@@ -1,4 +1,7 @@
-package com.lab.labtimesheet.feature.identity.service;
+package com.lab.labtimesheet.feature.internship.service;
+
+import com.lab.labtimesheet.feature.identity.service.AccountService;
+import com.lab.labtimesheet.feature.identity.service.BootstrapService;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -8,7 +11,7 @@ import java.time.LocalDate;
 import com.lab.labtimesheet.config.TestcontainersConfiguration;
 import com.lab.labtimesheet.feature.identity.model.dto.CreateAccountCommand;
 import com.lab.labtimesheet.feature.identity.repository.AppUserRepository;
-import com.lab.labtimesheet.feature.identity.repository.InternProfileRepository;
+import com.lab.labtimesheet.feature.internship.repository.InternProfileRepository;
 import com.lab.labtimesheet.platform.model.GlobalRole;
 import com.lab.labtimesheet.platform.model.SecurityMode;
 import com.lab.labtimesheet.platform.model.dto.SmtpConnection;
@@ -45,6 +48,9 @@ class AccountInternProfileInvariantIntegrationTest {
     private AccountService accounts;
 
     @Autowired
+    private InternshipService internships;
+
+    @Autowired
     private SmtpConfigurationService smtp;
 
     @Autowired
@@ -77,9 +83,9 @@ class AccountInternProfileInvariantIntegrationTest {
      */
     @Test
     void accountCreationPreservesInternProfileInvariantAcrossMidTransactionFailure() {
-        accounts.create(new CreateAccountCommand(
+        internships.create(new CreateAccountCommand(
                 "mentor@example.com", "Mentor", GlobalRole.MENTOR, null, null, null), adminId);
-        accounts.create(new CreateAccountCommand(
+        internships.create(new CreateAccountCommand(
                 "intern@example.com", "Intern", GlobalRole.INTERN, "STU-001",
                 INTERNSHIP_START, INTERNSHIP_END), adminId);
 
@@ -87,7 +93,7 @@ class AccountInternProfileInvariantIntegrationTest {
         long accountCount = users.count();
         long profileCount = internProfiles.count();
 
-        assertThatThrownBy(() -> accounts.create(new CreateAccountCommand(
+        assertThatThrownBy(() -> internships.create(new CreateAccountCommand(
                 "rollback-intern@example.com", "Rollback Intern", GlobalRole.INTERN, " stu-001 ",
                 INTERNSHIP_START, INTERNSHIP_END), adminId))
                 .isInstanceOf(DataIntegrityViolationException.class);

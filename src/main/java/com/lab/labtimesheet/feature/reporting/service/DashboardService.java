@@ -4,6 +4,7 @@ import com.lab.labtimesheet.feature.identity.model.AccountStatus;
 import com.lab.labtimesheet.feature.identity.model.dto.AccountIdentity;
 import com.lab.labtimesheet.feature.identity.model.dto.AccountSummary;
 import com.lab.labtimesheet.feature.identity.service.AccountService;
+import com.lab.labtimesheet.feature.internship.service.InternshipService;
 import com.lab.labtimesheet.feature.attendance.exception.AttendanceException;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceCurrentState;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceApplicationService;
@@ -35,6 +36,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class DashboardService {
 
     private final AccountService accounts;
+    private final InternshipService internships;
     private final ProjectQueryService projects;
     private final TaskDashboardService tasks;
     private final AttendanceApplicationService attendance;
@@ -51,7 +53,7 @@ public class DashboardService {
      */
     public DashboardView.Admin admin(String email) {
         activeAccount(email, GlobalRole.ADMIN);
-        AccountSummary accountSummary = accounts.summary();
+        AccountSummary accountSummary = internships.summary();
         return new DashboardView.Admin(
                 accountSummary.activeAccounts(),
                 accountSummary.pendingActivations(),

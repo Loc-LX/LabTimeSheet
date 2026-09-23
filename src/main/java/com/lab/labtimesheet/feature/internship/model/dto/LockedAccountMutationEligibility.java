@@ -1,10 +1,10 @@
-package com.lab.labtimesheet.feature.identity.model.dto;
+package com.lab.labtimesheet.feature.internship.model.dto;
 
 import java.util.Objects;
 import java.util.Optional;
 
 import com.lab.labtimesheet.feature.identity.model.AccountStatus;
-import com.lab.labtimesheet.feature.identity.model.InternshipStatus;
+import com.lab.labtimesheet.feature.internship.model.InternshipStatus;
 import com.lab.labtimesheet.platform.model.GlobalRole;
 
 /**

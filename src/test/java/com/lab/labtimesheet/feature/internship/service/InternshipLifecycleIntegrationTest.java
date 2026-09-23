@@ -1,4 +1,7 @@
-package com.lab.labtimesheet.feature.identity.service;
+package com.lab.labtimesheet.feature.internship.service;
+
+import com.lab.labtimesheet.feature.identity.service.AccountService;
+import com.lab.labtimesheet.feature.identity.service.BootstrapService;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -7,12 +10,12 @@ import java.time.LocalDate;
 
 import com.lab.labtimesheet.config.TestcontainersConfiguration;
 import com.lab.labtimesheet.feature.identity.model.AccountStatus;
-import com.lab.labtimesheet.feature.identity.model.InternshipStatus;
+import com.lab.labtimesheet.feature.internship.model.InternshipStatus;
 import com.lab.labtimesheet.feature.identity.model.dto.AccountCreation;
 import com.lab.labtimesheet.feature.identity.model.dto.CreateAccountCommand;
-import com.lab.labtimesheet.feature.identity.model.dto.InternshipLifecycleGuard;
+import com.lab.labtimesheet.feature.internship.model.dto.InternshipLifecycleGuard;
 import com.lab.labtimesheet.feature.identity.repository.AppUserRepository;
-import com.lab.labtimesheet.feature.identity.repository.InternProfileRepository;
+import com.lab.labtimesheet.feature.internship.repository.InternProfileRepository;
 import com.lab.labtimesheet.platform.model.GlobalRole;
 import com.lab.labtimesheet.platform.model.SecurityMode;
 import com.lab.labtimesheet.platform.model.dto.SmtpConnection;
@@ -41,6 +44,9 @@ class InternshipLifecycleIntegrationTest {
     private AccountService accounts;
 
     @Autowired
+    private InternshipService internships;
+
+    @Autowired
     private SmtpConfigurationService smtp;
 
     @Autowired
@@ -59,35 +65,35 @@ class InternshipLifecycleIntegrationTest {
         activateSmtp(adminId);
 
         var scheduled = createAndActivate("scheduled@example.com", "STU-SCHEDULED", adminId);
-        assertThat(accounts.activateDueInternships()).isEqualTo(1);
-        assertThat(accounts.activateDueInternships()).isZero();
+        assertThat(internships.activateDueInternships()).isEqualTo(1);
+        assertThat(internships.activateDueInternships()).isZero();
         assertThat(profiles.findById(scheduled.userId()).orElseThrow().getInternshipStatus())
                 .isEqualTo(InternshipStatus.ACTIVE);
 
         var completed = createAndActivate("completed@example.com", "STU-COMPLETED", adminId);
-        accounts.activateInternship(completed.userId(), adminId);
-        assertThatThrownBy(() -> accounts.completeInternship(
+        internships.activateInternship(completed.userId(), adminId);
+        assertThatThrownBy(() -> internships.completeInternship(
                 completed.userId(), adminId, new InternshipLifecycleGuard(true, 0)))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("Leader");
-        assertThatThrownBy(() -> accounts.completeInternship(
+        assertThatThrownBy(() -> internships.completeInternship(
                 completed.userId(), adminId, new InternshipLifecycleGuard(false, 1)))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("unfinished");
 
-        accounts.completeInternship(completed.userId(), adminId, new InternshipLifecycleGuard(false, 0));
+        internships.completeInternship(completed.userId(), adminId, new InternshipLifecycleGuard(false, 0));
         assertThat(profiles.findById(completed.userId()).orElseThrow().getInternshipStatus())
                 .isEqualTo(InternshipStatus.COMPLETED);
         assertThat(users.findById(completed.userId()).orElseThrow().getAccountStatus())
                 .isEqualTo(AccountStatus.ACTIVE);
-        assertThatThrownBy(() -> accounts.withdrawInternship(
+        assertThatThrownBy(() -> internships.withdrawInternship(
                 completed.userId(), adminId, new InternshipLifecycleGuard(false, 0)))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("withdraw");
 
         var withdrawn = createAndActivate("withdrawn@example.com", "STU-WITHDRAWN", adminId);
-        accounts.activateInternship(withdrawn.userId(), adminId);
-        accounts.withdrawInternship(withdrawn.userId(), adminId, new InternshipLifecycleGuard(false, 0));
+        internships.activateInternship(withdrawn.userId(), adminId);
+        internships.withdrawInternship(withdrawn.userId(), adminId, new InternshipLifecycleGuard(false, 0));
         assertThat(profiles.findById(withdrawn.userId()).orElseThrow().getInternshipStatus())
                 .isEqualTo(InternshipStatus.WITHDRAWN);
         assertThat(users.findById(withdrawn.userId()).orElseThrow().getAccountStatus())
@@ -95,7 +101,7 @@ class InternshipLifecycleIntegrationTest {
     }
 
     private AccountCreation createAndActivate(String email, String studentCode, long adminId) {
-        var creation = accounts.create(new CreateAccountCommand(
+        var creation = internships.create(new CreateAccountCommand(
                 email, email.substring(0, email.indexOf('@')), GlobalRole.INTERN, studentCode,
                 LocalDate.of(2026, 8, 14), LocalDate.of(2026, 12, 31)), adminId);
         assertThat(accounts.activate(mail.token(), "a secure intern password")).isTrue();

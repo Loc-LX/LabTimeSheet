@@ -1,5 +1,7 @@
 package com.lab.labtimesheet.feature.identity.service;
 
+import com.lab.labtimesheet.feature.internship.service.InternshipService;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -13,11 +15,11 @@ import java.util.List;
 
 import com.lab.labtimesheet.config.TestcontainersConfiguration;
 import com.lab.labtimesheet.feature.identity.model.AccountStatus;
-import com.lab.labtimesheet.feature.identity.model.InternshipStatus;
+import com.lab.labtimesheet.feature.internship.model.InternshipStatus;
 import com.lab.labtimesheet.feature.identity.model.TokenPurpose;
 import com.lab.labtimesheet.feature.identity.model.dto.CreateAccountCommand;
 import com.lab.labtimesheet.feature.identity.repository.AppUserRepository;
-import com.lab.labtimesheet.feature.identity.repository.InternProfileRepository;
+import com.lab.labtimesheet.feature.internship.repository.InternProfileRepository;
 import com.lab.labtimesheet.feature.identity.repository.UserActionTokenRepository;
 import com.lab.labtimesheet.platform.model.GlobalRole;
 import com.lab.labtimesheet.platform.model.SecurityMode;
@@ -49,6 +51,9 @@ class AccountActivationIntegrationTest {
     private AccountService accounts;
 
     @Autowired
+    private InternshipService internships;
+
+    @Autowired
     private SmtpConfigurationService smtp;
 
     @Autowired
@@ -73,7 +78,7 @@ class AccountActivationIntegrationTest {
 
         var mentor = new CreateAccountCommand(
                 " MENTOR@EXAMPLE.COM ", " Mentor One ", GlobalRole.MENTOR, null, null, null);
-        assertThatThrownBy(() -> accounts.create(mentor, adminId))
+        assertThatThrownBy(() -> internships.create(mentor, adminId))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("SMTP");
         assertThat(users.count()).isEqualTo(1);
@@ -81,7 +86,7 @@ class AccountActivationIntegrationTest {
         activateSmtp(adminId);
         mail.messages.clear();
 
-        var mentorCreation = accounts.create(mentor, adminId);
+        var mentorCreation = internships.create(mentor, adminId);
         assertThat(mentorCreation.deliverySucceeded()).isTrue();
         var pendingMentor = users.findById(mentorCreation.userId()).orElseThrow();
         assertThat(pendingMentor.getEmail()).isEqualTo("mentor@example.com");
@@ -110,7 +115,7 @@ class AccountActivationIntegrationTest {
         assertThat(tokens.findById(mentorToken.getId()).orElseThrow().getUsedAt()).isNotNull();
 
         mail.fail = true;
-        var failedIntern = accounts.create(new CreateAccountCommand(
+        var failedIntern = internships.create(new CreateAccountCommand(
                 "intern-failed@example.com", "Failed Intern", GlobalRole.INTERN, "STU-FAIL",
                 LocalDate.of(2026, 8, 1), LocalDate.of(2026, 12, 31)), adminId);
         assertThat(failedIntern.deliverySucceeded()).isFalse();
@@ -122,19 +127,19 @@ class AccountActivationIntegrationTest {
 
         mail.fail = false;
         mail.messages.clear();
-        var activeInternCreation = accounts.create(new CreateAccountCommand(
+        var activeInternCreation = internships.create(new CreateAccountCommand(
                 "intern@example.com", "Active Intern", GlobalRole.INTERN, "STU-001",
                 LocalDate.of(2026, 8, 1), LocalDate.of(2026, 12, 31)), adminId);
         assertThat(accounts.activate(mail.onlyActivationToken(), "new secure intern password")).isTrue();
-        accounts.activateInternship(activeInternCreation.userId(), adminId);
+        internships.activateInternship(activeInternCreation.userId(), adminId);
 
         var profile = internProfiles.findById(activeInternCreation.userId()).orElseThrow();
         assertThat(profile.getInternshipStatus()).isEqualTo(InternshipStatus.ACTIVE);
-        assertThat(accounts.isEligibleIntern(activeInternCreation.userId(), LocalDate.of(2026, 8, 1))).isTrue();
-        assertThat(accounts.isEligibleIntern(activeInternCreation.userId(), LocalDate.of(2026, 12, 31))).isTrue();
-        assertThat(accounts.isEligibleIntern(activeInternCreation.userId(), LocalDate.of(2027, 1, 1))).isFalse();
+        assertThat(internships.isEligibleIntern(activeInternCreation.userId(), LocalDate.of(2026, 8, 1))).isTrue();
+        assertThat(internships.isEligibleIntern(activeInternCreation.userId(), LocalDate.of(2026, 12, 31))).isTrue();
+        assertThat(internships.isEligibleIntern(activeInternCreation.userId(), LocalDate.of(2027, 1, 1))).isFalse();
 
-        var summary = accounts.summary();
+        var summary = internships.summary();
         assertThat(summary.activeAccounts()).isEqualTo(3);
         assertThat(summary.pendingActivations()).isEqualTo(1);
         assertThat(summary.activeInternships()).isEqualTo(1);
@@ -147,12 +152,12 @@ class AccountActivationIntegrationTest {
         activateSmtp(adminId);
         mail.messages.clear();
 
-        var creation = accounts.create(new CreateAccountCommand(
+        var creation = internships.create(new CreateAccountCommand(
                 "future-intern@example.com", "Future Intern", GlobalRole.INTERN, "STU-FUTURE",
                 LocalDate.of(2026, 8, 15), LocalDate.of(2026, 12, 31)), adminId);
         assertThat(accounts.activate(mail.onlyActivationToken(), "future secure password")).isTrue();
 
-        assertThatThrownBy(() -> accounts.activateInternship(creation.userId(), adminId))
+        assertThatThrownBy(() -> internships.activateInternship(creation.userId(), adminId))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("start date");
         assertThat(internProfiles.findById(creation.userId()).orElseThrow().getInternshipStatus())

@@ -1,4 +1,6 @@
-package com.lab.labtimesheet.feature.identity.service;
+package com.lab.labtimesheet.feature.internship.service;
+
+import com.lab.labtimesheet.feature.identity.service.AccountService;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -9,11 +11,11 @@ import java.time.LocalDate;
 import java.util.List;
 
 import com.lab.labtimesheet.config.TestcontainersConfiguration;
-import com.lab.labtimesheet.feature.identity.model.dto.EligibleInternOption;
+import com.lab.labtimesheet.feature.internship.model.dto.EligibleInternOption;
 import com.lab.labtimesheet.feature.identity.model.entity.AppUser;
-import com.lab.labtimesheet.feature.identity.model.entity.InternProfile;
+import com.lab.labtimesheet.feature.internship.model.entity.InternProfile;
 import com.lab.labtimesheet.feature.identity.repository.AppUserRepository;
-import com.lab.labtimesheet.feature.identity.repository.InternProfileRepository;
+import com.lab.labtimesheet.feature.internship.repository.InternProfileRepository;
 import com.lab.labtimesheet.platform.model.GlobalRole;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -34,6 +36,9 @@ class EligibleInternOptionIntegrationTest {
 
     @Autowired
     private AccountService accounts;
+
+    @Autowired
+    private InternshipService internships;
 
     @Autowired
     private AppUserRepository users;
@@ -72,7 +77,7 @@ class EligibleInternOptionIntegrationTest {
                 "Ignored Completed", "STU-1000", BUSINESS_DATE.minusDays(1), BUSINESS_DATE.plusDays(1));
         completeInternship(completed);
 
-        List<EligibleInternOption> options = accounts.eligibleInternOptions(BUSINESS_DATE);
+        List<EligibleInternOption> options = internships.eligibleInternOptions(BUSINESS_DATE);
 
         assertThat(options).containsExactly(
                 new EligibleInternOption(
@@ -84,9 +89,38 @@ class EligibleInternOptionIntegrationTest {
         assertThat(options).extracting(EligibleInternOption::userId).doesNotHaveDuplicates();
     }
 
+    /**
+     * Protects ACC-019's deterministic eligible-Intern projection. Java code-point sorting would put upper-case
+     * ASCII names before lower-case and accented names, while the measured deterministic en_US.utf8 database order
+     * is an, An, Anh-accented, Binh-accented, Dat-accented, Same by Student Code, then Zed.
+     */
+    @Test
+    void keepsDatabaseCollationAndStudentCodeOrderWithoutComparingNamesInJava() {
+        activeIntern("Ánh", "ORDER-30", BUSINESS_DATE.minusDays(1), BUSINESS_DATE.plusDays(1));
+        activeIntern("Đạt", "ORDER-50", BUSINESS_DATE.minusDays(1), BUSINESS_DATE.plusDays(1));
+        activeIntern("An", "ORDER-20", BUSINESS_DATE.minusDays(1), BUSINESS_DATE.plusDays(1));
+        activeIntern("Bình", "ORDER-40", BUSINESS_DATE.minusDays(1), BUSINESS_DATE.plusDays(1));
+        activeIntern("Zed", "ORDER-80", BUSINESS_DATE.minusDays(1), BUSINESS_DATE.plusDays(1));
+        activeIntern("an", "ORDER-10", BUSINESS_DATE.minusDays(1), BUSINESS_DATE.plusDays(1));
+        activeIntern("Same", "ORDER-70", BUSINESS_DATE.minusDays(1), BUSINESS_DATE.plusDays(1));
+        activeIntern("Same", "ORDER-60", BUSINESS_DATE.minusDays(1), BUSINESS_DATE.plusDays(1));
+
+        assertThat(internships.eligibleInternOptions(BUSINESS_DATE))
+                .extracting(option -> option.displayName() + "|" + option.studentCode())
+                .containsExactly(
+                        "an|ORDER-10",
+                        "An|ORDER-20",
+                        "Ánh|ORDER-30",
+                        "Bình|ORDER-40",
+                        "Đạt|ORDER-50",
+                        "Same|ORDER-60",
+                        "Same|ORDER-70",
+                        "Zed|ORDER-80");
+    }
+
     @Test
     void rejectsMissingBusinessDate() {
-        assertThatThrownBy(() -> accounts.eligibleInternOptions(null))
+        assertThatThrownBy(() -> internships.eligibleInternOptions(null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Business date is required");
     }

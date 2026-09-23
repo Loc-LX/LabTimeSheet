@@ -1,5 +1,7 @@
 package com.lab.labtimesheet.feature.attendance.service;
 
+import com.lab.labtimesheet.feature.internship.service.InternshipService;
+
 import com.lab.labtimesheet.feature.calendar.service.AttendancePolicyTimeline;
 
 import com.lab.labtimesheet.feature.calendar.service.CalendarApplicationService;
@@ -47,6 +49,7 @@ class AttendanceApplicationServiceTest {
 
     private final AttendanceRecordRepository records = mock(AttendanceRecordRepository.class);
     private final AccountService accounts = mock(AccountService.class);
+    private final InternshipService internships = mock(InternshipService.class);
     private final AttendanceCorrectionApplicationService corrections = mock(AttendanceCorrectionApplicationService.class);
     private final CalendarApplicationService calendar = mock(CalendarApplicationService.class);
     private AttendanceApplicationService attendance;
@@ -56,12 +59,13 @@ class AttendanceApplicationServiceTest {
         when(calendar.policyTimeline()).thenReturn(new AttendancePolicyTimeline(
                 List.of(AttendancePolicyFixtures.seeded(1L))));
         when(calendar.policiesByVersionIds(any())).thenReturn(Map.of(1L, AttendancePolicyFixtures.seeded(1L)));
-        when(accounts.isEligibleIntern(INTERN_ID, WORK_DATE)).thenReturn(true);
+        when(internships.isEligibleIntern(INTERN_ID, WORK_DATE)).thenReturn(true);
         attendance = new AttendanceApplicationService(
                 Clock.fixed(NOW, ZoneOffset.UTC),
                 records,
                 mock(AttendanceQueryRepository.class),
                 accounts,
+                internships,
                 calendar,
                 new AttendanceService(),
                 corrections);
@@ -97,7 +101,7 @@ class AttendanceApplicationServiceTest {
 
     @Test
     void rejectsCurrentStateLookupForIneligibleIntern() {
-        when(accounts.isEligibleIntern(INTERN_ID, WORK_DATE)).thenReturn(false);
+        when(internships.isEligibleIntern(INTERN_ID, WORK_DATE)).thenReturn(false);
 
         assertThatThrownBy(() -> attendance.currentState(INTERN_ID))
                 .isInstanceOfSatisfying(AttendanceException.class,
@@ -110,7 +114,7 @@ class AttendanceApplicationServiceTest {
         AttendanceRecordEntity entity = entityFor(null);
         when(records.findByInternUserIdAndWorkDate(INTERN_ID, WORK_DATE))
                 .thenReturn(Optional.of(entity));
-        when(accounts.isEligibleIntern(INTERN_ID, WORK_DATE)).thenReturn(false);
+        when(internships.isEligibleIntern(INTERN_ID, WORK_DATE)).thenReturn(false);
 
         assertThatThrownBy(() -> attendance.checkOut(INTERN_ID))
                 .isInstanceOfSatisfying(AttendanceException.class,

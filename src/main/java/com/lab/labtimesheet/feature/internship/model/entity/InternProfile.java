@@ -1,9 +1,9 @@
-package com.lab.labtimesheet.feature.identity.model.entity;
+package com.lab.labtimesheet.feature.internship.model.entity;
 
 import java.time.Instant;
 import java.time.LocalDate;
 
-import com.lab.labtimesheet.feature.identity.model.InternshipStatus;
+import com.lab.labtimesheet.feature.internship.model.InternshipStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -25,6 +25,7 @@ import lombok.NoArgsConstructor;
 public class InternProfile {
     @Id
     @Column(name = "user_id")
+    @Getter
     private Long userId;
 
     @Column(name = "student_code", nullable = false, length = 64)

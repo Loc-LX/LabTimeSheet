@@ -1,5 +1,7 @@
 package com.lab.labtimesheet.feature.identity.controller;
 
+import com.lab.labtimesheet.feature.internship.service.InternshipService;
+
 import static org.hamcrest.Matchers.containsString;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
@@ -47,6 +49,9 @@ class ActivationResendWebIntegrationTest {
     private AccountService accounts;
 
     @Autowired
+    private InternshipService internships;
+
+    @Autowired
     private SmtpConfigurationService smtp;
 
     @Autowired
@@ -62,7 +67,7 @@ class ActivationResendWebIntegrationTest {
         smtp.activate(draftId, adminId);
         mail.fail = true;
 
-        var creation = accounts.create(new CreateAccountCommand(
+        var creation = internships.create(new CreateAccountCommand(
                 "retry@example.com", "Retry User", GlobalRole.MENTOR, null, null, null), adminId);
         mockMvc.perform(get("/admin/accounts/new")
                         .param("deliveryFailed", "")

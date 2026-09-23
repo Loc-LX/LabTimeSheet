@@ -5,8 +5,9 @@ import com.lab.labtimesheet.feature.calendar.service.AttendancePolicyTimeline;
 
 import com.lab.labtimesheet.feature.identity.model.AccountStatus;
 import com.lab.labtimesheet.feature.identity.model.dto.AccountIdentity;
-import com.lab.labtimesheet.feature.identity.model.dto.InternReportingWindow;
+import com.lab.labtimesheet.feature.internship.model.dto.InternReportingWindow;
 import com.lab.labtimesheet.feature.identity.service.AccountService;
+import com.lab.labtimesheet.feature.internship.service.InternshipService;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
 import com.lab.labtimesheet.feature.calendar.model.AttendancePolicy;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceRecord;
@@ -59,6 +60,7 @@ public class AttendanceReportQueryService {
 
     private final Clock clock;
     private final AccountService accounts;
+    private final InternshipService internships;
     private final AttendanceRecordRepository records;
     private final AttendanceQueryRepository queries;
     private final CalendarApplicationService calendar;
@@ -88,7 +90,7 @@ public class AttendanceReportQueryService {
     public AttendanceReport query(AttendanceActor actor, long internId, LocalDate from, LocalDate to) {
         authorize(actor, internId);
         validateRange(from, to);
-        InternReportingWindow reportingWindow = accounts.historicalInternReportingWindow(internId).orElse(null);
+        InternReportingWindow reportingWindow = internships.historicalInternReportingWindow(internId).orElse(null);
 
         List<AttendanceRecordEntity> recordRows = records
                 .findByInternUserIdAndWorkDateBetweenOrderByWorkDateAsc(internId, from, to);

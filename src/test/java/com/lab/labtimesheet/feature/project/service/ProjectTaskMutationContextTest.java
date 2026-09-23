@@ -8,6 +8,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.lab.labtimesheet.feature.identity.service.AccountService;
+import com.lab.labtimesheet.feature.internship.service.InternshipService;
 import com.lab.labtimesheet.feature.notification.service.NotificationService;
 import com.lab.labtimesheet.feature.project.exception.ProjectAccessDeniedException;
 import com.lab.labtimesheet.feature.project.model.InvitationResponse;
@@ -48,6 +49,9 @@ class ProjectTaskMutationContextTest {
     private AccountService accounts;
 
     @Mock
+    private InternshipService internships;
+
+    @Mock
     private ProjectQueryService queries;
 
     @Mock
@@ -82,7 +86,7 @@ class ProjectTaskMutationContextTest {
                 List.of(),
                 Set.of(41L));
         var service = new ProjectService(
-                projects, invitations, exitRequests, accounts, queries, taskQueries, taskTransfers, notifications,
+                projects, invitations, exitRequests, accounts, internships, queries, taskQueries, taskTransfers, notifications,
                 Clock.systemUTC());
         when(projects.findMutationRouteById(projectId))
                 .thenReturn(Optional.of(new ProjectMutationRoute(projectId, 10L, actorUserId)));
@@ -100,7 +104,7 @@ class ProjectTaskMutationContextTest {
         assertSame(expected, actual);
         verify(projects).findMutationRouteById(projectId);
         verify(projects).findCurrentInternUserIdsByProjectId(projectId);
-        verify(accounts).lockedAccountMutationEligibility(List.of(actorUserId, actorUserId));
+        verify(internships).lockedAccountMutationEligibility(List.of(actorUserId, actorUserId));
         verify(projects).findLockedById(projectId);
         verify(projects, never()).findById(projectId);
         verify(exitRequests).findLockedPendingByProjectId(projectId);
@@ -112,7 +116,7 @@ class ProjectTaskMutationContextTest {
         long actorUserId = 20L;
         long projectId = 30L;
         var service = new ProjectService(
-                projects, invitations, exitRequests, accounts, queries, taskQueries, taskTransfers, notifications,
+                projects, invitations, exitRequests, accounts, internships, queries, taskQueries, taskTransfers, notifications,
                 Clock.systemUTC());
         when(projects.findMutationRouteById(projectId))
                 .thenReturn(Optional.of(new ProjectMutationRoute(projectId, 10L, 40L)));
@@ -121,7 +125,7 @@ class ProjectTaskMutationContextTest {
         assertThrows(ProjectAccessDeniedException.class,
                 () -> service.taskMutationContext(actorUserId, projectId));
 
-        verifyNoInteractions(accounts);
+        verifyNoInteractions(internships);
         verify(projects, never()).findLockedById(projectId);
         verify(exitRequests, never()).findLockedPendingByProjectId(projectId);
     }
@@ -131,7 +135,7 @@ class ProjectTaskMutationContextTest {
         long actorUserId = 20L;
         long projectId = 30L;
         var service = new ProjectService(
-                projects, invitations, exitRequests, accounts, queries, taskQueries, taskTransfers, notifications,
+                projects, invitations, exitRequests, accounts, internships, queries, taskQueries, taskTransfers, notifications,
                 Clock.systemUTC());
         when(projects.findMutationRouteById(projectId))
                 .thenReturn(Optional.of(new ProjectMutationRoute(projectId, 10L, 40L)));
@@ -139,7 +143,7 @@ class ProjectTaskMutationContextTest {
         assertThrows(ProjectAccessDeniedException.class,
                 () -> service.activate(actorUserId, projectId));
 
-        verifyNoInteractions(accounts);
+        verifyNoInteractions(internships);
         verify(projects, never()).findCurrentInternUserIdsByProjectId(projectId);
         verify(projects, never()).findLockedById(projectId);
     }
@@ -149,7 +153,7 @@ class ProjectTaskMutationContextTest {
         long actorUserId = 20L;
         long invitationId = 30L;
         var service = new ProjectService(
-                projects, invitations, exitRequests, accounts, queries, taskQueries, taskTransfers, notifications,
+                projects, invitations, exitRequests, accounts, internships, queries, taskQueries, taskTransfers, notifications,
                 Clock.systemUTC());
         when(invitations.findRouteById(invitationId))
                 .thenReturn(Optional.of(new ProjectInvitationRoute(40L, 50L)));
@@ -157,7 +161,7 @@ class ProjectTaskMutationContextTest {
         assertThrows(ProjectAccessDeniedException.class,
                 () -> service.respondToInvitation(actorUserId, invitationId, InvitationResponse.ACCEPT));
 
-        verifyNoInteractions(accounts);
+        verifyNoInteractions(internships);
         verify(projects, never()).findLockedById(40L);
         verify(invitations, never()).findLockedById(invitationId);
     }

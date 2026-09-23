@@ -1,4 +1,4 @@
-package com.lab.labtimesheet.feature.identity.model.dto;
+package com.lab.labtimesheet.feature.internship.model.dto;
 
 import java.time.LocalDate;
 

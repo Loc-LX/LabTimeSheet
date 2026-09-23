@@ -1,5 +1,7 @@
 package com.lab.labtimesheet.feature.identity.service;
 
+import com.lab.labtimesheet.feature.internship.service.InternshipService;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.lab.labtimesheet.config.TestcontainersConfiguration;
@@ -34,6 +36,9 @@ class AccountLifecycleIntegrationTest {
     private AccountService accounts;
 
     @Autowired
+    private InternshipService internships;
+
+    @Autowired
     private SmtpConfigurationService smtp;
 
     @Autowired
@@ -50,7 +55,7 @@ class AccountLifecycleIntegrationTest {
                 new SmtpDraft("mailpit", 1025, SecurityMode.NONE, null, null, "admin@example.com", "Lab Timesheet"));
         smtp.testDraft(draftId, adminId, "admin@example.com");
         smtp.activate(draftId, adminId);
-        var creation = accounts.create(new CreateAccountCommand(
+        var creation = internships.create(new CreateAccountCommand(
                 "mentor@example.com", "Mentor", GlobalRole.MENTOR, null, null, null), adminId);
         assertThat(accounts.activate(mail.activationToken(), "a secure mentor password")).isTrue();
 

@@ -1,25 +1,4 @@
-# P\tplacement pattern\tmodule. Only temporary placements belong here.
-P\tInternshipStatus\tinternship
-P\tEligibleInternOption\tinternship
-P\tInternReportingWindow\tinternship
-P\tInternWorkWindow\tinternship
-P\tInternshipLifecycleGuard\tinternship
-P\tLockedAccountMutationEligibility\tinternship
-P\tInternProfile\tinternship
-P\tInternProfileRepository\tinternship
-P\tInternshipLifecycleScheduler\tinternship
 # A\tsource simple name\ttarget simple name\tresolution
-A\tAppUserRepository\tInternProfile\tR3
 A\tAccountController\tProjectQueryService\tR1
 A\tAccountController\tProjectAccessDeniedException\tR1
-A\tAccountCorrectionForm\tInternshipStatus\tR3
-A\tAccountService\tInternProfile\tR3
-A\tAccountService\tInternshipStatus\tR3
-A\tAccountAdministrationView\tInternshipStatus\tR3
-A\tAccountService\tInternWorkWindow\tR3
-A\tAccountService\tInternProfileRepository\tR3
 A\tAccountController\tProjectService\tR1
-A\tAccountService\tInternshipLifecycleGuard\tR1
-A\tAccountService\tInternReportingWindow\tR3
-A\tAccountService\tEligibleInternOption\tR3
-A\tAccountService\tLockedAccountMutationEligibility\tR3

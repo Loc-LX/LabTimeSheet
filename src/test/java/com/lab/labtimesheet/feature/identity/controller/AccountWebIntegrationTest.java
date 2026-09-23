@@ -1,5 +1,7 @@
 package com.lab.labtimesheet.feature.identity.controller;
 
+import com.lab.labtimesheet.feature.internship.service.InternshipService;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
@@ -53,6 +55,9 @@ class AccountWebIntegrationTest {
 
     @Autowired
     private AccountService accounts;
+
+    @Autowired
+    private InternshipService internships;
 
     @Autowired
     private SmtpConfigurationService smtp;
@@ -242,7 +247,7 @@ class AccountWebIntegrationTest {
     @Test
     void adminListsAndOpensInternLifecycleAdministrationWithoutDisclosingGuessedIds() throws Exception {
         long adminId = accounts.requireActiveAdminId("admin@example.com");
-        var creation = accounts.create(new com.lab.labtimesheet.feature.identity.model.dto.CreateAccountCommand(
+        var creation = internships.create(new com.lab.labtimesheet.feature.identity.model.dto.CreateAccountCommand(
                 "managed-intern@example.com",
                 "Managed Intern",
                 GlobalRole.INTERN,
@@ -252,7 +257,7 @@ class AccountWebIntegrationTest {
         assertThat(accounts.activate(
                 mail.activationTokenFor("managed-intern@example.com"),
                 "managed intern password")).isTrue();
-        accounts.activateInternship(creation.userId(), adminId);
+        internships.activateInternship(creation.userId(), adminId);
 
         mockMvc.perform(get("/admin/accounts").with(user("admin@example.com").roles("ADMIN")))
                 .andExpect(status().isOk())

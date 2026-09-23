@@ -1,5 +1,7 @@
 package com.lab.labtimesheet.feature.notification.service;
 
+import com.lab.labtimesheet.feature.internship.service.InternshipService;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -64,6 +66,9 @@ class NotificationInboxIntegrationTest {
 
     @Autowired
     private AccountService accounts;
+
+    @Autowired
+    private InternshipService internships;
 
     @Autowired
     private SmtpConfigurationService smtp;
@@ -228,7 +233,7 @@ class NotificationInboxIntegrationTest {
         activateSmtp(adminId);
         mail.clear();
 
-        var creation = accounts.create(new CreateAccountCommand(
+        var creation = internships.create(new CreateAccountCommand(
                 "inbox-b@example.com", "Inbox B", GlobalRole.MENTOR, null, null, null), adminId);
         assertThat(accounts.activate(mail.activationToken(), "inbox mentor password")).isTrue();
         return List.of(accounts.requireIdentityById(adminId), accounts.requireIdentityById(creation.userId()));

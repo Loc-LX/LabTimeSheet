@@ -1,10 +1,10 @@
-package com.lab.labtimesheet.feature.identity.model.dto;
+package com.lab.labtimesheet.feature.internship.model.dto;
 
 import java.time.LocalDate;
 import java.util.Objects;
 
 import com.lab.labtimesheet.feature.identity.model.AccountStatus;
-import com.lab.labtimesheet.feature.identity.model.InternshipStatus;
+import com.lab.labtimesheet.feature.internship.model.InternshipStatus;
 
 /**
  * Immutable account-owned work-window snapshot for an Intern operation.

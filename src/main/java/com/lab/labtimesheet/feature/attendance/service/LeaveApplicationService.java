@@ -4,11 +4,12 @@ import com.lab.labtimesheet.feature.calendar.service.CalendarApplicationService;
 import com.lab.labtimesheet.feature.calendar.service.AttendancePolicyTimeline;
 
 import com.lab.labtimesheet.feature.identity.model.AccountStatus;
-import com.lab.labtimesheet.feature.identity.model.InternshipStatus;
+import com.lab.labtimesheet.feature.internship.model.InternshipStatus;
 import com.lab.labtimesheet.feature.identity.model.dto.AccountIdentity;
-import com.lab.labtimesheet.feature.identity.model.dto.InternWorkWindow;
-import com.lab.labtimesheet.feature.identity.model.dto.LockedAccountMutationEligibility;
+import com.lab.labtimesheet.feature.internship.model.dto.InternWorkWindow;
+import com.lab.labtimesheet.feature.internship.model.dto.LockedAccountMutationEligibility;
 import com.lab.labtimesheet.feature.identity.service.AccountService;
+import com.lab.labtimesheet.feature.internship.service.InternshipService;
 import com.lab.labtimesheet.feature.attendance.exception.LeaveException;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
 import com.lab.labtimesheet.feature.calendar.model.AttendancePolicy;
@@ -69,6 +70,7 @@ public class LeaveApplicationService {
     private final LeaveRequestRepository requests;
     private final LeaveRequestDayRepository days;
     private final AccountService accounts;
+    private final InternshipService internships;
     private final CalendarApplicationService calendar;
     private final TransactionTemplate transactions;
     private final NotificationService notifications;
@@ -486,7 +488,7 @@ public class LeaveApplicationService {
     private InternWorkWindow lockIntern(long internId, LocalDate requestedStart) {
         final InternWorkWindow window;
         try {
-            window = accounts.lockedInternWorkWindow(internId, requestedStart);
+            window = internships.lockedInternWorkWindow(internId, requestedStart);
         } catch (IllegalArgumentException exception) {
             throw new LeaveException("Leave requires an active Intern within the internship interval", exception);
         }
@@ -658,7 +660,7 @@ public class LeaveApplicationService {
 
     private Map<Long, LockedAccountMutationEligibility> lockAccounts(Collection<Long> accountIds) {
         try {
-            return accounts.lockedAccountMutationEligibility(accountIds).stream()
+            return internships.lockedAccountMutationEligibility(accountIds).stream()
                     .collect(Collectors.toMap(LockedAccountMutationEligibility::userId, eligibility -> eligibility));
         } catch (IllegalArgumentException missingAccount) {
             throw new AccessDeniedException("Attendance account is not available", missingAccount);

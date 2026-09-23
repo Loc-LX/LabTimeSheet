@@ -1,4 +1,7 @@
-package com.lab.labtimesheet.feature.identity.service;
+package com.lab.labtimesheet.feature.internship.service;
+
+import com.lab.labtimesheet.feature.identity.service.AccountService;
+import com.lab.labtimesheet.feature.identity.service.BootstrapService;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -17,11 +20,12 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-import com.lab.labtimesheet.feature.identity.model.InternshipStatus;
+import com.lab.labtimesheet.feature.internship.model.InternshipStatus;
 import com.lab.labtimesheet.feature.identity.model.dto.CreateAccountCommand;
 import com.lab.labtimesheet.feature.identity.repository.AppUserRepository;
-import com.lab.labtimesheet.feature.identity.repository.InternProfileRepository;
+import com.lab.labtimesheet.feature.internship.repository.InternProfileRepository;
 import com.lab.labtimesheet.feature.identity.repository.UserActionTokenRepository;
+import com.lab.labtimesheet.feature.identity.service.AccountServiceTestFactory;
 import com.lab.labtimesheet.platform.model.GlobalRole;
 import com.lab.labtimesheet.platform.model.SecurityMode;
 import com.lab.labtimesheet.platform.model.dto.SmtpConnection;
@@ -59,6 +63,9 @@ class InternWorkWindowIntegrationTest {
     private AccountService accounts;
 
     @Autowired
+    private InternshipService internships;
+
+    @Autowired
     private SmtpConfigurationService smtp;
 
     @Autowired
@@ -93,7 +100,7 @@ class InternWorkWindowIntegrationTest {
         long internId = createIntern("window-before-start@example.com", LocalDate.of(2026, 12, 31));
         clock.set(Instant.parse("2026-08-13T12:00:00Z"));
 
-        var window = accounts.lockedInternWorkWindow(internId, LocalDate.of(2026, 8, 20));
+        var window = internships.lockedInternWorkWindow(internId, LocalDate.of(2026, 8, 20));
 
         assertThat(window.businessDate()).isEqualTo(LocalDate.of(2026, 8, 20));
         assertThat(window.internshipStatus()).isEqualTo(InternshipStatus.NOT_STARTED);
@@ -105,7 +112,7 @@ class InternWorkWindowIntegrationTest {
         long internId = createIntern("window-after-start@example.com", LocalDate.of(2026, 12, 31));
         clock.set(Instant.parse("2026-08-14T12:00:00Z"));
 
-        var window = accounts.lockedInternWorkWindow(internId, LocalDate.of(2026, 8, 13));
+        var window = internships.lockedInternWorkWindow(internId, LocalDate.of(2026, 8, 13));
 
         assertThat(window.businessDate()).isEqualTo(LocalDate.of(2026, 8, 13));
         assertThat(window.internshipStatus()).isEqualTo(InternshipStatus.ACTIVE);
@@ -117,8 +124,8 @@ class InternWorkWindowIntegrationTest {
         long internId = createIntern("window-after-end@example.com", LocalDate.of(2026, 8, 16));
         clock.set(Instant.parse("2026-08-17T12:00:00Z"));
 
-        assertThat(accounts.activateDueInternships()).isZero();
-        var window = accounts.lockedInternWorkWindow(internId, LocalDate.of(2026, 8, 17));
+        assertThat(internships.activateDueInternships()).isZero();
+        var window = internships.lockedInternWorkWindow(internId, LocalDate.of(2026, 8, 17));
 
         assertThat(window.businessDate()).isEqualTo(LocalDate.of(2026, 8, 17));
         assertThat(window.internshipStatus()).isEqualTo(InternshipStatus.NOT_STARTED);
@@ -129,10 +136,13 @@ class InternWorkWindowIntegrationTest {
     void schedulerRechecksClockAfterWaitingForAccountAndProfileLocks() throws Exception {
         long internId = createIntern("scheduler-lock-wait@example.com", LocalDate.of(2026, 8, 16));
         SchedulerLockBarrier barrier = new SchedulerLockBarrier();
-        AccountService scheduler = new AccountService(
+        AccountService schedulerAccounts = AccountServiceTestFactory.create(
                 gated(users, AppUserRepository.class, barrier),
-                gated(internProfiles, InternProfileRepository.class, barrier),
                 tokens, mailDelivery, passwords, clock, transactions, sessions, publicOrigin);
+        InternshipService scheduler = new InternshipService(
+                schedulerAccounts,
+                gated(internProfiles, InternProfileRepository.class, barrier),
+                clock);
 
         ExecutorService executor = Executors.newFixedThreadPool(2);
         CountDownLatch allowOuterCommit = new CountDownLatch(1);
@@ -175,7 +185,7 @@ class InternWorkWindowIntegrationTest {
         smtp.testDraft(draftId, adminId, "admin@example.com");
         smtp.activate(draftId, adminId);
 
-        var creation = accounts.create(new CreateAccountCommand(
+        var creation = internships.create(new CreateAccountCommand(
                 email, "Intern", GlobalRole.INTERN, "STU-WINDOW",
                 LocalDate.of(2026, 8, 14), endDate), adminId);
         assertThat(accounts.activate(mail.token(), "a secure intern password")).isTrue();

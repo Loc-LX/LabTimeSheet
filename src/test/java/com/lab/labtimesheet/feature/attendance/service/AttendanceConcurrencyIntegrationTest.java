@@ -1,5 +1,7 @@
 package com.lab.labtimesheet.feature.attendance.service;
 
+import com.lab.labtimesheet.feature.internship.service.InternshipService;
+
 import com.lab.labtimesheet.feature.calendar.service.CalendarApplicationService;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -100,6 +102,9 @@ class AttendanceConcurrencyIntegrationTest {
 
     @Autowired
     private AccountService accounts;
+
+    @Autowired
+    private InternshipService internships;
 
     @MockitoSpyBean
     private HolidayApiConfigurationService holidayApi;
@@ -401,7 +406,7 @@ class AttendanceConcurrencyIntegrationTest {
         smtp.activate(draftId, adminId);
         mail.clear();
 
-        var creation = accounts.create(new CreateAccountCommand(
+        var creation = internships.create(new CreateAccountCommand(
                 "concurrency-intern@example.test",
                 "Concurrent Intern",
                 GlobalRole.INTERN,
@@ -410,7 +415,7 @@ class AttendanceConcurrencyIntegrationTest {
                 LocalDate.of(2026, 12, 31)), adminId);
         assertThat(creation.deliverySucceeded()).isTrue();
         assertThat(accounts.activate(mail.onlyActivationToken(), "new secure intern password")).isTrue();
-        accounts.activateInternship(creation.userId(), adminId);
+        internships.activateInternship(creation.userId(), adminId);
         concurrencyInternId = creation.userId();
         return concurrencyInternId;
     }
@@ -421,7 +426,7 @@ class AttendanceConcurrencyIntegrationTest {
         }
         long adminId = accounts.requireActiveAdminId("concurrency-admin@example.test");
         mail.clear();
-        var creation = accounts.create(new CreateAccountCommand(
+        var creation = internships.create(new CreateAccountCommand(
                 "concurrency-mentor@example.test",
                 "Concurrent Mentor",
                 GlobalRole.MENTOR,

@@ -1,4 +1,4 @@
-package com.lab.labtimesheet.feature.identity.model;
+package com.lab.labtimesheet.feature.internship.model;
 
 /** Durable lifecycle of an Intern's internship independently of account activation. */
 public enum InternshipStatus {

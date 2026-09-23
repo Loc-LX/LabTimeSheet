@@ -1,14 +1,15 @@
-package com.lab.labtimesheet.feature.identity.controller;
+package com.lab.labtimesheet.feature.internship.controller;
 
 import java.security.Principal;
 
 import com.lab.labtimesheet.feature.identity.model.AccountStatus;
-import com.lab.labtimesheet.feature.identity.model.dto.AccountAdministrationView;
+import com.lab.labtimesheet.feature.internship.model.InternshipStatus;
 import com.lab.labtimesheet.feature.identity.model.dto.AccountCorrectionForm;
 import com.lab.labtimesheet.feature.identity.model.dto.AccountDirectoryFilter;
-import com.lab.labtimesheet.feature.identity.model.dto.ActivationForm;
 import com.lab.labtimesheet.feature.identity.model.dto.CreateAccountForm;
+import com.lab.labtimesheet.feature.internship.model.dto.InternshipAccountAdministrationView;
 import com.lab.labtimesheet.feature.identity.service.AccountService;
+import com.lab.labtimesheet.feature.internship.service.InternshipService;
 import com.lab.labtimesheet.feature.project.exception.ProjectAccessDeniedException;
 import com.lab.labtimesheet.feature.project.service.ProjectQueryService;
 import com.lab.labtimesheet.feature.project.service.ProjectService;
@@ -31,7 +32,7 @@ import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 /**
- * Handles Admin account creation, lifecycle administration, and single-use account activation browser flows.
+ * Handles Admin account creation and composed identity/internship administration screens.
  * Known database uniqueness constraints are mapped to their owning form fields without exposing persistence
  * diagnostics. Intern terminal actions recompute Project and Task readiness through the producer-owned services.
  */
@@ -39,6 +40,7 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 @RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 class AccountController {
     private final AccountService accounts;
+    private final InternshipService internships;
     private final ProjectQueryService projectQueries;
     private final ProjectService projects;
 
@@ -51,8 +53,8 @@ class AccountController {
         long adminId = accounts.requireActiveAdminId(principal.getName());
         AccountDirectoryFilter filter = new AccountDirectoryFilter(search, role);
         model.addAttribute("accounts", filter.search().isEmpty() && filter.role() == null
-                ? accounts.administrationViews(adminId)
-                : accounts.administrationViews(adminId, filter));
+                ? internships.administrationViews(adminId)
+                : internships.administrationViews(adminId, filter));
         model.addAttribute("accountFilter", filter);
         model.addAttribute("accountRoles", GlobalRole.values());
         return "accounts/index";
@@ -62,7 +64,7 @@ class AccountController {
     String accountDetail(@PathVariable long targetUserId, Principal principal, Model model) {
         long adminId = accounts.requireActiveAdminId(principal.getName());
         try {
-            var account = accounts.administrationView(targetUserId, adminId);
+            var account = internships.administrationView(targetUserId, adminId);
             model.addAttribute("selectedAccount", account);
             if (account.role() == GlobalRole.INTERN) {
                 model.addAttribute(
@@ -80,12 +82,12 @@ class AccountController {
     String accountEdit(@PathVariable long targetUserId, Principal principal, Model model) {
         long adminId = accounts.requireActiveAdminId(principal.getName());
         try {
-            var account = accounts.administrationView(targetUserId, adminId);
+            var account = internships.administrationView(targetUserId, adminId);
             if (account.accountStatus() == AccountStatus.DEACTIVATED) {
                 throw new IllegalArgumentException("Account not editable");
             }
             model.addAttribute("selectedAccount", account);
-            model.addAttribute("correctionForm", new AccountCorrectionForm(account));
+            model.addAttribute("correctionForm", correctionForm(account));
             return "accounts/edit";
         } catch (IllegalArgumentException | ProjectAccessDeniedException failure) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND);
@@ -111,7 +113,7 @@ class AccountController {
             return "accounts/edit";
         }
         try {
-            accounts.correctAccount(targetUserId, adminId, form.toCorrection());
+            internships.correctAccount(targetUserId, adminId, form.toCorrection());
             redirectAttributes.addFlashAttribute("message", "Account correction saved");
             return accountRedirect(targetUserId);
         } catch (IllegalArgumentException | IllegalStateException failure) {
@@ -123,9 +125,9 @@ class AccountController {
         }
     }
 
-    private AccountAdministrationView editableAccount(long targetUserId, long adminId) {
+    private InternshipAccountAdministrationView editableAccount(long targetUserId, long adminId) {
         try {
-            var account = accounts.administrationView(targetUserId, adminId);
+            var account = internships.administrationView(targetUserId, adminId);
             if (account.accountStatus() == AccountStatus.DEACTIVATED) {
                 throw new IllegalArgumentException("Account not editable");
             }
@@ -150,7 +152,7 @@ class AccountController {
             return "accounts/new";
         }
         try {
-            var result = accounts.create(form.toCommand(), accounts.requireActiveAdminId(principal.getName()));
+            var result = internships.create(form.toCommand(), accounts.requireActiveAdminId(principal.getName()));
             return result.deliverySucceeded()
                     ? "redirect:/admin/accounts/new?created"
                     : "redirect:/admin/accounts/new?deliveryFailed&accountId=" + result.userId();
@@ -161,64 +163,6 @@ class AccountController {
             bindingResult.reject("account.invalid", exception.getMessage());
             return "accounts/new";
         }
-    }
-
-    /**
-     * Reissues one activation link for the pending account named by the failed-delivery page.
-     *
-     * @param targetUserId pending account identifier from the server-rendered form
-     * @param principal authenticated Admin principal
-     * @return a generic success or failure status for the account page
-     */
-    @PostMapping("/admin/accounts/{targetUserId}/resend-activation")
-    String resendActivation(@PathVariable long targetUserId, Principal principal) {
-        try {
-            var result = accounts.resendActivation(targetUserId, accounts.requireActiveAdminId(principal.getName()));
-            return result.deliverySucceeded()
-                    ? "redirect:/admin/accounts/new?activationResent"
-                    : "redirect:/admin/accounts/new?deliveryFailed&accountId=" + targetUserId;
-        } catch (IllegalArgumentException | IllegalStateException exception) {
-            return "redirect:/admin/accounts/new?deliveryFailed&accountId=" + targetUserId;
-        }
-    }
-
-    @PostMapping("/admin/accounts/{targetUserId}/lock")
-    String lockAccount(
-            @PathVariable long targetUserId,
-            Principal principal,
-            RedirectAttributes redirectAttributes) {
-        long adminId = accounts.requireActiveAdminId(principal.getName());
-        return mutateAccount(
-                targetUserId,
-                redirectAttributes,
-                () -> accounts.lockAccount(targetUserId, adminId),
-                "Account locked");
-    }
-
-    @PostMapping("/admin/accounts/{targetUserId}/unlock")
-    String unlockAccount(
-            @PathVariable long targetUserId,
-            Principal principal,
-            RedirectAttributes redirectAttributes) {
-        long adminId = accounts.requireActiveAdminId(principal.getName());
-        return mutateAccount(
-                targetUserId,
-                redirectAttributes,
-                () -> accounts.unlockAccount(targetUserId, adminId),
-                "Account unlocked");
-    }
-
-    @PostMapping("/admin/accounts/{targetUserId}/deactivate")
-    String deactivateAccount(
-            @PathVariable long targetUserId,
-            Principal principal,
-            RedirectAttributes redirectAttributes) {
-        long adminId = accounts.requireActiveAdminId(principal.getName());
-        return mutateAccount(
-                targetUserId,
-                redirectAttributes,
-                () -> accounts.deactivateAccount(targetUserId, adminId),
-                "Account deactivated");
     }
 
     @PostMapping("/admin/accounts/{targetUserId}/complete-internship")
@@ -247,32 +191,6 @@ class AccountController {
                 "Internship withdrawn");
     }
 
-    @GetMapping("/activate")
-    String activationForm(@ModelAttribute("activationForm") ActivationForm form, Model model) {
-        if (form.getToken() == null || form.getToken().isBlank()) {
-            model.addAttribute("error", "This activation link is invalid or no longer usable");
-        }
-        return "accounts/activate";
-    }
-
-    @PostMapping("/activate")
-    String activate(@Valid @ModelAttribute("activationForm") ActivationForm form, BindingResult bindingResult) {
-        if (bindingResult.hasErrors()) {
-            form.clearPasswords();
-            return "accounts/activate";
-        }
-        try {
-            if (accounts.activate(form.getToken(), form.getPassword())) {
-                return "redirect:/login?activated";
-            }
-            bindingResult.reject("activation.invalid", "This activation link is invalid or no longer usable");
-        } catch (IllegalArgumentException exception) {
-            bindingResult.reject("activation.invalid", exception.getMessage());
-        }
-        form.clearPasswords();
-        return "accounts/activate";
-    }
-
     private static void rejectUniquenessViolation(BindingResult bindingResult,
             DataIntegrityViolationException violation) {
         String constraintName = constraintName(violation);
@@ -296,6 +214,21 @@ class AccountController {
             current = current.getCause();
         }
         return null;
+    }
+
+    private static AccountCorrectionForm correctionForm(InternshipAccountAdministrationView account) {
+        boolean intern = account.role() == GlobalRole.INTERN;
+        boolean studentCodeEditable = intern && (account.internshipStatus() == InternshipStatus.NOT_STARTED
+                || account.internshipStatus() == InternshipStatus.ACTIVE);
+        boolean internshipDatesEditable = intern && account.internshipStatus() == InternshipStatus.NOT_STARTED;
+        return new AccountCorrectionForm(
+                account.email(),
+                account.accountStatus() != AccountStatus.DEACTIVATED,
+                account.studentCode(),
+                studentCodeEditable,
+                account.internshipStartDate(),
+                account.internshipEndDate(),
+                internshipDatesEditable);
     }
 
     private static String mutateAccount(

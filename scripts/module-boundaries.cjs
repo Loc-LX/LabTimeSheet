@@ -189,6 +189,7 @@ function moduleOfClass(fqn) {
   switch (parts[4]) {
     case 'account':
     case 'identity': return fold(INTERNSHIP_IN_ACCOUNT.has(cls) ? 'internship' : 'identity');
+    case 'internship': return fold('internship');
     case 'attendance': return CALENDAR_IN_ATTENDANCE.has(cls) ? 'calendar' : 'attendance';
     case 'calendar': return 'calendar';
     // R4 puts the SMTP administration screen in identity, beside the bootstrap that offers SMTP setup.

@@ -1,7 +1,8 @@
 package com.lab.labtimesheet.feature.project.controller;
 
-import com.lab.labtimesheet.feature.identity.model.dto.EligibleInternOption;
+import com.lab.labtimesheet.feature.internship.model.dto.EligibleInternOption;
 import com.lab.labtimesheet.feature.identity.service.AccountService;
+import com.lab.labtimesheet.feature.internship.service.InternshipService;
 import com.lab.labtimesheet.feature.project.exception.ProjectAccessDeniedException;
 import com.lab.labtimesheet.feature.project.exception.ProjectRuleViolationException;
 import com.lab.labtimesheet.feature.project.model.InvitationResponse;
@@ -64,6 +65,7 @@ public class ProjectController {
     private final ProjectQueryService pages;   // đọc dữ liệu hiển thị
     private final ProjectService projects;     // ghi/thay đổi dữ liệu project
     private final AccountService accounts;     // lấy danh sách intern hợp lệ
+    private final InternshipService internships;
     private final Clock clock;                 // ngày hiện tại (validate ngày bắt đầu)
 
     /**
@@ -704,7 +706,7 @@ public class ProjectController {
                             if (targetIdentity != null) {
                                 targetEmail = targetIdentity.email() == null
                                         ? "—" : targetIdentity.email();
-                                var studentCode = accounts.studentCodeByUserId(targetMember.internUserId());
+                                var studentCode = internships.studentCodeByUserId(targetMember.internUserId());
                                 targetStudentCode = studentCode == null
                                         ? "—" : studentCode.orElse("—");
                             }
@@ -943,7 +945,7 @@ public class ProjectController {
     // === CREATE PROJECT | dropdown Intern ===
     // Chức năng: lấy list Intern đủ điều kiện cho form (GET) và khi POST lỗi cần render lại form.
     private List<EligibleInternOption> eligibleInternOptions() {
-        return accounts.eligibleInternOptions(LocalDate.now(clock)); // → Service: AccountService → Repo: InternProfileRepository
+        return internships.eligibleInternOptions(LocalDate.now(clock)); // → Service: InternshipService
     }
 
     // Lấy ID người đăng nhập từ tài khoản đã xác thực.

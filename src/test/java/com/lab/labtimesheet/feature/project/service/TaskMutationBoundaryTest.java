@@ -1,5 +1,7 @@
 package com.lab.labtimesheet.feature.project.service;
 
+import com.lab.labtimesheet.feature.internship.service.InternshipService;
+
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.eq;
@@ -14,9 +16,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.lab.labtimesheet.feature.identity.model.AccountStatus;
-import com.lab.labtimesheet.feature.identity.model.InternshipStatus;
+import com.lab.labtimesheet.feature.internship.model.InternshipStatus;
 import com.lab.labtimesheet.feature.identity.model.dto.AccountIdentity;
-import com.lab.labtimesheet.feature.identity.model.dto.InternWorkWindow;
+import com.lab.labtimesheet.feature.internship.model.dto.InternWorkWindow;
 import com.lab.labtimesheet.feature.identity.service.AccountService;
 import com.lab.labtimesheet.feature.calendar.service.CalendarApplicationService;
 import com.lab.labtimesheet.feature.notification.service.NotificationService;
@@ -71,6 +73,7 @@ class TaskMutationBoundaryTest {
     @Mock private ProjectService projectMutations;
     @Mock private CalendarApplicationService calendar;
     @Mock private AccountService accounts;
+    @Mock private InternshipService internships;
     @Mock private NotificationService notifications;
     @Mock private TaskRemainingEffortForecastRepository forecasts;
 
@@ -88,6 +91,7 @@ class TaskMutationBoundaryTest {
                 calendar,
                 Clock.fixed(NOW, ZoneOffset.UTC),
                 accounts,
+                internships,
                 notifications,
                 forecasts);
         context = new ProjectTaskContext(
@@ -188,7 +192,7 @@ class TaskMutationBoundaryTest {
         TaskWorkLog saved = mock(TaskWorkLog.class);
         when(tasks.findLockedByIdAndProjectIdAndDeletedAtIsNull(25L, 10L))
                 .thenReturn(Optional.of(task));
-        when(accounts.lockedInternWorkWindow(5L, workDate)).thenReturn(new InternWorkWindow(
+        when(internships.lockedInternWorkWindow(5L, workDate)).thenReturn(new InternWorkWindow(
                 5L,
                 workDate,
                 LocalDate.of(2026, 8, 1),
@@ -541,7 +545,7 @@ class TaskMutationBoundaryTest {
         TaskWorkLog saved = org.mockito.Mockito.mock(TaskWorkLog.class);
         when(tasks.findLockedByIdAndProjectIdAndDeletedAtIsNull(25L, 10L))
                 .thenReturn(Optional.of(task));
-        when(accounts.lockedInternWorkWindow(5L, workDate)).thenReturn(new InternWorkWindow(
+        when(internships.lockedInternWorkWindow(5L, workDate)).thenReturn(new InternWorkWindow(
                 5L,
                 workDate,
                 LocalDate.of(2026, 8, 1),
@@ -564,10 +568,10 @@ class TaskMutationBoundaryTest {
         service.addWorkLog(
                 "member@example.test", 10L, 25L, workDate, 60, "Experiment");
 
-        InOrder order = inOrder(accounts, projectMutations, projectQueries, tasks, workLogs);
+        InOrder order = inOrder(accounts, internships, projectMutations, projectQueries, tasks, workLogs);
         order.verify(accounts).requireAccountIdByEmail("member@example.test");
         order.verify(projectMutations).taskMutationContext(5L, 10L);
-        order.verify(accounts).lockedInternWorkWindow(5L, workDate);
+        order.verify(internships).lockedInternWorkWindow(5L, workDate);
         order.verify(projectQueries).membershipIntervals(5L);
         order.verify(tasks).findLockedByIdAndProjectIdAndDeletedAtIsNull(25L, 10L);
         order.verify(workLogs).sumMinutesByMembershipIdsAndWorkDate(Set.of(70L), workDate);
@@ -577,7 +581,7 @@ class TaskMutationBoundaryTest {
     @Test
     void workLogRejectsLockedAccountBeforeReadingDailyTotal() {
         LocalDate workDate = LocalDate.of(2026, 8, 14);
-        when(accounts.lockedInternWorkWindow(5L, workDate)).thenReturn(new InternWorkWindow(
+        when(internships.lockedInternWorkWindow(5L, workDate)).thenReturn(new InternWorkWindow(
                 5L,
                 workDate,
                 LocalDate.of(2026, 8, 1),
@@ -615,7 +619,7 @@ class TaskMutationBoundaryTest {
         when(workLogs.findLockedByIdAndProjectId(90L, 10L)).thenReturn(Optional.of(locked));
         when(tasks.findLockedByIdAndProjectIdAndDeletedAtIsNull(25L, 10L)).thenReturn(Optional.of(task));
         when(accounts.requireAccountIdByEmail("member@example.test")).thenReturn(5L);
-        when(accounts.lockedInternWorkWindow(5L, workDate)).thenReturn(new InternWorkWindow(
+        when(internships.lockedInternWorkWindow(5L, workDate)).thenReturn(new InternWorkWindow(
                 5L,
                 workDate,
                 LocalDate.of(2026, 8, 1),
@@ -629,11 +633,11 @@ class TaskMutationBoundaryTest {
 
         service.correctWorkLog("member@example.test", 10L, 90L, 60, "Corrected");
 
-        InOrder order = inOrder(workLogs, accounts, projectMutations, projectQueries, tasks);
+        InOrder order = inOrder(workLogs, accounts, internships, projectMutations, projectQueries, tasks);
         order.verify(workLogs).findCandidateByIdAndProjectId(90L, 10L);
         order.verify(accounts).requireAccountIdByEmail("member@example.test");
         order.verify(projectMutations).taskMutationContext(5L, 10L);
-        order.verify(accounts).lockedInternWorkWindow(5L, workDate);
+        order.verify(internships).lockedInternWorkWindow(5L, workDate);
         order.verify(projectQueries).membershipIntervals(5L);
         order.verify(workLogs).findLockedByIdAndProjectId(90L, 10L);
         order.verify(tasks).findLockedByIdAndProjectIdAndDeletedAtIsNull(25L, 10L);
@@ -655,7 +659,7 @@ class TaskMutationBoundaryTest {
         when(workLogs.findCandidateByIdAndProjectId(90L, 10L)).thenReturn(Optional.of(candidate));
         when(workLogs.findLockedByIdAndProjectId(90L, 10L)).thenReturn(Optional.of(locked));
         when(accounts.requireAccountIdByEmail("member@example.test")).thenReturn(5L);
-        when(accounts.lockedInternWorkWindow(5L, workDate)).thenReturn(new InternWorkWindow(
+        when(internships.lockedInternWorkWindow(5L, workDate)).thenReturn(new InternWorkWindow(
                 5L,
                 workDate,
                 LocalDate.of(2026, 8, 1),

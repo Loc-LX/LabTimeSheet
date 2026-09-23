@@ -1,4 +1,7 @@
-package com.lab.labtimesheet.feature.identity.service;
+package com.lab.labtimesheet.feature.internship.service;
+
+import com.lab.labtimesheet.feature.identity.service.AccountService;
+import com.lab.labtimesheet.feature.identity.service.BootstrapService;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -12,9 +15,9 @@ import com.lab.labtimesheet.feature.identity.model.AccountStatus;
 import com.lab.labtimesheet.feature.identity.model.dto.AccountDirectoryFilter;
 import com.lab.labtimesheet.feature.identity.model.dto.AccountIdentityCorrection;
 import com.lab.labtimesheet.feature.identity.model.dto.CreateAccountCommand;
-import com.lab.labtimesheet.feature.identity.model.dto.InternshipLifecycleGuard;
+import com.lab.labtimesheet.feature.internship.model.dto.InternshipLifecycleGuard;
 import com.lab.labtimesheet.feature.identity.repository.AppUserRepository;
-import com.lab.labtimesheet.feature.identity.repository.InternProfileRepository;
+import com.lab.labtimesheet.feature.internship.repository.InternProfileRepository;
 import com.lab.labtimesheet.feature.identity.repository.UserActionTokenRepository;
 import com.lab.labtimesheet.platform.model.GlobalRole;
 import com.lab.labtimesheet.platform.model.SecurityMode;
@@ -50,6 +53,9 @@ class AccountIdentityCorrectionIntegrationTest {
     private AccountService accounts;
 
     @Autowired
+    private InternshipService internships;
+
+    @Autowired
     private SmtpConfigurationService smtp;
 
     @Autowired
@@ -75,18 +81,40 @@ class AccountIdentityCorrectionIntegrationTest {
         createPendingMentor(adminId, "mentor.directory@example.com", "Professor North");
         createPendingIntern(adminId, "intern.directory@example.com", "Student South", "STU-42");
 
-        assertThat(accounts.administrationViews(adminId, new AccountDirectoryFilter("  DIRECTORY@EXAMPLE.COM ", null)))
+        assertThat(internships.administrationViews(adminId, new AccountDirectoryFilter("  DIRECTORY@EXAMPLE.COM ", null)))
                 .extracting(view -> view.email())
                 .containsExactly("mentor.directory@example.com", "intern.directory@example.com");
-        assertThat(accounts.administrationViews(adminId, new AccountDirectoryFilter(" professor ", null)))
+        assertThat(internships.administrationViews(adminId, new AccountDirectoryFilter(" professor ", null)))
                 .extracting(view -> view.displayName())
                 .containsExactly("Professor North");
-        assertThat(accounts.administrationViews(adminId, new AccountDirectoryFilter(" stu-42 ", GlobalRole.INTERN)))
+        assertThat(internships.administrationViews(adminId, new AccountDirectoryFilter(" stu-42 ", GlobalRole.INTERN)))
                 .extracting(view -> view.email())
                 .containsExactly("intern.directory@example.com");
-        assertThat(accounts.administrationViews(adminId, new AccountDirectoryFilter("directory", GlobalRole.MENTOR)))
+        assertThat(internships.administrationViews(adminId, new AccountDirectoryFilter("directory", GlobalRole.MENTOR)))
                 .extracting(view -> view.role())
                 .containsExactly(GlobalRole.MENTOR);
+    }
+
+    /**
+     * Protects ACC-017's OR search and ARC-010's bounded directory composition. If either the identity or Student
+     * Code side is dropped, one of the first two accounts disappears; if the two sides are concatenated, the third
+     * account appears twice. The expected order is the hand-derived ascending account-ID order of the three creates.
+     */
+    @Test
+    void directorySearchUnionsIdentityAndStudentCodeMatchesWithoutDuplicates() {
+        bootstrap.bootstrap(ADMIN_EMAIL, "Primary Admin", ADMIN_PASSWORD);
+        long adminId = accounts.requireActiveAdminId(ADMIN_EMAIL);
+        enableSmtp(adminId);
+        createPendingMentor(adminId, "union-key.mentor@example.com", "Identity Match");
+        createPendingIntern(adminId, "profile-only@example.com", "Profile Match", "UNION-KEY");
+        createPendingIntern(adminId, "union-key.intern@example.com", "Both Match", "UNION-KEY-BOTH");
+
+        assertThat(internships.administrationViews(adminId, new AccountDirectoryFilter("union-key", null)))
+                .extracting(view -> view.email())
+                .containsExactly(
+                        "union-key.mentor@example.com",
+                        "profile-only@example.com",
+                        "union-key.intern@example.com");
     }
 
     @Test
@@ -98,7 +126,7 @@ class AccountIdentityCorrectionIntegrationTest {
         String oldToken = mail.lastToken();
         mail.clear();
 
-        accounts.correctAccount(userId, adminId, new AccountIdentityCorrection(
+        internships.correctAccount(userId, adminId, new AccountIdentityCorrection(
                 " pending.new@example.com ", null, null, null));
 
         String newToken = mail.lastToken();
@@ -123,7 +151,7 @@ class AccountIdentityCorrectionIntegrationTest {
                 .roles("MENTOR")
                 .build());
 
-        accounts.correctAccount(userId, adminId, new AccountIdentityCorrection(
+        internships.correctAccount(userId, adminId, new AccountIdentityCorrection(
                 "active.new@example.com", null, null, null));
         assertThat(users.findById(userId).orElseThrow().getEmail()).isEqualTo("active.new@example.com");
         assertThat(sessions.getSessionInformation("session-1").isExpired()).isTrue();
@@ -134,7 +162,7 @@ class AccountIdentityCorrectionIntegrationTest {
                 .password("unused")
                 .roles("MENTOR")
                 .build());
-        accounts.correctAccount(userId, adminId, new AccountIdentityCorrection(
+        internships.correctAccount(userId, adminId, new AccountIdentityCorrection(
                 "locked.new@example.com", null, null, null));
         assertThat(users.findById(userId).orElseThrow().getAccountStatus()).isEqualTo(AccountStatus.LOCKED);
         assertThat(sessions.getSessionInformation("session-2").isExpired()).isTrue();
@@ -148,7 +176,7 @@ class AccountIdentityCorrectionIntegrationTest {
         long userId = createPendingIntern(adminId, "rollback.old@example.com", "Rollback Intern", "STU-OLD");
         mail.fail = true;
 
-        assertThatThrownBy(() -> accounts.correctAccount(userId, adminId, new AccountIdentityCorrection(
+        assertThatThrownBy(() -> internships.correctAccount(userId, adminId, new AccountIdentityCorrection(
                 "rollback.new@example.com", "STU-NEW", LocalDate.of(2026, 8, 2), LocalDate.of(2026, 12, 31))))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("delivery");
@@ -165,17 +193,17 @@ class AccountIdentityCorrectionIntegrationTest {
         enableSmtp(adminId);
         long userId = createPendingIntern(adminId, "lifecycle@example.com", "Lifecycle Intern", "STU-OLD");
         accounts.activate(mail.lastToken(), "lifecycle secure password");
-        accounts.activateInternship(userId, adminId);
+        internships.activateInternship(userId, adminId);
 
-        accounts.correctAccount(userId, adminId, new AccountIdentityCorrection(
+        internships.correctAccount(userId, adminId, new AccountIdentityCorrection(
                 null, "STU-ACTIVE", null, null));
         assertThat(internProfiles.findById(userId).orElseThrow().getStudentCode()).isEqualTo("STU-ACTIVE");
-        assertThatThrownBy(() -> accounts.correctAccount(userId, adminId, new AccountIdentityCorrection(
+        assertThatThrownBy(() -> internships.correctAccount(userId, adminId, new AccountIdentityCorrection(
                 null, null, LocalDate.of(2026, 8, 2), LocalDate.of(2026, 12, 31))))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("NOT_STARTED");
         accounts.deactivateAccount(userId, adminId);
-        assertThatThrownBy(() -> accounts.correctAccount(userId, adminId, new AccountIdentityCorrection(
+        assertThatThrownBy(() -> internships.correctAccount(userId, adminId, new AccountIdentityCorrection(
                 "terminal.new@example.com", null, null, null)))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("read-only");
@@ -188,7 +216,7 @@ class AccountIdentityCorrectionIntegrationTest {
         enableSmtp(adminId);
         long userId = createPendingIntern(adminId, "date-omitted@example.com", "Date Omitted", "STU-DATE");
 
-        accounts.correctAccount(userId, adminId, new AccountIdentityCorrection(
+        internships.correctAccount(userId, adminId, new AccountIdentityCorrection(
                 null, null, LocalDate.of(2026, 8, 2), null));
 
         var profile = internProfiles.findById(userId).orElseThrow();
@@ -209,7 +237,7 @@ class AccountIdentityCorrectionIntegrationTest {
                 .build());
         mail.clear();
 
-        assertThatThrownBy(() -> accounts.correctAccount(secondId, adminId, new AccountIdentityCorrection(
+        assertThatThrownBy(() -> internships.correctAccount(secondId, adminId, new AccountIdentityCorrection(
                 "second-corrected@example.com", "STU-UNIQUE", null, null)))
                 .isInstanceOf(RuntimeException.class);
 
@@ -228,11 +256,11 @@ class AccountIdentityCorrectionIntegrationTest {
         long mentorId = createActiveMentor(adminId, "non-admin@example.com", "Non Admin");
         long targetId = createPendingMentor(adminId, "target-guess@example.com", "Target Guess");
 
-        assertThatThrownBy(() -> accounts.correctAccount(targetId, mentorId, new AccountIdentityCorrection(
+        assertThatThrownBy(() -> internships.correctAccount(targetId, mentorId, new AccountIdentityCorrection(
                 "forbidden@example.com", null, null, null)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("active Admin");
-        assertThatThrownBy(() -> accounts.correctAccount(999_999L, adminId, new AccountIdentityCorrection(
+        assertThatThrownBy(() -> internships.correctAccount(999_999L, adminId, new AccountIdentityCorrection(
                 "missing@example.com", null, null, null)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Account not found");
@@ -244,35 +272,35 @@ class AccountIdentityCorrectionIntegrationTest {
         long adminId = accounts.requireActiveAdminId(ADMIN_EMAIL);
         enableSmtp(adminId);
         long completedId = createActiveIntern(adminId, "completed@example.com", "Completed Intern", "STU-COMPLETE");
-        accounts.completeInternship(completedId, adminId, new InternshipLifecycleGuard(false, 0));
-        assertThatThrownBy(() -> accounts.correctAccount(completedId, adminId, new AccountIdentityCorrection(
+        internships.completeInternship(completedId, adminId, new InternshipLifecycleGuard(false, 0));
+        assertThatThrownBy(() -> internships.correctAccount(completedId, adminId, new AccountIdentityCorrection(
                 null, "STU-COMPLETE-NEW", null, null)))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("read-only");
 
         long withdrawnId = createActiveIntern(adminId, "withdrawn@example.com", "Withdrawn Intern", "STU-WITHDRAW");
-        accounts.withdrawInternship(withdrawnId, adminId, new InternshipLifecycleGuard(false, 0));
-        assertThatThrownBy(() -> accounts.correctAccount(withdrawnId, adminId, new AccountIdentityCorrection(
+        internships.withdrawInternship(withdrawnId, adminId, new InternshipLifecycleGuard(false, 0));
+        assertThatThrownBy(() -> internships.correctAccount(withdrawnId, adminId, new AccountIdentityCorrection(
                 null, "STU-WITHDRAW-NEW", null, null)))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("read-only");
     }
 
     private long createPendingMentor(long adminId, String email, String name) {
-        long id = accounts.create(new CreateAccountCommand(email, name, GlobalRole.MENTOR, null, null, null), adminId)
+        long id = internships.create(new CreateAccountCommand(email, name, GlobalRole.MENTOR, null, null, null), adminId)
                 .userId();
         mail.clear();
         return id;
     }
 
     private long createPendingIntern(long adminId, String email, String name, String studentCode) {
-        long id = accounts.create(new CreateAccountCommand(email, name, GlobalRole.INTERN, studentCode,
+        long id = internships.create(new CreateAccountCommand(email, name, GlobalRole.INTERN, studentCode,
                 LocalDate.of(2026, 8, 1), LocalDate.of(2026, 12, 31)), adminId).userId();
         return id;
     }
 
     private long createActiveMentor(long adminId, String email, String name) {
-        long id = accounts.create(new CreateAccountCommand(email, name, GlobalRole.MENTOR, null, null, null), adminId)
+        long id = internships.create(new CreateAccountCommand(email, name, GlobalRole.MENTOR, null, null, null), adminId)
                 .userId();
         accounts.activate(mail.lastToken(), "mentor secure password");
         mail.clear();
@@ -282,7 +310,7 @@ class AccountIdentityCorrectionIntegrationTest {
     private long createActiveIntern(long adminId, String email, String name, String studentCode) {
         long id = createPendingIntern(adminId, email, name, studentCode);
         accounts.activate(mail.lastToken(), "intern secure password");
-        accounts.activateInternship(id, adminId);
+        internships.activateInternship(id, adminId);
         mail.clear();
         return id;
     }

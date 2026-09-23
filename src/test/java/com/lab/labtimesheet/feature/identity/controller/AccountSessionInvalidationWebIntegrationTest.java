@@ -1,5 +1,7 @@
 package com.lab.labtimesheet.feature.identity.controller;
 
+import com.lab.labtimesheet.feature.internship.service.InternshipService;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
@@ -50,6 +52,9 @@ class AccountSessionInvalidationWebIntegrationTest {
     private AccountService accounts;
 
     @Autowired
+    private InternshipService internships;
+
+    @Autowired
     private SmtpConfigurationService smtp;
 
     @Autowired
@@ -64,7 +69,7 @@ class AccountSessionInvalidationWebIntegrationTest {
         smtp.testDraft(draftId, adminId, "admin@example.com");
         smtp.activate(draftId, adminId);
 
-        var creation = accounts.create(new CreateAccountCommand(
+        var creation = internships.create(new CreateAccountCommand(
                 "mentor@example.com", "Mentor", GlobalRole.MENTOR, null, null, null), adminId);
         assertThat(accounts.activate(mail.token(), "a secure mentor password")).isTrue();
 

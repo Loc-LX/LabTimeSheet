@@ -1,8 +1,9 @@
 package com.lab.labtimesheet.feature.project.service;
 
 import com.lab.labtimesheet.feature.identity.model.dto.AccountIdentity;
-import com.lab.labtimesheet.feature.identity.model.dto.InternshipLifecycleGuard;
+import com.lab.labtimesheet.feature.internship.model.dto.InternshipLifecycleGuard;
 import com.lab.labtimesheet.feature.identity.service.AccountService;
+import com.lab.labtimesheet.feature.internship.service.InternshipService;
 import com.lab.labtimesheet.feature.project.exception.ProjectAccessDeniedException;
 import com.lab.labtimesheet.feature.project.exception.ProjectRuleViolationException;
 import com.lab.labtimesheet.feature.project.model.ProjectStatus;
@@ -58,6 +59,7 @@ public class ProjectQueryService {
     private final ProjectExitRequestRepository exitRequests;
     private final ProjectInvitationRepository invitations;
     private final AccountService accounts;
+    private final InternshipService internships;
     private final TaskQueryService taskQueries;
     private final TaskTransferService taskTransfers;
 
@@ -665,7 +667,7 @@ public class ProjectQueryService {
                     projects.countActiveProjectsByMentor(actorUserId),
                     countEligibleCurrentMembers(actorUserId));
             case "INTERN" -> new ProjectDashboardSummary(
-                    accounts.isEligibleIntern(actorUserId)
+                    internships.isEligibleIntern(actorUserId)
                             ? projects.countActiveProjectsByIntern(actorUserId)
                             : 0L,
                     0L);
@@ -754,7 +756,7 @@ public class ProjectQueryService {
      */
     private long countEligibleCurrentMembers(long mentorUserId) {
         return projects.findDistinctCurrentMemberUserIdsByMentor(mentorUserId).stream()
-                .filter(accounts::isEligibleIntern)
+                .filter(internships::isEligibleIntern)
                 .count();
     }
 
@@ -790,7 +792,7 @@ public class ProjectQueryService {
         }
         try {
             String username = accounts.requireIdentityById(userId).displayName();
-            var studentCode = accounts.studentCodeByUserId(userId);
+            var studentCode = internships.studentCodeByUserId(userId);
             if (studentCode != null && studentCode.isPresent() && !studentCode.get().isBlank()) {
                 username += " (" + studentCode.get() + ")";
             }
@@ -850,7 +852,7 @@ public class ProjectQueryService {
     }
 
     private boolean isEligibleIntern(long userId) {
-        return accounts.isEligibleIntern(userId);
+        return internships.isEligibleIntern(userId);
     }
 
     private static ProjectSummary summary(ProjectEntity project) {
