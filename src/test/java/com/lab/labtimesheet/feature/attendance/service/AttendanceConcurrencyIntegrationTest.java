@@ -1,5 +1,7 @@
 package com.lab.labtimesheet.feature.attendance.service;
 
+import com.lab.labtimesheet.feature.calendar.service.CalendarApplicationService;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.doReturn;
 
@@ -8,29 +10,29 @@ import com.lab.labtimesheet.feature.identity.service.AccountService;
 import com.lab.labtimesheet.feature.identity.service.BootstrapService;
 import com.lab.labtimesheet.feature.attendance.exception.AttendanceException;
 import com.lab.labtimesheet.feature.attendance.exception.AttendanceRejection;
-import com.lab.labtimesheet.feature.attendance.exception.CalendarException;
+import com.lab.labtimesheet.feature.calendar.exception.CalendarException;
 import com.lab.labtimesheet.feature.attendance.exception.CorrectionException;
 import com.lab.labtimesheet.feature.attendance.exception.LeaveException;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
 import com.lab.labtimesheet.platform.model.GlobalRole;
 import com.lab.labtimesheet.feature.attendance.model.CorrectionEventType;
 import com.lab.labtimesheet.feature.attendance.model.CorrectionStatus;
-import com.lab.labtimesheet.feature.attendance.model.dto.CalendarHistoryItem;
-import com.lab.labtimesheet.feature.attendance.model.dto.CalendarImportSelection;
+import com.lab.labtimesheet.feature.calendar.model.dto.CalendarHistoryItem;
+import com.lab.labtimesheet.feature.calendar.model.dto.CalendarImportSelection;
 import com.lab.labtimesheet.feature.attendance.model.dto.CorrectionDecision;
 import com.lab.labtimesheet.feature.attendance.model.dto.CorrectionRequestCommand;
 import com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestCommand;
 import com.lab.labtimesheet.feature.attendance.model.entity.AttendanceCorrectionEntity;
-import com.lab.labtimesheet.feature.attendance.model.entity.AttendancePolicyEntity;
+import com.lab.labtimesheet.feature.calendar.model.entity.AttendancePolicyEntity;
 import com.lab.labtimesheet.feature.attendance.model.entity.AttendanceRecordEntity;
 import com.lab.labtimesheet.feature.attendance.repository.AttendanceCorrectionEventRepository;
 import com.lab.labtimesheet.feature.attendance.repository.AttendanceCorrectionRepository;
-import com.lab.labtimesheet.feature.attendance.repository.AttendancePolicyRepository;
+import com.lab.labtimesheet.feature.calendar.repository.AttendancePolicyRepository;
 import com.lab.labtimesheet.feature.attendance.repository.AttendanceRecordRepository;
-import com.lab.labtimesheet.feature.integration.model.dto.HolidayApiCandidate;
-import com.lab.labtimesheet.feature.integration.model.dto.HolidayApiPreview;
-import com.lab.labtimesheet.feature.integration.model.dto.HolidayApiPreviewStatus;
-import com.lab.labtimesheet.feature.integration.service.HolidayApiConfigurationService;
+import com.lab.labtimesheet.feature.calendar.model.dto.HolidayApiCandidate;
+import com.lab.labtimesheet.feature.calendar.model.dto.HolidayApiPreview;
+import com.lab.labtimesheet.feature.calendar.model.dto.HolidayApiPreviewStatus;
+import com.lab.labtimesheet.feature.calendar.service.HolidayApiConfigurationService;
 import com.lab.labtimesheet.platform.model.GlobalRole;
 import com.lab.labtimesheet.platform.model.SecurityMode;
 import com.lab.labtimesheet.platform.model.dto.SmtpDraft;
