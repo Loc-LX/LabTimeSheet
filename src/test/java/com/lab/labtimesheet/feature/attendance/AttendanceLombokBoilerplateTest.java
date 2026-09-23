@@ -87,7 +87,6 @@ class AttendanceLombokBoilerplateTest {
                 constructor(
                         PACKAGE_PRIVATE,
                         CalendarApplicationService.class,
-                        AttendanceApplicationService.class,
                         AccountService.class));
         assertConstructors(
                 AttendanceApplicationService.class,
