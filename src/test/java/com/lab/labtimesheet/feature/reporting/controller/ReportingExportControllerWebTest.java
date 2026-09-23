@@ -71,7 +71,7 @@ class ReportingExportControllerWebTest {
                 List.of(), List.of(), List.of(), 0L, 0L, "N/A");
         given(projectTaskReports.build(
                 anyString(), nullable(Long.class), nullable(Long.class),
-                nullable(com.lab.labtimesheet.feature.task.model.TaskStatus.class),
+                nullable(com.lab.labtimesheet.feature.project.model.TaskStatus.class),
                 nullable(LocalDate.class), nullable(LocalDate.class), nullable(LocalDate.class), nullable(LocalDate.class)))
                 .willReturn(projectTasks);
         given(exports.attendanceXlsx(any())).willReturn(new byte[] {1});

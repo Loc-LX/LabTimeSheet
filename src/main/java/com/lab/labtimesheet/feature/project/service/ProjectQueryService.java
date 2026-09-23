@@ -26,8 +26,8 @@ import com.lab.labtimesheet.feature.project.model.entity.ProjectLeadershipTermEn
 import com.lab.labtimesheet.feature.project.repository.ProjectExitRequestRepository;
 import com.lab.labtimesheet.feature.project.repository.ProjectInvitationRepository;
 import com.lab.labtimesheet.feature.project.repository.ProjectRepository;
-import com.lab.labtimesheet.feature.task.service.TaskQueryService;
-import com.lab.labtimesheet.feature.task.service.TaskTransferService;
+import com.lab.labtimesheet.feature.project.service.TaskQueryService;
+import com.lab.labtimesheet.feature.project.service.TaskTransferService;
 import com.lab.labtimesheet.platform.model.GlobalRole;
 import java.util.LinkedHashMap;
 import java.util.List;

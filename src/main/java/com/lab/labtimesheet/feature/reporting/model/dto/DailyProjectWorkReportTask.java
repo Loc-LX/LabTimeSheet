@@ -1,8 +1,8 @@
 package com.lab.labtimesheet.feature.reporting.model.dto;
 
-import com.lab.labtimesheet.feature.task.model.TaskStatus;
-import com.lab.labtimesheet.feature.task.model.TaskVarianceState;
-import com.lab.labtimesheet.feature.task.model.dto.TaskRemainingEffortForecastSummary;
+import com.lab.labtimesheet.feature.project.model.TaskStatus;
+import com.lab.labtimesheet.feature.project.model.TaskVarianceState;
+import com.lab.labtimesheet.feature.project.model.dto.TaskRemainingEffortForecastSummary;
 import java.time.Instant;
 import java.util.List;
 

@@ -1,6 +1,6 @@
 package com.lab.labtimesheet.feature.reporting.model.dto;
 
-import com.lab.labtimesheet.feature.task.model.TaskStatus;
+import com.lab.labtimesheet.feature.project.model.TaskStatus;
 
 /**
  * One Task row feeding the shared Project/Task report dataset.

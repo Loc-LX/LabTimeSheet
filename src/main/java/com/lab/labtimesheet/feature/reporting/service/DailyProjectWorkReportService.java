@@ -13,9 +13,9 @@ import com.lab.labtimesheet.feature.reporting.model.dto.DailyProjectWorkReportMe
 import com.lab.labtimesheet.feature.reporting.model.dto.DailyProjectWorkReportProject;
 import com.lab.labtimesheet.feature.reporting.model.dto.DailyProjectWorkReportTask;
 import com.lab.labtimesheet.feature.reporting.model.dto.DailyProjectWorkReportView;
-import com.lab.labtimesheet.feature.task.model.dto.TaskDailyReportView;
-import com.lab.labtimesheet.feature.task.model.dto.TaskWorkLogView;
-import com.lab.labtimesheet.feature.task.service.TaskQueryService;
+import com.lab.labtimesheet.feature.project.model.dto.TaskDailyReportView;
+import com.lab.labtimesheet.feature.project.model.dto.TaskWorkLogView;
+import com.lab.labtimesheet.feature.project.service.TaskQueryService;
 import java.time.LocalDate;
 import java.util.LinkedHashMap;
 import java.util.List;

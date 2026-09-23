@@ -13,8 +13,8 @@ import com.lab.labtimesheet.feature.reporting.exception.DashboardAccessDeniedExc
 import com.lab.labtimesheet.feature.reporting.model.dto.DashboardView.AssignedTask;
 import com.lab.labtimesheet.feature.reporting.model.dto.DashboardView.AttendanceState;
 import com.lab.labtimesheet.feature.reporting.model.dto.DashboardView;
-import com.lab.labtimesheet.feature.task.model.dto.TaskDashboardView;
-import com.lab.labtimesheet.feature.task.service.TaskDashboardService;
+import com.lab.labtimesheet.feature.project.model.dto.TaskDashboardView;
+import com.lab.labtimesheet.feature.project.service.TaskDashboardService;
 import com.lab.labtimesheet.platform.model.GlobalRole;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
