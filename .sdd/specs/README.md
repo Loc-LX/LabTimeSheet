@@ -116,14 +116,35 @@ explain choices; [plan.md](../../plan.md) is the only progress tracker.
 └── platform/
     ├── MODULE.md
     ├── CHANGELOG.md
-    ├── PLAN.md                 technical design, revised in the plan phase
+    ├── PLAN.md                 part A only, until A-12 closes it (D40)
+    ├── TASKS.md
     └── features/
         ├── smtp-configuration/
         │   ├── SPEC.md
         │   └── CHANGELOG.md
-        └── shared-interface/
+        ├── shared-interface/
+        │   ├── SPEC.md
+        │   └── CHANGELOG.md
+        ├── architecture/
+        │   ├── SPEC.md
+        │   ├── CHANGELOG.md
+        │   ├── PLAN.md
+        │   └── TASKS.md
+        ├── security/
+        │   ├── SPEC.md
+        │   ├── CHANGELOG.md
+        │   ├── PLAN.md
+        │   └── TASKS.md
+        ├── authorization/
+        │   ├── SPEC.md
+        │   ├── CHANGELOG.md
+        │   ├── PLAN.md
+        │   └── TASKS.md
+        └── data-model/
             ├── SPEC.md
-            └── CHANGELOG.md
+            ├── CHANGELOG.md
+            ├── PLAN.md
+            └── TASKS.md
 ```
 
 ## Module and feature entry points
@@ -137,13 +158,14 @@ explain choices; [plan.md](../../plan.md) is the only progress tracker.
 | [project](project/MODULE.md) | [Project lifecycle](project/features/lifecycle/SPEC.md), [Membership and leadership](project/features/membership-and-leadership/SPEC.md), [Project invitations](project/features/invitations/SPEC.md), [Membership exit and transfer](project/features/membership-exit/SPEC.md), [Task management](project/features/task-management/SPEC.md), [Work logs and effort](project/features/work-logs-and-effort/SPEC.md) |
 | [notification](notification/MODULE.md) | [Notification inbox](notification/features/inbox/SPEC.md), [Notification email delivery](notification/features/email-delivery/SPEC.md) |
 | [reporting](reporting/MODULE.md) | [Attendance reports](reporting/features/attendance-report/SPEC.md), [Project and Task reports](reporting/features/project-task-report/SPEC.md), [Daily Project Work Report](reporting/features/daily-work-report/SPEC.md) |
-| [platform](platform/MODULE.md) | [SMTP configuration](platform/features/smtp-configuration/SPEC.md), [Shared interface](platform/features/shared-interface/SPEC.md) |
+| [platform](platform/MODULE.md) | [SMTP configuration](platform/features/smtp-configuration/SPEC.md), [Shared interface](platform/features/shared-interface/SPEC.md), [Architecture](platform/features/architecture/SPEC.md), [Authorization](platform/features/authorization/SPEC.md), [Security](platform/features/security/SPEC.md), [Data model](platform/features/data-model/SPEC.md) |
 
 ## What belongs at each level
 
-- **Platform MODULE.md:** governance, architecture, authorization/security, shared
-  integration secrets, delivery/test standards, error conventions and the complete data
-  model. These are inherited constraints, not artificial business feature folders.
+- **Platform MODULE.md:** governance, shared integration secrets, delivery/test standards and
+  error conventions. The architecture, the authorization model, the security controls and the
+  complete data model are the platform features Architecture, Authorization, Security and Data
+  model (`D40`).
 - **Business MODULE.md:** shared rules, module data ownership, workflows that cross
   features, integration scenarios, dependency checks and shared unresolved questions.
 - **Feature SPEC.md:** one cohesive outcome, its operation headings, canonical rules,
@@ -228,11 +250,15 @@ blocking task dependency.
 The constitution remains the authority for Definition of Done. This operation map
 does not create a second completion checklist or a second progress tracker.
 
-Create a feature's PLAN.md only when its technical design is written, then TASKS.md
-when that design can be broken into verifiable work. Neither file is an empty placeholder
-here. Read the shared module constraints before planning one feature independently.
-The existing [platform plan](platform/PLAN.md) is historical design input and
-needs the corrections tracked in plan.md; it is not blanket approval for all new features.
+Every PLAN.md and TASKS.md belongs to one feature and sits beside its SPEC.md; no module keeps
+one of its own, with no exception (`D40`). Work on a rule a MODULE.md holds is planned in the
+feature whose code it changes. A schema change shared by several features is planned once in the
+[Data model](platform/features/data-model/SPEC.md) feature, and each affected feature's plan
+points to it. Create a feature's PLAN.md only when its technical design is written, then
+TASKS.md when that design can be broken into verifiable work. Neither file is an empty
+placeholder here. Read the shared module constraints before planning one feature independently.
+The [platform plan](platform/PLAN.md) holds part A only until `A-12` closes it; it is not
+blanket approval for all new features.
 
 A targeted implementation follows OPS-019 on an isolated work/fix/<area>/<what> branch
 from verified main, with branch-name collision checks. Choose a cohesive change that can

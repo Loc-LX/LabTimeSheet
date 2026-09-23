@@ -1,7 +1,9 @@
 # Platform Tasks
 
 The tasks of [PLAN.md](PLAN.md), grouped by the same parts. Each part's tasks are approved with
-that part of the plan; `plan.md` tracks which are done.
+that part of the plan; `plan.md` tracks which are done. Under `D40` the tasks of parts B and C
+moved to the [Authorization](features/authorization/TASKS.md) and
+[Data model](features/data-model/TASKS.md) features; part A follows once `A-12` closes it.
 
 ## Part A — Module boundaries
 
@@ -35,36 +37,3 @@ with the maintainer's permission; the tasks then run on `work/fix/architecture/<
 | A-10 | Place `internship` (`R3`): first write the tests of the directory union and of the eligibility order (plan section A.7) and see them pass against the current join; compose the directory as a union, and the eligibility and due-date reads as intersections with their order, over the service contract of `identity` (plan section A.4); make the union test fail once by dropping one side, and the order test once by sorting names in Java; then move the nine internship classes, the internship methods of `AccountService` as an `internship` service, and the Admin's account screens of `AccountController` as an `internship` controller on the same routes | `ARC-005`, `ARC-006`, `ACC-019`, `ACC-017` | A-09, the union test and the order test pass; the directory, eligibility and due-date tests pass unchanged; `identity` refers to nothing in `internship` |
 | A-11 | Build `R1`: `internship` declares the readiness interface; its completion, withdrawal and account page use it; `project` implements it with the predicate the code applies today; completion and withdrawal stop accepting a guard from their caller. Write the new unfinished-Task refusal test of plan section A.7 and see it fail by breaking the readiness implementation. Add the interface's name to the `ADR-006` table | `ACC-022`, `ARC-006` | Both lists of the cycle test are empty, and it checks the four conditions of the new interface |
 | A-12 | Close the part: the cycle test and the structure tests pass; the history of the list file adds no line after A-02; the full Maven suite, the end-to-end suite and `npm run test:ui` pass; GitNexus change detection reports only the expected processes. Retire the cycle check of `scripts/module-boundaries.cjs` and adjust the JS test that runs it | `AC-ARC-001` | `plan.md` records the evidence, and step 7 of `D28` can compare the code with the documents |
-
-## Part B — One authorization policy
-
-**State:** draft of 22 September 2026, approved together with part B of the plan.
-
-Tasks run on a branch `work/fix/<area>/<what>` from `main` (`OPS-019`), after part A is done. Before any symbol is edited, GitNexus impact analysis runs on it, as `AGENTS.md` requires. After each task the full Maven suite and `npm run test:ui` pass. A test changes only as plan section B.8 allows.
-
-| Task | What | Rules |
-|---|---|---|
-| B-01 | Read the §5.2 matrix into a fixture and assert all 144 cells against what the matrix grants. Record the failing cells: they are the work list of B-02 and B-03, each a finding, never a baseline to keep | `AC-AUTH-011`, first half |
-| B-02 | The policy and the catalogue in `platform`; route the three Admin report checks through it; refuse an owning Mentor any Task status change the matrix does not grant | `AUTH-012`, refusal half of `TSK-023` |
-| B-03 | Every remaining role decision in services and templates, one module at a time, each module adding the scope it resolves (B.4) | `AUTH-012`, `AUTH-002` |
-| B-04 | Withdraw one Admin capability in the catalogue and show that only that cell changes | `AC-AUTH-011`, second half; `D1` |
-| B-05 | One web test of the production response headers and cookie attributes against `AC-SEC-008`, and under the production profile that no development relaxation is present | `SEC-011`, `SEC-013` |
-| B-06 | One web test per protected record type: an existing record the caller may not see and an absent identifier give the same status, view and body | `AUTH-002` |
-| B-07 | Native SQL of `ProjectService` behind the data-access layer, behavior unchanged; a build check that fails on native SQL (`createNativeQuery`, `JdbcTemplate`, native `@Query`) outside a repository | `ARC-006`, `D18` |
-
-## Part C — The schema change the decisions require
-
-**State:** draft of 22 September 2026, approved together with part C of the plan.
-
-Tasks run on a branch `work/fix/<area>/<what>` from `main` (`OPS-019`), after part A is done. Before any symbol is edited, GitNexus impact analysis runs on it, as `AGENTS.md` requires. After each task the full Maven suite and `npm run test:ui` pass. Every migration step starts with its probe tests, seen failing (plan section C.7).
-
-| Task | What | Done when |
-|---|---|---|
-| C-01 | Identify each target database's Flyway history, and read the stored rows C.5 depends on: `CANCELLED` leave requests with and without a decision time, policy versions with a quota above 4, notifications with a payload in `NOT_REQUIRED` or `UNAVAILABLE`, deactivated accounts. Change nothing | The history and the counts are recorded in `plan.md`; a different `V2` stops the work |
-| C-02 | The probe tests of V3, seen failing | Each fails for the reason it names |
-| C-03 | V3 (C.3), its backfills, and the §19.4 diagram | The probes of C-02 pass, with `AC-DB-001`, `AC-DB-008` and `AC-DB-010`, and so do the full Maven suite, the end-to-end suite and `npm run test:ui` against the unchanged code |
-| C-04 | The identity contract, inside the identity plan | Its probes and `AC-DB-009` pass |
-| C-05 | The attendance contract, with the reclassification, inside the attendance plan | Its probes, `AC-DB-006` and `AC-DB-011` pass |
-| C-06 | The project contract, inside the project plan | Its probes, `AC-DB-007` and `AC-DB-012` pass |
-| C-07 | The notification contract | Its probe passes |
-| C-08 | Close the part | Every `AC-DB-*` scenario passes |

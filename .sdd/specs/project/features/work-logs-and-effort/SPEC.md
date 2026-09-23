@@ -15,7 +15,7 @@ not separate modules or mandatory branches. The split changes document ownership
 
 Authorized log author; current Leader manages estimates and remaining-effort forecasts.
 
-The [platform permission matrix](../../../platform/MODULE.md#52-permission-matrix)
+The [platform permission matrix](../../../platform/features/authorization/SPEC.md#52-permission-matrix)
 and the module's shared authorization rules apply to every operation.
 
 ## 3. Functional Requirements
@@ -82,7 +82,7 @@ already exists and preserves ARC-005/ARC-006.
 | [project/membership-and-leadership](../membership-and-leadership/SPEC.md) | Current Leader and member intervals | [PRJ-005](../membership-and-leadership/SPEC.md) |
 | [project/lifecycle](../lifecycle/SPEC.md) | Active Project and work-date bounds | [PRJ-002](../lifecycle/SPEC.md), [PRJ-024](../lifecycle/SPEC.md) |
 | [internship](../../../internship/MODULE.md) | Intern interval and per-Intern lock owner under DB-008 | [ACC-019](../../../internship/features/lifecycle/SPEC.md) |
-| [platform](../../../platform/MODULE.md) | Daily-work serialization and independence from attendance | [DB-008](../../../platform/MODULE.md), [GOV-004](../../../platform/MODULE.md) |
+| [platform](../../../platform/MODULE.md) | Daily-work serialization and independence from attendance | [DB-008](../../../platform/features/data-model/SPEC.md), [GOV-004](../../../platform/MODULE.md) |
 
 ### Related workflows and joint checks
 

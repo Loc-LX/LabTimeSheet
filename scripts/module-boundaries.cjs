@@ -385,7 +385,7 @@ const RESOLUTIONS = [
     how: 'Calendar declares a port that attendance and project each implement with the data they own (leave reservations, Task due dates). Not wired today: TaskQueryService.dueDateImpacts has no caller.' },
   { id: 'R6', title: 'platform -> business modules, rule references',
     drop: e => e.from === 'platform' && e.kind === 'rule-citation',
-    how: 'AUTH-003, AUTH-010, GOV-014, GOV-015, ARC-010 and UI-019 cite module rules as definitions. The authorization policy receives scope resolved by the owning module (platform plan, part B, section B.4). The code graph shows no platform code importing a business module.' },
+    how: 'AUTH-003, AUTH-010, GOV-014, GOV-015, ARC-010 and UI-019 cite module rules as definitions. The authorization policy receives scope resolved by the owning module (Authorization plan, part B, section B.4). The code graph shows no platform code importing a business module.' },
 ];
 
 /* ---------------------------------------------------------------------------

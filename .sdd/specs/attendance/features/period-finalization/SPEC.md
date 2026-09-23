@@ -19,7 +19,7 @@ Mentor acts within the reopened range and finalizes that range again under ATT-0
 
 Use cases defined here: UC-17.
 
-The [platform permission matrix](../../../platform/MODULE.md#52-permission-matrix)
+The [platform permission matrix](../../../platform/features/authorization/SPEC.md#52-permission-matrix)
 and the module's shared authorization rules apply to every operation.
 
 ## 3. Functional Requirements
@@ -120,7 +120,7 @@ already exists and preserves ARC-005/ARC-006.
 |---|---|---|
 | [attendance](../../MODULE.md) | Retained request states and recipient selection | [DB-017](../../MODULE.md), [DB-018](../../MODULE.md), [NOT-011](../../MODULE.md) |
 | [internship/responsible-mentor](../../../internship/features/responsible-mentor/SPEC.md) | Current Mentor for reopened decisions | [ACC-026](../../../internship/features/responsible-mentor/SPEC.md) |
-| [platform](../../../platform/MODULE.md) | Policy-controlled reopening authorization | [AUTH-012](../../../platform/MODULE.md) |
+| [platform](../../../platform/MODULE.md) | Policy-controlled reopening authorization | [AUTH-012](../../../platform/features/authorization/SPEC.md) |
 
 ### Related workflows and joint checks
 
