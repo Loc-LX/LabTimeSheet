@@ -15,7 +15,7 @@ not separate modules or mandatory branches. The split changes document ownership
 
 Authenticated recipient; domain event publisher.
 
-The [platform permission matrix](../../../platform/MODULE.md#52-permission-matrix)
+The [platform permission matrix](../../../platform/features/authorization/SPEC.md#52-permission-matrix)
 and the module's shared authorization rules apply to every operation.
 
 ## 3. Functional Requirements
@@ -63,7 +63,7 @@ already exists and preserves ARC-005/ARC-006.
 | Provider | Required fact or behavior | Rule trace |
 |---|---|---|
 | [identity](../../../identity/MODULE.md) | Authenticated recipient identity | [ACC-009](../../../identity/MODULE.md) |
-| [platform](../../../platform/MODULE.md) | Recipient isolation | [AUTH-002](../../../platform/MODULE.md) |
+| [platform](../../../platform/MODULE.md) | Recipient isolation | [AUTH-002](../../../platform/features/authorization/SPEC.md) |
 
 ### Related workflows and joint checks
 

@@ -15,7 +15,7 @@ not separate modules or mandatory branches. The split changes document ownership
 
 Owning Mentor, current Leader, ordinary member and active Admin within the distinct scopes of RPT-005.
 
-The [platform permission matrix](../../../platform/MODULE.md#52-permission-matrix)
+The [platform permission matrix](../../../platform/features/authorization/SPEC.md#52-permission-matrix)
 and the module's shared authorization rules apply to every operation.
 
 ## 3. Functional Requirements
@@ -64,7 +64,7 @@ already exists and preserves ARC-005/ARC-006.
 |---|---|---|
 | [project/lifecycle](../../../project/features/lifecycle/SPEC.md) | Retained Project status and progress | [PRJ-015](../../../project/features/lifecycle/SPEC.md), [PRJ-016](../../../project/features/lifecycle/SPEC.md), [PRJ-023](../../../project/features/lifecycle/SPEC.md) |
 | [project/work-logs-and-effort](../../../project/features/work-logs-and-effort/SPEC.md) | Work totals and effort semantics | [TSK-013](../../../project/features/work-logs-and-effort/SPEC.md), [TSK-014](../../../project/features/work-logs-and-effort/SPEC.md), [TSK-015](../../../project/features/work-logs-and-effort/SPEC.md), [TSK-016](../../../project/features/work-logs-and-effort/SPEC.md), [TSK-021](../../../project/features/work-logs-and-effort/SPEC.md) |
-| [project](../../../project/MODULE.md) | Stored Project/member/Leader scope | [AUTH-004](../../../project/MODULE.md), [AUTH-005](../../../project/MODULE.md), [AUTH-006](../../../project/MODULE.md), [AUTH-007](../../../project/MODULE.md), [AUTH-008](../../../project/MODULE.md), [AUTH-009](../../../project/MODULE.md), [AUTH-010](../../../platform/MODULE.md), [AUTH-011](../../../project/MODULE.md) |
+| [project](../../../project/MODULE.md) | Stored Project/member/Leader scope | [AUTH-004](../../../project/MODULE.md), [AUTH-005](../../../project/MODULE.md), [AUTH-006](../../../project/MODULE.md), [AUTH-007](../../../project/MODULE.md), [AUTH-008](../../../project/MODULE.md), [AUTH-009](../../../project/MODULE.md), [AUTH-010](../../../platform/features/authorization/SPEC.md), [AUTH-011](../../../project/MODULE.md) |
 | [reporting](../../MODULE.md) | Shared export pipeline and cleanup | [RPT-001](../../MODULE.md), [RPT-006](../../MODULE.md), [RPT-007](../../MODULE.md), [RPT-008](../../MODULE.md), [RPT-009](../../MODULE.md), [RPT-010](../../MODULE.md), [ERR-006](../../MODULE.md) |
 
 ### Related workflows and joint checks
@@ -87,7 +87,7 @@ claim full test coverage. Actors and outcomes are summaries of the canonical rul
 | Operation | Actor and observable outcome | Canonical rules | Existing acceptance scenarios | Acceptance boundary or open decision |
 |---|---|---|---|---|
 | [Filter Project and Task data](#filter-project-and-task-data) | Authorized reader filters retained Project/Task progress and work | [RPT-001](../../MODULE.md), [RPT-003](SPEC.md), [RPT-006](../../MODULE.md), [RPT-007](../../MODULE.md), [RPT-008](../../MODULE.md), [RPT-009](../../MODULE.md), [RPT-010](../../MODULE.md) | [AC-RPT-001](../../MODULE.md), [AC-RPT-003](../../MODULE.md) | Shared format checks need explicit Project/member/status/work-date filter fixtures and zero-denominator totals. |
-| [Apply per-member visibility](#apply-per-member-visibility) | Reader receives per-member or aggregate data according to stored scope | [RPT-005](SPEC.md), [AUTH-010](../../../platform/MODULE.md) | [AC-RPT-002](../../MODULE.md), [AC-AUTH-008](../../../platform/MODULE.md) | Cover owning/non-owning Mentor, current/former Leader, member and read-only Admin, including export attempts. |
+| [Apply per-member visibility](#apply-per-member-visibility) | Reader receives per-member or aggregate data according to stored scope | [RPT-005](SPEC.md), [AUTH-010](../../../platform/features/authorization/SPEC.md) | [AC-RPT-002](../../MODULE.md), [AC-AUTH-008](../../../platform/features/authorization/SPEC.md) | Cover owning/non-owning Mentor, current/former Leader, member and read-only Admin, including export attempts. |
 
 ### Canonical acceptance scenarios
 

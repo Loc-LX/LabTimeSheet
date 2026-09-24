@@ -141,10 +141,13 @@ match the code.
 **Verify a path before trusting its name.** The specification lives in
 [the specification map](.sdd/specs/README.md): each module has a `MODULE.md` shared contract
 and cohesive `features/<feature>/SPEC.md` documents. System-wide rules stay in
-`platform/MODULE.md`. The old `feature-*` folders no longer exist (`D38`); each module's
-`CHANGELOG.md` keeps their history under *Retained history*, and the platform technical plan
-is `platform/PLAN.md`. Some dated records cite an older location; they are left as written,
-and `git show c443670:<path>` recovers what they point at.
+`platform/MODULE.md`, except the architecture, the authorization model, the security controls
+and the data model, which are platform features (`D40`). The old `feature-*` folders no longer
+exist (`D38`); each module's `CHANGELOG.md` keeps their history under *Retained history*. Every
+`PLAN.md` and `TASKS.md` sits beside its feature's `SPEC.md`; the
+[Architecture plan](.sdd/specs/platform/features/architecture/PLAN.md) holds part A after `A-12`.
+Some dated records cite an older location; they are left as written, and
+`git show c443670:<path>` recovers what they point at.
 
 ## Useful commands
 

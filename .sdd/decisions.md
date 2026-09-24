@@ -88,6 +88,7 @@ came from, not whether the choice is settled.
 | D37 | Whether Task status transitions require a non-deleted Task, and complete invitation/exit status sets | Require non-deleted Task in TSK-007; add AC-TSK-021; align DB-011 and DB-012 status constraints with V1__baseline.sql; define invitation and exit-request state transition tables | `TSK-007`, `DB-011`, `DB-012`, `AC-TSK-021` |
 | D39 | Which schema predicates the migration must change, and how that is decided | A criterion with three verdicts (member, history-bound member, unaffected) applied to every rule; a starting list from the eight tables examined, with no claim of completeness; the audit is finished table by table in the plan, each member proved by a probe test on the migrated schema. Corrected on review three times, then frozen | `DB-018`, `DB-019`; new `AC-DB-010`–`AC-DB-012`; `DB-002` and `DB-011` unchanged |
 | D38 | The last open questions: one home per module, the account state machine, delivery states, reset eligibility | Remove the parallel `feature-*` tree after folding its history into each module; a never-activated account can be cancelled and a deactivated one reinstated, keeping any lock; only an `ACTIVE` account signs in; state the five delivery states; reset is for `ACTIVE` and `LOCKED`, clears the throttle and never changes account state. Corrected on review | `ACC-014`, `ACC-016`; new `ACC-028`, `ACC-029`, `ACC-030`, `NOT-012`, `SEC-015`, `DB-022`; new `AC-ACC-020`–`AC-ACC-022`, `AC-NOT-007`, `AC-SEC-009`–`AC-SEC-011`, `AC-DB-009` |
+| D40 | Where a feature's plan and tasks live | One `PLAN.md` and one `TASKS.md` per feature beside its `SPEC.md`, none per module and no exception; work on a rule a `MODULE.md` holds is planned in the feature whose code it changes; a schema change shared by several features is planned once in the Data model feature; platform gains the Architecture, Authorization, Security and Data model features, which take their `ARC`, `AUTH`, `SEC` and `DB` rows from `MODULE.md` unchanged; part A moves after `A-12` | One bullet of `D28` superseded; no rule text changed |
 
 D1 through D5 came from reading the specification against its own history. D6
 through D9 came from the audit described at the end of this page, which read the
@@ -1349,7 +1350,7 @@ Steps 1 to 5 happen on the current documentation branch. `feature-attendance/PLA
 
 - One `SPEC.md` per module, with no sub-directories of specs; a long spec is divided into sections inside the file.
 - Work is divided into parts, each a cluster of rules that goes through plan, tasks, code and validation.
-- One `PLAN.md` per module with a section per part, and one `TASKS.md` per module with tasks grouped by part. `plan.md` tracks the state of each part.
+- One `PLAN.md` per module with a section per part, and one `TASKS.md` per module with tasks grouped by part. `plan.md` tracks the state of each part. **Superseded by `D40` on 23 September 2026: every `PLAN.md` and `TASKS.md` belongs to one feature.**
 - Depth follows risk. A part that changes the schema, a state machine, or anything historical gets a full plan with a state diagram and a review before code; a read-only or simple part gets a short plan; a part that only moves documents needs no plan.
 - Three things never shrink, however small the part: the rules of the part are named; every test names the rule it protects and is seen failing before it passes; and the validation gate holds, with every `SHALL` backed by code and a test and the whole suite still green.
 
@@ -2133,6 +2134,68 @@ accepted until every `AC-DB-*` scenario runs green as a Testcontainers test.
 what the migration must carry. The catalogue holds 311 rules and 167 scenarios. No Java,
 schema or dependency changes. Reverse by restoring the text of this entry at `399dc17`, the
 `DB-018` and `DB-019` rows, and removing the three scenarios.
+
+## D40. Where do a feature's plan and tasks live?
+
+**Decided on 23 September 2026 by Loc-LX.** It supersedes one bullet of *How work is divided from
+here* in `D28`: "One `PLAN.md` per module with a section per part, and one `TASKS.md` per
+module with tasks grouped by part." The maintainer wants the design and the tasks of a piece of
+work beside the specification of the feature it builds, so that where they live follows from
+where its rules live, with no exception. The other bullets of that list are not changed.
+
+**The rule.**
+
+- Every `PLAN.md` and `TASKS.md` belongs to one feature and sits beside its `SPEC.md` in `.sdd/specs/<module>/features/<feature>/`. No module keeps a `PLAN.md` or `TASKS.md` of its own, `platform` included.
+- A change that belongs to one feature is planned in that feature. Work on a rule that a module's `MODULE.md` holds is planned in the feature whose code that work changes; where it changes the code of several features, each plans its own share.
+- A schema change shared by several features is planned once in `platform/features/data-model`, and it ships with the code of the feature plans it names.
+- `plan.md` remains the only progress tracker.
+
+**Where platform's shared work goes.** The parts of the platform plan belonged to no platform
+feature, and the specification map called platform's system-wide rules "not artificial business
+feature folders". Four platform features now hold that work, and their rules and scenarios move
+out of `platform/MODULE.md` unchanged:
+
+| Feature | Rules and scenarios | Section | Plan part |
+|---|---|---|---|
+| Architecture | `ARC-001`–`ARC-010`, `AC-ARC-001`, `AC-ARC-002` | §3 | A, after `A-12`; D |
+| Authorization | `AUTH-001`–`AUTH-003`, `AUTH-010`, `AUTH-012`, `AC-AUTH-001`, `AC-AUTH-002`, `AC-AUTH-008`, `AC-AUTH-009`, `AC-AUTH-011` | §5, with the §5.2 matrix | B |
+| Security | `SEC-001`, `SEC-008`–`SEC-014`, `AC-SEC-001`, `AC-SEC-004`–`AC-SEC-008` | §13 | E |
+| Data model | `DB-001`, `DB-003`–`DB-008`, `DB-010`, `AC-DB-001`, `AC-DB-004` | §19 | C |
+
+A rule of those prefixes that already lives in a business module stays there. Section numbers
+are one numbering across the specification, so each moved section keeps its number and leaves a
+pointer where it was.
+
+**Plan parts follow their rules.** Part B, as drafted on 22 September, also closed the gaps of
+`SEC-011` and `SEC-013` and the business-SQL half of `ARC-006`. Those rules now belong to Security
+and Architecture, so task B-05 becomes E-01 of a new part E of the Security plan and task B-07
+becomes D-01 of a new part D of the Architecture plan; their task text is unchanged apart from
+the identifier. Letters D and E continue the platform plan's sequence so that no two parts share
+a letter. Part C's contract steps C-04 to C-07 stay in the Data model plan and now name the
+feature plans whose code each ships with, in place of the module plans this decision removes.
+
+**Part A moves last.** Part A is being built and its tasks are cited by path. It stays in
+`platform/PLAN.md` and `platform/TASKS.md` until `A-12` closes the part, then moves to the
+Architecture feature, and the two platform files are removed.
+
+**Why a shared schema change is planned once.** A migration is one ordered unit. Splitting one
+change across several feature plans would give each its own migration and an order among them
+that no single plan owns. Part C already works this way: its expansion is planned centrally, and
+each contract step ships with the code that obeys it.
+
+**Alternatives rejected.** Keeping module-level plans for work that spans features, or for rules
+a `MODULE.md` holds: the maintainer rejected any exception to one plan per feature. Feature
+folders that hold only a plan while platform's rules stay in `MODULE.md`: a plan would then have
+no specification beside it.
+
+**Not decided here.** Code packages that mirror the features of the specification would change
+`ARC-005` and move code. That is a separate decision, taken after step 6.
+
+**Scope of this change.** Four feature specs with changelogs, and the plans and tasks of parts B
+to E beside them. All 478 rule and scenario rows are byte-identical before and after, and the
+catalogue still holds 311 rules and 167 scenarios. 42 links follow the rows: 27 to the §5.2
+matrix and 15 naming a moved rule or scenario. No Java, schema or dependency changes. Reverse by
+reverting the commit that applies this entry.
 
 ## What the audit checked and found sound
 

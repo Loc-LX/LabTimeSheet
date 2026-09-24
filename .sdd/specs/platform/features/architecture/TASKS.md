@@ -1,7 +1,8 @@
-# Platform Tasks
+# Architecture Tasks
 
 The tasks of [PLAN.md](PLAN.md), grouped by the same parts. Each part's tasks are approved with
-that part of the plan; `plan.md` tracks which are done.
+that part of the plan; `plan.md` tracks which are done. [Part A](#part-a--module-boundaries)
+moved here from the platform tasks under `D40` after `A-12` closed it. D-01 was B-07 of the platform tasks.
 
 ## Part A — Module boundaries
 
@@ -35,3 +36,13 @@ with the maintainer's permission; the tasks then run on `work/fix/architecture/<
 | A-10 | Place `internship` (`R3`): first write the tests of the directory union and of the eligibility order (plan section A.7) and see them pass against the current join; compose the directory as a union, and the eligibility and due-date reads as intersections with their order, over the service contract of `identity` (plan section A.4); make the union test fail once by dropping one side, and the order test once by sorting names in Java; then move the nine internship classes, the internship methods of `AccountService` as an `internship` service, and the Admin's account screens of `AccountController` as an `internship` controller on the same routes | `ARC-005`, `ARC-006`, `ACC-019`, `ACC-017` | A-09, the union test and the order test pass; the directory, eligibility and due-date tests pass unchanged; `identity` refers to nothing in `internship` |
 | A-11 | Build `R1`: `internship` declares the readiness interface; its completion, withdrawal and account page use it; `project` implements it with the predicate the code applies today; completion and withdrawal stop accepting a guard from their caller. Write the new unfinished-Task refusal test of plan section A.7 and see it fail by breaking the readiness implementation. Add the interface's name to the `ADR-006` table | `ACC-022`, `ARC-006` | Both lists of the cycle test are empty, and it checks the four conditions of the new interface |
 | A-12 | Close the part: the cycle test and the structure tests pass; the history of the list file adds no line after A-02; the full Maven suite, the end-to-end suite and `npm run test:ui` pass; GitNexus change detection reports only the expected processes. Retire the cycle check of `scripts/module-boundaries.cjs` and adjust the JS test that runs it | `AC-ARC-001` | `plan.md` records the evidence, and step 7 of `D28` can compare the code with the documents |
+
+## Part D — Business SQL behind the data-access layer
+
+**State:** draft of 22 September 2026, approved together with part D of the plan.
+
+Tasks run on a branch `work/fix/<area>/<what>` from `main` (`OPS-019`), after part A is done. Before any symbol is edited, GitNexus impact analysis runs on it, as `AGENTS.md` requires. After each task the full Maven suite and `npm run test:ui` pass. A test changes only as plan section D.3 allows.
+
+| Task | What | Rules |
+|---|---|---|
+| D-01 | Native SQL of `ProjectService` behind the data-access layer, behavior unchanged; a build check that fails on native SQL (`createNativeQuery`, `JdbcTemplate`, native `@Query`) outside a repository | `ARC-006`, `D18` |
