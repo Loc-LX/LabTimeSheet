@@ -4,10 +4,11 @@ import java.time.LocalDate;
 import java.util.Objects;
 
 /**
- * Immutable Account-owned historical reporting window for one Intern.
+ * Immutable internship-owned historical reporting window for one Intern.
  *
  * <p>The dates are inclusive business dates. {@code activationDate} and the optional {@code terminalDate} are
- * derived from retained lifecycle timestamps in the Account feature's business timezone; callers never receive an
+ * derived from retained internship lifecycle timestamps in the timezone of the server {@code Clock} supplied by
+ * {@code TimeConfiguration} to the internship service; callers never receive an
  * account or Intern-profile entity. A terminal date is included when it falls inside the configured internship
  * range, so completion or withdrawal does not erase that day's historical reporting eligibility.</p>
  *
@@ -41,7 +42,7 @@ public record InternReportingWindow(
     }
 
     /**
-     * Checks an inclusive business date without exposing Account persistence or current lifecycle status.
+     * Checks an inclusive business date without exposing internship persistence or current lifecycle status.
      *
      * @param date business date supplied by the reporting consumer; {@code null} is rejected
      * @return {@code true} when the date belongs to this historical window

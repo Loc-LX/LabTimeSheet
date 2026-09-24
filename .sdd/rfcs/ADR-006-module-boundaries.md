@@ -4,7 +4,7 @@
 - **Date:** 2026-09-17
 - **Changes:** `ARC-005`, `ARC-006`, `AC-ARC-001`
 - **Decision record:** `D28` in [`.sdd/decisions.md`](../decisions.md)
-- **Implemented:** not yet
+- **Implemented:** Architecture plan Part A, tasks A-01 through A-13, completed 24 September 2026
 
 ## Context
 

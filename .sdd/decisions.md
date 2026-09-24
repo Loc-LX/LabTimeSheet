@@ -89,6 +89,7 @@ came from, not whether the choice is settled.
 | D39 | Which schema predicates the migration must change, and how that is decided | A criterion with three verdicts (member, history-bound member, unaffected) applied to every rule; a starting list from the eight tables examined, with no claim of completeness; the audit is finished table by table in the plan, each member proved by a probe test on the migrated schema. Corrected on review three times, then frozen | `DB-018`, `DB-019`; new `AC-DB-010`–`AC-DB-012`; `DB-002` and `DB-011` unchanged |
 | D38 | The last open questions: one home per module, the account state machine, delivery states, reset eligibility | Remove the parallel `feature-*` tree after folding its history into each module; a never-activated account can be cancelled and a deactivated one reinstated, keeping any lock; only an `ACTIVE` account signs in; state the five delivery states; reset is for `ACTIVE` and `LOCKED`, clears the throttle and never changes account state. Corrected on review | `ACC-014`, `ACC-016`; new `ACC-028`, `ACC-029`, `ACC-030`, `NOT-012`, `SEC-015`, `DB-022`; new `AC-ACC-020`–`AC-ACC-022`, `AC-NOT-007`, `AC-SEC-009`–`AC-SEC-011`, `AC-DB-009` |
 | D40 | Where a feature's plan and tasks live | One `PLAN.md` and one `TASKS.md` per feature beside its `SPEC.md`, none per module and no exception; work on a rule a `MODULE.md` holds is planned in the feature whose code it changes; a schema change shared by several features is planned once in the Data model feature; platform gains the Architecture, Authorization, Security and Data model features, which take their `ARC`, `AUTH`, `SEC` and `DB` rows from `MODULE.md` unchanged; part A moves after `A-12` | One bullet of `D28` superseded; no rule text changed |
+| D41 | What the constitution records after Part A | Update the `ARC-005`, `ARC-006`, `ARC-007` and `ARC-008` enforcement/gap statements to match the implemented tests and current Flyway evidence; no rule, layer or obligation changes | constitution `2.0.3` |
 
 D1 through D5 came from reading the specification against its own history. D6
 through D9 came from the audit described at the end of this page, which read the
@@ -2196,6 +2197,24 @@ to E beside them. All 478 rule and scenario rows are byte-identical before and a
 catalogue still holds 311 rules and 167 scenarios. 42 links follow the rows: 27 to the §5.2
 matrix and 15 naming a moved rule or scenario. No Java, schema or dependency changes. Reverse by
 reverting the commit that applies this entry.
+
+## D41. What does the constitution record after Part A?
+
+**Decided on 24 September 2026 by Loc-LX.** The code and structure tests now implement
+the module layout approved by `D28`. The constitution's enforcement and known-gap text
+must describe that current state rather than the layout before Part A.
+
+- `ARC-005` credits `LayerStructureTest`, `ModuleBoundaryCycleTest` and
+  `AttendanceLayerStructureTest` for the package, module-graph and attendance placement
+  checks now present.
+- `ARC-006` credits the repository/entity boundary and interface-exception checks that
+  those tests actually perform, while retaining the business-SQL gap.
+- `ARC-007` says that `PlatformFoundationTest` checks the shape of the Flyway-created
+  catalog and sends the unproven Flyway-only schema authority to the known-enforcement gap.
+- The known-gap row of `ARC-008` no longer calls `ARC-007` enforced; it points to that gap.
+- No rule, layer or obligation changes. The constitution becomes `2.0.3`.
+
+**Status:** decided.
 
 ## What the audit checked and found sound
 

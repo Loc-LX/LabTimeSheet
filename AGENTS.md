@@ -69,9 +69,6 @@ adds Javadoc as it goes, names the rules each test protects in that test's Javad
 gets an independent review, and is merged with an ordinary non-force merge only
 when separately authorized.
 
-`<feature>` names the owning persistent area: `platform`, `projects`, `tasks`,
-`attendance`, or `reports-ui`.
-
 ## 5. Workflow
 
 Every behavior change follows this order. It is `TST-001` through `TST-010`, and

@@ -344,7 +344,7 @@ public class ProjectQueryService {
         if (!"INTERN".equals(actor.role().name())) {
             throw new ProjectAccessDeniedException();
         }
-        // Dùng cho module Task (không phải màn Project)
+        // Dùng cho phần Task (không phải màn Project)
         return projects.findMembershipIntervalsByInternUserId(actorUserId);
     }
 
@@ -584,7 +584,7 @@ public class ProjectQueryService {
      * @param projectId requested Project identifier
      * @return authorized Task context
      */
-    // Thông tin project cho module Task (ai là Leader, ai đang chờ rời…).
+    // Thông tin project cho phần Task (ai là Leader, ai đang chờ rời…).
     @Transactional(readOnly = true)
     public ProjectTaskContext taskContext(long actorUserId, long projectId) {
         var project = projects.findById(projectId).orElseThrow(ProjectAccessDeniedException::new);

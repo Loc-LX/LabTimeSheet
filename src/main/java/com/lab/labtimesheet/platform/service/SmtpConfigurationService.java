@@ -24,7 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
  * A changed draft loses prior test status, and an active revision is retired when its tested successor activates.
  *
  * <p>Every operation takes the actor the caller has already verified, and the test probe takes the recipient the
- * caller resolved, as {@code R4} of the platform plan requires: this service is shared code and reads no other
+ * caller resolved, as {@code R4} of {@code D28} requires: this service is shared code and reads no other
  * module, so it cannot look an Admin up in {@code identity} itself.
  */
 @Service

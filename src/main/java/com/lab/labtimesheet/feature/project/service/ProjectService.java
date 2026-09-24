@@ -834,7 +834,7 @@ public class ProjectService {
     // Leader chuyển công việc theo yêu cầu rời/chờ duyệt của một thành viên.
     // Luồng: xác nhận yêu cầu thuộc đúng Project → kiểm tra quyền Leader và người
     // nhận
-    // → giao bước chuyển công việc cho module Task xử lý theo lô.
+    // → giao bước chuyển công việc cho phần Task của Project xử lý theo lô.
     @Transactional
     public TaskTransferResult transferTasks(
             long actorUserId,
@@ -1022,7 +1022,7 @@ public class ProjectService {
 
     // Thực hiện chuyển công việc: Leader xác nhận yêu cầu rời, khóa dữ liệu thành
     // viên,
-    // rồi nhờ module Task đổi người phụ trách theo lô (có hoặc không kèm dự báo nỗ
+    // rồi nhờ phần Task của Project đổi người phụ trách theo lô (có hoặc không kèm dự báo nỗ
     // lực).
     private TaskTransferResult transferTasksInternal(
             long actorUserId,
@@ -1455,7 +1455,7 @@ public class ProjectService {
      * @return DTO-only locked mutation context
      * @throws ProjectAccessDeniedException for missing or unauthorized Projects
      */
-    // Chuẩn bị thông tin project cho module Task (ai là Leader, ai đang chờ
+    // Chuẩn bị thông tin project cho phần Task (ai là Leader, ai đang chờ
     // rời...).
     @Transactional
     public ProjectTaskContext taskMutationContext(long actorUserId, long projectId) {
