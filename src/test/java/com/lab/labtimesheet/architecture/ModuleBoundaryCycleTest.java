@@ -159,10 +159,9 @@ class ModuleBoundaryCycleTest {
             while (implementationMatcher.find()) {
                 for (String name : implementationMatcher.group(1).split(",")) {
                     InterfaceInfo info = interfaces.get(name.trim());
-                    if (info != null && !modules.get(info.source).equals(implementationModule)) {
-                        info.implementations.add(source);
-                        info.implementationModules.add(implementationModule);
-                    }
+                    if (info == null) continue;
+                    info.implementationModules.add(implementationModule);
+                    if (!modules.get(info.source).equals(implementationModule)) info.implementations.add(source);
                 }
             }
         }

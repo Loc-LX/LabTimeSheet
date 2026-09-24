@@ -1,26 +1,20 @@
 #!/usr/bin/env node
-// Module boundary analysis for the proposed split of the feature packages.
+// Rule ownership and concept scan over the specification.
 //
-//   node scripts/module-boundaries.cjs [repo-root] [--merge-internship] [--out <dir>]
+//   node scripts/module-boundaries.cjs [repo-root] [--out <dir>]
 //
 // What it does
 //   1. Assigns every canonical MODULE.md and nested feature SPEC.md rule to a module and
 //      fails unless each rule lands in exactly one.
-//   2. Collects dependency edges between target modules from three sources:
-//      rule citations, dependencies stated only in rule prose (each phrase is
-//      checked against the rule text), and type references in src/main/java.
-//   3. Applies the recorded resolutions and reports the strongly connected groups
-//      before and after, then the dependency layers.
-//   4. Scans every rule for mentions of a concept owned by another module, and fails
+//   2. Scans every rule for mentions of a concept owned by another module, and fails
 //      unless each mention of the same or a higher layer carries a recorded verdict.
-//      --out also writes concept-scan.tsv.
+//      The layers are read from the table of ADR-006. --out writes rule-map.tsv and
+//      concept-scan.tsv.
 //
-// Scope and lifetime
-//   It describes the structure as it stands before the split. The class and method
-//   tables below are judgments tied to the current packages, so once the code has
-//   moved this script stops being accurate. The lasting guard is a cycle test in the
-//   test suite; after the move either turn the cycle check into that test or retire
-//   this script. Recorded in decision D28.
+// Scope
+//   It reads only the specification. The dependency graph of the code, its cycles and
+//   the boundary references are checked by ModuleBoundaryCycleTest in the architecture
+//   test package (D28, ADR-006).
 //
 // Only Node built-ins are used. Adding a package would be a new dependency.
 // cspell:ignore polic bnotif bauthenticat
@@ -29,14 +23,16 @@ const fs = require('fs');
 const path = require('path');
 
 const args = process.argv.slice(2);
-const MERGE_INTERNSHIP = args.includes('--merge-internship');
+const unknownOption = args.find(a => a.startsWith('--') && a !== '--out');
+if (unknownOption) {
+  console.error(`${unknownOption}: unsupported option; code cycles are checked by ModuleBoundaryCycleTest`);
+  process.exit(1);
+}
 const outIndex = args.indexOf('--out');
 const OUT_DIR = outIndex >= 0 ? path.resolve(args[outIndex + 1]) : null;
 const ROOT = path.resolve(args.find((a, i) => !a.startsWith('--') && args[i - 1] !== '--out') || '.');
 
-const BASE_MODULES = ['identity', 'internship', 'calendar', 'attendance', 'project', 'reporting', 'notification', 'platform'];
-const fold = m => (MERGE_INTERNSHIP && m === 'internship' ? 'identity' : m);
-const MODULES = [...new Set(BASE_MODULES.map(fold))];
+const MODULES = ['identity', 'internship', 'calendar', 'attendance', 'project', 'reporting', 'notification', 'platform'];
 
 /* ---------------------------------------------------------------------------
  * 1. Rules -> module
@@ -45,7 +41,7 @@ const MODULES = [...new Set(BASE_MODULES.map(fold))];
  * ------------------------------------------------------------------------- */
 const specDir = path.join(ROOT, '.sdd/specs');
 const rules = new Map();
-for (const moduleName of BASE_MODULES) {
+for (const moduleName of MODULES) {
   const moduleDir = path.join(specDir, moduleName);
   const files = [path.join(moduleDir, 'MODULE.md'),
     ...fs.readdirSync(path.join(moduleDir, 'features')).sort()
@@ -94,299 +90,44 @@ const ruleProblems = [];
 for (const id of rules.keys()) {
   const hits = RULE_ASSIGNMENT.filter(([, , match]) => match(id));
   if (hits.length !== 1) { ruleProblems.push(`${id}: ${hits.length} matches`); continue; }
-  ruleModule.set(id, fold(hits[0][0]));
+  ruleModule.set(id, hits[0][0]);
   ruleBasis.set(id, hits[0][1]);
 }
 
 /* ---------------------------------------------------------------------------
- * 2. Rule edges. An edge A -> B means module A needs something module B owns.
+ * 2. Layers and resolutions
+ * The layers are those ADR-006 computed, bottom first; the concept scan compares
+ * each mention against them. The resolutions are the ones D28 recorded; a verdict
+ * of kind dependency must name one.
  * ------------------------------------------------------------------------- */
-const edges = [];
-const edge = (from, to, kind, evidence) => {
-  from = fold(from); to = fold(to);
-  if (from !== to) edges.push({ from, to, kind, evidence });
-};
-const expandReferences = text => {
-  const ids = [];
-  for (const m of text.matchAll(/([A-Z]+)-(\d{3})(?:`?\s*[–-]\s*`?(?:\1-)?(\d{3}))?/g)) {
-    const first = Number(m[2]);
-    const last = m[3] ? Number(m[3]) : first;
-    for (let n = first; n <= last; n += 1) ids.push(`${m[1]}-${String(n).padStart(3, '0')}`);
+const ADR = path.join(ROOT, '.sdd/rfcs/ADR-006-module-boundaries.md');
+const LAYER = new Map();
+const layerProblems = [];
+{
+  const text = fs.readFileSync(ADR, 'utf8');
+  const table = text.slice(text.indexOf('Computed layers, bottom first:'));
+  for (const m of table.matchAll(/^\| (\d+) \| ([^|]+) \|$/gm)) {
+    for (const name of m[2].matchAll(/`(\w+)`/g)) LAYER.set(name[1], Number(m[1]));
   }
-  return [...new Set(ids)];
-};
-for (const [id, { text }] of rules) {
-  for (const cited of expandReferences(text)) {
-    if (cited !== id && ruleModule.has(cited)) edge(ruleModule.get(id), ruleModule.get(cited), 'rule-citation', `${id} cites ${cited}`);
-  }
+  for (const m of MODULES) if (!LAYER.has(m)) layerProblems.push(`${m}: no layer in ADR-006`);
 }
 
-// Dependencies stated only in prose. The phrase must occur verbatim in the rule.
-// Business dates are not listed here: they are derived from the code in section 3,
-// so that the reading of GOV-011 is applied to every module the same way.
-const PROSE = [
-  ['attendance', 'calendar', 'CAL-009', 'SHALL refuse attendance check-in on it', 'check-in needs the global day-off calendar'],
-  ['project', 'calendar', 'CAL-009', 'SHALL refuse creating or moving a Task due date onto it', 'Task due dates need the global day-off calendar'],
-  ['attendance', 'calendar', 'LEV-002', 'global days off', 'leave counts eligible workdays against the calendar'],
-  ['attendance', 'internship', 'LEV-002', 'applicable internship interval', 'leave is bounded by the internship'],
-  ['project', 'internship', 'PRJ-017', 'internship are `ACTIVE`', 'invitation and direct addition need internship state'],
-  ['internship', 'project', 'ACC-022', 'holds a current leadership term or owns an unfinished Task', 'completion and withdrawal need open Project work'],
-  ['internship', 'attendance', 'ACC-026', 'move every pending or overdue leave, correction, and attendance exception request', 'reassignment touches pending requests'],
-  ['internship', 'identity', 'ACC-024', '`DEACTIVATED`', 'withdrawal deactivates the account'],
-  ['internship', 'calendar', 'ACC-021', 'WHEN the configured internship start date is reached', 'activation needs the business date (GOV-011)'],
-  ['identity', 'internship', 'ACC-023', 'allow authentication in read-only mode', 'a completed Intern signs in read-only'],
-  ['identity', 'platform', 'ACC-011', 'no tested SMTP configuration', 'account creation needs an active SMTP configuration'],
-  ['platform', 'identity', 'INT-008', 'send a message to that Admin', 'the SMTP test mails the Admin'],
-  ['attendance', 'internship', 'DB-008', 'leave quota', 'quota validation locks the Intern profile'],
-  ['project', 'internship', 'DB-008', 'daily work-minute total', 'work-log totals lock the Intern profile'],
-  ['attendance', 'internship', 'ATT-018', 'terminal internship timestamp', 'attendance obligations end with the internship'],
-  ['calendar', 'attendance', 'CAL-008', 'future-calendar impact preview', 'the preview must disclose leave reservations attendance owns'],
-  ['calendar', 'project', 'CAL-007', 'with an impact preview', 'a new day off affects Task due dates (CAL-009)'],
-];
-const GOV_011_PHRASE = 'timezone of the applicable attendance policy version';
-const proseProblems = [];
-if (!rules.get('GOV-011')?.text.includes(GOV_011_PHRASE)) proseProblems.push('GOV-011: phrase not found, the business-date reading must be revisited');
-for (const [from, to, id, phrase, meaning] of PROSE) {
-  const rule = rules.get(id);
-  if (!rule) proseProblems.push(`${id}: no such rule`);
-  else if (!rule.text.includes(phrase)) proseProblems.push(`${id}: phrase not found: ${phrase}`);
-  else edge(from, to, 'rule-prose', `${id} "${phrase}": ${meaning}`);
-}
-
-/* ---------------------------------------------------------------------------
- * 3. Code edges. Every file under src/main/java gets a module. Type names are
- * resolved as Java does: single-type import, same package, on-demand import.
- * Comments are removed and string literals kept, because JPQL names entities
- * inside strings. AccountService is split by method.
- * A business-date computation is an edge to calendar, the owner of the policy
- * timezone, following the text of GOV-011 rather than the BUSINESS_ZONE constant
- * the code uses today (constitution, known gap for GOV-011).
- * ------------------------------------------------------------------------- */
-const INTERNSHIP_IN_ACCOUNT = new Set(['InternshipStatus', 'EligibleInternOption', 'InternReportingWindow', 'InternWorkWindow',
-  'InternshipLifecycleGuard', 'InternProfile', 'InternProfileRepository', 'InternshipLifecycleScheduler', 'LockedAccountMutationEligibility']);
-const CALENDAR_IN_ATTENDANCE = new Set(['CalendarController', 'AttendancePolicyController', 'CalendarException', 'PolicyException',
-  'AttendancePolicy', 'AttendancePolicyCommand', 'AttendancePolicyHistoryItem', 'CalendarHistoryItem', 'CalendarImportSelection',
-  'CalendarPreviewItem', 'GlobalCalendarEvent', 'AttendancePolicyEntity', 'GlobalCalendarEventEntity', 'AttendancePolicyRepository',
-  'GlobalCalendarEventRepository', 'AttendancePolicyApplicationService', 'AttendancePolicyTimeline', 'CalendarApplicationService']);
-const INTERNSHIP_METHODS = new Set(['activateInternship', 'activateDueInternships', 'completeInternship', 'withdrawInternship',
-  'isEligibleIntern', 'historicalInternReportingWindow', 'lockedInternWorkWindow', 'eligibleInternOptions', 'requireEligibleIntern',
-  'studentCodeByUserId', 'lockedAccountMutationEligibility']);
-const BUSINESS_DATE = /LocalDate\.now\(|\.atZone\(|\bbusinessDate\(\)|\bcurrentBusinessDate\(\)/;
-
-const javaRoot = path.join(ROOT, 'src/main/java');
-const walk = dir => fs.readdirSync(dir, { withFileTypes: true })
-  .flatMap(e => (e.isDirectory() ? walk(path.join(dir, e.name)) : e.name.endsWith('.java') ? [path.join(dir, e.name)] : []));
-const javaFiles = walk(javaRoot);
-const relative = file => path.relative(javaRoot, file).replace(/\\/g, '/');
-const fqnOf = file => relative(file).replace(/\.java$/, '').replace(/\//g, '.');
-const simpleName = fqn => fqn.split('.').pop();
-const packageOf = fqn => fqn.split('.').slice(0, -1).join('.');
-
-function moduleOfClass(fqn) {
-  const parts = fqn.split('.');
-  if (parts[3] !== 'feature') return 'composition'; // config/* and LabtimesheetApplication wire modules
-  const cls = simpleName(fqn);
-  switch (parts[4]) {
-    case 'account':
-    case 'identity': return fold(INTERNSHIP_IN_ACCOUNT.has(cls) ? 'internship' : 'identity');
-    case 'internship': return fold('internship');
-    case 'attendance': return CALENDAR_IN_ATTENDANCE.has(cls) ? 'calendar' : 'attendance';
-    case 'calendar': return 'calendar';
-    // R4 puts the SMTP administration screen in identity, beside the bootstrap that offers SMTP setup.
-    case 'integration': return cls.startsWith('HolidayApi') ? 'calendar' : cls === 'SmtpController' ? 'identity' : 'platform';
-    case 'project': return 'project';
-    case 'reporting': return cls === 'AdminSettingsController' ? 'calendar' : cls === 'NotificationController' ? 'notification' : 'reporting';
-    case 'notification': return 'notification';
-    default: throw new Error(`unmapped class ${fqn}`);
-  }
-}
-const byFqn = new Map(javaFiles.map(f => [fqnOf(f), f]));
-const knownSimpleNames = new Set([...byFqn.keys()].map(simpleName));
-const stripComments = src => src
-  .replace(/\/\*[\s\S]*?\*\//g, block => block.replace(/[^\n]/g, ' '))
-  .replace(/(^|[^:"])\/\/.*$/gm, '$1');
-
-const intoComposition = [];
-const businessDateSites = [];
-const inferredInternshipHelpers = [];
-for (const file of javaFiles) {
-  const fqn = fqnOf(file);
-  const src = stripComments(fs.readFileSync(file, 'utf8'));
-  const lines = src.split('\n');
-  const singleImports = new Map();
-  const wildcardImports = [];
-  for (const m of src.matchAll(/^import\s+(com\.lab\.labtimesheet\.[\w.]+(?:\.\*)?)\s*;/gm)) {
-    if (m[1].endsWith('.*')) wildcardImports.push(m[1].slice(0, -2));
-    else singleImports.set(simpleName(m[1]), m[1]);
-  }
-  const resolve = name => {
-    if (singleImports.has(name)) return singleImports.get(name);
-    const samePackage = `${packageOf(fqn)}.${name}`;
-    if (byFqn.has(samePackage)) return samePackage;
-    for (const w of wildcardImports) if (byFqn.has(`${w}.${name}`)) return `${w}.${name}`;
-    return null;
-  };
-  const isAccountService = simpleName(fqn) === 'AccountService';
-  const methodAt = [];
-  // Methods on the internship side of AccountService: the named public ones, plus
-  // every private helper whose callers all sit on the internship side. Inferred,
-  // not listed by hand, so a helper cannot be misfiled by its name.
-  const internshipSide = new Set(INTERNSHIP_METHODS);
-  if (isAccountService) {
-    let depth = 0;
-    let current = null;
-    const privateMethods = new Set();
-    lines.forEach((line, i) => {
-      if (depth === 1) {
-        const m = line.match(/^\s*(public|private|protected)[^=;(]*\s(\w+)\s*\(/);
-        if (m) { current = m[2]; if (m[1] === 'private') privateMethods.add(m[2]); }
-      }
-      methodAt[i] = current;
-      for (const ch of line) {
-        if (ch === '{') depth += 1;
-        else if (ch === '}') { depth -= 1; if (depth === 1) current = null; }
-      }
-    });
-    const callers = new Map();
-    lines.forEach((line, i) => {
-      for (const m of line.matchAll(/(?<![.\w])(\w+)\s*\(/g)) {
-        if (!privateMethods.has(m[1]) || methodAt[i] === m[1] || !methodAt[i]) continue;
-        if (!callers.has(m[1])) callers.set(m[1], new Set());
-        callers.get(m[1]).add(methodAt[i]);
-      }
-    });
-    for (let changed = true; changed;) {
-      changed = false;
-      for (const [helper, from] of callers) {
-        if (!internshipSide.has(helper) && [...from].every(c => internshipSide.has(c))) { internshipSide.add(helper); changed = true; }
-      }
-    }
-    inferredInternshipHelpers.push(...[...internshipSide].filter(m => !INTERNSHIP_METHODS.has(m)));
-  }
-  const moduleAt = i => (isAccountService && internshipSide.has(methodAt[i]) ? fold('internship') : moduleOfClass(fqn));
-  const accountServiceVariables = new Set([...src.matchAll(/\bAccountService\s+(\w+)\s*[;,)=]/g)].map(m => m[1]));
-
-  lines.forEach((line, i) => {
-    if (/^\s*(package|import)\s/.test(line)) return;
-    const from = moduleAt(i);
-    const where = `${relative(file)}:${i + 1}`;
-    if (BUSINESS_DATE.test(line) && from !== 'composition') {
-      businessDateSites.push({ module: from, where });
-      edge(from, 'calendar', 'business-date', `${where} (GOV-011 reading)`);
-    }
-    for (const m of line.matchAll(/\b([A-Z]\w*)\b/g)) {
-      if (!knownSimpleNames.has(m[1]) || m[1] === simpleName(fqn) || m[1] === 'AccountService') continue;
-      const target = resolve(m[1]);
-      if (!target) continue;
-      const to = moduleOfClass(target);
-      if (to === 'composition' && from !== 'composition') intoComposition.push(`${from} <- ${where} ${m[1]}`);
-      else if (from !== 'composition' && to !== 'composition') edge(from, to, 'code-type', `${where} ${m[1]}`);
-    }
-    for (const m of line.matchAll(/\b(\w+)(?:\(\))?\.(\w+)\s*\(/g)) {
-      if (!accountServiceVariables.has(m[1]) && m[1] !== 'requireAccountService') continue;
-      if (from === 'composition') continue;
-      edge(from, INTERNSHIP_METHODS.has(m[2]) ? 'internship' : 'identity', 'code-call', `${where} AccountService.${m[2]}`);
-    }
-    if (isAccountService) {
-      for (const m of line.matchAll(/(?<![.\w])(\w+)\s*\(/g)) {
-        if (internshipSide.has(m[1]) && methodAt[i] !== m[1]) edge(from, 'internship', 'code-call', `${where} ${methodAt[i]} -> ${m[1]}`);
-      }
-    }
-  });
-}
-
-/* ---------------------------------------------------------------------------
- * 4. Graph
- * ------------------------------------------------------------------------- */
-function adjacency(list) {
-  const adj = new Map(MODULES.map(m => [m, new Set()]));
-  for (const e of list) if (adj.has(e.from) && adj.has(e.to) && e.from !== e.to) adj.get(e.from).add(e.to);
-  return adj;
-}
-function stronglyConnected(list) {
-  const adj = adjacency(list);
-  let counter = 0;
-  const stack = [];
-  const onStack = new Set();
-  const index = new Map();
-  const low = new Map();
-  const groups = [];
-  const visit = v => {
-    index.set(v, counter); low.set(v, counter); counter += 1;
-    stack.push(v); onStack.add(v);
-    for (const w of adj.get(v)) {
-      if (!index.has(w)) { visit(w); low.set(v, Math.min(low.get(v), low.get(w))); }
-      else if (onStack.has(w)) low.set(v, Math.min(low.get(v), index.get(w)));
-    }
-    if (low.get(v) === index.get(v)) {
-      const group = [];
-      let w;
-      do { w = stack.pop(); onStack.delete(w); group.push(w); } while (w !== v);
-      if (group.length > 1) groups.push(group.sort());
-    }
-  };
-  for (const m of MODULES) if (!index.has(m)) visit(m);
-  return groups;
-}
-function layers(list) {
-  const adj = adjacency(list);
-  const depth = new Map();
-  const measure = m => {
-    if (depth.has(m)) return depth.get(m);
-    depth.set(m, 0);
-    const d = adj.get(m).size ? 1 + Math.max(...[...adj.get(m)].map(measure)) : 0;
-    depth.set(m, d);
-    return d;
-  };
-  MODULES.forEach(measure);
-  const byDepth = [];
-  for (const [m, d] of depth) (byDepth[d] = byDepth[d] || []).push(m);
-  return byDepth.map(g => g.sort());
-}
-const grouped = list => {
-  const out = new Map();
-  for (const e of list) {
-    if (e.from === e.to || !MODULES.includes(e.from) || !MODULES.includes(e.to)) continue;
-    const key = `${e.from} -> ${e.to}`;
-    if (!out.has(key)) out.set(key, []);
-    out.get(key).push(e);
-  }
-  return out;
-};
-
-/* ---------------------------------------------------------------------------
- * 5. Resolutions. None of them changes the text of a rule.
- * ------------------------------------------------------------------------- */
-const INTERNSHIP = fold('internship');
 const RESOLUTIONS = [
   { id: 'R1', title: 'internship <-> project',
-    drop: e => (e.from === INTERNSHIP && e.to === 'project') || (e.from === 'identity' && e.to === 'project' && e.evidence.includes('AccountController')),
-    add: [['project', 'internship']],
     how: 'internship declares a port asking whether an Intern still holds a leadership term or an unfinished Task (ACC-022); project implements it. The completion and withdrawal orchestration in ProjectService and AccountController moves to internship.' },
   { id: 'R2', title: 'internship <-> attendance',
-    drop: e => e.from === INTERNSHIP && e.to === 'attendance',
     how: 'Requests store no assigned approver; the responsible Mentor is resolved when a decision is made. V1 forces decided_by_mentor_user_id to NULL while a request is PENDING. The new exception table keeps that shape.' },
-  { id: 'R3', title: 'identity <-> internship', skipWhenMerged: true,
-    drop: e => e.from === 'identity' && e.to === 'internship',
-    add: [['internship', 'identity']],
+  { id: 'R3', title: 'identity <-> internship',
     how: 'internship composes Intern creation, correction and the Student Code directory over identity in one transaction; identity keeps accounts and sign-in. ACC-023 read-only access is enforced by the authorization policy from internship state.' },
   { id: 'R4', title: 'platform <-> identity',
-    drop: e => e.from === 'platform' && e.to === 'identity',
-    add: [['identity', 'platform']],
     how: 'Platform services receive the verified actor and the recipient address; the SMTP administration screen sits in identity beside the bootstrap that offers SMTP setup (ACC-005, ACC-011).' },
   { id: 'R7', title: 'calendar -> attendance, who is the actor',
-    drop: e => e.from === 'calendar' && e.to === 'attendance' && /AttendanceActor|AttendanceRole|AttendanceCurrentUserService/.test(e.evidence),
     how: 'AttendanceRole copies GlobalRole and AttendanceCurrentUserService only calls AccountService.requireIdentityByEmail. Calendar resolves its actor from identity.' },
   { id: 'R8', title: 'calendar -> attendance, business date',
-    drop: e => e.from === 'calendar' && e.to === 'attendance' && /AttendanceApplicationService/.test(e.evidence),
-    add: [['attendance', 'calendar']],
     how: 'currentBusinessDate is today in the policy timezone; the policy lives in calendar, so the business date is computed there.' },
   { id: 'R9', title: 'calendar -> attendance and project, change impact preview',
-    drop: e => e.from === 'calendar' && /^CAL-00[78]/.test(e.evidence),
-    add: [['attendance', 'calendar'], ['project', 'calendar']],
     how: 'Calendar declares a port that attendance and project each implement with the data they own (leave reservations, Task due dates). Not wired today: TaskQueryService.dueDateImpacts has no caller.' },
   { id: 'R6', title: 'platform -> business modules, rule references',
-    drop: e => e.from === 'platform' && e.kind === 'rule-citation',
     how: 'AUTH-003, AUTH-010, GOV-014, GOV-015, ARC-010 and UI-019 cite module rules as definitions. The authorization policy receives scope resolved by the owning module (platform plan §5, second risk; §2.3 says the opposite and is corrected). The code graph shows no platform code importing a business module.' },
 ];
 
@@ -395,54 +136,14 @@ const RESOLUTIONS = [
  * ------------------------------------------------------------------------- */
 const out = [];
 const say = s => out.push(s);
-say(`# Module boundary analysis${MERGE_INTERNSHIP ? ' (internship merged into identity)' : ''}`);
+say('# Rule ownership and concept scan');
 say(`\n## Rules\nfound ${rules.size}, assigned ${ruleModule.size}, problems ${ruleProblems.length}`);
 ruleProblems.forEach(p => say(`  PROBLEM ${p}`));
 say(MODULES.map(m => `${m}=${[...ruleModule.values()].filter(v => v === m).length}`).join('  '));
 say(`relocated beyond prefix and range: ${[...ruleBasis].filter(([, b]) => b.startsWith('relocated')).map(([id]) => `${id} (${rules.get(id).spec} -> ${ruleModule.get(id)})`).join(', ')}`);
-say(`prose phrases checked: ${PROSE.length + 1}, problems ${proseProblems.length}`);
-proseProblems.forEach(p => say(`  PROBLEM ${p}`));
-
-say(`\nAccountService private helpers inferred to the internship side: ${inferredInternshipHelpers.sort().join(', ') || 'none'}`);
-say(`\n## Business-date computations, by target module (GOV-011 reading)`);
-const sitesByModule = {};
-businessDateSites.forEach(s => { (sitesByModule[s.module] = sitesByModule[s.module] || []).push(s.where); });
-Object.keys(sitesByModule).sort().forEach(m => say(`${m}: ${sitesByModule[m].length} site(s)`));
-
-const before = grouped(edges);
-say(`\n## Edges before resolution: ${edges.filter(e => MODULES.includes(e.from) && MODULES.includes(e.to)).length}`);
-[...before].sort().forEach(([k, list]) => {
-  const kinds = {};
-  list.forEach(e => { kinds[e.kind] = (kinds[e.kind] || 0) + 1; });
-  say(`${k.padEnd(28)} ${Object.entries(kinds).map(([a, b]) => `${a}:${b}`).join(' ')}`);
-});
-say(`\n## Cycles before resolution`);
-stronglyConnected(edges).forEach(g => say(`  { ${g.join(', ')} }`));
-
-let after = edges.slice();
-say(`\n## Resolutions`);
-for (const r of RESOLUTIONS) {
-  if (MERGE_INTERNSHIP && r.skipWhenMerged) { say(`${r.id} ${r.title}: not applicable when merged`); continue; }
-  const dropped = after.filter(r.drop).length;
-  after = after.filter(e => !r.drop(e)).concat((r.add || []).map(([from, to]) => ({ from: fold(from), to: fold(to), kind: 'resolution', evidence: r.id })));
-  say(`${r.id} ${r.title}: drops ${dropped}\n    ${r.how}`);
-}
-const remaining = stronglyConnected(after);
-say(`\n## Cycles after resolution: ${remaining.length}`);
-remaining.forEach(g => {
-  say(`  { ${g.join(', ')} }`);
-  const inGroup = grouped(after);
-  for (const [k, list] of inGroup) {
-    const [a, b] = k.split(' -> ');
-    if (g.includes(a) && g.includes(b)) say(`    ${k}: ${list.slice(0, 3).map(e => `[${e.kind}] ${e.evidence}`).join(' | ')}`);
-  }
-});
-if (!remaining.length) {
-  say(`\n## Layers, bottom first`);
-  layers(after).forEach((g, i) => say(`  ${i}: ${g.join(', ')}`));
-}
-say(`\n## Edges after resolution`);
-[...grouped(after)].sort().forEach(([k, list]) => say(`  ${k.padEnd(28)} ${list.length}`));
+say(`\n## Layers, bottom first, from ADR-006`);
+[...new Set(LAYER.values())].sort((a, b) => a - b).forEach(d => say(`  ${d}: ${MODULES.filter(m => LAYER.get(m) === d).sort().join(', ')}`));
+layerProblems.forEach(p => say(`  PROBLEM ${p}`));
 
 /* ---------------------------------------------------------------------------
  * 6. Concept scan over every rule.
@@ -491,7 +192,6 @@ const CONCEPTS = [
   ['reporting', 'report', /\breports?\b|\bexports?\b|\bXLSX\b|\bPDF\b|\bdashboards?\b/i],
   ['notification', 'notification', /\bnotif\w*|\bnotify\b|\boutbox\b|\bunread\b/i],
 ];
-const LAYER = new Map();
 const verdicts = new Map(); // key `${rule}>${module}` -> [kind, reason]
 const VERDICT_KINDS = new Set(['dependency', 'vocabulary', 'homonym', 'reader-or-prohibition', 'reference']);
 // Kinds: dependency (the reason names the resolution that removes it), vocabulary (a
@@ -614,62 +314,50 @@ for (const [rule, module, kind, reason] of VERDICTS) {
 const scanRows = [];
 const unresolved = [];
 const verdictProblems = [];
-if (!remaining.length) {
-  layers(after).forEach((group, depth) => group.forEach(m => LAYER.set(m, depth)));
-  for (const [id, { text }] of [...rules].sort()) {
-    const own = ruleModule.get(id);
-    const byModule = new Map();
-    for (const [owner, label, pattern] of CONCEPTS) {
-      const module = fold(owner);
-      if (module === own) continue;
-      const m = text.match(pattern);
-      if (!m) continue;
-      if (!byModule.has(module)) byModule.set(module, []);
-      byModule.get(module).push(`${label} "${m[0]}"`);
-    }
-    for (const [module, hits] of byModule) {
-      const relation = LAYER.get(module) < LAYER.get(own) ? 'lower' : LAYER.get(module) === LAYER.get(own) ? 'same' : 'higher';
-      const verdict = verdicts.get(`${id}>${module}`);
-      if (relation !== 'lower' && !verdict) unresolved.push(`${id} (${own}) mentions ${module} [${relation}]: ${hits.join('; ')}`);
-      scanRows.push({ id, own, module, relation, hits: hits.join('; '), verdict: verdict ? verdict[0] : relation === 'lower' ? 'allowed direction' : '', reason: verdict ? verdict[1] : '' });
-    }
+for (const [id, { text }] of [...rules].sort()) {
+  const own = ruleModule.get(id);
+  const byModule = new Map();
+  for (const [owner, label, pattern] of CONCEPTS) {
+    const module = owner;
+    if (module === own) continue;
+    const m = text.match(pattern);
+    if (!m) continue;
+    if (!byModule.has(module)) byModule.set(module, []);
+    byModule.get(module).push(`${label} "${m[0]}"`);
   }
-  const unused = [...verdicts.keys()].filter(k => !scanRows.some(r => `${r.id}>${r.module}` === k));
-  say(`\n## Concept scan over ${rules.size} rules`);
-  say(`dictionary entries: ${CONCEPTS.length}; mentions of another module: ${scanRows.length} (lower ${scanRows.filter(r => r.relation === 'lower').length}, same ${scanRows.filter(r => r.relation === 'same').length}, higher ${scanRows.filter(r => r.relation === 'higher').length})`);
-  const kinds = {};
-  scanRows.filter(r => r.relation !== 'lower' && r.verdict).forEach(r => { kinds[r.verdict] = (kinds[r.verdict] || 0) + 1; });
-  say(`verdicts: ${Object.entries(kinds).map(([k, n]) => `${k} ${n}`).join(', ') || 'none'}`);
-  say(`same or higher layer without a verdict: ${unresolved.length}`);
-  unresolved.forEach(u => say(`  UNRESOLVED ${u}`));
-  if (unused.length) say(`verdicts that match no mention (stale): ${unused.join(', ')}`);
-  const resolutionIds = new Set(RESOLUTIONS.map(r => r.id));
-  for (const [rule, module, kind, reason] of VERDICTS) {
-    const named = (reason.match(/^(R\d+):/) || [])[1];
-    if (kind === 'dependency' && !resolutionIds.has(named)) verdictProblems.push(`${rule}>${module}: dependency names no recorded resolution`);
+  for (const [module, hits] of byModule) {
+    const relation = LAYER.get(module) < LAYER.get(own) ? 'lower' : LAYER.get(module) === LAYER.get(own) ? 'same' : 'higher';
+    const verdict = verdicts.get(`${id}>${module}`);
+    if (relation !== 'lower' && !verdict) unresolved.push(`${id} (${own}) mentions ${module} [${relation}]: ${hits.join('; ')}`);
+    scanRows.push({ id, own, module, relation, hits: hits.join('; '), verdict: verdict ? verdict[0] : relation === 'lower' ? 'allowed direction' : '', reason: verdict ? verdict[1] : '' });
   }
-  for (const id of REVIEWER_FINDINGS) {
-    const relocated = (ruleBasis.get(id) || '').startsWith('relocated');
-    if (!relocated && !scanRows.some(r => r.id === id && r.relation !== 'lower')) verdictProblems.push(`${id}: reviewer finding not found by the scan`);
-  }
-  say(`reviewer findings reproduced: ${REVIEWER_FINDINGS.length - verdictProblems.filter(p => p.includes('reviewer finding')).length} of ${REVIEWER_FINDINGS.length}`);
-  verdictProblems.forEach(p => say(`  PROBLEM ${p}`));
 }
-
-say(`\n## Composition root`);
-say(`business modules referencing config: ${intoComposition.length}`);
-intoComposition.forEach(x => say(`  ${x}`));
-say('R10: SecurityProperties is shared configuration read by platform, not wiring; it moves to platform. Otherwise platform -> config -> identity -> platform.');
-say(`verdict: ${intoComposition.every(x => x.includes('SecurityProperties')) ? 'every reference into config is covered by R10' : 'UNRESOLVED reference into config'}`);
+const unused = [...verdicts.keys()].filter(k => !scanRows.some(r => `${r.id}>${r.module}` === k));
+say(`\n## Concept scan over ${rules.size} rules`);
+say(`dictionary entries: ${CONCEPTS.length}; mentions of another module: ${scanRows.length} (lower ${scanRows.filter(r => r.relation === 'lower').length}, same ${scanRows.filter(r => r.relation === 'same').length}, higher ${scanRows.filter(r => r.relation === 'higher').length})`);
+const kinds = {};
+scanRows.filter(r => r.relation !== 'lower' && r.verdict).forEach(r => { kinds[r.verdict] = (kinds[r.verdict] || 0) + 1; });
+say(`verdicts: ${Object.entries(kinds).map(([k, n]) => `${k} ${n}`).join(', ') || 'none'}`);
+say(`same or higher layer without a verdict: ${unresolved.length}`);
+unresolved.forEach(u => say(`  UNRESOLVED ${u}`));
+if (unused.length) say(`verdicts that match no mention (stale): ${unused.join(', ')}`);
+const resolutionIds = new Set(RESOLUTIONS.map(r => r.id));
+for (const [rule, module, kind, reason] of VERDICTS) {
+  const named = (reason.match(/^(R\d+):/) || [])[1];
+  if (kind === 'dependency' && !resolutionIds.has(named)) verdictProblems.push(`${rule}>${module}: dependency names no recorded resolution`);
+}
+for (const id of REVIEWER_FINDINGS) {
+  const relocated = (ruleBasis.get(id) || '').startsWith('relocated');
+  if (!relocated && !scanRows.some(r => r.id === id && r.relation !== 'lower')) verdictProblems.push(`${id}: reviewer finding not found by the scan`);
+}
+say(`reviewer findings reproduced: ${REVIEWER_FINDINGS.length - verdictProblems.filter(p => p.includes('reviewer finding')).length} of ${REVIEWER_FINDINGS.length}`);
+verdictProblems.forEach(p => say(`  PROBLEM ${p}`));
 
 console.log(out.join('\n'));
 if (OUT_DIR) {
   fs.mkdirSync(OUT_DIR, { recursive: true });
   fs.writeFileSync(path.join(OUT_DIR, 'rule-map.tsv'), `rule\tcurrent_spec\ttarget_module\tbasis\n${[...rules.keys()].sort().map(id => `${id}\t${rules.get(id).spec}\t${ruleModule.get(id)}\t${ruleBasis.get(id)}`).join('\n')}\n`);
-  fs.writeFileSync(path.join(OUT_DIR, 'edges.tsv'), `from\tto\tkind\tevidence\n${edges.filter(e => MODULES.includes(e.from) && MODULES.includes(e.to)).map(e => `${e.from}\t${e.to}\t${e.kind}\t${e.evidence}`).join('\n')}\n`);
-}
-if (OUT_DIR) {
   fs.writeFileSync(path.join(OUT_DIR, 'concept-scan.tsv'), `rule\trule_module\tmentioned_module\tlayer_relation\tmentions\tverdict\treason\n${scanRows.map(r => [r.id, r.own, r.module, r.relation, r.hits, r.verdict, r.reason].join('\t')).join('\n')}\n`);
 }
 const staleVerdicts = [...verdicts.keys()].filter(k => !scanRows.some(r => `${r.id}>${r.module}` === k));
-process.exitCode = ruleProblems.length || proseProblems.length || remaining.length || unresolved.length || staleVerdicts.length || verdictProblems.length ? 1 : 0;
+process.exitCode = ruleProblems.length || layerProblems.length || unresolved.length || staleVerdicts.length || verdictProblems.length ? 1 : 0;
