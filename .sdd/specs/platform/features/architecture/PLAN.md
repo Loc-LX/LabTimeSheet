@@ -8,7 +8,7 @@ Its tasks are in [TASKS.md](TASKS.md).
 
 | Part | Subject | Rules | State |
 |---|---|---|---|
-| A | Module boundaries, [below](#part-a--module-boundaries) | `ARC-005`, `ARC-006`, `AC-ARC-001` | Approved on 22 September 2026, after three review rounds the same day |
+| A | Module boundaries, [below](#part-a--module-boundaries) | `ARC-005`, `ARC-006`, `AC-ARC-001` | Approved on 22 September 2026, after three review rounds the same day; A-13 added on 24 September 2026, awaiting approval |
 | D | Business SQL behind the data-access layer, below | `ARC-006`, `D18` | Draft of 22 September 2026, moved from part B of the platform plan under `D40`; for approval on its own |
 
 ## Part A — Module boundaries
@@ -156,8 +156,22 @@ check. `LayerStructureTest` takes the modules of `ARC-005`, adds `platform` to t
 packages, and extends its repository and entity check to `platform`. `AttendanceLayerStructureTest`
 stops requiring `AttendancePolicy` inside `attendance`, which moves to `calendar`.
 `AttendanceAndTaskWorkSeparationTest` keeps asserting `GOV-004`; `ReportingArchitectureTest` is
-kept and checked against the new packages. After step 6 the cycle check of
+kept, moved to the `architecture` test package by A-13, and checked against the new packages. After
+step 6 the cycle check of
 `scripts/module-boundaries.cjs` is retired, since the test replaces it.
+
+`LayerStructureTest` requires the feature modules that contain production Java sources to be exactly
+`attendance`, `calendar`, `identity`, `internship`, `notification`, `project` and `reporting`;
+`integration` is not approved and neither an extra nor a missing module passes. Empty local
+directories are not code and do not create a module.
+
+Second, as `ARC-005` and `AC-ARC-001` state, test packages mirror production packages, with only
+the `architecture` and `ui` test packages excepted. The test derives both package sets from Java
+package declarations and requires every non-excepted test package to equal one production package.
+`config` and the root package are not exceptions: both exist in production and their tests mirror
+them. `AttendanceLombokBoilerplateTest` and `ReportingArchitectureTest` now sit in feature-root
+packages with no production package equal to them; A-13 moves both to `architecture` with `git mv`,
+without changing assertions or expected values.
 
 ### A.6 Order of work
 
@@ -191,6 +205,9 @@ ends with `R3` and `R1`, which `D28` puts last:
 10. `internship` and `R3`: the joins of A.4 are composed, then the nine classes, the internship
     methods of `AccountService` and the Admin's account screens move.
 11. `R1`, which empties the allowance list.
+12. A-12 closes the original sequence and records its complete validation evidence.
+13. After the step-7 comparison, A-13 closes the two remaining `ARC-005` structure-test gaps before
+    the branch may merge.
 
 Before any symbol changes, GitNexus impact analysis runs on it as `AGENTS.md` requires, and a
 high or critical risk is reported before the edit. Moves use `git mv`, so each file keeps its
@@ -228,6 +245,8 @@ any assertion that changes. They are the only departures the check above allows.
 | New test of the eligibility order | A-10, before the composition | Added | Eligible Interns with names whose order in Java differs from the database collation, accented Vietnamese names such as *Ánh* and *Đạt* beside *An*, *Bình* and *Zed*, a lower-case *an*, and two identical names told apart by Student Code, come back in the order the database gives. The existing test uses ASCII names, whose two orders agree, so it cannot see the difference. The new test is written against the current join first, where it passes, passes again after the composition, and is made to fail once by sorting the names in Java |
 | New test of the unfinished-Task refusal | A-11 | Added | An Intern with no leadership term and one unfinished Task is refused completion with *"Intern still owns unfinished Tasks"*, and the profile is unchanged. It is seen failing by breaking the readiness implementation before it passes |
 | New invariant test of `ACC-019` | A-09 | Added | Required by `D28`; seen failing on deliberately broken code, then passing |
+| `LayerStructureTest#applicationUsesOnlyApprovedPackageByFeatureStructure` | A-13 | The approved feature-module value loses `integration`, and the assertion requires exactly the seven modules of `ARC-005` | A subset assertion with the old value allows an eighth feature or the loss of a required feature, so it does not enforce the exhaustive module list of `ARC-005` |
+| New `LayerStructureTest` test of test-package mirroring | A-13 | Added | `ARC-005` requires test packages to mirror production except `architecture` and `ui`, and `AC-ARC-001` requires an automated structural assertion; no committed test currently checks it |
 
 ### A.8 When the part is done
 
