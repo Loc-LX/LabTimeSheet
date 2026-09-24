@@ -79,12 +79,8 @@ public class ProjectService {
     private final NotificationService notifications;
     private final Clock clock;
 
-    /**
-     * Native aggregate cleanup is kept behind the Project service transaction
-     * boundary.
-     */
-    // EntityManager dùng cho native DELETE khi xóa project draft
-    // (deleteProjectRows).
+    /** EntityManager flushes and clears the persistence context before bulk deletes. */
+    // EntityManager dùng để flush và clear trước khi xóa project draft.
     @PersistenceContext
     private EntityManager entityManager;
 
@@ -1542,7 +1538,7 @@ public class ProjectService {
      * <p>
      * Project and all project-owned rows are removed atomically in dependency
      * order. The
-     * persistence context is cleared before native child deletes so managed
+     * persistence context is cleared before bulk child deletes so managed
      * invitation/exit
      * rows cannot retain references to leadership or membership rows that are about
      * to be
@@ -1556,40 +1552,27 @@ public class ProjectService {
      * @throws ProjectRuleViolationException when the Project is not planned
      */
     // === DELETE PROJECT | Service ===
-    // Chức năng: xóa cascade project PLANNED (native SQL theo thứ tự FK).
+    // Chức năng: xóa cascade project PLANNED (JPQL bulk delete theo thứ tự FK).
     @Transactional
     public void delete(long actorUserId, long projectId) {
         var locked = lockOwnedProject(actorUserId, projectId); // lock account → lock project (Mentor-owned)
         locked.project().requireDeletable(actorUserId); // chỉ xóa project PLANNED
         entityManager.flush(); // đẩy pending changes trước khi clear context
-        entityManager.clear(); // xóa managed entities — tránh FK conflict khi native DELETE
-        deleteProjectRows(projectId); // native SQL xóa con→cha (task, invitation, membership...)
+        entityManager.clear(); // xóa managed entities — tránh FK conflict khi bulk DELETE
+        deleteProjectRows(projectId); // JPQL bulk delete con→cha (task, invitation, membership...)
     }
 
     /** Removes a planned aggregate in child-to-parent foreign-key order. */
-    // Xóa dữ liệu project theo thứ tự con→cha (task, invitation, membership...) rồi
-    // xóa projects.
+    // Xóa dữ liệu project theo thứ tự con→cha (task, invitation, membership...) rồi xóa projects.
     private void deleteProjectRows(long projectId) {
-        nativeDelete("""
-                delete from task_comments
-                where task_id in (select id from tasks where project_id = :projectId)
-                """, projectId);
-        nativeDelete("delete from task_work_logs where project_id = :projectId", projectId);
-        nativeDelete("delete from tasks where project_id = :projectId", projectId);
-        nativeDelete(
-                "delete from project_membership_exit_requests where project_id = :projectId",
-                projectId);
-        nativeDelete("delete from project_invitations where project_id = :projectId", projectId);
-        nativeDelete("delete from project_leadership_terms where project_id = :projectId", projectId);
-        nativeDelete("delete from project_memberships where project_id = :projectId", projectId);
-        nativeDelete("delete from projects where id = :projectId", projectId);
-    }
-
-    // Chạy câu SQL native DELETE với tham số projectId.
-    private void nativeDelete(String sql, long projectId) {
-        entityManager.createNativeQuery(sql)
-                .setParameter("projectId", projectId)
-                .executeUpdate();
+        projects.deleteTaskCommentsByProjectId(projectId);
+        projects.deleteTaskWorkLogsByProjectId(projectId);
+        projects.deleteTasksByProjectId(projectId);
+        projects.deleteExitRequestsByProjectId(projectId);
+        projects.deleteInvitationsByProjectId(projectId);
+        projects.deleteLeadershipTermsByProjectId(projectId);
+        projects.deleteMembershipsByProjectId(projectId);
+        projects.deleteProjectById(projectId);
     }
 
     // === SERVICE HELPERS | lock + route + notification ===
