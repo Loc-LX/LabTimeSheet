@@ -40,10 +40,10 @@ with the maintainer's permission; the tasks then run on `work/fix/architecture/<
 
 ## Part D — Business SQL behind the data-access layer
 
-**State:** draft of 22 September 2026, approved together with part D of the plan.
+**State:** draft of 22 September 2026, revised and approved on 24 September 2026 together with part D of the plan.
 
 Tasks run on a branch `work/fix/<area>/<what>` from `main` (`OPS-019`), after part A is done. Before any symbol is edited, GitNexus impact analysis runs on it, as `AGENTS.md` requires. After each task the full Maven suite and `npm run test:ui` pass. A test changes only as plan section D.3 allows.
 
 | Task | What | Rules |
 |---|---|---|
-| D-01 | Native SQL of `ProjectService` behind the data-access layer, behavior unchanged; a build check that fails on native SQL (`createNativeQuery`, `JdbcTemplate`, native `@Query`) outside a repository | `ARC-006`, `D18` |
+| D-01 | Starts once `D42` is recorded. Write the build check over the production sources under `src/main/java` that fails anywhere, repositories included, on the direct-SQL entry points that D.2 of the plan lists, and run it before changing the SQL. Record RED on exactly one place, the current `ProjectService.java:1590` call to `createNativeQuery`, not on an unrelated compile error or an added probe. Then rewrite the eight deletes as JPQL bulk deletes in the Project module's repositories, in the same child-to-parent order and after the same `flush` and `clear`, with behavior unchanged, and make the check GREEN. Close the constitution's `ARC-006` business-SQL gap only after a new decision in `decisions.md`, separate from `D42`, maintainer agreement to the wording and a constitution version increment under Amendment, following `D41` | `ARC-006`, `D18`, `D42`, `D28` |
