@@ -1,4 +1,4 @@
-package com.lab.labtimesheet.feature.reporting;
+package com.lab.labtimesheet.architecture;
 
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertFalse;

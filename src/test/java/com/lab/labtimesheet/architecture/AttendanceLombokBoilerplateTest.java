@@ -1,4 +1,4 @@
-package com.lab.labtimesheet.feature.attendance;
+package com.lab.labtimesheet.architecture;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

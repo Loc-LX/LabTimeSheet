@@ -6,7 +6,7 @@ moved here from the platform tasks under `D40` after `A-12` closed it. D-01 was 
 
 ## Part A — Module boundaries
 
-**State:** A-01 to A-12 approved on 22 September 2026, together with part A of the plan; A-13 added on 24 September 2026 and awaiting approval.
+**State:** A-01 to A-12 approved on 22 September 2026, together with part A of the plan; A-13 added and approved on 24 September 2026.
 
 No task starts before part A is approved and the documentation branch is merged into `main`
 with the maintainer's permission; the tasks then run on `work/fix/architecture/<name>`

@@ -8,7 +8,7 @@ Its tasks are in [TASKS.md](TASKS.md).
 
 | Part | Subject | Rules | State |
 |---|---|---|---|
-| A | Module boundaries, [below](#part-a--module-boundaries) | `ARC-005`, `ARC-006`, `AC-ARC-001` | Approved on 22 September 2026, after three review rounds the same day; A-13 added on 24 September 2026, awaiting approval |
+| A | Module boundaries, [below](#part-a--module-boundaries) | `ARC-005`, `ARC-006`, `AC-ARC-001` | Approved on 22 September 2026, after three review rounds the same day; A-13 added and approved on 24 September 2026 |
 | D | Business SQL behind the data-access layer, below | `ARC-006`, `D18` | Draft of 22 September 2026, moved from part B of the platform plan under `D40`; for approval on its own |
 
 ## Part A — Module boundaries
