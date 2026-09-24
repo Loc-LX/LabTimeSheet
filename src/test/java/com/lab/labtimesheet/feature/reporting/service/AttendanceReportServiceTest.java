@@ -1,5 +1,7 @@
 package com.lab.labtimesheet.feature.reporting.service;
 
+import com.lab.labtimesheet.feature.internship.service.InternshipService;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
@@ -7,7 +9,7 @@ import static org.mockito.Mockito.mock;
 
 import com.lab.labtimesheet.feature.identity.model.AccountStatus;
 import com.lab.labtimesheet.feature.identity.model.dto.AccountIdentity;
-import com.lab.labtimesheet.feature.identity.model.dto.EligibleInternOption;
+import com.lab.labtimesheet.feature.internship.model.dto.EligibleInternOption;
 import com.lab.labtimesheet.feature.identity.service.AccountService;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
 import com.lab.labtimesheet.platform.model.GlobalRole;
@@ -38,12 +40,13 @@ class AttendanceReportServiceTest {
     private final CalendarApplicationService calendar = mock(CalendarApplicationService.class);
     private final AttendanceReportQueryService reportQueries = mock(AttendanceReportQueryService.class);
     private final AccountService accounts = mock(AccountService.class);
+    private final InternshipService internships = mock(InternshipService.class);
     private final Principal principal = () -> "intern@example.test";
     private AttendanceReportService reports;
 
     @BeforeEach
     void setUp() {
-        reports = new AttendanceReportService(currentUsers, attendance, calendar, reportQueries, accounts);
+        reports = new AttendanceReportService(currentUsers, attendance, calendar, reportQueries, accounts, internships);
     }
 
     @Test
@@ -190,7 +193,7 @@ class AttendanceReportServiceTest {
     void rendersMentorTargetPickerBeforeReadingAttendanceRows() {
         given(currentUsers.actor(principal)).willReturn(new AttendanceActor(2L, GlobalRole.MENTOR));
         given(calendar.currentBusinessDate()).willReturn(LocalDate.of(2026, 8, 31));
-        given(accounts.eligibleInternOptions(LocalDate.of(2026, 8, 31)))
+        given(internships.eligibleInternOptions(LocalDate.of(2026, 8, 31)))
                 .willReturn(List.of(new EligibleInternOption(
                         7L,
                         "Mai Intern",

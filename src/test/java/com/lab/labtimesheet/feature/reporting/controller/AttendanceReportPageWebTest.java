@@ -14,6 +14,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.lab.labtimesheet.feature.identity.model.AccountStatus;
 import com.lab.labtimesheet.feature.identity.model.dto.AccountIdentity;
 import com.lab.labtimesheet.feature.identity.service.AccountService;
+import com.lab.labtimesheet.feature.internship.service.InternshipService;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
 import com.lab.labtimesheet.platform.model.GlobalRole;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceReport;
@@ -24,7 +25,6 @@ import com.lab.labtimesheet.feature.calendar.service.CalendarApplicationService;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceCurrentUserService;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceReportQueryService;
 import com.lab.labtimesheet.feature.reporting.service.AttendanceReportService;
-import com.lab.labtimesheet.platform.model.GlobalRole;
 import com.lab.labtimesheet.platform.service.SmtpConfigurationService;
 import java.math.BigDecimal;
 import java.security.Principal;
@@ -65,6 +65,9 @@ class AttendanceReportPageWebTest {
 
     @MockitoBean
     private AccountService accounts;
+
+    @MockitoBean
+    private InternshipService internships;
 
     @MockitoBean
     private SmtpConfigurationService smtpConfiguration;

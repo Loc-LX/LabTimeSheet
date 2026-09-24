@@ -1,5 +1,7 @@
 package com.lab.labtimesheet.feature.project.service;
 
+import com.lab.labtimesheet.feature.internship.service.InternshipService;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -67,6 +69,9 @@ class TaskWorkLogIntegrationTest {
 
     @Autowired
     private AccountService accounts;
+
+    @Autowired
+    private InternshipService internships;
 
     @Autowired
     private ProjectService projectMutations;
@@ -625,7 +630,7 @@ class TaskWorkLogIntegrationTest {
         ExecutorService executor = Executors.newFixedThreadPool(2);
         try {
             Future<?> outer = executor.submit(() -> transactions.executeWithoutResult(status -> {
-                accounts.lockedInternWorkWindow(fixture.internId(), WORK_DATE);
+                internships.lockedInternWorkWindow(fixture.internId(), WORK_DATE);
                 lockHeld.countDown();
                 await(releaseLock);
             }));
@@ -654,7 +659,7 @@ class TaskWorkLogIntegrationTest {
         ExecutorService executor = Executors.newFixedThreadPool(2);
         try {
             Future<?> accountFirst = executor.submit(() -> transactions.executeWithoutResult(status -> {
-                accounts.lockedInternWorkWindow(fixture.internId(), WORK_DATE);
+                internships.lockedInternWorkWindow(fixture.internId(), WORK_DATE);
                 accountLockHeld.countDown();
                 await(allowProjectLock);
                 projectMutations.taskMutationContext(fixture.internId(), fixture.firstProjectId());

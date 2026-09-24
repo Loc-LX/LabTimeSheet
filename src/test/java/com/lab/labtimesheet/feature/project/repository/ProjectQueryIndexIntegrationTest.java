@@ -3,6 +3,7 @@ package com.lab.labtimesheet.feature.project.repository;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.lab.labtimesheet.config.TestcontainersConfiguration;
+import com.lab.labtimesheet.feature.internship.service.InternshipService;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectCreateCommand;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectListPage;
 import com.lab.labtimesheet.feature.project.service.ProjectQueryService;
@@ -38,6 +39,9 @@ class ProjectQueryIndexIntegrationTest {
 
     @Autowired
     private ProjectService projectMutations;
+
+    @Autowired
+    private InternshipService internships;
 
     @Test
     void projectAndProgressPathsRetainTheirFilterIndexes() {
@@ -117,7 +121,7 @@ class ProjectQueryIndexIntegrationTest {
                 """, NOW.atOffset(java.time.ZoneOffset.UTC), NOW.atOffset(java.time.ZoneOffset.UTC), mentorId);
         jdbc.execute("analyze projects");
         jdbc.execute("analyze project_memberships");
-        projectMutations.completeInternship(adminId, completedMemberId);
+        internships.completeInternship(completedMemberId, adminId);
 
         assertThat(jdbc.queryForObject("""
                 select count(*)

@@ -1,5 +1,7 @@
 package com.lab.labtimesheet.feature.project.controller;
 
+import com.lab.labtimesheet.feature.internship.service.InternshipService;
+
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.doThrow;
@@ -18,7 +20,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 
-import com.lab.labtimesheet.feature.identity.model.dto.EligibleInternOption;
+import com.lab.labtimesheet.feature.internship.model.dto.EligibleInternOption;
 import com.lab.labtimesheet.feature.identity.service.AccountService;
 import com.lab.labtimesheet.feature.project.exception.ProjectAccessDeniedException;
 import com.lab.labtimesheet.feature.project.exception.ProjectRuleViolationException;
@@ -71,6 +73,9 @@ class ProjectControllerTest {
     private AccountService accounts;
 
     @MockitoBean
+    private InternshipService internships;
+
+    @MockitoBean
     private Clock clock;
 
     @MockitoBean
@@ -87,7 +92,7 @@ class ProjectControllerTest {
     void projectCreationRendersSearchableEligibleLeaderOptionsWithoutVisibleNumericIds() throws Exception {
         when(pages.authenticatedActor("mentor@example.test"))
                 .thenReturn(new ProjectActorView(10L, "MENTOR"));
-        when(accounts.eligibleInternOptions(LocalDate.of(2026, 8, 15))).thenReturn(List.of(
+        when(internships.eligibleInternOptions(LocalDate.of(2026, 8, 15))).thenReturn(List.of(
                 option(20L, "Nguyen An", "STU-020"),
                 option(21L, "Tran Binh", "STU-021")));
 
@@ -115,7 +120,7 @@ class ProjectControllerTest {
     void projectCreationExplainsWhenNoEligibleLeaderIsAvailable() throws Exception {
         when(pages.authenticatedActor("mentor@example.test"))
                 .thenReturn(new ProjectActorView(10L, "MENTOR"));
-        when(accounts.eligibleInternOptions(LocalDate.of(2026, 8, 15))).thenReturn(List.of());
+        when(internships.eligibleInternOptions(LocalDate.of(2026, 8, 15))).thenReturn(List.of());
 
         mvc.perform(get("/projects/new"))
                 .andExpect(status().isOk())
@@ -132,7 +137,7 @@ class ProjectControllerTest {
                 new ProjectMemberView(40L, 20L, "Current Leader", Instant.parse("2026-08-15T00:00:00Z"), null, true, 10L, null),
                 new ProjectMemberView(41L, 21L, "Current Member", Instant.parse("2026-08-15T00:00:00Z"), null, false, 10L, null)));
         when(pages.leadership(10L, 30L)).thenReturn(List.of());
-        when(accounts.eligibleInternOptions(LocalDate.of(2026, 8, 15))).thenReturn(List.of(
+        when(internships.eligibleInternOptions(LocalDate.of(2026, 8, 15))).thenReturn(List.of(
                 option(20L, "Current Leader", "STU-020"),
                 option(21L, "Current Member", "STU-021"),
                 option(22L, "Eligible Nonmember", "STU-022")));
@@ -160,7 +165,7 @@ class ProjectControllerTest {
         when(pages.authenticatedUserId("mentor@example.test")).thenReturn(10L);
         when(pages.detail(10L, 30L)).thenReturn(plannedOwnerDetail());
         when(pages.members(10L, 30L)).thenReturn(List.of());
-        when(accounts.eligibleInternOptions(LocalDate.of(2026, 8, 15))).thenReturn(List.of(
+        when(internships.eligibleInternOptions(LocalDate.of(2026, 8, 15))).thenReturn(List.of(
                 option(21L, "First Intern", "STU-021")));
         doThrow(new ProjectRuleViolationException("One or more selected Interns are no longer eligible"))
                 .when(projects).addMembers(10L, 30L, List.of(21L, 22L));
@@ -526,7 +531,7 @@ class ProjectControllerTest {
     void projectCreationFormLetsTheStartDateLieInThePast() throws Exception {
         when(pages.authenticatedActor("mentor@example.test"))
                 .thenReturn(new ProjectActorView(10L, "MENTOR"));
-        when(accounts.eligibleInternOptions(LocalDate.of(2026, 8, 15)))
+        when(internships.eligibleInternOptions(LocalDate.of(2026, 8, 15)))
                 .thenReturn(List.of(option(20L, "Nguyen An", "STU-020")));
 
         String html = mvc.perform(get("/projects/new"))
@@ -601,7 +606,7 @@ class ProjectControllerTest {
         when(pages.leadership(10L, 30L)).thenReturn(List.of());
         when(pages.members(10L, 30L)).thenReturn(List.of(new ProjectMemberView(
                 41L, 21L, "Current Member", Instant.parse("2026-08-15T00:00:00Z"), null, false, 10L, null)));
-        when(accounts.eligibleInternOptions(LocalDate.of(2026, 8, 15))).thenReturn(List.of(
+        when(internships.eligibleInternOptions(LocalDate.of(2026, 8, 15))).thenReturn(List.of(
                 option(21L, "Current Member", "STU-021")));
 
         mvc.perform(post("/projects/30/leadership").with(csrf()))

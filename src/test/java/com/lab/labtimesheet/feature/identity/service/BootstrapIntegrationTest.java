@@ -1,5 +1,7 @@
 package com.lab.labtimesheet.feature.identity.service;
 
+import com.lab.labtimesheet.feature.internship.service.InternshipService;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
@@ -44,6 +46,9 @@ class BootstrapIntegrationTest {
 
     @Autowired
     private AccountService accountService;
+
+    @Autowired
+    private InternshipService internships;
 
     @Autowired
     private MockMvc mockMvc;
@@ -135,7 +140,7 @@ class BootstrapIntegrationTest {
         assertThat(identityByEmail.role()).isEqualTo(GlobalRole.ADMIN);
         assertThat(identityByEmail.status()).isEqualTo(AccountStatus.ACTIVE);
         assertThat(accountService.requireIdentityById(identityByEmail.id())).isEqualTo(identityByEmail);
-        assertThat(accountService.isEligibleIntern(identityByEmail.id())).isFalse();
-        assertThat(accountService.isEligibleIntern(identityByEmail.id(), LocalDate.of(2026, 8, 14))).isFalse();
+        assertThat(internships.isEligibleIntern(identityByEmail.id())).isFalse();
+        assertThat(internships.isEligibleIntern(identityByEmail.id(), LocalDate.of(2026, 8, 14))).isFalse();
     }
 }

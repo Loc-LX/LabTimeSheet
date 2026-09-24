@@ -1,5 +1,7 @@
 package com.lab.labtimesheet.feature.reporting.controller;
 
+import com.lab.labtimesheet.feature.internship.service.InternshipService;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
@@ -63,6 +65,9 @@ class RoleDashboardWebIntegrationTest {
     private AccountService accounts;
 
     @Autowired
+    private InternshipService internships;
+
+    @Autowired
     private SmtpConfigurationService smtp;
 
     @Autowired
@@ -93,7 +98,7 @@ class RoleDashboardWebIntegrationTest {
                         "INT-001",
                         LocalDate.of(2026, 8, 1),
                         LocalDate.of(2026, 12, 31)));
-        accounts.activateInternship(internId, adminId);
+        internships.activateInternship(internId, adminId);
 
         long projectId = projects.create(
                 mentorId,
@@ -193,7 +198,7 @@ class RoleDashboardWebIntegrationTest {
     }
 
     private long createActiveAccount(long adminId, CreateAccountCommand command) {
-        var creation = accounts.create(command, adminId);
+        var creation = internships.create(command, adminId);
         assertThat(creation.deliverySucceeded()).isTrue();
         assertThat(accounts.activate(mail.activationTokenFor(command.email()), "correct horse battery staple"))
                 .isTrue();

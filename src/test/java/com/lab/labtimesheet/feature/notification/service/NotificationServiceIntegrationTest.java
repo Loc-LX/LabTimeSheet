@@ -1,5 +1,7 @@
 package com.lab.labtimesheet.feature.notification.service;
 
+import com.lab.labtimesheet.feature.internship.service.InternshipService;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -54,6 +56,9 @@ class NotificationServiceIntegrationTest {
 
     @Autowired
     private AccountService accounts;
+
+    @Autowired
+    private InternshipService internships;
 
     @Autowired
     private SmtpConfigurationService smtp;
@@ -230,7 +235,7 @@ class NotificationServiceIntegrationTest {
         bootstrap.bootstrap("notification-first@example.com", "Admin", "correct horse battery staple");
         long adminId = accounts.requireActiveAdminId("notification-first@example.com");
         activateSmtp(adminId);
-        long secondId = accounts.create(new CreateAccountCommand(
+        long secondId = internships.create(new CreateAccountCommand(
                 "notification-second@example.com", "Second recipient", GlobalRole.MENTOR, null, null, null), adminId)
                 .userId();
         mail.reset();

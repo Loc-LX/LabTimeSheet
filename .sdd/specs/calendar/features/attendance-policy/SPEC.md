@@ -15,7 +15,7 @@ not separate modules or mandatory branches. The split changes document ownership
 
 Admin writes future policy; attendance and reporting read the policy applicable to a date.
 
-The [platform permission matrix](../../../platform/MODULE.md#52-permission-matrix)
+The [platform permission matrix](../../../platform/features/authorization/SPEC.md#52-permission-matrix)
 and the module's shared authorization rules apply to every operation.
 
 ## 3. Functional Requirements
@@ -89,7 +89,7 @@ claim full test coverage. Actors and outcomes are summaries of the canonical rul
 
 | Operation | Actor and observable outcome | Canonical rules | Existing acceptance scenarios | Acceptance boundary or open decision |
 |---|---|---|---|---|
-| [Seed policy](#seed-policy) | Installation obtains the prescribed baseline global policy | [ATT-002](SPEC.md), [DB-009](SPEC.md) | [AC-DB-001](../../../platform/MODULE.md) | The shared schema replay is broader than this operation; include explicit seed values and weekdays in the policy test design. |
+| [Seed policy](#seed-policy) | Installation obtains the prescribed baseline global policy | [ATT-002](SPEC.md), [DB-009](SPEC.md) | [AC-DB-001](../../../platform/features/data-model/SPEC.md) | The shared schema replay is broader than this operation; include explicit seed values and weekdays in the policy test design. |
 | [Schedule and validate a version](#schedule-and-validate-a-version) | Admin schedules a valid future-month policy without changing prior snapshots | [ATT-001](SPEC.md), [ATT-003](SPEC.md) | [AC-ATT-001](SPEC.md) | Cover each numeric/date boundary, including rejected crafted form input. |
 | [Read history](#read-history) | Admin reads retained non-secret policy history | [ATT-001](SPEC.md) | [AC-ATT-001](SPEC.md) | History is part of the same scenario; verify role denial through the shared authorization cases. |
 

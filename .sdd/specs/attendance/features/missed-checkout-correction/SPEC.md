@@ -17,7 +17,7 @@ Intern requests; current responsible Mentor decides within the applicable deadli
 
 Use cases defined here: UC-09.
 
-The [platform permission matrix](../../../platform/MODULE.md#52-permission-matrix)
+The [platform permission matrix](../../../platform/features/authorization/SPEC.md#52-permission-matrix)
 and the module's shared authorization rules apply to every operation.
 
 ## 3. Functional Requirements

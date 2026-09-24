@@ -25,7 +25,7 @@ import com.lab.labtimesheet.feature.identity.model.TokenPurpose;
 import com.lab.labtimesheet.feature.identity.model.entity.AppUser;
 import com.lab.labtimesheet.feature.identity.model.entity.UserActionToken;
 import com.lab.labtimesheet.feature.identity.repository.AppUserRepository;
-import com.lab.labtimesheet.feature.identity.repository.InternProfileRepository;
+import com.lab.labtimesheet.feature.internship.repository.InternProfileRepository;
 import com.lab.labtimesheet.feature.identity.repository.UserActionTokenRepository;
 import com.lab.labtimesheet.platform.service.MailDeliveryService;
 import org.junit.jupiter.api.Test;
@@ -85,7 +85,7 @@ class AccountRecoveryLockOrderIntegrationTest {
         when(mail.isAvailable()).thenReturn(true);
         doNothing().when(mail).send(anyString(), anyString(), anyString());
         AccountService recovery = new AccountService(
-                gatedUsers, internProfiles, gatedTokens, mail, passwords, clock, transactions, sessions,
+                gatedUsers, gatedTokens, mail, passwords, clock, transactions, sessions,
                 "http://localhost");
 
         try (ExecutorService executor = Executors.newFixedThreadPool(2)) {

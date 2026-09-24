@@ -13,6 +13,7 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import com.lab.labtimesheet.feature.identity.model.AccountStatus;
 import com.lab.labtimesheet.feature.identity.model.dto.AccountIdentity;
 import com.lab.labtimesheet.feature.identity.service.AccountService;
+import com.lab.labtimesheet.feature.internship.service.InternshipService;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
 import com.lab.labtimesheet.platform.model.GlobalRole;
 import com.lab.labtimesheet.feature.attendance.repository.AttendanceQueryRepository;
@@ -29,12 +30,13 @@ class AttendanceReportQueryServiceAuthorizationTest {
     private static final LocalDate TO = LocalDate.of(2026, 8, 31);
 
     private final AccountService accounts = mock(AccountService.class);
+    private final InternshipService internships = mock(InternshipService.class);
     private final AttendanceRecordRepository records = mock(AttendanceRecordRepository.class);
     private final AttendanceQueryRepository queries = mock(AttendanceQueryRepository.class);
     private final CalendarApplicationService calendar = mock(CalendarApplicationService.class);
     private final AttendanceCorrectionApplicationService corrections = mock(AttendanceCorrectionApplicationService.class);
     private final AttendanceReportQueryService reports = new AttendanceReportQueryService(
-            Clock.systemUTC(), accounts, records, queries, calendar, corrections);
+            Clock.systemUTC(), accounts, internships, records, queries, calendar, corrections);
 
     @Test
     void inactivePersistedAdminIsDeniedBeforeTargetOrAttendanceReads() {

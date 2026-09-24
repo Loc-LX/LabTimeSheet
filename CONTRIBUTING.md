@@ -10,7 +10,7 @@ Read three things, in this order:
 
 1. [README.md](README.md) for what the system is and where things live.
 2. [`.sdd/constitution.md`](.sdd/constitution.md) for the rules that are not negotiable.
-3. The spec in [`.sdd/specs/`](.sdd/specs) for the feature you will touch. Rules shared by every feature are in [`platform/MODULE.md`](.sdd/specs/platform/MODULE.md).
+3. The spec in [`.sdd/specs/`](.sdd/specs) for the feature you will touch. Rules shared by every feature are in [`platform/MODULE.md`](.sdd/specs/platform/MODULE.md) and its features: architecture, authorization, security and the data model.
 
 Two ideas explain most of the design. Attendance and Task work are separate
 domains and neither proves the other. Historical results must not change when
@@ -146,7 +146,7 @@ background is in
 | Unit | One rule or calculation, no application context | `./mvnw -Dtest=TaskDomainRulesTest test` |
 | Integration | Spring services, Flyway, JPA, transactions, PostgreSQL constraints | `./mvnw -Dtest=AttendancePersistenceIntegrationTest test` |
 | Web | Spring MVC security, validation, Thymeleaf pages, redirects | `./mvnw -Dtest=TaskControllerTest test` |
-| Structure | Package boundaries between features | `./mvnw -Dtest=LayerStructureTest test` |
+| Structure | Approved modules, package mirroring and package boundaries | `./mvnw -Dtest=LayerStructureTest,ModuleBoundaryCycleTest test` |
 | End-to-end | The running application in desktop Chromium | see below |
 
 Other useful commands:
@@ -291,7 +291,7 @@ separately authorized.
 - A PostgreSQL-specific behavior tested against H2.
 - An expected value read off the implementation rather than derived from the spec.
 - A new dependency, framework, or datastore without an ADR.
-- Cross-feature repository or entity access; `LayerStructureTest` catches it.
+- Cross-feature or platform repository/entity access; `LayerStructureTest` catches it, while `ModuleBoundaryCycleTest` catches cycles and invalid cross-module interface exceptions.
 - Business SQL inside a service.
 - An edit to an already-applied Flyway migration. Add a new one instead.
 - A test that names no requirement, or names one it does not exercise.

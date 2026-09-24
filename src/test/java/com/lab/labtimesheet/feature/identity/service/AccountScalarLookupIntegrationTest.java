@@ -10,7 +10,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.lab.labtimesheet.config.TestcontainersConfiguration;
 import com.lab.labtimesheet.feature.identity.repository.AppUserRepository;
-import com.lab.labtimesheet.feature.identity.repository.InternProfileRepository;
+import com.lab.labtimesheet.feature.internship.repository.InternProfileRepository;
 import com.lab.labtimesheet.feature.identity.repository.UserActionTokenRepository;
 import com.lab.labtimesheet.platform.service.MailDeliveryService;
 import org.junit.jupiter.api.Test;
@@ -61,7 +61,7 @@ class AccountScalarLookupIntegrationTest {
         bootstrap.bootstrap("scalar-routing@example.com", "Scalar Routing", "correct horse battery staple");
         LookupGuard guard = new LookupGuard();
         AccountService routing = new AccountService(
-                guarded(users, guard), internProfiles, tokens, mailDelivery, passwords, clock, transactions,
+                guarded(users, guard), tokens, mailDelivery, passwords, clock, transactions,
                 sessions, "http://localhost");
 
         long accountId = routing.requireAccountIdByEmail("  SCALAR-ROUTING@EXAMPLE.COM ");

@@ -1,9 +1,9 @@
 package com.lab.labtimesheet.feature.project.service;
 
 import com.lab.labtimesheet.feature.identity.model.AccountStatus;
-import com.lab.labtimesheet.feature.identity.model.dto.InternshipLifecycleGuard;
-import com.lab.labtimesheet.feature.identity.model.dto.LockedAccountMutationEligibility;
+import com.lab.labtimesheet.feature.internship.model.dto.LockedAccountMutationEligibility;
 import com.lab.labtimesheet.feature.identity.service.AccountService;
+import com.lab.labtimesheet.feature.internship.service.InternshipService;
 import com.lab.labtimesheet.feature.notification.model.NotificationType;
 import com.lab.labtimesheet.feature.notification.model.dto.NotificationAction;
 import com.lab.labtimesheet.feature.notification.model.dto.NotificationEvent;
@@ -72,6 +72,7 @@ public class ProjectService {
     private final ProjectInvitationRepository invitations;
     private final ProjectExitRequestRepository exitRequests;
     private final AccountService accounts;
+    private final InternshipService internships;
     private final ProjectQueryService queries;
     private final TaskQueryService taskQueries;
     private final TaskTransferService taskTransfers;
@@ -833,7 +834,7 @@ public class ProjectService {
     // Leader chuyển công việc theo yêu cầu rời/chờ duyệt của một thành viên.
     // Luồng: xác nhận yêu cầu thuộc đúng Project → kiểm tra quyền Leader và người
     // nhận
-    // → giao bước chuyển công việc cho module Task xử lý theo lô.
+    // → giao bước chuyển công việc cho phần Task của Project xử lý theo lô.
     @Transactional
     public TaskTransferResult transferTasks(
             long actorUserId,
@@ -1021,7 +1022,7 @@ public class ProjectService {
 
     // Thực hiện chuyển công việc: Leader xác nhận yêu cầu rời, khóa dữ liệu thành
     // viên,
-    // rồi nhờ module Task đổi người phụ trách theo lô (có hoặc không kèm dự báo nỗ
+    // rồi nhờ phần Task của Project đổi người phụ trách theo lô (có hoặc không kèm dự báo nỗ
     // lực).
     private TaskTransferResult transferTasksInternal(
             long actorUserId,
@@ -1454,7 +1455,7 @@ public class ProjectService {
      * @return DTO-only locked mutation context
      * @throws ProjectAccessDeniedException for missing or unauthorized Projects
      */
-    // Chuẩn bị thông tin project cho module Task (ai là Leader, ai đang chờ
+    // Chuẩn bị thông tin project cho phần Task (ai là Leader, ai đang chờ
     // rời...).
     @Transactional
     public ProjectTaskContext taskMutationContext(long actorUserId, long projectId) {
@@ -1473,63 +1474,6 @@ public class ProjectService {
                 .map(ProjectExitRequestEntity::targetMembershipId)
                 .collect(Collectors.toUnmodifiableSet());
         return queries.taskContext(actorUserId, project, pendingExitMembershipIds);
-    }
-
-    /**
-     * Completes an Intern after recomputing Project leadership and Task ownership
-     * under the shared lock order.
-     *
-     * <p>
-     * The active Admin and target Account/profile rows are locked first. Every
-     * current Project is then locked in
-     * ascending identifier order before unfinished Tasks are counted. Because all
-     * Project and Task mutations use the
-     * same Account-before-Project order, the guard remains stable until the
-     * Account-owned completion commits.
-     * </p>
-     *
-     * @param adminUserId  active Admin performing the terminal action
-     * @param internUserId Intern account being completed
-     * @throws IllegalArgumentException when the actor or target account shape is
-     *                                  invalid
-     * @throws IllegalStateException    when Project/Task readiness or the
-     *                                  internship state rejects completion
-     */
-    // Admin kết thúc thực tập intern — kiểm tra intern không còn là Leader hoặc
-    // task chưa xong trước khi đổi trạng thái tài khoản.
-    @Transactional
-    public void completeInternship(long adminUserId, long internUserId) {
-        accounts.completeInternship(
-                internUserId,
-                adminUserId,
-                lockedInternshipLifecycleGuard(adminUserId, internUserId));
-    }
-
-    /**
-     * Withdraws an Intern after recomputing Project leadership and Task ownership
-     * under the shared lock order.
-     *
-     * <p>
-     * The readiness transaction is identical to completion. Account withdrawal then
-     * deactivates the Intern and
-     * expires existing sessions before the surrounding transaction commits.
-     * </p>
-     *
-     * @param adminUserId  active Admin performing the terminal action
-     * @param internUserId Intern account being withdrawn
-     * @throws IllegalArgumentException when the actor or target account shape is
-     *                                  invalid
-     * @throws IllegalStateException    when Project/Task readiness or the
-     *                                  internship state rejects withdrawal
-     */
-    // Admin rút intern khỏi thực tập — cùng điều kiện kiểm tra như hoàn thành thực
-    // tập.
-    @Transactional
-    public void withdrawInternship(long adminUserId, long internUserId) {
-        accounts.withdrawInternship(
-                internUserId,
-                adminUserId,
-                lockedInternshipLifecycleGuard(adminUserId, internUserId));
     }
 
     /**
@@ -2156,57 +2100,10 @@ public class ProjectService {
     private List<LockedAccountMutationEligibility> lockAccounts(Collection<Long> userIds) {
         try {
             // Khóa tài khoản theo thứ tự cố định để hai thao tác không chen ngang nhau.
-            return accounts.lockedAccountMutationEligibility(userIds);
+            return internships.lockedAccountMutationEligibility(userIds);
         } catch (IllegalArgumentException exception) {
             throw new ProjectAccessDeniedException();
         }
-    }
-
-    // Admin kết thúc hoặc rút intern khỏi thực tập: kiểm tra intern không còn là
-    // Leader
-    // và không còn công việc chưa xong trong các project đang tham gia.
-    private InternshipLifecycleGuard lockedInternshipLifecycleGuard(long adminUserId, long internUserId) {
-        List<LockedAccountMutationEligibility> lockedAccounts;
-        try {
-            lockedAccounts = accounts.lockedAccountMutationEligibility(List.of(adminUserId, internUserId));
-        } catch (IllegalArgumentException failure) {
-            throw new IllegalArgumentException("Account action could not be completed", failure);
-        }
-        LockedAccountMutationEligibility admin = snapshotFor(lockedAccounts, adminUserId);
-        if (admin.role() != GlobalRole.ADMIN || admin.accountStatus() != AccountStatus.ACTIVE) {
-            throw new IllegalArgumentException("An active Admin is required");
-        }
-        LockedAccountMutationEligibility intern = snapshotFor(lockedAccounts, internUserId);
-        if (intern.role() != GlobalRole.INTERN) {
-            throw new IllegalArgumentException("An Intern account is required");
-        }
-
-        boolean currentLeader = false;
-        long unfinishedTaskCount = 0;
-        // Khóa từng project intern còn tham gia để đếm đúng Leader và công việc chưa
-        // xong.
-        var currentMemberships = projects.findMembershipIntervalsByInternUserId(internUserId).stream()
-                .filter(interval -> interval.leftAt() == null)
-                .toList();
-        for (var interval : currentMemberships) {
-            var project = projects.findLockedById(interval.projectId())
-                    .orElseThrow(() -> new IllegalStateException("Project membership changed; retry the action"));
-            ProjectMembershipEntity membership;
-            try {
-                membership = project.currentMember(internUserId);
-            } catch (ProjectRuleViolationException failure) {
-                throw new IllegalStateException("Project membership changed; retry the action", failure);
-            }
-            if (!Objects.equals(membership.id(), interval.membershipId())) {
-                throw new IllegalStateException("Project membership changed; retry the action");
-            }
-            if (project.status() != ProjectStatus.COMPLETED
-                    && Objects.equals(project.currentLeader().id(), membership.id())) {
-                currentLeader = true;
-            }
-            unfinishedTaskCount += taskTransfers.unfinishedCount(interval.projectId(), interval.membershipId());
-        }
-        return new InternshipLifecycleGuard(currentLeader, unfinishedTaskCount);
     }
 
     // Khóa account+profile trước khi thêm member/đổi leader/create — lỗi Account →
@@ -2214,7 +2111,7 @@ public class ProjectService {
     private List<LockedAccountMutationEligibility> lockAccountsForTargetMutation(
             Collection<Long> userIds) {
         try {
-            return accounts.lockedAccountMutationEligibility(userIds); // → AccountService (lock + snapshot)
+            return internships.lockedAccountMutationEligibility(userIds); // → InternshipService (lock + snapshot)
         } catch (IllegalArgumentException exception) {
             throw new ProjectRuleViolationException("Intern is not eligible for Project membership");
         }
@@ -2265,7 +2162,7 @@ public class ProjectService {
 
     private boolean eligibleInternForProjectMutation(LockedAccountMutationEligibility account) {
         return account.eligibleForProjectMutation()
-                && accounts.isEligibleIntern(account.userId(), LocalDate.now(clock)); // → AccountService kiểm tra ngày
+                && internships.isEligibleIntern(account.userId(), LocalDate.now(clock)); // → InternshipService kiểm tra ngày
                                                                                       // thực tập
     }
 

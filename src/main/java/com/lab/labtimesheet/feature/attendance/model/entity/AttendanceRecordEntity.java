@@ -47,7 +47,7 @@ public class AttendanceRecordEntity {
     /**
      * Creates a new persistence row from server-authoritative raw punch values.
      *
-     * @param internUserId scalar account identifier; account data remains owned by the account feature
+     * @param internUserId scalar account identifier; account data is owned by the identity module
      * @param workDate attached-policy local work date
      * @param policyVersionId persisted policy version identifier fixed at check-in
      * @param checkInAt raw server check-in instant

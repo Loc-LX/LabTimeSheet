@@ -10,6 +10,7 @@ import static org.mockito.Mockito.when;
 import com.lab.labtimesheet.feature.identity.model.AccountStatus;
 import com.lab.labtimesheet.feature.identity.model.dto.AccountIdentity;
 import com.lab.labtimesheet.feature.identity.service.AccountService;
+import com.lab.labtimesheet.feature.internship.service.InternshipService;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
 import com.lab.labtimesheet.feature.calendar.model.AttendancePolicy;
 import com.lab.labtimesheet.platform.model.GlobalRole;
@@ -59,7 +60,8 @@ class AttendanceReadModelServiceTest {
         LeaveApplicationService service = new LeaveApplicationService(
                 Clock.fixed(Instant.parse("2026-08-20T00:00:00Z"), ZoneOffset.UTC),
                 requests, mock(LeaveRequestDayRepository.class),
-                accounts, mock(CalendarApplicationService.class), mock(TransactionTemplate.class),
+                accounts, mock(InternshipService.class), mock(CalendarApplicationService.class),
+                mock(TransactionTemplate.class),
                 mock(com.lab.labtimesheet.feature.notification.service.NotificationService.class));
 
         assertThat(service.list(new AttendanceActor(7L, GlobalRole.INTERN)))
@@ -85,7 +87,7 @@ class AttendanceReadModelServiceTest {
 
         LeaveApplicationService service = new LeaveApplicationService(
                 Clock.fixed(Instant.parse("2026-08-20T00:00:00Z"), ZoneOffset.UTC),
-                mock(LeaveRequestRepository.class), days, accounts, calendar,
+                mock(LeaveRequestRepository.class), days, accounts, mock(InternshipService.class), calendar,
                 mock(TransactionTemplate.class),
                 mock(com.lab.labtimesheet.feature.notification.service.NotificationService.class));
 
@@ -116,7 +118,8 @@ class AttendanceReadModelServiceTest {
                 mock(com.lab.labtimesheet.feature.attendance.repository.AttendanceRecordRepository.class),
                 corrections,
                 mock(com.lab.labtimesheet.feature.attendance.repository.AttendanceCorrectionEventRepository.class),
-                accounts, mock(CalendarApplicationService.class), mock(TransactionTemplate.class),
+                accounts, mock(InternshipService.class), mock(CalendarApplicationService.class),
+                mock(TransactionTemplate.class),
                 mock(com.lab.labtimesheet.feature.notification.service.NotificationService.class));
 
         assertThat(service.list(new AttendanceActor(7L, GlobalRole.INTERN)))

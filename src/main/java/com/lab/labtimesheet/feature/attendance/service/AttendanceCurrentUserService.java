@@ -20,7 +20,7 @@ public class AttendanceCurrentUserService {
     private final AccountService accounts;
 
     /**
-     * Resolves the authenticated email through the Account feature and rejects missing or inactive identities.
+     * Resolves the authenticated email through the identity module and rejects missing or inactive identities.
      *
      * @param principal authenticated server principal
      * @return Attendance actor containing only the user ID and global role needed by this feature

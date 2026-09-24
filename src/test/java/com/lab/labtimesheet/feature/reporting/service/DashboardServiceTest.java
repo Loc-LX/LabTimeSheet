@@ -1,5 +1,7 @@
 package com.lab.labtimesheet.feature.reporting.service;
 
+import com.lab.labtimesheet.feature.internship.service.InternshipService;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
@@ -31,6 +33,7 @@ import org.junit.jupiter.api.Test;
 class DashboardServiceTest {
 
     private final AccountService accounts = mock(AccountService.class);
+    private final InternshipService internships = mock(InternshipService.class);
     private final ProjectQueryService projects = mock(ProjectQueryService.class);
     private final TaskDashboardService tasks = mock(TaskDashboardService.class);
     private final AttendanceApplicationService attendance = mock(AttendanceApplicationService.class);
@@ -38,14 +41,14 @@ class DashboardServiceTest {
 
     @BeforeEach
     void setUp() {
-        dashboards = new DashboardService(accounts, projects, tasks, attendance);
+        dashboards = new DashboardService(accounts, internships, projects, tasks, attendance);
     }
 
     @Test
     void adminDashboardContainsOnlyAccountLifecycleSummaries() {
         given(accounts.requireIdentityByEmail("admin@example.test"))
                 .willReturn(identity(1L, "Admin", GlobalRole.ADMIN, AccountStatus.ACTIVE));
-        given(accounts.summary()).willReturn(new AccountSummary(8, 2, 3));
+        given(internships.summary()).willReturn(new AccountSummary(8, 2, 3));
 
         assertThat(dashboards.admin("admin@example.test"))
                 .isEqualTo(new DashboardView.Admin(8, 2, 3));

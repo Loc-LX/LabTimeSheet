@@ -16,7 +16,7 @@ import com.lab.labtimesheet.feature.identity.model.AccountStatus;
 import com.lab.labtimesheet.feature.identity.model.dto.AccountIdentity;
 import com.lab.labtimesheet.feature.identity.model.entity.AppUser;
 import com.lab.labtimesheet.feature.identity.repository.AppUserRepository;
-import com.lab.labtimesheet.feature.identity.repository.InternProfileRepository;
+import com.lab.labtimesheet.feature.internship.repository.InternProfileRepository;
 import com.lab.labtimesheet.feature.identity.repository.UserActionTokenRepository;
 import com.lab.labtimesheet.platform.model.GlobalRole;
 import com.lab.labtimesheet.platform.service.MailDeliveryService;
@@ -79,7 +79,7 @@ class ActiveMentorIdentityIntegrationTest {
 
         LookupGuard guard = new LookupGuard();
         AccountService query = new AccountService(
-                guarded(users, guard), internProfiles, tokens, mailDelivery, passwords, clock, transactions,
+                guarded(users, guard), tokens, mailDelivery, passwords, clock, transactions,
                 sessions, "http://localhost");
 
         List<AccountIdentity> identities = query.activeGlobalMentorIdentities();

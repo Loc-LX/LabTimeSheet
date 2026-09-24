@@ -15,7 +15,7 @@ not separate modules or mandatory branches. The split changes document ownership
 
 Every UI user; each business feature supplies its authorized view and actions.
 
-The [platform permission matrix](../../../platform/MODULE.md#52-permission-matrix)
+The [platform permission matrix](../authorization/SPEC.md#52-permission-matrix)
 and the module's shared authorization rules apply to every operation.
 
 ## 3. Functional Requirements
@@ -83,7 +83,7 @@ already exists and preserves ARC-005/ARC-006.
 
 | Provider | Required fact or behavior | Rule trace |
 |---|---|---|
-| [platform](../../MODULE.md) | Authorization decision, CSRF and validation presentation contracts | [AUTH-012](../../MODULE.md), [SEC-001](../../MODULE.md), [ERR-001](../../MODULE.md) |
+| [platform](../../MODULE.md) | Authorization decision, CSRF and validation presentation contracts | [AUTH-012](../authorization/SPEC.md), [SEC-001](../security/SPEC.md), [ERR-001](../../MODULE.md) |
 
 ### Related workflows and joint checks
 
@@ -107,7 +107,7 @@ claim full test coverage. Actors and outcomes are summaries of the canonical rul
 
 | Operation | Actor and observable outcome | Canonical rules | Existing acceptance scenarios | Acceptance boundary or open decision |
 |---|---|---|---|---|
-| [Shell, navigation and theme](#shell-navigation-and-theme) | Authorized user navigates the shared shell and persists local theme preferences | [UI-001](SPEC.md), [UI-002](SPEC.md), [UI-003](SPEC.md), [UI-004](SPEC.md), [UI-005](SPEC.md), [UI-006](SPEC.md), [UI-007](SPEC.md), [AUTH-012](../../MODULE.md) | [AC-UI-001](SPEC.md), [AC-UI-002](SPEC.md), [AC-UI-005](SPEC.md) | Exercise role-specific navigation; presentation never replaces service authorization. |
+| [Shell, navigation and theme](#shell-navigation-and-theme) | Authorized user navigates the shared shell and persists local theme preferences | [UI-001](SPEC.md), [UI-002](SPEC.md), [UI-003](SPEC.md), [UI-004](SPEC.md), [UI-005](SPEC.md), [UI-006](SPEC.md), [UI-007](SPEC.md), [AUTH-012](../authorization/SPEC.md) | [AC-UI-001](SPEC.md), [AC-UI-002](SPEC.md), [AC-UI-005](SPEC.md) | Exercise role-specific navigation; presentation never replaces service authorization. |
 | [Accessible components and charts](#accessible-components-and-charts) | Keyboard/screen-reader user can operate controls and read chart alternatives | [UI-008](SPEC.md), [UI-009](SPEC.md), [UI-010](SPEC.md), [UI-011](SPEC.md), [UI-012](SPEC.md), [UI-013](SPEC.md), [UI-014](SPEC.md), [UI-015](SPEC.md), [UI-016](SPEC.md), [UI-017](SPEC.md), [UI-018](SPEC.md) | [AC-UI-003](SPEC.md), [AC-UI-004](SPEC.md), [AC-UI-005](SPEC.md) | Apply the declared desktop accessibility and contrast criteria; preserve non-JavaScript chart content. |
 | [Role-oriented screens](#role-oriented-screens) | Each role reaches the specified operational screens and history surfaces | [UI-019](SPEC.md) | [AC-UI-005](SPEC.md) | Review each owning feature workflow with its authorization cases; one visual comparison is not proof of all actions. |
 

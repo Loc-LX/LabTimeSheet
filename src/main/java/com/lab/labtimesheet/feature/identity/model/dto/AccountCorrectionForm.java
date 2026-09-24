@@ -1,8 +1,5 @@
 package com.lab.labtimesheet.feature.identity.model.dto;
 
-import com.lab.labtimesheet.feature.identity.model.AccountStatus;
-import com.lab.labtimesheet.feature.identity.model.InternshipStatus;
-import com.lab.labtimesheet.platform.model.GlobalRole;
 import java.time.LocalDate;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Size;
@@ -37,13 +34,26 @@ public class AccountCorrectionForm {
     /**
      * Creates a form retaining the non-secret editable values from an account projection.
      *
-     * @param account account projection supplied by the Admin-only service boundary
+     * @param currentEmail current login identity
+     * @param emailEditable whether the account lifecycle permits email correction
+     * @param currentStudentCode current Student Code, if the account is an Intern
+     * @param studentCodeEditable whether the internship lifecycle permits Student Code correction
+     * @param currentInternshipStart current inclusive internship start date
+     * @param currentInternshipEnd current inclusive internship end date
+     * @param internshipDatesEditable whether the internship lifecycle permits date correction
      */
-    public AccountCorrectionForm(AccountAdministrationView account) {
-        email = emailEditable(account) ? account.email() : null;
-        studentCode = studentCodeEditable(account) ? account.studentCode() : null;
-        internshipStart = internshipDatesEditable(account) ? account.internshipStartDate() : null;
-        internshipEnd = internshipDatesEditable(account) ? account.internshipEndDate() : null;
+    public AccountCorrectionForm(
+            String currentEmail,
+            boolean emailEditable,
+            String currentStudentCode,
+            boolean studentCodeEditable,
+            LocalDate currentInternshipStart,
+            LocalDate currentInternshipEnd,
+            boolean internshipDatesEditable) {
+        email = emailEditable ? currentEmail : null;
+        studentCode = studentCodeEditable ? currentStudentCode : null;
+        internshipStart = internshipDatesEditable ? currentInternshipStart : null;
+        internshipEnd = internshipDatesEditable ? currentInternshipEnd : null;
     }
 
     /** Creates an empty correction form for binding and validation tests. */
@@ -81,18 +91,4 @@ public class AccountCorrectionForm {
         return value == null || value.isBlank() ? null : value.trim();
     }
 
-    private static boolean emailEditable(AccountAdministrationView account) {
-        return account.accountStatus() != AccountStatus.DEACTIVATED;
-    }
-
-    private static boolean studentCodeEditable(AccountAdministrationView account) {
-        return account.role() == GlobalRole.INTERN
-                && (account.internshipStatus() == InternshipStatus.NOT_STARTED
-                || account.internshipStatus() == InternshipStatus.ACTIVE);
-    }
-
-    private static boolean internshipDatesEditable(AccountAdministrationView account) {
-        return account.role() == GlobalRole.INTERN
-                && account.internshipStatus() == InternshipStatus.NOT_STARTED;
-    }
 }

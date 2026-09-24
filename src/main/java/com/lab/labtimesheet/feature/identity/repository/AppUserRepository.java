@@ -1,5 +1,6 @@
 package com.lab.labtimesheet.feature.identity.repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -50,22 +51,20 @@ public interface AppUserRepository extends JpaRepository<AppUser, Long> {
     List<AccountIdentity> findActiveMentorIdentities();
 
     /**
-     * Projects every account and optional Intern profile into the Admin-facing non-secret DTO.
+     * Projects every account into the Admin-facing non-secret identity DTO.
      *
      * @return accounts in stable identifier order without credential or token material
      */
     @Query("""
             select new com.lab.labtimesheet.feature.identity.model.dto.AccountAdministrationView(
-                u.id, u.email, u.displayName, u.globalRole, u.accountStatus,
-                p.studentCode, p.internshipStartDate, p.internshipEndDate, p.internshipStatus)
+                u.id, u.email, u.displayName, u.globalRole, u.accountStatus)
             from AppUser u
-            left join InternProfile p on p.userId = u.id
             order by u.id asc
             """)
     List<AccountAdministrationView> findAdministrationViews();
 
     /**
-     * Projects the Admin directory after applying normalized text and immutable-role filters.
+     * Projects the identity-owned directory side after applying normalized text and immutable-role filters.
      *
      * @param search lower-case trimmed text, or the empty string for all accounts
      * @param role immutable global role, or {@code null} for all roles
@@ -73,21 +72,48 @@ public interface AppUserRepository extends JpaRepository<AppUser, Long> {
      */
     @Query("""
             select new com.lab.labtimesheet.feature.identity.model.dto.AccountAdministrationView(
-                u.id, u.email, u.displayName, u.globalRole, u.accountStatus,
-                p.studentCode, p.internshipStartDate, p.internshipEndDate, p.internshipStatus)
+                u.id, u.email, u.displayName, u.globalRole, u.accountStatus)
             from AppUser u
-            left join InternProfile p on p.userId = u.id
             where (:role is null or u.globalRole = :role)
               and (
                     :search = ''
                     or lower(trim(u.displayName)) like concat('%', :search, '%')
                     or lower(trim(u.email)) like concat('%', :search, '%')
-                    or lower(coalesce(trim(p.studentCode), '')) like concat('%', :search, '%')
               )
             order by u.id asc
             """)
     List<AccountAdministrationView> findAdministrationViewsByFilter(
             @Param("search") String search, @Param("role") GlobalRole role);
+
+    /** Projects a batched set of account identities in stable identifier order. */
+    @Query("""
+            select new com.lab.labtimesheet.feature.identity.model.dto.AccountAdministrationView(
+                u.id, u.email, u.displayName, u.globalRole, u.accountStatus)
+            from AppUser u
+            where u.id in :ids
+            order by u.id asc
+            """)
+    List<AccountAdministrationView> findAdministrationViewsByIds(@Param("ids") Collection<Long> ids);
+
+    /** Returns eligible account identities in database display-name order for cross-module composition. */
+    @Query("""
+            select new com.lab.labtimesheet.feature.identity.model.dto.AccountIdentity(
+                u.id, u.email, u.displayName, u.globalRole, u.accountStatus)
+            from AppUser u
+            where u.globalRole = :role and u.accountStatus = :status
+            order by u.displayName asc, u.id asc
+            """)
+    List<AccountIdentity> findIdentitiesByRoleAndStatusOrderByDisplayName(
+            @Param("role") GlobalRole role, @Param("status") AccountStatus status);
+
+    /** Returns account identifiers in stable order for cross-module intersection reads. */
+    @Query("""
+            select u.id from AppUser u
+            where u.globalRole = :role and u.accountStatus = :status
+            order by u.id asc
+            """)
+    List<Long> findIdsByRoleAndStatusOrderById(
+            @Param("role") GlobalRole role, @Param("status") AccountStatus status);
 
     /**
      * Locks an account row for a lifecycle mutation until the current transaction completes.

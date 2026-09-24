@@ -1,5 +1,7 @@
 package com.lab.labtimesheet.feature.identity.service;
 
+import com.lab.labtimesheet.feature.internship.service.InternshipService;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
@@ -75,6 +77,9 @@ class PasswordResetIntegrationTest {
     private AccountService accounts;
 
     @Autowired
+    private InternshipService internships;
+
+    @Autowired
     private SmtpConfigurationService smtp;
 
     @Autowired
@@ -107,7 +112,7 @@ class PasswordResetIntegrationTest {
         long activeId = createActiveMentor("forgot-active@example.com");
         long lockedId = createActiveMentor("forgot-locked@example.com");
         long adminId = accounts.requireActiveAdminId(ADMIN_EMAIL);
-        accounts.create(new CreateAccountCommand(
+        internships.create(new CreateAccountCommand(
                 "forgot-pending@example.com", "Pending Mentor", GlobalRole.MENTOR, null, null, null), adminId);
         accounts.lockAccount(lockedId, adminId);
         mail.clear();
@@ -294,7 +299,7 @@ class PasswordResetIntegrationTest {
         if (!smtp.hasActiveConfiguration()) {
             enableSmtp();
         }
-        var creation = accounts.create(new CreateAccountCommand(
+        var creation = internships.create(new CreateAccountCommand(
                 email, "Reset Mentor", GlobalRole.MENTOR, null, null, null),
                 accounts.requireActiveAdminId(ADMIN_EMAIL));
         assertThat(accounts.activate(mail.lastToken(), "a secure mentor password")).isTrue();

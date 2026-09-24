@@ -1,8 +1,9 @@
 package com.lab.labtimesheet.feature.project.service;
 
 import com.lab.labtimesheet.feature.identity.model.dto.AccountIdentity;
-import com.lab.labtimesheet.feature.identity.model.dto.InternWorkWindow;
+import com.lab.labtimesheet.feature.internship.model.dto.InternWorkWindow;
 import com.lab.labtimesheet.feature.identity.service.AccountService;
+import com.lab.labtimesheet.feature.internship.service.InternshipService;
 import com.lab.labtimesheet.feature.calendar.service.CalendarApplicationService;
 import com.lab.labtimesheet.feature.notification.model.NotificationType;
 import com.lab.labtimesheet.feature.notification.model.dto.NotificationAction;
@@ -81,6 +82,7 @@ public class TaskService {
     private final CalendarApplicationService calendar;
     private final Clock clock;
     private final AccountService accounts;
+    private final InternshipService internships;
     private final NotificationService notifications;
 
     private final TaskRemainingEffortForecastRepository forecasts;
@@ -974,7 +976,7 @@ public class TaskService {
 
     private InternWorkWindow lockedWorkWindow(long userId, LocalDate workDate) {
         try {
-            return accounts.lockedInternWorkWindow(userId, workDate);
+            return internships.lockedInternWorkWindow(userId, workDate);
         } catch (IllegalArgumentException exception) {
             throw new TaskNotFoundException();
         }

@@ -40,23 +40,26 @@ If a change would make either rule false, it is wrong, however convenient.
 com.lab.labtimesheet
 ├── LabtimesheetApplication      root package, do not move
 ├── config/                      shared wiring, security, time, filters
+├── platform/                    shared code owned by no single feature
 └── feature/
-    ├── account/                 users, internships, tokens, bootstrap, login throttle
-    ├── attendance/              punches, policy versions, calendar, leave, corrections
-    ├── integration/             SMTP and HolidayAPI configuration, encrypted
+    ├── attendance/              punches, leave, corrections and attendance results
+    ├── calendar/                policy versions, global calendar and HolidayAPI
+    ├── identity/                users, tokens, bootstrap, login and SMTP screens
+    ├── internship/              internship lifecycle and responsible Mentor
     ├── notification/            in-app inbox and email delivery with retry
-    ├── project/                 Projects, membership, leadership, invitations, exits
-    ├── reporting/               attendance, Project/Task, and Daily reports plus exports
-    └── task/                    Tasks, comments, work logs, transfers, effort forecasts
+    ├── project/                 Projects, membership, leadership, invitations, exits and Tasks
+    └── reporting/               attendance, Project/Task and Daily reports plus exports
 ```
 
 Each feature carries only the layers it needs from `controller`, `exception`,
 `model`, `model.dto`, `model.entity`, `repository`, `service`. Tests under
-`src/test/java` mirror the same packages.
+`src/test/java` mirror the same packages, except `architecture` and `ui`.
 
 A feature may call another feature's **service and DTOs**. It may never touch
-another feature's repository or entity. `LayerStructureTest` fails the build on
-violation, using a regex over imports.
+another feature's repository or entity. `LayerStructureTest` checks the approved
+module set, package mirroring and repository/entity imports; `ModuleBoundaryCycleTest`
+checks the acyclic module graph, the `config` boundary and the approved interface
+exception.
 
 ## The trap that catches everyone
 
@@ -134,17 +137,19 @@ direction.
 **The specification is ahead of the code.** Decisions `D1`, `D12`–`D15`, `D23`–`D25`, `D31`
 and `D32` are approved and not yet implemented, and `plan.md` lists them; `D32` describes
 thirty tables where the migrations above create twenty-four. The module boundaries of
-`ARC-005` (`D28`) are not implemented yet, so the package layout above is the one `ARC-005` has already
-replaced: the mismatch is deliberate until they are. Do not edit the specification back to
-match the code.
+`ARC-005` (`D28`) are implemented in the package layout above. Do not edit the
+specification back to match the code.
 
 **Verify a path before trusting its name.** The specification lives in
 [the specification map](.sdd/specs/README.md): each module has a `MODULE.md` shared contract
 and cohesive `features/<feature>/SPEC.md` documents. System-wide rules stay in
-`platform/MODULE.md`. The old `feature-*` folders no longer exist (`D38`); each module's
-`CHANGELOG.md` keeps their history under *Retained history*, and the platform technical plan
-is `platform/PLAN.md`. Some dated records cite an older location; they are left as written,
-and `git show c443670:<path>` recovers what they point at.
+`platform/MODULE.md`, except the architecture, the authorization model, the security controls
+and the data model, which are platform features (`D40`). The old `feature-*` folders no longer
+exist (`D38`); each module's `CHANGELOG.md` keeps their history under *Retained history*. Every
+`PLAN.md` and `TASKS.md` sits beside its feature's `SPEC.md`; the
+[Architecture plan](.sdd/specs/platform/features/architecture/PLAN.md) holds part A after `A-12`.
+Some dated records cite an older location; they are left as written, and
+`git show c443670:<path>` recovers what they point at.
 
 ## Useful commands
 

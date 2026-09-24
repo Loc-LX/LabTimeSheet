@@ -2,6 +2,7 @@ package com.lab.labtimesheet.feature.reporting.service;
 
 import com.lab.labtimesheet.feature.identity.model.dto.AccountIdentity;
 import com.lab.labtimesheet.feature.identity.service.AccountService;
+import com.lab.labtimesheet.feature.internship.service.InternshipService;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
 import com.lab.labtimesheet.platform.model.GlobalRole;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceReport;
@@ -45,6 +46,7 @@ public class AttendanceReportService {
     private final CalendarApplicationService calendar;
     private final AttendanceReportQueryService reportQueries;
     private final AccountService accounts;
+    private final InternshipService internships;
 
     /**
      * Builds an inclusive attendance report for the authenticated actor.
@@ -72,7 +74,7 @@ public class AttendanceReportService {
         boolean ownScope = actor.role() == GlobalRole.INTERN;
         long targetId = resolveTarget(actor, requestedInternId, ownScope);
         if (!ownScope && requestedInternId == null) {
-            return emptyDetailSelection(from, to, accounts.eligibleInternOptions(to));
+            return emptyDetailSelection(from, to, internships.eligibleInternOptions(to));
         }
         AttendanceReport report = reportQueries.query(actor, targetId, from, to);
         AccountIdentity target = requireInternTarget(report.internId());
@@ -94,7 +96,7 @@ public class AttendanceReportService {
                 report.expectedWorkdays() - report.presentWorkdays(),
                 report.attendanceRateDisplay(),
                 report.complianceDisplay(),
-                ownScope ? List.of() : accounts.eligibleInternOptions(to),
+                ownScope ? List.of() : internships.eligibleInternOptions(to),
                 trend);
     }
 
@@ -173,7 +175,7 @@ public class AttendanceReportService {
 
     private static AttendanceReportView emptyDetailSelection(
             LocalDate from, LocalDate to,
-            List<com.lab.labtimesheet.feature.identity.model.dto.EligibleInternOption> options) {
+            List<com.lab.labtimesheet.feature.internship.model.dto.EligibleInternOption> options) {
         return new AttendanceReportView(
                 0L,
                 "Select an Intern",

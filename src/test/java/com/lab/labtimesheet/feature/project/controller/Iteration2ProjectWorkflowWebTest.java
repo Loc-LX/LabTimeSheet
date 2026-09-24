@@ -1,5 +1,7 @@
 package com.lab.labtimesheet.feature.project.controller;
 
+import com.lab.labtimesheet.feature.internship.service.InternshipService;
+
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.matchesPattern;
 import static org.hamcrest.Matchers.not;
@@ -15,7 +17,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.lab.labtimesheet.feature.identity.model.dto.EligibleInternOption;
+import com.lab.labtimesheet.feature.internship.model.dto.EligibleInternOption;
 import com.lab.labtimesheet.feature.identity.service.AccountService;
 import com.lab.labtimesheet.feature.project.exception.ProjectRuleViolationException;
 import com.lab.labtimesheet.feature.project.model.InvitationResponse;
@@ -68,6 +70,9 @@ class Iteration2ProjectWorkflowWebTest {
 
     @MockitoBean
     private AccountService accounts;
+
+    @MockitoBean
+    private InternshipService internships;
 
     @MockitoBean
     private Clock clock;
@@ -144,7 +149,7 @@ class Iteration2ProjectWorkflowWebTest {
                         41L, "Intern2 (PRJ-SEED-2)",
                         42L, "Intern3 (PRJ-SEED-3)"),
                 Map.of(60L, "Intern1 (PRJ-SEED-1)")));
-        when(accounts.eligibleInternOptions(LocalDate.of(2026, 8, 21))).thenReturn(List.of(
+        when(internships.eligibleInternOptions(LocalDate.of(2026, 8, 21))).thenReturn(List.of(
                 new EligibleInternOption(23L, "Invitee", "SV-023",
                         LocalDate.of(2026, 1, 1), LocalDate.of(2026, 12, 31)),
                 new EligibleInternOption(24L, "Retained invitee", "SV-024",

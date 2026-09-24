@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.lab.labtimesheet.config.TestcontainersConfiguration;
+import com.lab.labtimesheet.feature.internship.service.InternshipService;
 import com.lab.labtimesheet.feature.project.exception.ProjectAccessDeniedException;
 import com.lab.labtimesheet.feature.project.exception.ProjectRuleViolationException;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectCreateCommand;
@@ -41,6 +42,9 @@ class ProjectServiceIntegrationTest {
 
     @Autowired
     private ProjectQueryService projectPages;
+
+    @Autowired
+    private InternshipService internships;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -394,23 +398,23 @@ class ProjectServiceIntegrationTest {
                 values (?, ?, 'Transfer before completion', ?, ?)
                 """, projectId, departingMembershipId, departingMembershipId, departingMembershipId);
 
-        var blocked = projectPages.internshipLifecycleGuard(adminId, departingId);
+        var blocked = internships.internshipLifecycleReadiness(departingId, adminId);
         assertTrue(blocked.currentLeader());
         assertEquals(1, blocked.unfinishedTaskCount());
 
         projectService.changeLeader(mentorId, projectId, replacementId);
-        var taskBlocked = projectPages.internshipLifecycleGuard(adminId, departingId);
+        var taskBlocked = internships.internshipLifecycleReadiness(departingId, adminId);
         assertFalse(taskBlocked.currentLeader());
         assertEquals(1, taskBlocked.unfinishedTaskCount());
 
         jdbc.update("update tasks set status = 'DONE', updated_at = ? where project_id = ?",
                 dbTime(NOW.plusSeconds(90)), projectId);
         entityManager.clear();
-        var ready = projectPages.internshipLifecycleGuard(adminId, departingId);
+        var ready = internships.internshipLifecycleReadiness(departingId, adminId);
         assertFalse(ready.currentLeader());
         assertEquals(0, ready.unfinishedTaskCount());
 
-        projectService.completeInternship(adminId, departingId);
+        internships.completeInternship(departingId, adminId);
         entityManager.flush();
 
         assertEquals("COMPLETED", text(
@@ -434,11 +438,40 @@ class ProjectServiceIntegrationTest {
 
         var failure = assertThrows(
                 IllegalStateException.class,
-                () -> projectService.completeInternship(adminId, leaderId));
+                () -> internships.completeInternship(leaderId, adminId));
 
         assertEquals("Intern is still a current Leader", failure.getMessage());
         assertEquals("ACTIVE", text(
                 "select internship_status from intern_profiles where user_id = ?", leaderId));
+    }
+
+    /**
+     * Protects ACC-022: a non-Leader who owns one unfinished Task is refused completion with the
+     * exact Task refusal, and the hand-derived unchanged profile status remains ACTIVE.
+     */
+    @Test
+    void terminalCompletionRejectsUnfinishedTaskWithoutLeadershipAndPreservesProfile() {
+        long adminId = user("admin-terminal-task-blocked@example.test", "ADMIN");
+        long mentorId = user("mentor-terminal-task-blocked@example.test", "MENTOR");
+        long leaderId = intern("leader-terminal-task-blocked@example.test", "I030");
+        long departingId = intern("departing-terminal-task-blocked@example.test", "I031");
+        long projectId = createProject(mentorId, leaderId, "Task-blocked terminal readiness");
+        projectService.addMember(mentorId, projectId, departingId);
+        long departingMembershipId = membershipId(projectId, departingId);
+        jdbc.update("""
+                insert into tasks (
+                    project_id, assignee_membership_id, title,
+                    created_by_membership_id, assigned_by_membership_id)
+                values (?, ?, 'Still unfinished', ?, ?)
+                """, projectId, departingMembershipId, departingMembershipId, departingMembershipId);
+
+        var failure = assertThrows(
+                IllegalStateException.class,
+                () -> internships.completeInternship(departingId, adminId));
+
+        assertEquals("Intern still owns unfinished Tasks", failure.getMessage());
+        assertEquals("ACTIVE", text(
+                "select internship_status from intern_profiles where user_id = ?", departingId));
     }
 
     @Test
