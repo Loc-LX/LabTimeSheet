@@ -116,8 +116,6 @@ explain choices; [plan.md](../../plan.md) is the only progress tracker.
 └── platform/
     ├── MODULE.md
     ├── CHANGELOG.md
-    ├── PLAN.md                 part A only, until A-12 closes it (D40)
-    ├── TASKS.md
     └── features/
         ├── smtp-configuration/
         │   ├── SPEC.md
@@ -257,8 +255,8 @@ feature whose code it changes. A schema change shared by several features is pla
 points to it. Create a feature's PLAN.md only when its technical design is written, then
 TASKS.md when that design can be broken into verifiable work. Neither file is an empty
 placeholder here. Read the shared module constraints before planning one feature independently.
-The [platform plan](platform/PLAN.md) holds part A only until `A-12` closes it; it is not
-blanket approval for all new features.
+The [Architecture plan](platform/features/architecture/PLAN.md) holds the completed part A
+after `A-12` closed it; it is not blanket approval for all new features.
 
 A targeted implementation follows OPS-019 on an isolated work/fix/<area>/<what> branch
 from verified main, with branch-name collision checks. Choose a cohesive change that can

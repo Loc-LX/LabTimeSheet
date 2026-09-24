@@ -1,6 +1,6 @@
 # Architecture Spec
 
-**Version:** 1.0.0 · **Owner:** Loc-LX · **Status:** APPROVED BUSINESS BASELINE · **Date:** 2026-09-23
+**Version:** 1.0.1 · **Owner:** Loc-LX · **Status:** APPROVED BUSINESS BASELINE · **Date:** 2026-09-24
 
 **Module:** `platform` · **Shared contract:** [MODULE.md](../../MODULE.md)
 
@@ -134,8 +134,8 @@ not introduced by this document.
 ## Notes / Open Questions
 
 No question affecting this feature is open. Its technical design is [PLAN.md](PLAN.md), with
-tasks in [TASKS.md](TASKS.md). Part A, which builds `ARC-005` and `ARC-006`, stays in the platform
-plan until task `A-12` closes it, then moves here (`D40`).
+tasks in [TASKS.md](TASKS.md). Part A, which builds `ARC-005` and `ARC-006`, now lives in this
+feature's `PLAN.md` and `TASKS.md` (`D40`).
 
 Read [shared open questions](../../MODULE.md#notes--open-questions) before approving
 the technical plan. [plan.md](../../../../../plan.md) is the only progress tracker.
