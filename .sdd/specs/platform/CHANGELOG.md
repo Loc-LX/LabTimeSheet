@@ -1,5 +1,19 @@
 # Changelog — Platform module
 
+## 1.11.0 — 2026-09-23
+
+Structure only (`D40`). Four features take shared work that had no feature:
+[Architecture](features/architecture/SPEC.md) takes §3 with `ARC-001`–`ARC-010`, `AC-ARC-001`
+and `AC-ARC-002`; [Authorization](features/authorization/SPEC.md) takes §5 with the §5.2
+permission matrix, `AUTH-001`–`AUTH-003`, `AUTH-010`, `AUTH-012` and five `AC-AUTH`
+scenarios; [Security](features/security/SPEC.md) takes §13 with `SEC-001`, `SEC-008`–`SEC-014`
+and six `AC-SEC` scenarios; [Data model](features/data-model/SPEC.md) takes §19 with `DB-001`,
+`DB-003`–`DB-008`, `DB-010`, `AC-DB-001` and `AC-DB-004`. Each section keeps its § number
+and leaves a pointer here. Parts B and C of the platform plan move to Authorization and Data
+model, with two tasks of part B moving to new parts D and E of Architecture and Security; part A
+stays until `A-12` closes it. Every moved row is unchanged: the catalogue still holds 311 rules
+and 167 scenarios. No schema or dependency changed.
+
 ## 1.10.0 — 2026-09-22
 
 Counts only, following `D39` as corrected on second review: 311 rules, 292 of them with an

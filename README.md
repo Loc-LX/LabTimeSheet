@@ -26,7 +26,7 @@ root** holds how to work on it.
 | Question | Read |
 |---|---|
 | What must always be true | [`.sdd/constitution.md`](.sdd/constitution.md) |
-| What the system must do | [Specification map](.sdd/specs/README.md): module `MODULE.md` plus `features/<feature>/SPEC.md`; system-wide rules in `platform/MODULE.md` |
+| What the system must do | [Specification map](.sdd/specs/README.md): module `MODULE.md` plus `features/<feature>/SPEC.md`; system-wide rules in `platform/MODULE.md` and its features; each `PLAN.md` and `TASKS.md` beside its feature `SPEC.md` (`D40`) |
 | Why a decision was made | [`.sdd/decisions.md`](.sdd/decisions.md); architectural decisions in [`.sdd/rfcs/`](.sdd/rfcs) |
 | Product, users, assumptions, and technology stack | [`.sdd/shared_context.md`](.sdd/shared_context.md) |
 | UI design tokens | [`.sdd/design-system.md`](.sdd/design-system.md) |

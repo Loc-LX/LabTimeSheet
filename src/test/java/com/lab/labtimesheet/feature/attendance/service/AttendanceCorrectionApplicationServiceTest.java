@@ -1,5 +1,9 @@
 package com.lab.labtimesheet.feature.attendance.service;
 
+import com.lab.labtimesheet.feature.internship.service.InternshipService;
+
+import com.lab.labtimesheet.feature.calendar.service.CalendarApplicationService;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -8,16 +12,15 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.lab.labtimesheet.feature.account.service.AccountService;
-import com.lab.labtimesheet.feature.account.model.AccountStatus;
-import com.lab.labtimesheet.feature.account.model.GlobalRole;
-import com.lab.labtimesheet.feature.account.model.dto.AccountIdentity;
-import com.lab.labtimesheet.feature.account.model.dto.LockedAccountMutationEligibility;
-import com.lab.labtimesheet.feature.account.model.InternshipStatus;
+import com.lab.labtimesheet.feature.identity.model.AccountStatus;
+import com.lab.labtimesheet.feature.internship.model.InternshipStatus;
+import com.lab.labtimesheet.feature.identity.model.dto.AccountIdentity;
+import com.lab.labtimesheet.feature.internship.model.dto.LockedAccountMutationEligibility;
+import com.lab.labtimesheet.feature.identity.service.AccountService;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
-import com.lab.labtimesheet.feature.attendance.model.AttendanceRole;
-import com.lab.labtimesheet.feature.attendance.model.AttendancePolicyFixtures;
+import com.lab.labtimesheet.feature.calendar.model.AttendancePolicyFixtures;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceRecord;
+import com.lab.labtimesheet.platform.model.GlobalRole;
 import com.lab.labtimesheet.feature.attendance.model.CorrectionStatus;
 import com.lab.labtimesheet.feature.attendance.model.dto.CorrectionRequestCommand;
 import com.lab.labtimesheet.feature.attendance.model.entity.AttendanceCorrectionEntity;
@@ -26,12 +29,14 @@ import com.lab.labtimesheet.feature.attendance.repository.AttendanceCorrectionEv
 import com.lab.labtimesheet.feature.attendance.repository.AttendanceCorrectionRepository;
 import com.lab.labtimesheet.feature.attendance.repository.AttendanceRecordRepository;
 import com.lab.labtimesheet.feature.notification.service.NotificationService;
+import com.lab.labtimesheet.platform.model.GlobalRole;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -49,11 +54,13 @@ class AttendanceCorrectionApplicationServiceTest {
                 mock(AttendanceCorrectionRepository.class),
                 mock(AttendanceCorrectionEventRepository.class),
                 mock(AccountService.class),
+                mock(InternshipService.class),
+                calendar(),
                 mock(TransactionTemplate.class),
                 mock(NotificationService.class));
 
         assertThatThrownBy(() -> service.submit(
-                        new AttendanceActor(42L, AttendanceRole.INTERN),
+                        new AttendanceActor(42L, GlobalRole.INTERN),
                         99L,
                         new CorrectionRequestCommand(LocalDateTime.of(2026, 8, 14, 15, 0), "  ")))
                 .isInstanceOf(IllegalArgumentException.class);
@@ -86,7 +93,8 @@ class AttendanceCorrectionApplicationServiceTest {
             return Optional.of(locked);
         });
         AttendanceRecordEntity attendance = mock(AttendanceRecordEntity.class);
-        when(attendance.toDomain()).thenReturn(new AttendanceRecord(
+        when(attendance.policyVersionId()).thenReturn(1L);
+        when(attendance.toDomain(any())).thenReturn(new AttendanceRecord(
                 42L,
                 LocalDate.of(2026, 8, 15),
                 AttendancePolicyFixtures.seeded(1L),
@@ -94,8 +102,9 @@ class AttendanceCorrectionApplicationServiceTest {
                 null));
         when(records.findById(42L)).thenReturn(Optional.of(attendance));
         AccountService accounts = mock(AccountService.class);
+        InternshipService internships = mock(InternshipService.class);
         AtomicBoolean accountLocked = new AtomicBoolean();
-        when(accounts.lockedAccountMutationEligibility(any())).thenAnswer(invocation -> {
+        when(internships.lockedAccountMutationEligibility(any())).thenAnswer(invocation -> {
             accountLocked.set(true);
             return List.of(new LockedAccountMutationEligibility(
                     42L,
@@ -115,6 +124,8 @@ class AttendanceCorrectionApplicationServiceTest {
                 corrections,
                 mock(AttendanceCorrectionEventRepository.class),
                 accounts,
+                internships,
+                calendar(),
                 mock(TransactionTemplate.class),
                 mock(NotificationService.class));
 
@@ -128,10 +139,12 @@ class AttendanceCorrectionApplicationServiceTest {
         AttendanceRecordEntity second = mock(AttendanceRecordEntity.class);
         when(first.id()).thenReturn(101L);
         when(second.id()).thenReturn(102L);
-        when(first.toDomain()).thenReturn(new AttendanceRecord(
+        when(first.policyVersionId()).thenReturn(1L);
+        when(second.policyVersionId()).thenReturn(1L);
+        when(first.toDomain(any())).thenReturn(new AttendanceRecord(
                 42L, LocalDate.of(2026, 8, 14), AttendancePolicyFixtures.seeded(1L),
                 Instant.parse("2026-08-14T02:00:00Z"), null));
-        when(second.toDomain()).thenReturn(new AttendanceRecord(
+        when(second.toDomain(any())).thenReturn(new AttendanceRecord(
                 42L, LocalDate.of(2026, 8, 15), AttendancePolicyFixtures.seeded(1L),
                 Instant.parse("2026-08-15T02:00:00Z"), null));
         when(corrections.findByAttendanceRecordIdInForUpdate(List.of(101L, 102L))).thenReturn(List.of());
@@ -142,6 +155,8 @@ class AttendanceCorrectionApplicationServiceTest {
                 corrections,
                 mock(AttendanceCorrectionEventRepository.class),
                 mock(AccountService.class),
+                mock(InternshipService.class),
+                calendar(),
                 mock(TransactionTemplate.class),
                 mock(NotificationService.class));
 
@@ -177,7 +192,8 @@ class AttendanceCorrectionApplicationServiceTest {
 
         AttendanceRecordRepository records = mock(AttendanceRecordRepository.class);
         AttendanceRecordEntity entity = mock(AttendanceRecordEntity.class);
-        when(entity.toDomain()).thenReturn(new AttendanceRecord(
+        when(entity.policyVersionId()).thenReturn(1L);
+        when(entity.toDomain(any())).thenReturn(new AttendanceRecord(
                 42L,
                 LocalDate.of(2026, 8, 14),
                 AttendancePolicyFixtures.seeded(1L),
@@ -199,8 +215,9 @@ class AttendanceCorrectionApplicationServiceTest {
                 });
 
         AccountService accounts = mock(AccountService.class);
+        InternshipService internships = mock(InternshipService.class);
         when(accounts.activeGlobalMentorIdentities()).thenReturn(List.of());
-        when(accounts.lockedAccountMutationEligibility(any())).thenReturn(List.of());
+        when(internships.lockedAccountMutationEligibility(any())).thenReturn(List.of());
 
         AttendanceCorrectionApplicationService service = new AttendanceCorrectionApplicationService(
                 Clock.fixed(Instant.parse("2026-08-14T10:00:00Z"), ZoneOffset.UTC),
@@ -208,11 +225,13 @@ class AttendanceCorrectionApplicationServiceTest {
                 corrections,
                 mock(AttendanceCorrectionEventRepository.class),
                 accounts,
+                internships,
+                calendar(),
                 mock(TransactionTemplate.class),
                 mock(NotificationService.class));
 
         service.submit(
-                new AttendanceActor(42L, AttendanceRole.INTERN),
+                new AttendanceActor(42L, GlobalRole.INTERN),
                 77L,
                 new CorrectionRequestCommand(LocalDateTime.of(2026, 8, 14, 15, 0), "Forgot to check out"));
 
@@ -223,5 +242,11 @@ class AttendanceCorrectionApplicationServiceTest {
                 .as("COR-003 anchors the submission deadline to scheduled end, not the checkout cutoff")
                 .isEqualTo(expectedDeadline)
                 .isNotEqualTo(cutoffAnchoredDeadline);
+    }
+
+    private static CalendarApplicationService calendar() {
+        CalendarApplicationService calendar = mock(CalendarApplicationService.class);
+        when(calendar.policiesByVersionIds(any())).thenReturn(Map.of(1L, AttendancePolicyFixtures.seeded(1L)));
+        return calendar;
     }
 }

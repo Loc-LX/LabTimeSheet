@@ -9,16 +9,17 @@ import static org.mockito.Mockito.verify;
 
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceReportDateContext;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceApplicationService;
+import com.lab.labtimesheet.feature.calendar.service.CalendarApplicationService;
 import com.lab.labtimesheet.feature.project.exception.ProjectAccessDeniedException;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectActorView;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectMemberView;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectSummary;
 import com.lab.labtimesheet.feature.project.service.ProjectQueryService;
-import com.lab.labtimesheet.feature.task.model.TaskStatus;
-import com.lab.labtimesheet.feature.task.model.TaskVarianceState;
-import com.lab.labtimesheet.feature.task.model.dto.TaskDailyReportView;
-import com.lab.labtimesheet.feature.task.model.dto.TaskWorkLogView;
-import com.lab.labtimesheet.feature.task.service.TaskQueryService;
+import com.lab.labtimesheet.feature.project.model.TaskStatus;
+import com.lab.labtimesheet.feature.project.model.TaskVarianceState;
+import com.lab.labtimesheet.feature.project.model.dto.TaskDailyReportView;
+import com.lab.labtimesheet.feature.project.model.dto.TaskWorkLogView;
+import com.lab.labtimesheet.feature.project.service.TaskQueryService;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -34,11 +35,12 @@ class Q31RDailyProjectWorkReportServiceTest {
     private final ProjectQueryService projects = mock(ProjectQueryService.class);
     private final TaskQueryService taskQueries = mock(TaskQueryService.class);
     private final AttendanceApplicationService attendance = mock(AttendanceApplicationService.class);
+    private final CalendarApplicationService calendar = mock(CalendarApplicationService.class);
     private DailyProjectWorkReportService reports;
 
     @BeforeEach
     void setUp() {
-        reports = new DailyProjectWorkReportService(projects, taskQueries, attendance);
+        reports = new DailyProjectWorkReportService(projects, taskQueries, attendance, calendar);
     }
 
     @Test
@@ -48,7 +50,7 @@ class Q31RDailyProjectWorkReportServiceTest {
                 .willReturn(new ProjectActorView(3L, "INTERN"));
         given(projects.currentLeaderProjectForDailyReport(3L, 42L)).willReturn(project);
         given(taskQueries.dailyReport(42L, REPORT_DATE)).willReturn(List.of());
-        given(attendance.currentBusinessDate()).willReturn(REPORT_DATE);
+        given(calendar.currentBusinessDate()).willReturn(REPORT_DATE);
         given(attendance.reportDateContext(REPORT_DATE)).willReturn(dayContext());
 
         var view = reports.build("leader@example.test", 42L, REPORT_DATE);
@@ -69,7 +71,7 @@ class Q31RDailyProjectWorkReportServiceTest {
                 .willReturn(new ProjectActorView(3L, "INTERN"));
         given(projects.currentLeaderProjectForDailyReport(3L, 42L)).willReturn(project);
         given(taskQueries.dailyReport(42L, REPORT_DATE)).willReturn(List.of());
-        given(attendance.currentBusinessDate()).willReturn(REPORT_DATE);
+        given(calendar.currentBusinessDate()).willReturn(REPORT_DATE);
         given(attendance.reportDateContext(REPORT_DATE)).willReturn(dayContext());
 
         var view = reports.build("leader@example.test", 42L, REPORT_DATE);
@@ -100,7 +102,7 @@ class Q31RDailyProjectWorkReportServiceTest {
         given(taskQueries.dailyReport(42L, historicalDate)).willReturn(List.of(task));
         given(projects.members(3L, 42L)).willReturn(List.of(new ProjectMemberView(
                 7L, 4L, "Historical Author", loggedAt, null, false, 3L, null)));
-        given(attendance.currentBusinessDate()).willReturn(REPORT_DATE);
+        given(calendar.currentBusinessDate()).willReturn(REPORT_DATE);
         given(attendance.reportDateContext(historicalDate)).willReturn(
                 new AttendanceReportDateContext(
                         historicalDate, false, false, 1L, LocalDate.of(1970, 1, 1),
@@ -193,7 +195,7 @@ class Q31RDailyProjectWorkReportServiceTest {
     }
 
     private void verifyNoDownstreamReads() {
-        verify(attendance, never()).currentBusinessDate();
+        verify(calendar, never()).currentBusinessDate();
         verify(attendance, never()).reportDateContext(REPORT_DATE);
         verify(taskQueries, never()).dailyReport(42L, REPORT_DATE);
     }

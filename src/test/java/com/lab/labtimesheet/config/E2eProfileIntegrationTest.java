@@ -2,7 +2,9 @@ package com.lab.labtimesheet.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.lang.management.ManagementFactory;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 
 import org.junit.jupiter.api.Test;
@@ -41,9 +43,21 @@ class E2eProfileIntegrationTest {
     private Environment environment;
 
     @Test
-    void e2eStartupUsesDevelopmentDatasourceAndAdvancingClock() {
-        assertThat(clock.instant()).isBetween(Instant.parse("2026-08-22T02:00:00Z"),
-                Instant.parse("2026-08-22T02:00:05Z"));
+    void e2eStartupUsesDevelopmentDatasourceAndAdvancingClock() throws InterruptedException {
+        // The clock is anchored when its bean is created, so the distance from the anchor is the
+        // startup time left after that moment, which bean order decides. The JVM uptime bounds it
+        // without assuming how fast this machine starts.
+        Instant anchor = Instant.parse("2026-08-22T02:00:00Z");
+        Instant firstReading = clock.instant();
+        assertThat(firstReading)
+                .isBetween(anchor, anchor.plusMillis(ManagementFactory.getRuntimeMXBean().getUptime()));
+
+        Instant beforeWait = clock.instant();
+        Instant realBeforeWait = Instant.now();
+        Thread.sleep(Duration.ofMillis(200));
+        long clockAdvance = Duration.between(beforeWait, clock.instant()).toMillis();
+        long realAdvance = Duration.between(realBeforeWait, Instant.now()).toMillis();
+        assertThat(clockAdvance).isBetween(realAdvance - 50, realAdvance + 50);
         assertThat(environment.getProperty("server.port")).isEqualTo("0");
         assertThat(environment.getProperty("spring.mail.host")).isEqualTo("localhost");
         assertThat(environment.getProperty("lab.public-origin")).isEqualTo("http://localhost:8080");

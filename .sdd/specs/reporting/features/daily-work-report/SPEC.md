@@ -17,7 +17,7 @@ Owning Mentor; current Leader with one exact eligible Project; active Admin with
 
 Use cases defined here: UC-16.
 
-The [platform permission matrix](../../../platform/MODULE.md#52-permission-matrix)
+The [platform permission matrix](../../../platform/features/authorization/SPEC.md#52-permission-matrix)
 and the module's shared authorization rules apply to every operation.
 
 ## 3. Functional Requirements
@@ -92,7 +92,7 @@ already exists and preserves ARC-005/ARC-006.
 | Provider | Required fact or behavior | Rule trace |
 |---|---|---|
 | [project/work-logs-and-effort](../../../project/features/work-logs-and-effort/SPEC.md) | Retained dated contributions and whole-Task effort | [TSK-013](../../../project/features/work-logs-and-effort/SPEC.md), [TSK-014](../../../project/features/work-logs-and-effort/SPEC.md), [TSK-015](../../../project/features/work-logs-and-effort/SPEC.md), [TSK-016](../../../project/features/work-logs-and-effort/SPEC.md), [TSK-021](../../../project/features/work-logs-and-effort/SPEC.md) |
-| [project](../../../project/MODULE.md) | Exact Project and current Leader scope | [AUTH-004](../../../project/MODULE.md), [AUTH-005](../../../project/MODULE.md), [AUTH-006](../../../project/MODULE.md), [AUTH-007](../../../project/MODULE.md), [AUTH-008](../../../project/MODULE.md), [AUTH-009](../../../project/MODULE.md), [AUTH-010](../../../platform/MODULE.md), [AUTH-011](../../../project/MODULE.md) |
+| [project](../../../project/MODULE.md) | Exact Project and current Leader scope | [AUTH-004](../../../project/MODULE.md), [AUTH-005](../../../project/MODULE.md), [AUTH-006](../../../project/MODULE.md), [AUTH-007](../../../project/MODULE.md), [AUTH-008](../../../project/MODULE.md), [AUTH-009](../../../project/MODULE.md), [AUTH-010](../../../platform/features/authorization/SPEC.md), [AUTH-011](../../../project/MODULE.md) |
 | [calendar](../../../calendar/MODULE.md) | Business-date context; work on days off remains valid | [ATT-001](../../../calendar/features/attendance-policy/SPEC.md), [CAL-006](../../../calendar/features/global-calendar/SPEC.md), [CAL-007](../../../calendar/features/global-calendar/SPEC.md), [CAL-008](../../../calendar/features/global-calendar/SPEC.md), [CAL-009](../../../calendar/features/global-calendar/SPEC.md) |
 | [reporting](../../MODULE.md) | Authorized formats and bounded export | [RPT-001](../../MODULE.md), [RPT-006](../../MODULE.md), [RPT-007](../../MODULE.md), [RPT-008](../../MODULE.md), [RPT-009](../../MODULE.md), [RPT-010](../../MODULE.md), [ERR-006](../../MODULE.md) |
 

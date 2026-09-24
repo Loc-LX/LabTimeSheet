@@ -1,5 +1,10 @@
 package com.lab.labtimesheet.feature.attendance.service;
 
+import com.lab.labtimesheet.feature.internship.service.InternshipService;
+
+import com.lab.labtimesheet.feature.calendar.service.CalendarApplicationService;
+import com.lab.labtimesheet.feature.calendar.service.AttendancePolicyTimeline;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -7,25 +12,23 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.lab.labtimesheet.feature.account.service.AccountService;
-import com.lab.labtimesheet.feature.account.model.AccountStatus;
-import com.lab.labtimesheet.feature.account.model.GlobalRole;
-import com.lab.labtimesheet.feature.account.model.dto.AccountIdentity;
-import com.lab.labtimesheet.feature.account.model.dto.LockedAccountMutationEligibility;
-import com.lab.labtimesheet.feature.account.model.InternshipStatus;
-import com.lab.labtimesheet.feature.account.model.dto.InternWorkWindow;
+import com.lab.labtimesheet.feature.identity.model.AccountStatus;
+import com.lab.labtimesheet.feature.internship.model.InternshipStatus;
+import com.lab.labtimesheet.feature.identity.model.dto.AccountIdentity;
+import com.lab.labtimesheet.feature.internship.model.dto.InternWorkWindow;
+import com.lab.labtimesheet.feature.internship.model.dto.LockedAccountMutationEligibility;
+import com.lab.labtimesheet.feature.identity.service.AccountService;
 import com.lab.labtimesheet.feature.attendance.exception.LeaveException;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
-import com.lab.labtimesheet.feature.attendance.model.AttendancePolicyFixtures;
-import com.lab.labtimesheet.feature.attendance.model.entity.AttendancePolicyEntity;
-import com.lab.labtimesheet.feature.attendance.model.AttendanceRole;
+import com.lab.labtimesheet.feature.calendar.model.AttendancePolicyFixtures;
+import com.lab.labtimesheet.platform.model.GlobalRole;
 import com.lab.labtimesheet.feature.attendance.model.LeaveStatus;
 import com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestCommand;
 import com.lab.labtimesheet.feature.attendance.model.entity.LeaveRequestEntity;
-import com.lab.labtimesheet.feature.attendance.repository.AttendancePolicyRepository;
 import com.lab.labtimesheet.feature.attendance.repository.LeaveRequestDayRepository;
 import com.lab.labtimesheet.feature.attendance.repository.LeaveRequestRepository;
 import com.lab.labtimesheet.feature.notification.service.NotificationService;
+import com.lab.labtimesheet.platform.model.GlobalRole;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -45,16 +48,16 @@ class LeaveApplicationServiceTest {
     void rejectsBlankReasonBeforeReadingOrWritingLeaveState() {
         LeaveApplicationService service = new LeaveApplicationService(
                 Clock.fixed(Instant.parse("2026-08-20T00:00:00Z"), ZoneOffset.UTC),
-                mock(AttendancePolicyRepository.class),
                 mock(LeaveRequestRepository.class),
                 mock(LeaveRequestDayRepository.class),
                 mock(AccountService.class),
+                mock(InternshipService.class),
                 mock(CalendarApplicationService.class),
                 mock(TransactionTemplate.class),
                 mock(NotificationService.class));
 
         assertThatThrownBy(() -> service.submit(
-                        new AttendanceActor(42L, AttendanceRole.INTERN),
+                        new AttendanceActor(42L, GlobalRole.INTERN),
                         new LeaveRequestCommand(
                                 LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 1), "  ")))
                 .isInstanceOf(IllegalArgumentException.class);
@@ -85,8 +88,9 @@ class LeaveApplicationServiceTest {
             return Optional.of(locked);
         });
         AccountService accounts = mock(AccountService.class);
+        InternshipService internships = mock(InternshipService.class);
         AtomicBoolean accountLocked = new AtomicBoolean();
-        when(accounts.lockedAccountMutationEligibility(any())).thenAnswer(invocation -> {
+        when(internships.lockedAccountMutationEligibility(any())).thenAnswer(invocation -> {
             accountLocked.set(true);
             return List.of(new LockedAccountMutationEligibility(
                     42L,
@@ -102,10 +106,10 @@ class LeaveApplicationServiceTest {
 
         LeaveApplicationService service = new LeaveApplicationService(
                 clock,
-                mock(AttendancePolicyRepository.class),
                 requests,
                 mock(LeaveRequestDayRepository.class),
                 accounts,
+                internships,
                 mock(CalendarApplicationService.class),
                 mock(TransactionTemplate.class),
                 mock(NotificationService.class));
@@ -161,7 +165,7 @@ class LeaveApplicationServiceTest {
      * privileged role, and an Admin starts approving and rejecting leave, which also moves quota
      * because an approval reserves it.
      *
-     * <p>{@code AttendanceRole} carries `ADMIN`, so an Admin can reach these methods and the
+     * <p>{@code GlobalRole} carries `ADMIN`, so an Admin can reach these methods and the
      * refusal has to be deliberate rather than a consequence of the type. The test asserts the
      * refusal on both decisions and, separately, that nothing was read on the way to it: the guard
      * runs before the request is looked up, so an Admin holding a guessed identifier learns neither
@@ -173,16 +177,17 @@ class LeaveApplicationServiceTest {
         LeaveRequestRepository requests = mock(LeaveRequestRepository.class);
         LeaveRequestDayRepository days = mock(LeaveRequestDayRepository.class);
         AccountService accounts = mock(AccountService.class);
+        InternshipService internships = mock(InternshipService.class);
         LeaveApplicationService service = new LeaveApplicationService(
                 Clock.fixed(Instant.parse("2026-08-14T01:00:00Z"), ZoneOffset.UTC),
-                mock(AttendancePolicyRepository.class),
                 requests,
                 days,
                 accounts,
+                internships,
                 mock(CalendarApplicationService.class),
                 mock(TransactionTemplate.class),
                 mock(NotificationService.class));
-        AttendanceActor admin = new AttendanceActor(9L, AttendanceRole.ADMIN);
+        AttendanceActor admin = new AttendanceActor(9L, GlobalRole.ADMIN);
 
         assertThatThrownBy(() -> service.approve(admin, 77L))
                 .isInstanceOf(AccessDeniedException.class)
@@ -203,14 +208,10 @@ class LeaveApplicationServiceTest {
      * @param requests leave repository, so a caller can assert whether the row was written
      */
     private void submitSameDayLeave(Instant now, LocalDate workday, LeaveRequestRepository requests) {
-        AttendancePolicyRepository policies = mock(AttendancePolicyRepository.class);
-        AttendancePolicyEntity policyEntity = mock(AttendancePolicyEntity.class);
-        when(policyEntity.toDomain()).thenReturn(AttendancePolicyFixtures.seeded(1L));
-        when(policies.findAllByOrderByEffectiveFromAsc()).thenReturn(List.of(policyEntity));
-
         AccountService accounts = mock(AccountService.class);
+        InternshipService internships = mock(InternshipService.class);
         when(accounts.activeGlobalMentorIdentities()).thenReturn(List.of());
-        when(accounts.lockedInternWorkWindow(eq(42L), any(LocalDate.class)))
+        when(internships.lockedInternWorkWindow(eq(42L), any(LocalDate.class)))
                 .thenReturn(new InternWorkWindow(
                         42L,
                         workday,
@@ -221,18 +222,20 @@ class LeaveApplicationServiceTest {
 
         CalendarApplicationService calendar = mock(CalendarApplicationService.class);
         when(calendar.isGlobalDayOff(any(LocalDate.class))).thenReturn(false);
+        when(calendar.policyTimeline()).thenReturn(new AttendancePolicyTimeline(
+                List.of(AttendancePolicyFixtures.seeded(1L))));
 
         new LeaveApplicationService(
                         Clock.fixed(now, ZoneOffset.UTC),
-                        policies,
                         requests,
                         mock(LeaveRequestDayRepository.class),
                         accounts,
+                        internships,
                         calendar,
                         mock(TransactionTemplate.class),
                         mock(NotificationService.class))
                 .submit(
-                        new AttendanceActor(42L, AttendanceRole.INTERN),
+                        new AttendanceActor(42L, GlobalRole.INTERN),
                         new LeaveRequestCommand(workday, workday, "Family matter"));
     }
 }

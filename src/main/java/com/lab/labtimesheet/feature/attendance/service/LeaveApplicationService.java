@@ -1,26 +1,27 @@
 package com.lab.labtimesheet.feature.attendance.service;
 
-import com.lab.labtimesheet.feature.account.model.AccountStatus;
-import com.lab.labtimesheet.feature.account.model.GlobalRole;
-import com.lab.labtimesheet.feature.account.model.InternshipStatus;
-import com.lab.labtimesheet.feature.account.model.dto.AccountIdentity;
-import com.lab.labtimesheet.feature.account.model.dto.InternWorkWindow;
-import com.lab.labtimesheet.feature.account.model.dto.LockedAccountMutationEligibility;
-import com.lab.labtimesheet.feature.account.service.AccountService;
+import com.lab.labtimesheet.feature.calendar.service.CalendarApplicationService;
+import com.lab.labtimesheet.feature.calendar.service.AttendancePolicyTimeline;
+
+import com.lab.labtimesheet.feature.identity.model.AccountStatus;
+import com.lab.labtimesheet.feature.internship.model.InternshipStatus;
+import com.lab.labtimesheet.feature.identity.model.dto.AccountIdentity;
+import com.lab.labtimesheet.feature.internship.model.dto.InternWorkWindow;
+import com.lab.labtimesheet.feature.internship.model.dto.LockedAccountMutationEligibility;
+import com.lab.labtimesheet.feature.identity.service.AccountService;
+import com.lab.labtimesheet.feature.internship.service.InternshipService;
 import com.lab.labtimesheet.feature.attendance.exception.LeaveException;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
-import com.lab.labtimesheet.feature.attendance.model.AttendancePolicy;
-import com.lab.labtimesheet.feature.attendance.model.AttendanceRole;
+import com.lab.labtimesheet.feature.calendar.model.AttendancePolicy;
+import com.lab.labtimesheet.platform.model.GlobalRole;
 import com.lab.labtimesheet.feature.attendance.model.LeaveStatus;
 import com.lab.labtimesheet.feature.attendance.model.dto.LeaveAllocation;
 import com.lab.labtimesheet.feature.attendance.model.dto.LeaveBalance;
 import com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestCommand;
 import com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestSummary;
 import com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestView;
-import com.lab.labtimesheet.feature.attendance.model.entity.AttendancePolicyEntity;
 import com.lab.labtimesheet.feature.attendance.model.entity.LeaveRequestDayEntity;
 import com.lab.labtimesheet.feature.attendance.model.entity.LeaveRequestEntity;
-import com.lab.labtimesheet.feature.attendance.repository.AttendancePolicyRepository;
 import com.lab.labtimesheet.feature.attendance.repository.LeaveRequestDayRepository;
 import com.lab.labtimesheet.feature.attendance.repository.LeaveRequestRepository;
 import com.lab.labtimesheet.feature.notification.model.NotificationType;
@@ -28,6 +29,7 @@ import com.lab.labtimesheet.feature.notification.model.dto.NotificationAction;
 import com.lab.labtimesheet.feature.notification.model.dto.NotificationEvent;
 import com.lab.labtimesheet.feature.notification.model.dto.NotificationRecipient;
 import com.lab.labtimesheet.feature.notification.service.NotificationService;
+import com.lab.labtimesheet.platform.model.GlobalRole;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -65,10 +67,10 @@ public class LeaveApplicationService {
     private static final List<String> RESERVED = List.of(LeaveStatus.PENDING.name(), LeaveStatus.APPROVED.name());
 
     private final Clock clock;
-    private final AttendancePolicyRepository policies;
     private final LeaveRequestRepository requests;
     private final LeaveRequestDayRepository days;
     private final AccountService accounts;
+    private final InternshipService internships;
     private final CalendarApplicationService calendar;
     private final TransactionTemplate transactions;
     private final NotificationService notifications;
@@ -90,7 +92,7 @@ public class LeaveApplicationService {
         if (identity.status() != AccountStatus.ACTIVE) {
             throw new AccessDeniedException("An active account is required");
         }
-        List<LeaveRequestEntity> visible = actor.role() == AttendanceRole.INTERN
+        List<LeaveRequestEntity> visible = actor.role() == GlobalRole.INTERN
                 ? requests.findByInternUserIdOrderBySubmittedAtDescIdDesc(actor.userId())
                 : requests.findAllByOrderBySubmittedAtDescIdDesc();
         expireVisiblePending(actor, visible);
@@ -236,9 +238,9 @@ public class LeaveApplicationService {
         }
         AccountIdentity identity = accounts.requireIdentityById(actor.userId());
         if (!identity.role().name().equals(actor.role().name())
-                || actor.role() != AttendanceRole.INTERN
-                && actor.role() != AttendanceRole.MENTOR
-                && actor.role() != AttendanceRole.ADMIN) {
+                || actor.role() != GlobalRole.INTERN
+                && actor.role() != GlobalRole.MENTOR
+                && actor.role() != GlobalRole.ADMIN) {
             throw new AccessDeniedException("Leave request list is outside the requested scope");
         }
         return identity;
@@ -486,7 +488,7 @@ public class LeaveApplicationService {
     private InternWorkWindow lockIntern(long internId, LocalDate requestedStart) {
         final InternWorkWindow window;
         try {
-            window = accounts.lockedInternWorkWindow(internId, requestedStart);
+            window = internships.lockedInternWorkWindow(internId, requestedStart);
         } catch (IllegalArgumentException exception) {
             throw new LeaveException("Leave requires an active Intern within the internship interval", exception);
         }
@@ -500,11 +502,10 @@ public class LeaveApplicationService {
     }
 
     private void validateQuota(long internId, List<AllocatedDate> allocations, Long excludeRequestId) {
-        allocations.stream()
+        calendar.lockPolicyVersions(allocations.stream()
                 .map(item -> item.policy().id())
                 .distinct()
-                .sorted()
-                .forEach(policyId -> policies.findForUpdateById(policyId));
+                .collect(Collectors.toSet()));
         Map<LocalDate, List<AllocatedDate>> byMonth = allocations.stream()
                 .collect(Collectors.groupingBy(AllocatedDate::quotaMonth));
         byMonth.forEach((month, candidates) -> {
@@ -521,7 +522,7 @@ public class LeaveApplicationService {
                 .map(item -> new LeaveRequestDayEntity(
                         request,
                         item.date(),
-                        policies.getReferenceById(item.policy().id()),
+                        item.policy().id(),
                         item.policy().monthlyLeaveQuota()))
                 .toList());
     }
@@ -561,15 +562,15 @@ public class LeaveApplicationService {
             AttendanceActor actor,
             LeaveRequestEntity request,
             Map<Long, LockedAccountMutationEligibility> lockedAccounts) {
-        if (actor.role() == AttendanceRole.INTERN) {
+        if (actor.role() == GlobalRole.INTERN) {
             requireOwner(request, actor.userId());
             return;
         }
-        if (actor.role() == AttendanceRole.MENTOR) {
+        if (actor.role() == GlobalRole.MENTOR) {
             requireActiveMentor(actor.userId(), lockedAccounts);
             return;
         }
-        if (actor.role() != AttendanceRole.ADMIN) {
+        if (actor.role() != GlobalRole.ADMIN) {
             throw new AccessDeniedException("Leave is outside the requested scope");
         }
     }
@@ -616,13 +617,13 @@ public class LeaveApplicationService {
     }
 
     private static void requireIntern(AttendanceActor actor) {
-        if (actor == null || actor.role() != AttendanceRole.INTERN) {
+        if (actor == null || actor.role() != GlobalRole.INTERN) {
             throw new AccessDeniedException("Only Interns may submit or cancel leave");
         }
     }
 
     private static void requireMentor(AttendanceActor actor) {
-        if (actor == null || actor.role() != AttendanceRole.MENTOR) {
+        if (actor == null || actor.role() != GlobalRole.MENTOR) {
             throw new AccessDeniedException("Only Mentors may decide leave");
         }
     }
@@ -659,7 +660,7 @@ public class LeaveApplicationService {
 
     private Map<Long, LockedAccountMutationEligibility> lockAccounts(Collection<Long> accountIds) {
         try {
-            return accounts.lockedAccountMutationEligibility(accountIds).stream()
+            return internships.lockedAccountMutationEligibility(accountIds).stream()
                     .collect(Collectors.toMap(LockedAccountMutationEligibility::userId, eligibility -> eligibility));
         } catch (IllegalArgumentException missingAccount) {
             throw new AccessDeniedException("Attendance account is not available", missingAccount);
@@ -758,9 +759,7 @@ public class LeaveApplicationService {
     }
 
     private AttendancePolicyTimeline timeline() {
-        return new AttendancePolicyTimeline(policies.findAllByOrderByEffectiveFromAsc().stream()
-                .map(AttendancePolicyEntity::toDomain)
-                .toList());
+        return calendar.policyTimeline();
     }
 
     private record AllocatedDate(

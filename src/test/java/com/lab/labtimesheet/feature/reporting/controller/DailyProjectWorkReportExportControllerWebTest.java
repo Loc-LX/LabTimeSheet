@@ -14,13 +14,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.lab.labtimesheet.feature.integration.service.SmtpConfigurationService;
 import com.lab.labtimesheet.feature.project.exception.ProjectAccessDeniedException;
 import com.lab.labtimesheet.feature.reporting.model.dto.DailyProjectWorkReportView;
 import com.lab.labtimesheet.feature.reporting.service.AttendanceReportService;
 import com.lab.labtimesheet.feature.reporting.service.DailyProjectWorkReportService;
 import com.lab.labtimesheet.feature.reporting.service.ProjectTaskReportService;
 import com.lab.labtimesheet.feature.reporting.service.ReportExportService;
+import com.lab.labtimesheet.platform.service.SmtpConfigurationService;
 import java.time.LocalDate;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

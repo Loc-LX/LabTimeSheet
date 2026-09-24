@@ -1,24 +1,23 @@
 package com.lab.labtimesheet.feature.project.service;
 
-import com.lab.labtimesheet.feature.account.model.GlobalRole;
-import com.lab.labtimesheet.feature.account.model.dto.AccountIdentity;
-import com.lab.labtimesheet.feature.account.model.dto.InternshipLifecycleGuard;
-import com.lab.labtimesheet.feature.account.service.AccountService;
+import com.lab.labtimesheet.feature.identity.model.dto.AccountIdentity;
+import com.lab.labtimesheet.feature.identity.service.AccountService;
+import com.lab.labtimesheet.feature.internship.service.InternshipService;
 import com.lab.labtimesheet.feature.project.exception.ProjectAccessDeniedException;
 import com.lab.labtimesheet.feature.project.exception.ProjectRuleViolationException;
 import com.lab.labtimesheet.feature.project.model.ProjectStatus;
-import com.lab.labtimesheet.feature.project.model.dto.ProjectDetail;
+import com.lab.labtimesheet.feature.project.model.dto.PendingProjectInvitationView;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectActorView;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectDashboardSummary;
-import com.lab.labtimesheet.feature.project.model.dto.ProjectExitRequestHistoryView;
+import com.lab.labtimesheet.feature.project.model.dto.ProjectDetail;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectExitReadinessView;
+import com.lab.labtimesheet.feature.project.model.dto.ProjectExitRequestHistoryView;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectHistoryView;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectInvitationHistoryView;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectLeadershipTermView;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectListPage;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectMemberView;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectMembershipIntervalView;
-import com.lab.labtimesheet.feature.project.model.dto.PendingProjectInvitationView;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectSummary;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectTaskContext;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectTaskMemberView;
@@ -27,8 +26,9 @@ import com.lab.labtimesheet.feature.project.model.entity.ProjectLeadershipTermEn
 import com.lab.labtimesheet.feature.project.repository.ProjectExitRequestRepository;
 import com.lab.labtimesheet.feature.project.repository.ProjectInvitationRepository;
 import com.lab.labtimesheet.feature.project.repository.ProjectRepository;
-import com.lab.labtimesheet.feature.task.service.TaskQueryService;
-import com.lab.labtimesheet.feature.task.service.TaskTransferService;
+import com.lab.labtimesheet.feature.project.service.TaskQueryService;
+import com.lab.labtimesheet.feature.project.service.TaskTransferService;
+import com.lab.labtimesheet.platform.model.GlobalRole;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -58,6 +58,7 @@ public class ProjectQueryService {
     private final ProjectExitRequestRepository exitRequests;
     private final ProjectInvitationRepository invitations;
     private final AccountService accounts;
+    private final InternshipService internships;
     private final TaskQueryService taskQueries;
     private final TaskTransferService taskTransfers;
 
@@ -343,7 +344,7 @@ public class ProjectQueryService {
         if (!"INTERN".equals(actor.role().name())) {
             throw new ProjectAccessDeniedException();
         }
-        // Dùng cho module Task (không phải màn Project)
+        // Dùng cho phần Task (không phải màn Project)
         return projects.findMembershipIntervalsByInternUserId(actorUserId);
     }
 
@@ -583,7 +584,7 @@ public class ProjectQueryService {
      * @param projectId requested Project identifier
      * @return authorized Task context
      */
-    // Thông tin project cho module Task (ai là Leader, ai đang chờ rời…).
+    // Thông tin project cho phần Task (ai là Leader, ai đang chờ rời…).
     @Transactional(readOnly = true)
     public ProjectTaskContext taskContext(long actorUserId, long projectId) {
         var project = projects.findById(projectId).orElseThrow(ProjectAccessDeniedException::new);
@@ -665,52 +666,12 @@ public class ProjectQueryService {
                     projects.countActiveProjectsByMentor(actorUserId),
                     countEligibleCurrentMembers(actorUserId));
             case "INTERN" -> new ProjectDashboardSummary(
-                    accounts.isEligibleIntern(actorUserId)
+                    internships.isEligibleIntern(actorUserId)
                             ? projects.countActiveProjectsByIntern(actorUserId)
                             : 0L,
                     0L);
             default -> throw new ProjectAccessDeniedException();
         };
-    }
-
-    /**
-     * Previews the Project and Task readiness facts for an Admin-managed Intern terminal action.
-     *
-     * <p>This read snapshot drives explanatory UI only. {@link ProjectService} recomputes the same facts while
-     * retaining Account/profile and Project locks before completing or withdrawing the Intern.</p>
-     *
-     * @param adminUserId active Admin requesting the preview
-     * @param internUserId Intern account being inspected
-     * @return current-Leader and unfinished-Task facts across current Project memberships
-     * @throws ProjectAccessDeniedException when the actor or target shape is unavailable
-     */
-    @Transactional(readOnly = true)
-    public InternshipLifecycleGuard internshipLifecycleGuard(long adminUserId, long internUserId) {
-        if (activeActor(adminUserId).role() != GlobalRole.ADMIN) {
-            throw new ProjectAccessDeniedException();
-        }
-        AccountIdentity intern;
-        try {
-            intern = accounts.requireIdentityById(internUserId);
-        } catch (IllegalArgumentException failure) {
-            throw new ProjectAccessDeniedException();
-        }
-        if (intern.role() != GlobalRole.INTERN) {
-            throw new ProjectAccessDeniedException();
-        }
-        var currentMemberships = projects.findMembershipIntervalsByInternUserId(internUserId).stream()
-                .filter(interval -> interval.leftAt() == null)
-                .toList();
-        boolean currentLeader = currentMemberships.stream().anyMatch(interval -> {
-            var route = projects.findMutationRouteById(interval.projectId())
-                    .orElseThrow(ProjectAccessDeniedException::new);
-            return route.currentLeaderUserId() != null && route.currentLeaderUserId() == internUserId;
-        });
-        long unfinishedTaskCount = currentMemberships.stream()
-                .mapToLong(interval -> taskTransfers.unfinishedCount(
-                        interval.projectId(), interval.membershipId()))
-                .sum();
-        return new InternshipLifecycleGuard(currentLeader, unfinishedTaskCount);
     }
 
     // Tải Project và chặn người không thuộc phạm vi xem; lỗi giống nhau dù ID không tồn tại hay không có quyền.
@@ -754,7 +715,7 @@ public class ProjectQueryService {
      */
     private long countEligibleCurrentMembers(long mentorUserId) {
         return projects.findDistinctCurrentMemberUserIdsByMentor(mentorUserId).stream()
-                .filter(accounts::isEligibleIntern)
+                .filter(internships::isEligibleIntern)
                 .count();
     }
 
@@ -790,7 +751,7 @@ public class ProjectQueryService {
         }
         try {
             String username = accounts.requireIdentityById(userId).displayName();
-            var studentCode = accounts.studentCodeByUserId(userId);
+            var studentCode = internships.studentCodeByUserId(userId);
             if (studentCode != null && studentCode.isPresent() && !studentCode.get().isBlank()) {
                 username += " (" + studentCode.get() + ")";
             }
@@ -850,7 +811,7 @@ public class ProjectQueryService {
     }
 
     private boolean isEligibleIntern(long userId) {
-        return accounts.isEligibleIntern(userId);
+        return internships.isEligibleIntern(userId);
     }
 
     private static ProjectSummary summary(ProjectEntity project) {

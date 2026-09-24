@@ -1,5 +1,8 @@
 package com.lab.labtimesheet.feature.attendance.model;
 
+import com.lab.labtimesheet.feature.calendar.model.AttendancePolicy;
+import com.lab.labtimesheet.feature.calendar.model.AttendancePolicyFixtures;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Instant;

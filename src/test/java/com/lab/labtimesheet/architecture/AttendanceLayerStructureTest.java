@@ -16,7 +16,8 @@ class AttendanceLayerStructureTest {
                 "com.lab.labtimesheet.feature.attendance.controller.AttendanceController",
                 "com.lab.labtimesheet.feature.attendance.model.dto.AttendanceHistoryItem",
                 "com.lab.labtimesheet.feature.attendance.exception.AttendanceException",
-                "com.lab.labtimesheet.feature.attendance.model.AttendancePolicy",
+                "com.lab.labtimesheet.feature.calendar.model.AttendancePolicy",
+                "com.lab.labtimesheet.feature.calendar.service.CalendarApplicationService",
                 "com.lab.labtimesheet.feature.attendance.model.entity.AttendanceRecordEntity",
                 "com.lab.labtimesheet.feature.attendance.repository.AttendanceRecordRepository",
                 "com.lab.labtimesheet.feature.attendance.service.AttendanceApplicationService")) {

@@ -1,6 +1,6 @@
 package com.lab.labtimesheet.feature.project.model.dto;
 
-import com.lab.labtimesheet.feature.task.model.dto.TaskHistoryView;
+import com.lab.labtimesheet.feature.project.model.dto.TaskHistoryView;
 import java.util.List;
 import java.util.Map;
 

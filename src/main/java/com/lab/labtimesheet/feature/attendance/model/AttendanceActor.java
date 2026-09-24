@@ -1,5 +1,6 @@
 package com.lab.labtimesheet.feature.attendance.model;
 
+import com.lab.labtimesheet.platform.model.GlobalRole;
 import java.util.Objects;
 
 /**
@@ -8,7 +9,7 @@ import java.util.Objects;
  * @param userId authoritative application user identifier
  * @param role immutable global role used for attendance route and history scope checks
  */
-public record AttendanceActor(long userId, AttendanceRole role) {
+public record AttendanceActor(long userId, GlobalRole role) {
 
     /**
      * Rejects an actor without a resolved global role.

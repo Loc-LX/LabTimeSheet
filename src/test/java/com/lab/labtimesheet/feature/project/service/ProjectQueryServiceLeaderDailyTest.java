@@ -7,10 +7,10 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
-import com.lab.labtimesheet.feature.account.model.AccountStatus;
-import com.lab.labtimesheet.feature.account.model.GlobalRole;
-import com.lab.labtimesheet.feature.account.model.dto.AccountIdentity;
-import com.lab.labtimesheet.feature.account.service.AccountService;
+import com.lab.labtimesheet.feature.identity.model.AccountStatus;
+import com.lab.labtimesheet.feature.identity.model.dto.AccountIdentity;
+import com.lab.labtimesheet.feature.identity.service.AccountService;
+import com.lab.labtimesheet.feature.internship.service.InternshipService;
 import com.lab.labtimesheet.feature.project.exception.ProjectAccessDeniedException;
 import com.lab.labtimesheet.feature.project.model.ProjectStatus;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectSummary;
@@ -18,8 +18,9 @@ import com.lab.labtimesheet.feature.project.model.entity.ProjectEntity;
 import com.lab.labtimesheet.feature.project.repository.ProjectExitRequestRepository;
 import com.lab.labtimesheet.feature.project.repository.ProjectInvitationRepository;
 import com.lab.labtimesheet.feature.project.repository.ProjectRepository;
-import com.lab.labtimesheet.feature.task.service.TaskQueryService;
-import com.lab.labtimesheet.feature.task.service.TaskTransferService;
+import com.lab.labtimesheet.feature.project.service.TaskQueryService;
+import com.lab.labtimesheet.feature.project.service.TaskTransferService;
+import com.lab.labtimesheet.platform.model.GlobalRole;
 import java.time.LocalDate;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -32,6 +33,7 @@ class ProjectQueryServiceLeaderDailyTest {
     private final ProjectExitRequestRepository exitRequests = mock(ProjectExitRequestRepository.class);
     private final ProjectInvitationRepository invitations = mock(ProjectInvitationRepository.class);
     private final AccountService accounts = mock(AccountService.class);
+    private final InternshipService internships = mock(InternshipService.class);
     private final TaskQueryService taskQueries = mock(TaskQueryService.class);
     private final TaskTransferService taskTransfers = mock(TaskTransferService.class);
     private ProjectQueryService queries;
@@ -39,7 +41,7 @@ class ProjectQueryServiceLeaderDailyTest {
     @BeforeEach
     void setUp() {
         queries = new ProjectQueryService(
-                projects, exitRequests, invitations, accounts, taskQueries, taskTransfers);
+                projects, exitRequests, invitations, accounts, internships, taskQueries, taskTransfers);
     }
 
     @Test

@@ -29,8 +29,8 @@ public final class LeaveEntityFixtures {
     public static LeaveRequestDayEntity allocatedDay(
             LeaveRequestEntity request,
             LocalDate leaveDate,
-            AttendancePolicyEntity policy,
+            long policyVersionId,
             int monthlyQuotaSnapshot) {
-        return new LeaveRequestDayEntity(request, leaveDate, policy, monthlyQuotaSnapshot);
+        return new LeaveRequestDayEntity(request, leaveDate, policyVersionId, monthlyQuotaSnapshot);
     }
 }

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.lab.labtimesheet.platform.SecurityProperties;
 import org.junit.jupiter.api.Test;
 
 /** Unit proof for production-only transport, origin, datasource, proxy, and key readiness rules. */

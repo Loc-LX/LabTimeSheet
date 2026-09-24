@@ -1,5 +1,7 @@
 package com.lab.labtimesheet.feature.notification.service;
 
+import com.lab.labtimesheet.feature.internship.service.InternshipService;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -15,19 +17,19 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import com.lab.labtimesheet.config.TestcontainersConfiguration;
-import com.lab.labtimesheet.feature.account.model.GlobalRole;
-import com.lab.labtimesheet.feature.account.model.dto.CreateAccountCommand;
-import com.lab.labtimesheet.feature.account.service.AccountService;
-import com.lab.labtimesheet.feature.account.service.BootstrapService;
-import com.lab.labtimesheet.feature.integration.model.SecurityMode;
-import com.lab.labtimesheet.feature.integration.model.dto.SmtpConnection;
-import com.lab.labtimesheet.feature.integration.model.dto.SmtpDraft;
-import com.lab.labtimesheet.feature.integration.service.SmtpProbe;
-import com.lab.labtimesheet.feature.integration.service.SmtpConfigurationService;
+import com.lab.labtimesheet.feature.identity.model.dto.CreateAccountCommand;
+import com.lab.labtimesheet.feature.identity.service.AccountService;
+import com.lab.labtimesheet.feature.identity.service.BootstrapService;
 import com.lab.labtimesheet.feature.notification.model.NotificationType;
 import com.lab.labtimesheet.feature.notification.model.dto.NotificationAction;
 import com.lab.labtimesheet.feature.notification.model.dto.NotificationEvent;
 import com.lab.labtimesheet.feature.notification.model.dto.NotificationRecipient;
+import com.lab.labtimesheet.platform.model.GlobalRole;
+import com.lab.labtimesheet.platform.model.SecurityMode;
+import com.lab.labtimesheet.platform.model.dto.SmtpConnection;
+import com.lab.labtimesheet.platform.model.dto.SmtpDraft;
+import com.lab.labtimesheet.platform.service.SmtpConfigurationService;
+import com.lab.labtimesheet.platform.service.SmtpProbe;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -54,6 +56,9 @@ class NotificationServiceIntegrationTest {
 
     @Autowired
     private AccountService accounts;
+
+    @Autowired
+    private InternshipService internships;
 
     @Autowired
     private SmtpConfigurationService smtp;
@@ -230,7 +235,7 @@ class NotificationServiceIntegrationTest {
         bootstrap.bootstrap("notification-first@example.com", "Admin", "correct horse battery staple");
         long adminId = accounts.requireActiveAdminId("notification-first@example.com");
         activateSmtp(adminId);
-        long secondId = accounts.create(new CreateAccountCommand(
+        long secondId = internships.create(new CreateAccountCommand(
                 "notification-second@example.com", "Second recipient", GlobalRole.MENTOR, null, null, null), adminId)
                 .userId();
         mail.reset();
@@ -435,7 +440,7 @@ class NotificationServiceIntegrationTest {
         long draftId = smtp.saveDraft(adminId,
                 new SmtpDraft("mailpit", 1025, SecurityMode.NONE, null, null,
                         "notification-admin@example.com", "Lab Timesheet"));
-        smtp.testDraft(draftId, adminId);
+        smtp.testDraft(draftId, adminId, "notification-admin@example.com");
         smtp.activate(draftId, adminId);
     }
 

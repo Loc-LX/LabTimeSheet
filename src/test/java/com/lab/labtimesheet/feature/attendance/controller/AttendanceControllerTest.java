@@ -1,5 +1,7 @@
 package com.lab.labtimesheet.feature.attendance.controller;
 
+import com.lab.labtimesheet.feature.calendar.controller.CalendarController;
+
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
@@ -17,16 +19,17 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
-import com.lab.labtimesheet.feature.attendance.model.AttendancePolicy;
-import com.lab.labtimesheet.feature.attendance.model.AttendancePolicyFixtures;
-import com.lab.labtimesheet.feature.attendance.model.AttendanceRole;
+import com.lab.labtimesheet.feature.calendar.model.AttendancePolicy;
+import com.lab.labtimesheet.feature.calendar.model.AttendancePolicyFixtures;
+import com.lab.labtimesheet.platform.model.GlobalRole;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceViolations;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceHistoryItem;
-import com.lab.labtimesheet.feature.attendance.model.dto.GlobalCalendarEvent;
+import com.lab.labtimesheet.feature.calendar.model.dto.GlobalCalendarEvent;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceApplicationService;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceCurrentUserService;
-import com.lab.labtimesheet.feature.attendance.service.CalendarApplicationService;
-import com.lab.labtimesheet.feature.integration.service.SmtpConfigurationService;
+import com.lab.labtimesheet.feature.calendar.service.CalendarApplicationService;
+import com.lab.labtimesheet.feature.identity.service.AccountService;
+import com.lab.labtimesheet.platform.service.SmtpConfigurationService;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
@@ -52,11 +55,14 @@ class AttendanceControllerTest {
     private AttendanceCurrentUserService currentUsers;
 
     @MockitoBean
+    private AccountService accounts;
+
+    @MockitoBean
     private SmtpConfigurationService smtpConfiguration;
 
     @Test
     void internPunchesOnlyForAuthenticatedSelf() throws Exception {
-        AttendanceActor actor = new AttendanceActor(42L, AttendanceRole.INTERN);
+        AttendanceActor actor = new AttendanceActor(42L, GlobalRole.INTERN);
         when(currentUsers.actor(any())).thenReturn(actor);
 
         mockMvc.perform(post("/attendance/check-in")
@@ -70,7 +76,7 @@ class AttendanceControllerTest {
 
     @Test
     void ownHistoryRendersAttachedHistoricalPolicy() throws Exception {
-        AttendanceActor actor = new AttendanceActor(42L, AttendanceRole.INTERN);
+        AttendanceActor actor = new AttendanceActor(42L, GlobalRole.INTERN);
         when(currentUsers.actor(any())).thenReturn(actor);
         when(attendance.history(eq(actor), eq(42L), any(), any())).thenReturn(List.of(new AttendanceHistoryItem(
                 LocalDate.of(2026, 8, 14),
@@ -91,7 +97,7 @@ class AttendanceControllerTest {
 
     @Test
     void historyRendersPolicyLocalDisplayValuesAndEveryViolation() throws Exception {
-        AttendanceActor actor = new AttendanceActor(42L, AttendanceRole.INTERN);
+        AttendanceActor actor = new AttendanceActor(42L, GlobalRole.INTERN);
         when(currentUsers.actor(any())).thenReturn(actor);
         when(attendance.history(eq(actor), eq(42L), any(), any())).thenReturn(List.of(new AttendanceHistoryItem(
                 LocalDate.of(2026, 8, 14),
@@ -115,9 +121,9 @@ class AttendanceControllerTest {
 
     @Test
     void mentorCanInspectInternHistory() throws Exception {
-        AttendanceActor mentor = new AttendanceActor(7L, AttendanceRole.MENTOR);
+        AttendanceActor mentor = new AttendanceActor(7L, GlobalRole.MENTOR);
         when(currentUsers.actor(any())).thenReturn(mentor);
-        when(attendance.currentBusinessDate()).thenReturn(LocalDate.of(2026, 8, 14));
+        when(calendar.currentBusinessDate()).thenReturn(LocalDate.of(2026, 8, 14));
         when(attendance.history(eq(mentor), eq(42L), any(), any())).thenReturn(List.of());
 
         mockMvc.perform(get("/attendance/interns/42")
@@ -131,7 +137,9 @@ class AttendanceControllerTest {
 
     @Test
     void onlyAdminCanOpenCalendarManagement() throws Exception {
-        when(currentUsers.actor(any())).thenReturn(new AttendanceActor(7L, AttendanceRole.MENTOR));
+        when(currentUsers.actor(any())).thenReturn(new AttendanceActor(7L, GlobalRole.MENTOR));
+        when(accounts.requireActiveAdminId("mentor@example.test"))
+                .thenThrow(new IllegalArgumentException("An active Admin is required"));
 
         mockMvc.perform(get("/attendance/calendar")
                         .with(user("mentor@example.test").roles("MENTOR")))
@@ -140,8 +148,9 @@ class AttendanceControllerTest {
 
     @Test
     void adminCreatesManualDayOffFromServerAuthorizedIdentity() throws Exception {
-        AttendanceActor admin = new AttendanceActor(1L, AttendanceRole.ADMIN);
+        AttendanceActor admin = new AttendanceActor(1L, GlobalRole.ADMIN);
         when(currentUsers.actor(any())).thenReturn(admin);
+        when(accounts.requireActiveAdminId("admin@example.test")).thenReturn(1L);
 
         mockMvc.perform(post("/attendance/calendar")
                         .with(user("admin@example.test").roles("ADMIN"))
@@ -152,14 +161,14 @@ class AttendanceControllerTest {
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl("/attendance/calendar"));
 
-        verify(calendar).createManual(admin, LocalDate.of(2026, 8, 20), "Lab closure", true);
+        verify(calendar).createManual(admin.userId(), LocalDate.of(2026, 8, 20), "Lab closure", true);
     }
 
     @Test
     void adminCalendarRendersEditableVersionedEvents() throws Exception {
-        AttendanceActor admin = new AttendanceActor(1L, AttendanceRole.ADMIN);
+        AttendanceActor admin = new AttendanceActor(1L, GlobalRole.ADMIN);
         when(currentUsers.actor(any())).thenReturn(admin);
-        when(attendance.currentBusinessDate()).thenReturn(LocalDate.of(2026, 8, 14));
+        when(calendar.currentBusinessDate()).thenReturn(LocalDate.of(2026, 8, 14));
         when(calendar.list(LocalDate.of(2026, 8, 14), LocalDate.of(2027, 8, 14)))
                 .thenReturn(List.of(new GlobalCalendarEvent(
                         9L, LocalDate.of(2026, 8, 20), "Lab closure", true, 3L)));
@@ -174,8 +183,9 @@ class AttendanceControllerTest {
 
     @Test
     void adminUpdateCarriesOptimisticVersion() throws Exception {
-        AttendanceActor admin = new AttendanceActor(1L, AttendanceRole.ADMIN);
+        AttendanceActor admin = new AttendanceActor(1L, GlobalRole.ADMIN);
         when(currentUsers.actor(any())).thenReturn(admin);
+        when(accounts.requireActiveAdminId("admin@example.test")).thenReturn(1L);
 
         mockMvc.perform(post("/attendance/calendar/9")
                         .with(user("admin@example.test").roles("ADMIN"))
@@ -187,6 +197,6 @@ class AttendanceControllerTest {
                 .andExpect(status().is3xxRedirection());
 
         verify(calendar).updateManual(
-                admin, 9L, 3L, LocalDate.of(2026, 8, 20), "Lab closure", true);
+                admin.userId(), 9L, 3L, LocalDate.of(2026, 8, 20), "Lab closure", true);
     }
 }

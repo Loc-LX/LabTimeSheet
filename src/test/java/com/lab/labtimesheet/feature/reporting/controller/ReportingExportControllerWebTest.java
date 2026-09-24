@@ -10,7 +10,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.lab.labtimesheet.feature.integration.service.SmtpConfigurationService;
 import com.lab.labtimesheet.feature.reporting.model.dto.AttendanceReportView;
 import com.lab.labtimesheet.feature.reporting.model.dto.ProjectTaskReportFilter;
 import com.lab.labtimesheet.feature.reporting.model.dto.ProjectTaskReportView;
@@ -18,6 +17,7 @@ import com.lab.labtimesheet.feature.reporting.service.AttendanceReportService;
 import com.lab.labtimesheet.feature.reporting.service.DailyProjectWorkReportService;
 import com.lab.labtimesheet.feature.reporting.service.ProjectTaskReportService;
 import com.lab.labtimesheet.feature.reporting.service.ReportExportService;
+import com.lab.labtimesheet.platform.service.SmtpConfigurationService;
 import java.security.Principal;
 import java.time.LocalDate;
 import java.util.List;
@@ -71,7 +71,7 @@ class ReportingExportControllerWebTest {
                 List.of(), List.of(), List.of(), 0L, 0L, "N/A");
         given(projectTaskReports.build(
                 anyString(), nullable(Long.class), nullable(Long.class),
-                nullable(com.lab.labtimesheet.feature.task.model.TaskStatus.class),
+                nullable(com.lab.labtimesheet.feature.project.model.TaskStatus.class),
                 nullable(LocalDate.class), nullable(LocalDate.class), nullable(LocalDate.class), nullable(LocalDate.class)))
                 .willReturn(projectTasks);
         given(exports.attendanceXlsx(any())).willReturn(new byte[] {1});

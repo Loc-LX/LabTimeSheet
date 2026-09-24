@@ -1,6 +1,6 @@
 package com.lab.labtimesheet.feature.attendance.model.dto;
 
-import com.lab.labtimesheet.feature.attendance.model.AttendancePolicy;
+import com.lab.labtimesheet.feature.calendar.model.AttendancePolicy;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceViolations;
 import com.lab.labtimesheet.feature.attendance.model.CorrectionStatus;
 import java.time.Instant;

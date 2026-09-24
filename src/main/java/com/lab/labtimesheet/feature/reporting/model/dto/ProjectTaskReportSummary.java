@@ -1,6 +1,6 @@
 package com.lab.labtimesheet.feature.reporting.model.dto;
 
-import com.lab.labtimesheet.feature.task.model.TaskProgress;
+import com.lab.labtimesheet.feature.project.model.TaskProgress;
 
 import java.util.OptionalDouble;
 

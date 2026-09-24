@@ -15,7 +15,7 @@ not separate modules or mandatory branches. The original split changed document 
 
 Account holder; Spring Security session handling. Account and internship state constrain access.
 
-The [platform permission matrix](../../../platform/MODULE.md#52-permission-matrix)
+The [platform permission matrix](../../../platform/features/authorization/SPEC.md#52-permission-matrix)
 and the module's shared authorization rules apply to every operation.
 
 ## 3. Functional Requirements
@@ -74,7 +74,7 @@ already exists and preserves ARC-005/ARC-006.
 |---|---|---|
 | [identity](../../MODULE.md) | Normalized identity, account eligibility, credential and session-change rules | [ACC-009](../../MODULE.md), [ACC-014](../account-lifecycle/SPEC.md), [ACC-015](../account-lifecycle/SPEC.md), [ACC-016](../account-lifecycle/SPEC.md), [ACC-017](../../MODULE.md), [ACC-018](../../MODULE.md), [SEC-002](../../MODULE.md), [SEC-005](../../MODULE.md) |
 | [internship/lifecycle](../../../internship/features/lifecycle/SPEC.md) | Completed read-only and withdrawn denied access | [ACC-023](../../../internship/features/lifecycle/SPEC.md), [ACC-024](../../../internship/features/lifecycle/SPEC.md) |
-| [platform](../../../platform/MODULE.md) | Session/CSRF and stored-context authorization | [SEC-001](../../../platform/MODULE.md), [AUTH-001](../../../platform/MODULE.md), [AUTH-002](../../../platform/MODULE.md) |
+| [platform](../../../platform/MODULE.md) | Session/CSRF and stored-context authorization | [SEC-001](../../../platform/features/security/SPEC.md), [AUTH-001](../../../platform/features/authorization/SPEC.md), [AUTH-002](../../../platform/features/authorization/SPEC.md) |
 
 ### Related workflows and joint checks
 
@@ -97,7 +97,7 @@ claim full test coverage. Actors and outcomes are summaries of the canonical rul
 | Operation | Actor and observable outcome | Canonical rules | Existing acceptance scenarios | Acceptance boundary or open decision |
 |---|---|---|---|---|
 | [Login](#login) | Account holder obtains authorized access after sign-in | [ACC-009](../../MODULE.md), [ACC-014](../account-lifecycle/SPEC.md), [ACC-015](../account-lifecycle/SPEC.md), [ACC-016](../account-lifecycle/SPEC.md), [ACC-030](SPEC.md), [SEC-005](../../MODULE.md) | [AC-ACC-007](../account-lifecycle/SPEC.md), [AC-ACC-009](../account-lifecycle/SPEC.md), [AC-ACC-022](SPEC.md) | Covered by `AC-ACC-022`: a correct and a wrong password, and every state other than `ACTIVE` refused behind one generic response. |
-| [Logout](#logout) | Signed-in account holder ends the current session and returns to login | [ACC-027](SPEC.md), [SEC-001](../../../platform/MODULE.md) | [AC-ACC-016](SPEC.md), [AC-ACC-017](SPEC.md) | `D35` settles session scope and redirect; verify independent sessions, old-session rejection and CSRF refusal. |
+| [Logout](#logout) | Signed-in account holder ends the current session and returns to login | [ACC-027](SPEC.md), [SEC-001](../../../platform/features/security/SPEC.md) | [AC-ACC-016](SPEC.md), [AC-ACC-017](SPEC.md) | `D35` settles session scope and redirect; verify independent sessions, old-session rejection and CSRF refusal. |
 | [Session invalidation](#session-invalidation) | Affected account loses existing authenticated sessions after an identity-security change | [ACC-018](../../MODULE.md), [ACC-023](../../../internship/features/lifecycle/SPEC.md), [ACC-024](../../../internship/features/lifecycle/SPEC.md) | [AC-ACC-009](../account-lifecycle/SPEC.md), [AC-ACC-012](../account-lifecycle/SPEC.md) | Existing cases cover lock/deactivation/email changes; password/reset and terminal-internship combinations need explicit session checks. |
 | [Failed login and throttling](#failed-login-and-throttling) | Failed sign-in is throttled for the correct email/IP pair | [SEC-006](SPEC.md), [SEC-007](SPEC.md) | [AC-SEC-003](SPEC.md) | Include exact failure/window boundaries and the distinction from persisted manual lock. |
 

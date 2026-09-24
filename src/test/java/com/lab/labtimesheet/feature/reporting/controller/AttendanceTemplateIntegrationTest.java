@@ -7,15 +7,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
-import com.lab.labtimesheet.feature.attendance.model.AttendanceRole;
-import com.lab.labtimesheet.feature.attendance.model.AttendancePolicyFixtures;
+import com.lab.labtimesheet.feature.calendar.model.AttendancePolicyFixtures;
+import com.lab.labtimesheet.platform.model.GlobalRole;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceViolations;
 import com.lab.labtimesheet.feature.attendance.model.LeaveStatus;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceHistoryItem;
 import com.lab.labtimesheet.feature.attendance.model.dto.CorrectionSummary;
 import com.lab.labtimesheet.feature.attendance.model.dto.LeaveBalance;
 import com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestSummary;
-import com.lab.labtimesheet.feature.integration.service.SmtpConfigurationService;
+import com.lab.labtimesheet.platform.service.SmtpConfigurationService;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.YearMonth;
@@ -168,7 +168,7 @@ class AttendanceTemplateIntegrationTest {
 
         @GetMapping("/template-contract/attendance/leave")
         String leave(Model model) {
-            model.addAttribute("actor", new AttendanceActor(7L, AttendanceRole.INTERN));
+            model.addAttribute("actor", new AttendanceActor(7L, GlobalRole.INTERN));
             model.addAttribute("intern", true);
             model.addAttribute("mentor", false);
             model.addAttribute("leaveRequests", List.of(new LeaveRequestSummary(
@@ -181,7 +181,7 @@ class AttendanceTemplateIntegrationTest {
 
         @GetMapping("/template-contract/attendance/corrections")
         String corrections(Model model) {
-            model.addAttribute("actor", new AttendanceActor(2L, AttendanceRole.MENTOR));
+            model.addAttribute("actor", new AttendanceActor(2L, GlobalRole.MENTOR));
             model.addAttribute("intern", false);
             model.addAttribute("mentor", true);
             model.addAttribute("correctionRequests", List.of(new CorrectionSummary(
