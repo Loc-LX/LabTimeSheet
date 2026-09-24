@@ -2,7 +2,14 @@ package com.lab.labtimesheet.feature.project.repository;
 
 import com.lab.labtimesheet.feature.project.model.dto.ProjectMembershipIntervalView;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectMutationRoute;
+import com.lab.labtimesheet.feature.project.model.entity.ProjectExitRequestEntity;
 import com.lab.labtimesheet.feature.project.model.entity.ProjectEntity;
+import com.lab.labtimesheet.feature.project.model.entity.ProjectInvitationEntity;
+import com.lab.labtimesheet.feature.project.model.entity.ProjectLeadershipTermEntity;
+import com.lab.labtimesheet.feature.project.model.entity.ProjectMembershipEntity;
+import com.lab.labtimesheet.feature.project.model.entity.Task;
+import com.lab.labtimesheet.feature.project.model.entity.TaskComment;
+import com.lab.labtimesheet.feature.project.model.entity.TaskWorkLog;
 import jakarta.persistence.LockModeType;
 import java.util.List;
 import java.util.Optional;
@@ -10,6 +17,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -22,6 +30,49 @@ import org.springframework.data.repository.query.Param;
 // === CREATE PROJECT | persist ===
 // Chức năng: saveAndFlush(project) kế thừa JpaRepository — cascade INSERT projects + memberships + leadership_terms.
 public interface ProjectRepository extends JpaRepository<ProjectEntity, Long> {
+
+    /** Deletes Task comments belonging to one Project before its Tasks are deleted. */
+    @Modifying
+    @Query("""
+            delete from TaskComment comment
+            where comment.taskId in (select task.id from Task task where task.projectId = :projectId)
+            """)
+    int deleteTaskCommentsByProjectId(@Param("projectId") long projectId);
+
+    /** Deletes retained Task work logs belonging to one Project. */
+    @Modifying
+    @Query("delete from TaskWorkLog log where log.projectId = :projectId")
+    int deleteTaskWorkLogsByProjectId(@Param("projectId") long projectId);
+
+    /** Deletes Tasks belonging to one Project after their comments and work logs. */
+    @Modifying
+    @Query("delete from Task task where task.projectId = :projectId")
+    int deleteTasksByProjectId(@Param("projectId") long projectId);
+
+    /** Deletes membership-exit requests belonging to one Project. */
+    @Modifying
+    @Query("delete from ProjectExitRequestEntity request where request.project.id = :projectId")
+    int deleteExitRequestsByProjectId(@Param("projectId") long projectId);
+
+    /** Deletes invitations belonging to one Project. */
+    @Modifying
+    @Query("delete from ProjectInvitationEntity invitation where invitation.project.id = :projectId")
+    int deleteInvitationsByProjectId(@Param("projectId") long projectId);
+
+    /** Deletes leadership terms belonging to one Project before memberships. */
+    @Modifying
+    @Query("delete from ProjectLeadershipTermEntity term where term.project.id = :projectId")
+    int deleteLeadershipTermsByProjectId(@Param("projectId") long projectId);
+
+    /** Deletes membership intervals belonging to one Project after leadership terms. */
+    @Modifying
+    @Query("delete from ProjectMembershipEntity membership where membership.project.id = :projectId")
+    int deleteMembershipsByProjectId(@Param("projectId") long projectId);
+
+    /** Deletes the Project aggregate root after all child rows are removed. */
+    @Modifying
+    @Query("delete from ProjectEntity project where project.id = :projectId")
+    int deleteProjectById(@Param("projectId") long projectId);
 
     /**
      * Loads one Project under a pessimistic write lock for mutation-time authorization and

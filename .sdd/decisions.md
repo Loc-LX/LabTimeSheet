@@ -91,6 +91,7 @@ came from, not whether the choice is settled.
 | D40 | Where a feature's plan and tasks live | One `PLAN.md` and one `TASKS.md` per feature beside its `SPEC.md`, none per module and no exception; work on a rule a `MODULE.md` holds is planned in the feature whose code it changes; a schema change shared by several features is planned once in the Data model feature; platform gains the Architecture, Authorization, Security and Data model features, which take their `ARC`, `AUTH`, `SEC` and `DB` rows from `MODULE.md` unchanged; part A moves after `A-12` | One bullet of `D28` superseded; no rule text changed |
 | D41 | What the constitution records after Part A | Update the `ARC-005`, `ARC-006`, `ARC-007` and `ARC-008` enforcement/gap statements to match the implemented tests and current Flyway evidence; no rule, layer or obligation changes | constitution `2.0.3` |
 | D42 | When the native SQL of `ProjectService` leaves the service | Now, in D-01 of Architecture part D, as JPQL bulk deletes in the Project module's repositories with behavior unchanged, ahead of `PRJ-002`; supersedes the timing in `D18` | `ARC-006`, `D18`, `PRJ-002` |
+| D43 | What the constitution records after part D | Credit `BusinessSqlBoundaryTest` under `ARC-006` for the SQL entry points it lists, each by name, and narrow the known-gap row of `ARC-006` from business SQL to the clauses no test asserts; no rule, layer or obligation changes | constitution `2.0.4` |
 
 D1 through D5 came from reading the specification against its own history. D6
 through D9 came from the audit described at the end of this page, which read the
@@ -2237,6 +2238,22 @@ exactly what it removes today.
 - Unchanged: the emptiness check and the notification deletion of `PRJ-002` stay with the Project
   lifecycle plan. Closing the constitution's business-SQL gap is a decision of its own, taken with
   the test that closes it.
+
+**Status:** decided.
+
+## D43. What does the constitution record after part D?
+
+**Decided on 24 September 2026 by Loc-LX.** Task D-01 removed the last native SQL from
+`ProjectService`, as `D42` decided, and `BusinessSqlBoundaryTest` now fails the build on the
+direct-SQL entry points that D.2 of the Architecture plan lists, anywhere in the production
+Java sources. The constitution's enforcement text must say so and claim nothing more.
+
+- The enforcement column of `ARC-006` credits `BusinessSqlBoundaryTest` for the entry points
+  of that list, named one by one, and states that it asserts nothing beyond them.
+- The known-gap row of `ARC-006` no longer names business SQL. It stays, because the credited
+  tests leave clauses of the rule unasserted, among them validated DTOs bound in controllers
+  and the ban on a one-implementation abstraction layer.
+- No rule, layer or obligation changes. The constitution becomes `2.0.4`.
 
 **Status:** decided.
 
