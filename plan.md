@@ -10,7 +10,8 @@ in [AGENTS.md](AGENTS.md) and [`.sdd/constitution.md`](.sdd/constitution.md).
 Step 6 implementation branch created on 22 September 2026. Task A-01 established the baseline.
 Documentation work from checkpoint `c443670` through D34–D39 was completed on `work/fix/docs/module-feature-specs`
 at commit `2945975fa43d1f8eb4ddd8b2f90b9c02e800b39ed0cd8f73d1a4aaf2dc90a9db`. Step 6 branches directly from that
-commit ahead of PR #14 merge per maintainer approval.
+commit ahead of PR #14 merge per maintainer approval. PR #14 merged into `main` on 22 September 2026 as `7a0d46f`,
+whose tree equals `2945975`.
 Backup checkpoint `c443670` is preserved on Gitea under branch `work/fix/docs/backup-before-feature-split-20260920`
 and tag `backup/pre-feature-split-20260920`.
 
@@ -76,7 +77,7 @@ and integration commits, is in git history: `git show b71fc29:plan.md`.
 | Platform F1–F6 | Parts B (authorization) and C (schema change), now in the Authorization and Data model plans, were drafted on 22 September 2026, replacing version 1.0: B follows `R6` (the owning module resolves scope; the policy looks nothing up) and C expands in one migration, then contracts module by module with each module's code | Approval of parts B to E; each starts after part A is done |
 | Identity and notification | Plan every part against D35 and D38, including the account state machine, sign-in by state, delivery states and reset eligibility | Nothing in the specification; `ACC-028`, `ACC-029`, `ACC-030`, `DB-022` and the throttle clause of `SEC-015` need a migration or new code |
 | Schema migration (`D32`, `D38`, `D39`) | Part C carries the audit across all 148 predicates of the 24 tables, with no claim of completeness, and the expand-then-contract order | Not accepted until every `AC-DB-*` scenario runs green as a Testcontainers test; each member found gets a probe test on the migrated schema; C-01 reads each database's Flyway history and stored rows before any migration |
-| Architecture steps 5–7 | Step 5 is done. Step 6 tasks A-01 through A-12 are committed on `work/fix/architecture/module-boundaries`; part A moved beside the Architecture feature (`D40`), and `work/fix/docs/feature-plans` is merged into this branch. Step 7 completed its read-only comparison and A-13 closed its two structure-test gaps on 24 September 2026. | Documentation findings 4–11 and 13 are fixed and evidenced below. The next step is merge; the branch is waiting for Gitea access. PR #14, the push and the merge into `main` each need the maintainer's permission. |
+| Architecture steps 5–7 | Step 5 is done. Step 6 tasks A-01 through A-12 are committed on `work/fix/architecture/module-boundaries`; part A moved beside the Architecture feature (`D40`), and `work/fix/docs/feature-plans` is merged into this branch. Step 7 completed its read-only comparison and A-13 closed its two structure-test gaps on 24 September 2026. | Documentation findings 4–11 and 13 are fixed and evidenced below. Gitea access returned on 24 September 2026 and `origin/main` is merged into this branch. The branch goes to Gitea as a pull request; merging it into `main` needs the maintainer's permission. |
 
 ## Next
 
@@ -116,8 +117,7 @@ and in the constitution.
 
 | Item | Waiting on | Recorded in |
 |---|---|---|
-| A commit on PR #14 replacing the 14 commit hashes the history rewrite broke, before it merges | The maintainer | PR #14 review |
-| Merge of documentation PR #14 into `main` on remote once CI runner is online, to be merged into this branch before opening step 6 PR | The maintainer / CI runner | Task A-01 evidence |
+| Whether the 14 commit hashes the history rewrite broke still need replacing: PR #14 merged on 22 September 2026 as `7a0d46f`, and this file does not show that they were replaced first | The maintainer | PR #14 review |
 | Whether to close or keep Gitea PR #13, which conflicts with main and carries the retired Task branch of `D17` | The maintainer | This file, under *Now* |
 | Approval of parts B to E, drafted on 22 September 2026 and placed by `D40` in the Authorization, Data model, Architecture and Security plans | The maintainer | `platform/features/*/PLAN.md` |
 
@@ -132,7 +132,8 @@ transition edges, the email delivery states, and password-management operation c
 
 ## Evidence for Task A-01 (Baseline, 22 September 2026)
 
-- **OPS-019 deviation:** step 6 branches from 2945975 of work/fix/docs/module-feature-specs before PR #14 merges. When PR #14 merges, git diff --stat 2945975 origin/main must list only .md files, and origin/main is merged into this branch before the step 6 pull request opens. The step 6 pull request does not merge before PR #14.
+- **OPS-019 deviation:** step 6 branches from 2945975 of work/fix/docs/module-feature-specs before PR #14 merges. When PR #14 merges, git diff --stat 2945975 origin/main must list only .md files, and origin/main is merged into this branch before the step 6 pull request opens. The step 6 pull request does not merge before PR #14. Met on 24 September 2026: `git diff --stat 2945975 origin/main` lists no file, since `7a0d46f` has the tree of `2945975`, and `origin/main` is merged into this branch.
+- **Republished history.** On 24 September 2026, at the maintainer's request, the commits after `2945975` were republished without co-author trailers before the first push; their trees are unchanged. Every hash this file cites for them refers to the republished history.
 - **Branch:** `work/fix/architecture/module-boundaries`, created from commit `2945975fa43d1f8eb4ddd8b2f90b9c02e800b39ed0cd8f73d1a4aaf2dc90a9db` (tip of `work/fix/docs/module-feature-specs`). `git ls-remote --heads origin` confirmed no remote branch named `work/fix/architecture`, so the slash form is valid under OPS-019.
 - **Verification commands and baseline test results:**
   - `npm ci`: pass (added 39 packages, audited 40 packages, 0 vulnerabilities in 22s).
