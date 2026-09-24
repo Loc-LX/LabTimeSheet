@@ -90,6 +90,7 @@ came from, not whether the choice is settled.
 | D38 | The last open questions: one home per module, the account state machine, delivery states, reset eligibility | Remove the parallel `feature-*` tree after folding its history into each module; a never-activated account can be cancelled and a deactivated one reinstated, keeping any lock; only an `ACTIVE` account signs in; state the five delivery states; reset is for `ACTIVE` and `LOCKED`, clears the throttle and never changes account state. Corrected on review | `ACC-014`, `ACC-016`; new `ACC-028`, `ACC-029`, `ACC-030`, `NOT-012`, `SEC-015`, `DB-022`; new `AC-ACC-020`–`AC-ACC-022`, `AC-NOT-007`, `AC-SEC-009`–`AC-SEC-011`, `AC-DB-009` |
 | D40 | Where a feature's plan and tasks live | One `PLAN.md` and one `TASKS.md` per feature beside its `SPEC.md`, none per module and no exception; work on a rule a `MODULE.md` holds is planned in the feature whose code it changes; a schema change shared by several features is planned once in the Data model feature; platform gains the Architecture, Authorization, Security and Data model features, which take their `ARC`, `AUTH`, `SEC` and `DB` rows from `MODULE.md` unchanged; part A moves after `A-12` | One bullet of `D28` superseded; no rule text changed |
 | D41 | What the constitution records after Part A | Update the `ARC-005`, `ARC-006`, `ARC-007` and `ARC-008` enforcement/gap statements to match the implemented tests and current Flyway evidence; no rule, layer or obligation changes | constitution `2.0.3` |
+| D42 | When the native SQL of `ProjectService` leaves the service | Now, in D-01 of Architecture part D, as JPQL bulk deletes in the Project module's repositories with behavior unchanged, ahead of `PRJ-002`; supersedes the timing in `D18` | `ARC-006`, `D18`, `PRJ-002` |
 
 D1 through D5 came from reading the specification against its own history. D6
 through D9 came from the audit described at the end of this page, which read the
@@ -1074,7 +1075,8 @@ on the remote untouched.
 **Decided on 14 September 2026 by Loc-LX.** No. `ARC-006` stays as written. The native
 SQL in `ProjectService#deleteProjectRows` moves behind the data-access layer when the
 deletion is reimplemented for `PRJ-002`. No named exception is created to legitimize the
-current code.
+current code. **Superseded by `D42` on 24 September 2026 in when the SQL moves: in task D-01 of
+Architecture part D, ahead of `PRJ-002`, with behavior unchanged.**
 
 ## D19. Must the suite pass on Windows without extra flags?
 
@@ -2213,6 +2215,28 @@ must describe that current state rather than the layout before Part A.
   catalog and sends the unproven Flyway-only schema authority to the known-enforcement gap.
 - The known-gap row of `ARC-008` no longer calls `ARC-007` enforced; it points to that gap.
 - No rule, layer or obligation changes. The constitution becomes `2.0.3`.
+
+**Status:** decided.
+
+## D42. When does the native SQL of `ProjectService` leave the service?
+
+**Decided on 24 September 2026 by Loc-LX.** Now, in task D-01 of Architecture part D, not when
+the deletion is reimplemented for `PRJ-002` as `D18` said. The eight native `delete` statements of
+`ProjectService#deleteProjectRows` become JPQL bulk deletes in the Project module's repositories,
+in the same child-to-parent order and after the same `flush` and `clear`, so the deletion removes
+exactly what it removes today.
+
+- `ARC-006` stays as written. No native SQL moves into a repository, and the build check of
+  D-01 refuses, anywhere in the production sources, the direct-SQL entry points that D.2 of
+  the Architecture plan lists.
+- Why now: the check then refuses those entry points from part D onward instead of from the
+  Project work of step 8, and the business-SQL clause of `AC-ARC-001` can be shown green.
+- The price: once `D12` is built, a deletable Project is empty, so five of the eight statements,
+  those for comments, work logs, Tasks, exit requests and invitations, always delete nothing and
+  the plan of `PRJ-002` removes them.
+- Unchanged: the emptiness check and the notification deletion of `PRJ-002` stay with the Project
+  lifecycle plan. Closing the constitution's business-SQL gap is a decision of its own, taken with
+  the test that closes it.
 
 **Status:** decided.
 
