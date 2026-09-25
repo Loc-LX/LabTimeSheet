@@ -79,7 +79,9 @@ from their action route where it names a Project, which is how the Project servi
 (`/projects/{id}` and routes below it); a notification whose route names no Project keeps no link.
 
 Data: V3 creates a period for every Intern and month that has attendance, then applies `ATT-020`
-to each, as `D27` decided.
+to each, as `D27` decided. A period remains `OPEN` while any affecting leave, correction or
+attendance exception request is `PENDING` or `OVERDUE`; the period check runs after each V3 status
+backfill so a request changed to `OVERDUE` keeps its period open (`D45`).
 
 ### C.4 Contract migrations and the module that ships each
 
@@ -137,7 +139,9 @@ failing against the schema before the step: the `AC-DB-*` scenarios the step con
 probe per member and history-bound member it touches, showing the predicate accepts and refuses what
 the rules say. A step is done when its probes pass and the full Maven suite passes; the part is done
 when every `AC-DB-*` scenario passes, which is the gate `plan.md` holds for accepting the migration.
-Each migration updates, in the same change, the physical diagram of §19.4 for the tables and
+The C-02 probes include a period with an affecting `OVERDUE` request, which must remain `OPEN`, and,
+if V3 creates the exception table, a period with an affecting `PENDING` attendance exception, which
+must also remain `OPEN` (`ATT-020`, `D45`). Each migration updates, in the same change, the physical diagram of §19.4 for the tables and
 columns it adds or changes (`DB-010`).
 
 ### C.8 Order of work
