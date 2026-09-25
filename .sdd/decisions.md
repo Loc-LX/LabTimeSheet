@@ -93,6 +93,7 @@ came from, not whether the choice is settled.
 | D42 | When the native SQL of `ProjectService` leaves the service | Now, in D-01 of Architecture part D, as JPQL bulk deletes in the Project module's repositories with behavior unchanged, ahead of `PRJ-002`; supersedes the timing in `D18` | `ARC-006`, `D18`, `PRJ-002` |
 | D43 | What the constitution records after part D | Credit `BusinessSqlBoundaryTest` under `ARC-006` for the SQL entry points it lists, each by name, and narrow the known-gap row of `ARC-006` from business SQL to the clauses no test asserts; no rule, layer or obligation changes | constitution `2.0.4` |
 | D44 | What the constitution records after part E | Credit the exact production response assertions and the four independent readiness refusals, each by name, and keep the `SEC-011` and `SEC-013` known-gap rows for the clauses no test asserts; no rule, layer or obligation changes | constitution `2.0.5` |
+| D45 | How the V3 probes are written and judged | `AC-DB-001` replays the Flyway migrations; the V3 backfill applies `ATT-020` at the migration's server time; C-02 ends red on its work branch; the probes fix V3's column names | `AC-DB-001`, `D27`, `D32`, data-model tasks |
 
 D1 through D5 came from reading the specification against its own history. D6
 through D9 came from the audit described at the end of this page, which read the
@@ -2289,6 +2290,18 @@ production code. The constitution credits only the assertions those tests make a
   that the implementation violates the rules.
 - No rule, layer or obligation changes. This patch to the enforcement index and gap wording follows
   `D41` and `D43`; no ADR is needed. The constitution becomes `2.0.5`.
+
+**Status:** decided.
+
+## D45. How are the V3 probes written and judged?
+
+**Decided on 25 September 2026 by Loc-LX.** Task C-02 writes the probes of V3 before V3 exists. Four points the plan leaves open are settled here.
+
+- `AC-DB-001` replays the Flyway migrations of this repository on one PostgreSQL database. The two review DDL files it named were never in this repository (`ARC-008`), and Flyway is the only schema source (`ARC-007`).
+- V3 applies `ATT-020` to the periods it creates at the server time of the migration's transaction, as `D27` requires. A period's deadline is 23:59 on the fifth day of the following month, in the timezone of the policy version in force on that fifth day. A period is `FINALIZED`, with that server time as its finalization time, when the deadline has passed and no leave request, correction or attendance exception of the Intern affecting that month is `PENDING` or `OVERDUE`: a leave request affects each month its range overlaps, and a correction or an exception affects the month of its attendance record. Every other period is `OPEN`, with no finalization time. V1 admits no `OVERDUE` status and V3 creates the exception table empty, so before V3 only `PENDING` leave requests and corrections can keep a period open.
+- C-02 ends with every probe failing for the reason it names, so the full-suite gate of the data-model tasks starts at C-03. C-02's commit stays on its work branch and is merged only together with C-03.
+- The column names the C-02 probes use are V3's column names (`D32`): `intern_profiles.responsible_mentor_user_id`; `projects.cancelled_by_mentor_user_id`, `cancelled_at`, `cancellation_reason`; `leave_requests.withdrawn_at`; `leave_request_days.approval_withdrawn_at`; `notifications.project_id`; `attendance_periods.finalized_at`.
+- **Corrected on 25 September 2026.** The first wording counted only `PENDING` leave requests and corrections; it now states the condition of `ATT-020` in full. V3 changes no request's status (plan section C.3), so at V3 only `PENDING` leave requests and corrections can match it. Found by Codex before any probe was written.
 
 **Status:** decided.
 
