@@ -1,6 +1,6 @@
 # Data model Spec
 
-**Version:** 1.0.1 · **Owner:** Loc-LX · **Status:** APPROVED BUSINESS BASELINE · **Date:** 2026-09-25
+**Version:** 1.0.2 · **Owner:** Loc-LX · **Status:** APPROVED BUSINESS BASELINE · **Date:** 2026-09-25
 
 **Module:** `platform` · **Shared contract:** [MODULE.md](../../MODULE.md)
 
@@ -189,6 +189,7 @@ erDiagram
     }
     intern_profiles {
         bigint user_id PK, FK
+        bigint responsible_mentor_user_id FK
         varchar student_code
         varchar department
         varchar phone
@@ -283,6 +284,7 @@ erDiagram
     projects {
         bigint id PK
         bigint mentor_user_id FK
+        bigint cancelled_by_mentor_user_id FK
         varchar name
         text description
         varchar status
@@ -290,6 +292,8 @@ erDiagram
         date end_date
         timestamptz activated_at
         timestamptz completed_at
+        timestamptz cancelled_at
+        text cancellation_reason
         timestamptz created_at
         timestamptz updated_at
         bigint version
@@ -447,6 +451,7 @@ erDiagram
         timestamptz decided_at
         text decision_note
         timestamptz cancelled_at
+        timestamptz withdrawn_at
         timestamptz created_at
         timestamptz updated_at
         bigint version
@@ -457,11 +462,13 @@ erDiagram
         date quota_month
         bigint policy_version_id FK
         integer monthly_quota_snapshot
+        timestamptz approval_withdrawn_at
         timestamptz created_at
     }
     notifications {
         bigint id PK
         bigint recipient_user_id FK
+        bigint project_id FK
         varchar notification_type
         varchar title
         text body
@@ -478,6 +485,75 @@ erDiagram
         timestamptz created_at
         timestamptz updated_at
         bigint version
+    }
+    attendance_periods {
+        bigint id PK
+        bigint intern_user_id FK
+        date period_month
+        varchar status
+        timestamptz finalized_at
+        timestamptz created_at
+        timestamptz updated_at
+        bigint version
+    }
+    attendance_period_reopens {
+        bigint id PK
+        bigint attendance_period_id FK
+        bigint requester_user_id FK
+        bigint attendance_record_id FK
+        date start_date
+        date end_date
+        text reason
+        timestamptz requested_at
+        varchar status
+        bigint decided_by_admin_user_id FK
+        timestamptz decided_at
+        text rejection_reason
+        bigint refinalized_by_mentor_user_id FK
+        timestamptz refinalized_at
+    }
+    attendance_exceptions {
+        bigint id PK
+        bigint attendance_record_id FK
+        varchar violation_kind
+        varchar source
+        text reason
+        timestamptz submitted_at
+        timestamptz submission_deadline
+        timestamptz decision_deadline
+        varchar status
+        bigint decided_by_mentor_user_id FK
+        timestamptz decided_at
+        text decision_note
+    }
+    attendance_exception_decisions {
+        bigint id PK
+        bigint attendance_exception_id FK
+        varchar decision_kind
+        varchar outcome
+        text decision_note
+        bigint actor_user_id FK
+        timestamptz occurred_at
+        text reason
+    }
+    leave_request_decisions {
+        bigint id PK
+        bigint leave_request_id FK
+        varchar decision_kind
+        varchar outcome
+        text decision_note
+        bigint actor_user_id FK
+        timestamptz occurred_at
+        text reason
+    }
+    task_status_transitions {
+        bigint id PK
+        bigint task_id FK
+        varchar from_status
+        varchar to_status
+        bigint actor_user_id FK
+        timestamptz occurred_at
+        text reason
     }
     app_users o|--o{ app_users : "fk_app_users_created_by"
     app_users ||--o{ user_action_tokens : "fk_user_action_tokens_user"
@@ -523,6 +599,10 @@ erDiagram
     projects ||--o{ task_work_logs : "fk_task_work_logs_project"
     tasks ||--o{ task_work_logs : "fk_task_work_logs_task_project"
     tasks ||--o{ task_remaining_effort_forecasts : "fk_task_forecasts_task_project"
+    projects ||--o{ task_remaining_effort_forecasts : "fk_task_forecasts_project"
+    project_memberships ||--o{ task_remaining_effort_forecasts : "fk_task_forecasts_incoming_membership_project"
+    project_memberships ||--o{ task_remaining_effort_forecasts : "fk_task_forecasts_leader_membership_project"
+    task_remaining_effort_forecasts o|--o{ task_remaining_effort_forecasts : "fk_task_forecasts_superseded"
     project_memberships ||--o{ task_work_logs : "fk_task_work_logs_membership_project"
     intern_profiles ||--o{ attendance_records : "fk_attendance_records_intern"
     attendance_policy_versions ||--o{ attendance_records : "fk_attendance_records_policy"
@@ -536,6 +616,23 @@ erDiagram
     attendance_policy_versions ||--o{ leave_request_days : "fk_leave_request_days_policy"
     app_users ||--o{ notifications : "fk_notifications_recipient"
     app_users o|--o{ system_state : "fk_system_state_bootstrap_admin"
+    app_users o|--o{ intern_profiles : "fk_intern_profiles_responsible_mentor"
+    app_users o|--o{ projects : "fk_projects_cancelled_by_mentor"
+    projects o|--o{ notifications : "fk_notifications_project"
+    intern_profiles ||--o{ attendance_periods : "fk_attendance_periods_intern"
+    attendance_periods ||--o{ attendance_period_reopens : "fk_attendance_period_reopens_period"
+    app_users ||--o{ attendance_period_reopens : "fk_attendance_period_reopens_requester"
+    attendance_records o|--o{ attendance_period_reopens : "fk_attendance_period_reopens_attendance_record"
+    app_users o|--o{ attendance_period_reopens : "fk_attendance_period_reopens_decided_by_admin"
+    app_users o|--o{ attendance_period_reopens : "fk_attendance_period_reopens_refinalized_by_mentor"
+    attendance_records ||--o{ attendance_exceptions : "fk_attendance_exceptions_record"
+    app_users o|--o{ attendance_exceptions : "fk_attendance_exceptions_decided_by"
+    attendance_exceptions ||--o{ attendance_exception_decisions : "fk_attendance_exception_decisions_exception"
+    app_users ||--o{ attendance_exception_decisions : "fk_attendance_exception_decisions_actor"
+    leave_requests ||--o{ leave_request_decisions : "fk_leave_request_decisions_request"
+    app_users ||--o{ leave_request_decisions : "fk_leave_request_decisions_actor"
+    tasks ||--o{ task_status_transitions : "fk_task_status_transitions_task"
+    app_users ||--o{ task_status_transitions : "fk_task_status_transitions_actor"
 ```
 
 ### Required contracts

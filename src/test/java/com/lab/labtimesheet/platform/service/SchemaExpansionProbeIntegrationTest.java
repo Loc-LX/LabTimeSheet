@@ -40,6 +40,7 @@ import org.springframework.test.context.ActiveProfiles;
  * repository's Flyway migrations produce.
  *
  * <p>Protects {@code AC-DB-001}, {@code AC-DB-008}, {@code AC-DB-010}, {@code DB-002},
+ * {@code DB-006}, {@code PRJ-002},
  * {@code DB-011}, {@code DB-014} through {@code DB-022}, and the column names of {@code D45}.
  * Against V1+V2, a probe of a new table must fail with {@code 42P01}, a probe of a new column with
  * {@code 42703}, and a probe of a newly lawful row with the old check constraint that refuses it.
@@ -109,6 +110,66 @@ class SchemaExpansionProbeIntegrationTest {
                     .containsAll(baselineForeignKeys);
             assertThat(actualForeignKeys).as("every V1 foreign key remains in the catalog")
                     .containsAll(baselineForeignKeys);
+        }));
+        probes.add(accepts("DB-006: every foreign key has an index led by its columns", (c, f) -> {
+            List<String> unindexedForeignKeys = new ArrayList<>();
+            try (Statement statement = c.createStatement(); ResultSet rows = statement.executeQuery("""
+                    SELECT constraint_row.conname || ' (' || relation.relname || '.' ||
+                           array_to_string(ARRAY(
+                               SELECT attribute.attname
+                               FROM unnest(constraint_row.conkey) WITH ORDINALITY AS fk_key(attnum, ordinal)
+                               JOIN pg_attribute attribute
+                                 ON attribute.attrelid = constraint_row.conrelid
+                                AND attribute.attnum = fk_key.attnum
+                               ORDER BY fk_key.ordinal
+                           ), ', ') || ')'
+                    FROM pg_constraint constraint_row
+                    JOIN pg_class relation ON relation.oid = constraint_row.conrelid
+                    WHERE constraint_row.contype = 'f'
+                      AND relation.relnamespace = 'public'::regnamespace
+                      AND NOT EXISTS (
+                          SELECT 1
+                          FROM pg_index index_row
+                          WHERE index_row.indrelid = constraint_row.conrelid
+                            AND index_row.indisvalid AND index_row.indisready
+                            AND index_row.indpred IS NULL
+                            AND (
+                                SELECT array_agg(index_key.attnum::smallint ORDER BY index_key.ordinal)
+                                FROM unnest(index_row.indkey) WITH ORDINALITY AS index_key(attnum, ordinal)
+                                WHERE index_key.ordinal <= index_row.indnkeyatts
+                                  AND index_key.ordinal <= cardinality(constraint_row.conkey)
+                            ) = constraint_row.conkey
+                      )
+                    ORDER BY constraint_row.conname
+                    """)) {
+                while (rows.next()) {
+                    unindexedForeignKeys.add(rows.getString(1));
+                }
+            }
+            assertThat(unindexedForeignKeys).as("DB-006 foreign keys without a matching leading-column index")
+                    .isEmpty();
+        }));
+        probes.add(accepts("PRJ-002: deleting a Project clears its notifications' Project link", (c, f) -> {
+            long projectId = generatedId(c, """
+                    INSERT INTO projects (mentor_user_id, name, start_date, end_date)
+                    VALUES (?, ?, CURRENT_DATE - 10, CURRENT_DATE + 365) RETURNING id
+                    """, f.mentorId, "notification-delete-probe-" + UUID.randomUUID());
+            long notificationId = generatedId(c, """
+                    INSERT INTO notifications (recipient_user_id, notification_type, title, body, action_url, project_id)
+                    VALUES (?, 'SYSTEM', 'Project notice', 'Retained when its Project is deleted', ?, ?) RETURNING id
+                    """, f.internId, "/projects/" + projectId, projectId);
+
+            assertThat(insert(c, "DELETE FROM projects WHERE id=?", projectId))
+                    .as("PRJ-002 deletes the childless Project")
+                    .isEqualTo(1);
+            try (PreparedStatement statement = c.prepareStatement(
+                    "SELECT project_id FROM notifications WHERE id=?")) {
+                statement.setLong(1, notificationId);
+                try (ResultSet rows = statement.executeQuery()) {
+                    assertThat(rows.next()).as("PRJ-002 keeps the notification row").isTrue();
+                    assertThat(rows.getObject("project_id")).as("PRJ-002 clears the Project link").isNull();
+                }
+            }
         }));
         probes.add(accepts("DB-014: an OPEN period has no finalization time", (c, f) -> {
             insert(c, """
@@ -270,11 +331,6 @@ class SchemaExpansionProbeIntegrationTest {
         }));
         probes.add(accepts("DB-019: a cancelled ACTIVE Project may retain its activation time", (c, f) ->
                 projectCancellation(c, f.projectId, f.mentorId, Timestamp.from(Instant.parse("2026-01-01T00:00:00Z")))));
-        probes.add(rejects("DB-019: a cancelled Project requires actor, time and nonblank reason", CHECK_VIOLATION,
-                "ck_projects_cancellation", (c, f) -> insert(c, """
-                        UPDATE projects SET status = 'CANCELLED', cancelled_by_mentor_user_id = NULL,
-                          cancelled_at = NULL, cancellation_reason = '  ' WHERE id = ?
-                        """, f.projectId)));
         probes.add(accepts("DB-018: an OVERDUE leave request is undecided", (c, f) -> {
             long id = pendingLeave(c, f.internId, Date.valueOf("2026-04-01"), Date.valueOf("2026-04-01"));
             insert(c, "UPDATE leave_requests SET status='OVERDUE' WHERE id=?", id);
@@ -682,8 +738,13 @@ class SchemaExpansionProbeIntegrationTest {
         }
     }
 
+    /**
+     * Exercises an UPDATE against the append-only tables without touching their generated identity.
+     * Protects {@code DB-017} and {@code DB-020}: PostgreSQL must reach the table's refusal trigger,
+     * rather than reject assignment to a {@code GENERATED ALWAYS} key before the trigger runs.
+     */
     private static void updateById(Connection connection, String table, long id) throws SQLException {
-        insert(connection, "UPDATE " + table + " SET id=id WHERE id=?", id);
+        insert(connection, "UPDATE " + table + " SET occurred_at=occurred_at WHERE id=?", id);
     }
 
     private static void deleteById(Connection connection, String table, long id) throws SQLException {

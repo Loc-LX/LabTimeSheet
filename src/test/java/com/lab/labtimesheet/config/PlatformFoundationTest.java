@@ -26,6 +26,12 @@ class PlatformFoundationTest {
     @Autowired
     private Clock clock;
 
+    /**
+     * Protects {@code DB-001} and the Flyway PostgreSQL catalog contract. The expected catalog has
+     * 30 application tables: the 24 inherited from V1/V2 plus six created by V3. Its 78 foreign
+     * keys are hand-counted as 56 in V1, five in V2, and 17 added by V3. These exact counts ensure
+     * migrations add their declared structure without replacing this test with a weaker minimum.
+     */
     @Test
     void flywayCreatesApprovedPostgresCatalog() {
         JdbcTemplate jdbc = new JdbcTemplate(dataSource);
@@ -44,8 +50,8 @@ class PlatformFoundationTest {
                 where n.nspname = 'public' and c.contype = 'f'
                 """, Integer.class);
 
-        assertThat(tables).isEqualTo(24);
-        assertThat(foreignKeys).isEqualTo(61);
+        assertThat(tables).isEqualTo(30);
+        assertThat(foreignKeys).isEqualTo(78);
         assertThat(jdbc.queryForObject("""
                 select count(*) from information_schema.columns
                 where table_schema = 'public' and table_name = 'tasks'
