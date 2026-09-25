@@ -9,7 +9,7 @@ here under `D40`, which also replaced its references to module plans with featur
 
 | Part | Subject | Rules | State |
 |---|---|---|---|
-| C | The schema change the decisions require, below | `DB-011`, `DB-014`–`DB-022`, the audit of `D39` | Draft of 22 September 2026, for approval on its own; replaces version 1.0 of 16 September |
+| C | The schema change the decisions require, below | `DB-011`, `DB-014`–`DB-022`, the audit of `D39` | Draft of 22 September 2026, revised and approved on 25 September 2026; replaces version 1.0 of 16 September |
 
 ## Part C — The schema change the decisions require
 
@@ -38,9 +38,11 @@ point. Migrations are numbered in the order they ship, and each file name names 
 ### C.2 Before any migration: which database, and what it holds
 
 Each database a migration will run on is identified first by its Flyway history. A database created
-while `V2__account_admin_edit_events.sql` existed, from `4c1fa67` until the merge `787d143` removed
-it, holds a different `V2`; this plan does not guess how to reconcile it, and work on that database
-stops until the maintainer decides. The same step reads the stored rows that the contract steps
+from a commit that contains `V2__account_admin_edit_events.sql` holds a different `V2`. The file was
+added in `4c1fa67`; on the first-parent line of `main` it arrived with the merge `4e5440c` and was
+dropped by the merge `eb6bb58`, and other branches carried it until their own merges dropped it. This
+plan does not guess how to reconcile such a database, and work on it stops until the maintainer
+decides. The same step reads the stored rows that the contract steps
 depend on (C.5) and records the counts in `plan.md`.
 
 ### C.3 V3, the expansion

@@ -9,7 +9,7 @@ here under `D40`, which also moved two of its tasks to the rules they build; its
 
 | Part | Subject | Rules | State |
 |---|---|---|---|
-| B | One authorization policy, below | `AUTH-012`, `AC-AUTH-011`, [ADR-005](../../../../rfcs/ADR-005-one-authorization-policy.md), and the gap of `AUTH-002` | Draft of 22 September 2026, for approval on its own; replaces version 1.0 of 16 September |
+| B | One authorization policy, below | `AUTH-012`, `AC-AUTH-011`, [ADR-005](../../../../rfcs/ADR-005-one-authorization-policy.md), and the gap of `AUTH-002` | Draft of 22 September 2026, revised and approved on 25 September 2026; replaces version 1.0 of 16 September |
 
 ## Part B — One authorization policy
 
@@ -136,7 +136,7 @@ changing the fixture.
 - No `LEADER` or `ROLE_LEADER` value appears as an authority or in `hasRole`, `hasAnyRole` or `sec:authorize`.
 - The test of B-06 passes, and the query-count test of `AC-ARC-002` passes.
 - The full Maven suite, the end-to-end suite and `npm run test:ui` pass.
-- The constitution's gap rows for `AUTH-002` and `AUTH-012` are closed in the same change as the test that closes each.
+- The constitution's gap rows for `AUTH-002` and `AUTH-012` are closed in the same change as the test that closes each. Because that edits the constitution's index and known-gap text, the closure first gets a new decision in [decisions.md](../../../../decisions.md), the maintainer agrees to the wording, and the constitution version is incremented under its Amendment table, as `D41`, `D43` and `D44` did. A gap row is removed only when the tests assert every clause of its rule; otherwise it is narrowed to the clauses left unasserted.
 
 ### B.11 Not in this part
 

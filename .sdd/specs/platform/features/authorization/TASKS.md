@@ -7,14 +7,14 @@ They are approved with that part of the plan; `plan.md` tracks which are done.
 
 ## Part B — One authorization policy
 
-**State:** draft of 22 September 2026, approved together with part B of the plan.
+**State:** draft of 22 September 2026, approved on 25 September 2026 together with part B of the plan.
 
 Tasks run on a branch `work/fix/<area>/<what>` from `main` (`OPS-019`), after part A is done. Before any symbol is edited, GitNexus impact analysis runs on it, as `AGENTS.md` requires. After each task the full Maven suite and `npm run test:ui` pass. A test changes only as plan section B.8 allows.
 
 | Task | What | Rules |
 |---|---|---|
 | B-01 | Read the §5.2 matrix into a fixture and assert all 144 cells against what the matrix grants. Record the failing cells: they are the work list of B-02 and B-03, each a finding, never a baseline to keep | `AC-AUTH-011`, first half |
-| B-02 | The policy and the catalogue in `platform`; route the three Admin report checks through it; refuse an owning Mentor any Task status change the matrix does not grant | `AUTH-012`, refusal half of `TSK-023` |
-| B-03 | Every remaining role decision in services and templates, one module at a time, each module adding the scope it resolves (B.4) | `AUTH-012`, `AUTH-002` |
+| B-02 | The policy and the catalogue in `platform`; route the branch in `AttendanceReportQueryService#authorize` and the `sec:authorize="hasAnyRole('ADMIN','MENTOR','INTERN')"` on the Attendance report link of `fragments/layout.html` through it, keeping the URL rule in `SecurityConfiguration` as the coarse route gate that ADR-005 and plan section B.4 allow; refuse an owning Mentor any Task status change the matrix does not grant | `AUTH-012`, refusal half of `TSK-023` |
+| B-03 | Every remaining role decision in services and templates, one module at a time, each module adding the scope it resolves (B.4); then the query-count test of `AC-ARC-002`: one authorized list page and one report, each rendered at one row and at fifty, with equal counts of policy decisions and statements | `AUTH-012`, `AUTH-002`, `ARC-010`, `AC-ARC-002` |
 | B-04 | Withdraw one Admin capability in the catalogue and show that only that cell changes | `AC-AUTH-011`, second half; `D1` |
-| B-06 | One web test per protected record type: an existing record the caller may not see and an absent identifier give the same status, view and body | `AUTH-002` |
+| B-06 | One web test per protected record type: an existing record the caller may not see and an absent identifier give the same status, view and body; and, for each type, a request for an action its page hides from that caller is refused at the service | `AUTH-002` |

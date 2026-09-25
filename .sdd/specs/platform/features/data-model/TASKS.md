@@ -6,7 +6,7 @@ They are approved with that part of the plan; `plan.md` tracks which are done.
 
 ## Part C — The schema change the decisions require
 
-**State:** draft of 22 September 2026, approved together with part C of the plan.
+**State:** draft of 22 September 2026, approved on 25 September 2026 together with part C of the plan.
 
 Tasks run on a branch `work/fix/<area>/<what>` from `main` (`OPS-019`), after part A is done. Before any symbol is edited, GitNexus impact analysis runs on it, as `AGENTS.md` requires. After each task the full Maven suite and `npm run test:ui` pass. Every migration step starts with its probe tests, seen failing (plan section C.7).
 
