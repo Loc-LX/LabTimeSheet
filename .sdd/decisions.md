@@ -92,6 +92,7 @@ came from, not whether the choice is settled.
 | D41 | What the constitution records after Part A | Update the `ARC-005`, `ARC-006`, `ARC-007` and `ARC-008` enforcement/gap statements to match the implemented tests and current Flyway evidence; no rule, layer or obligation changes | constitution `2.0.3` |
 | D42 | When the native SQL of `ProjectService` leaves the service | Now, in D-01 of Architecture part D, as JPQL bulk deletes in the Project module's repositories with behavior unchanged, ahead of `PRJ-002`; supersedes the timing in `D18` | `ARC-006`, `D18`, `PRJ-002` |
 | D43 | What the constitution records after part D | Credit `BusinessSqlBoundaryTest` under `ARC-006` for the SQL entry points it lists, each by name, and narrow the known-gap row of `ARC-006` from business SQL to the clauses no test asserts; no rule, layer or obligation changes | constitution `2.0.4` |
+| D44 | What the constitution records after part E | Credit the exact production response assertions and the four independent readiness refusals, each by name, and keep the `SEC-011` and `SEC-013` known-gap rows for the clauses no test asserts; no rule, layer or obligation changes | constitution `2.0.5` |
 
 D1 through D5 came from reading the specification against its own history. D6
 through D9 came from the audit described at the end of this page, which read the
@@ -2254,6 +2255,40 @@ Java sources. The constitution's enforcement text must say so and claim nothing 
   tests leave clauses of the rule unasserted, among them validated DTOs bound in controllers
   and the ban on a one-implementation abstraction layer.
 - No rule, layer or obligation changes. The constitution becomes `2.0.4`.
+
+**Status:** decided.
+
+## D44. What does the constitution record after part E?
+
+**Decided on 25 September 2026 by Loc-LX.** Task E-01 adds
+`ProductionResponseSecurityIntegrationTest` and `ProductionReadinessProfileTest` without changing
+production code. The constitution credits only the assertions those tests make and claims nothing more.
+
+- The `SEC-011` enforcement column credits real `GET /bootstrap` responses under `prod`, with
+  HTTPS supplied by a proxy trusted only in the test configuration: `Strict-Transport-Security`
+  contains exactly `max-age=31536000`, `includeSubDomains` and `preload`;
+  `Content-Security-Policy` is exactly `default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'`;
+  `Referrer-Policy` is `no-referrer`; the real `JSESSIONID` cookie has `Secure`, `HttpOnly` and
+  `SameSite=Strict`. Frame denial is asserted through `frame-ancestors 'none'`; no
+  `X-Frame-Options` assertion or claim of every-route coverage is added.
+- The `SEC-013` enforcement column credits a safe readiness fixture that starts under `prod`
+  and four overrides refused one at a time, with every other value safe. `http://timesheet.example.test`
+  and `https://localhost` each fail with only `HTTPS public origin`; `SameSite=Lax` fails with only
+  `SameSite=Strict session cookie`; `secure=false` fails with only `Secure session cookie`.
+  Each asserted message starts with `Production readiness check failed: `. The response test
+  separately asserts the HSTS directives and the `Secure` and `SameSite=Strict` cookie attributes
+  on a secure production response. It does not assert a readiness refusal for HSTS.
+- Both known-gap rows stay. For `SEC-011`, the existing `OriginEnforcementFilterTest` proves
+  a directly constructed filter rejects a mismatched POST origin and passes matching or absent
+  origins to the chain, but does not prove its wiring through the real `prod` application;
+  the new response test also covers only the bootstrap route. `Referrer-Policy: no-referrer` is
+  asserted under `prod` and `test` only, while `AC-SEC-008` requires it in every profile. For
+  `SEC-013`, neither new test
+  proves that profile state is the only source of relaxations, including when `prod` is combined
+  with a relaxation-bearing development or test profile. These are evidence gaps, not findings
+  that the implementation violates the rules.
+- No rule, layer or obligation changes. This patch to the enforcement index and gap wording follows
+  `D41` and `D43`; no ADR is needed. The constitution becomes `2.0.5`.
 
 **Status:** decided.
 
