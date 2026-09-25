@@ -2,13 +2,13 @@
 
 | Field | Value |
 |---|---|
-| Version | `2.0.4` |
+| Version | `2.0.5` |
 | Status | `LOCKED` |
 | Applies to | every developer, every AI agent, every pull request |
 | Maintainer | Loc-LX |
 | Business reviewer | the instructor; reviews the maintainer's business decisions in [`.sdd/decisions.md`](decisions.md) and does not sign this document |
 | Signed by | Loc-LX, 2026-09-15 |
-| Last updated | 2026-09-24 |
+| Last updated | 2026-09-25 |
 | Amendment | see [Amendment](#amendment); the mechanism depends on the kind of change |
 | Full rule text | [`.sdd/specs/`](specs) |
 
@@ -65,9 +65,9 @@ by subject.
 | `SEC-008` | Redirect targets are allow-listed and local. State-changing endpoints reject open redirects, user-selected class names, arbitrary templates, and arbitrary URLs. | `NotificationActionContractTest#acceptsOnlySafeRelativeApplicationRoutes`, `OriginEnforcementFilterTest#mismatchedOriginIsRejectedForStateChangingRequests` |
 | `SEC-009` | Error pages never expose stack traces, SQL, secrets, internal IDs from unauthorized records, or existence signals. | `SharedErrorTemplateWebTest` |
 | `SEC-010` | Production requires an HTTPS public base URL and explicit trusted-proxy configuration before it is considered ready. | `ProductionReadinessTest#productionOriginIsCanonicalAndRejectsBracketedIpv6Loopback` |
-| `SEC-011` | Production responses carry HSTS, a restrictive content policy, frame denial, and referrer suppression. Session cookies are `Secure`, `HttpOnly`, `SameSite=Strict`. | referrer only, in `SecurityResponseIntegrationTest#authenticationAndActivationResponsesDoNotSendReferrers`; see [Known enforcement gaps](#known-enforcement-gaps) |
+| `SEC-011` | Production responses carry HSTS, a restrictive content policy, frame denial, and referrer suppression. Session cookies are `Secure`, `HttpOnly`, `SameSite=Strict`. | `ProductionResponseSecurityIntegrationTest`, on real `GET /bootstrap` responses under `prod` with trusted-proxy HTTPS, asserts `Strict-Transport-Security` directives exactly `max-age=31536000`, `includeSubDomains`, `preload`; `Content-Security-Policy` exactly `default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'`; `Referrer-Policy: no-referrer`; and `JSESSIONID` attributes `Secure`, `HttpOnly`, `SameSite=Strict` in `Set-Cookie`. See [Known enforcement gaps](#known-enforcement-gaps) for what these assertions leave unproven. |
 | `SEC-012` | Forwarded headers are trusted only on an explicitly enabled and constrained proxy path. | `TrustedForwardedHeaderFilterTest#untrustedSocketWithForwardedHeadersIsRejectedBeforeHeaderAdaptation` |
-| `SEC-013` | Development and test profiles may relax HTTPS, localhost origins, `SameSite`, HSTS, and `Secure` cookies. The relaxations come only from development or test profile state and never reach production. | Partly. `ProductionReadinessTest#unsafeProductionInputsFailWithoutEchoingSecrets` shows production readiness refusing a localhost origin, a non-`Secure` cookie, and `lax` cookies together with other unsafe inputs, so no single relaxation is shown to be refused alone. Nothing checks HSTS under the production profile. |
+| `SEC-013` | Development and test profiles may relax HTTPS, localhost origins, `SameSite`, HSTS, and `Secure` cookies. The relaxations come only from development or test profile state and never reach production. | `ProductionReadinessProfileTest` binds `prod`, accepts its safe fixture, and refuses each override alone: `http://timesheet.example.test` and `https://localhost` each name only `HTTPS public origin`; `SameSite=Lax` names only `SameSite=Strict session cookie`; `secure=false` names only `Secure session cookie`. `ProductionResponseSecurityIntegrationTest` asserts HSTS directives `max-age=31536000`, `includeSubDomains`, `preload` and session-cookie attributes `Secure` and `SameSite=Strict` on secure `GET /bootstrap` responses under `prod`. Profile-source isolation remains a gap below. |
 | `SEC-014` | Production startup fails when the master key, public origin, datasource, or proxy policy is absent or unsafe. | `ProductionReadinessTest#unsafeProductionInputsFailWithoutEchoingSecrets` |
 
 Gaps in the rows above are listed under [Known enforcement gaps](#known-enforcement-gaps).
@@ -275,10 +275,10 @@ name looks plausible.
 
 | Rule | What is missing | What would close it |
 |---|---|---|
-| `SEC-011` | The highest-priority gap on this page. No test reads back any security header. `AC-SEC-008` fixes exact values for HSTS, the content policy, frame ancestors, and the cookie attributes, and none is asserted. | One web test that inspects the response headers against `AC-SEC-008`. |
+| `SEC-011` | `ProductionResponseSecurityIntegrationTest` asserts the `AC-SEC-008` header values and cookie attributes on secure `GET /bootstrap` responses under `prod`, not every production response. The full rule also requires strict configured-origin checks: `OriginEnforcementFilterTest` directly instantiates the filter and asserts a mismatched POST origin is denied, and matching or absent origins reach the chain; it does not prove that the real `prod` application wires and applies that filter. `Referrer-Policy: no-referrer` is asserted under `prod` and `test` only, while `AC-SEC-008` requires it in every profile. | A `prod` web test of state-changing requests proving configured-origin enforcement through the application, response coverage beyond the bootstrap route, and a `Referrer-Policy` check under `dev` and `e2e`. |
 | `SEC-001` | The rule is broader than any single test. `SecurityConfiguration` builds the filter chain, and every web test that asserts a denial exercises one slice of it. | Accept it as an intent statement, or narrow it into rules that can each be asserted. |
 | `AUTH-002` | No test compares the response for a record the caller may not see with the response for a record that does not exist, and none asserts that a hidden control grants nothing. | A web test per protected record type that requests an existing unauthorized identifier and an absent one and asserts the same status, view, and model. |
-| `SEC-013` | Production readiness is tested only against all development values at once, and nothing checks HSTS or `Secure` cookies under the production profile. | Fold into the `SEC-011` header test: under the production profile, assert each relaxation is absent. |
+| `SEC-013` | `ProductionReadinessProfileTest` and `ProductionResponseSecurityIntegrationTest` prove four independent readiness refusals and HSTS, `Secure` and `SameSite=Strict` on a secure response with only `prod` active. They do not assert the source-isolation clause: relaxations activate only from development or test profile state. In particular, they do not exercise production combined with a relaxation-bearing development or test profile. | Profile-isolation tests showing that relaxation-bearing profile combinations cannot make production inherit the relaxed transport or cookie behavior, and that activation of relaxations is confined to development/test profile state. |
 | `GOV-011` | Only the storage half is tested. Nothing asserts that a business date resolves against the applicable policy version's timezone. | A test that sets a JVM default different from the policy timezone and checks the resulting business date. |
 | `GOV-014` | Relies on schema constraints in `V1__baseline.sql`. | A test asserting that only an eligible empty `PLANNED` draft can be physically deleted, and that no other route, service, or interface operation physically deletes the Project data `GOV-014` protects. |
 | `ARC-001` | An older JDK fails the build, which proves the minimum version and not the architecture. | An architecture test asserting the module shape, alongside `LayerStructureTest`. |
