@@ -1,6 +1,6 @@
 # Data model Spec
 
-**Version:** 1.0.0 · **Owner:** Loc-LX · **Status:** APPROVED BUSINESS BASELINE · **Date:** 2026-09-23
+**Version:** 1.0.1 · **Owner:** Loc-LX · **Status:** APPROVED BUSINESS BASELINE · **Date:** 2026-09-25
 
 **Module:** `platform` · **Shared contract:** [MODULE.md](../../MODULE.md)
 
@@ -575,7 +575,7 @@ claim full test coverage. Actors and outcomes are summaries of the canonical rul
 
 | Scenario | Requirements | Given / when | Expected result |
 |---|---|---|---|
-| AC-DB-001 | DB-003–DB-012 | Both review DDL files replay and their catalog metadata is compared with the physical Mermaid block | Each database has exactly 30 tables; the 23 baseline tables and their 56 named foreign keys match the diagram entity and FK names, the twenty-fourth is verified against `DB-013`, and the six added tables against `DB-014`–`DB-017` and `DB-020`. |
+| AC-DB-001 | DB-003–DB-012 | A clean Flyway replay of every migration in `src/main/resources/db/migration` on one PostgreSQL database, with its catalog metadata compared with the physical Mermaid block of §19.4 | The database has exactly 30 application tables, not counting `flyway_schema_history`; the 23 baseline tables and their 56 named foreign keys match the diagram entity and FK names, the twenty-fourth is verified against `DB-013`, and the six added tables against `DB-014`–`DB-017` and `DB-020`. |
 | AC-DB-004 | DB-001 | Catalog metadata for every application table is read back after a clean Flyway replay | Identity keys are generated `BIGINT`; local business dates are `date`; schedule times are `time`; every instant column is `timestamptz`; no PostgreSQL enum type exists, and every state column is `varchar` with a check constraint. |
 
 Shared and cross-feature scenarios in [MODULE.md](../../MODULE.md#7-acceptance-criteria)
