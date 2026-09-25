@@ -1,0 +1,9 @@
+# capability / actor / actual / fix-task
+Change the status of one's own assigned Task (any `TSK-007` transition)	Owning Mentor	ALLOWED	B-02
+Start another member's Task or mark it `DONE`	Owning Mentor	ALLOWED	B-02
+View per-member Project hours	Admin	DENIED	B-03
+View per-member Project hours	Active member / assignee	ALLOWED	B-03
+View and export the Project/Task report (`RPT-005`)	Admin	DENIED	B-03
+View and export the Daily Project Work Report (`RPT-011`)	Admin	DENIED	B-03
+View own attendance for a date (`RPT-015`)	Admin	ALLOWED	B-03
+View own attendance for a date (`RPT-015`)	Owning Mentor	ALLOWED	B-03
