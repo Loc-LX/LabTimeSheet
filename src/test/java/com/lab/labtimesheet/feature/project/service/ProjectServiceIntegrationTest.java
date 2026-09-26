@@ -676,6 +676,25 @@ class ProjectServiceIntegrationTest {
         assertEquals(1, count("select count(*) from project_leadership_terms where project_id = ?", projectId));
     }
 
+    /**
+     * Protects {@code PRJ-002} and the service half of {@code AC-PRJ-014}. Observable break:
+     * activation accepts a Project after completion and reopens its closed aggregate. Expected:
+     * the service raises the completed-state refusal and the persisted status remains COMPLETED.
+     */
+    @Test
+    void completedProjectCannotBeReactivatedThroughTheService() {
+        long mentorId = user("mentor-reactivate-completed@example.test", "MENTOR");
+        long leaderId = intern("leader-reactivate-completed@example.test", "I036");
+        long projectId = createProject(mentorId, leaderId, "Completed stays terminal");
+        projectService.activate(mentorId, projectId);
+        projectService.complete(mentorId, projectId);
+        entityManager.clear();
+
+        assertThrows(ProjectAccessDeniedException.class, () -> projectService.activate(mentorId, projectId));
+
+        assertEquals("COMPLETED", text("select status from projects where id = ?", projectId));
+    }
+
     @Test
     void adminTerminalReadinessComposesCurrentLeadershipAndUnfinishedTasksBeforeCompletion() {
         long adminId = user("admin-terminal@example.test", "ADMIN");
@@ -822,6 +841,29 @@ class ProjectServiceIntegrationTest {
         assertEquals(NOW, jdbc.queryForObject(
                 "select joined_at from project_memberships where project_id = ? and left_at is null",
                 OffsetDateTime.class, projectId).toInstant());
+    }
+
+    /**
+     * Protects {@code PRJ-024}. Observable break: a Project beginning on the service's current
+     * business date is rejected as already started. Expected: the Project is persisted with the
+     * submitted 14 August start date and remains PLANNED until explicitly activated.
+     */
+    @Test
+    void mentorCanCreateAProjectStartingToday() {
+        long mentorId = user("mentor-today-start@example.test", "MENTOR");
+        long leaderId = intern("leader-today-start@example.test", "I037");
+
+        long projectId = projectService.create(
+                mentorId,
+                new ProjectCreateCommand(
+                        "Starts Today",
+                        null,
+                        LocalDate.of(2026, 8, 14),
+                        LocalDate.of(2026, 9, 30),
+                        leaderId));
+
+        assertEquals("2026-08-14", text("select start_date::text from projects where id = ?", projectId));
+        assertEquals("PLANNED", text("select status from projects where id = ?", projectId));
     }
 
     private long createProject(long mentorId, long leaderId, String name) {

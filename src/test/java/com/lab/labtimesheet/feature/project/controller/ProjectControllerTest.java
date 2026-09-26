@@ -1019,6 +1019,38 @@ class ProjectControllerTest {
                         .string(not(containsString("Change Leader"))));
     }
 
+    /**
+     * Protects {@code PRJ-002} and the direct-request half of {@code AC-PRJ-014}. Observable
+     * break: a direct activation POST reopens a completed Project; expected: the lifecycle guard
+     * is rendered as a safe refusal and the completed detail remains displayed.
+     */
+    @Test
+    @WithMockUser(username = "mentor@example.test")
+    void directActivationRequestForCompletedProjectIsRefused() throws Exception {
+        when(pages.authenticatedUserId("mentor@example.test")).thenReturn(10L);
+        when(pages.detail(10L, 30L)).thenReturn(new ProjectDetail(
+                30L,
+                "Completed Project",
+                null,
+                "COMPLETED",
+                LocalDate.of(2026, 8, 15),
+                LocalDate.of(2026, 9, 30),
+                "Mentor",
+                null,
+                false));
+        doThrow(new com.lab.labtimesheet.feature.project.exception.ProjectAccessDeniedException())
+                .when(projects).activate(10L, 30L);
+
+        mvc.perform(post("/projects/30/activate").with(csrf()))
+                .andExpect(status().isNotFound())
+                .andExpect(view().name("error/generic"))
+                .andExpect(model().attribute("errorTitle", "Project unavailable"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(not(containsString("COMPLETED Project"))));
+
+        verify(projects).activate(10L, 30L);
+    }
+
     @Test
     @WithMockUser(username = "mentor@example.test")
     void stateChangingRoutesRequireCsrf() throws Exception {
