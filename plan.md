@@ -117,13 +117,15 @@ and in the constitution.
 7. **Step 7 — check the code against the documents, then merge**, with the maintainer's permission. The read-only comparison is complete; A-13 closed its two resulting structure-test gaps on 24 September 2026. The Maven and end-to-end evidence of `1ee043e` (757 tests) expires with the first Java change.
 8. **Step 8 — the business decisions `D12`–`D27`**, part by part: plan, tasks, code, validation, with a demonstration to the instructor (item 23).
    - The schema migration of `D32`, `D38` and `D39` is planned by finishing the audit `D39` starts, with the criterion it records. It is not accepted until every `AC-DB-*` scenario runs green as a Testcontainers test.
-   - `PRJ-002`: the draft-deletion path checks only that the Project is `PLANNED`, not that it is empty, and physically deletes its Tasks, comments and work logs, which `PRJ-002` forbids for a non-empty Project and `GOV-014` forbids for work history; the constitution already records the missing emptiness check. It deletes no notification, and `notifications` has no column naming a Project, only `action_url`, so the plan must decide how the notifications raised for a draft are identified. A Project reference on `notifications` is the recommended design; no rule adds it yet.
+   - `PRJ-002`: the draft-deletion path checks only that the Project is `PLANNED`, not that it is empty, and physically deletes its Tasks, comments and work logs, which `PRJ-002` forbids for a non-empty Project and `GOV-014` forbids for work history; the constitution already records the missing emptiness check. V3 now adds `notifications.project_id`; the Project lifecycle plan uses that link to remove only notifications raised for an empty draft.
+   - **Step-8 planning:** Project lifecycle `PLAN.md` and `TASKS.md` drafted on 26 September 2026 against current code and C-06, and approved by the maintainer the same day after independent review. Data-model C.4 and C-06 were amended the same day: the grant half of `TSK-023` writes `task_status_transitions`, whose contract `DB-020` V3 already enforces, so it ships with the Task management plan after the authorization policy of part B instead of with C-06.
 
 ## Waiting on a decision
 
 | Item | Waiting on | Recorded in |
 |---|---|---|
 | Whether the 14 commit hashes the history rewrite broke still need replacing: PR #14 merged on 22 September 2026 as `7a0d46f`, and this file does not show that they were replaced first | The maintainer | PR #14 review |
+| Editing Project details: §5.2 grants the owning Mentor *Edit* on its Project, but no Project lifecycle rule defines the editable fields, the statuses that allow editing, or the effect of a date change on existing Tasks, and no code edits a Project; part C does not depend on it | A rule and an acceptance scenario from the maintainer | Project lifecycle `PLAN.md`, *Not in this part* |
 | Whether to close or keep Gitea PR #13, which conflicts with main and carries the retired Task branch of `D17` | The maintainer | This file, under *Now* |
 
 The plan and tasks of step 5 now live beside the Architecture feature SPEC in
