@@ -17,6 +17,6 @@ Tasks run on a branch `work/fix/<area>/<what>` from `main` (`OPS-019`), after pa
 | C-03 | V3 (C.3), its backfills, and the §19.4 diagram | The probes of C-02 pass, with `AC-DB-001`, `AC-DB-008` and `AC-DB-010`, and so do the full Maven suite, the end-to-end suite and `npm run test:ui` against the unchanged code |
 | C-04 | The identity contract, shipped with the code of the Account lifecycle and Authentication plans | Its probes and `AC-DB-009` pass |
 | C-05 | The attendance contract, with the reclassification, shipped with the code of the Leave, Missed-checkout correction and Attendance exception plans | Its probes, `AC-DB-006` and `AC-DB-011` pass |
-| C-06 | The project contract, shipped with the code of the Project lifecycle and Task management plans | Its probes, `AC-DB-007` and `AC-DB-012` pass |
+| C-06 | The project contract, shipped with the code of the Project lifecycle plan | Its probes, `AC-DB-007` and `AC-DB-012` pass |
 | C-07 | The notification contract, shipped with the code of the Email delivery plan | Its probe passes |
 | C-08 | Close the part | Every `AC-DB-*` scenario passes |
