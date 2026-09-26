@@ -115,6 +115,7 @@ and in the constitution.
 8. **Step 8 — the business decisions `D12`–`D27`**, part by part: plan, tasks, code, validation, with a demonstration to the instructor (item 23).
    - The schema migration of `D32`, `D38` and `D39` is planned by finishing the audit `D39` starts, with the criterion it records. It is not accepted until every `AC-DB-*` scenario runs green as a Testcontainers test.
    - `PRJ-002`: the draft-deletion path checks only that the Project is `PLANNED`, not that it is empty, and physically deletes its Tasks, comments and work logs, which `PRJ-002` forbids for a non-empty Project and `GOV-014` forbids for work history; the constitution already records the missing emptiness check. It deletes no notification, and `notifications` has no column naming a Project, only `action_url`, so the plan must decide how the notifications raised for a draft are identified. A Project reference on `notifications` is the recommended design; no rule adds it yet.
+   - **Task management planning:** `PLAN.md` and `TASKS.md` drafted on 26 September 2026 against current code; the grant half of `TSK-023` waits for part B's authorization policy; approved by the maintainer the same day after independent review.
 
 ## Waiting on a decision
 
