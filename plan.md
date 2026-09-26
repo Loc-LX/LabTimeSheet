@@ -122,6 +122,7 @@ and in the constitution.
    - **Step-8 planning:** Project lifecycle `PLAN.md` and `TASKS.md` drafted on 26 September 2026 against current code and C-06, and approved by the maintainer the same day after independent review. Data-model C.4 and C-06 were amended the same day: the grant half of `TSK-023` writes `task_status_transitions`, whose contract `DB-020` V3 already enforces, so it ships with the Task management plan after the authorization policy of part B instead of with C-06.
    - **Task management planning:** `PLAN.md` and `TASKS.md` drafted on 26 September 2026 against current code; the grant half of `TSK-023` waits for part B's authorization policy; approved by the maintainer the same day after independent review.
    - **Email delivery planning:** `PLAN.md` and `TASKS.md` drafted on 27 September 2026 against current code; `ED-01` carries `C-07`, adding the `NOT-012` payload predicate as `V6`; approved by the maintainer the same day after independent review.
+   - **Leave planning:** `PLAN.md` and `TASKS.md` drafted on 27 September 2026 against current code; they carry the leave part of `C-05`; approved by the maintainer the same day after independent review.
 
 ## Waiting on a decision
 
