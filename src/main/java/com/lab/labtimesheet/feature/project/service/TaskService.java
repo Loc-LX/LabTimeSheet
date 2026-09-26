@@ -95,17 +95,22 @@ public class TaskService {
      * Creator, assigner, and assignment time are stored from authenticated current context. An
      * optional due date must be within Project dates and not a current global day off. A membership
      * with a pending exit remains visible for existing rights but cannot receive a new Task. A
-     * non-self assignment publishes a designated in-app and ordinary-email notification to the
+     * supplied initial status must be {@code TODO}; omitted status also creates a {@code TODO} Task.
+     * A non-self assignment publishes a designated in-app and ordinary-email notification to the
      * new assignee; a validated self-Task invokes the notification boundary with its silence marker.
      *
      * @param actorEmail authenticated account email
      * @param command requested Project, membership, and Task fields
      * @return created Task projection
      * @throws TaskNotFoundException when current authorization/context is absent
-     * @throws TaskValidationException when title or due date violates a business rule
+     * @throws TaskValidationException when the initial status is not TODO, or the title or due date violates
+     *         a business rule
      */
     @Transactional
     public TaskView create(String actorEmail, CreateTaskCommand command) {
+        if (command.initialStatus() != null && command.initialStatus() != TaskStatus.TODO) {
+            throw new TaskValidationException("New Tasks must start at TODO.");
+        }
         String title = requireTitle(command.title());
         TaskAccess access = requireMutationAccess(actorEmail, command.projectId());
         requireOpenProject(access.project());

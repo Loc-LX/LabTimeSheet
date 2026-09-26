@@ -2,6 +2,12 @@ package com.lab.labtimesheet.feature.project.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.model;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 
 import com.lab.labtimesheet.config.TestcontainersConfiguration;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectTaskContext;
@@ -38,15 +44,19 @@ import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.assertj.core.api.SoftAssertions;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 
 @Import(TestcontainersConfiguration.class)
+@AutoConfigureMockMvc
 @SpringBootTest
 @ActiveProfiles("test")
 @Transactional
@@ -63,6 +73,9 @@ class TaskCreationIntegrationTest {
 
     @Autowired
     private TaskService taskService;
+
+    @Autowired
+    private MockMvc mockMvc;
 
     @Autowired
     private TaskQueryService taskQueries;
@@ -91,6 +104,14 @@ class TaskCreationIntegrationTest {
 
     @BeforeEach
     void setUpProject() {
+        long adminId = insertUser("bootstrap@example.test", "ADMIN");
+        jdbc.sql("""
+                        update system_state
+                        set initialized = true, initialized_at = current_timestamp, bootstrap_admin_id = :adminId
+                        where singleton_id = 1
+                        """)
+                .param("adminId", adminId)
+                .update();
         long mentorId = insertUser("mentor@example.test", "MENTOR");
         long leaderId = insertIntern("leader@example.test");
         long memberId = insertIntern("member@example.test");
@@ -158,6 +179,152 @@ class TaskCreationIntegrationTest {
         assertThat(task.creatorMembershipId()).isEqualTo(leaderMembershipId);
         assertThat(task.assignerMembershipId()).isEqualTo(leaderMembershipId);
         assertThat(task.assigneeMembershipId()).isEqualTo(memberMembershipId);
+    }
+
+    /**
+     * TSK-003, TSK-018, D35, AC-TSK-010 and AC-TSK-019 require both creation paths to begin
+     * at TODO on PLANNED and ACTIVE Projects, with current membership attribution and no
+     * self-notification.
+     */
+    @Test
+    void leaderAssignmentAndMemberSelfTaskStartAtTodoOnPlannedAndActiveProjects() {
+        assertCreationPathsStartAtTodo();
+
+        activateProject();
+
+        assertCreationPathsStartAtTodo();
+        assertThat(taskCount()).isEqualTo(4);
+        assertThat(notificationRecipientIds()).containsExactly(
+                userId("member@example.test"), userId("member@example.test"));
+    }
+
+    /**
+     * TSK-003 and AC-TSK-019 require all 12 combinations of Leader/member creation, PLANNED/ACTIVE
+     * Project, and IN_PROGRESS/BLOCKED/DONE to throw TaskValidationException with Task and
+     * notification counts unchanged. A missing exception or either count increasing is the
+     * observable failure; both expected counts are derived from the pre-request database counts.
+     */
+    @Test
+    void serviceRejectsEveryNonTodoRequestedInitialStatusBeforeWriting() {
+        SoftAssertions softly = new SoftAssertions();
+        assertServiceRejectsStatusesInProjectState(softly, "PLANNED");
+
+        activateProject();
+
+        assertServiceRejectsStatusesInProjectState(softly, "ACTIVE");
+        softly.assertAll();
+    }
+
+    /**
+     * TSK-003 and AC-TSK-019 require Leader assignment and member self-creation requests for
+     * IN_PROGRESS, BLOCKED and DONE to redisplay the form with errors, never redirect, and leave
+     * Task/notification counts unchanged. A success redirect or a changed count is the observable
+     * failure; each expected count is derived from the pre-request database counts.
+     */
+    @Test
+    void webRouteRejectsEveryNonTodoRequestedInitialStatusWithoutWriting() throws Exception {
+        for (TaskStatus initialStatus : List.of(TaskStatus.IN_PROGRESS, TaskStatus.BLOCKED, TaskStatus.DONE)) {
+            assertRejectedWebCreate("leader@example.test", initialStatus);
+            assertRejectedWebCreate("member@example.test", initialStatus);
+        }
+    }
+
+    private void assertServiceRejectsStatusesInProjectState(SoftAssertions softly, String projectState) {
+        for (TaskStatus initialStatus : List.of(TaskStatus.IN_PROGRESS, TaskStatus.BLOCKED, TaskStatus.DONE)) {
+            assertServiceRejectedWithoutWrites(
+                    softly, "leader@example.test", memberMembershipId,
+                    "Leader assignment", projectState, "leader-to-member", initialStatus);
+            assertServiceRejectedWithoutWrites(
+                    softly, "member@example.test", memberMembershipId,
+                    "Member self-task", projectState, "member-self", initialStatus);
+        }
+    }
+
+    private void assertServiceRejectedWithoutWrites(
+            SoftAssertions softly,
+            String actorEmail,
+            long assigneeMembershipId,
+            String title,
+            String projectState,
+            String creationPath,
+            TaskStatus initialStatus) {
+        long tasksBefore = taskCount();
+        long notificationsBefore = notificationCount();
+        String scenario = "%s Project, %s path, requested %s"
+                .formatted(projectState, creationPath, initialStatus);
+
+        softly.assertThatThrownBy(() -> taskService.create(
+                        actorEmail,
+                        new CreateTaskCommand(projectId, assigneeMembershipId, title, null,
+                                null, null, initialStatus)))
+                .as(scenario)
+                .isInstanceOf(TaskValidationException.class);
+        softly.assertThat(taskCount()).as("Task rows after %s", scenario).isEqualTo(tasksBefore);
+        softly.assertThat(notificationCount()).as("Notifications after %s", scenario)
+                .isEqualTo(notificationsBefore);
+    }
+
+    private void assertRejectedWebCreate(String actorEmail, TaskStatus initialStatus) throws Exception {
+        long tasksBefore = taskCount();
+        long notificationsBefore = notificationCount();
+        mockMvc.perform(post("/projects/{projectId}/tasks", projectId)
+                        .with(user(actorEmail).roles("INTERN"))
+                        .with(csrf())
+                        .param("title", "Invalid initial state")
+                        .param("assigneeMembershipId", Long.toString(memberMembershipId))
+                        .param("initialStatus", initialStatus.name()))
+                .andExpect(status().isOk())
+                .andExpect(view().name("tasks/form"))
+                .andExpect(model().attributeHasErrors("taskForm"));
+        assertThat(taskCount()).as("Task rows after %s web create by %s", initialStatus, actorEmail)
+                .isEqualTo(tasksBefore);
+        assertThat(notificationCount()).as("Notifications after %s web create by %s", initialStatus, actorEmail)
+                .isEqualTo(notificationsBefore);
+    }
+
+    /**
+     * TSK-003, TSK-018 and AC-TSK-019 preserve the pending-exit guard: the requester cannot
+     * create a self-Task and a Leader cannot assign new work to that membership.
+     */
+    @Test
+    void pendingExitMemberCannotCreateOrReceiveANewTask() {
+        projectMutations.requestOwnLeave(userId("member@example.test"), projectId, "Leaving Project");
+        long notificationsAfterExitRequest = notificationCount();
+
+        assertThatThrownBy(() -> taskService.create(
+                        "member@example.test",
+                        new CreateTaskCommand(projectId, memberMembershipId, "Self task", null, null)))
+                .isInstanceOf(TaskNotFoundException.class);
+        assertThatThrownBy(() -> taskService.create(
+                        "leader@example.test",
+                        new CreateTaskCommand(projectId, memberMembershipId, "Assigned task", null, null)))
+                .isInstanceOf(TaskNotFoundException.class);
+
+        assertThat(taskCount()).isZero();
+        assertThat(notificationCount()).isEqualTo(notificationsAfterExitRequest);
+    }
+
+    private void assertCreationPathsStartAtTodo() {
+        long notificationsBefore = notificationCount();
+        TaskView assigned = taskService.create(
+                "leader@example.test",
+                new CreateTaskCommand(projectId, memberMembershipId, "Leader assignment", null,
+                        null, null, TaskStatus.TODO));
+        assertThat(assigned.status()).isEqualTo(TaskStatus.TODO);
+        assertThat(assigned.creatorMembershipId()).isEqualTo(leaderMembershipId);
+        assertThat(assigned.assignerMembershipId()).isEqualTo(leaderMembershipId);
+        assertThat(assigned.assigneeMembershipId()).isEqualTo(memberMembershipId);
+
+        TaskView self = taskService.create(
+                "member@example.test",
+                new CreateTaskCommand(projectId, memberMembershipId, "Member self task", null, null));
+        assertThat(self.status()).isEqualTo(TaskStatus.TODO);
+        assertThat(self.creatorMembershipId()).isEqualTo(memberMembershipId);
+        assertThat(self.assignerMembershipId()).isEqualTo(memberMembershipId);
+        assertThat(self.assigneeMembershipId()).isEqualTo(memberMembershipId);
+        assertThat(notificationCount()).isEqualTo(notificationsBefore + 1);
+        assertThat(notificationRecipientIds()).hasSize((int) notificationsBefore + 1)
+                .last().isEqualTo(userId("member@example.test"));
     }
 
     @Test

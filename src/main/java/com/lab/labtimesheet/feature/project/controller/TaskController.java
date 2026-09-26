@@ -79,7 +79,8 @@ public class TaskController {
                             form.title(),
                             form.description(),
                             form.dueDate(),
-                            form.estimatedMinutes()));
+                            form.estimatedMinutes(),
+                            form.initialStatus()));
         } catch (TaskValidationException exception) {
             if (exception.getMessage() != null && exception.getMessage().toLowerCase(Locale.ROOT).contains("due date")) {
                 bindingResult.rejectValue("dueDate", "task.dueDate", exception.getMessage());
