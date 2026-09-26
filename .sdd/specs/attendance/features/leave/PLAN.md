@@ -84,6 +84,7 @@ The Leave part is ready when `AC-LEV-001`–`AC-LEV-008`, `AC-DB-005`, `AC-DB-00
 | Leave closes a period that a cross-month request still affects | Exercise each touched period and race its final decision/withdrawal with finalization under `AC-ATT-009`. |
 | Current Mentor-wide checks are carried into the target permission design | Route only the decision capability through `AUTH-012` after B-02; exercise responsible and non-responsible Mentor cells. |
 | Prompt maps `LEV-011` and `LEV-013` to the opposite actions | The canonical Leave SPEC maps `LEV-011` to approved cancellation/amendment and `LEV-013` to pending/overdue withdrawal; keep this mapping and report the prompt mismatch. |
+| The overdue scan and `ix_leave_requests_pending_cutoff` | The index keeps serving `PENDING` rows only. The scheduler marks `PENDING` requests past their first counted start `OVERDUE`; `NOT-011` notifies the Mentor once at that transition, so `OVERDUE` rows are never scanned again. |
 
 ### Not in this part
 
