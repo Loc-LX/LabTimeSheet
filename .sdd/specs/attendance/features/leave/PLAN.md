@@ -10,7 +10,7 @@
 
 This plan builds the Leave feature rules and its attendance-owned contract work. Calendar owns policy versions and eligible weekdays; internship owns the responsible Mentor relationship; period finalization owns the shared date guard. No repository or entity crosses those module boundaries.
 
-This plan carries the leave part of data-model `C-05`: the `C.5` reclassification of `CANCELLED` leave requests without a decision time, and the `DB-018` leave predicates. The correction and attendance-exception parts ship with their own plans, each as its own Flyway migration numbered at implementation time; data-model `C-05` is complete when all three have landed.
+This plan carries the leave part of data-model `C-05`: the `C.5` reclassification of `CANCELLED` leave requests without a decision time, and the `DB-018` leave predicates. The correction part ships with its own plan as its own Flyway migration numbered at implementation time. The attendance-exception plan carries no attendance contract migration, because V3 already creates its tables with the `DB-016` constraints and the append-only trigger; data-model `C-05` is complete when the Leave and correction migrations have landed with their code.
 
 Tasks run on the part C integration branch `work/fix/architecture/schema-contracts`.
 

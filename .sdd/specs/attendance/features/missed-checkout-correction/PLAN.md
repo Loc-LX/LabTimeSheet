@@ -10,7 +10,7 @@
 
 This plan delivers the correction feature and its attendance-owned contract work. Punches and their attached historical policy belong to Attendance; the responsible-Mentor relationship belongs to Internship; period finalization and reopening belong to their feature. No repository or entity crosses those module boundaries.
 
-This plan carries the correction part of data-model `C-05`: `ck_attendance_corrections_pending_decision` counts `OVERDUE` as undecided (`DB-018`), and correction entries carry a reason for an amendment or a reversal and refuse update and delete (`DB-017`). The Leave and attendance-exception parts ship with their own plans, each as its own Flyway migration numbered at implementation time.
+This plan carries the correction part of data-model `C-05`: `ck_attendance_corrections_pending_decision` counts `OVERDUE` as undecided (`DB-018`), and correction entries carry a reason for an amendment or a reversal and refuse update and delete (`DB-017`). The Leave part ships with its own plan as its own Flyway migration numbered at implementation time. The attendance-exception plan carries no attendance contract migration, because V3 already creates its tables with the `DB-016` constraints and the append-only trigger.
 
 Tasks run on the part C integration branch `work/fix/architecture/schema-contracts`.
 
