@@ -33,16 +33,19 @@ import com.lab.labtimesheet.feature.project.model.dto.TaskDetails;
 import com.lab.labtimesheet.feature.project.model.dto.TaskEffortPlanningView;
 import com.lab.labtimesheet.feature.project.model.dto.TaskListView;
 import com.lab.labtimesheet.feature.project.model.dto.TaskRemainingEffortForecastView;
+import com.lab.labtimesheet.feature.project.model.dto.TaskStatusChangeCommand;
 import com.lab.labtimesheet.feature.project.model.dto.TaskView;
 import com.lab.labtimesheet.feature.project.model.dto.TaskWorkLogCandidate;
 import com.lab.labtimesheet.feature.project.model.dto.TaskWorkLogView;
 import com.lab.labtimesheet.feature.project.model.entity.Task;
+import com.lab.labtimesheet.feature.project.model.entity.TaskStatusTransition;
 import com.lab.labtimesheet.feature.project.model.entity.TaskComment;
 import com.lab.labtimesheet.feature.project.model.entity.TaskRemainingEffortForecast;
 import com.lab.labtimesheet.feature.project.model.entity.TaskWorkLog;
 import com.lab.labtimesheet.feature.project.repository.TaskCommentRepository;
 import com.lab.labtimesheet.feature.project.repository.TaskRemainingEffortForecastRepository;
 import com.lab.labtimesheet.feature.project.repository.TaskRepository;
+import com.lab.labtimesheet.feature.project.repository.TaskStatusTransitionRepository;
 import com.lab.labtimesheet.feature.project.repository.TaskWorkLogRepository;
 import java.time.Clock;
 import java.time.Instant;
@@ -75,6 +78,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class TaskService {
 
     private final TaskRepository tasks;
+    private final TaskStatusTransitionRepository statusTransitions;
     private final TaskCommentRepository comments;
     private final TaskWorkLogRepository workLogs;
     private final ProjectQueryService projects;
@@ -157,7 +161,7 @@ public class TaskService {
      * <p>The transaction locks the Project before the Task row and permits the owning Mentor or
      * the current assignee membership to mutate status. Leadership alone does not substitute for
      * either authority. A successful change publishes an in-app-only event to the current Leader,
-     * excluding the actor.
+     * excluding the actor; an owning Mentor's block, unblock, or reopen also notifies the assignee.
      *
      * @param actorEmail authenticated account email
      * @param projectId owning Project identifier
@@ -171,6 +175,29 @@ public class TaskService {
     @Transactional
     public TaskView changeStatus(
             String actorEmail, long projectId, long taskId, Long expectedVersion, TaskStatus target) {
+        return changeStatus(actorEmail, projectId, taskId, expectedVersion,
+                new TaskStatusChangeCommand(target, null));
+    }
+
+    /**
+     * Changes one permitted status edge and atomically records block, unblock, and reopen history.
+     *
+     * @param actorEmail authenticated account email
+     * @param projectId owning Project identifier
+     * @param taskId Task identifier within that Project
+     * @param expectedVersion client-observed Task version from the rendered form
+     * @param command requested next state and optional reopen reason
+     * @return updated Task projection
+     * @throws TaskNotFoundException when scope, lifecycle, actor authority, or identifiers are invalid
+     * @throws TaskValidationException when the requested edge, unblock target, or reopen reason is invalid
+     */
+    @Transactional
+    public TaskView changeStatus(
+            String actorEmail,
+            long projectId,
+            long taskId,
+            Long expectedVersion,
+            TaskStatusChangeCommand command) {
         TaskAccess access = requireMutationAccess(actorEmail, projectId);
         if (!"ACTIVE".equals(access.project().status())) {
             throw new TaskNotFoundException();
@@ -191,11 +218,39 @@ public class TaskService {
             throw new TaskNotFoundException();
         }
         requireTaskVersion(task, expectedVersion);
+        TaskStatus previous = task.getStatus();
+        TaskStatus target = command.target();
+        if (previous == TaskStatus.BLOCKED) {
+            statusTransitions
+                    .findFirstByTaskIdAndToStatusOrderByOccurredAtDescIdDesc(taskId, TaskStatus.BLOCKED)
+                    .map(TaskStatusTransition::getFromStatus)
+                    .ifPresent(restoreStatus -> {
+                        if (target != restoreStatus) {
+                            throw new TaskValidationException(
+                                    "Task must return to the status recorded by its latest block.");
+                        }
+                    });
+        }
         if (!task.getStatus().canTransitionTo(target)) {
             throw new TaskValidationException("Task status transition is not allowed");
         }
-        task.changeStatus(target, clock.instant());
+        String reason = command.reason() == null ? null : command.reason().trim();
+        boolean reopen = previous == TaskStatus.DONE && target == TaskStatus.IN_PROGRESS;
+        if (reopen && (reason == null || reason.isBlank())) {
+            throw new TaskValidationException("Enter a reason to reopen this Task.");
+        }
+        Instant changedAt = clock.instant();
+        task.changeStatus(target, changedAt);
+        if (previous == TaskStatus.BLOCKED || target == TaskStatus.BLOCKED || reopen) {
+            statusTransitions.save(new TaskStatusTransition(
+                    taskId, previous, target, access.actor().userId(), changedAt, reopen ? reason : null));
+        }
         TaskView result = view(saveTask(task), assigneeName(access, task.getAssigneeMembershipId()));
+        List<NotificationRecipient> recipients = new ArrayList<>(leaderRecipients);
+        if (owningMentor && (previous == TaskStatus.BLOCKED || target == TaskStatus.BLOCKED || reopen)) {
+            recipients.addAll(notificationRecipients(
+                    access.project(), access.actor().userId(), List.of(task.getAssigneeMembershipId())));
+        }
         publish(
                 new NotificationEvent(
                         NotificationType.TASK_STATUS_CHANGED,
@@ -203,7 +258,7 @@ public class TaskService {
                         "Task status changed",
                         "A Task status changed to " + target.name() + "."),
                 new NotificationAction(taskAction(projectId, task.getId()), false),
-                leaderRecipients);
+                recipients);
         return result;
     }
 

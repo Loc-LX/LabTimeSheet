@@ -124,6 +124,16 @@ test('Iteration 3 setup and critical Admin/Intern/Mentor journeys', async ({ pag
   await page.getByLabel('Note').fill('Browser-created work log');
   await page.getByRole('button', { name: 'Log work' }).click();
   await expect(page.getByText('Browser-created work log')).toBeVisible();
+  await page.getByLabel('New status').selectOption('DONE');
+  await page.getByRole('button', { name: 'Change status' }).click();
+  await expect(page.getByText('DONE', { exact: true })).toBeVisible();
+  await page.getByLabel('New status').selectOption('IN_PROGRESS');
+  await page.getByRole('button', { name: 'Change status' }).click();
+  await expect(page.locator('#task-status-error')).toContainText('Enter a reason to reopen this Task.');
+  await expect(page.getByText('DONE', { exact: true })).toBeVisible();
+  await page.getByLabel('Reopen reason').fill('Correct the result recorded in the work log.');
+  await page.getByRole('button', { name: 'Change status' }).click();
+  await expect(page.getByText('IN_PROGRESS', { exact: true })).toBeVisible();
   await page.goto(`/projects/${projectId}/history`);
   await expect(page.getByRole('heading', { name: 'Project History' })).toBeVisible();
   await page.getByRole('tab', { name: 'Task activity' }).click();

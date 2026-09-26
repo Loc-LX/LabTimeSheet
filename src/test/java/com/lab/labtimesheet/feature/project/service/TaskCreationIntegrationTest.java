@@ -31,6 +31,7 @@ import com.lab.labtimesheet.feature.project.model.dto.TaskHistoryView;
 import com.lab.labtimesheet.feature.project.model.dto.TaskListView;
 import com.lab.labtimesheet.feature.project.model.dto.TaskProjectProgress;
 import com.lab.labtimesheet.feature.project.model.dto.TaskRemainingEffortForecastView;
+import com.lab.labtimesheet.feature.project.model.dto.TaskStatusChangeCommand;
 import com.lab.labtimesheet.feature.project.model.dto.TaskView;
 import com.lab.labtimesheet.feature.project.model.entity.TaskRemainingEffortForecast;
 import com.lab.labtimesheet.feature.project.model.entity.TaskWorkLog;
@@ -39,6 +40,7 @@ import com.lab.labtimesheet.feature.project.repository.TaskWorkLogRepository;
 import jakarta.persistence.EntityManager;
 import org.postgresql.util.PSQLException;
 import java.time.Instant;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.sql.Timestamp;
 import java.util.List;
@@ -70,6 +72,9 @@ class TaskCreationIntegrationTest {
 
     @Autowired
     private JdbcClient jdbc;
+
+    @Autowired
+    private Clock clock;
 
     @Autowired
     private EntityManager entityManager;
@@ -643,6 +648,238 @@ class TaskCreationIntegrationTest {
         assertThat(jdbc.sql("select due_date from tasks where id = :id")
                 .param("id", task.id()).query(LocalDate.class).single())
                 .isEqualTo(LocalDate.of(2026, 8, 20));
+    }
+
+    /**
+     * TSK-007, TSK-025, DB-020, AC-TSK-003, AC-TSK-016 (assignee), AC-TSK-018 (permitted
+     * assignee actor), and AC-TSK-020 require a successful block to retain exactly its before/after
+     * states, actor and server time; the observable defect is a BLOCKED Task with no ledger row,
+     * and the hand-derived expected ledger count is one.
+     */
+    @Test
+    void successfulStatusChangeAppendsTransitionWithActorAndServerTime() {
+        TaskView task = createMemberTask("Ledger transition");
+        activateProject();
+        taskService.changeStatus("member@example.test", projectId, task.id(), TaskStatus.BLOCKED);
+
+        assertThat(jdbc.sql("select count(*) from task_status_transitions where task_id = :taskId")
+                        .param("taskId", task.id()).query(Long.class).single())
+                .isEqualTo(1);
+        assertThat(jdbc.sql("select from_status from task_status_transitions where task_id = :taskId")
+                        .param("taskId", task.id()).query(String.class).single())
+                .isEqualTo("TODO");
+        assertThat(jdbc.sql("select to_status from task_status_transitions where task_id = :taskId")
+                        .param("taskId", task.id()).query(String.class).single())
+                .isEqualTo("BLOCKED");
+        assertThat(jdbc.sql("select actor_user_id from task_status_transitions where task_id = :taskId")
+                        .param("taskId", task.id()).query(Long.class).single())
+                .isEqualTo(userId("member@example.test"));
+        Instant occurredAt = jdbc.sql("select occurred_at from task_status_transitions where task_id = :taskId")
+                .param("taskId", task.id()).query(Timestamp.class).single().toInstant();
+        assertThat(occurredAt).isEqualTo(clock.instant());
+        assertThat(jdbc.sql("select count(*) from task_status_transitions where task_id = :taskId and reason is null")
+                        .param("taskId", task.id()).query(Long.class).single())
+                .isEqualTo(1);
+    }
+
+    /**
+     * TSK-007, TSK-025, DB-020, D46, and AC-TSK-022 require an authorized assignee to choose
+     * either legal destination when a legacy BLOCKED Task has no block history, retaining only
+     * the observed unblock; the expected initial ledger count is one per Task and the later
+     * recorded block must still restrict restoration to its actual origin under AC-TSK-020.
+     */
+    @Test
+    void legacyBlockedTasksCanChooseEitherUnblockTargetWithoutInventingBlockHistory() {
+        TaskView restoreTodo = createMemberTask("Legacy blocked to TODO");
+        TaskView restoreInProgress = createMemberTask("Legacy blocked to IN_PROGRESS");
+        activateProject();
+        jdbc.sql("update tasks set status = 'BLOCKED' where id in (:todoId, :inProgressId)")
+                .param("todoId", restoreTodo.id())
+                .param("inProgressId", restoreInProgress.id())
+                .update();
+        entityManager.clear();
+
+        taskService.changeStatus("member@example.test", projectId, restoreTodo.id(), TaskStatus.TODO);
+        taskService.changeStatus(
+                "member@example.test", projectId, restoreInProgress.id(), TaskStatus.IN_PROGRESS);
+
+        assertThat(snapshot(restoreTodo.id()).status()).isEqualTo("TODO");
+        assertThat(snapshot(restoreInProgress.id()).status()).isEqualTo("IN_PROGRESS");
+        assertThat(jdbc.sql("""
+                        select task_id, from_status, to_status, actor_user_id, occurred_at, reason
+                        from task_status_transitions where task_id in (:todoId, :inProgressId)
+                        order by task_id
+                        """)
+                .param("todoId", restoreTodo.id())
+                .param("inProgressId", restoreInProgress.id())
+                .query((row, index) -> new Object[] {
+                        row.getLong("task_id"), row.getString("from_status"), row.getString("to_status"),
+                        row.getLong("actor_user_id"), row.getTimestamp("occurred_at").toInstant(),
+                        row.getString("reason")
+                })
+                .list()).containsExactlyInAnyOrder(
+                        new Object[] { restoreTodo.id(), "BLOCKED", "TODO",
+                                userId("member@example.test"), clock.instant(), null },
+                        new Object[] { restoreInProgress.id(), "BLOCKED", "IN_PROGRESS",
+                                userId("member@example.test"), clock.instant(), null });
+        assertThat(jdbc.sql("""
+                        select count(*) from task_status_transitions
+                        where task_id in (:todoId, :inProgressId) and to_status = 'BLOCKED'
+                        """)
+                .param("todoId", restoreTodo.id())
+                .param("inProgressId", restoreInProgress.id())
+                .query(Long.class).single()).isZero();
+
+        taskService.changeStatus("member@example.test", projectId, restoreTodo.id(), TaskStatus.BLOCKED);
+        assertThatThrownBy(() -> taskService.changeStatus(
+                        "member@example.test", projectId, restoreTodo.id(), TaskStatus.IN_PROGRESS))
+                .isInstanceOf(TaskValidationException.class);
+        taskService.changeStatus("member@example.test", projectId, restoreTodo.id(), TaskStatus.TODO);
+
+        assertThat(snapshot(restoreTodo.id()).status()).isEqualTo("TODO");
+        assertThat(jdbc.sql("""
+                        select from_status || '>' || to_status
+                        from task_status_transitions where task_id = :taskId order by id
+                        """)
+                .param("taskId", restoreTodo.id())
+                .query(String.class).list())
+                .containsExactly("BLOCKED>TODO", "TODO>BLOCKED", "BLOCKED>TODO");
+        assertThat(jdbc.sql("select count(*) from task_status_transitions where task_id = :taskId")
+                .param("taskId", restoreInProgress.id()).query(Long.class).single()).isEqualTo(1);
+    }
+
+    /**
+     * TSK-007, TSK-025, AC-TSK-020, and DB-020 require unblock to restore the newest block origin,
+     * reject a caller-selected alternative without changing history, and retain a nonblank reopen
+     * reason. The expected sequence is TODO→BLOCKED→TODO→IN_PROGRESS→BLOCKED→IN_PROGRESS (four
+     * ledger rows), followed by one reason-bearing reopen row; reasonless reopen adds none.
+     */
+    @Test
+    void unblockRestoresLatestOriginAndReopenRequiresRetainedReason() {
+        TaskView task = createMemberTask("Latest block origin");
+        activateProject();
+
+        taskService.changeStatus("member@example.test", projectId, task.id(), TaskStatus.BLOCKED);
+        TaskSnapshot blockedBeforeWrongDestination = snapshot(task.id());
+        long notificationsBeforeWrongDestination = notificationCount();
+        assertThatThrownBy(() -> taskService.changeStatus(
+                        "member@example.test", projectId, task.id(), TaskStatus.IN_PROGRESS))
+                .isInstanceOf(TaskValidationException.class);
+        assertThat(snapshot(task.id())).isEqualTo(blockedBeforeWrongDestination);
+        assertThat(transitionCount(task.id())).isEqualTo(1);
+        assertThat(notificationCount()).isEqualTo(notificationsBeforeWrongDestination);
+
+        taskService.changeStatus("member@example.test", projectId, task.id(), TaskStatus.TODO);
+        taskService.changeStatus("member@example.test", projectId, task.id(), TaskStatus.IN_PROGRESS);
+        taskService.changeStatus("member@example.test", projectId, task.id(), TaskStatus.BLOCKED);
+        TaskSnapshot latestBlockBeforeWrongDestination = snapshot(task.id());
+        long notificationsBeforeLatestWrongDestination = notificationCount();
+        assertThatThrownBy(() -> taskService.changeStatus(
+                        "member@example.test", projectId, task.id(), TaskStatus.TODO))
+                .isInstanceOf(TaskValidationException.class);
+        assertThat(snapshot(task.id())).isEqualTo(latestBlockBeforeWrongDestination);
+        assertThat(transitionCount(task.id())).isEqualTo(3);
+        assertThat(notificationCount()).isEqualTo(notificationsBeforeLatestWrongDestination);
+        taskService.changeStatus("member@example.test", projectId, task.id(), TaskStatus.IN_PROGRESS);
+        assertThat(transitionCount(task.id())).isEqualTo(4);
+
+        setStatus(task.id(), TaskStatus.DONE);
+        long notificationsBeforeReopen = notificationCount();
+        assertThatThrownBy(() -> taskService.changeStatus(
+                        "member@example.test", projectId, task.id(), TaskStatus.IN_PROGRESS))
+                .isInstanceOf(TaskValidationException.class);
+        assertThatThrownBy(() -> taskService.changeStatus(
+                        "member@example.test", projectId, task.id(), null,
+                        new TaskStatusChangeCommand(TaskStatus.IN_PROGRESS, "   ")))
+                .isInstanceOf(TaskValidationException.class);
+        assertThat(snapshot(task.id()).status()).isEqualTo("DONE");
+        assertThat(transitionCount(task.id())).isEqualTo(4);
+        assertThat(notificationCount()).isEqualTo(notificationsBeforeReopen);
+
+        taskService.changeStatus("member@example.test", projectId, task.id(), null,
+                new TaskStatusChangeCommand(TaskStatus.IN_PROGRESS, "Correct the final calculation"));
+        assertThat(snapshot(task.id()).status()).isEqualTo("IN_PROGRESS");
+        assertThat(transitionCount(task.id())).isEqualTo(5);
+        assertThat(jdbc.sql("select reason from task_status_transitions where task_id = :taskId and from_status = 'DONE'")
+                        .param("taskId", task.id()).query(String.class).single())
+                .isEqualTo("Correct the final calculation");
+        assertThat(jdbc.sql("select from_status || '>' || to_status from task_status_transitions where task_id = :taskId order by id")
+                        .param("taskId", task.id()).query(String.class).list())
+                .containsExactly("TODO>BLOCKED", "BLOCKED>TODO", "IN_PROGRESS>BLOCKED",
+                        "BLOCKED>IN_PROGRESS", "DONE>IN_PROGRESS");
+        assertThat(jdbc.sql("""
+                        select count(*) from task_status_transitions
+                        where task_id = :taskId and actor_user_id = :actorId and occurred_at = :occurredAt
+                        """)
+                        .param("taskId", task.id())
+                        .param("actorId", userId("member@example.test"))
+                        .param("occurredAt", Timestamp.from(clock.instant()))
+                        .query(Long.class).single())
+                .isEqualTo(5);
+    }
+
+    /**
+     * TSK-007, AC-TSK-021, PRJ-013 and DB-020 require deleted Tasks, PLANNED Projects, and edges
+     * outside the fixed graph to refuse status writes with unchanged Task and transition history;
+     * each refusal therefore leaves the expected ledger count at zero.
+     */
+    @Test
+    void refusesDeletedPlannedAndInvalidStatusTransitionsWithoutLedgerRows() {
+        TaskView plannedTask = createMemberTask("Planned status refusal");
+        long notificationsBefore = notificationCount();
+        assertThatThrownBy(() -> taskService.changeStatus(
+                        "member@example.test", projectId, plannedTask.id(), TaskStatus.BLOCKED))
+                .isInstanceOf(TaskNotFoundException.class);
+        assertThat(snapshot(plannedTask.id()).status()).isEqualTo("TODO");
+        assertThat(transitionCount(plannedTask.id())).isZero();
+        assertThat(notificationCount()).isEqualTo(notificationsBefore);
+
+        activateProject();
+        assertThatThrownBy(() -> taskService.changeStatus(
+                        "member@example.test", projectId, plannedTask.id(), TaskStatus.DONE))
+                .isInstanceOf(TaskValidationException.class);
+        assertThat(transitionCount(plannedTask.id())).isZero();
+
+        TaskView deletedTask = createMemberTask("Deleted status refusal");
+        softDelete(deletedTask.id());
+        assertThatThrownBy(() -> taskService.changeStatus(
+                        "member@example.test", projectId, deletedTask.id(), TaskStatus.BLOCKED))
+                .isInstanceOf(TaskNotFoundException.class);
+        assertThat(transitionCount(deletedTask.id())).isZero();
+        assertThat(notificationCount()).isEqualTo(notificationsBefore);
+    }
+
+    /**
+     * NOT-003 and AC-TSK-018 require an owning Mentor's successful block and reopen to notify the
+     * assignee and current Leader in-app only; the hand-derived result is two recipients per event
+     * with email status NOT_REQUIRED for every notification.
+     */
+    @Test
+    void mentorStatusChangeNotifiesAssigneeAndLeaderInAppWithoutEmail() {
+        TaskView task = createMemberTask("Mentor notification");
+        activateProject();
+        int before = notificationRecipientIds().size();
+
+        taskService.changeStatus("mentor@example.test", projectId, task.id(), TaskStatus.BLOCKED);
+
+        List<Long> recipientIds = notificationRecipientIds();
+        assertThat(recipientIds.subList(before, recipientIds.size()))
+                .containsExactly(userId("leader@example.test"), userId("member@example.test"));
+        int afterBlock = recipientIds.size();
+        setStatus(task.id(), TaskStatus.DONE);
+        taskService.changeStatus("mentor@example.test", projectId, task.id(), null,
+                new TaskStatusChangeCommand(TaskStatus.IN_PROGRESS, "Correct the submitted result"));
+        List<Long> afterReopenRecipients = notificationRecipientIds();
+        assertThat(afterReopenRecipients.subList(afterBlock, afterReopenRecipients.size()))
+                .containsExactly(userId("leader@example.test"), userId("member@example.test"));
+        assertThat(jdbc.sql("select email_status from notifications where notification_type = 'TASK_STATUS_CHANGED'")
+                        .query(String.class).list())
+                .containsOnly("NOT_REQUIRED");
+    }
+
+    private long transitionCount(long taskId) {
+        return jdbc.sql("select count(*) from task_status_transitions where task_id = :taskId")
+                .param("taskId", taskId).query(Long.class).single();
     }
 
     @Test
