@@ -291,6 +291,7 @@ public class ProjectQueryService {
                 displayName(project.mentorUserId()),
                 currentLeaderId == null ? null : displayName(currentLeaderId),
                 !completed && project.mentorUserId() == actorUserId,
+                project.mentorUserId() == actorUserId && projects.isEmptyDraft(projectId),
                 !completed && actor.role() == GlobalRole.INTERN && currentLeaderId == actorUserId);
     }
 

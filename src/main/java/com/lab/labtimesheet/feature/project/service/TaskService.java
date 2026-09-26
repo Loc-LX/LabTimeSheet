@@ -140,7 +140,7 @@ public class TaskService {
                         "Task assigned",
                         "A Task was assigned to you."),
                 new NotificationAction(taskAction(command.projectId(), result.id()),
-                        actorMembership.membershipId() == assignee.membershipId()),
+                        actorMembership.membershipId() == assignee.membershipId(), command.projectId()),
                 notificationRecipients(access.project(), actorMembership.userId(),
                         List.of(assignee.membershipId())));
         return result;
@@ -197,7 +197,7 @@ public class TaskService {
                         "STATUS_CHANGED",
                         "Task status changed",
                         "A Task status changed to " + target.name() + "."),
-                new NotificationAction(taskAction(projectId, task.getId()), false),
+                new NotificationAction(taskAction(projectId, task.getId()), false, projectId),
                 leaderRecipients);
         return result;
     }
@@ -442,7 +442,7 @@ public class TaskService {
                         "REASSIGNED",
                         "Task reassigned",
                         "A Task assignment changed."),
-                new NotificationAction(taskAction(projectId, task.getId()), false),
+                new NotificationAction(taskAction(projectId, task.getId()), false, projectId),
                 assigneeRecipients);
         return result;
     }
@@ -582,7 +582,7 @@ public class TaskService {
                         "COMMENTED",
                         "Task commented",
                         "A Task received a new comment."),
-                new NotificationAction(taskAction(projectId, taskId), false),
+                new NotificationAction(taskAction(projectId, taskId), false, projectId),
                 commentRecipients);
         return result;
     }

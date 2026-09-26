@@ -3,6 +3,7 @@ package com.lab.labtimesheet.feature.project.controller;
 import com.lab.labtimesheet.feature.internship.service.InternshipService;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
@@ -634,6 +635,10 @@ class ProjectControllerTest {
         verify(projects).activate(10L, 30L);
     }
 
+    /**
+     * PRJ-002 and AC-PRJ-014 keep Activate available to an owning Mentor while withholding Delete
+     * for a Project whose exit-readiness fixture proves retained unfinished Task data exists.
+     */
     @Test
     @WithMockUser(username = "mentor@example.test")
     void plannedProjectDetailShowsActivationOnlyToTheOwningMentor() throws Exception {
@@ -656,7 +661,7 @@ class ProjectControllerTest {
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
                         .string(containsString(">Activate<")))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
-                        .string(containsString(">Delete Project<")))
+                        .string(not(containsString(">Delete Project<"))))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
                         .string(containsString("2 unfinished Tasks remain")));
 
@@ -686,6 +691,90 @@ class ProjectControllerTest {
                 .andExpect(redirectedUrl("/projects"));
 
         verify(projects).delete(10L, 30L);
+    }
+
+    /**
+     * Protects {@code PRJ-002} and {@code AC-PRJ-014}. Observable break: owner management
+     * permission alone renders a delete form for a draft whose emptiness has not been established.
+     * Expected: a manageable but non-deletable PLANNED Project has no Delete Project control.
+     */
+    @Test
+    @WithMockUser(username = "mentor@example.test")
+    void manageablePlannedProjectWithoutEmptyDraftCapabilityDoesNotExposeDelete() throws Exception {
+        when(pages.authenticatedUserId("mentor@example.test")).thenReturn(10L);
+        when(pages.detail(10L, 30L)).thenReturn(new ProjectDetail(
+                30L,
+                "Non-empty planned Project",
+                null,
+                "PLANNED",
+                LocalDate.of(2026, 8, 15),
+                LocalDate.of(2026, 9, 30),
+                "Mentor",
+                "Leader",
+                true));
+
+        mvc.perform(get("/projects/30"))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(not(containsString(">Delete Project<"))));
+    }
+
+    /**
+     * PRJ-002 and AC-PRJ-014 require the owning Mentor to see Delete for a proven empty PLANNED
+     * draft while retaining the normal Activate action.
+     */
+    @Test
+    @WithMockUser(username = "mentor@example.test")
+    void emptyPlannedDraftShowsDeleteProjectToTheOwningMentor() throws Exception {
+        when(pages.authenticatedUserId("mentor@example.test")).thenReturn(10L);
+        when(pages.detail(10L, 30L)).thenReturn(new ProjectDetail(
+                30L,
+                "Empty planned Project",
+                null,
+                "PLANNED",
+                LocalDate.of(2026, 8, 15),
+                LocalDate.of(2026, 9, 30),
+                "Mentor",
+                "Leader",
+                true,
+                true,
+                false));
+        when(pages.exitReadiness(10L, 30L)).thenReturn(List.of());
+
+        mvc.perform(get("/projects/30"))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(containsString(">Delete Project<")))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(containsString("action=\"/projects/30/delete\"")))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(containsString(">Activate<")));
+    }
+
+    /**
+     * Protects {@code PRJ-002} and {@code AUTH-002}. Observable break: a foreign Mentor's guessed
+     * Project delete request returns a different page or reveals a Project-specific error.
+     * Expected: foreign and missing identifiers both render the same generic 404 response.
+     */
+    @Test
+    @WithMockUser(username = "mentor@example.test")
+    void foreignDeleteAndMissingProjectHaveTheSameNotFoundResponse() throws Exception {
+        when(pages.authenticatedUserId("mentor@example.test")).thenReturn(10L);
+        doThrow(new ProjectAccessDeniedException()).when(projects).delete(10L, 30L);
+        doThrow(new ProjectAccessDeniedException()).when(projects).delete(10L, 999L);
+
+        var existingId = mvc.perform(post("/projects/30/delete").with(csrf())).andReturn().getResponse();
+        var missingId = mvc.perform(post("/projects/999/delete").with(csrf())).andReturn().getResponse();
+
+        assertEquals(404, existingId.getStatus());
+        assertEquals(404, missingId.getStatus());
+        String existingBody = existingId.getContentAsString()
+                .replaceAll("name=\"_csrf\" value=\"[^\"]+\"", "name=\"_csrf\" value=\"[csrf]\"");
+        String missingBody = missingId.getContentAsString()
+                .replaceAll("name=\"_csrf\" value=\"[^\"]+\"", "name=\"_csrf\" value=\"[csrf]\"");
+        assertEquals(existingBody, missingBody);
+        assertFalse(existingBody.contains("30"));
+        assertFalse(existingBody.contains("999"));
     }
 
     @Test

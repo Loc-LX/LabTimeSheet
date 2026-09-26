@@ -397,12 +397,17 @@ public class ProjectEntity {
      *
      * @param actorMentorUserId authenticated owning Mentor
      * @throws ProjectAccessDeniedException when the actor does not own this Project
-     * @throws ProjectRuleViolationException when the Project is no longer planned
+     * @param emptyDraft whether the locked Project has exactly its initial membership and
+     *                   leadership term and no Task, invitation, or exit request
+     * @throws ProjectRuleViolationException when the Project is not an empty planned draft
      */
-    public void requireDeletable(long actorMentorUserId) {
+    public void requireDeletable(long actorMentorUserId, boolean emptyDraft) {
         requireOwner(actorMentorUserId);
         if (status != ProjectStatus.PLANNED) {
             throw new ProjectRuleViolationException("Only a planned Project can be deleted");
+        }
+        if (!emptyDraft) {
+            throw new ProjectRuleViolationException("Only an empty planned Project can be deleted");
         }
     }
 

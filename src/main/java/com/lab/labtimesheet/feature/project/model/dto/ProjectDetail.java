@@ -14,6 +14,7 @@ import java.time.LocalDate;
  * @param mentorName owning Mentor display name
  * @param leaderName current Leader display name, or null after completion closes leadership
  * @param canManage whether the viewer is the owner and the Project remains mutable
+ * @param canDelete whether the viewer owns a truly empty PLANNED Project that may be deleted
  * @param viewerIsCurrentLeader whether the viewer is the stored current Leader of this open Project
  */
 // DTO dữ liệu chi tiết Project đã qua kiểm tra quyền xem.
@@ -28,7 +29,37 @@ public record ProjectDetail(
         String mentorName,
         String leaderName,
         boolean canManage,
+        boolean canDelete,
         boolean viewerIsCurrentLeader) {
+
+    /**
+     * Preserves callers that supply management and Leader capabilities but no deletion proof.
+     *
+     * @param id Project identifier
+     * @param name display name
+     * @param description optional description
+     * @param status lifecycle status
+     * @param startDate inclusive Project start date
+     * @param endDate inclusive Project end date
+     * @param mentorName owning Mentor display name
+     * @param leaderName current Leader display name, or null
+     * @param canManage whether the viewer is the owner and the Project remains mutable
+     * @param viewerIsCurrentLeader whether the viewer is the current Leader
+     */
+    public ProjectDetail(
+            long id,
+            String name,
+            String description,
+            String status,
+            LocalDate startDate,
+            LocalDate endDate,
+            String mentorName,
+            String leaderName,
+            boolean canManage,
+            boolean viewerIsCurrentLeader) {
+        this(id, name, description, status, startDate, endDate, mentorName, leaderName,
+                canManage, false, viewerIsCurrentLeader);
+    }
 
     /**
      * Backward-compatible constructor for callers that do not render Leader-specific actions.
@@ -47,6 +78,6 @@ public record ProjectDetail(
             String leaderName,
             boolean canManage) {
         this(id, name, description, status, startDate, endDate,
-                mentorName, leaderName, canManage, false);
+                mentorName, leaderName, canManage, false, false);
     }
 }

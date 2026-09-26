@@ -1,6 +1,7 @@
 package com.lab.labtimesheet.feature.project.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -329,57 +330,210 @@ class ProjectServiceIntegrationTest {
         assertEquals(1, count("select count(*) from projects where id = ? and activated_at is not null", projectId));
     }
 
+    /**
+     * Protects {@code PRJ-002} and {@code AC-PRJ-014}. Observable break: deleting an empty
+     * draft leaves its initial membership, leadership term, or notification behind, or deletes
+     * a notification belonging to another Project. Expected: zero rows remain for the deleted
+     * Project's membership, leadership, and linked notifications, while the other Project's
+     * linked notification count remains exactly two (its creation membership and leadership notices);
+     * before deletion the owner's detail page offers the valid empty-draft action.
+     */
     @Test
-    void ownerCanDeleteAPlannedProjectAndItsOwnedRows() {
+    void ownerCanDeleteOnlyAnEmptyPlannedProjectAndItsLinkedNotifications() {
         long mentorId = user("mentor-delete-planned@example.test", "MENTOR");
         long leaderId = intern("leader-delete-planned@example.test", "I026");
-        long inviteeId = intern("invitee-delete-planned@example.test", "I028");
-        long memberId = intern("member-delete-planned@example.test", "I029");
         long projectId = createProject(mentorId, leaderId, "Disposable draft");
-        projectService.issueInvitation(leaderId, projectId, inviteeId);
-        projectService.addMember(mentorId, projectId, memberId);
-        projectService.requestOwnLeave(memberId, projectId, "Draft cleanup");
-        long membershipId = membershipId(projectId, leaderId);
-        long taskId = jdbc.queryForObject("""
-                insert into tasks (
-                    project_id, assignee_membership_id, title,
-                    created_by_membership_id, assigned_by_membership_id)
-                values (?, ?, 'Draft task', ?, ?)
-                returning id
-                """, Long.class, projectId, membershipId, membershipId, membershipId);
-        jdbc.update("""
-                insert into task_comments (task_id, author_user_id, body)
-                values (?, ?, 'Draft comment')
-                """, taskId, leaderId);
-        jdbc.update("""
-                insert into task_work_logs (project_id, task_id, membership_id, work_date, minutes)
-                values (?, ?, ?, date '2026-08-20', 30)
-                """, projectId, taskId, membershipId);
+        long otherProjectId = createProject(mentorId, leaderId, "Keep notifications");
+        int linkedNotificationsBeforeDelete = count("select count(*) from notifications where project_id = ?",
+                projectId);
+        assertTrue(projectPages.detail(mentorId, projectId).canDelete());
+        assertEquals(2, count("select count(*) from notifications where action_url = '/projects/' || ?::text",
+                projectId));
+        assertEquals(2, count("select count(*) from notifications where action_url = '/projects/' || ?::text",
+                otherProjectId));
 
         projectService.delete(mentorId, projectId);
 
-        assertEquals(0, count("select count(*) from projects where id = ?", projectId));
-        assertEquals(0, count("select count(*) from project_memberships where project_id = ?", projectId));
-        assertEquals(0, count("select count(*) from project_leadership_terms where project_id = ?", projectId));
-        assertEquals(0, count("select count(*) from project_invitations where project_id = ?", projectId));
-        assertEquals(0, count("select count(*) from project_membership_exit_requests where project_id = ?", projectId));
-        assertEquals(0, count("select count(*) from tasks where project_id = ?", projectId));
-        assertEquals(0, count("select count(*) from task_comments where task_id = ?", taskId));
-        assertEquals(0, count("select count(*) from task_work_logs where project_id = ?", projectId));
+        assertAll(
+                () -> assertEquals(2, linkedNotificationsBeforeDelete,
+                        "both notifications raised after V3 must carry their Project identifier"),
+                () -> assertEquals(0, count("select count(*) from projects where id = ?", projectId)),
+                () -> assertEquals(0, count("select count(*) from project_memberships where project_id = ?", projectId)),
+                () -> assertEquals(0, count("select count(*) from project_leadership_terms where project_id = ?", projectId)),
+                () -> assertEquals(0, count("select count(*) from notifications where project_id = ?", projectId)),
+                () -> assertEquals(0, count("""
+                        select count(*) from notifications
+                        where action_url = '/projects/' || ?::text
+                           or action_url like '/projects/' || ?::text || '/%'
+                        """, projectId, projectId)),
+                () -> assertEquals(2, count("select count(*) from notifications where project_id = ?", otherProjectId)));
     }
 
+    /**
+     * Protects {@code PRJ-002} and {@code AC-PRJ-014}. Observable break: an ordinary Task and
+     * its retained comment/work log are physically deleted with a Project draft. Expected:
+     * deletion is refused, the page offers no delete action, and exactly one Task, comment, and
+     * work-log row remain.
+     */
+    @Test
+    void taskBlocksDraftDeletionAndItsWorkHistoryRemains() {
+        long mentorId = user("mentor-delete-task@example.test", "MENTOR");
+        long leaderId = intern("leader-delete-task@example.test", "I028");
+        long projectId = createProject(mentorId, leaderId, "Task blocker");
+        long taskId = insertTask(projectId, leaderId, "Retained Task", null);
+        jdbc.update("insert into task_comments (task_id, author_user_id, body) values (?, ?, 'Retained comment')",
+                taskId, leaderId);
+        jdbc.update("""
+                insert into task_work_logs (project_id, task_id, membership_id, work_date, minutes)
+                values (?, ?, ?, date '2026-08-20', 30)
+                """, projectId, taskId, membershipId(projectId, leaderId));
+        entityManager.clear();
+        assertFalse(projectPages.detail(mentorId, projectId).canDelete());
+
+        assertThrows(ProjectRuleViolationException.class, () -> projectService.delete(mentorId, projectId));
+
+        assertEquals(1, count("select count(*) from tasks where project_id = ?", projectId));
+        assertEquals(1, count("select count(*) from task_comments where task_id = ?", taskId));
+        assertEquals(1, count("select count(*) from task_work_logs where project_id = ?", projectId));
+    }
+
+    /**
+     * Protects {@code PRJ-002} and {@code AC-PRJ-014}. Observable break: a soft-deleted Task is
+     * overlooked by the emptiness guard and its row is removed. Expected: deletion is refused
+     * the page offers no delete action, and the one soft-deleted Task remains.
+     */
+    @Test
+    void softDeletedTaskStillBlocksDraftDeletion() {
+        long mentorId = user("mentor-delete-soft-task@example.test", "MENTOR");
+        long leaderId = intern("leader-delete-soft-task@example.test", "I029");
+        long projectId = createProject(mentorId, leaderId, "Soft-deleted Task blocker");
+        long taskId = insertTask(projectId, leaderId, "Soft-deleted Task", dbTime(NOW.plusSeconds(30)));
+        entityManager.clear();
+        assertFalse(projectPages.detail(mentorId, projectId).canDelete());
+
+        assertThrows(ProjectRuleViolationException.class, () -> projectService.delete(mentorId, projectId));
+
+        assertEquals(1, count("select count(*) from tasks where id = ? and deleted_at is not null", taskId));
+    }
+
+    /**
+     * Protects {@code PRJ-002} and {@code AC-PRJ-014}. Observable break: deleting a draft removes
+     * a pending invitation instead of refusing the non-empty Project. Expected: the invitation
+     * its Project remains, and the page offers no delete action.
+     */
+    @Test
+    void invitationBlocksDraftDeletion() {
+        long mentorId = user("mentor-delete-invitation@example.test", "MENTOR");
+        long leaderId = intern("leader-delete-invitation@example.test", "I030");
+        long inviteeId = intern("invitee-delete-invitation@example.test", "I031");
+        long projectId = createProject(mentorId, leaderId, "Invitation blocker");
+        long invitationId = projectService.issueInvitation(leaderId, projectId, inviteeId);
+        assertFalse(projectPages.detail(mentorId, projectId).canDelete());
+
+        assertThrows(ProjectRuleViolationException.class, () -> projectService.delete(mentorId, projectId));
+
+        assertEquals(1, count("select count(*) from projects where id = ?", projectId));
+        assertEquals(1, count("select count(*) from project_invitations where id = ?", invitationId));
+    }
+
+    /**
+     * Protects {@code PRJ-002} and {@code AC-PRJ-014}. Observable break: deleting a draft removes
+     * a pending membership exit request instead of refusing the non-empty Project. Expected:
+     * the exit request and Project remain, and the page offers no delete action.
+     */
+    @Test
+    void exitRequestBlocksDraftDeletion() {
+        long mentorId = user("mentor-delete-exit@example.test", "MENTOR");
+        long leaderId = intern("leader-delete-exit@example.test", "I032");
+        long projectId = createProject(mentorId, leaderId, "Exit blocker");
+        long requestId = projectService.requestOwnLeave(leaderId, projectId, "Leave draft");
+        assertFalse(projectPages.detail(mentorId, projectId).canDelete());
+
+        assertThrows(ProjectRuleViolationException.class, () -> projectService.delete(mentorId, projectId));
+
+        assertEquals(1, count("select count(*) from projects where id = ?", projectId));
+        assertEquals(1, count("select count(*) from project_membership_exit_requests where id = ?", requestId));
+    }
+
+    /**
+     * Protects {@code PRJ-002} and {@code AC-PRJ-014}. Observable break: a second membership is
+     * silently removed with an otherwise disposable draft. Expected: deletion is refused and
+     * both membership intervals remain and the page offers no delete action.
+     */
+    @Test
+    void secondMembershipBlocksDraftDeletion() {
+        long mentorId = user("mentor-delete-member@example.test", "MENTOR");
+        long leaderId = intern("leader-delete-member@example.test", "I033");
+        long memberId = intern("member-delete-member@example.test", "I034");
+        long projectId = createProject(mentorId, leaderId, "Membership blocker");
+        projectService.addMember(mentorId, projectId, memberId);
+        assertFalse(projectPages.detail(mentorId, projectId).canDelete());
+
+        assertThrows(ProjectRuleViolationException.class, () -> projectService.delete(mentorId, projectId));
+
+        assertEquals(2, count("select count(*) from project_memberships where project_id = ?", projectId));
+    }
+
+    /**
+     * Protects {@code PRJ-002}, {@code AC-PRJ-014}, and {@code AUTH-002}. Observable break:
+     * a foreign Mentor can delete a draft or distinguish a guessed Project ID from a missing one.
+     * Expected: both requests raise the same access-denied exception and the owned Project remains.
+     */
+    @Test
+    void foreignMentorCannotDeleteOrEnumerateAnEmptyDraft() {
+        long ownerId = user("mentor-delete-owner@example.test", "MENTOR");
+        long foreignMentorId = user("mentor-delete-foreign@example.test", "MENTOR");
+        long leaderId = intern("leader-delete-foreign@example.test", "I036");
+        long projectId = createProject(ownerId, leaderId, "Owned empty draft");
+
+        assertThrows(ProjectAccessDeniedException.class,
+                () -> projectService.delete(foreignMentorId, projectId));
+        assertThrows(ProjectAccessDeniedException.class,
+                () -> projectService.delete(foreignMentorId, Long.MAX_VALUE));
+
+        assertEquals(1, count("select count(*) from projects where id = ?", projectId));
+    }
+
+    /**
+     * Protects {@code PRJ-002} and {@code AC-PRJ-014}. Observable break: an ACTIVE Project can be
+     * physically deleted. Expected: deletion is refused and the ACTIVE status and Project row
+     * remain unchanged.
+     */
     @Test
     void activeProjectCannotBeDeletedAndRemainsAvailable() {
         long mentorId = user("mentor-delete-active@example.test", "MENTOR");
         long leaderId = intern("leader-delete-active@example.test", "I027");
         long projectId = createProject(mentorId, leaderId, "Protected active project");
         projectService.activate(mentorId, projectId);
+        assertFalse(projectPages.detail(mentorId, projectId).canDelete());
 
         assertThrows(ProjectRuleViolationException.class,
                 () -> projectService.delete(mentorId, projectId));
 
         assertEquals("ACTIVE", text("select status from projects where id = ?", projectId));
         assertEquals(1, count("select count(*) from projects where id = ?", projectId));
+    }
+
+    /**
+     * Protects {@code PRJ-002} and {@code AC-PRJ-014}. Observable break: a completed Project is
+     * treated as a disposable draft and loses its retained membership and leadership intervals.
+     * Expected: deletion is refused and the completed Project, membership, and term each remain.
+     */
+    @Test
+    void completedProjectCannotBeDeletedAndRetainsItsIntervals() {
+        long mentorId = user("mentor-delete-completed@example.test", "MENTOR");
+        long leaderId = intern("leader-delete-completed@example.test", "I035");
+        long projectId = createProject(mentorId, leaderId, "Completed Project");
+        projectService.activate(mentorId, projectId);
+        projectService.complete(mentorId, projectId);
+        entityManager.clear();
+        assertFalse(projectPages.detail(mentorId, projectId).canDelete());
+
+        assertThrows(ProjectRuleViolationException.class, () -> projectService.delete(mentorId, projectId));
+
+        assertEquals("COMPLETED", text("select status from projects where id = ?", projectId));
+        assertEquals(1, count("select count(*) from project_memberships where project_id = ?", projectId));
+        assertEquals(1, count("select count(*) from project_leadership_terms where project_id = ?", projectId));
     }
 
     @Test
@@ -539,6 +693,19 @@ class ProjectServiceIntegrationTest {
                         LocalDate.of(2026, 8, 15),
                         LocalDate.of(2026, 9, 30),
                         leaderId));
+    }
+
+    private long insertTask(long projectId, long internUserId, String title, OffsetDateTime deletedAt) {
+        long membershipId = membershipId(projectId, internUserId);
+        return jdbc.queryForObject("""
+                insert into tasks (
+                    project_id, assignee_membership_id, title,
+                    created_by_membership_id, assigned_by_membership_id,
+                    deleted_at, deleted_by_membership_id)
+                values (?, ?, ?, ?, ?, ?, ?)
+                returning id
+                """, Long.class, projectId, membershipId, title, membershipId, membershipId,
+                deletedAt, deletedAt == null ? null : membershipId);
     }
 
     private long user(String email, String role) {
