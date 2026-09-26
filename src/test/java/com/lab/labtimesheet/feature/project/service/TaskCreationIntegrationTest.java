@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 
 import com.lab.labtimesheet.config.TestcontainersConfiguration;
+import com.lab.labtimesheet.feature.calendar.service.CalendarApplicationService;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectTaskContext;
 import com.lab.labtimesheet.feature.project.service.ProjectService;
 import com.lab.labtimesheet.feature.reporting.service.DailyProjectWorkReportService;
@@ -94,6 +95,12 @@ class TaskCreationIntegrationTest {
 
     @Autowired
     private ProjectService projectMutations;
+
+    @Autowired
+    private ProjectQueryService projectQueries;
+
+    @Autowired
+    private CalendarApplicationService calendar;
 
     @Autowired
     private TaskTransferService taskTransfers;
@@ -349,6 +356,12 @@ class TaskCreationIntegrationTest {
         assertThat(taskCount()).isZero();
     }
 
+    /**
+     * TSK-005, AC-TSK-002 require creation and edits outside the Project range or on a current
+     * global day off to be rejected. From an August 1–31 Project, the manually derived invalid
+     * inputs are July 31, September 1, and the configured August 15 day off; the two valid range
+     * boundaries remain accepted and each rejected edit leaves its original due date unchanged.
+     */
     @Test
     void acceptsProjectBoundaryDueDatesAndRejectsOutsideOrCurrentDayOff() {
         taskService.create(
@@ -359,6 +372,7 @@ class TaskCreationIntegrationTest {
                 new CreateTaskCommand(projectId, memberMembershipId, "End boundary", null, PROJECT_END));
         insertDayOff(LocalDate.of(2026, 8, 15));
 
+        TaskView editable = createMemberTask("Edit date boundaries");
         assertThatThrownBy(() -> taskService.create(
                         "leader@example.test",
                         new CreateTaskCommand(projectId, memberMembershipId, "Before", null, PROJECT_START.minusDays(1))))
@@ -371,9 +385,26 @@ class TaskCreationIntegrationTest {
                         "leader@example.test",
                         new CreateTaskCommand(projectId, memberMembershipId, "Day off", null, LocalDate.of(2026, 8, 15))))
                 .isInstanceOf(TaskValidationException.class);
-        assertThat(taskCount()).isEqualTo(2);
+        assertThatThrownBy(() -> taskService.edit(
+                        "member@example.test", projectId, editable.id(), "Edit before", null, PROJECT_START.minusDays(1)))
+                .isInstanceOf(TaskValidationException.class);
+        assertThatThrownBy(() -> taskService.edit(
+                        "member@example.test", projectId, editable.id(), "Edit after", null, PROJECT_END.plusDays(1)))
+                .isInstanceOf(TaskValidationException.class);
+        assertThatThrownBy(() -> taskService.edit(
+                        "member@example.test", projectId, editable.id(), "Edit day off", null, LocalDate.of(2026, 8, 15)))
+                .isInstanceOf(TaskValidationException.class);
+        assertThat(taskCount()).isEqualTo(3);
+        assertThat(jdbc.sql("select count(*) from tasks where id = :id and due_date is null")
+                .param("id", editable.id()).query(Long.class).single()).isEqualTo(1L);
     }
 
+    /**
+     * TSK-006, AC-TSK-002 require later day-off changes to preserve stored due dates and expose
+     * exactly current Tasks on the affected date to the Task-owned impact query. The expected
+     * result is the one live August 20 Task; a soft-deleted Task and a live August 21 Task are
+     * excluded, while the stored due date remains August 20.
+     */
     @Test
     void laterDayOffKeepsExistingDueDateAndListsOnlyCurrentAffectedTasks() {
         LocalDate impactDate = LocalDate.of(2026, 8, 20);
@@ -384,8 +415,11 @@ class TaskCreationIntegrationTest {
                 "leader@example.test",
                 new CreateTaskCommand(projectId, memberMembershipId, "Deleted", null, impactDate));
         softDelete(deleted.id());
+        TaskView differentDate = taskService.create(
+                "leader@example.test",
+                new CreateTaskCommand(projectId, memberMembershipId, "Different date", null, impactDate.plusDays(1)));
 
-        insertDayOff(impactDate);
+        calendar.createManual(userId("bootstrap@example.test"), impactDate, "Task impact day off", true);
 
         assertThat(taskQueries.dueDateImpacts(impactDate))
                 .containsExactly(new TaskDueDateImpactView(
@@ -394,6 +428,9 @@ class TaskCreationIntegrationTest {
         assertThat(jdbc.sql("select due_date from tasks where id = :id")
                 .param("id", affected.id()).query(LocalDate.class).single())
                 .isEqualTo(impactDate);
+        assertThat(jdbc.sql("select due_date from tasks where id = :id")
+                .param("id", differentDate.id()).query(LocalDate.class).single())
+                .isEqualTo(impactDate.plusDays(1));
     }
 
     @Test
@@ -625,6 +662,11 @@ class TaskCreationIntegrationTest {
         assertThat(notificationEmailStatuses()).containsExactly("NOT_REQUIRED");
     }
 
+    /**
+     * TSK-011, TSK-012 and AC-TSK-006 require an active member, current Leader, and owning Mentor
+     * to append comments before Project completion. The three authorized appends produce exactly
+     * three retained rows; completion then refuses another append and does not change that count.
+     */
     @Test
     void activeMemberAndOwningMentorAppendCommentsUntilProjectCompletion() {
         TaskView task = taskService.create(
@@ -636,6 +678,8 @@ class TaskCreationIntegrationTest {
                 "member@example.test", projectId, task.id(), "  First note  ");
         TaskCommentView mentorComment = taskService.addComment(
                 "mentor@example.test", projectId, task.id(), "Mentor note");
+        TaskCommentView leaderComment = taskService.addComment(
+                "leader@example.test", projectId, task.id(), "Leader note");
 
         TaskView leaderTask = taskService.create(
                 "leader@example.test",
@@ -644,6 +688,7 @@ class TaskCreationIntegrationTest {
 
         assertThat(memberComment.body()).isEqualTo("First note");
         assertThat(mentorComment.authorUserId()).isEqualTo(userId("mentor@example.test"));
+        assertThat(leaderComment.authorUserId()).isEqualTo(userId("leader@example.test"));
         assertThatThrownBy(() -> taskService.addComment(
                         "outsider@example.test", projectId, task.id(), "Forbidden"))
                 .isInstanceOf(TaskNotFoundException.class);
@@ -655,21 +700,48 @@ class TaskCreationIntegrationTest {
         assertThatThrownBy(() -> taskService.addComment(
                         "mentor@example.test", projectId, task.id(), "Too late"))
                 .isInstanceOf(TaskNotFoundException.class);
-        assertThat(commentCount()).isEqualTo(3);
+        assertThat(commentCount()).isEqualTo(4);
         assertThat(notificationRecipientIds()).containsExactly(
                 userId("leader@example.test"),
                 userId("member@example.test"),
                 userId("leader@example.test"),
+                userId("member@example.test"),
                 userId("leader@example.test"));
         assertThat(notificationTypes()).containsExactly(
-                "TASK_COMMENTED", "TASK_COMMENTED", "TASK_COMMENTED", "TASK_COMMENTED");
+                "TASK_COMMENTED", "TASK_COMMENTED", "TASK_COMMENTED", "TASK_COMMENTED", "TASK_COMMENTED");
         assertThat(notificationEmailStatuses()).containsExactly(
-                "NOT_REQUIRED", "NOT_REQUIRED", "NOT_REQUIRED", "NOT_REQUIRED");
+                "NOT_REQUIRED", "NOT_REQUIRED", "NOT_REQUIRED", "NOT_REQUIRED", "NOT_REQUIRED");
         assertThat(notificationActionUrls()).containsExactly(
                 "/projects/%d/tasks/%d".formatted(projectId, task.id()),
                 "/projects/%d/tasks/%d".formatted(projectId, task.id()),
                 "/projects/%d/tasks/%d".formatted(projectId, task.id()),
+                "/projects/%d/tasks/%d".formatted(projectId, task.id()),
                 "/projects/%d/tasks/%d".formatted(projectId, leaderTask.id()));
+    }
+
+    /**
+     * TSK-011 and AC-TSK-006 require comments to be append-only: edit/delete comment routes are
+     * absent or refuse mutation. The current route contract exposes only POST to the collection,
+     * so requests to edit or delete comment 1 must be 404 and leave its single retained row intact.
+     */
+    @Test
+    void commentsHaveNoEditOrDeleteRoutes() throws Exception {
+        TaskView task = createMemberTask("Append-only route");
+        taskService.addComment("member@example.test", projectId, task.id(), "Keep this note");
+
+        mockMvc.perform(post("/projects/{projectId}/tasks/{taskId}/comments/1/edit", projectId, task.id())
+                        .with(user("member@example.test").roles("INTERN"))
+                        .with(csrf())
+                        .param("body", "Replace note"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/projects/{projectId}/tasks/{taskId}/comments/1/delete", projectId, task.id())
+                        .with(user("member@example.test").roles("INTERN"))
+                        .with(csrf()))
+                .andExpect(status().isNotFound());
+
+        assertThat(commentCount()).isEqualTo(1);
+        assertThat(taskService.details("member@example.test", projectId, task.id()).comments())
+                .extracting(TaskCommentView::body).containsExactly("Keep this note");
     }
 
     @Test
@@ -834,9 +906,22 @@ class TaskCreationIntegrationTest {
                 .isZero();
     }
 
+    /**
+     * TSK-004, TSK-009, TSK-010, TSK-019 and AC-TSK-011 require creator attribution, status,
+     * comments, work logs, and current assignment actor/time to remain truthful after reassignment
+     * away and back. The hand-derived final facts are the original creator, IN_PROGRESS status,
+     * one original comment, one 45-minute work log, and the current Leader as assignment actor;
+     * creator edit/delete capability is absent away from and restored on return to the creator.
+     */
     @Test
     void creatorMayEditOnlyWhileStillCurrentAssigneeAndLeaderMayEditAnyUnfinishedTask() {
         TaskView task = createMemberTask("Original");
+        setStatus(task.id(), TaskStatus.IN_PROGRESS);
+        Instant workLoggedAt = Instant.parse("2026-08-20T02:00:00Z");
+        taskWorkLogs.saveAndFlush(new TaskWorkLog(
+                projectId, task.id(), memberMembershipId, LocalDate.of(2026, 8, 20),
+                45, "Initial work", workLoggedAt));
+        taskService.addComment("member@example.test", projectId, task.id(), "Retain across transfer");
         TaskDetails initialDetails = taskService.details("member@example.test", projectId, task.id());
         assertThat(initialDetails.canEdit()).isTrue();
         assertThat(initialDetails.canDelete()).isTrue();
@@ -849,7 +934,8 @@ class TaskCreationIntegrationTest {
         assertThat(edited.dueDate()).isEqualTo(PROJECT_END);
 
         TaskView reassignedAway = taskService.reassign(
-                "leader@example.test", projectId, task.id(), leaderMembershipId);
+                "leader@example.test", projectId, task.id(), null, leaderMembershipId,
+                new RemainingEffortForecastInput(90, "First handover"));
         assertThat(reassignedAway.assignerMembershipId()).isEqualTo(leaderMembershipId);
         assertThat(reassignedAway.assignedAt()).isEqualTo(task.assignedAt());
         assertThatThrownBy(() -> taskService.edit(
@@ -860,7 +946,8 @@ class TaskCreationIntegrationTest {
         assertThat(afterAway.canDelete()).isFalse();
 
         TaskView reassignedBack = taskService.reassign(
-                "leader@example.test", projectId, task.id(), memberMembershipId);
+                "leader@example.test", projectId, task.id(), null, memberMembershipId,
+                new RemainingEffortForecastInput(60, "Return handover"));
         assertThat(reassignedBack.assigneeMembershipId()).isEqualTo(memberMembershipId);
         assertThat(reassignedBack.assignerMembershipId()).isEqualTo(leaderMembershipId);
         assertThat(reassignedBack.assignedAt()).isEqualTo(reassignedAway.assignedAt());
@@ -886,6 +973,13 @@ class TaskCreationIntegrationTest {
         assertThat(retained.assignedAt()).isEqualTo(reassignedBack.assignedAt());
         assertThat(retained.assignedAt()).isEqualTo(persistedAssignmentAt);
         assertThat(retained.deletedByMembershipId()).isEqualTo(memberMembershipId);
+        assertThat(retained.creatorMembershipId()).isEqualTo(memberMembershipId);
+        assertThat(retained.status()).isEqualTo(TaskStatus.IN_PROGRESS);
+        assertThat(retained.comments()).extracting(TaskCommentView::body)
+                .containsExactly("Retain across transfer");
+        assertThat(retained.workLogs()).hasSize(1);
+        assertThat(retained.workLogs().getFirst().minutes()).isEqualTo(45);
+        assertThat(retained.workLogs().getFirst().note()).isEqualTo("Initial work");
     }
 
     @Test
@@ -903,17 +997,41 @@ class TaskCreationIntegrationTest {
                 "/projects/%d/tasks/%d".formatted(projectId, task.id()));
     }
 
+    /**
+     * TSK-010 and AC-TSK-005 require a soft-deleted Task to leave normal lists and progress while
+     * remaining as one physical row in authorized Project History with deletion actor and time.
+     * One initial Task therefore yields zero current Tasks, one retained row, and the Leader
+     * membership plus the exact stored deletion instant in the owning Mentor's history view.
+     */
     @Test
     void softDeleteExcludesTaskFromCurrentViewsButRetainsHistoricalRow() {
         TaskView task = createMemberTask("Retain me");
+        Instant createdBeforeDelete = task.createdAt();
 
-        taskService.softDelete("member@example.test", projectId, task.id());
+        taskService.softDelete("leader@example.test", projectId, task.id());
 
         assertThat(taskService.list("member@example.test", projectId).tasks()).isEmpty();
-        assertThat(jdbc.sql("select count(*) from tasks where id = :id and deleted_at is not null")
+        assertThat(taskQueries.projectProgress(projectId).totalTasks()).isZero();
+        Instant deletedAt = jdbc.sql("select deleted_at from tasks where id = :id")
+                .param("id", task.id()).query(Instant.class).single();
+        Long deletedBy = jdbc.sql("select deleted_by_membership_id from tasks where id = :id")
+                .param("id", task.id()).query(Long.class).single();
+        assertThat(deletedAt).isNotNull().isAfterOrEqualTo(createdBeforeDelete);
+        assertThat(deletedBy).isEqualTo(leaderMembershipId);
+        assertThat(jdbc.sql("select count(*) from tasks where id = :id")
                 .param("id", task.id()).query(Long.class).single()).isEqualTo(1L);
         assertThatThrownBy(() -> taskService.details("member@example.test", projectId, task.id()))
                 .isInstanceOf(TaskNotFoundException.class);
+        assertThat(projectQueries.history(userId("mentor@example.test"), projectId).tasks())
+                .filteredOn(history -> history.id() == task.id())
+                .singleElement()
+                .satisfies(history -> {
+                    assertThat(history.deletedAt()).isEqualTo(deletedAt);
+                    assertThat(history.deletedByMembershipId()).isEqualTo(leaderMembershipId);
+                });
+        assertThat(projectQueries.history(userId("mentor@example.test"), projectId)
+                        .usernamesByMembershipId())
+                .containsKey(leaderMembershipId);
     }
 
     @Test
