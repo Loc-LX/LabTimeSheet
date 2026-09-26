@@ -131,14 +131,10 @@ class SecurityConfiguration {
                                 "/reports/attendance", "/reports/attendance/**",
                                 "/reports/attendance.xlsx", "/reports/attendance.pdf")
                         .hasAnyRole("ADMIN", "MENTOR", "INTERN")
-                        // Project/Task reports remain outside the Admin configuration role. Keep this boundary
-                        // ahead of the authenticated fallback so direct URLs cannot bypass that role split.
                         .requestMatchers(
                                 "/reports/project-tasks", "/reports/project-tasks/**",
                                 "/reports/project-tasks.xlsx", "/reports/project-tasks.pdf")
-                        .access(AuthorizationManagers.allOf(
-                                AuthorityAuthorizationManager.hasAnyRole("MENTOR", "INTERN"),
-                                AuthorizationManagers.not(AuthorityAuthorizationManager.hasRole("ADMIN"))))
+                        .authenticated()
                         .anyRequest().authenticated())
                 .headers(headers -> {
                     headers.referrerPolicy(policy -> policy.policy(ReferrerPolicy.NO_REFERRER));

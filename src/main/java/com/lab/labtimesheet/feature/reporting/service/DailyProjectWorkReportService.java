@@ -16,6 +16,10 @@ import com.lab.labtimesheet.feature.reporting.model.dto.DailyProjectWorkReportVi
 import com.lab.labtimesheet.feature.project.model.dto.TaskDailyReportView;
 import com.lab.labtimesheet.feature.project.model.dto.TaskWorkLogView;
 import com.lab.labtimesheet.feature.project.service.TaskQueryService;
+import com.lab.labtimesheet.platform.authorization.AuthorizationCapability;
+import com.lab.labtimesheet.platform.authorization.AuthorizationColumn;
+import com.lab.labtimesheet.platform.authorization.AuthorizationPolicy;
+import com.lab.labtimesheet.platform.authorization.AuthorizationRequest;
 import java.time.LocalDate;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -43,6 +47,7 @@ public class DailyProjectWorkReportService {
     private final TaskQueryService taskQueries;
     private final AttendanceApplicationService attendance;
     private final CalendarApplicationService calendar;
+    private final AuthorizationPolicy authorizationPolicy;
 
     /**
      * Builds an authorized one-date report for an owning Mentor or the current Leader of one
@@ -64,16 +69,19 @@ public class DailyProjectWorkReportService {
         List<ProjectSummary> projectOptions;
         ProjectSummary selected;
         boolean lockedSingleProject;
-        if ("MENTOR".equals(actor.role())) {
+        AuthorizationColumn reportColumn;
+        if ("ADMIN".equals(actor.role())) {
+            reportColumn = AuthorizationColumn.ADMIN;
             projectOptions = projects.listAllVisibleForReport(actor.userId());
-            selected = projectId == null
-                    ? null
-                    : projectOptions.stream()
-                            .filter(project -> project.id() == projectId)
-                            .findFirst()
-                            .orElseThrow(ProjectAccessDeniedException::new);
+            selected = findSelectedProject(projectOptions, projectId);
+            lockedSingleProject = false;
+        } else if ("MENTOR".equals(actor.role())) {
+            reportColumn = AuthorizationColumn.OWNING_MENTOR;
+            projectOptions = projects.listAllVisibleForReport(actor.userId());
+            selected = findSelectedProject(projectOptions, projectId);
             lockedSingleProject = false;
         } else if ("INTERN".equals(actor.role())) {
+            reportColumn = AuthorizationColumn.CURRENT_LEADER;
             if (projectId == null) {
                 throw new ProjectAccessDeniedException();
             }
@@ -83,6 +91,18 @@ public class DailyProjectWorkReportService {
         } else {
             throw new ProjectAccessDeniedException();
         }
+
+        Map<DailyReportAuthorizationScope, Boolean> authorizationDecisions = new LinkedHashMap<>();
+        if (selected != null && !allowsDailyReport(reportColumn, selected, authorizationDecisions)) {
+            throw new ProjectAccessDeniedException();
+        }
+        List<ProjectSummary> authorizedOptions = projectOptions.stream()
+                .filter(project -> allowsDailyReport(reportColumn, project, authorizationDecisions))
+                .toList();
+        if (selected == null && projectId != null) {
+            throw new ProjectAccessDeniedException();
+        }
+        projectOptions = authorizedOptions;
 
         LocalDate today = calendar.currentBusinessDate();
         LocalDate reportDate = requestedDate == null ? today : requestedDate;
@@ -105,6 +125,25 @@ public class DailyProjectWorkReportService {
                 reportProjects,
                 reportProjects.stream().mapToLong(DailyProjectWorkReportProject::totalMinutes).sum(),
                 lockedSingleProject);
+    }
+
+    private boolean allowsDailyReport(
+            AuthorizationColumn column,
+            ProjectSummary project,
+            Map<DailyReportAuthorizationScope, Boolean> authorizationDecisions) {
+        DailyReportAuthorizationScope scope = new DailyReportAuthorizationScope(column, project.status());
+        return authorizationDecisions.computeIfAbsent(scope, ignored -> authorizationPolicy.allows(
+                AuthorizationCapability.DAILY_PROJECT_REPORT,
+                new AuthorizationRequest(java.util.Set.of(column), project.status(), null, null)));
+    }
+
+    private static ProjectSummary findSelectedProject(List<ProjectSummary> projects, Long projectId) {
+        return projectId == null
+                ? null
+                : projects.stream()
+                        .filter(project -> project.id() == projectId)
+                        .findFirst()
+                        .orElseThrow(ProjectAccessDeniedException::new);
     }
 
     private DailyProjectWorkReportProject project(
@@ -172,4 +211,6 @@ public class DailyProjectWorkReportService {
             this(task, new java.util.ArrayList<>());
         }
     }
+
+    private record DailyReportAuthorizationScope(AuthorizationColumn column, String projectStatus) { }
 }

@@ -162,6 +162,7 @@ class RoleDashboardWebIntegrationTest {
         assertThat(paths).isNotEmpty();
         if (expectsSmtpSettings) {
             assertThat(paths).contains("/admin/smtp");
+            assertThat(paths).contains("/reports/daily", "/reports/project-tasks");
         } else {
             assertThat(paths).doesNotContain("/admin/smtp");
         }

@@ -129,21 +129,25 @@ public class ProjectQueryService {
     }
 
     /**
-     * Lists the complete Project scope authorized for the Daily Project Work Report.
+     * Lists the complete Project scope authorized for an all-Projects report.
      *
      * <p>The normal navigation method is deliberately capped at 50 rows. Report scope cannot
-     * silently truncate a Mentor's owned Projects, so this producer-owned seam uses the complete
-     * ownership-filtered query and still returns DTOs only. Admins and Interns do not receive a
-     * global Daily preset.</p>
+     * silently truncate a report's Project options, so this producer-owned seam returns every
+     * Project for an active Admin and every owned Project for an active Mentor. Interns continue
+     * to use their separate current-Leader or member-scoped boundaries.</p>
      *
-     * @param actorUserId active owning Mentor account identifier
+     * @param actorUserId active Admin or Mentor account identifier
      * @return every authorized Project in deterministic update order
-     * @throws ProjectAccessDeniedException when the actor is inactive, unsupported, or not a
-     *         Mentor
+     * @throws ProjectAccessDeniedException when the actor is inactive or is not an Admin or Mentor
      */
     @Transactional(readOnly = true)
     public List<ProjectSummary> listAllVisibleForReport(long actorUserId) {
         var actor = activeActor(actorUserId);
+        if (actor.role() == GlobalRole.ADMIN) {
+            return projects.findAllByOrderByUpdatedAtDescIdDesc().stream()
+                    .map(ProjectQueryService::summary)
+                    .toList();
+        }
         if (actor.role() != GlobalRole.MENTOR) {
             throw new ProjectAccessDeniedException();
         }

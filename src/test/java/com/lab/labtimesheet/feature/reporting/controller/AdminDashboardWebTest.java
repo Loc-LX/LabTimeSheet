@@ -2,6 +2,10 @@ package com.lab.labtimesheet.feature.reporting.controller;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.nullable;
+import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -10,6 +14,12 @@ import com.lab.labtimesheet.config.TestcontainersConfiguration;
 import com.lab.labtimesheet.feature.identity.service.BootstrapService;
 import com.lab.labtimesheet.feature.reporting.service.ProjectTaskReportService;
 import com.lab.labtimesheet.feature.reporting.service.ReportExportService;
+import com.lab.labtimesheet.feature.reporting.model.dto.ProjectTaskReportFilter;
+import com.lab.labtimesheet.feature.reporting.model.dto.ProjectTaskReportView;
+import com.lab.labtimesheet.feature.project.model.TaskStatus;
+import java.time.LocalDate;
+import java.util.List;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -43,6 +53,19 @@ class AdminDashboardWebTest {
         this.bootstrap = bootstrap;
     }
 
+    @BeforeEach
+    void allowReportFixturesForPolicyAuthorizedAdmin() {
+        given(projectTaskReports.build(
+                anyString(), nullable(Long.class), nullable(Long.class), nullable(TaskStatus.class),
+                nullable(LocalDate.class), nullable(LocalDate.class),
+                nullable(LocalDate.class), nullable(LocalDate.class)))
+                .willReturn(new ProjectTaskReportView(
+                        new ProjectTaskReportFilter(null, null, null, null, null),
+                        List.of(), List.of(), List.of(), 0, 0, "N/A"));
+        given(exports.projectTaskXlsx(any())).willReturn(new byte[] {1});
+        given(exports.projectTaskPdf(any())).willReturn(new byte[] {1});
+    }
+
     @Test
     @WithMockUser(username = "admin@example.test", roles = "ADMIN")
     void adminDashboardUsesAccountLifecycleSummariesOnly() throws Exception {
@@ -64,7 +87,7 @@ class AdminDashboardWebTest {
 
     @Test
     @WithMockUser(username = "admin@example.test", roles = "ADMIN")
-    void adminCanOpenAndDownloadAttendanceReportsButNotProjectTaskReports() throws Exception {
+    void adminCanOpenAndDownloadAttendanceAndProjectTaskReportsReadOnly() throws Exception {
         bootstrap();
 
         mvc.perform(get("/reports/attendance"))
@@ -77,16 +100,20 @@ class AdminDashboardWebTest {
         mvc.perform(get("/reports/attendance.pdf"))
                 .andExpect(status().isOk());
         mvc.perform(get("/reports/project-tasks"))
-                .andExpect(status().isForbidden());
-        mvc.perform(get("/reports/project-tasks.xlsx"))
-                .andExpect(status().isForbidden());
-        mvc.perform(get("/reports/project-tasks.pdf"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isOk());
+        for (String endpoint : List.of("/reports/project-tasks.xlsx", "/reports/project-tasks.pdf")) {
+            mvc.perform(get(endpoint)
+                            .param("dueFrom", "2026-08-01")
+                            .param("dueTo", "2026-08-31")
+                            .param("workFrom", "2026-08-01")
+                            .param("workTo", "2026-08-31"))
+                    .andExpect(status().isOk());
+        }
     }
 
     @Test
     @WithMockUser(username = "admin@example.test", roles = {"ADMIN", "INTERN"})
-    void adminPrecedenceDeniesMalformedProjectTaskHtmlAndExportsBeforeBinding() throws Exception {
+    void adminMalformedProjectTaskFiltersAreRejectedAfterAuthentication() throws Exception {
         bootstrap();
 
         for (String endpoint : new String[] {
@@ -94,7 +121,7 @@ class AdminDashboardWebTest {
                 "/reports/project-tasks.xlsx",
                 "/reports/project-tasks.pdf"}) {
             mvc.perform(get(endpoint).param("dueFrom", "not-a-date"))
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isBadRequest());
         }
 
         org.mockito.Mockito.verifyNoInteractions(projectTaskReports, exports);
@@ -102,14 +129,14 @@ class AdminDashboardWebTest {
 
     @Test
     @WithMockUser(username = "admin@example.test", roles = {"ADMIN", "INTERN"})
-    void adminPrecedenceKeepsAttendanceNavigationAndHidesOperationalReports() throws Exception {
+    void adminNavigationShowsAllPolicyGrantedOperationalReports() throws Exception {
         bootstrap();
 
         mvc.perform(get("/dashboard"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Attendance reports")))
-                .andExpect(content().string(not(containsString("Project and Task reports"))))
-                .andExpect(content().string(not(containsString("Daily Project Work Report"))));
+                .andExpect(content().string(containsString("Project and Task reports")))
+                .andExpect(content().string(containsString("Daily Project Work Report")));
     }
 
     @Test

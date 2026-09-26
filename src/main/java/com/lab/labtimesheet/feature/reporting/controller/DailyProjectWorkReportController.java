@@ -8,6 +8,7 @@ import com.lab.labtimesheet.feature.project.model.dto.ProjectSummary;
 import com.lab.labtimesheet.feature.project.service.ProjectQueryService;
 import com.lab.labtimesheet.feature.reporting.model.dto.DailyProjectWorkReportSelection;
 import com.lab.labtimesheet.feature.reporting.service.DailyProjectWorkReportService;
+import com.lab.labtimesheet.platform.authorization.AuthorizationPolicy;
 import java.time.LocalDate;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +29,7 @@ public class DailyProjectWorkReportController {
     private final ProjectQueryService projects;
     private final AttendanceApplicationService attendance;
     private final CalendarApplicationService calendar;
+    private final AuthorizationPolicy authorizationPolicy;
 
     /**
      * Renders the current-business-date report by default, with an optional authorized Project
@@ -48,7 +50,8 @@ public class DailyProjectWorkReportController {
             @RequestParam(name = "reportDate", required = false) String reportDateParameter,
             @RequestParam(name = "date", required = false) String dateAliasParameter,
             Model model) {
-        OperationalReportAuthorization.requireDailyReportAccess(authentication);
+        OperationalReportAuthorization.requireDailyReportAccess(
+                authentication, projects, authorizationPolicy);
         Long projectId = DailyProjectWorkReportRequest.parseProjectId(projectIdParameter);
         LocalDate requestedDate = DailyProjectWorkReportRequest.mergeDates(
                 DailyProjectWorkReportRequest.parseDate(dateAliasParameter),

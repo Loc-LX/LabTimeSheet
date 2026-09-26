@@ -18,7 +18,12 @@ import com.lab.labtimesheet.feature.project.model.dto.TaskView;
 import com.lab.labtimesheet.feature.project.model.dto.TaskWorkLogView;
 import com.lab.labtimesheet.feature.project.service.TaskQueryService;
 import com.lab.labtimesheet.feature.project.service.TaskService;
+import com.lab.labtimesheet.platform.authorization.AuthorizationCapability;
+import com.lab.labtimesheet.platform.authorization.AuthorizationColumn;
+import com.lab.labtimesheet.platform.authorization.AuthorizationPolicy;
+import com.lab.labtimesheet.platform.authorization.AuthorizationRequest;
 import java.time.LocalDate;
+import java.util.EnumSet;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
@@ -42,6 +47,7 @@ public class ProjectTaskReportService {
     private final ProjectQueryService projects;
     private final TaskService tasks;
     private final TaskQueryService taskQueries;
+    private final AuthorizationPolicy authorizationPolicy;
 
     /**
      * Builds a current Task dataset using the existing due-date filter contract.
@@ -70,10 +76,9 @@ public class ProjectTaskReportService {
      *
      * <p>Due-date and work-date bounds are independent. A work-date filter keeps a current Task
      * only when it has at least one retained work log in the requested inclusive range, and row
-     * minutes include only logs in that range. Visible owning Mentors and current Leaders receive
-     * member-hour rows; ordinary members receive aggregate totals and no member filter options
-     * even when they guess a membership identifier. Admins have no operational Project/Task-report
-     * scope and are rejected before listing Projects or reading Task data.</p>
+     * minutes include only logs in that range. Owning Mentors, current Leaders, and active Admins
+     * receive member-hour rows; ordinary members receive aggregate totals and no member filter
+     * options even when they guess a membership identifier.</p>
      *
      * @param actorEmail authenticated account email
      * @param projectId optional visible Project selection
@@ -102,8 +107,8 @@ public class ProjectTaskReportService {
         validateRange(dueFrom, dueTo, "dueFrom", "dueTo");
         validateRange(workFrom, workTo, "workFrom", "workTo");
 
-        List<ProjectSummary> projectOptions = projects.listVisible(actor.userId());
         if (projectId == null) {
+            List<ProjectSummary> projectOptions = visibleReportProjects(actor);
             return new ProjectTaskReportView(
                     new ProjectTaskReportFilter(null, null, status, dueFrom, dueTo, workFrom, workTo),
                     projectOptions,
@@ -118,9 +123,11 @@ public class ProjectTaskReportService {
                     List.of());
         }
 
-        ProjectDetail project = projects.detail(actor.userId(), projectId);
         ProjectTaskContext context = projects.taskContext(actor.userId(), projectId);
+        requireReportAccess(actor, context);
         boolean detailedMemberHours = canViewMemberHours(actor, context);
+        ProjectDetail project = projects.detail(actor.userId(), projectId);
+        List<ProjectSummary> projectOptions = visibleReportProjects(actor);
         Long effectiveMemberFilter = detailedMemberHours ? memberMembershipId : null;
         ProjectTaskReportFilter filter = new ProjectTaskReportFilter(
                 projectId, effectiveMemberFilter, status, dueFrom, dueTo, workFrom, workTo);
@@ -159,21 +166,68 @@ public class ProjectTaskReportService {
         }
     }
 
-    private static boolean canViewMemberHours(ProjectActorView actor, ProjectTaskContext context) {
-        if ("MENTOR".equals(actor.role())) {
-            return true;
-        }
-        return "INTERN".equals(actor.role())
-                && context.currentLeaderMembershipId() != null
-                && context.activeMembers().stream().anyMatch(member ->
-                        member.membershipId() == context.currentLeaderMembershipId()
-                                && member.userId() == actor.userId());
+    private boolean canViewMemberHours(ProjectActorView actor, ProjectTaskContext context) {
+        return authorizationPolicy.allows(
+                AuthorizationCapability.VIEW_PER_MEMBER_PROJECT_HOURS, request(actor, context));
     }
 
-    private static void requireReportAccess(ProjectActorView actor) {
-        if (actor == null || (!"MENTOR".equals(actor.role()) && !"INTERN".equals(actor.role()))) {
-            throw new AccessDeniedException("Admins may not access Project and Task reports");
+    private void requireReportAccess(ProjectActorView actor) {
+        if (actor == null || !authorizationPolicy.allows(
+                AuthorizationCapability.PROJECT_TASK_REPORT, potentialRequest(actor))) {
+            throw new AccessDeniedException("Project and Task report access is not permitted");
         }
+    }
+
+    private void requireReportAccess(ProjectActorView actor, ProjectTaskContext context) {
+        if (!authorizationPolicy.allows(
+                AuthorizationCapability.PROJECT_TASK_REPORT, request(actor, context))) {
+            throw new AccessDeniedException("Project and Task report access is not permitted");
+        }
+    }
+
+    private List<ProjectSummary> visibleReportProjects(ProjectActorView actor) {
+        return switch (actor.role()) {
+            case "ADMIN", "MENTOR" -> projects.listAllVisibleForReport(actor.userId());
+            case "INTERN" -> projects.listVisible(actor.userId());
+            default -> throw new AccessDeniedException("Project and Task report access is not permitted");
+        };
+    }
+
+    private static AuthorizationRequest potentialRequest(ProjectActorView actor) {
+        AuthorizationColumn column = switch (actor.role()) {
+            case "ADMIN" -> AuthorizationColumn.ADMIN;
+            case "MENTOR" -> AuthorizationColumn.OWNING_MENTOR;
+            case "INTERN" -> AuthorizationColumn.ACTIVE_MEMBER_ASSIGNEE;
+            default -> null;
+        };
+        return new AuthorizationRequest(column == null ? java.util.Set.of() : java.util.Set.of(column),
+                null, null, null);
+    }
+
+    private static AuthorizationRequest request(ProjectActorView actor, ProjectTaskContext context) {
+        EnumSet<AuthorizationColumn> columns = EnumSet.noneOf(AuthorizationColumn.class);
+        switch (actor.role()) {
+            case "ADMIN" -> columns.add(AuthorizationColumn.ADMIN);
+            case "MENTOR" -> {
+                if (context.mentorUserId() == actor.userId()) {
+                    columns.add(AuthorizationColumn.OWNING_MENTOR);
+                }
+            }
+            case "INTERN" -> {
+                if (context.activeMembers().stream().anyMatch(member -> member.userId() == actor.userId())) {
+                    columns.add(AuthorizationColumn.ACTIVE_MEMBER_ASSIGNEE);
+                }
+                boolean currentLeader = context.currentLeaderMembershipId() != null
+                        && context.activeMembers().stream().anyMatch(member ->
+                                member.membershipId() == context.currentLeaderMembershipId()
+                                        && member.userId() == actor.userId());
+                if (currentLeader) {
+                    columns.add(AuthorizationColumn.CURRENT_LEADER);
+                }
+            }
+            default -> { }
+        }
+        return new AuthorizationRequest(columns, context.status(), null, null);
     }
 
     private static boolean matches(

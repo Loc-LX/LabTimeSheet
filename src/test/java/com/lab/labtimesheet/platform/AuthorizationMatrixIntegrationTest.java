@@ -512,8 +512,14 @@ class AuthorizationMatrixIntegrationTest {
                                 new LeaveRequestCommand(LocalDate.of(2026, 8, 17),
                                         LocalDate.of(2026, 8, 17), "Member matrix leave")).id()))));
         result.put(REGISTERED_CAPABILITIES.get(30), List.of(probeWithControl("read per-member Project hours",
-                (fixture, actor) -> projectTaskReports.build(fixture.emailForActor(actor), fixture.projectId(),
-                        null, null, null, null), fixture -> {
+                (fixture, actor) -> {
+                    var report = projectTaskReports.build(fixture.emailForActor(actor), fixture.projectId(),
+                            null, null, null, null);
+                    if (!report.detailedMemberHours() || report.memberHours().isEmpty()) {
+                        throw new org.springframework.security.access.AccessDeniedException(
+                                "Per-member Project hours are not available to this actor");
+                    }
+                }, fixture -> {
                     projects.activate(fixture.mentorId(), fixture.projectId());
                     seedTask(fixture, fixture.leaderId(), fixture.memberMembershipId());
                 }, "Owning Mentor")));

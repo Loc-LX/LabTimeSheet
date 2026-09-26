@@ -1,6 +1,7 @@
 package com.lab.labtimesheet.feature.reporting.controller;
 
 import com.lab.labtimesheet.feature.project.exception.ProjectAccessDeniedException;
+import com.lab.labtimesheet.feature.project.service.ProjectQueryService;
 import com.lab.labtimesheet.feature.reporting.model.dto.AttendanceReportView;
 import com.lab.labtimesheet.feature.reporting.model.dto.DailyProjectWorkReportView;
 import com.lab.labtimesheet.feature.reporting.model.dto.ProjectTaskReportView;
@@ -8,6 +9,7 @@ import com.lab.labtimesheet.feature.reporting.service.AttendanceReportService;
 import com.lab.labtimesheet.feature.reporting.service.DailyProjectWorkReportService;
 import com.lab.labtimesheet.feature.reporting.service.ProjectTaskReportService;
 import com.lab.labtimesheet.feature.reporting.service.ReportExportService;
+import com.lab.labtimesheet.platform.authorization.AuthorizationPolicy;
 import com.lab.labtimesheet.feature.project.model.TaskStatus;
 import java.time.LocalDate;
 import lombok.RequiredArgsConstructor;
@@ -38,6 +40,8 @@ public class ReportExportController {
     private final ProjectTaskReportService projectTaskReports;
     private final DailyProjectWorkReportService dailyReports;
     private final ReportExportService exports;
+    private final ProjectQueryService projects;
+    private final AuthorizationPolicy authorizationPolicy;
 
     /**
      * Downloads the authorization-scoped attendance dataset as XLSX.
@@ -108,7 +112,8 @@ public class ReportExportController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dueTo,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate workFrom,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate workTo) {
-        OperationalReportAuthorization.requireOperationalReportAccess(authentication);
+        OperationalReportAuthorization.requireOperationalReportAccess(
+                authentication, projects, authorizationPolicy);
         validateProjectTaskExportRanges(dueFrom, dueTo, workFrom, workTo);
         ProjectTaskReportView report = projectTaskReports.build(
                 authentication.getName(), projectId, memberMembershipId, status,
@@ -140,7 +145,8 @@ public class ReportExportController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dueTo,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate workFrom,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate workTo) {
-        OperationalReportAuthorization.requireOperationalReportAccess(authentication);
+        OperationalReportAuthorization.requireOperationalReportAccess(
+                authentication, projects, authorizationPolicy);
         validateProjectTaskExportRanges(dueFrom, dueTo, workFrom, workTo);
         ProjectTaskReportView report = projectTaskReports.build(
                 authentication.getName(), projectId, memberMembershipId, status,
@@ -213,7 +219,8 @@ public class ReportExportController {
             String dateParameter,
             String reportDateParameter) {
         try {
-            OperationalReportAuthorization.requireDailyReportAccess(authentication);
+            OperationalReportAuthorization.requireDailyReportAccess(
+                    authentication, projects, authorizationPolicy);
             Long projectId = DailyProjectWorkReportRequest.parseProjectId(projectIdParameter);
             LocalDate requestedDate = DailyProjectWorkReportRequest.mergeDates(
                     DailyProjectWorkReportRequest.parseDate(dateParameter),

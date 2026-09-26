@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.lab.labtimesheet.feature.project.model.dto.ProjectActorView;
@@ -22,6 +24,9 @@ import com.lab.labtimesheet.feature.project.model.dto.TaskView;
 import com.lab.labtimesheet.feature.project.model.dto.TaskWorkLogView;
 import com.lab.labtimesheet.feature.project.service.TaskQueryService;
 import com.lab.labtimesheet.feature.project.service.TaskService;
+import com.lab.labtimesheet.platform.authorization.AuthorizationCatalogue;
+import com.lab.labtimesheet.platform.authorization.AuthorizationPolicy;
+import com.lab.labtimesheet.platform.authorization.AuthorizationCapability;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
@@ -39,7 +44,8 @@ class ProjectTaskReportServiceTest {
 
     @BeforeEach
     void setUp() {
-        reports = new ProjectTaskReportService(projects, tasks, taskQueries);
+        reports = new ProjectTaskReportService(projects, tasks, taskQueries,
+                new AuthorizationPolicy(new AuthorizationCatalogue()));
     }
 
     @Test
@@ -97,7 +103,7 @@ class ProjectTaskReportServiceTest {
     }
 
     @Test
-    void rejectsAdminBeforeDateValidationProjectListingOrTaskReads() {
+    void validatesAdminReportDatesAfterPolicyAllowsReadOnlyScope() {
         given(projects.authenticatedActor("admin@example.test"))
                 .willReturn(new ProjectActorView(1L, "ADMIN"));
 
@@ -110,11 +116,37 @@ class ProjectTaskReportServiceTest {
                 LocalDate.of(2026, 8, 1),
                 LocalDate.of(2026, 9, 1),
                 LocalDate.of(2026, 8, 1)))
-                .isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("dueFrom must not be after dueTo");
 
         verifyNoInteractions(tasks, taskQueries);
         org.mockito.Mockito.verify(projects).authenticatedActor("admin@example.test");
         org.mockito.Mockito.verifyNoMoreInteractions(projects);
+    }
+
+    /** RPT-005 and B.8 require the report capability to be checked against the resolved Project scope. */
+    @Test
+    void deniesSelectedProjectWhenPolicyRejectsRPT005() {
+        AuthorizationPolicy policy = mock(AuthorizationPolicy.class);
+        var actor = new ProjectActorView(1L, "ADMIN");
+        var context = new ProjectTaskContext(
+                42L, 2L, "ACTIVE", LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 31),
+                null, List.of(), Set.of());
+        given(projects.authenticatedActor("admin@example.test")).willReturn(actor);
+        given(projects.taskContext(1L, 42L)).willReturn(context);
+        given(policy.allows(org.mockito.ArgumentMatchers.eq(AuthorizationCapability.PROJECT_TASK_REPORT),
+                org.mockito.ArgumentMatchers.any()))
+                .willReturn(true, false);
+        var guardedReports = new ProjectTaskReportService(projects, tasks, taskQueries, policy);
+
+        assertThatThrownBy(() -> guardedReports.build("admin@example.test", 42L, null, null, null, null))
+                .isInstanceOf(org.springframework.security.access.AccessDeniedException.class)
+                .hasMessage("Project and Task report access is not permitted");
+
+        verify(policy, times(2)).allows(
+                org.mockito.ArgumentMatchers.eq(AuthorizationCapability.PROJECT_TASK_REPORT),
+                org.mockito.ArgumentMatchers.any());
+        verifyNoInteractions(tasks, taskQueries);
     }
 
     @Test
@@ -127,7 +159,9 @@ class ProjectTaskReportServiceTest {
         var leader = new ProjectTaskMemberView(
                 7L, 3L, "Mai Intern", Instant.parse("2026-08-01T00:00:00Z"));
         var context = new ProjectTaskContext(
-                42L, 2L, "ACTIVE", project.startDate(), project.endDate(), 7L, List.of(leader), Set.of());
+                42L, 2L, "ACTIVE", project.startDate(), project.endDate(), 7L,
+                List.of(leader, new ProjectTaskMemberView(
+                        8L, 4L, "Nhi Intern", Instant.parse("2026-08-02T00:00:00Z"))), Set.of());
         var done = task(1L, "Finish report", 7L, TaskStatus.DONE, LocalDate.of(2026, 8, 15));
         var blocked = task(2L, "Investigate issue", 7L, TaskStatus.BLOCKED, LocalDate.of(2026, 8, 25));
         given(projects.authenticatedActor("mentor@example.test"))
@@ -183,7 +217,9 @@ class ProjectTaskReportServiceTest {
         var leader = new ProjectTaskMemberView(
                 7L, 3L, "Mai Intern", Instant.parse("2026-08-01T00:00:00Z"));
         var context = new ProjectTaskContext(
-                42L, 2L, "ACTIVE", project.startDate(), project.endDate(), 7L, List.of(leader), Set.of());
+                42L, 2L, "ACTIVE", project.startDate(), project.endDate(), 7L,
+                List.of(leader, new ProjectTaskMemberView(
+                        8L, 4L, "Nhi Intern", Instant.parse("2026-08-02T00:00:00Z"))), Set.of());
         var task = task(1L, "Finish report", 7L, TaskStatus.DONE, LocalDate.of(2026, 8, 15));
         given(projects.authenticatedActor("intern@example.test"))
                 .willReturn(new ProjectActorView(4L, "INTERN"));

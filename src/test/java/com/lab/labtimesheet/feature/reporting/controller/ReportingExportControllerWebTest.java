@@ -18,6 +18,9 @@ import com.lab.labtimesheet.feature.reporting.service.DailyProjectWorkReportServ
 import com.lab.labtimesheet.feature.reporting.service.ProjectTaskReportService;
 import com.lab.labtimesheet.feature.reporting.service.ReportExportService;
 import com.lab.labtimesheet.platform.service.SmtpConfigurationService;
+import com.lab.labtimesheet.feature.project.model.dto.ProjectActorView;
+import com.lab.labtimesheet.feature.project.service.ProjectQueryService;
+import com.lab.labtimesheet.platform.authorization.AuthorizationPolicy;
 import java.security.Principal;
 import java.time.LocalDate;
 import java.util.List;
@@ -58,8 +61,19 @@ class ReportingExportControllerWebTest {
     @MockitoBean
     private SmtpConfigurationService smtpConfiguration;
 
+    @MockitoBean
+    private ProjectQueryService projectQueries;
+
+    @MockitoBean
+    private AuthorizationPolicy authorizationPolicy;
+
     @BeforeEach
     void stubExportInputs() {
+        given(projectQueries.authenticatedActor(anyString())).willAnswer(invocation -> {
+            String email = invocation.getArgument(0);
+            return new ProjectActorView(2L, email.startsWith("admin") ? "ADMIN" : "MENTOR");
+        });
+        given(authorizationPolicy.allows(any(), any())).willReturn(true);
         AttendanceReportView attendance = new AttendanceReportView(
                 7L, "Mai Intern", LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 31), true,
                 List.of(), 0L, 0L, 0L, "N/A", "N/A", List.of(), List.of());
@@ -77,6 +91,7 @@ class ReportingExportControllerWebTest {
         given(exports.attendanceXlsx(any())).willReturn(new byte[] {1});
         given(exports.attendancePdf(any())).willReturn(new byte[] {1});
         given(exports.projectTaskPdf(any())).willReturn(new byte[] {1});
+        given(exports.projectTaskXlsx(any())).willReturn(new byte[] {1});
     }
 
     @Test
@@ -124,14 +139,16 @@ class ReportingExportControllerWebTest {
     }
 
     @Test
-    void adminCannotDownloadProjectTaskReports() throws Exception {
+    void adminCanDownloadProjectTaskReportsReadOnly() throws Exception {
         for (String endpoint : List.of("/reports/project-tasks.xlsx", "/reports/project-tasks.pdf")) {
             mvc.perform(get(endpoint)
-                            .with(user("admin@example.test").roles("ADMIN")))
-                    .andExpect(status().isForbidden());
+                            .with(user("admin@example.test").roles("ADMIN"))
+                            .param("dueFrom", "2026-08-01")
+                            .param("dueTo", "2026-08-31")
+                            .param("workFrom", "2026-08-01")
+                            .param("workTo", "2026-08-31"))
+                    .andExpect(status().isOk());
         }
-
-        verifyNoInteractions(projectTaskReports);
     }
 
     @ParameterizedTest(name = "rejects {0} for both Project/Task export formats")
