@@ -57,7 +57,7 @@ class AttendanceCorrectionApplicationServiceTest {
                 mock(InternshipService.class),
                 calendar(),
                 mock(TransactionTemplate.class),
-                mock(NotificationService.class));
+                mock(NotificationService.class), AttendanceAuthorizationTestPolicy.create());
 
         assertThatThrownBy(() -> service.submit(
                         new AttendanceActor(42L, GlobalRole.INTERN),
@@ -127,7 +127,7 @@ class AttendanceCorrectionApplicationServiceTest {
                 internships,
                 calendar(),
                 mock(TransactionTemplate.class),
-                mock(NotificationService.class));
+                mock(NotificationService.class), AttendanceAuthorizationTestPolicy.create());
 
         assertThat(service.expire(1)).isEqualTo(1);
     }
@@ -158,7 +158,7 @@ class AttendanceCorrectionApplicationServiceTest {
                 mock(InternshipService.class),
                 calendar(),
                 mock(TransactionTemplate.class),
-                mock(NotificationService.class));
+                mock(NotificationService.class), AttendanceAuthorizationTestPolicy.create());
 
         assertThat(service.prepareHistory(List.of(first, second)))
                 .containsEntry(101L, null)
@@ -216,6 +216,8 @@ class AttendanceCorrectionApplicationServiceTest {
 
         AccountService accounts = mock(AccountService.class);
         InternshipService internships = mock(InternshipService.class);
+        when(accounts.requireIdentityById(42L)).thenReturn(new AccountIdentity(
+                42L, "intern@example.test", "Intern", GlobalRole.INTERN, AccountStatus.ACTIVE));
         when(accounts.activeGlobalMentorIdentities()).thenReturn(List.of());
         when(internships.lockedAccountMutationEligibility(any())).thenReturn(List.of());
 
@@ -228,7 +230,7 @@ class AttendanceCorrectionApplicationServiceTest {
                 internships,
                 calendar(),
                 mock(TransactionTemplate.class),
-                mock(NotificationService.class));
+                mock(NotificationService.class), AttendanceAuthorizationTestPolicy.create());
 
         service.submit(
                 new AttendanceActor(42L, GlobalRole.INTERN),

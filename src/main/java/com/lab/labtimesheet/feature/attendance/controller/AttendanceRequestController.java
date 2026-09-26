@@ -13,6 +13,12 @@ import com.lab.labtimesheet.feature.attendance.service.AttendanceCorrectionAppli
 import com.lab.labtimesheet.feature.attendance.service.AttendanceCurrentUserService;
 import com.lab.labtimesheet.feature.calendar.service.CalendarApplicationService;
 import com.lab.labtimesheet.feature.attendance.service.LeaveApplicationService;
+import com.lab.labtimesheet.feature.attendance.service.AttendanceAuthorizationRequests;
+import com.lab.labtimesheet.feature.identity.model.AccountStatus;
+import com.lab.labtimesheet.feature.identity.model.dto.AccountIdentity;
+import com.lab.labtimesheet.feature.identity.service.AccountService;
+import com.lab.labtimesheet.platform.authorization.AuthorizationCapability;
+import com.lab.labtimesheet.platform.authorization.AuthorizationPolicy;
 import java.security.Principal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -46,6 +52,8 @@ public class AttendanceRequestController {
     private final CalendarApplicationService calendar;
     private final LeaveApplicationService leave;
     private final AttendanceCorrectionApplicationService corrections;
+    private final AuthorizationPolicy authorizationPolicy;
+    private final AccountService accounts;
 
     /**
      * Redirects the superseded combined queue to the focused Leave workflow.
@@ -84,7 +92,7 @@ public class AttendanceRequestController {
                     ? YearMonth.from(calendar.currentBusinessDate())
                     : YearMonth.parse(month.strip());
             model.addAttribute("actor", actor);
-            model.addAttribute("intern", actor.role() == GlobalRole.INTERN);
+            model.addAttribute("intern", canSubmitAttendanceRequest(actor));
             model.addAttribute("mentor", actor.role() == GlobalRole.MENTOR);
             model.addAttribute("leaveRequests", leave.list(actor));
             model.addAttribute("selectedMonth", selectedMonth);
@@ -114,7 +122,7 @@ public class AttendanceRequestController {
             Model model) {
         AttendanceActor actor = currentUsers.actor(principal);
         model.addAttribute("actor", actor);
-        model.addAttribute("intern", actor.role() == GlobalRole.INTERN);
+        model.addAttribute("intern", canSubmitAttendanceRequest(actor));
         model.addAttribute("mentor", actor.role() == GlobalRole.MENTOR);
         model.addAttribute("attendanceRecordId", attendanceRecordId);
         model.addAttribute("correctionRequests", corrections.list(actor));
@@ -133,7 +141,7 @@ public class AttendanceRequestController {
     public String leaveRequest(Principal principal, @PathVariable long requestId, Model model) {
         AttendanceActor actor = currentUsers.actor(principal);
         model.addAttribute("actor", actor);
-        model.addAttribute("intern", actor.role() == GlobalRole.INTERN);
+        model.addAttribute("intern", canSubmitAttendanceRequest(actor));
         model.addAttribute("mentor", actor.role() == GlobalRole.MENTOR);
         model.addAttribute("leaveRequests", leave.list(actor));
         model.addAttribute("selectedLeave", leave.view(actor, requestId));
@@ -157,7 +165,7 @@ public class AttendanceRequestController {
     public String correction(Principal principal, @PathVariable long correctionId, Model model) {
         AttendanceActor actor = currentUsers.actor(principal);
         model.addAttribute("actor", actor);
-        model.addAttribute("intern", actor.role() == GlobalRole.INTERN);
+        model.addAttribute("intern", canSubmitAttendanceRequest(actor));
         model.addAttribute("mentor", actor.role() == GlobalRole.MENTOR);
         model.addAttribute("correctionRequests", corrections.list(actor));
         model.addAttribute("selectedCorrection", corrections.view(actor, correctionId));
@@ -375,6 +383,15 @@ public class AttendanceRequestController {
         } catch (DateTimeParseException failure) {
             throw new IllegalArgumentException(errorMessage, failure);
         }
+    }
+
+    private boolean canSubmitAttendanceRequest(AttendanceActor actor) {
+        AccountIdentity identity = accounts.requireIdentityById(actor.userId());
+        boolean activeAccount = identity.status() == AccountStatus.ACTIVE && identity.role() == actor.role();
+        return authorizationPolicy.allows(
+                AuthorizationCapability.SUBMIT_ATTENDANCE_REQUEST,
+                AttendanceAuthorizationRequests.request(
+                        actor, activeAccount, actor.userId(), identity.status().name()));
     }
 
     private static LocalDateTime requiredDateTime(String value, String errorMessage) {

@@ -15,6 +15,8 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.lab.labtimesheet.feature.identity.service.AccountService;
+import com.lab.labtimesheet.feature.identity.model.AccountStatus;
+import com.lab.labtimesheet.feature.identity.model.dto.AccountIdentity;
 import com.lab.labtimesheet.feature.attendance.exception.AttendanceException;
 import com.lab.labtimesheet.feature.attendance.exception.AttendanceRejection;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
@@ -68,7 +70,8 @@ class AttendanceApplicationServiceTest {
                 internships,
                 calendar,
                 new AttendanceService(),
-                corrections);
+                corrections,
+                AttendanceAuthorizationTestPolicy.create());
     }
 
     @Test
@@ -160,11 +163,33 @@ class AttendanceApplicationServiceTest {
         effectiveCheckouts.put(101L, null);
         effectiveCheckouts.put(102L, null);
         when(corrections.prepareHistory(List.of(first, second))).thenReturn(effectiveCheckouts);
+        when(accounts.requireIdentityById(INTERN_ID)).thenReturn(new AccountIdentity(
+                INTERN_ID, "intern@example.test", "Intern", GlobalRole.INTERN, AccountStatus.ACTIVE));
 
         attendance.history(
                 new AttendanceActor(INTERN_ID, GlobalRole.INTERN), INTERN_ID, WORK_DATE, WORK_DATE);
 
         verify(corrections).prepareHistory(List.of(first, second));
+    }
+
+    /**
+     * Protects `AUTH-012` and §5.2 `Own history only`. Observable break: an Intern could read another
+     * Intern's attendance rows; the hand-derived expected outcome is an access denial before any row query.
+     */
+    @Test
+    void activeInternCannotReadAnotherInternHistory() {
+        long otherInternId = INTERN_ID + 1;
+        when(accounts.requireIdentityById(INTERN_ID)).thenReturn(new AccountIdentity(
+                INTERN_ID, "intern@example.test", "Intern", GlobalRole.INTERN, AccountStatus.ACTIVE));
+        when(accounts.requireIdentityById(otherInternId)).thenReturn(new AccountIdentity(
+                otherInternId, "other@example.test", "Other Intern", GlobalRole.INTERN, AccountStatus.ACTIVE));
+
+        assertThatThrownBy(() -> attendance.history(
+                        new AttendanceActor(INTERN_ID, GlobalRole.INTERN),
+                        otherInternId, WORK_DATE, WORK_DATE))
+                .isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
+
+        verifyNoInteractions(records, corrections);
     }
 
     private static AttendanceRecordEntity entityFor(Instant checkOutAt) {

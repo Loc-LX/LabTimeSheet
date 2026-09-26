@@ -39,6 +39,7 @@ import com.lab.labtimesheet.feature.attendance.repository.LeaveRequestDayReposit
 import com.lab.labtimesheet.feature.attendance.repository.LeaveRequestRepository;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceApplicationService;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceCorrectionApplicationService;
+import com.lab.labtimesheet.platform.authorization.AuthorizationPolicy;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceCurrentUserService;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceDeadlineScheduler;
 import com.lab.labtimesheet.feature.calendar.service.AttendancePolicyApplicationService;
@@ -100,7 +101,8 @@ class AttendanceLombokBoilerplateTest {
                         InternshipService.class,
                         CalendarApplicationService.class,
                         AttendanceService.class,
-                        AttendanceCorrectionApplicationService.class));
+                        AttendanceCorrectionApplicationService.class,
+                        AuthorizationPolicy.class));
         assertConstructors(
                 AttendanceCurrentUserService.class,
                 constructor(PACKAGE_PRIVATE, AccountService.class));
@@ -129,7 +131,8 @@ class AttendanceLombokBoilerplateTest {
                         InternshipService.class,
                         CalendarApplicationService.class,
                         TransactionTemplate.class,
-                        NotificationService.class));
+                        NotificationService.class,
+                        AuthorizationPolicy.class));
         assertConstructors(
                 AttendanceCorrectionApplicationService.class,
                 constructor(
@@ -142,7 +145,8 @@ class AttendanceLombokBoilerplateTest {
                         InternshipService.class,
                         CalendarApplicationService.class,
                         TransactionTemplate.class,
-                        NotificationService.class));
+                        NotificationService.class,
+                        AuthorizationPolicy.class));
         assertConstructors(
                 AttendanceDeadlineScheduler.class,
                 constructor(

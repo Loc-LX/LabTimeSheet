@@ -46,21 +46,52 @@ class LeaveApplicationServiceTest {
 
     @Test
     void rejectsBlankReasonBeforeReadingOrWritingLeaveState() {
+        AccountService accounts = mock(AccountService.class);
+        when(accounts.requireIdentityById(42L)).thenReturn(activeIntern(42L));
         LeaveApplicationService service = new LeaveApplicationService(
                 Clock.fixed(Instant.parse("2026-08-20T00:00:00Z"), ZoneOffset.UTC),
                 mock(LeaveRequestRepository.class),
                 mock(LeaveRequestDayRepository.class),
-                mock(AccountService.class),
+                accounts,
                 mock(InternshipService.class),
                 mock(CalendarApplicationService.class),
                 mock(TransactionTemplate.class),
-                mock(NotificationService.class));
+                mock(NotificationService.class), AttendanceAuthorizationTestPolicy.create());
 
         assertThatThrownBy(() -> service.submit(
                         new AttendanceActor(42L, GlobalRole.INTERN),
                         new LeaveRequestCommand(
                                 LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 1), "  ")))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    /**
+     * Protects §5.2 `Submit own leave, correction, or exception request`. Observable break: a
+     * deactivated Intern is treated as ACTIVE and can read the leave balance; the expected result
+     * is an authorization denial before any calendar or leave data is read.
+     */
+    @Test
+    void deactivatedInternCannotReadLeaveBalance() {
+        AccountService accounts = mock(AccountService.class);
+        when(accounts.requireIdentityById(42L)).thenReturn(new AccountIdentity(
+                42L, "intern@example.test", "Intern", GlobalRole.INTERN, AccountStatus.DEACTIVATED));
+        CalendarApplicationService calendar = mock(CalendarApplicationService.class);
+        when(calendar.policyTimeline()).thenReturn(new AttendancePolicyTimeline(
+                List.of(AttendancePolicyFixtures.seeded(1L))));
+        LeaveApplicationService service = new LeaveApplicationService(
+                Clock.fixed(Instant.parse("2026-08-20T00:00:00Z"), ZoneOffset.UTC),
+                mock(LeaveRequestRepository.class),
+                mock(LeaveRequestDayRepository.class),
+                accounts,
+                mock(InternshipService.class),
+                calendar,
+                mock(TransactionTemplate.class),
+                mock(NotificationService.class), AttendanceAuthorizationTestPolicy.create());
+
+        assertThatThrownBy(() -> service.balance(
+                        new AttendanceActor(42L, GlobalRole.INTERN), java.time.YearMonth.of(2026, 8)))
+                .isInstanceOf(AccessDeniedException.class);
+
     }
 
     @Test
@@ -112,7 +143,7 @@ class LeaveApplicationServiceTest {
                 internships,
                 mock(CalendarApplicationService.class),
                 mock(TransactionTemplate.class),
-                mock(NotificationService.class));
+                mock(NotificationService.class), AttendanceAuthorizationTestPolicy.create());
 
         assertThat(service.expirePending(1)).isEqualTo(1);
     }
@@ -186,7 +217,7 @@ class LeaveApplicationServiceTest {
                 internships,
                 mock(CalendarApplicationService.class),
                 mock(TransactionTemplate.class),
-                mock(NotificationService.class));
+                mock(NotificationService.class), AttendanceAuthorizationTestPolicy.create());
         AttendanceActor admin = new AttendanceActor(9L, GlobalRole.ADMIN);
 
         assertThatThrownBy(() -> service.approve(admin, 77L))
@@ -209,6 +240,7 @@ class LeaveApplicationServiceTest {
      */
     private void submitSameDayLeave(Instant now, LocalDate workday, LeaveRequestRepository requests) {
         AccountService accounts = mock(AccountService.class);
+        when(accounts.requireIdentityById(42L)).thenReturn(activeIntern(42L));
         InternshipService internships = mock(InternshipService.class);
         when(accounts.activeGlobalMentorIdentities()).thenReturn(List.of());
         when(internships.lockedInternWorkWindow(eq(42L), any(LocalDate.class)))
@@ -233,9 +265,14 @@ class LeaveApplicationServiceTest {
                         internships,
                         calendar,
                         mock(TransactionTemplate.class),
-                        mock(NotificationService.class))
+                        mock(NotificationService.class), AttendanceAuthorizationTestPolicy.create())
                 .submit(
                         new AttendanceActor(42L, GlobalRole.INTERN),
                         new LeaveRequestCommand(workday, workday, "Family matter"));
+    }
+
+    private static AccountIdentity activeIntern(long userId) {
+        return new AccountIdentity(
+                userId, "intern@example.test", "Intern", GlobalRole.INTERN, AccountStatus.ACTIVE);
     }
 }

@@ -14,6 +14,9 @@ import com.lab.labtimesheet.feature.attendance.exception.LeaveException;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
 import com.lab.labtimesheet.feature.calendar.model.AttendancePolicy;
 import com.lab.labtimesheet.platform.model.GlobalRole;
+import com.lab.labtimesheet.platform.authorization.AuthorizationCapability;
+import com.lab.labtimesheet.platform.authorization.AuthorizationPolicy;
+import com.lab.labtimesheet.platform.authorization.AuthorizationRequest;
 import com.lab.labtimesheet.feature.attendance.model.LeaveStatus;
 import com.lab.labtimesheet.feature.attendance.model.dto.LeaveAllocation;
 import com.lab.labtimesheet.feature.attendance.model.dto.LeaveBalance;
@@ -74,6 +77,7 @@ public class LeaveApplicationService {
     private final CalendarApplicationService calendar;
     private final TransactionTemplate transactions;
     private final NotificationService notifications;
+    private final AuthorizationPolicy authorizationPolicy;
 
     /**
      * Lists retained leave requests visible to the authenticated Attendance actor.
@@ -89,9 +93,10 @@ public class LeaveApplicationService {
     @Transactional
     public List<LeaveRequestSummary> list(AttendanceActor actor) {
         AccountIdentity identity = requireListActor(actor);
-        if (identity.status() != AccountStatus.ACTIVE) {
-            throw new AccessDeniedException("An active account is required");
-        }
+        AuthorizationRequest policyRequest = AttendanceAuthorizationRequests.request(
+                actor, identity.status() == AccountStatus.ACTIVE, actor.userId(), identity.status().name());
+        AttendanceAuthorizationRequests.requireAllowed(
+                authorizationPolicy, AuthorizationCapability.VIEW_INTERN_ATTENDANCE, policyRequest);
         List<LeaveRequestEntity> visible = actor.role() == GlobalRole.INTERN
                 ? requests.findByInternUserIdOrderBySubmittedAtDescIdDesc(actor.userId())
                 : requests.findAllByOrderBySubmittedAtDescIdDesc();
@@ -152,14 +157,19 @@ public class LeaveApplicationService {
      */
     @Transactional(readOnly = true)
     public LeaveBalance balance(AttendanceActor actor, YearMonth month) {
-        requireIntern(actor);
-        if (month == null) {
-            throw new IllegalArgumentException("Leave balance month is required");
+        if (actor == null) {
+            throw new AccessDeniedException("An attendance actor is required");
         }
         AccountIdentity identity = accounts.requireIdentityById(actor.userId());
-        if (identity.status() != AccountStatus.ACTIVE
-                || identity.role() != GlobalRole.INTERN) {
-            throw new AccessDeniedException("An active Intern is required");
+        if (identity.role() != GlobalRole.INTERN || identity.role() != actor.role()) {
+            throw new AccessDeniedException("Leave balance target must be the authenticated Intern");
+        }
+        AuthorizationRequest policyRequest = AttendanceAuthorizationRequests.request(
+                actor, identity.status() == AccountStatus.ACTIVE, actor.userId(), identity.status().name());
+        AttendanceAuthorizationRequests.requireAllowed(
+                authorizationPolicy, AuthorizationCapability.VIEW_INTERN_ATTENDANCE, policyRequest);
+        if (month == null) {
+            throw new IllegalArgumentException("Leave balance month is required");
         }
         LocalDate quotaMonth = month.atDay(1);
         int quota = timeline().resolve(quotaMonth).monthlyLeaveQuota();
@@ -189,8 +199,20 @@ public class LeaveApplicationService {
      */
     @Transactional
     public LeaveRequestView submit(AttendanceActor actor, LeaveRequestCommand command) {
-        requireIntern(actor);
+        if (actor == null) {
+            throw new AccessDeniedException("An attendance actor is required");
+        }
         Objects.requireNonNull(command, "command");
+        AccountIdentity actorIdentity = accounts.requireIdentityById(actor.userId());
+        AuthorizationRequest policyRequest = AttendanceAuthorizationRequests.request(
+                actor,
+                actorIdentity.status() == AccountStatus.ACTIVE && actorIdentity.role() == actor.role(),
+                actor.userId(),
+                actorIdentity.status().name());
+        if (actor.role() != GlobalRole.INTERN) {
+            AttendanceAuthorizationRequests.requireAllowed(
+                    authorizationPolicy, AuthorizationCapability.SUBMIT_ATTENDANCE_REQUEST, policyRequest);
+        }
         List<Long> mentorIds = accounts.activeGlobalMentorIdentities().stream()
                 .map(AccountIdentity::id)
                 .toList();
@@ -201,6 +223,10 @@ public class LeaveApplicationService {
                 .toList();
         InternWorkWindow window = lockEligibleIntern(
                 actor.userId(), command.startDate(), command.endDate());
+        if (actor.role() == GlobalRole.INTERN) {
+            AttendanceAuthorizationRequests.requireAllowed(
+                    authorizationPolicy, AuthorizationCapability.SUBMIT_ATTENDANCE_REQUEST, policyRequest);
+        }
         Instant now = clock.instant();
         List<AllocatedDate> allocations = allocations(window, command.startDate(), command.endDate());
         if (allocations.isEmpty()) {
@@ -261,9 +287,11 @@ public class LeaveApplicationService {
      * @param requestId request identifier
      * @param command replacement inclusive range and reason
      * @return updated request with freshly frozen allocations
-     */
+    */
     public LeaveRequestView edit(AttendanceActor actor, long requestId, LeaveRequestCommand command) {
-        requireIntern(actor);
+        if (actor == null) {
+            throw new AccessDeniedException("An attendance actor is required");
+        }
         Objects.requireNonNull(command, "command");
         MutationOutcome outcome = independentTransactions().execute(status -> editInTransaction(actor, requestId, command));
         if (outcome.expired()) {
@@ -276,8 +304,15 @@ public class LeaveApplicationService {
             AttendanceActor actor, long requestId, LeaveRequestCommand command) {
         long ownerId = requests.findInternUserIdById(requestId)
                 .orElseThrow(() -> new LeaveException("Leave request not found"));
-        lockAccounts(List.of(actor.userId(), ownerId));
+        Map<Long, LockedAccountMutationEligibility> lockedAccounts = lockAccounts(List.of(actor.userId(), ownerId));
         AccountIdentity ownerIdentity = accounts.requireIdentityById(ownerId);
+        if (ownerIdentity.role() != GlobalRole.INTERN) {
+            throw new AccessDeniedException("Leave request target must be an Intern");
+        }
+        LockedAccountMutationEligibility lockedActor = lockedAccounts.get(actor.userId());
+        boolean activeActor = lockedActor != null
+                && lockedActor.accountStatus() == AccountStatus.ACTIVE
+                && lockedActor.role() == actor.role();
         LeaveRequestEntity request = lockedRequest(requestId);
         requireOwner(request, actor.userId());
         if (request.status() != LeaveStatus.PENDING) {
@@ -291,6 +326,10 @@ public class LeaveApplicationService {
             publishDecisionNotification(ownerIdentity, "AUTO_REJECTED");
             return new MutationOutcome(null, true);
         }
+        AuthorizationRequest policyRequest = AttendanceAuthorizationRequests.request(
+                actor, activeActor, ownerId, lockedActor == null ? null : lockedActor.accountStatus().name());
+        AttendanceAuthorizationRequests.requireAllowed(
+                authorizationPolicy, AuthorizationCapability.SUBMIT_ATTENDANCE_REQUEST, policyRequest);
         if (!now.isBefore(request.firstCountedStartAt())) {
             throw new LeaveException("Only pending leave before its first counted start can be edited");
         }
@@ -327,7 +366,9 @@ public class LeaveApplicationService {
      * @return cancelled request projection retaining its allocations
      */
     public LeaveRequestView cancel(AttendanceActor actor, long requestId) {
-        requireIntern(actor);
+        if (actor == null) {
+            throw new AccessDeniedException("An attendance actor is required");
+        }
         MutationOutcome outcome = independentTransactions().execute(status -> cancelInTransaction(actor, requestId));
         if (outcome.expired()) {
             throw new LeaveException("Leave cannot be cancelled after its first counted start");
@@ -338,10 +379,20 @@ public class LeaveApplicationService {
     private MutationOutcome cancelInTransaction(AttendanceActor actor, long requestId) {
         long ownerId = requests.findInternUserIdById(requestId)
                 .orElseThrow(() -> new LeaveException("Leave request not found"));
-        lockAccounts(List.of(actor.userId(), ownerId));
+        Map<Long, LockedAccountMutationEligibility> lockedAccounts = lockAccounts(List.of(actor.userId(), ownerId));
         AccountIdentity ownerIdentity = accounts.requireIdentityById(ownerId);
+        if (ownerIdentity.role() != GlobalRole.INTERN) {
+            throw new AccessDeniedException("Leave request target must be an Intern");
+        }
+        LockedAccountMutationEligibility lockedActor = lockedAccounts.get(actor.userId());
+        boolean activeActor = lockedActor != null
+                && lockedActor.accountStatus() == AccountStatus.ACTIVE
+                && lockedActor.role() == actor.role();
+        AuthorizationRequest policyRequest = AttendanceAuthorizationRequests.request(
+                actor, activeActor, ownerId, lockedActor == null ? null : lockedActor.accountStatus().name());
+        AttendanceAuthorizationRequests.requireAllowed(
+                authorizationPolicy, AuthorizationCapability.WITHDRAW_LEAVE_REQUEST, policyRequest);
         LeaveRequestEntity request = lockedRequest(requestId);
-        requireOwner(request, actor.userId());
         Instant now = clock.instant();
         if (request.status() == LeaveStatus.PENDING && !now.isBefore(request.firstCountedStartAt())) {
             request.autoReject(now);
@@ -415,8 +466,18 @@ public class LeaveApplicationService {
         Map<Long, LockedAccountMutationEligibility> lockedAccounts = lockAccounts(
                 accountIds(actor.userId(), ownerId));
         AccountIdentity ownerIdentity = accounts.requireIdentityById(ownerId);
+        if (ownerIdentity.role() != GlobalRole.INTERN) {
+            throw new AccessDeniedException("Leave request target must be an Intern");
+        }
+        LockedAccountMutationEligibility lockedActor = lockedAccounts.get(actor.userId());
+        boolean activeActor = lockedActor != null
+                && lockedActor.accountStatus() == AccountStatus.ACTIVE
+                && lockedActor.role() == actor.role();
+        AuthorizationRequest policyRequest = AttendanceAuthorizationRequests.request(
+                actor, activeActor, ownerId, null);
+        AttendanceAuthorizationRequests.requireAllowed(
+                authorizationPolicy, AuthorizationCapability.VIEW_INTERN_ATTENDANCE, policyRequest);
         LeaveRequestEntity request = lockedRequest(requestId);
-        requireReader(actor, request, lockedAccounts);
         expireIfNeeded(request, clock.instant(), ownerIdentity);
         return view(request);
     }

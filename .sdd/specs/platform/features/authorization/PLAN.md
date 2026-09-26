@@ -55,6 +55,16 @@ transition of `ACC-014`: lock, unlock, deactivation including that of a pending 
 actions; the row names lock and deactivation only, so this mapping is recorded here rather than
 left to the implementer.
 
+The row "View Intern attendance" covers reading an Intern's leave and correction requests, one
+at a time or as a list, and the Intern's leave balance: `AUTH-003` lets every active Mentor view
+any Intern's attendance, and these requests are part of it. An Intern reads only their own, as
+"Own history only" states. Editing one's own pending leave request (`LEV-007`) falls under the row
+"Submit own leave, correction, or exception request"; the leave module keeps the time condition
+of `LEV-007` itself. Deciding a request stays under the row
+"Decide leave, correction, or attendance exception", whose responsible-Mentor scope (`ACC-026`)
+is not yet built, so those decisions do not go through the policy until it is. This mapping is
+recorded here rather than left to the implementer.
+
 ### B.3 Where the catalogue lives
 
 A resource file of `platform`, read once at startup, one entry per capability and actor column,

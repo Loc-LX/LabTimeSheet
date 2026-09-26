@@ -1479,6 +1479,7 @@ class AttendancePersistenceIntegrationTest {
     void ownHistoryAndMentorAdminInspectionAreAuthorized() {
         clock.set(Instant.parse("2026-08-14T02:00:00Z"));
         attendance.checkIn(internId);
+        mentorId = createActiveMentor();
         LocalDate date = LocalDate.of(2026, 8, 14);
 
         assertThat(attendance.history(

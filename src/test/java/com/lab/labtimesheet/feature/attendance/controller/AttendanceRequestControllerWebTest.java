@@ -3,7 +3,11 @@ package com.lab.labtimesheet.feature.attendance.controller;
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -16,8 +20,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.lab.labtimesheet.feature.attendance.exception.LeaveException;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
+import com.lab.labtimesheet.feature.identity.model.AccountStatus;
+import com.lab.labtimesheet.feature.identity.model.dto.AccountIdentity;
+import com.lab.labtimesheet.feature.identity.service.AccountService;
 import com.lab.labtimesheet.feature.calendar.model.AttendancePolicy;
 import com.lab.labtimesheet.platform.model.GlobalRole;
+import com.lab.labtimesheet.platform.authorization.AuthorizationCapability;
+import com.lab.labtimesheet.platform.authorization.AuthorizationPolicy;
+import com.lab.labtimesheet.platform.authorization.AuthorizationRequest;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceViolations;
 import com.lab.labtimesheet.feature.attendance.model.CorrectionEventType;
 import com.lab.labtimesheet.feature.attendance.model.CorrectionStatus;
@@ -50,6 +60,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TimeZone;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -78,7 +89,46 @@ class AttendanceRequestControllerWebTest {
     private AttendanceCorrectionApplicationService corrections;
 
     @MockitoBean
+    private AuthorizationPolicy authorizationPolicy;
+
+    @MockitoBean
+    private AccountService accounts;
+
+    @MockitoBean
     private SmtpConfigurationService smtpConfiguration;
+
+    @BeforeEach
+    void allowPolicyDecisionsInPageRenderingTests() {
+        when(authorizationPolicy.allows(any(AuthorizationCapability.class), any(AuthorizationRequest.class)))
+                .thenReturn(true);
+        lenient().when(accounts.requireIdentityById(anyLong())).thenAnswer(invocation -> {
+            long id = invocation.getArgument(0);
+            GlobalRole role = id == 2L ? GlobalRole.MENTOR : GlobalRole.INTERN;
+            return new AccountIdentity(id, "actor@example.test", "Actor", role, AccountStatus.ACTIVE);
+        });
+    }
+
+    @Test
+    void inactiveInternDoesNotSeeRequestForms() throws Exception {
+        AttendanceActor actor = new AttendanceActor(7L, GlobalRole.INTERN);
+        when(currentUsers.actor(org.mockito.ArgumentMatchers.any())).thenReturn(actor);
+        when(accounts.requireIdentityById(7L)).thenReturn(new AccountIdentity(
+                7L, "intern@example.test", "Intern", GlobalRole.INTERN, AccountStatus.DEACTIVATED));
+        when(authorizationPolicy.allows(eq(AuthorizationCapability.SUBMIT_ATTENDANCE_REQUEST),
+                any(AuthorizationRequest.class)))
+                .thenAnswer(invocation -> ((AuthorizationRequest) invocation.getArgument(1))
+                        .scopeState().equals(AccountStatus.ACTIVE.name()));
+        when(calendar.currentBusinessDate()).thenReturn(LocalDate.of(2026, 8, 21));
+
+        mvc.perform(get("/attendance/leave").with(user("intern@example.test").roles("INTERN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("Request leave"))));
+
+        org.mockito.Mockito.verify(authorizationPolicy).allows(
+                eq(AuthorizationCapability.SUBMIT_ATTENDANCE_REQUEST),
+                org.mockito.ArgumentMatchers.argThat(request ->
+                        AccountStatus.DEACTIVATED.name().equals(request.scopeState())));
+    }
 
     @Test
     void legacyRequestRouteRedirectsToLeaveWorkflow() throws Exception {

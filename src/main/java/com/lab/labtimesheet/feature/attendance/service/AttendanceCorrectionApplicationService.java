@@ -13,6 +13,9 @@ import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
 import com.lab.labtimesheet.feature.calendar.model.AttendancePolicy;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceRecord;
 import com.lab.labtimesheet.platform.model.GlobalRole;
+import com.lab.labtimesheet.platform.authorization.AuthorizationCapability;
+import com.lab.labtimesheet.platform.authorization.AuthorizationPolicy;
+import com.lab.labtimesheet.platform.authorization.AuthorizationRequest;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceViolations;
 import com.lab.labtimesheet.feature.attendance.model.CorrectionEventType;
 import com.lab.labtimesheet.feature.attendance.model.CorrectionStatus;
@@ -72,6 +75,7 @@ public class AttendanceCorrectionApplicationService {
     private final CalendarApplicationService calendar;
     private final TransactionTemplate transactions;
     private final NotificationService notifications;
+    private final AuthorizationPolicy authorizationPolicy;
 
     /**
      * Lists retained correction requests visible to an owning Intern or active global Mentor.
@@ -89,20 +93,26 @@ public class AttendanceCorrectionApplicationService {
             throw new AccessDeniedException("An attendance actor is required");
         }
         AccountIdentity identity = accounts.requireIdentityById(actor.userId());
-        if (identity.status() != AccountStatus.ACTIVE || !identity.role().name().equals(actor.role().name())) {
+        if (!identity.role().name().equals(actor.role().name())) {
             throw new AccessDeniedException("An active matching account is required");
         }
+        AuthorizationRequest policyRequest = AttendanceAuthorizationRequests.request(
+                actor, identity.status() == AccountStatus.ACTIVE, actor.userId(), null);
+        AttendanceAuthorizationRequests.requireAllowed(
+                authorizationPolicy, AuthorizationCapability.VIEW_INTERN_ATTENDANCE, policyRequest);
         List<CorrectionSummary> visible = switch (actor.role()) {
             case INTERN -> corrections.findSummariesByInternUserId(actor.userId());
             case MENTOR -> corrections.findAllSummaries();
-            default -> throw new AccessDeniedException("Correction list is outside the requested scope");
+            case ADMIN -> corrections.findAllSummaries();
         };
-        expireVisiblePending(actor, visible);
-        visible = switch (actor.role()) {
-            case INTERN -> corrections.findSummariesByInternUserId(actor.userId());
-            case MENTOR -> corrections.findAllSummaries();
-            default -> throw new AccessDeniedException("Correction list is outside the requested scope");
-        };
+        if (actor.role() != GlobalRole.ADMIN) {
+            expireVisiblePending(actor, visible);
+            visible = switch (actor.role()) {
+                case INTERN -> corrections.findSummariesByInternUserId(actor.userId());
+                case MENTOR -> corrections.findAllSummaries();
+                case ADMIN -> corrections.findAllSummaries();
+            };
+        }
         return visible.stream()
                 .sorted(Comparator.comparing(
                                 (CorrectionSummary row) -> !CorrectionStatus.PENDING.name().equals(row.status()))
@@ -178,7 +188,9 @@ public class AttendanceCorrectionApplicationService {
     @Transactional
     public CorrectionView submit(
             AttendanceActor actor, long attendanceRecordId, CorrectionRequestCommand command) {
-        requireIntern(actor);
+        if (actor == null) {
+            throw new AccessDeniedException("An attendance actor is required");
+        }
         if (command == null) {
             throw new IllegalArgumentException("Correction command is required");
         }
@@ -193,9 +205,17 @@ public class AttendanceCorrectionApplicationService {
         AttendanceRecordEntity entity = records.findById(attendanceRecordId)
                 .orElseThrow(() -> new CorrectionException("Attendance record not found"));
         AttendanceRecord record = recordFrom(entity);
-        if (record.internId() != actor.userId()) {
-            throw new AccessDeniedException("Only the owning Intern may request a correction");
+        AccountIdentity actorIdentity = accounts.requireIdentityById(actor.userId());
+        AccountIdentity targetIdentity = accounts.requireIdentityById(record.internId());
+        if (targetIdentity.role() != GlobalRole.INTERN) {
+            throw new AccessDeniedException("Correction target must be an Intern");
         }
+        boolean activeActor = actorIdentity.status() == AccountStatus.ACTIVE
+                && actorIdentity.role() == actor.role();
+        AuthorizationRequest policyRequest = AttendanceAuthorizationRequests.request(
+                actor, activeActor, record.internId(), actorIdentity.status().name());
+        AttendanceAuthorizationRequests.requireAllowed(
+                authorizationPolicy, AuthorizationCapability.SUBMIT_ATTENDANCE_REQUEST, policyRequest);
         if (record.checkOutAt() != null) {
             throw new CorrectionException("Corrections require a missing raw checkout");
         }
@@ -282,14 +302,17 @@ public class AttendanceCorrectionApplicationService {
         AccountIdentity ownerIdentity = accounts.requireIdentityById(ownerId);
         AttendanceCorrectionEntity correction = lockedCorrection(correctionId);
         AttendanceRecord record = recordFor(correction);
-        if (actor.role() == GlobalRole.INTERN && actor.userId() != record.internId()) {
-            throw new AccessDeniedException("Correction is outside the requested scope");
+        if (ownerIdentity.role() != GlobalRole.INTERN) {
+            throw new AccessDeniedException("Correction target must be an Intern");
         }
-        if (actor.role() == GlobalRole.MENTOR) {
-            requireActiveMentor(actor.userId(), lockedAccounts);
-        } else if (actor.role() != GlobalRole.INTERN) {
-            throw new AccessDeniedException("Only the owning Intern or an active Mentor may inspect corrections");
-        }
+        LockedAccountMutationEligibility lockedActor = lockedAccounts.get(actor.userId());
+        boolean activeActor = lockedActor != null
+                && lockedActor.accountStatus() == AccountStatus.ACTIVE
+                && lockedActor.role() == actor.role();
+        AuthorizationRequest policyRequest = AttendanceAuthorizationRequests.request(
+                actor, activeActor, record.internId(), null);
+        AttendanceAuthorizationRequests.requireAllowed(
+                authorizationPolicy, AuthorizationCapability.VIEW_INTERN_ATTENDANCE, policyRequest);
         expireIfNeeded(correction, clock.instant(), ownerIdentity);
         return view(actor, correction, record);
     }
