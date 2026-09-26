@@ -37,6 +37,7 @@ import com.lab.labtimesheet.feature.project.model.entity.TaskWorkLog;
 import com.lab.labtimesheet.feature.project.repository.TaskRemainingEffortForecastRepository;
 import com.lab.labtimesheet.feature.project.repository.TaskWorkLogRepository;
 import jakarta.persistence.EntityManager;
+import org.postgresql.util.PSQLException;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.sql.Timestamp;
@@ -51,6 +52,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
@@ -334,6 +336,12 @@ class TaskCreationIntegrationTest {
                 .last().isEqualTo(userId("member@example.test"));
     }
 
+    /**
+     * TSK-001, DB-004 and AC-TSK-001 require both service validation and the V1 composite
+     * membership/Project foreign key to reject a foreign-Project assignee. The service must leave
+     * zero Tasks; bypassing it with a Task row using Project A and Project B's membership must
+     * fail at PostgreSQL with SQLState 23503.
+     */
     @Test
     void rejectsCrossProjectAndInactiveAssigneesWithoutWriting() {
         long mentorId = userId("mentor@example.test");
@@ -354,6 +362,143 @@ class TaskCreationIntegrationTest {
                         new CreateTaskCommand(projectId, memberMembershipId, "Inactive", null, null)))
                 .isInstanceOf(TaskNotFoundException.class);
         assertThat(taskCount()).isZero();
+
+        assertThatThrownBy(() -> jdbc.sql("""
+                        insert into tasks (
+                            project_id, assignee_membership_id, title,
+                            created_by_membership_id, assigned_by_membership_id)
+                        values (:projectId, :foreignMembershipId, 'Foreign SQL Task',
+                                :leaderMembershipId, :leaderMembershipId)
+                        """)
+                .param("projectId", projectId)
+                .param("foreignMembershipId", otherMembershipId)
+                .param("leaderMembershipId", leaderMembershipId)
+                .update())
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .rootCause()
+                .isInstanceOfSatisfying(PSQLException.class,
+                        failure -> assertThat(failure.getSQLState()).isEqualTo("23503"));
+    }
+
+    /**
+     * TSK-002 and AC-TSK-015 require an active Intern to hold Tasks across Projects without a
+     * membership-based cap. One Task in each Project and a second in the first yields three rows;
+     * each row has exactly its Project-local membership as its single current assignee.
+     */
+    @Test
+    void activeInternCanBeAssignedTasksAcrossProjectsWithoutACap() {
+        long mentorId = userId("mentor@example.test");
+        long secondProjectId = insertProject(mentorId, "PLANNED");
+        long secondLeaderMembershipId = insertMembership(
+                secondProjectId, userId("leader@example.test"), mentorId);
+        long secondMembershipId = insertMembership(
+                secondProjectId, userId("member@example.test"), mentorId);
+        jdbc.sql("""
+                        insert into project_leadership_terms
+                            (project_id, membership_id, appointed_by_mentor_user_id)
+                        values (:projectId, :membershipId, :mentorId)
+                        """)
+                .param("projectId", secondProjectId)
+                .param("membershipId", secondLeaderMembershipId)
+                .param("mentorId", mentorId)
+                .update();
+        jdbc.sql("update project_memberships set joined_at = :joinedAt where id in (:leaderId, :memberId)")
+                .param("joinedAt", Timestamp.from(Instant.parse("2026-08-14T00:00:00Z")))
+                .param("leaderId", secondLeaderMembershipId)
+                .param("memberId", secondMembershipId)
+                .update();
+
+        TaskView firstProjectTask = taskService.create(
+                "member@example.test",
+                new CreateTaskCommand(projectId, memberMembershipId, "First Project task", null, null));
+        TaskView secondProjectTask = taskService.create(
+                "member@example.test",
+                new CreateTaskCommand(secondProjectId, secondMembershipId, "Second Project task", null, null));
+        TaskView additionalFirstProjectTask = taskService.create(
+                "member@example.test",
+                new CreateTaskCommand(projectId, memberMembershipId, "Additional first Project task", null, null));
+
+        assertThat(List.of(firstProjectTask, secondProjectTask, additionalFirstProjectTask))
+                .extracting(TaskView::assigneeMembershipId)
+                .containsExactly(memberMembershipId, secondMembershipId, memberMembershipId);
+        assertThat(jdbc.sql("select count(*) from tasks where assignee_membership_id in (:first, :second)")
+                .param("first", memberMembershipId)
+                .param("second", secondMembershipId)
+                .query(Long.class).single()).isEqualTo(3L);
+        assertThat(jdbc.sql("select count(*) from tasks where id in (:first, :second, :third)")
+                .param("first", firstProjectTask.id())
+                .param("second", secondProjectTask.id())
+                .param("third", additionalFirstProjectTask.id())
+                .query(Long.class).single()).isEqualTo(3L);
+    }
+
+    /**
+     * TSK-009, TSK-019 and AC-TSK-004 require a DONE Task to reject reassignment before any Task,
+     * retained-history, or notification change. The expected unchanged evidence is the complete
+     * Task view, its TaskHistoryView including status, and the exact notification count.
+     */
+    @Test
+    void doneTaskReassignmentIsRefusedWithoutChangingTaskHistoryOrNotifications() {
+        TaskView task = createMemberTask("Completed transfer refusal");
+        taskService.addComment("member@example.test", projectId, task.id(), "Retained before refusal");
+        setStatus(task.id(), TaskStatus.DONE);
+        TaskDetails before = taskService.details("leader@example.test", projectId, task.id());
+        TaskHistoryView historyBefore = taskQueries.history(projectId).stream()
+                .filter(row -> row.id() == task.id()).findFirst().orElseThrow();
+        long notificationsBefore = notificationCount();
+
+        assertThatThrownBy(() -> taskService.reassign(
+                        "leader@example.test", projectId, task.id(), memberMembershipId))
+                .isInstanceOf(TaskValidationException.class);
+
+        assertThat(taskService.details("leader@example.test", projectId, task.id()).task())
+                .isEqualTo(before.task());
+        assertThat(taskQueries.history(projectId).stream()
+                .filter(row -> row.id() == task.id()).findFirst().orElseThrow())
+                .isEqualTo(historyBefore);
+        assertThat(notificationCount()).isEqualTo(notificationsBefore);
+    }
+
+    /**
+     * TSK-009 and TSK-019 require a current Leader and an eligible active target who is not in a
+     * pending exit. A transfer to an active recipient succeeds; subsequent pending-exit and closed
+     * membership targets, and a non-Leader actor, are refused with assignment and notifications
+     * unchanged from the successful transfer.
+     */
+    @Test
+    void reassignmentRequiresCurrentLeaderAndEligibleNonExitingActiveRecipient() {
+        TaskView task = taskService.create(
+                "leader@example.test",
+                new CreateTaskCommand(projectId, leaderMembershipId, "Eligibility transfer", null, null));
+        long activeRecipientId = insertIntern("active-recipient@example.test");
+        long activeRecipientMembershipId = insertMembership(
+                projectId, activeRecipientId, userId("mentor@example.test"));
+        long closedRecipientId = insertIntern("closed-recipient@example.test");
+        long closedRecipientMembershipId = insertMembership(
+                projectId, closedRecipientId, userId("mentor@example.test"));
+        projectMutations.requestOwnLeave(userId("member@example.test"), projectId, "Pending exit target");
+        closeMembership(closedRecipientMembershipId);
+
+        TaskView reassigned = taskService.reassign(
+                "leader@example.test", projectId, task.id(), activeRecipientMembershipId);
+        long notificationsAfterSuccess = notificationCount();
+
+        assertThat(reassigned.assigneeMembershipId()).isEqualTo(activeRecipientMembershipId);
+        assertThatThrownBy(() -> taskService.reassign(
+                        "leader@example.test", projectId, task.id(), memberMembershipId))
+                .isInstanceOf(TaskNotFoundException.class);
+        assertThatThrownBy(() -> taskService.reassign(
+                        "leader@example.test", projectId, task.id(), closedRecipientMembershipId))
+                .isInstanceOf(TaskNotFoundException.class);
+        assertThatThrownBy(() -> taskService.reassign(
+                        "active-recipient@example.test", projectId, task.id(), leaderMembershipId))
+                .isInstanceOf(TaskNotFoundException.class);
+
+        TaskView unchanged = taskService.details("leader@example.test", projectId, task.id()).task();
+        assertThat(unchanged.assigneeMembershipId()).isEqualTo(activeRecipientMembershipId);
+        assertThat(unchanged.assignerMembershipId()).isEqualTo(leaderMembershipId);
+        assertThat(unchanged.assignedAt()).isEqualTo(reassigned.assignedAt());
+        assertThat(notificationCount()).isEqualTo(notificationsAfterSuccess);
     }
 
     /**
