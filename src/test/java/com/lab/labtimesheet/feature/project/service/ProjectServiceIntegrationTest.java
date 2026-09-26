@@ -11,7 +11,9 @@ import com.lab.labtimesheet.config.TestcontainersConfiguration;
 import com.lab.labtimesheet.feature.internship.service.InternshipService;
 import com.lab.labtimesheet.feature.project.exception.ProjectAccessDeniedException;
 import com.lab.labtimesheet.feature.project.exception.ProjectRuleViolationException;
+import com.lab.labtimesheet.feature.project.exception.TaskNotFoundException;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectCreateCommand;
+import com.lab.labtimesheet.feature.project.model.dto.CreateTaskCommand;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
@@ -37,6 +39,9 @@ class ProjectServiceIntegrationTest {
 
     @Autowired
     private ProjectService projectService;
+
+    @Autowired
+    private TaskService taskService;
 
     @Autowired
     private JdbcTemplate jdbc;
@@ -328,6 +333,141 @@ class ProjectServiceIntegrationTest {
 
         assertEquals("ACTIVE", text("select status from projects where id = ?", projectId));
         assertEquals(1, count("select count(*) from projects where id = ? and activated_at is not null", projectId));
+    }
+
+    /**
+     * Protects {@code PRJ-023}, {@code AC-PRJ-015}, and {@code NOT-002}. Observable break:
+     * cancelling either source state loses retained work or leaves a pending workflow open.
+     * Expected: both Projects retain task history, close intervals at the recorded server time,
+     * resolve workflows, notify members, and refuse subsequent Project and Task mutations.
+     */
+    @Test
+    void cancellationRetainsHistoryResolvesWorkflowsAndMakesBothSourceStatesReadOnly() {
+        for (boolean activate : List.of(false, true)) {
+            String suffix = activate ? "active" : "planned";
+            long mentorId = user("mentor-cancel-" + suffix + "@example.test", "MENTOR");
+            long leaderId = intern("leader-cancel-" + suffix + "@example.test", activate ? "I090" : "I091");
+            long memberId = intern("member-cancel-" + suffix + "@example.test", activate ? "I092" : "I093");
+            long inviteeId = intern("invitee-cancel-" + suffix + "@example.test", activate ? "I094" : "I095");
+            long projectId = createProject(mentorId, leaderId, "Cancellation " + suffix);
+            projectService.addMember(mentorId, projectId, memberId);
+            long invitationId = projectService.issueInvitation(leaderId, projectId, inviteeId);
+            long exitId = projectService.requestOwnLeave(memberId, projectId, "Leave after cancellation");
+            long memberMembershipId = membershipId(projectId, memberId);
+            long leaderMembershipId = membershipId(projectId, leaderId);
+            long taskId = insertTask(projectId, memberId, "Retained " + suffix, null);
+            jdbc.update("update tasks set status = 'IN_PROGRESS', estimated_minutes = 120 where id = ?", taskId);
+            jdbc.update("insert into task_comments (task_id, author_user_id, body) values (?, ?, 'Keep comment')",
+                    taskId, memberId);
+            jdbc.update("""
+                    insert into task_work_logs (project_id, task_id, membership_id, work_date, minutes)
+                    values (?, ?, ?, date '2026-08-20', 30)
+                    """, projectId, taskId, membershipId(projectId, memberId));
+            jdbc.update("""
+                    insert into task_remaining_effort_forecasts (
+                        project_id, task_id, incoming_membership_id, forecasting_leader_membership_id,
+                        assignment_started_at, remaining_minutes, actual_minutes_snapshot, initial_note)
+                    values (?, ?, ?, ?, ?, 60, 0, 'Keep forecast')
+                    """, projectId, taskId, membershipId(projectId, memberId), membershipId(projectId, leaderId),
+                    dbTime(NOW));
+            if (activate) {
+                projectService.activate(mentorId, projectId);
+            }
+            entityManager.flush();
+            entityManager.clear();
+
+            projectService.cancel(mentorId, projectId, "  Scope changed " + suffix + "  ");
+            entityManager.flush();
+            entityManager.clear();
+            long taskVersion = number("select version from tasks where id = ?", taskId);
+            long forecastId = number("select id from task_remaining_effort_forecasts where task_id = ?", taskId);
+            var taskDetails = taskService.details("member-cancel-" + suffix + "@example.test", projectId, taskId);
+
+            assertAll("PRJ-023 " + suffix,
+                    () -> assertEquals("CANCELLED", text("select status from projects where id = ?", projectId)),
+                    () -> assertEquals(mentorId, number("select cancelled_by_mentor_user_id from projects where id = ?", projectId)),
+                    () -> assertEquals("Scope changed " + suffix, text("select cancellation_reason from projects where id = ?", projectId)),
+                    () -> assertEquals(1, count("select count(*) from projects where id = ? and cancelled_at is not null", projectId)),
+                    () -> assertEquals(2, count("select count(*) from project_memberships where project_id = ? and left_at is not null and removed_by_mentor_user_id = ?", projectId, mentorId)),
+                    () -> assertEquals(1, count("select count(*) from project_leadership_terms where project_id = ? and ended_at is not null and ended_by_mentor_user_id = ?", projectId, mentorId)),
+                    () -> assertEquals(1, count("select count(*) from project_invitations where id = ? and status = 'REVOKED' and resolution_code = 'PROJECT_CANCELLED'", invitationId)),
+                    () -> assertEquals(1, count("select count(*) from project_membership_exit_requests where id = ? and status = 'SUPERSEDED'", exitId)),
+                    () -> assertEquals(1, count("select count(*) from tasks where id = ?", taskId)),
+                    () -> assertEquals(1, count("select count(*) from task_comments where task_id = ?", taskId)),
+                    () -> assertEquals(1, count("select count(*) from task_work_logs where task_id = ?", taskId)),
+                    () -> assertEquals(1, count("select count(*) from tasks where id = ? and status = 'IN_PROGRESS' and estimated_minutes = 120", taskId)),
+                    () -> assertEquals(1, count("select count(*) from task_remaining_effort_forecasts where task_id = ? and remaining_minutes = 60 and initial_note = 'Keep forecast'", taskId)),
+                    () -> assertTrue(count("select count(*) from notifications where project_id = ? and notification_type = 'MEMBERSHIP_CHANGED' and action_url = '/projects/' || ?::text", projectId, projectId) >= 2),
+                    () -> assertTrue(count("select count(*) from notifications where project_id = ? and notification_type = 'LEADERSHIP_CHANGED' and action_url = '/projects/' || ?::text", projectId, projectId) >= 1),
+                    () -> assertFalse(projectPages.detail(mentorId, projectId).canManage()),
+                    () -> assertEquals("Scope changed " + suffix, projectPages.detail(mentorId, projectId).cancellationReason()),
+                    () -> assertThrows(ProjectAccessDeniedException.class,
+                            () -> projectService.addMember(mentorId, projectId, inviteeId)),
+                    () -> assertThrows(ProjectAccessDeniedException.class, () -> projectService.activate(mentorId, projectId)),
+                    () -> assertThrows(ProjectAccessDeniedException.class, () -> projectService.complete(mentorId, projectId)),
+                    () -> assertThrows(ProjectRuleViolationException.class, () -> projectService.delete(mentorId, projectId)),
+                    () -> assertThrows(ProjectAccessDeniedException.class, () -> projectService.cancel(mentorId, projectId, "Again")),
+                    () -> assertThrows(ProjectAccessDeniedException.class, () -> projectService.issueInvitation(leaderId, projectId, inviteeId)),
+                    () -> assertThrows(ProjectAccessDeniedException.class, () -> projectService.changeLeader(mentorId, projectId, memberId)),
+                    () -> assertThrows(ProjectAccessDeniedException.class, () -> projectService.requestOwnLeave(memberId, projectId, "Again")),
+                    () -> assertFalse(taskDetails.canChangeStatus()),
+                    () -> assertFalse(taskDetails.canComment()),
+                    () -> assertFalse(taskDetails.canEdit()),
+                    () -> assertFalse(taskDetails.canDelete()),
+                    () -> assertFalse(taskDetails.canReassign()),
+                    () -> assertFalse(taskDetails.canLogWork()),
+                    () -> assertThrows(TaskNotFoundException.class,
+                            () -> taskService.changeStatus("member-cancel-" + suffix + "@example.test",
+                                    projectId, taskId, com.lab.labtimesheet.feature.project.model.TaskStatus.DONE)),
+                    () -> assertThrows(TaskNotFoundException.class, () -> taskService.create(
+                            "member-cancel-" + suffix + "@example.test",
+                            new CreateTaskCommand(projectId, memberMembershipId, "Blocked", null,
+                                    LocalDate.of(2026, 8, 21), null))),
+                    () -> assertThrows(TaskNotFoundException.class, () -> taskService.edit(
+                            "member-cancel-" + suffix + "@example.test", projectId, taskId, taskVersion,
+                            "Blocked edit", null, null)),
+                    () -> assertThrows(TaskNotFoundException.class, () -> taskService.reassign(
+                            "leader-cancel-" + suffix + "@example.test", projectId, taskId, taskVersion,
+                            leaderMembershipId)),
+                    () -> assertThrows(TaskNotFoundException.class, () -> taskService.addComment(
+                            "member-cancel-" + suffix + "@example.test", projectId, taskId, "Blocked comment")),
+                    () -> assertThrows(TaskNotFoundException.class, () -> taskService.addWorkLog(
+                            "member-cancel-" + suffix + "@example.test", projectId, taskId, taskVersion,
+                            LocalDate.of(2026, 8, 21), 15, null)),
+                    () -> assertThrows(TaskNotFoundException.class, () -> taskService.estimate(
+                            "leader-cancel-" + suffix + "@example.test", projectId, taskId, taskVersion, 90)),
+                    () -> assertThrows(TaskNotFoundException.class, () -> taskService.correctForecast(
+                            "leader-cancel-" + suffix + "@example.test", projectId, taskId,
+                            forecastId, 45, "Blocked correction")));
+        }
+    }
+
+    /** Protects {@code PRJ-023} and {@code AC-PRJ-015}: blank reasons and foreign/MISSING IDs do not mutate or reveal a Project. */
+    @Test
+    void cancellationRejectsBlankReasonsForeignMentorsAndMissingProjectsWithoutMutation() {
+        int sequence = 0;
+        for (boolean active : List.of(false, true)) {
+            String suffix = active ? "active" : "planned";
+            long mentorId = user("mentor-cancel-refusal-" + suffix + "@example.test", "MENTOR");
+            long foreignMentorId = user("foreign-cancel-refusal-" + suffix + "@example.test", "MENTOR");
+            long leaderId = intern("leader-cancel-refusal-" + suffix + "@example.test", "I" + (96 + sequence++));
+            long projectId = createProject(mentorId, leaderId, "Cancellation refusal " + suffix);
+            if (active) {
+                projectService.activate(mentorId, projectId);
+            }
+
+            for (String reason : new String[] {null, "", "   "}) {
+                assertThrows(ProjectRuleViolationException.class,
+                        () -> projectService.cancel(mentorId, projectId, reason));
+            }
+            ProjectAccessDeniedException foreign = assertThrows(ProjectAccessDeniedException.class,
+                    () -> projectService.cancel(foreignMentorId, projectId, "Not mine"));
+            ProjectAccessDeniedException missing = assertThrows(ProjectAccessDeniedException.class,
+                    () -> projectService.cancel(foreignMentorId, Long.MAX_VALUE, "Not found"));
+            assertEquals(foreign.getMessage(), missing.getMessage());
+            assertEquals(active ? "ACTIVE" : "PLANNED", text("select status from projects where id = ?", projectId));
+            assertEquals(0, count("select count(*) from projects where id = ? and cancelled_at is not null", projectId));
+        }
     }
 
     /**

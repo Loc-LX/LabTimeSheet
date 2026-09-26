@@ -55,7 +55,7 @@ class AccountContractIntegrationTest {
             }
 
             List<AccountRow> before = rows(ids);
-            Flyway all = configuration().load();
+            Flyway all = configuration().target("4").load();
             all.migrate();
             assertThat(all.info().current().getVersion().getVersion()).as("V4 is applied").isEqualTo("4");
             assertThat(rows(ids)).as("migration preserves every pre-V4 row, including a lost historical lock")

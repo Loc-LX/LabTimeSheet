@@ -478,8 +478,8 @@ public class ProjectService {
         if (!invitation.isPending()) {
             throw new ProjectRuleViolationException("Invitation is no longer pending");
         }
-        if (project.status() == com.lab.labtimesheet.feature.project.model.ProjectStatus.COMPLETED) {
-            throw new ProjectRuleViolationException("Completed Projects are read-only");
+        if (project.status() == ProjectStatus.COMPLETED || project.status() == ProjectStatus.CANCELLED) {
+            throw new ProjectRuleViolationException("Terminal Projects are read-only");
         }
         if (!invitation.issuingLeadershipTerm().isCurrent()) { // Leader đã đổi → auto revoke
             invitation.resolve(
@@ -1430,6 +1430,49 @@ public class ProjectService {
     }
 
     /**
+     * Cancels an owned planned or active Project in one transaction, retaining its work history.
+     *
+     * @param actorMentorUserId authenticated owning Mentor
+     * @param projectId Project to cancel
+     * @param reason required cancellation reason
+     */
+    @Transactional
+    public void cancel(long actorMentorUserId, long projectId, String reason) {
+        var locked = lockOwnedProject(actorMentorUserId, projectId);
+        var project = locked.project();
+        if (reason == null || reason.isBlank()) {
+            throw new ProjectRuleViolationException("A cancellation reason is required");
+        }
+        if (project.status() != ProjectStatus.PLANNED && project.status() != ProjectStatus.ACTIVE) {
+            throw new ProjectRuleViolationException("Only a planned or active Project can be cancelled");
+        }
+        var at = clock.instant();
+        long currentLeaderUserId = project.currentLeader().internUserId();
+        var memberIds = project.memberships().stream()
+                .filter(ProjectMembershipEntity::isCurrent)
+                .map(ProjectMembershipEntity::internUserId)
+                .toList();
+        invitations.findLockedPendingByProjectId(projectId).forEach(invitation -> {
+            invitation.resolve(InvitationStatus.REVOKED, InvitationResolutionCode.PROJECT_CANCELLED,
+                    null, null, at);
+            notifyInvitationResolution(invitation, actorMentorUserId,
+                    invitation.resolutionCode(), locked.notificationRecipients());
+        });
+        invitations.flush();
+        exitRequests.findLockedPendingByProjectId(projectId).forEach(request -> {
+            request.resolve(ProjectExitRequestStatus.SUPERSEDED,
+                    "Project cancelled: " + reason.trim(), null, at);
+            notifyExitResolved(request, project, currentLeaderUserId, locked.notificationRecipients());
+        });
+        exitRequests.flush();
+        project.cancel(actorMentorUserId, at, reason);
+        projects.flush();
+        notifyMembershipChanged(projectId, "PROJECT_CANCELLED", memberIds, locked.notificationRecipients());
+        notifyLeadershipChanged(projectId, "LEADER_REMOVED", List.of(currentLeaderUserId),
+                locked.notificationRecipients());
+    }
+
+    /**
      * Locks all current-member Accounts and Intern profiles in ascending Account
      * order, then
      * locks the Project and re-evaluates visibility, lifecycle, current leadership,
@@ -2068,9 +2111,8 @@ public class ProjectService {
     }
 
     private void requireOpenProject(ProjectEntity project) {
-        if (project.status() == com.lab.labtimesheet.feature.project.model.ProjectStatus.COMPLETED) {
-            // Project đã hoàn thành chỉ xem, không cho sửa.
-            throw new ProjectRuleViolationException("Completed Projects are read-only");
+        if (project.status() == ProjectStatus.COMPLETED || project.status() == ProjectStatus.CANCELLED) {
+            throw new ProjectRuleViolationException("Terminal Projects are read-only");
         }
     }
 

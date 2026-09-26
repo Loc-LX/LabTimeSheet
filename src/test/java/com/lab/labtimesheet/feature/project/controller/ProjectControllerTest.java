@@ -694,6 +694,49 @@ class ProjectControllerTest {
     }
 
     /**
+     * Protects {@code PRJ-023} and {@code AC-PRJ-015}. Observable break: a terminal Project page
+     * hides its cancellation record or offers another lifecycle mutation. Expected: the CANCELLED
+     * badge and reason render, while Activate, Delete, and workflow actions are absent.
+     */
+    @Test
+    @WithMockUser(username = "mentor@example.test")
+    void cancelledProjectDetailShowsReasonAndHidesLifecycleActions() throws Exception {
+        when(pages.authenticatedUserId("mentor@example.test")).thenReturn(10L);
+        when(pages.detail(10L, 30L)).thenReturn(new ProjectDetail(
+                30L, "Cancelled Project", null, "CANCELLED", LocalDate.of(2026, 8, 15),
+                LocalDate.of(2026, 9, 30), "Mentor", null, false, false, false,
+                "Scope changed", "Owning Mentor", Instant.parse("2026-09-27T00:00:00Z")));
+        when(pages.exitReadiness(10L, 30L)).thenReturn(List.of());
+
+        mvc.perform(get("/projects/30"))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(containsString("CANCELLED")))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(containsString("Scope changed")))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(containsString("Owning Mentor")))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(containsString("07:00")))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(not(containsString("action=\"/projects/30/activate\""))))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(not(containsString("Delete Project"))));
+    }
+
+    /** Protects {@code PRJ-023} and {@code AC-PRJ-015}: the reason reaches the transactional service. */
+    @Test
+    @WithMockUser(username = "mentor@example.test")
+    void owningMentorCanCancelProjectWithSubmittedReason() throws Exception {
+        when(pages.authenticatedUserId("mentor@example.test")).thenReturn(10L);
+        mvc.perform(post("/projects/30/cancel").with(csrf()).param("reason", "Scope changed"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/projects/30"));
+
+        verify(projects).cancel(10L, 30L, "Scope changed");
+    }
+
+    /**
      * Protects {@code PRJ-002} and {@code AC-PRJ-014}. Observable break: owner management
      * permission alone renders a delete form for a draft whose emptiness has not been established.
      * Expected: a manageable but non-deletable PLANNED Project has no Delete Project control.

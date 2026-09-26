@@ -239,7 +239,8 @@ public interface ProjectRepository extends JpaRepository<ProjectEntity, Long> {
             select distinct project from ProjectEntity project
             join project.memberships membership
             where membership.internUserId = :internUserId
-            and (membership.leftAt is null or project.status = com.lab.labtimesheet.feature.project.model.ProjectStatus.COMPLETED)
+            and (membership.leftAt is null or project.status in (com.lab.labtimesheet.feature.project.model.ProjectStatus.COMPLETED,
+                com.lab.labtimesheet.feature.project.model.ProjectStatus.CANCELLED))
             order by project.updatedAt desc, project.id desc
             """)
     Slice<ProjectEntity> findVisibleToIntern(

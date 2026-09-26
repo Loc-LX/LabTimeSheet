@@ -57,7 +57,7 @@ public class ProjectInternshipLifecycleReadiness implements InternshipLifecycleR
             if (!Objects.equals(membership.id(), interval.membershipId())) {
                 throw new IllegalStateException("Project membership changed; retry the action");
             }
-            if (project.status() != ProjectStatus.COMPLETED
+            if (project.status() != ProjectStatus.COMPLETED && project.status() != ProjectStatus.CANCELLED
                     && Objects.equals(project.currentLeader().id(), membership.id())) {
                 currentLeader = true;
             }

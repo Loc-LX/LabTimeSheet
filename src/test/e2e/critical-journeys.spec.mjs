@@ -154,7 +154,18 @@ test('Iteration 3 setup and critical Admin/Intern/Mentor journeys', async ({ pag
     new RegExp(`^project-task-report-${dates.reportWorkFrom}-to-${dates.reportDueTo}\\.pdf$`),
     (bytes) => expect(bytes.subarray(0, 4).toString()).toBe('%PDF'));
 
+  await page.goto(`/projects/${projectId}`);
+  await page.getByLabel('Cancellation reason').fill('E2E scope cancellation');
+  page.once('dialog', (dialog) => dialog.accept());
+  await page.getByRole('button', { name: 'Cancel Project' }).click();
+  await expect(page).toHaveURL(new RegExp(`/projects/${projectId}$`));
+  await expect(page.getByText('CANCELLED', { exact: true })).toBeVisible();
+  await expect(page.getByText('E2E scope cancellation', { exact: true })).toBeVisible();
+
   await signIn(page, intern);
+  await page.goto(`/projects/${projectId}/tasks/${taskId}`);
+  await expect(page.getByRole('button', { name: 'Change status' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Log work' })).toHaveCount(0);
   for (const [route, heading] of [
     ['/projects', 'Projects'],
     ['/attendance', 'My attendance'],
@@ -405,8 +416,11 @@ async function ensureSmtp(page) {
   await page.goto('/admin/smtp');
   await expect(page).toHaveURL(/\/admin\/smtp/);
   const active = page.getByRole('status').filter({ hasText: 'SMTP is active' });
-  if (await active.count() === 0) await activateMailpitSmtp(page);
-  await expect(page.getByRole('status')).toContainText('SMTP is active');
+  if (await active.count() === 0) {
+    await activateMailpitSmtp(page);
+    await page.goto('/admin/smtp');
+  }
+  await expect(page.getByRole('status').filter({ hasText: 'SMTP is active' })).toBeVisible();
 }
 
 let globalAdmin;

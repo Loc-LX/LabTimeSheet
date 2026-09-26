@@ -556,7 +556,7 @@ public class TaskService {
     public TaskCommentView addComment(String actorEmail, long projectId, long taskId, String body) {
         String normalizedBody = requireCommentBody(body);
         TaskAccess access = requireMutationAccess(actorEmail, projectId);
-        if ("COMPLETED".equals(access.project().status())) {
+        if (!isOpen(access.project())) {
             throw new TaskNotFoundException();
         }
         boolean owningMentor = access.actor().userId() == access.project().mentorUserId();
@@ -809,7 +809,7 @@ public class TaskService {
                 && (owningMentor
                         || actorMembership != null
                                 && persistedTask.getAssigneeMembershipId() == actorMembership.membershipId());
-        boolean canComment = !"COMPLETED".equals(access.project().status())
+        boolean canComment = isOpen(access.project())
                 && (access.actor().userId() == access.project().mentorUserId() || actorMembership != null);
         boolean unfinished = persistedTask.getStatus() != TaskStatus.DONE;
         boolean currentLeader = actorMembership != null
@@ -914,7 +914,7 @@ public class TaskService {
         boolean historicalIntern = "INTERN".equals(access.actor().role())
                 && access.project().activeMembers().stream()
                         .noneMatch(member -> member.userId() == access.actor().userId());
-        if (historicalIntern && !"COMPLETED".equals(access.project().status())) {
+        if (historicalIntern && isOpen(access.project())) {
             throw new TaskNotFoundException();
         }
         return access;

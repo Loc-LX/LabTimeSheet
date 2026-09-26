@@ -17,6 +17,8 @@ public enum InvitationResolutionCode {
     LEADER_CHANGED,
     /** Project completion superseded the pending invitation. */
     PROJECT_COMPLETED,
+    /** Project cancellation revoked the pending invitation. */
+    PROJECT_CANCELLED,
     /** The intended Intern no longer satisfied membership eligibility. */
     INVITEE_INELIGIBLE,
     /** Mentor direct-add superseded the matching pending invitation. */

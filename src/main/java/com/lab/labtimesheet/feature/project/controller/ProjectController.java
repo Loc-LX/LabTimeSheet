@@ -454,6 +454,21 @@ public class ProjectController {
     }
 
     // === WORKFLOWS | POST hoàn thành project ===
+    /**
+     * Cancels an owned Project and redirects to its retained detail page.
+     *
+     * @param principal authenticated Mentor
+     * @param projectId Project to cancel
+     * @param reason nonblank cancellation reason
+     * @return redirect to Project detail
+     */
+    @PostMapping("/{projectId}/cancel")
+    String cancel(Principal principal, @PathVariable long projectId,
+                  @RequestParam(defaultValue = "") String reason) {
+        projects.cancel(actorId(principal), projectId, reason);
+        return "redirect:/projects/" + projectId;
+    }
+
     @PostMapping("/{projectId}/complete")
     String complete(
             Principal principal,
