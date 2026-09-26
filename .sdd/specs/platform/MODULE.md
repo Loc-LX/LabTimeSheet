@@ -27,7 +27,7 @@ This spec holds what every feature shares. It is not a feature in the code; the 
 | Companion DDL | `database-schema.sql`, not tracked in this repository |
 | Review state | Approved rule baseline; later clarification gaps in §22.3 prevent approval of the affected plans. Each spec's version and changes are in its header and `CHANGELOG.md`. |
 | Normative rules | 311 across the eight module trees |
-| Acceptance scenarios | 167 across the eight module trees |
+| Acceptance scenarios | 168 across the eight module trees |
 
 > **Companion files.** The companion `database-schema.sql` and the reference images
 > under `assets/` are not tracked in this repository. Every image embed below is
@@ -644,7 +644,7 @@ What approval means for a specification that documents a working product.
 | Normative rules, sections 1–22 | 311 |
 | Rules with a §20 acceptance scenario | 292 |
 | Rules declared without one, with reason | 19 |
-| Acceptance scenarios | 167 |
+| Acceptance scenarios | 168 |
 | Application tables | 30 |
 
 #### §22.2 What approval requires

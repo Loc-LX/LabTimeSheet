@@ -94,6 +94,7 @@ came from, not whether the choice is settled.
 | D43 | What the constitution records after part D | Credit `BusinessSqlBoundaryTest` under `ARC-006` for the SQL entry points it lists, each by name, and narrow the known-gap row of `ARC-006` from business SQL to the clauses no test asserts; no rule, layer or obligation changes | constitution `2.0.4` |
 | D44 | What the constitution records after part E | Credit the exact production response assertions and the four independent readiness refusals, each by name, and keep the `SEC-011` and `SEC-013` known-gap rows for the clauses no test asserts; no rule, layer or obligation changes | constitution `2.0.5` |
 | D45 | How the V3 probes are written and judged | `AC-DB-001` replays the Flyway migrations; the V3 backfill applies `ATT-020` at the migration's server time; C-02 ends red on its work branch; the probes fix V3's column names | `AC-DB-001`, `D27`, `D32`, data-model tasks |
+| D46 | How a Task blocked before transition history existed is unblocked | Either `TODO` or `IN_PROGRESS`, chosen by the authorized actor; the unblock is recorded, and no block record is invented for the earlier block | `TSK-025`, `AC-TSK-022` |
 
 D1 through D5 came from reading the specification against its own history. D6
 through D9 came from the audit described at the end of this page, which read the
@@ -2305,6 +2306,15 @@ production code. The constitution credits only the assertions those tests make a
 
 **Status:** decided.
 
+## D46. How is a Task unblocked when it was blocked before transition history existed?
+
+**Decided on 27 September 2026 by Loc-LX.** LAB-POLICY. `TSK-025` takes the unblock target from the latest block record, and V3 created `task_status_transitions` empty, so a Task already `BLOCKED` before Task management T1-04 has no such record and could never be unblocked. The demo seed holds one.
+
+- The authorized actor chooses `TODO` or `IN_PROGRESS`, the two targets `TSK-007` allows from `BLOCKED`. The unblock is retained as a transition record.
+- No block record is created for the earlier block, by migration or by the application: its previous status and its actor are unknown, and writing them would invent history (`GOV-005`).
+- Once the Task is blocked again, `TSK-025` applies in full.
+
+**Status:** decided.
 ## What the audit checked and found sound
 
 Listing what passed matters as much as what failed, because a reader otherwise
