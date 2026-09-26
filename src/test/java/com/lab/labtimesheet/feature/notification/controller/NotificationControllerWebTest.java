@@ -20,19 +20,34 @@ import com.lab.labtimesheet.feature.notification.model.NotificationType;
 import com.lab.labtimesheet.feature.notification.model.dto.NotificationInbox;
 import com.lab.labtimesheet.feature.notification.model.dto.NotificationInboxItem;
 import com.lab.labtimesheet.feature.notification.service.NotificationService;
+import com.lab.labtimesheet.platform.authorization.AuthorizationCatalogue;
+import com.lab.labtimesheet.platform.authorization.AuthorizationPolicy;
 import com.lab.labtimesheet.platform.model.GlobalRole;
 import com.lab.labtimesheet.platform.service.SmtpConfigurationService;
 import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 /** Production-shaped MVC contract for recipient-scoped notification rendering and mutation. */
 @WebMvcTest(NotificationController.class)
+@Import(NotificationControllerWebTest.AuthorizationTestConfig.class)
 class NotificationControllerWebTest {
+
+    @TestConfiguration(proxyBeanMethods = false)
+    static class AuthorizationTestConfig {
+
+        @Bean
+        AuthorizationPolicy authorizationPolicy() {
+            return new AuthorizationPolicy(new AuthorizationCatalogue());
+        }
+    }
 
     @Autowired
     private MockMvc mvc;

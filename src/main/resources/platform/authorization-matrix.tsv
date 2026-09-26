@@ -1,0 +1,39 @@
+# A cell grants only its encoded state predicates. The record-owning module resolves scope phrases such as Own, Assigned, Membership scope, and Own history only, and supplies an actor column only when that scope is satisfied.
+# scope constrains the resolved scopeState; not excludes recordState values; edges constrains recordState -> targetState.
+Key	Capability	Admin	Owning Mentor	Current Leader	Active member / assignee
+MANAGE_ACCOUNTS	Manage accounts/global roles at creation	Yes	No	No	No
+ACCOUNT_LIFECYCLE	Lock/deactivate accounts; manage internship lifecycle	Yes	No	No	No
+GLOBAL_CONFIGURATION	Manage SMTP, HolidayAPI, attendance policy, global calendar	Yes	No	No	No
+VIEW_ALL_PROJECTS	View all Projects/tasks/progress	Yes	Yes	Yes	Yes
+CREATE_PROJECT	Create Project	No	Yes	No	No
+EDIT_PROJECT	Edit/activate/complete Project	No	Yes	No	No
+DELETE_EMPTY_PLANNED_PROJECT	Delete an empty `PLANNED` Project (`PRJ-002`)	No	Yes; scope=PLANNED	No	No
+CANCEL_PROJECT	Cancel a `PLANNED` or `ACTIVE` Project (`PRJ-023`)	No	Yes; scope=PLANNED,ACTIVE	No	No
+MANAGE_PROJECT_MEMBERS	Directly add/remove Project members	No	Yes	No	No
+PROJECT_INVITATIONS	Issue/revoke Project invitation	No	Yes	Yes	Yes
+MEMBERSHIP_EXIT	Request/decide membership exit	No	Yes	Yes	Yes
+PROJECT_LEADERSHIP	Appoint/change Project Leader	No	Yes	No	No
+REDISTRIBUTE_PENDING_EXIT_TASKS	Redistribute unfinished Tasks for pending exit	No	No	Yes	No
+CREATE_TASK	Create Task	No	No	Yes	Yes
+ASSIGN_TASK	Assign/reassign Task	No	No	Yes	No
+TASK_ESTIMATE	Set/replace/clear Task estimate before the first work log	No	No	Yes	No
+REMAINING_EFFORT_FORECAST	Record a Remaining effort forecast (`TSK-022`, `TSK-024`)	No	No	Yes	No
+EDIT_OR_DELETE_TASK	Edit/soft-delete Task	No	No	Yes; not=DONE	Yes; not=DONE
+OWN_ASSIGNED_TASK_STATUS	Change the status of one's own assigned Task (any `TSK-007` transition)	No	No	Yes	Yes
+BLOCK_UNBLOCK_REOPEN_TASK	Block, unblock, or reopen another member's Task (`TSK-023`)	No	Yes; scope=ACTIVE; edges=TODO>BLOCKED,IN_PROGRESS>BLOCKED,BLOCKED>TODO,BLOCKED>IN_PROGRESS,DONE>IN_PROGRESS	Yes; scope=ACTIVE; edges=TODO>BLOCKED,IN_PROGRESS>BLOCKED,BLOCKED>TODO,BLOCKED>IN_PROGRESS,DONE>IN_PROGRESS	No
+START_ANOTHER_MEMBERS_TASK	Start another member's Task or mark it `DONE`	No	No	No	No
+COMMENT_ON_TASK	Comment on Task	No	Yes	Yes	Yes
+OWN_TASK_WORK_LOG	Create/edit own Task work log	No	No	Yes	Yes
+VIEW_AGGREGATE_PROJECT_PROGRESS	View aggregate Project progress	Yes	Yes	Yes	Yes
+VIEW_PROJECT_TASK_HISTORY	View Project/Task retained history	Yes	Yes	Yes	Yes
+VIEW_PER_MEMBER_PROJECT_HOURS	View per-member Project hours	Yes	Yes	Yes	No
+VIEW_INTERN_ATTENDANCE	View Intern attendance	Yes	Yes	Yes	Yes
+DECIDE_ATTENDANCE_REQUEST	Decide leave, correction, or attendance exception; amend or reverse that decision where its rule permits (`ATT-024`)	No	Yes	No	No
+SUBMIT_ATTENDANCE_REQUEST	Submit own leave, correction, or exception request	No	No	Yes; scope=ACTIVE	Yes; scope=ACTIVE
+WITHDRAW_LEAVE_REQUEST	Withdraw own `PENDING` or `OVERDUE` leave request (`LEV-013`)	No	No	Yes; scope=ACTIVE	Yes; scope=ACTIVE
+REQUEST_ATTENDANCE_PERIOD_REOPEN	Ask to reopen a finalized attendance period (`ATT-022`)	No	Yes	Yes; scope=ACTIVE	Yes; scope=ACTIVE
+DECIDE_ATTENDANCE_PERIOD_REOPEN	Approve or reject a request to reopen a finalized attendance period (`ATT-022`)	Yes	No	No	No
+ATTENDANCE_REPORT	View and export the Attendance report (`RPT-004`)	Yes	Yes	Yes	Yes
+PROJECT_TASK_REPORT	View and export the Project/Task report (`RPT-005`)	Yes	Yes	Yes	Yes
+DAILY_PROJECT_REPORT	View and export the Daily Project Work Report (`RPT-011`)	Yes	Yes	Yes; scope=PLANNED,ACTIVE	No
+OWN_ATTENDANCE_DATE	View own attendance for a date (`RPT-015`)	No	No	Yes; scope=ACTIVE	Yes; scope=ACTIVE

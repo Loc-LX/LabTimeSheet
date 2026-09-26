@@ -25,6 +25,8 @@ import com.lab.labtimesheet.feature.calendar.service.CalendarApplicationService;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceCurrentUserService;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceReportQueryService;
 import com.lab.labtimesheet.feature.reporting.service.AttendanceReportService;
+import com.lab.labtimesheet.platform.authorization.AuthorizationCatalogue;
+import com.lab.labtimesheet.platform.authorization.AuthorizationPolicy;
 import com.lab.labtimesheet.platform.service.SmtpConfigurationService;
 import java.math.BigDecimal;
 import java.security.Principal;
@@ -36,14 +38,25 @@ import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Bean;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(AttendanceReportController.class)
-@Import(AttendanceReportService.class)
+@Import({AttendanceReportService.class, AttendanceReportPageWebTest.AuthorizationTestConfig.class})
 class AttendanceReportPageWebTest {
+
+    @TestConfiguration(proxyBeanMethods = false)
+    static class AuthorizationTestConfig {
+
+        @Bean
+        AuthorizationPolicy authorizationPolicy() {
+            return new AuthorizationPolicy(new AuthorizationCatalogue());
+        }
+    }
 
     private static final LocalDate FROM = LocalDate.of(2026, 8, 3);
     private static final LocalDate TO = LocalDate.of(2026, 8, 7);
@@ -76,6 +89,8 @@ class AttendanceReportPageWebTest {
     void internRendersOwnClassifiedDaysSummaryAndComplianceChart() throws Exception {
         given(currentUsers.actor(any(Principal.class)))
                 .willReturn(new AttendanceActor(5, GlobalRole.INTERN));
+        given(accounts.requireIdentityByEmail("intern@example.test"))
+                .willReturn(intern(5L, "Mai Intern"));
         given(calendar.currentBusinessDate()).willReturn(TO);
         given(accounts.requireIdentityById(5L)).willReturn(intern(5L, "Mai Intern"));
         given(reportQueries.query(new AttendanceActor(5, GlobalRole.INTERN), 5, FROM, TO))
@@ -118,6 +133,9 @@ class AttendanceReportPageWebTest {
     void mentorInspectsTargetInternAndSeesPerDayScores() throws Exception {
         given(currentUsers.actor(any(Principal.class)))
                 .willReturn(new AttendanceActor(2, GlobalRole.MENTOR));
+        given(accounts.requireIdentityByEmail("mentor@example.test"))
+                .willReturn(new AccountIdentity(
+                        2L, "mentor@example.test", "Mentor", GlobalRole.MENTOR, AccountStatus.ACTIVE));
         given(calendar.currentBusinessDate()).willReturn(TO);
         given(accounts.requireIdentityById(7L)).willReturn(intern(7L, "Target Intern"));
         given(reportQueries.query(new AttendanceActor(2, GlobalRole.MENTOR), 7, FROM, TO))
@@ -153,6 +171,8 @@ class AttendanceReportPageWebTest {
     void emptyDenominatorRendersNaForRateAndCompliance() throws Exception {
         given(currentUsers.actor(any(Principal.class)))
                 .willReturn(new AttendanceActor(5, GlobalRole.INTERN));
+        given(accounts.requireIdentityByEmail("intern@example.test"))
+                .willReturn(intern(5L, "Mai Intern"));
         given(calendar.currentBusinessDate()).willReturn(TO);
         given(accounts.requireIdentityById(5L)).willReturn(intern(5L, "Mai Intern"));
         given(reportQueries.query(new AttendanceActor(5, GlobalRole.INTERN), 5, FROM, TO))
@@ -178,6 +198,8 @@ class AttendanceReportPageWebTest {
     void internCannotInspectAnotherIntern() throws Exception {
         given(currentUsers.actor(any(Principal.class)))
                 .willReturn(new AttendanceActor(5, GlobalRole.INTERN));
+        given(accounts.requireIdentityByEmail("intern@example.test"))
+                .willReturn(intern(5L, "Mai Intern"));
         given(calendar.currentBusinessDate()).willReturn(TO);
 
         mvc.perform(get("/reports/attendance").with(user("intern@example.test").roles("INTERN"))
@@ -191,6 +213,8 @@ class AttendanceReportPageWebTest {
     void missingFiltersDefaultToCurrentBusinessDateMonth() throws Exception {
         given(currentUsers.actor(any(Principal.class)))
                 .willReturn(new AttendanceActor(5, GlobalRole.INTERN));
+        given(accounts.requireIdentityByEmail("intern@example.test"))
+                .willReturn(intern(5L, "Mai Intern"));
         given(calendar.currentBusinessDate()).willReturn(LocalDate.of(2026, 8, 15));
         given(accounts.requireIdentityById(5L)).willReturn(intern(5L, "Mai Intern"));
         given(reportQueries.query(

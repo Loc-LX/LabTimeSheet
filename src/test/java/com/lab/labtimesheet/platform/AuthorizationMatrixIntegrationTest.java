@@ -393,8 +393,9 @@ class AuthorizationMatrixIntegrationTest {
                 }),
                 probe("reopen another member's Task", (fixture, actor) -> {
                     long taskId = seedOtherMembersTask(fixture, actor);
-                    tasks.changeStatus(fixture.email("mentor"), fixture.projectId(), taskId, TaskStatus.IN_PROGRESS);
-                    tasks.changeStatus(fixture.email("mentor"), fixture.projectId(), taskId, TaskStatus.DONE);
+                    String assigneeKey = actor == fixture.memberId() ? "leader" : "member";
+                    tasks.changeStatus(fixture.email(assigneeKey), fixture.projectId(), taskId, TaskStatus.IN_PROGRESS);
+                    tasks.changeStatus(fixture.email(assigneeKey), fixture.projectId(), taskId, TaskStatus.DONE);
                     tasks.changeStatus(fixture.emailForActor(actor), fixture.projectId(), taskId, TaskStatus.IN_PROGRESS);
                 })));
         result.put(REGISTERED_CAPABILITIES.get(17), List.of(

@@ -44,6 +44,10 @@ import com.lab.labtimesheet.feature.project.repository.TaskCommentRepository;
 import com.lab.labtimesheet.feature.project.repository.TaskRemainingEffortForecastRepository;
 import com.lab.labtimesheet.feature.project.repository.TaskRepository;
 import com.lab.labtimesheet.feature.project.repository.TaskWorkLogRepository;
+import com.lab.labtimesheet.platform.authorization.AuthorizationCapability;
+import com.lab.labtimesheet.platform.authorization.AuthorizationColumn;
+import com.lab.labtimesheet.platform.authorization.AuthorizationPolicy;
+import com.lab.labtimesheet.platform.authorization.AuthorizationRequest;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -86,6 +90,7 @@ public class TaskService {
     private final NotificationService notifications;
 
     private final TaskRemainingEffortForecastRepository forecasts;
+    private final AuthorizationPolicy authorizationPolicy;
 
     /**
      * Creates a TODO Task in a PLANNED or ACTIVE Project.
@@ -150,9 +155,10 @@ public class TaskService {
      * Changes an ACTIVE Project Task through one fixed workflow edge.
      *
      * <p>The transaction locks the Project before the Task row and permits the owning Mentor or
-     * the current assignee membership to mutate status. Leadership alone does not substitute for
-     * either authority. A successful change publishes an in-app-only event to the current Leader,
-     * excluding the actor.
+     * the current assignee membership to mutate status. An owning Mentor is limited by the shared
+     * §5.2 policy to block, unblock, and reopen transitions on an ACTIVE Project. Leadership alone
+     * does not substitute for either authority. A successful change publishes an in-app-only event
+     * to the current Leader, excluding the actor.
      *
      * @param actorEmail authenticated account email
      * @param projectId owning Project identifier
@@ -188,6 +194,15 @@ public class TaskService {
         requireTaskVersion(task, expectedVersion);
         if (!task.getStatus().canTransitionTo(target)) {
             throw new TaskValidationException("Task status transition is not allowed");
+        }
+        if (owningMentor && !authorizationPolicy.allows(
+                AuthorizationCapability.BLOCK_UNBLOCK_REOPEN_TASK,
+                new AuthorizationRequest(
+                        Set.of(AuthorizationColumn.OWNING_MENTOR),
+                        access.project().status(),
+                        task.getStatus().name(),
+                        target.name()))) {
+            throw new TaskNotFoundException();
         }
         task.changeStatus(target, clock.instant());
         TaskView result = view(saveTask(task), assigneeName(access, task.getAssigneeMembershipId()));

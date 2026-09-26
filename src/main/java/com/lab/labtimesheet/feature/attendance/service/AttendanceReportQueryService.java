@@ -12,6 +12,10 @@ import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
 import com.lab.labtimesheet.feature.calendar.model.AttendancePolicy;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceRecord;
 import com.lab.labtimesheet.platform.model.GlobalRole;
+import com.lab.labtimesheet.platform.authorization.AuthorizationCapability;
+import com.lab.labtimesheet.platform.authorization.AuthorizationColumn;
+import com.lab.labtimesheet.platform.authorization.AuthorizationPolicy;
+import com.lab.labtimesheet.platform.authorization.AuthorizationRequest;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceViolations;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceReport;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceReportClassification;
@@ -20,7 +24,6 @@ import com.lab.labtimesheet.feature.attendance.model.entity.AttendanceRecordEnti
 import com.lab.labtimesheet.feature.attendance.repository.AttendanceQueryRepository;
 import com.lab.labtimesheet.feature.attendance.repository.AttendanceRecordRepository;
 import com.lab.labtimesheet.feature.calendar.model.dto.CalendarHistoryItem;
-import com.lab.labtimesheet.platform.model.GlobalRole;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Clock;
@@ -65,6 +68,7 @@ public class AttendanceReportQueryService {
     private final AttendanceQueryRepository queries;
     private final CalendarApplicationService calendar;
     private final AttendanceCorrectionApplicationService corrections;
+    private final AuthorizationPolicy authorizationPolicy;
 
     /**
      * Builds one inclusive, oldest-first report for an authenticated actor and target Intern.
@@ -271,29 +275,39 @@ public class AttendanceReportQueryService {
         if (identity.role() != expectedRole) {
             throw new AccessDeniedException("Attendance actor role does not match the account");
         }
-        if (actor.role() == GlobalRole.INTERN) {
-            if (actor.userId() != internId || identity.status() != AccountStatus.ACTIVE) {
-                throw new AccessDeniedException("Interns may view only their own attendance");
-            }
-            return;
-        }
-        boolean activeBroadActor = (actor.role() == GlobalRole.MENTOR && identity.role() == GlobalRole.MENTOR
-                || actor.role() == GlobalRole.ADMIN && identity.role() == GlobalRole.ADMIN)
-                && identity.status() == AccountStatus.ACTIVE;
-        if (!activeBroadActor) {
-            throw new AccessDeniedException("An active Mentor or Admin is required");
-        }
+        String invalidTargetMessage = actor.role() == GlobalRole.INTERN
+                ? "Interns may view only their own attendance"
+                : "Attendance report target must be an Intern";
         if (internId <= 0) {
-            throw new AccessDeniedException("Attendance report target must be an Intern");
+            throw new AccessDeniedException(invalidTargetMessage);
         }
         AccountIdentity target;
         try {
             target = accounts.requireIdentityById(internId);
         } catch (IllegalArgumentException exception) {
-            throw new AccessDeniedException("Attendance report target must be an Intern");
+            throw new AccessDeniedException(invalidTargetMessage);
         }
-        if (target.role() != GlobalRole.INTERN) {
-            throw new AccessDeniedException("Attendance report target must be an Intern");
+        if (target == null || target.role() != GlobalRole.INTERN) {
+            throw new AccessDeniedException(invalidTargetMessage);
+        }
+        Set<AuthorizationColumn> actorColumns = Set.of();
+        if (identity.status() == AccountStatus.ACTIVE) {
+            actorColumns = switch (actor.role()) {
+                case ADMIN -> Set.of(AuthorizationColumn.ADMIN);
+                case MENTOR -> Set.of(AuthorizationColumn.OWNING_MENTOR);
+                case INTERN -> actor.userId() == target.id()
+                        ? Set.of(AuthorizationColumn.ACTIVE_MEMBER_ASSIGNEE)
+                        : Set.of();
+            };
+        }
+        boolean allowed = authorizationPolicy.allows(
+                AuthorizationCapability.ATTENDANCE_REPORT,
+                new AuthorizationRequest(actorColumns, identity.status().name(), target.status().name(), null));
+        if (!allowed) {
+            String message = actor.role() == GlobalRole.INTERN
+                    ? "Interns may view only their own attendance"
+                    : "An active Mentor or Admin is required";
+            throw new AccessDeniedException(message);
         }
     }
 

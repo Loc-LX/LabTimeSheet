@@ -30,6 +30,7 @@ import com.lab.labtimesheet.feature.project.model.dto.ProjectTaskMemberView;
 import com.lab.labtimesheet.feature.project.service.ProjectQueryService;
 import com.lab.labtimesheet.feature.project.service.ProjectService;
 import com.lab.labtimesheet.feature.project.exception.TaskConflictException;
+import com.lab.labtimesheet.feature.project.exception.TaskNotFoundException;
 import com.lab.labtimesheet.feature.project.exception.TaskValidationException;
 import com.lab.labtimesheet.feature.project.model.TaskStatus;
 import com.lab.labtimesheet.feature.project.model.dto.CreateTaskCommand;
@@ -43,6 +44,8 @@ import com.lab.labtimesheet.feature.project.repository.TaskRemainingEffortForeca
 import com.lab.labtimesheet.feature.project.repository.TaskRepository;
 import com.lab.labtimesheet.feature.project.repository.TaskWorkLogRepository;
 import com.lab.labtimesheet.platform.model.GlobalRole;
+import com.lab.labtimesheet.platform.authorization.AuthorizationCatalogue;
+import com.lab.labtimesheet.platform.authorization.AuthorizationPolicy;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -76,6 +79,8 @@ class TaskMutationBoundaryTest {
     @Mock private InternshipService internships;
     @Mock private NotificationService notifications;
     @Mock private TaskRemainingEffortForecastRepository forecasts;
+    private final AuthorizationPolicy authorizationPolicy =
+            new AuthorizationPolicy(AuthorizationCatalogue.loadDefault());
 
     private TaskService service;
     private ProjectTaskContext context;
@@ -93,7 +98,8 @@ class TaskMutationBoundaryTest {
                 accounts,
                 internships,
                 notifications,
-                forecasts);
+                forecasts,
+                authorizationPolicy);
         context = new ProjectTaskContext(
                 10L,
                 3L,
@@ -480,19 +486,25 @@ class TaskMutationBoundaryTest {
         return task;
     }
 
+    /**
+     * Protects {@code AUTH-012} and {@code TSK-023}. Observable break: without policy enforcement the owning Mentor
+     * can move an ACTIVE Project Task from TODO to IN_PROGRESS; §5.2 grants only the five encoded edges.
+     */
     @Test
-    void owningMentorCanChangeStatusForAnyProjectTask() {
+    void owningMentorCannotSetAnUnlistedTaskStatus() {
         when(accounts.requireAccountIdByEmail("mentor@example.test")).thenReturn(3L);
         when(projectMutations.taskMutationContext(3L, 10L)).thenReturn(context);
-        Task task = taskForView(TaskStatus.TODO);
+        Task task = mock(Task.class);
+        when(task.getStatus()).thenReturn(TaskStatus.TODO);
         when(tasks.findLockedByIdAndProjectIdAndDeletedAtIsNull(25L, 10L))
                 .thenReturn(Optional.of(task));
-        when(tasks.saveAndFlush(task)).thenReturn(task);
 
-        service.changeStatus("mentor@example.test", 10L, 25L, TaskStatus.IN_PROGRESS);
+        assertThatThrownBy(() -> service.changeStatus(
+                        "mentor@example.test", 10L, 25L, TaskStatus.IN_PROGRESS))
+                .isInstanceOf(TaskNotFoundException.class);
 
-        verify(task).changeStatus(TaskStatus.IN_PROGRESS, NOW);
-        verify(tasks).saveAndFlush(task);
+        verify(task, never()).changeStatus(TaskStatus.IN_PROGRESS, NOW);
+        verify(tasks, never()).saveAndFlush(task);
     }
 
     @Test

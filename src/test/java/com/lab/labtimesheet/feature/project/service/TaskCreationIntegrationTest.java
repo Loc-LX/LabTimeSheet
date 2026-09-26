@@ -438,24 +438,23 @@ class TaskCreationIntegrationTest {
                 "/projects/%d/tasks/%d".formatted(projectId, task.id()));
     }
 
+    /** Protects §5.2 and {@code TSK-023}: a Mentor cannot start another member's Task. */
     @Test
-    void owningMentorCanChangeStatusForAnyTaskOnAnActiveProject() {
+    void owningMentorCannotStartAnotherMembersTask() {
         TaskView task = taskService.create(
                 "member@example.test",
                 new CreateTaskCommand(projectId, memberMembershipId, "Mentor status control", null, null));
         activateProject();
 
-        TaskView changed = taskService.changeStatus(
-                "mentor@example.test", projectId, task.id(), TaskStatus.IN_PROGRESS);
-
-        assertThat(changed.status()).isEqualTo(TaskStatus.IN_PROGRESS);
+        assertThatThrownBy(() -> taskService.changeStatus(
+                        "mentor@example.test", projectId, task.id(), TaskStatus.IN_PROGRESS))
+                .isInstanceOf(TaskNotFoundException.class);
         assertThat(jdbc.sql("select status from tasks where id = :id")
                 .param("id", task.id())
                 .query(String.class)
-                .single()).isEqualTo(TaskStatus.IN_PROGRESS.name());
-        assertThat(notificationRecipientIds()).containsExactly(userId("leader@example.test"));
-        assertThat(notificationTypes()).containsExactly("TASK_STATUS_CHANGED");
-        assertThat(notificationEmailStatuses()).containsExactly("NOT_REQUIRED");
+                .single()).isEqualTo(TaskStatus.TODO.name());
+        assertThat(notificationRecipientIds()).isEmpty();
+        assertThat(notificationTypes()).isEmpty();
     }
 
     @Test
