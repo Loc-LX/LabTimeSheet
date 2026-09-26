@@ -303,7 +303,30 @@ public class AccountService {
         requireActiveAdminId(adminId);
         AppUser target = users.findForUpdateById(targetUserId)
                 .orElseThrow(() -> new IllegalArgumentException("Account not found"));
-        target.deactivate(clock.instant());
+        boolean pending = target.getAccountStatus() == AccountStatus.PENDING_ACTIVATION;
+        Instant now = clock.instant();
+        target.deactivate(now);
+        if (pending) {
+            invalidateLiveTokens(targetUserId, TokenPurpose.ACTIVATION, now);
+            invalidateLiveTokens(targetUserId, TokenPurpose.PASSWORD_RESET, now);
+        }
+        invalidateSessions(target);
+    }
+
+    /**
+     * Reinstates one account from its retained activation and lock history and expires any prior session.
+     *
+     * @param targetUserId account to reinstate
+     * @param adminId active Admin authorizing the mutation
+     * @throws IllegalArgumentException when the actor or target account is missing or the actor is not an active Admin
+     * @throws IllegalStateException when the target account is not deactivated
+     */
+    @Transactional
+    public void reinstateAccount(long targetUserId, long adminId) {
+        requireActiveAdminId(adminId);
+        AppUser target = users.findForUpdateById(targetUserId)
+                .orElseThrow(() -> new IllegalArgumentException("Account not found"));
+        target.reinstate(clock.instant());
         invalidateSessions(target);
     }
 

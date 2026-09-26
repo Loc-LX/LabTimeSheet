@@ -88,13 +88,20 @@
             </form>
           </div>
         </div>
-        <div class="account-detail-danger" th:if="${selectedAccount.accountStatus.name() == 'ACTIVE' or selectedAccount.accountStatus.name() == 'LOCKED'}">
+        <div class="account-detail-danger" th:if="${selectedAccount.accountStatus.name() != 'DEACTIVATED'}">
           <p class="account-detail-action-label">Destructive action</p>
           <p class="field-help">Deactivation ends authentication access immediately while retained history stays attributable.</p>
           <form method="post"
                 th:action="@{/admin/accounts/{id}/deactivate(id=${selectedAccount.id})}"
                 data-confirm="Deactivate this account? The user will lose authentication access immediately and existing sessions will expire. Historical attribution remains.">
             <button class="button button-danger" type="submit">Deactivate account</button>
+          </form>
+        </div>
+        <div class="account-detail-action-group" th:if="${selectedAccount.accountStatus.name() == 'DEACTIVATED'}">
+          <p class="account-detail-action-label">Account controls</p>
+          <p class="field-help">Reinstatement returns the state the account's history allows: locked if it was locked, pending activation if it was never activated, otherwise active. No internship or Project history is restored.</p>
+          <form method="post" th:action="@{/admin/accounts/{id}/reinstate(id=${selectedAccount.id})}">
+            <button class="button" type="submit">Reinstate account</button>
           </form>
         </div>
       </div>

@@ -146,6 +146,42 @@ class AccountWebIntegrationTest {
                 .andExpect(unauthenticated());
     }
 
+    /** Protects ACC-028, ACC-029, AUTH-002 and SEC-001: account lifecycle routes are Admin-only and CSRF-protected. */
+    @Test
+    void onlyAdminCanDeactivateAndReinstateAccounts() throws Exception {
+        var pending = internships.create(new com.lab.labtimesheet.feature.identity.model.dto.CreateAccountCommand(
+                "route-pending@example.test", "Pending", GlobalRole.MENTOR, null, null, null),
+                accounts.requireActiveAdminId("admin@example.com"));
+
+        var mentorRefusal = mockMvc.perform(post("/admin/accounts/{id}/deactivate", pending.userId())
+                        .with(user("mentor@example.test").roles("MENTOR")).with(csrf()))
+                .andExpect(status().isForbidden()).andReturn();
+        var internRefusal = mockMvc.perform(post("/admin/accounts/{id}/deactivate", pending.userId())
+                        .with(user("intern@example.test").roles("INTERN")).with(csrf()))
+                .andExpect(status().isForbidden()).andReturn();
+        assertThat(mentorRefusal.getResponse().getContentAsString())
+                .isEqualTo(internRefusal.getResponse().getContentAsString());
+        assertThat(accounts.requireIdentityById(pending.userId()).status()).isEqualTo(AccountStatus.PENDING_ACTIVATION);
+
+        mockMvc.perform(post("/admin/accounts/{id}/deactivate", pending.userId())
+                        .with(user("admin@example.com").roles("ADMIN")).with(csrf()))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/admin/accounts/" + pending.userId()));
+        assertThat(accounts.requireIdentityById(pending.userId()).status()).isEqualTo(AccountStatus.DEACTIVATED);
+
+        mockMvc.perform(post("/admin/accounts/{id}/reinstate", pending.userId())
+                        .with(user("admin@example.com").roles("ADMIN")).with(csrf()))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/admin/accounts/" + pending.userId()));
+        assertThat(accounts.requireIdentityById(pending.userId()).status()).isEqualTo(AccountStatus.PENDING_ACTIVATION);
+
+        for (String role : new String[] {"MENTOR", "INTERN"}) {
+            mockMvc.perform(post("/admin/accounts/{id}/reinstate", pending.userId())
+                            .with(user("actor@example.test").roles(role)).with(csrf()))
+                    .andExpect(status().isForbidden());
+        }
+    }
+
     @Test
     void invalidAndDuplicateAccountFormsReturnActionableErrorsWithoutCreatingAnotherAccount() throws Exception {
         mockMvc.perform(post("/admin/accounts")
