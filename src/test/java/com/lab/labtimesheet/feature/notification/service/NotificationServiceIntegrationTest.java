@@ -30,6 +30,11 @@ import com.lab.labtimesheet.platform.model.dto.SmtpConnection;
 import com.lab.labtimesheet.platform.model.dto.SmtpDraft;
 import com.lab.labtimesheet.platform.service.SmtpConfigurationService;
 import com.lab.labtimesheet.platform.service.SmtpProbe;
+import com.lab.labtimesheet.platform.authorization.AuthorizationCapability;
+import com.lab.labtimesheet.platform.authorization.AuthorizationColumn;
+import com.lab.labtimesheet.platform.authorization.AuthorizationPolicy;
+import com.lab.labtimesheet.platform.authorization.AuthorizationRequest;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -44,6 +49,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
 /** PostgreSQL proof for the Platform-owned notification persistence and delivery boundary. */
 @Import({TestcontainersConfiguration.class, NotificationServiceIntegrationTest.MailProbeConfiguration.class})
@@ -74,6 +80,39 @@ class NotificationServiceIntegrationTest {
 
     @Autowired
     private RecordingSmtpProbe mail;
+
+    @MockitoSpyBean
+    private AuthorizationPolicy authorizationPolicy;
+
+    /** Protects AUTH-012 and B.8: both failed-email operations use the §5.2 global-configuration row. */
+    @Test
+    void activeAdminFailedEmailViewUsesGlobalConfigurationPolicy() {
+        bootstrap.bootstrap("policy-admin@example.com", "Admin", "correct horse battery staple");
+        long adminId = accounts.requireActiveAdminId("policy-admin@example.com");
+
+        notifications.failedEmailViews(adminId);
+        assertThat(notifications.retryFailedEmail(999L, adminId)).isFalse();
+        org.mockito.Mockito.verify(authorizationPolicy, org.mockito.Mockito.times(2)).allows(
+                AuthorizationCapability.GLOBAL_CONFIGURATION,
+                new AuthorizationRequest(Set.of(AuthorizationColumn.ADMIN), null, null, null));
+    }
+
+    /** Protects AUTH-012 and B.8: a locked Admin supplies no §5.2 actor column and keeps the existing refusal. */
+    @Test
+    void lockedAdminCannotViewFailedEmailThroughGlobalConfigurationPolicy() {
+        bootstrap.bootstrap("locked-policy-admin@example.com", "Admin", "correct horse battery staple");
+        long adminId = accounts.requireActiveAdminId("locked-policy-admin@example.com");
+        accounts.lockAccount(adminId, adminId);
+        assertThatThrownBy(() -> notifications.failedEmailViews(adminId))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("An active Admin is required");
+        assertThatThrownBy(() -> notifications.retryFailedEmail(999L, adminId))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("An active Admin is required");
+        org.mockito.Mockito.verify(authorizationPolicy, org.mockito.Mockito.times(2)).allows(
+                AuthorizationCapability.GLOBAL_CONFIGURATION,
+                new AuthorizationRequest(Set.of(), null, null, null));
+    }
 
     @Test
     void unavailableDeliveryPersistsOneDeduplicatedRowAndNeverReplays() {

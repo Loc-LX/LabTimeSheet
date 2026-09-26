@@ -112,6 +112,7 @@ class AttendanceLombokBoilerplateTest {
                         PACKAGE_PRIVATE,
                         Clock.class,
                         AccountService.class,
+                        AuthorizationPolicy.class,
                         AttendancePolicyRepository.class,
                         GlobalCalendarEventRepository.class,
                         HolidayApiConfigurationService.class,
@@ -119,7 +120,12 @@ class AttendanceLombokBoilerplateTest {
         assertConstructors(AttendanceService.class, constructor(PACKAGE_PRIVATE));
         assertConstructors(
                 AttendancePolicyApplicationService.class,
-                constructor(PACKAGE_PRIVATE, Clock.class, AccountService.class, AttendancePolicyRepository.class));
+                constructor(
+                        PACKAGE_PRIVATE,
+                        Clock.class,
+                        AccountService.class,
+                        AuthorizationPolicy.class,
+                        AttendancePolicyRepository.class));
         assertConstructors(
                 LeaveApplicationService.class,
                 constructor(

@@ -2,11 +2,14 @@ package com.lab.labtimesheet.feature.calendar.service;
 
 import com.lab.labtimesheet.feature.calendar.exception.PolicyException;
 import com.lab.labtimesheet.feature.calendar.model.AttendancePolicy;
+import com.lab.labtimesheet.feature.identity.model.dto.AccountIdentity;
 import com.lab.labtimesheet.feature.identity.service.AccountService;
 import com.lab.labtimesheet.feature.calendar.model.dto.AttendancePolicyCommand;
 import com.lab.labtimesheet.feature.calendar.model.dto.AttendancePolicyHistoryItem;
 import com.lab.labtimesheet.feature.calendar.model.entity.AttendancePolicyEntity;
 import com.lab.labtimesheet.feature.calendar.repository.AttendancePolicyRepository;
+import com.lab.labtimesheet.platform.authorization.AuthorizationCapability;
+import com.lab.labtimesheet.platform.authorization.AuthorizationPolicy;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -27,6 +30,7 @@ public class AttendancePolicyApplicationService {
 
     private final Clock clock;
     private final AccountService accounts;
+    private final AuthorizationPolicy authorizationPolicy;
     private final AttendancePolicyRepository policies;
 
     /**
@@ -100,7 +104,17 @@ public class AttendancePolicyApplicationService {
 
     private long requireActiveAdminId(long adminId) {
         try {
-            return accounts.requireActiveAdminId(adminId);
+            AccountIdentity identity = accounts.identityById(adminId).orElse(null);
+            boolean allowed = authorizationPolicy.allows(
+                    AuthorizationCapability.GLOBAL_CONFIGURATION,
+                    CalendarAuthorizationRequests.activeAdmin(identity));
+            if (identity == null) {
+                throw new IllegalArgumentException("Admin not found");
+            }
+            if (!allowed) {
+                throw new IllegalArgumentException("An active Admin is required");
+            }
+            return adminId;
         } catch (IllegalArgumentException exception) {
             throw new AccessDeniedException("Only Admin may manage attendance policy", exception);
         }

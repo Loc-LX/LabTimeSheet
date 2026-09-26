@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.util.List;
 
 import com.lab.labtimesheet.feature.identity.service.AccountService;
+import com.lab.labtimesheet.feature.identity.model.dto.AccountIdentity;
 import com.lab.labtimesheet.feature.calendar.model.HolidayApiStatus;
 import com.lab.labtimesheet.feature.calendar.model.dto.HolidayApiDraft;
 import com.lab.labtimesheet.feature.calendar.model.dto.HolidayApiPreview;
@@ -13,6 +14,8 @@ import com.lab.labtimesheet.feature.calendar.model.dto.HolidayApiSetupStatus;
 import com.lab.labtimesheet.feature.calendar.model.entity.HolidayApiConfiguration;
 import com.lab.labtimesheet.feature.calendar.repository.HolidayApiConfigurationRepository;
 import com.lab.labtimesheet.platform.model.dto.EncryptedSecret;
+import com.lab.labtimesheet.platform.authorization.AuthorizationCapability;
+import com.lab.labtimesheet.platform.authorization.AuthorizationPolicy;
 import com.lab.labtimesheet.platform.service.SecretCipher;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +35,7 @@ public class HolidayApiConfigurationService {
 
     private final HolidayApiConfigurationRepository configurations;
     private final AccountService accounts;
+    private final AuthorizationPolicy authorizationPolicy;
     private final SecretCipher secrets;
     private final HolidayApiHttpClient client;
     private final Clock clock;
@@ -46,7 +50,7 @@ public class HolidayApiConfigurationService {
      */
     @Transactional
     public long saveDraft(long adminId, HolidayApiDraft draft) {
-        long verifiedAdminId = accounts.requireActiveAdminId(adminId);
+        long verifiedAdminId = requireActiveAdminId(adminId);
         EncryptedSecret apiKey = secrets.encrypt(draft.apiKey());
         var now = clock.instant();
         HolidayApiConfiguration configuration = configurations.findByStatus(HolidayApiStatus.DRAFT)
@@ -68,7 +72,7 @@ public class HolidayApiConfigurationService {
      * @return safe success candidates or actionable failure status
      */
     public HolidayApiPreview testDraft(long draftId, long adminId, int year) {
-        long verifiedAdminId = accounts.requireActiveAdminId(adminId);
+        long verifiedAdminId = requireActiveAdminId(adminId);
         HolidayApiConfiguration draft = configurations.findById(draftId)
                 .filter(configuration -> configuration.getStatus() == HolidayApiStatus.DRAFT)
                 .orElseThrow(() -> new IllegalStateException("HolidayAPI configuration is not available"));
@@ -88,7 +92,7 @@ public class HolidayApiConfigurationService {
      */
     @Transactional
     public void activate(long draftId, long adminId) {
-        long verifiedAdminId = accounts.requireActiveAdminId(adminId);
+        long verifiedAdminId = requireActiveAdminId(adminId);
         HolidayApiConfiguration draft = configurations.findWithLockByIdAndStatus(draftId, HolidayApiStatus.DRAFT)
                 .orElseThrow(() -> new IllegalStateException("HolidayAPI draft must pass a test before activation"));
         var now = clock.instant();
@@ -109,7 +113,7 @@ public class HolidayApiConfigurationService {
      * @return immutable candidates or a secret-free actionable status
      */
     public HolidayApiPreview preview(long adminId, int year) {
-        accounts.requireActiveAdminId(adminId);
+        requireActiveAdminId(adminId);
         HolidayApiConfiguration active = configurations.findByStatus(HolidayApiStatus.ACTIVE).orElse(null);
         if (active == null) {
             return new HolidayApiPreview(HolidayApiPreviewStatus.ABSENT_KEY, List.of(), ABSENT_KEY_MESSAGE, null);
@@ -125,7 +129,7 @@ public class HolidayApiConfigurationService {
      */
     @Transactional(readOnly = true)
     public HolidayApiSetupStatus setupStatus(long adminId) {
-        accounts.requireActiveAdminId(adminId);
+        requireActiveAdminId(adminId);
         boolean active = configurations.existsByStatus(HolidayApiStatus.ACTIVE);
         return configurations.findByStatus(HolidayApiStatus.DRAFT)
                 .map(draft -> new HolidayApiSetupStatus(active, draft.getId(), draft.getTestedAt() != null,
@@ -142,7 +146,7 @@ public class HolidayApiConfigurationService {
      */
     @Transactional(readOnly = true)
     public List<HolidayApiRevisionHistory> history(long adminId) {
-        accounts.requireActiveAdminId(adminId);
+        requireActiveAdminId(adminId);
         return configurations.findAllByOrderByCreatedAtDescIdDesc().stream()
                 .map(configuration -> new HolidayApiRevisionHistory(
                         configuration.getId(), configuration.getStatus(), configuration.getCountryCode(),
@@ -152,6 +156,20 @@ public class HolidayApiConfigurationService {
                         configuration.getCreatedByUserId(), configuration.getCreatedAt(),
                         configuration.getUpdatedAt()))
                 .toList();
+    }
+
+    private long requireActiveAdminId(long adminId) {
+        AccountIdentity identity = accounts.identityById(adminId).orElse(null);
+        boolean allowed = authorizationPolicy.allows(
+                AuthorizationCapability.GLOBAL_CONFIGURATION,
+                CalendarAuthorizationRequests.activeAdmin(identity));
+        if (identity == null) {
+            throw new IllegalArgumentException("Admin not found");
+        }
+        if (!allowed) {
+            throw new IllegalArgumentException("An active Admin is required");
+        }
+        return adminId;
     }
 
     private HolidayApiPreview fetch(String apiKey, int year) {

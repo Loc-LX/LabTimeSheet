@@ -13,6 +13,7 @@ import com.lab.labtimesheet.feature.identity.model.AccountStatus;
 import com.lab.labtimesheet.feature.internship.model.InternshipStatus;
 import com.lab.labtimesheet.feature.identity.model.dto.AccountCreation;
 import com.lab.labtimesheet.feature.identity.model.dto.CreateAccountCommand;
+import com.lab.labtimesheet.feature.identity.model.dto.AccountIdentityCorrection;
 import com.lab.labtimesheet.feature.identity.repository.AppUserRepository;
 import com.lab.labtimesheet.feature.internship.repository.InternProfileRepository;
 import com.lab.labtimesheet.platform.model.GlobalRole;
@@ -21,6 +22,11 @@ import com.lab.labtimesheet.platform.model.dto.SmtpConnection;
 import com.lab.labtimesheet.platform.model.dto.SmtpDraft;
 import com.lab.labtimesheet.platform.service.SmtpConfigurationService;
 import com.lab.labtimesheet.platform.service.SmtpProbe;
+import com.lab.labtimesheet.platform.authorization.AuthorizationCapability;
+import com.lab.labtimesheet.platform.authorization.AuthorizationColumn;
+import com.lab.labtimesheet.platform.authorization.AuthorizationPolicy;
+import com.lab.labtimesheet.platform.authorization.AuthorizationRequest;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -30,6 +36,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
 @Import({TestcontainersConfiguration.class, InternshipLifecycleIntegrationTest.MailProbeConfiguration.class})
 @SpringBootTest
@@ -56,6 +63,44 @@ class InternshipLifecycleIntegrationTest {
 
     @Autowired
     private InternProfileRepository profiles;
+
+    @MockitoSpyBean
+    private AuthorizationPolicy authorizationPolicy;
+
+    /** Protects AUTH-012 and B.8: Admin-owned Internship operations use the §5.2 account-lifecycle row. */
+    @Test
+    void activeAdminLifecycleReadinessUsesAccountLifecyclePolicy() {
+        bootstrap.bootstrap("policy-admin@example.com", "Admin", "correct horse battery staple");
+        long adminId = accounts.requireActiveAdminId("policy-admin@example.com");
+        activateSmtp(adminId);
+        var intern = createAndActivate("policy-intern@example.com", "STU-POLICY", adminId);
+        org.mockito.Mockito.clearInvocations(authorizationPolicy);
+
+        internships.correctAccount(intern.userId(), adminId,
+                new AccountIdentityCorrection(null, "STU-POLICY-UPDATED", null, null));
+        internships.administrationViews(adminId);
+        internships.administrationView(intern.userId(), adminId);
+        internships.internshipLifecycleReadiness(intern.userId(), adminId);
+        org.mockito.Mockito.verify(authorizationPolicy, org.mockito.Mockito.times(4)).allows(
+                AuthorizationCapability.ACCOUNT_LIFECYCLE,
+                new AuthorizationRequest(Set.of(AuthorizationColumn.ADMIN), null, null, null));
+    }
+
+    /** Protects AUTH-012 and B.8: an Intern actor supplies no §5.2 column and keeps the existing refusal. */
+    @Test
+    void internCannotReadLifecycleReadinessThroughAccountLifecyclePolicy() {
+        bootstrap.bootstrap("policy-admin@example.com", "Admin", "correct horse battery staple");
+        long adminId = accounts.requireActiveAdminId("policy-admin@example.com");
+        activateSmtp(adminId);
+        var intern = createAndActivate("policy-intern@example.com", "STU-POLICY", adminId);
+        org.mockito.Mockito.clearInvocations(authorizationPolicy);
+        assertThatThrownBy(() -> internships.internshipLifecycleReadiness(intern.userId(), intern.userId()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("An active Admin is required");
+        org.mockito.Mockito.verify(authorizationPolicy).allows(
+                AuthorizationCapability.ACCOUNT_LIFECYCLE,
+                new AuthorizationRequest(Set.of(), null, null, null));
+    }
 
     @Test
     void scheduledStartIsIdempotentAndTerminalActionsApplyGuardsAndPreserveCompletedAuthentication() {

@@ -12,6 +12,7 @@ import java.util.Objects;
 import java.util.Set;
 
 import com.lab.labtimesheet.feature.identity.service.AccountService;
+import com.lab.labtimesheet.feature.identity.model.dto.AccountIdentity;
 import com.lab.labtimesheet.feature.notification.model.NotificationEmailStatus;
 import com.lab.labtimesheet.feature.notification.model.NotificationType;
 import com.lab.labtimesheet.feature.notification.model.dto.NotificationAction;
@@ -23,6 +24,8 @@ import com.lab.labtimesheet.feature.notification.model.dto.NotificationRecipient
 import com.lab.labtimesheet.feature.notification.model.entity.NotificationEntity;
 import com.lab.labtimesheet.feature.notification.repository.NotificationRepository;
 import com.lab.labtimesheet.platform.service.MailDeliveryService;
+import com.lab.labtimesheet.platform.authorization.AuthorizationCapability;
+import com.lab.labtimesheet.platform.authorization.AuthorizationPolicy;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -58,13 +61,14 @@ public class NotificationService {
     private final Clock clock;
     private final PlatformTransactionManager transactionManager;
     private final AccountService accounts;
+    private final AuthorizationPolicy authorizationPolicy;
 
     NotificationService(
             NotificationRepository notifications,
             MailDeliveryService mailDelivery,
             Clock clock,
             PlatformTransactionManager transactionManager) {
-        this(notifications, mailDelivery, clock, transactionManager, null);
+        this(notifications, mailDelivery, clock, transactionManager, null, null);
     }
 
     @Autowired
@@ -73,12 +77,14 @@ public class NotificationService {
             MailDeliveryService mailDelivery,
             Clock clock,
             PlatformTransactionManager transactionManager,
-            AccountService accounts) {
+            AccountService accounts,
+            AuthorizationPolicy authorizationPolicy) {
         this.notifications = notifications;
         this.mailDelivery = mailDelivery;
         this.clock = clock;
         this.transactionManager = transactionManager;
         this.accounts = accounts;
+        this.authorizationPolicy = authorizationPolicy;
     }
 
     /**
@@ -210,7 +216,7 @@ public class NotificationService {
      */
     @Transactional(readOnly = true)
     public List<NotificationDeliveryView> failedEmailViews(long adminId) {
-        requireAccountService().requireActiveAdminId(adminId);
+        requireActiveAdminId(adminId);
         return notifications.findByEmailStatusOrderByUpdatedAtDescIdDesc(NotificationEmailStatus.FAILED).stream()
                 .map(NotificationService::deliveryView)
                 .toList();
@@ -226,7 +232,7 @@ public class NotificationService {
      */
     @Transactional
     public boolean retryFailedEmail(long notificationId, long adminId) {
-        requireAccountService().requireActiveAdminId(adminId);
+        requireActiveAdminId(adminId);
         NotificationEntity notification = notifications.findForUpdateById(notificationId).orElse(null);
         if (notification == null || notification.getEmailStatus() != NotificationEmailStatus.FAILED) {
             return false;
@@ -255,6 +261,20 @@ public class NotificationService {
             throw new IllegalStateException("Account authorization is unavailable");
         }
         return accounts;
+    }
+
+    private long requireActiveAdminId(long adminId) {
+        AccountIdentity identity = requireAccountService().identityById(adminId).orElse(null);
+        boolean allowed = authorizationPolicy.allows(
+                AuthorizationCapability.GLOBAL_CONFIGURATION,
+                NotificationAuthorizationRequests.activeAdmin(identity));
+        if (identity == null) {
+            throw new IllegalArgumentException("Admin not found");
+        }
+        if (!allowed) {
+            throw new IllegalArgumentException("An active Admin is required");
+        }
+        return adminId;
     }
 
     private void validateSelfTaskShape(NotificationEvent event, NotificationAction action) {

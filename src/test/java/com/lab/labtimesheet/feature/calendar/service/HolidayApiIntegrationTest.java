@@ -15,6 +15,11 @@ import com.lab.labtimesheet.feature.calendar.model.dto.HolidayApiDraft;
 import com.lab.labtimesheet.feature.calendar.model.dto.HolidayApiPreviewStatus;
 import com.lab.labtimesheet.feature.calendar.model.dto.HolidayApiRevisionHistory;
 import com.lab.labtimesheet.feature.calendar.repository.HolidayApiConfigurationRepository;
+import com.lab.labtimesheet.platform.authorization.AuthorizationCapability;
+import com.lab.labtimesheet.platform.authorization.AuthorizationColumn;
+import com.lab.labtimesheet.platform.authorization.AuthorizationPolicy;
+import com.lab.labtimesheet.platform.authorization.AuthorizationRequest;
+import java.util.Set;
 import org.springframework.web.client.RestClient;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -23,10 +28,13 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
 @Import({TestcontainersConfiguration.class, HolidayApiIntegrationTest.ClientConfiguration.class})
 @SpringBootTest
 @ActiveProfiles("test")
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 class HolidayApiIntegrationTest {
 
     @org.springframework.beans.factory.annotation.Autowired
@@ -43,6 +51,35 @@ class HolidayApiIntegrationTest {
 
     @org.springframework.beans.factory.annotation.Autowired
     private RecordingHolidayApiClient client;
+
+    @MockitoSpyBean
+    private AuthorizationPolicy authorizationPolicy;
+
+    /** Protects AUTH-012 and B.8: the §5.2 global-configuration row governs settings history for an active Admin. */
+    @Test
+    void activeAdminHistoryUsesGlobalConfigurationPolicy() {
+        bootstrapService.bootstrap("admin@example.com", "Admin", "correct horse battery staple");
+        long adminId = accountService.requireActiveAdminId("admin@example.com");
+
+        holidayApi.history(adminId);
+        org.mockito.Mockito.verify(authorizationPolicy).allows(
+                AuthorizationCapability.GLOBAL_CONFIGURATION,
+                new AuthorizationRequest(Set.of(AuthorizationColumn.ADMIN), null, null, null));
+    }
+
+    /** Protects AUTH-012 and B.8: an inactive stored Admin supplies no §5.2 actor column and keeps the existing refusal. */
+    @Test
+    void lockedAdminCannotReadHistoryThroughGlobalConfigurationPolicy() {
+        bootstrapService.bootstrap("admin@example.com", "Admin", "correct horse battery staple");
+        long adminId = accountService.requireActiveAdminId("admin@example.com");
+        accountService.lockAccount(adminId, adminId);
+        assertThatThrownBy(() -> holidayApi.history(adminId))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("An active Admin is required");
+        org.mockito.Mockito.verify(authorizationPolicy).allows(
+                AuthorizationCapability.GLOBAL_CONFIGURATION,
+                new AuthorizationRequest(Set.of(), null, null, null));
+    }
 
     @Test
     void lifecycleEncryptsRevisionsAndPreviewReportsActionableExternalStates() {

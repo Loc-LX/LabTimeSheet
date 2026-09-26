@@ -65,6 +65,8 @@ of `LEV-007` itself. Deciding a request stays under the row
 is not yet built, so those decisions do not go through the policy until it is. This mapping is
 recorded here rather than left to the implementer.
 
+The row "Manage SMTP, HolidayAPI, attendance policy, global calendar" also covers reading the history of those settings and viewing and retrying failed ordinary email deliveries, which are the operation of the configured SMTP server. This mapping is recorded here rather than left to the implementer.
+
 ### B.3 Where the catalogue lives
 
 A resource file of `platform`, read once at startup, one entry per capability and actor column,
