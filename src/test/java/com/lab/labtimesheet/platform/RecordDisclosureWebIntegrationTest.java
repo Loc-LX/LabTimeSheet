@@ -509,7 +509,7 @@ class RecordDisclosureWebIntegrationTest {
         long recipientId = createActiveIntern(adminId, "recipient@example.test", "INT-RECIPIENT");
         long otherId = createActiveIntern(adminId, "other@example.test", "INT-OTHER");
         NotificationEntity notification = notificationRows.saveAndFlush(NotificationEntity.create(
-                recipientId, NotificationType.SYSTEM, "Test", "Body", null,
+                recipientId, NotificationType.SYSTEM, "Test", "Body", null, null,
                 NotificationEmailStatus.NOT_REQUIRED, null, null, null, null, Instant.parse("2026-08-14T00:00:00Z")));
 
         var foreign = mvc.perform(post("/notifications/{notificationId}/read", notification.getId())
