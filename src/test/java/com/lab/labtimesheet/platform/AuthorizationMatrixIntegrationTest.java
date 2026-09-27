@@ -26,6 +26,7 @@ import com.lab.labtimesheet.feature.project.exception.TaskNotFoundException;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectCreateCommand;
 import com.lab.labtimesheet.feature.project.model.dto.CreateTaskCommand;
 import com.lab.labtimesheet.feature.project.model.dto.RemainingEffortForecastInput;
+import com.lab.labtimesheet.feature.project.model.dto.TaskStatusChangeCommand;
 import com.lab.labtimesheet.feature.project.model.dto.TaskWorkLogView;
 import com.lab.labtimesheet.feature.project.model.TaskStatus;
 import com.lab.labtimesheet.feature.project.service.ProjectService;
@@ -295,7 +296,12 @@ class AuthorizationMatrixIntegrationTest {
                 probe("complete Project", (fixture, actor) -> projects.complete(actor, fixture.projectId()),
                         fixture -> projects.activate(fixture.mentorId(), fixture.projectId()))));
         result.put(REGISTERED_CAPABILITIES.get(5), List.of(probe("delete empty PLANNED Project",
-                (fixture, actor) -> projects.delete(actor, fixture.projectId()))));
+                (fixture, actor) -> {
+                    long emptyProjectId = projects.create(fixture.mentorId(), new ProjectCreateCommand(
+                            "Matrix-empty " + fixture.label, null,
+                            LocalDate.of(2026, 8, 1), LocalDate.of(2026, 12, 31), fixture.leaderId()));
+                    projects.delete(actor, emptyProjectId);
+                })));
         result.put(REGISTERED_CAPABILITIES.get(6), List.of());
         result.put(REGISTERED_CAPABILITIES.get(7), List.of(
                 probe("directly add Project member", (fixture, actor) ->
@@ -389,14 +395,15 @@ class AuthorizationMatrixIntegrationTest {
                 probe("unblock another member's Task", (fixture, actor) -> {
                     long taskId = seedOtherMembersTask(fixture, actor);
                     tasks.changeStatus(fixture.email("mentor"), fixture.projectId(), taskId, TaskStatus.BLOCKED);
-                    tasks.changeStatus(fixture.emailForActor(actor), fixture.projectId(), taskId, TaskStatus.IN_PROGRESS);
+                    tasks.changeStatus(fixture.emailForActor(actor), fixture.projectId(), taskId, TaskStatus.TODO);
                 }),
                 probe("reopen another member's Task", (fixture, actor) -> {
                     long taskId = seedOtherMembersTask(fixture, actor);
                     String assigneeKey = actor == fixture.memberId() ? "leader" : "member";
                     tasks.changeStatus(fixture.email(assigneeKey), fixture.projectId(), taskId, TaskStatus.IN_PROGRESS);
                     tasks.changeStatus(fixture.email(assigneeKey), fixture.projectId(), taskId, TaskStatus.DONE);
-                    tasks.changeStatus(fixture.emailForActor(actor), fixture.projectId(), taskId, TaskStatus.IN_PROGRESS);
+                    tasks.changeStatus(fixture.emailForActor(actor), fixture.projectId(), taskId, null,
+                            new TaskStatusChangeCommand(TaskStatus.IN_PROGRESS, "Matrix reopen reason"));
                 })));
         result.put(REGISTERED_CAPABILITIES.get(17), List.of(
                 probeWithControl("start another member's Task", (fixture, actor) -> {
