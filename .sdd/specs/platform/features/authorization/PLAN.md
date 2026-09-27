@@ -67,6 +67,8 @@ recorded here rather than left to the implementer.
 
 The row "Manage SMTP, HolidayAPI, attendance policy, global calendar" also covers reading the history of those settings and viewing and retrying failed ordinary email deliveries, which are the operation of the configured SMTP server. This mapping is recorded here rather than left to the implementer.
 
+The row "Manage accounts/global roles at creation" covers creating an account with its global role, resending its activation email and reading the account directory. This mapping is recorded here rather than left to the implementer.
+
 ### B.3 Where the catalogue lives
 
 A resource file of `platform`, read once at startup, one entry per capability and actor column,

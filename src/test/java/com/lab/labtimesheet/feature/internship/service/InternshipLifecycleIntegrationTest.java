@@ -67,6 +67,29 @@ class InternshipLifecycleIntegrationTest {
     @MockitoSpyBean
     private AuthorizationPolicy authorizationPolicy;
 
+    /**
+     * Protects AUTH-012 and B.8: account creation with a global role uses the dedicated §5.2 Manage accounts row.
+     * An observable break is a policy call for account lifecycle instead; the hand-derived request is the active
+     * Admin column with no scope, record state, or target state.
+     */
+    @Test
+    void accountCreationUsesManageAccountsPolicy() {
+        bootstrap.bootstrap("create-policy-admin@example.com", "Admin", "correct horse battery staple");
+        long adminId = accounts.requireActiveAdminId("create-policy-admin@example.com");
+        activateSmtp(adminId);
+        org.mockito.Mockito.clearInvocations(authorizationPolicy);
+
+        internships.create(new CreateAccountCommand(
+                "created-with-policy@example.com", "Created with policy", GlobalRole.MENTOR,
+                null, null, null), adminId);
+
+        AuthorizationRequest expected = new AuthorizationRequest(Set.of(AuthorizationColumn.ADMIN), null, null, null);
+        org.mockito.Mockito.verify(authorizationPolicy, org.mockito.Mockito.times(2))
+                .allows(AuthorizationCapability.MANAGE_ACCOUNTS, expected);
+        org.mockito.Mockito.verify(authorizationPolicy, org.mockito.Mockito.never())
+                .allows(AuthorizationCapability.ACCOUNT_LIFECYCLE, expected);
+    }
+
     /** Protects AUTH-012 and B.8: Admin-owned Internship operations use the §5.2 account-lifecycle row. */
     @Test
     void activeAdminLifecycleReadinessUsesAccountLifecyclePolicy() {

@@ -6,6 +6,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
+import java.util.Set;
 
 import com.lab.labtimesheet.config.TestcontainersConfiguration;
 import com.lab.labtimesheet.feature.identity.model.AccountStatus;
@@ -15,6 +16,10 @@ import com.lab.labtimesheet.feature.identity.model.entity.UserActionToken;
 import com.lab.labtimesheet.feature.identity.repository.AppUserRepository;
 import com.lab.labtimesheet.feature.identity.repository.UserActionTokenRepository;
 import com.lab.labtimesheet.feature.internship.service.InternshipService;
+import com.lab.labtimesheet.platform.authorization.AuthorizationCapability;
+import com.lab.labtimesheet.platform.authorization.AuthorizationColumn;
+import com.lab.labtimesheet.platform.authorization.AuthorizationPolicy;
+import com.lab.labtimesheet.platform.authorization.AuthorizationRequest;
 import com.lab.labtimesheet.platform.model.GlobalRole;
 import com.lab.labtimesheet.platform.model.SecurityMode;
 import com.lab.labtimesheet.platform.model.dto.SmtpDraft;
@@ -30,6 +35,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
 /** PostgreSQL integration coverage for pending-account deactivation and its one-time links. */
 @Import({TestcontainersConfiguration.class, PendingAccountDeactivationIntegrationTest.MailConfiguration.class})
@@ -44,6 +50,34 @@ class PendingAccountDeactivationIntegrationTest {
     @Autowired private AppUserRepository users;
     @Autowired private UserActionTokenRepository tokens;
     @Autowired private RecordingProbe mail;
+    @MockitoSpyBean private AuthorizationPolicy authorizationPolicy;
+
+    /**
+     * Protects AUTH-012, ACC-028, ACC-029, and B.8: both pending-account deactivation and reinstatement must ask
+     * the lifecycle capability. An observable break is either transition proceeding without that policy call;
+     * the hand-derived request is the stored active Admin column with all state and scope values null.
+     */
+    @Test
+    void pendingDeactivationAndReinstatementAskAccountLifecyclePolicy() {
+        bootstrap.bootstrap("policy-admin@example.test", "Admin", "correct horse battery staple");
+        long adminId = accounts.requireActiveAdminId("policy-admin@example.test");
+        long smtpId = smtp.saveDraft(adminId, new SmtpDraft("mailpit", 1025, SecurityMode.NONE,
+                null, null, "admin@example.test", "Lab Timesheet"));
+        smtp.testDraft(smtpId, adminId, "admin@example.test");
+        smtp.activate(smtpId, adminId);
+        var pending = internships.create(new CreateAccountCommand(
+                "pending-policy@example.test", "Pending Policy", GlobalRole.MENTOR,
+                null, null, null), adminId);
+        AuthorizationRequest expected = new AuthorizationRequest(Set.of(AuthorizationColumn.ADMIN), null, null, null);
+
+        org.mockito.Mockito.clearInvocations(authorizationPolicy);
+        accounts.deactivateAccount(pending.userId(), adminId);
+        org.mockito.Mockito.verify(authorizationPolicy).allows(AuthorizationCapability.ACCOUNT_LIFECYCLE, expected);
+
+        org.mockito.Mockito.clearInvocations(authorizationPolicy);
+        accounts.reinstateAccount(pending.userId(), adminId);
+        org.mockito.Mockito.verify(authorizationPolicy).allows(AuthorizationCapability.ACCOUNT_LIFECYCLE, expected);
+    }
 
     /**
      * Protects ACC-014, ACC-016, ACC-028, ACC-029, ACC-030 and AC-ACC-020. Observable breaks include a

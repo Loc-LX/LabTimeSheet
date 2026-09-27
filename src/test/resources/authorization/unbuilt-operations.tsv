@@ -1,6 +1,4 @@
 # operation / rule / plan that builds the operation
-Admin deactivation of a PENDING_ACTIVATION account	ACC-028	Account lifecycle plan
-Admin reinstatement transitions from DEACTIVATED	ACC-029	Account lifecycle plan
 Edit Project details	AUTH-012	Project lifecycle plan (to be written)
 Cancel a PLANNED Project	PRJ-023	Project lifecycle plan (to be written)
 Cancel an ACTIVE Project	PRJ-023	Project lifecycle plan (to be written)

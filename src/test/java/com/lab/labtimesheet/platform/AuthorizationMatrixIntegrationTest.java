@@ -68,7 +68,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 /**
  * Exercises registered §5.2 capabilities through their application services.
  *
- * <p>Rules protected: {@code AC-AUTH-011}, {@code AUTH-012}, {@code TSK-007}, and {@code TSK-023}. Observable break: a cell can return the opposite
+ * <p>Rules protected: {@code AC-AUTH-011}, {@code AUTH-012}, {@code TSK-007}, {@code TSK-023}, {@code ACC-028},
+ * and {@code ACC-029}. Observable break: a cell can return the opposite
  * of the matrix. Expected values come from the hand-authored §5.2 matrix at runtime, and the first granted actor
  * runs as a counterexample before every other actor against a freshly reconstructed equivalent fixture.
  */
@@ -119,8 +120,6 @@ class AuthorizationMatrixIntegrationTest {
             "Ask to reopen a finalized attendance period (`ATT-022`)",
             "Approve or reject a request to reopen a finalized attendance period (`ATT-022`)");
     private static final List<UnbuiltOperation> UNBUILT_IN_CODE = List.of(
-            new UnbuiltOperation("Admin deactivation of a PENDING_ACTIVATION account", "ACC-028", "Account lifecycle plan"),
-            new UnbuiltOperation("Admin reinstatement transitions from DEACTIVATED", "ACC-029", "Account lifecycle plan"),
             new UnbuiltOperation("Edit Project details", "AUTH-012", "Project lifecycle plan (to be written)"),
             new UnbuiltOperation("Cancel a PLANNED Project", "PRJ-023", "Project lifecycle plan (to be written)"),
             new UnbuiltOperation("Cancel an ACTIVE Project", "PRJ-023", "Project lifecycle plan (to be written)"),
@@ -135,9 +134,6 @@ class AuthorizationMatrixIntegrationTest {
             new UnbuiltOperation("Approve or reject a request to reopen a finalized attendance period", "ATT-022",
                     "Period finalization plan, after part C creates the reopen request data"));
     private static final Map<String, List<String>> UNBUILT_BY_CAPABILITY = Map.of(
-            "Lock/deactivate accounts; manage internship lifecycle",
-                    List.of("Admin deactivation of a PENDING_ACTIVATION account",
-                            "Admin reinstatement transitions from DEACTIVATED"),
             "Edit/activate/complete Project", List.of("Edit Project details"),
             "Cancel a `PLANNED` or `ACTIVE` Project (`PRJ-023`)",
                     List.of("Cancel a PLANNED Project", "Cancel an ACTIVE Project"),
@@ -151,6 +147,9 @@ class AuthorizationMatrixIntegrationTest {
                     List.of("Ask to reopen a finalized attendance period"),
             "Approve or reject a request to reopen a finalized attendance period (`ATT-022`)",
                     List.of("Approve or reject a request to reopen a finalized attendance period"));
+    private static final Map<String, List<String>> REQUIRED_PROBES_BY_CAPABILITY = Map.of(
+            "Lock/deactivate accounts; manage internship lifecycle",
+            List.of("deactivate pending account (ACC-028)", "reinstate deactivated account (ACC-029)"));
     private static final List<String> ACTORS = List.of(
             "Admin", "Owning Mentor", "Current Leader", "Active member / assignee");
     private static final AtomicLong FIXTURE_SEQUENCE = new AtomicLong();
@@ -184,6 +183,10 @@ class AuthorizationMatrixIntegrationTest {
         assertThat(unbuiltOperations).containsExactlyElementsOf(UNBUILT_IN_CODE);
         assertThat(registry.values().stream().flatMap(List::stream).map(Subprobe::name).toList())
                 .doesNotContainAnyElementsOf(UNBUILT_IN_CODE.stream().map(UnbuiltOperation::operation).toList());
+        REQUIRED_PROBES_BY_CAPABILITY.forEach((capability, requiredProbes) -> assertThat(
+                        registry.get(capability).stream().map(Subprobe::name).toList())
+                .as("ACC-028 and ACC-029 must keep executable probes in %s", capability)
+                .containsAll(requiredProbes));
 
         Map<Cell, Outcome> mismatches = new LinkedHashMap<>();
         List<String> resultLines = new ArrayList<>();
@@ -262,9 +265,20 @@ class AuthorizationMatrixIntegrationTest {
 
     private Map<String, List<Subprobe>> probes() {
         Map<String, List<Subprobe>> result = new LinkedHashMap<>();
-        result.put(REGISTERED_CAPABILITIES.get(0), List.of(probe("create account", (fixture, actor) -> internships.create(
-                new CreateAccountCommand(fixture.email("new-account"), "Matrix-created", GlobalRole.MENTOR,
-                        null, null, null), actor))));
+        result.put(REGISTERED_CAPABILITIES.get(0), List.of(
+                probe("create account", (fixture, actor) -> internships.create(
+                        new CreateAccountCommand(fixture.email("new-account"), "Matrix-created", GlobalRole.MENTOR,
+                                null, null, null), actor)),
+                probe("resend activation", (fixture, actor) ->
+                        accounts.resendActivation(fixture.pendingAccountId(), actor), fixture -> {
+                            var pending = internships.create(new CreateAccountCommand(
+                                    fixture.email("resend-target"), "Matrix resend target", GlobalRole.MENTOR,
+                                    null, null, null), fixture.adminId());
+                            fixture.pendingAccountId(pending.userId());
+                        }),
+                probe("read account directory", (fixture, actor) -> accounts.administrationViews(actor)),
+                probe("read accounts by ID", (fixture, actor) ->
+                        accounts.administrationViewsByIds(actor, List.of(fixture.targetMentorId())))));
         result.put(REGISTERED_CAPABILITIES.get(1), List.of(
                 probe("lock account", (fixture, actor) -> accounts.lockAccount(fixture.targetMentorId(), actor)),
                 probe("unlock account", (fixture, actor) -> accounts.unlockAccount(fixture.targetMentorId(), actor),
@@ -272,6 +286,16 @@ class AuthorizationMatrixIntegrationTest {
                 probe("deactivate account", (fixture, actor) -> accounts.deactivateAccount(fixture.targetMentorId(), actor)),
                 probe("deactivate locked account", (fixture, actor) -> accounts.deactivateAccount(fixture.targetMentorId(), actor),
                         fixture -> accounts.lockAccount(fixture.targetMentorId(), fixture.adminId())),
+                probe("deactivate pending account (ACC-028)",
+                        (fixture, actor) -> accounts.deactivateAccount(fixture.pendingAccountId(), actor), fixture -> {
+                            var pending = internships.create(new CreateAccountCommand(
+                                    fixture.email("pending-target"), "Matrix pending target", GlobalRole.MENTOR,
+                                    null, null, null), fixture.adminId());
+                            fixture.pendingAccountId(pending.userId());
+                        }),
+                probe("reinstate deactivated account (ACC-029)",
+                        (fixture, actor) -> accounts.reinstateAccount(fixture.targetMentorId(), actor),
+                        fixture -> accounts.deactivateAccount(fixture.targetMentorId(), fixture.adminId())),
                 probe("activate internship", (fixture, actor) -> internships.activateInternship(fixture.targetInternId(), actor),
                         fixture -> jdbc.sql("update intern_profiles set internship_status = 'NOT_STARTED' where user_id = :id")
                                 .param("id", fixture.targetInternId()).update()),
@@ -835,6 +859,7 @@ class AuthorizationMatrixIntegrationTest {
         private final long leaderIntern;
         private final long targetMentor;
         private final long targetIntern;
+        private long pendingAccountId;
         private final long project;
         private final long leaderMembership;
         private final long memberMembership;
@@ -873,6 +898,8 @@ class AuthorizationMatrixIntegrationTest {
         String email(String key) { return suffix + "-" + key + "@example.test"; }
         long targetMentorId() { return targetMentor; }
         long targetInternId() { return targetIntern; }
+        long pendingAccountId() { return pendingAccountId; }
+        void pendingAccountId(long value) { pendingAccountId = value; }
         long memberId() { return member; }
         long memberMembershipId() { return memberMembership; }
         long leaderMembershipId() { return leaderMembership; }

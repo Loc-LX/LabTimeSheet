@@ -72,10 +72,10 @@ public class InternshipService {
         this.authorizationPolicy = authorizationPolicy;
     }
 
-    /** Creates an account and its required Intern profile atomically before activation delivery. */
+    /** Creates an account under the §5.2 Manage accounts capability and provisions its Intern profile atomically. */
     public AccountCreation create(CreateAccountCommand command, long adminId) {
         ValidatedAccount account = validate(command);
-        requireActiveAdminId(adminId);
+        requireAdminCapability(adminId, AuthorizationCapability.MANAGE_ACCOUNTS);
         Instant now = clock.instant();
         return accounts.createIdentity(
                 account.email(), account.displayName(), account.role(), adminId,
@@ -503,6 +503,19 @@ public class InternshipService {
         boolean allowed = authorizationPolicy.allows(
                 AuthorizationCapability.ACCOUNT_LIFECYCLE,
                 InternshipAuthorizationRequests.activeAdmin(identity));
+        if (identity == null) {
+            throw new IllegalArgumentException("Admin not found");
+        }
+        if (!allowed) {
+            throw new IllegalArgumentException("An active Admin is required");
+        }
+        return adminId;
+    }
+
+    private long requireAdminCapability(long adminId, AuthorizationCapability capability) {
+        AccountIdentity identity = accounts.identityById(adminId).orElse(null);
+        boolean allowed = authorizationPolicy.allows(
+                capability, InternshipAuthorizationRequests.activeAdmin(identity));
         if (identity == null) {
             throw new IllegalArgumentException("Admin not found");
         }
