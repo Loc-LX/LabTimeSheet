@@ -1,5 +1,6 @@
 package com.lab.labtimesheet.feature.project.model.dto;
 
+import com.lab.labtimesheet.feature.project.model.TaskStatus;
 import java.time.LocalDate;
 
 /**
@@ -11,6 +12,7 @@ import java.time.LocalDate;
  * @param description optional Task description
  * @param dueDate optional business date constrained by Project dates and the current global calendar
  * @param estimatedMinutes optional Leader-owned whole-Task estimate in minutes
+ * @param initialStatus optional requested initial status, accepted only when absent or TODO
  */
 public record CreateTaskCommand(
         long projectId,
@@ -18,10 +20,16 @@ public record CreateTaskCommand(
         String title,
         String description,
         LocalDate dueDate,
-        Integer estimatedMinutes) {
+        Integer estimatedMinutes,
+        TaskStatus initialStatus) {
+
+    public CreateTaskCommand(long projectId, long assigneeMembershipId, String title,
+            String description, LocalDate dueDate, Integer estimatedMinutes) {
+        this(projectId, assigneeMembershipId, title, description, dueDate, estimatedMinutes, null);
+    }
 
     public CreateTaskCommand(long projectId, long assigneeMembershipId, String title,
             String description, LocalDate dueDate) {
-        this(projectId, assigneeMembershipId, title, description, dueDate, null);
+        this(projectId, assigneeMembershipId, title, description, dueDate, null, null);
     }
 }

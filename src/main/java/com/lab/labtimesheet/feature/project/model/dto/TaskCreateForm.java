@@ -1,5 +1,6 @@
 package com.lab.labtimesheet.feature.project.model.dto;
 
+import com.lab.labtimesheet.feature.project.model.TaskStatus;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Max;
@@ -16,6 +17,7 @@ import org.springframework.format.annotation.DateTimeFormat;
  * @param assigneeMembershipId selected same-Project membership identifier
  * @param dueDate optional ISO date; service validation applies Project and calendar rules
  * @param estimatedMinutes optional Leader-only whole-Task estimate in minutes
+ * @param initialStatus optional requested initial status, accepted only when absent or TODO
  */
 public record TaskCreateForm(
         @NotBlank @Size(max = 200) String title,
@@ -24,8 +26,14 @@ public record TaskCreateForm(
         @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dueDate,
         @Min(value = 1, message = "Estimate must be at least 1 minute")
         @Max(value = 527040, message = "Estimate must not exceed 527040 minutes")
-        Integer estimatedMinutes) {
+        Integer estimatedMinutes,
+        TaskStatus initialStatus) {
     public TaskCreateForm(String title, String description, Long assigneeMembershipId, LocalDate dueDate) {
-        this(title, description, assigneeMembershipId, dueDate, null);
+        this(title, description, assigneeMembershipId, dueDate, null, null);
+    }
+
+    public TaskCreateForm(String title, String description, Long assigneeMembershipId, LocalDate dueDate,
+            Integer estimatedMinutes) {
+        this(title, description, assigneeMembershipId, dueDate, estimatedMinutes, null);
     }
 }

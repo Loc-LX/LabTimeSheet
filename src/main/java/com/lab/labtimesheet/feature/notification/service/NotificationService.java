@@ -135,7 +135,8 @@ public class NotificationService {
         List<NotificationEntity> saved = distinctRecipients.values().stream()
                 // Mỗi recipient -> một NotificationEntity chưa persist, giữ action URL /projects/{id}.
                 .map(recipient -> NotificationEntity.create(
-                        recipient.userId(), event.type(), event.title(), body, action.actionUrl(), emailStatus,
+                        recipient.userId(), event.type(), event.title(), body, action.actionUrl(), action.projectId(),
+                        emailStatus,
                         smtpAvailable ? recipient.email() : null,
                         smtpAvailable ? event.title() : null,
                         smtpAvailable ? emailBody : null,
@@ -150,6 +151,20 @@ public class NotificationService {
             scheduleDelivery(saved.stream().map(NotificationEntity::getId).toList());
         }
         return saved.size();
+    }
+
+    /**
+     * Deletes notification rows explicitly linked to a Project before that Project is removed.
+     *
+     * @param projectId Project whose notifications are being removed
+     * @return number of linked notification rows deleted
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public int deleteByProjectId(long projectId) {
+        if (projectId <= 0) {
+            throw new IllegalArgumentException("Project identifier must be positive");
+        }
+        return notifications.deleteByProjectId(projectId);
     }
 
     /**

@@ -282,8 +282,8 @@ public class ProjectQueryService {
     public ProjectDetail detail(long actorUserId, long projectId) {
         var actor = activeActor(actorUserId);
         var project = visibleProject(actorUserId, projectId); //service: kiểm tra quyền xem project này
-        var completed = project.status() == ProjectStatus.COMPLETED;
-        Long currentLeaderId = completed ? null : project.currentLeader().internUserId();
+        var terminal = project.status() == ProjectStatus.COMPLETED || project.status() == ProjectStatus.CANCELLED;
+        Long currentLeaderId = terminal ? null : project.currentLeader().internUserId();
         // → detail.html: tên, status, Mentor, Leader, canManage, isCurrentLeader
         return new ProjectDetail(
                 project.id(),
@@ -294,8 +294,12 @@ public class ProjectQueryService {
                 project.endDate(),
                 displayName(project.mentorUserId()),
                 currentLeaderId == null ? null : displayName(currentLeaderId),
-                !completed && project.mentorUserId() == actorUserId,
-                !completed && actor.role() == GlobalRole.INTERN && currentLeaderId == actorUserId);
+                !terminal && project.mentorUserId() == actorUserId,
+                project.mentorUserId() == actorUserId && projects.isEmptyDraft(projectId),
+                !terminal && actor.role() == GlobalRole.INTERN && currentLeaderId == actorUserId,
+                project.cancellationReason(),
+                project.cancelledByMentorUserId() == null ? null : displayName(project.cancelledByMentorUserId()),
+                project.cancelledAt());
     }
 
     /**
@@ -311,7 +315,7 @@ public class ProjectQueryService {
     // Chức năng: membership history + ai là Leader → members.html.
     public List<ProjectMemberView> members(long actorUserId, long projectId) {
         var project = visibleProject(actorUserId, projectId);
-        Long leaderUserId = project.status() == ProjectStatus.COMPLETED
+        Long leaderUserId = project.status() == ProjectStatus.COMPLETED || project.status() == ProjectStatus.CANCELLED
                 ? null
                 : project.currentLeader().internUserId();
         // → members.html: mỗi dòng = 1 membership (join/leave, ai là Leader)
@@ -437,6 +441,7 @@ public class ProjectQueryService {
                         membership.joinedAt(),
                         membership.leftAt(),
                         project.status() != ProjectStatus.COMPLETED
+                                && project.status() != ProjectStatus.CANCELLED
                                 && membership.isCurrent()
                                 && project.currentLeader().id().equals(membership.id()),
                         membership.addedByUserId(),
@@ -560,7 +565,7 @@ public class ProjectQueryService {
     // Chức năng: yêu cầu rời PENDING + số task chưa DONE → detail.html badge + workflows.html.
     public List<ProjectExitReadinessView> exitReadiness(long actorUserId, long projectId) {
         var project = visibleProject(actorUserId, projectId);
-        var currentLeaderId = project.status() == ProjectStatus.COMPLETED
+        var currentLeaderId = project.status() == ProjectStatus.COMPLETED || project.status() == ProjectStatus.CANCELLED
                 ? null : project.currentLeader().id();
         // → workflows.html: hàng chờ exit — ai chờ, còn bao nhiêu task chưa DONE
         return exitRequests.findByProject_IdOrderByCreatedAtAscIdAsc(projectId).stream()
@@ -617,7 +622,7 @@ public class ProjectQueryService {
     ProjectTaskContext taskContext(
             long actorUserId, ProjectEntity project, Set<Long> pendingExitMembershipIds) {
         requireVisibleProject(actorUserId, project);
-        if (project.status() == ProjectStatus.COMPLETED) {
+        if (project.status() == ProjectStatus.COMPLETED || project.status() == ProjectStatus.CANCELLED) {
             return new ProjectTaskContext(
                     project.id(),
                     project.mentorUserId(),
@@ -692,7 +697,8 @@ public class ProjectQueryService {
                 || ("MENTOR".equals(actor.role().name()) && project.mentorUserId() == actorUserId)
                 || ("INTERN".equals(actor.role().name())
                         && (project.hasCurrentMember(actorUserId)
-                                || (project.status() == ProjectStatus.COMPLETED
+                                || ((project.status() == ProjectStatus.COMPLETED
+                                        || project.status() == ProjectStatus.CANCELLED)
                                         && project.hasEverHadMember(actorUserId))));
         if (!visible) {
             throw new ProjectAccessDeniedException();

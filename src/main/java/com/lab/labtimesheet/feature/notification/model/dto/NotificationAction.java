@@ -12,10 +12,28 @@ import java.util.Locale;
  * encoded-sensitive-query, activation, and password-reset forms are rejected so bearer tokens and
  * credentials cannot enter the ordinary notification outbox. Ordinary-email designation belongs
  * exclusively to the event family, not to this caller-controlled action value.
+ *
+ * @param actionUrl safe relative route, or null when the notification has no action
+ * @param selfTask validated marker for the silent self-assignment transition
+ * @param projectId explicit Project identifier when the route targets a Project
  */
-public record NotificationAction(String actionUrl, boolean selfTask) {
+public record NotificationAction(String actionUrl, boolean selfTask, Long projectId) {
+
+    /**
+     * Retains the action contract for routes that do not target a Project.
+     *
+     * @param actionUrl safe relative action route, or null
+     * @param selfTask validated self-assignment marker
+     */
+    public NotificationAction(String actionUrl, boolean selfTask) {
+        this(actionUrl, selfTask, null);
+    }
+
     /** Validates and canonicalizes the safe route boundary while retaining absent actions as {@code null}. */
     public NotificationAction {
+        if (projectId != null && projectId <= 0) {
+            throw new IllegalArgumentException("Project identifier must be positive");
+        }
         actionUrl = normalizeActionUrl(actionUrl);
     }
 

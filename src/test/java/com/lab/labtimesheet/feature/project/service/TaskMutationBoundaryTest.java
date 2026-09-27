@@ -42,6 +42,7 @@ import com.lab.labtimesheet.feature.project.model.entity.TaskWorkLog;
 import com.lab.labtimesheet.feature.project.repository.TaskCommentRepository;
 import com.lab.labtimesheet.feature.project.repository.TaskRemainingEffortForecastRepository;
 import com.lab.labtimesheet.feature.project.repository.TaskRepository;
+import com.lab.labtimesheet.feature.project.repository.TaskStatusTransitionRepository;
 import com.lab.labtimesheet.feature.project.repository.TaskWorkLogRepository;
 import com.lab.labtimesheet.platform.model.GlobalRole;
 import com.lab.labtimesheet.platform.authorization.AuthorizationCatalogue;
@@ -70,6 +71,7 @@ class TaskMutationBoundaryTest {
     private static final Instant JOINED = Instant.parse("2026-08-01T00:00:00Z");
 
     @Mock private TaskRepository tasks;
+    @Mock private TaskStatusTransitionRepository statusTransitions;
     @Mock private TaskCommentRepository comments;
     @Mock private TaskWorkLogRepository workLogs;
     @Mock private ProjectQueryService projectQueries;
@@ -89,6 +91,7 @@ class TaskMutationBoundaryTest {
     void setUp() {
         service = new TaskService(
                 tasks,
+                statusTransitions,
                 comments,
                 workLogs,
                 projectQueries,

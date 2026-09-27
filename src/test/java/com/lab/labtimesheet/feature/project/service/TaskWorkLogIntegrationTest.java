@@ -173,6 +173,27 @@ class TaskWorkLogIntegrationTest {
                 .isInstanceOf(TaskValidationException.class);
     }
 
+    /**
+     * Protects {@code PRJ-013}. Observable break: a work log is accepted while its Project is
+     * still PLANNED. Expected: the Task boundary reports the unavailable Project and persists no
+     * work-log row for the request.
+     */
+    @Test
+    void plannedProjectRejectsWorkLoggingWithoutWritingHistory() {
+        jdbc.sql("update projects set status = 'PLANNED', activated_at = null where id = :projectId")
+                .param("projectId", fixture.firstProjectId())
+                .update();
+
+        assertThatThrownBy(() -> taskService.addWorkLog(
+                        fixture.email(), fixture.firstProjectId(), fixture.firstTaskId(),
+                        WORK_DATE, 60, "Not active yet"))
+                .isInstanceOf(TaskNotFoundException.class);
+        assertThat(jdbc.sql("select count(*) from task_work_logs where project_id = :projectId")
+                .param("projectId", fixture.firstProjectId())
+                .query(Long.class)
+                .single()).isZero();
+    }
+
     @Test
     void workLogRejectsDateAfterRetainedMembershipClosure() {
         jdbc.sql("""

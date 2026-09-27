@@ -140,6 +140,11 @@ class Iteration2TaskWorkflowWebTest {
                         "note", "Retained note")));
     }
 
+    /**
+     * TSK-007 and AC-TSK-003 require an invalid status token to be rejected before mutation while
+     * preserving safe form input; the expected flash map retains the raw status and an empty
+     * reopen reason for the new status form field.
+     */
     @Test
     void malformedTaskStatusRetainsRawSafeInputInsteadOfReturningBadRequest() throws Exception {
         mvc.perform(post("/projects/10/tasks/25/status").with(user(EMAIL)).with(csrf())
@@ -148,7 +153,8 @@ class Iteration2TaskWorkflowWebTest {
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl("/projects/10/tasks/25"))
                 .andExpect(flash().attribute("taskError", "Choose a valid Task status."))
-                .andExpect(flash().attribute("taskStatusInput", Map.of("status", "NOT_A_STATUS")));
+                .andExpect(flash().attribute("taskStatusInput", Map.of(
+                        "status", "NOT_A_STATUS", "reason", "")));
     }
 
     private static TaskView task() {

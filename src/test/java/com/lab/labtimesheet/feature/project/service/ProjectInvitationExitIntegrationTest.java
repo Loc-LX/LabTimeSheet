@@ -499,6 +499,13 @@ class ProjectInvitationExitIntegrationTest {
                 "select status from project_membership_exit_requests where id = ?", requestId));
     }
 
+    /**
+     * TSK-009, TSK-004 and AC-TSK-011 require an exit batch to reassign current Tasks while retaining
+     * their Task-owned history. The worked IN_PROGRESS Task's creator, comment, 45-minute work log,
+     * and final Leader assignment actor/time must be present after transfer and remain identical
+     * after approval closes the source membership; the TODO and DONE Tasks retain their specified
+     * transfer behavior.
+     */
     @Test
     void leaderMayRepeatExitTransferBatchesBeforeMentorApprovalWithoutUndoingCompletedTasks() {
         long mentorId = user("mentor-approve-exit@example.test", "MENTOR");
@@ -511,16 +518,54 @@ class ProjectInvitationExitIntegrationTest {
         long recipientMembershipId = membershipId(projectId, recipientId);
         long leaderMembershipId = membershipId(projectId, leaderId);
         long firstTaskId = insertTask(projectId, targetMembershipId, leaderMembershipId, "First transfer", "TODO");
-        long secondTaskId = insertTask(projectId, targetMembershipId, leaderMembershipId, "Second transfer", "IN_PROGRESS");
+        long secondTaskId = insertTask(projectId, targetMembershipId, targetMembershipId, "Second transfer", "IN_PROGRESS");
         long doneTaskId = insertTask(projectId, targetMembershipId, leaderMembershipId, "Completed history", "DONE");
+        jdbc.update("insert into task_comments (task_id, author_user_id, body) values (?, ?, ?)",
+                secondTaskId, targetId, "Retained exit-batch comment");
+        jdbc.update("""
+                insert into task_work_logs
+                    (project_id, task_id, membership_id, work_date, minutes, note, created_at, updated_at)
+                values (?, ?, ?, date '2026-08-20', 45, 'Retained exit-batch effort', ?, ?)
+                """, projectId, secondTaskId, targetMembershipId,
+                java.sql.Timestamp.from(NOW), java.sql.Timestamp.from(NOW));
         long requestId = projects.requestMemberRemoval(
                 leaderId, projectId, targetMembershipId, "Redistribute before approval");
 
         projects.transferTasks(
-                leaderId, projectId, targetMembershipId, java.util.Set.of(firstTaskId), recipientMembershipId);
+                leaderId,
+                projectId,
+                requestId,
+                targetMembershipId,
+                Set.of(firstTaskId),
+                Map.of(firstTaskId, number("select version from tasks where id = ?", firstTaskId)),
+                Map.of(),
+                recipientMembershipId);
         projects.transferTasks(
-                leaderId, projectId, targetMembershipId, java.util.Set.of(secondTaskId), recipientMembershipId);
+                leaderId,
+                projectId,
+                requestId,
+                targetMembershipId,
+                Set.of(secondTaskId),
+                Map.of(secondTaskId, number("select version from tasks where id = ?", secondTaskId)),
+                Map.of(secondTaskId, new RemainingEffortForecastInput(90, "Exit batch handover")),
+                recipientMembershipId);
+        var transferredHistory = projectPages.history(leaderId, projectId).tasks().stream()
+                .filter(task -> task.id() == secondTaskId).findFirst().orElseThrow();
+        assertEquals(recipientMembershipId, transferredHistory.assigneeMembershipId());
+        assertEquals(targetMembershipId, transferredHistory.creatorMembershipId());
+        assertEquals(leaderMembershipId, transferredHistory.assignerMembershipId());
+        assertNotNull(transferredHistory.assignedAt());
+        assertEquals("IN_PROGRESS", transferredHistory.status().name());
+        assertEquals(List.of("Retained exit-batch comment"), transferredHistory.comments().stream()
+                .map(comment -> comment.body()).toList());
+        assertEquals(1, transferredHistory.workLogs().size());
+        assertEquals(targetMembershipId, transferredHistory.workLogs().getFirst().membershipId());
+        assertEquals(45, transferredHistory.workLogs().getFirst().minutes());
+        assertEquals("Retained exit-batch effort", transferredHistory.workLogs().getFirst().note());
         projects.approveExit(mentorId, requestId, "Ready after batches");
+        var historyAfterApproval = projectPages.history(mentorId, projectId).tasks().stream()
+                .filter(task -> task.id() == secondTaskId).findFirst().orElseThrow();
+        assertEquals(transferredHistory, historyAfterApproval);
 
         assertEquals(
                 List.of(targetId),

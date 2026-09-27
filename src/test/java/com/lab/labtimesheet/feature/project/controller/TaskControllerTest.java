@@ -29,6 +29,7 @@ import com.lab.labtimesheet.feature.project.model.dto.TaskCommentView;
 import com.lab.labtimesheet.feature.project.model.dto.TaskDetails;
 import com.lab.labtimesheet.feature.project.model.dto.TaskEffortPlanningView;
 import com.lab.labtimesheet.feature.project.model.dto.TaskListView;
+import com.lab.labtimesheet.feature.project.model.dto.TaskStatusChangeCommand;
 import com.lab.labtimesheet.feature.project.model.dto.TaskRemainingEffortForecastView;
 import com.lab.labtimesheet.feature.project.model.dto.TaskView;
 import com.lab.labtimesheet.feature.project.service.TaskService;
@@ -245,7 +246,9 @@ class TaskControllerTest {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Update estimate")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Remaining effort forecast")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("next phase")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Incoming")));
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Incoming")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("name=\"reason\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Required when reopening")));
         given(taskService.details(ACTOR_EMAIL, 10L, 25L)).willReturn(new TaskDetails(
                 task(25L, TaskStatus.DONE), List.of(), List.of(), 7L, false, true, false, false, false, false,
                 new TaskEffortPlanningView(120, 150, TaskVarianceState.VALUE, 30L, false)));
@@ -391,7 +394,8 @@ class TaskControllerTest {
 
     @Test
     void statusAndCommentPostsUseAuthenticatedIdentityAndCsrf() throws Exception {
-        given(taskService.changeStatus(ACTOR_EMAIL, 10L, 25L, 0L, TaskStatus.IN_PROGRESS))
+        given(taskService.changeStatus(ACTOR_EMAIL, 10L, 25L, 0L,
+                new TaskStatusChangeCommand(TaskStatus.IN_PROGRESS, null)))
                 .willReturn(task(25L));
         given(taskService.addComment(ACTOR_EMAIL, 10L, 25L, "Update"))
                 .willReturn(new TaskCommentView(3L, 25L, 5L, "Update", Instant.parse("2026-08-14T10:00:00Z")));
@@ -413,7 +417,8 @@ class TaskControllerTest {
 
     @Test
     void taskConflictReturnsExplicitReloadResponse() throws Exception {
-        given(taskService.changeStatus(ACTOR_EMAIL, 10L, 25L, 3L, TaskStatus.IN_PROGRESS))
+        given(taskService.changeStatus(ACTOR_EMAIL, 10L, 25L, 3L,
+                new TaskStatusChangeCommand(TaskStatus.IN_PROGRESS, null)))
                 .willThrow(new TaskConflictException(
                         "Task changed concurrently; reload before trying again", null));
 

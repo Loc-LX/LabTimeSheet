@@ -44,10 +44,14 @@ class IdentityAccountControllerWebTest {
                 .andExpect(status().is3xxRedirection());
         mvc.perform(post("/admin/accounts/7/deactivate").with(user(ADMIN_EMAIL).roles("ADMIN")).with(csrf()))
                 .andExpect(status().is3xxRedirection());
+        mvc.perform(post("/admin/accounts/7/reinstate").with(user(ADMIN_EMAIL).roles("ADMIN")).with(csrf()))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/admin/accounts/7"));
 
         verify(accounts).lockAccount(7L, 1L);
         verify(accounts).unlockAccount(7L, 1L);
         verify(accounts).deactivateAccount(7L, 1L);
+        verify(accounts).reinstateAccount(7L, 1L);
     }
 
     /** Protects AUTH-002 and SEC-009 by retaining the non-disclosing redirect for a guessed account identifier. */

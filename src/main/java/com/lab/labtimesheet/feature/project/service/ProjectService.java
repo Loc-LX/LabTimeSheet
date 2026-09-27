@@ -478,8 +478,8 @@ public class ProjectService {
         if (!invitation.isPending()) {
             throw new ProjectRuleViolationException("Invitation is no longer pending");
         }
-        if (project.status() == com.lab.labtimesheet.feature.project.model.ProjectStatus.COMPLETED) {
-            throw new ProjectRuleViolationException("Completed Projects are read-only");
+        if (project.status() == ProjectStatus.COMPLETED || project.status() == ProjectStatus.CANCELLED) {
+            throw new ProjectRuleViolationException("Terminal Projects are read-only");
         }
         if (!invitation.issuingLeadershipTerm().isCurrent()) { // Leader đã đổi → auto revoke
             invitation.resolve(
@@ -1430,6 +1430,49 @@ public class ProjectService {
     }
 
     /**
+     * Cancels an owned planned or active Project in one transaction, retaining its work history.
+     *
+     * @param actorMentorUserId authenticated owning Mentor
+     * @param projectId Project to cancel
+     * @param reason required cancellation reason
+     */
+    @Transactional
+    public void cancel(long actorMentorUserId, long projectId, String reason) {
+        var locked = lockOwnedProject(actorMentorUserId, projectId);
+        var project = locked.project();
+        if (reason == null || reason.isBlank()) {
+            throw new ProjectRuleViolationException("A cancellation reason is required");
+        }
+        if (project.status() != ProjectStatus.PLANNED && project.status() != ProjectStatus.ACTIVE) {
+            throw new ProjectRuleViolationException("Only a planned or active Project can be cancelled");
+        }
+        var at = clock.instant();
+        long currentLeaderUserId = project.currentLeader().internUserId();
+        var memberIds = project.memberships().stream()
+                .filter(ProjectMembershipEntity::isCurrent)
+                .map(ProjectMembershipEntity::internUserId)
+                .toList();
+        invitations.findLockedPendingByProjectId(projectId).forEach(invitation -> {
+            invitation.resolve(InvitationStatus.REVOKED, InvitationResolutionCode.PROJECT_CANCELLED,
+                    null, null, at);
+            notifyInvitationResolution(invitation, actorMentorUserId,
+                    invitation.resolutionCode(), locked.notificationRecipients());
+        });
+        invitations.flush();
+        exitRequests.findLockedPendingByProjectId(projectId).forEach(request -> {
+            request.resolve(ProjectExitRequestStatus.SUPERSEDED,
+                    "Project cancelled: " + reason.trim(), null, at);
+            notifyExitResolved(request, project, currentLeaderUserId, locked.notificationRecipients());
+        });
+        exitRequests.flush();
+        project.cancel(actorMentorUserId, at, reason);
+        projects.flush();
+        notifyMembershipChanged(projectId, "PROJECT_CANCELLED", memberIds, locked.notificationRecipients());
+        notifyLeadershipChanged(projectId, "LEADER_REMOVED", List.of(currentLeaderUserId),
+                locked.notificationRecipients());
+    }
+
+    /**
      * Locks all current-member Accounts and Intern profiles in ascending Account
      * order, then
      * locks the Project and re-evaluates visibility, lifecycle, current leadership,
@@ -1533,43 +1576,39 @@ public class ProjectService {
     }
 
     /**
-     * Deletes an owning Mentor's planned Project draft.
+     * Deletes an owning Mentor's truly empty planned Project draft.
      *
      * <p>
-     * Project and all project-owned rows are removed atomically in dependency
-     * order. The
-     * persistence context is cleared before bulk child deletes so managed
-     * invitation/exit
-     * rows cannot retain references to leadership or membership rows that are about
-     * to be
-     * removed. ACTIVE and COMPLETED Projects are rejected before any delete is
-     * attempted.
+     * The Project write lock is acquired before checking the complete empty-draft predicate.
+     * Every application path that can create a Task, invitation, exit request, or membership
+     * takes the same lock, so a child cannot appear between validation and deletion. Linked
+     * notifications are removed by the Notification module before the initial leadership term,
+     * membership, and Project rows are removed.
      * </p>
      *
      * @param actorUserId authenticated owning Mentor
      * @param projectId   planned Project identifier
      * @throws ProjectAccessDeniedException  when the actor does not own the Project
-     * @throws ProjectRuleViolationException when the Project is not planned
+     * @throws ProjectRuleViolationException when the Project is not an empty planned draft
      */
     // === DELETE PROJECT | Service ===
     // Chức năng: xóa cascade project PLANNED (JPQL bulk delete theo thứ tự FK).
     @Transactional
     public void delete(long actorUserId, long projectId) {
-        var locked = lockOwnedProject(actorUserId, projectId); // lock account → lock project (Mentor-owned)
-        locked.project().requireDeletable(actorUserId); // chỉ xóa project PLANNED
-        entityManager.flush(); // đẩy pending changes trước khi clear context
-        entityManager.clear(); // xóa managed entities — tránh FK conflict khi bulk DELETE
-        deleteProjectRows(projectId); // JPQL bulk delete con→cha (task, invitation, membership...)
+        var lockedAccounts = lockAccounts(List.of(actorUserId));
+        requireActiveMentor(snapshotFor(lockedAccounts, actorUserId));
+        var project = lockedProject(projectId); // giữ Project lock tới khi toàn bộ thao tác kết thúc
+        project.authorizeOwner(actorUserId); // từ chối đồng nhất trước khi kiểm tra dữ liệu con
+        project.requireDeletable(actorUserId, projects.isEmptyDraft(projectId));
+        entityManager.flush();
+        entityManager.clear();
+        notifications.deleteByProjectId(projectId);
+        deleteProjectRows(projectId);
     }
 
-    /** Removes a planned aggregate in child-to-parent foreign-key order. */
-    // Xóa dữ liệu project theo thứ tự con→cha (task, invitation, membership...) rồi xóa projects.
+    /** Removes the initial leadership term, membership, and Project in foreign-key order. */
+    // Xóa dữ liệu khởi tạo của Project rỗng theo thứ tự khóa ngoại.
     private void deleteProjectRows(long projectId) {
-        projects.deleteTaskCommentsByProjectId(projectId);
-        projects.deleteTaskWorkLogsByProjectId(projectId);
-        projects.deleteTasksByProjectId(projectId);
-        projects.deleteExitRequestsByProjectId(projectId);
-        projects.deleteInvitationsByProjectId(projectId);
         projects.deleteLeadershipTermsByProjectId(projectId);
         projects.deleteMembershipsByProjectId(projectId);
         projects.deleteProjectById(projectId);
@@ -1800,7 +1839,7 @@ public class ProjectService {
                         transition,
                         "Project membership updated",
                         "A Project membership changed for Project " + projectId + "."),
-                new NotificationAction(projectActionUrl(projectId), false),
+                new NotificationAction(projectActionUrl(projectId), false, projectId),
                 recipients);
     }
 
@@ -1844,7 +1883,7 @@ public class ProjectService {
                         transition,
                         "Project leadership updated",
                         "Project leadership changed for Project " + projectId + "."),
-                new NotificationAction(projectActionUrl(projectId), false),
+                new NotificationAction(projectActionUrl(projectId), false, projectId),
                 recipients);
     }
 
@@ -1863,7 +1902,8 @@ public class ProjectService {
                         "CREATED",
                         "Project invitation",
                         "You have a new invitation for Project " + invitation.projectId() + "."),
-                new NotificationAction(invitationActionUrl(invitation.projectId(), invitation.id()), false),
+                new NotificationAction(
+                        invitationActionUrl(invitation.projectId(), invitation.id()), false, invitation.projectId()),
                 notificationRecipients(List.of(invitation.invitedInternUserId())));
     }
 
@@ -1882,7 +1922,8 @@ public class ProjectService {
             InvitationResolutionCode resolutionCode) {
         notifications.publish(
                 invitationEvent(resolutionCode),
-                new NotificationAction(invitationActionUrl(invitation.projectId(), invitation.id()), false),
+                new NotificationAction(
+                        invitationActionUrl(invitation.projectId(), invitation.id()), false, invitation.projectId()),
                 notificationRecipients(List.of(
                         invitation.issuingLeadershipTerm().internUserId(),
                         mentorUserId)));
@@ -1936,7 +1977,8 @@ public class ProjectService {
             List<NotificationRecipient> recipients) {
         notifications.publish(
                 invitationEvent(resolutionCode),
-                new NotificationAction(invitationActionUrl(invitation.projectId(), invitation.id()), false),
+                new NotificationAction(
+                        invitationActionUrl(invitation.projectId(), invitation.id()), false, invitation.projectId()),
                 recipients);
     }
 
@@ -1967,7 +2009,7 @@ public class ProjectService {
                         request.requestType().name(),
                         "Membership exit request",
                         "A membership exit request was created for Project " + project.id() + "."),
-                new NotificationAction(exitActionUrl(project.id(), request.id()), false),
+                new NotificationAction(exitActionUrl(project.id(), request.id()), false, project.id()),
                 notificationRecipients(recipients));
     }
 
@@ -2025,7 +2067,7 @@ public class ProjectService {
                         "Membership exit request updated",
                         "The membership exit request for Project " + project.id()
                                 + " is now " + request.status() + "."),
-                new NotificationAction(exitActionUrl(project.id(), request.id()), false),
+                new NotificationAction(exitActionUrl(project.id(), request.id()), false, project.id()),
                 recipients);
     }
 
@@ -2069,9 +2111,8 @@ public class ProjectService {
     }
 
     private void requireOpenProject(ProjectEntity project) {
-        if (project.status() == com.lab.labtimesheet.feature.project.model.ProjectStatus.COMPLETED) {
-            // Project đã hoàn thành chỉ xem, không cho sửa.
-            throw new ProjectRuleViolationException("Completed Projects are read-only");
+        if (project.status() == ProjectStatus.COMPLETED || project.status() == ProjectStatus.CANCELLED) {
+            throw new ProjectRuleViolationException("Terminal Projects are read-only");
         }
     }
 

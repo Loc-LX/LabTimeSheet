@@ -8,6 +8,7 @@ import com.lab.labtimesheet.feature.project.model.dto.RemainingEffortForecastInp
 import com.lab.labtimesheet.feature.project.model.dto.TaskCreateForm;
 import com.lab.labtimesheet.feature.project.model.dto.TaskDetails;
 import com.lab.labtimesheet.feature.project.model.dto.TaskListView;
+import com.lab.labtimesheet.feature.project.model.dto.TaskStatusChangeCommand;
 import com.lab.labtimesheet.feature.project.model.dto.TaskView;
 import com.lab.labtimesheet.feature.project.service.TaskService;
 import jakarta.validation.Valid;
@@ -79,7 +80,8 @@ public class TaskController {
                             form.title(),
                             form.description(),
                             form.dueDate(),
-                            form.estimatedMinutes()));
+                            form.estimatedMinutes(),
+                            form.initialStatus()));
         } catch (TaskValidationException exception) {
             if (exception.getMessage() != null && exception.getMessage().toLowerCase(Locale.ROOT).contains("due date")) {
                 bindingResult.rejectValue("dueDate", "task.dueDate", exception.getMessage());
@@ -308,6 +310,7 @@ public class TaskController {
             @PathVariable long taskId,
             @RequestParam long expectedVersion,
             @RequestParam String status,
+            @RequestParam(required = false) String reason,
             RedirectAttributes redirectAttributes) {
         try {
             taskService.changeStatus(
@@ -315,10 +318,11 @@ public class TaskController {
                     projectId,
                     taskId,
                     expectedVersion,
-                    requiredStatus(status));
+                    new TaskStatusChangeCommand(requiredStatus(status), reason));
         } catch (TaskValidationException exception) {
             redirectAttributes.addFlashAttribute("taskError", exception.getMessage());
-            redirectAttributes.addFlashAttribute("taskStatusInput", Map.of("status", status));
+            redirectAttributes.addFlashAttribute("taskStatusInput", Map.of(
+                    "status", status, "reason", reason == null ? "" : reason));
         }
         return detailsRedirect(projectId, taskId);
     }

@@ -8,6 +8,7 @@ import com.lab.labtimesheet.feature.notification.model.NotificationEmailStatus;
 import com.lab.labtimesheet.feature.notification.model.entity.NotificationEntity;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Query;
@@ -15,6 +16,16 @@ import org.springframework.data.repository.query.Param;
 
 /** Persistence boundary for Platform-owned in-app notification rows. */
 public interface NotificationRepository extends JpaRepository<NotificationEntity, Long> {
+    /**
+     * Deletes only notification rows explicitly linked to the supplied Project.
+     *
+     * @param projectId owning Project identifier
+     * @return number of deleted notification rows
+     */
+    @Modifying
+    @Query("delete from NotificationEntity notification where notification.projectId = :projectId")
+    int deleteByProjectId(@Param("projectId") long projectId);
+
     /**
      * Loads one recipient's retained notifications in newest-first order for the inbox boundary.
      *

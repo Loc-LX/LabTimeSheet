@@ -8,8 +8,6 @@ import com.lab.labtimesheet.feature.project.model.entity.ProjectInvitationEntity
 import com.lab.labtimesheet.feature.project.model.entity.ProjectLeadershipTermEntity;
 import com.lab.labtimesheet.feature.project.model.entity.ProjectMembershipEntity;
 import com.lab.labtimesheet.feature.project.model.entity.Task;
-import com.lab.labtimesheet.feature.project.model.entity.TaskComment;
-import com.lab.labtimesheet.feature.project.model.entity.TaskWorkLog;
 import jakarta.persistence.LockModeType;
 import java.util.List;
 import java.util.Optional;
@@ -31,33 +29,31 @@ import org.springframework.data.repository.query.Param;
 // Chức năng: saveAndFlush(project) kế thừa JpaRepository — cascade INSERT projects + memberships + leadership_terms.
 public interface ProjectRepository extends JpaRepository<ProjectEntity, Long> {
 
-    /** Deletes Task comments belonging to one Project before its Tasks are deleted. */
-    @Modifying
+    /**
+     * Checks the complete PRJ-002 disposable-draft predicate in one database snapshot.
+     * The caller that uses this for deletion must first hold the Project write lock; all
+     * application paths that add child rows also acquire that lock.
+     *
+     * @param projectId locked or visible Project identifier
+     * @return true only for a PLANNED Project with its original one membership and leadership
+     *         term and no Task (including soft-deleted), invitation, or exit request
+     */
     @Query("""
-            delete from TaskComment comment
-            where comment.taskId in (select task.id from Task task where task.projectId = :projectId)
+            select case when project.status = com.lab.labtimesheet.feature.project.model.ProjectStatus.PLANNED
+                and (select count(membership) from ProjectMembershipEntity membership
+                     where membership.project.id = project.id) = 1
+                and (select count(term) from ProjectLeadershipTermEntity term
+                     where term.project.id = project.id) = 1
+                and (select count(task) from Task task where task.projectId = project.id) = 0
+                and (select count(invitation) from ProjectInvitationEntity invitation
+                     where invitation.project.id = project.id) = 0
+                and (select count(request) from ProjectExitRequestEntity request
+                     where request.project.id = project.id) = 0
+                then true else false end
+            from ProjectEntity project
+            where project.id = :projectId
             """)
-    int deleteTaskCommentsByProjectId(@Param("projectId") long projectId);
-
-    /** Deletes retained Task work logs belonging to one Project. */
-    @Modifying
-    @Query("delete from TaskWorkLog log where log.projectId = :projectId")
-    int deleteTaskWorkLogsByProjectId(@Param("projectId") long projectId);
-
-    /** Deletes Tasks belonging to one Project after their comments and work logs. */
-    @Modifying
-    @Query("delete from Task task where task.projectId = :projectId")
-    int deleteTasksByProjectId(@Param("projectId") long projectId);
-
-    /** Deletes membership-exit requests belonging to one Project. */
-    @Modifying
-    @Query("delete from ProjectExitRequestEntity request where request.project.id = :projectId")
-    int deleteExitRequestsByProjectId(@Param("projectId") long projectId);
-
-    /** Deletes invitations belonging to one Project. */
-    @Modifying
-    @Query("delete from ProjectInvitationEntity invitation where invitation.project.id = :projectId")
-    int deleteInvitationsByProjectId(@Param("projectId") long projectId);
+    boolean isEmptyDraft(@Param("projectId") long projectId);
 
     /** Deletes leadership terms belonging to one Project before memberships. */
     @Modifying
@@ -243,7 +239,8 @@ public interface ProjectRepository extends JpaRepository<ProjectEntity, Long> {
             select distinct project from ProjectEntity project
             join project.memberships membership
             where membership.internUserId = :internUserId
-            and (membership.leftAt is null or project.status = com.lab.labtimesheet.feature.project.model.ProjectStatus.COMPLETED)
+            and (membership.leftAt is null or project.status in (com.lab.labtimesheet.feature.project.model.ProjectStatus.COMPLETED,
+                com.lab.labtimesheet.feature.project.model.ProjectStatus.CANCELLED))
             order by project.updatedAt desc, project.id desc
             """)
     Slice<ProjectEntity> findVisibleToIntern(
