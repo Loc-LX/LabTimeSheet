@@ -9,6 +9,7 @@ import com.lab.labtimesheet.feature.internship.model.dto.LockedAccountMutationEl
 import com.lab.labtimesheet.feature.identity.service.AccountService;
 import com.lab.labtimesheet.feature.internship.service.InternshipService;
 import com.lab.labtimesheet.feature.attendance.exception.CorrectionException;
+import com.lab.labtimesheet.feature.attendance.exception.AttendanceRecordNotFoundException;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
 import com.lab.labtimesheet.feature.calendar.model.AttendancePolicy;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceRecord;
@@ -203,19 +204,29 @@ public class AttendanceCorrectionApplicationService {
                 .map(accounts::requireIdentityById)
                 .toList();
         AttendanceRecordEntity entity = records.findById(attendanceRecordId)
-                .orElseThrow(() -> new CorrectionException("Attendance record not found"));
+                .orElseThrow(AttendanceRecordNotFoundException::new);
         AttendanceRecord record = recordFrom(entity);
         AccountIdentity actorIdentity = accounts.requireIdentityById(actor.userId());
         AccountIdentity targetIdentity = accounts.requireIdentityById(record.internId());
-        if (targetIdentity.role() != GlobalRole.INTERN) {
-            throw new AccessDeniedException("Correction target must be an Intern");
+        if (targetIdentity.role() != GlobalRole.INTERN || actor.role() != GlobalRole.INTERN
+                || record.internId() != actor.userId()) {
+            if (actor.role() == GlobalRole.INTERN) {
+                throw new AttendanceRecordNotFoundException();
+            }
+            throw new AccessDeniedException("Only an Intern may submit a correction");
         }
         boolean activeActor = actorIdentity.status() == AccountStatus.ACTIVE
                 && actorIdentity.role() == actor.role();
         AuthorizationRequest policyRequest = AttendanceAuthorizationRequests.request(
                 actor, activeActor, record.internId(), actorIdentity.status().name());
-        AttendanceAuthorizationRequests.requireAllowed(
-                authorizationPolicy, AuthorizationCapability.SUBMIT_ATTENDANCE_REQUEST, policyRequest);
+        boolean submissionAllowed = authorizationPolicy.allows(
+                AuthorizationCapability.SUBMIT_ATTENDANCE_REQUEST, policyRequest);
+        if (!submissionAllowed && activeActor && actor.role() == GlobalRole.INTERN) {
+            throw new AttendanceRecordNotFoundException();
+        }
+        if (!submissionAllowed) {
+            throw new AccessDeniedException("Attendance request submission is not permitted");
+        }
         if (record.checkOutAt() != null) {
             throw new CorrectionException("Corrections require a missing raw checkout");
         }
@@ -296,14 +307,15 @@ public class AttendanceCorrectionApplicationService {
             throw new AccessDeniedException("An attendance actor is required");
         }
         long ownerId = corrections.findInternUserIdById(correctionId)
-                .orElseThrow(() -> new CorrectionException("Correction not found"));
+                .orElseThrow(AttendanceRecordNotFoundException::new);
         Map<Long, LockedAccountMutationEligibility> lockedAccounts = lockAccounts(
                 accountIds(actor.userId(), ownerId));
         AccountIdentity ownerIdentity = accounts.requireIdentityById(ownerId);
         AttendanceCorrectionEntity correction = lockedCorrection(correctionId);
         AttendanceRecord record = recordFor(correction);
-        if (ownerIdentity.role() != GlobalRole.INTERN) {
-            throw new AccessDeniedException("Correction target must be an Intern");
+        if (ownerIdentity.role() != GlobalRole.INTERN
+                || actor.role() == GlobalRole.INTERN && ownerId != actor.userId()) {
+            throw new AttendanceRecordNotFoundException();
         }
         LockedAccountMutationEligibility lockedActor = lockedAccounts.get(actor.userId());
         boolean activeActor = lockedActor != null
@@ -311,8 +323,14 @@ public class AttendanceCorrectionApplicationService {
                 && lockedActor.role() == actor.role();
         AuthorizationRequest policyRequest = AttendanceAuthorizationRequests.request(
                 actor, activeActor, record.internId(), null);
-        AttendanceAuthorizationRequests.requireAllowed(
-                authorizationPolicy, AuthorizationCapability.VIEW_INTERN_ATTENDANCE, policyRequest);
+        boolean viewAllowed = authorizationPolicy.allows(
+                AuthorizationCapability.VIEW_INTERN_ATTENDANCE, policyRequest);
+        if (!viewAllowed && activeActor && actor.role() == GlobalRole.INTERN) {
+            throw new AttendanceRecordNotFoundException();
+        }
+        if (!viewAllowed) {
+            throw new AccessDeniedException("Attendance request is outside the requested scope");
+        }
         expireIfNeeded(correction, clock.instant(), ownerIdentity);
         return view(actor, correction, record);
     }
@@ -455,13 +473,13 @@ public class AttendanceCorrectionApplicationService {
 
     private AttendanceCorrectionEntity lockedCorrection(long correctionId) {
         return corrections.findForUpdateById(correctionId)
-                .orElseThrow(() -> new CorrectionException("Correction not found"));
+                .orElseThrow(AttendanceRecordNotFoundException::new);
     }
 
     private AttendanceRecord recordFor(AttendanceCorrectionEntity correction) {
         return records.findById(correction.attendanceRecordId())
                 .map(this::recordFrom)
-                .orElseThrow(() -> new CorrectionException("Attendance record not found"));
+                .orElseThrow(AttendanceRecordNotFoundException::new);
     }
 
     private AttendanceRecord recordFrom(AttendanceRecordEntity entity) {
@@ -562,7 +580,7 @@ public class AttendanceCorrectionApplicationService {
     private DecisionOutcome decideInTransaction(
             AttendanceActor actor, long correctionId, CorrectionDecision decision, String note) {
         long ownerId = corrections.findInternUserIdById(correctionId)
-                .orElseThrow(() -> new CorrectionException("Correction not found"));
+                .orElseThrow(AttendanceRecordNotFoundException::new);
         Map<Long, LockedAccountMutationEligibility> lockedAccounts = lockAccounts(
                 accountIds(actor.userId(), ownerId));
         AccountIdentity ownerIdentity = accounts.requireIdentityById(ownerId);

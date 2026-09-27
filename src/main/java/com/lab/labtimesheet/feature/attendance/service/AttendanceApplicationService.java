@@ -6,6 +6,7 @@ import com.lab.labtimesheet.feature.identity.service.AccountService;
 import com.lab.labtimesheet.feature.identity.model.dto.AccountIdentity;
 import com.lab.labtimesheet.feature.internship.service.InternshipService;
 import com.lab.labtimesheet.feature.attendance.exception.AttendanceException;
+import com.lab.labtimesheet.feature.attendance.exception.AttendanceRecordNotFoundException;
 import com.lab.labtimesheet.feature.attendance.exception.AttendanceRejection;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceDayContext;
@@ -167,16 +168,31 @@ public class AttendanceApplicationService {
             scopeState = actorIdentity.status().name();
         } else if (actor.role() == GlobalRole.INTERN) {
             capability = AuthorizationCapability.VIEW_INTERN_ATTENDANCE;
+            if (actor.userId() != internId) {
+                throw new AttendanceRecordNotFoundException();
+            }
         } else {
-            AccountIdentity targetIdentity = accounts.requireIdentityById(internId);
+            final AccountIdentity targetIdentity;
+            try {
+                targetIdentity = accounts.requireIdentityById(internId);
+            } catch (IllegalArgumentException missingTarget) {
+                throw new AttendanceRecordNotFoundException();
+            }
             if (targetIdentity.role() != GlobalRole.INTERN) {
-                throw new AccessDeniedException("Attendance history target must be an Intern");
+                throw new AttendanceRecordNotFoundException();
             }
             capability = AuthorizationCapability.VIEW_INTERN_ATTENDANCE;
         }
         AuthorizationRequest request = AttendanceAuthorizationRequests.request(
                 actor, actorIdentityMatches, internId, scopeState);
-        AttendanceAuthorizationRequests.requireAllowed(authorizationPolicy, capability, request);
+        boolean allowed = authorizationPolicy.allows(capability, request);
+        if (!allowed && capability == AuthorizationCapability.VIEW_INTERN_ATTENDANCE
+                && actorIdentityMatches) {
+            throw new AttendanceRecordNotFoundException();
+        }
+        if (!allowed) {
+            throw new AccessDeniedException("Attendance history is outside the requested scope");
+        }
         if (from.isAfter(to)) {
             throw new IllegalArgumentException("from must not be after to");
         }

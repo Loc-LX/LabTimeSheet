@@ -11,6 +11,7 @@ import com.lab.labtimesheet.feature.internship.model.dto.LockedAccountMutationEl
 import com.lab.labtimesheet.feature.identity.service.AccountService;
 import com.lab.labtimesheet.feature.internship.service.InternshipService;
 import com.lab.labtimesheet.feature.attendance.exception.LeaveException;
+import com.lab.labtimesheet.feature.attendance.exception.AttendanceRecordNotFoundException;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
 import com.lab.labtimesheet.feature.calendar.model.AttendancePolicy;
 import com.lab.labtimesheet.platform.model.GlobalRole;
@@ -303,11 +304,11 @@ public class LeaveApplicationService {
     private MutationOutcome editInTransaction(
             AttendanceActor actor, long requestId, LeaveRequestCommand command) {
         long ownerId = requests.findInternUserIdById(requestId)
-                .orElseThrow(() -> new LeaveException("Leave request not found"));
+                .orElseThrow(AttendanceRecordNotFoundException::new);
         Map<Long, LockedAccountMutationEligibility> lockedAccounts = lockAccounts(List.of(actor.userId(), ownerId));
         AccountIdentity ownerIdentity = accounts.requireIdentityById(ownerId);
         if (ownerIdentity.role() != GlobalRole.INTERN) {
-            throw new AccessDeniedException("Leave request target must be an Intern");
+            throw new AttendanceRecordNotFoundException();
         }
         LockedAccountMutationEligibility lockedActor = lockedAccounts.get(actor.userId());
         boolean activeActor = lockedActor != null
@@ -378,11 +379,11 @@ public class LeaveApplicationService {
 
     private MutationOutcome cancelInTransaction(AttendanceActor actor, long requestId) {
         long ownerId = requests.findInternUserIdById(requestId)
-                .orElseThrow(() -> new LeaveException("Leave request not found"));
+                .orElseThrow(AttendanceRecordNotFoundException::new);
         Map<Long, LockedAccountMutationEligibility> lockedAccounts = lockAccounts(List.of(actor.userId(), ownerId));
         AccountIdentity ownerIdentity = accounts.requireIdentityById(ownerId);
         if (ownerIdentity.role() != GlobalRole.INTERN) {
-            throw new AccessDeniedException("Leave request target must be an Intern");
+            throw new AttendanceRecordNotFoundException();
         }
         LockedAccountMutationEligibility lockedActor = lockedAccounts.get(actor.userId());
         boolean activeActor = lockedActor != null
@@ -462,12 +463,12 @@ public class LeaveApplicationService {
             throw new AccessDeniedException("An attendance actor is required");
         }
         long ownerId = requests.findInternUserIdById(requestId)
-                .orElseThrow(() -> new LeaveException("Leave request not found"));
+                .orElseThrow(AttendanceRecordNotFoundException::new);
         Map<Long, LockedAccountMutationEligibility> lockedAccounts = lockAccounts(
                 accountIds(actor.userId(), ownerId));
         AccountIdentity ownerIdentity = accounts.requireIdentityById(ownerId);
         if (ownerIdentity.role() != GlobalRole.INTERN) {
-            throw new AccessDeniedException("Leave request target must be an Intern");
+            throw new AttendanceRecordNotFoundException();
         }
         LockedAccountMutationEligibility lockedActor = lockedAccounts.get(actor.userId());
         boolean activeActor = lockedActor != null
@@ -475,8 +476,14 @@ public class LeaveApplicationService {
                 && lockedActor.role() == actor.role();
         AuthorizationRequest policyRequest = AttendanceAuthorizationRequests.request(
                 actor, activeActor, ownerId, null);
-        AttendanceAuthorizationRequests.requireAllowed(
-                authorizationPolicy, AuthorizationCapability.VIEW_INTERN_ATTENDANCE, policyRequest);
+        boolean viewAllowed = authorizationPolicy.allows(
+                AuthorizationCapability.VIEW_INTERN_ATTENDANCE, policyRequest);
+        if (!viewAllowed && activeActor && actor.role() == GlobalRole.INTERN) {
+            throw new AttendanceRecordNotFoundException();
+        }
+        if (!viewAllowed) {
+            throw new AccessDeniedException("Leave is outside the requested scope");
+        }
         LeaveRequestEntity request = lockedRequest(requestId);
         expireIfNeeded(request, clock.instant(), ownerIdentity);
         return view(request);
@@ -610,12 +617,12 @@ public class LeaveApplicationService {
 
     private LeaveRequestEntity lockedRequest(long requestId) {
         return requests.findForUpdateById(requestId)
-                .orElseThrow(() -> new LeaveException("Leave request not found"));
+                .orElseThrow(AttendanceRecordNotFoundException::new);
     }
 
     private static void requireOwner(LeaveRequestEntity request, long actorId) {
         if (request.internUserId() != actorId) {
-            throw new AccessDeniedException("Only the owning Intern may change leave");
+            throw new AttendanceRecordNotFoundException();
         }
     }
 
@@ -763,7 +770,7 @@ public class LeaveApplicationService {
 
     private DecisionOutcome approveInTransaction(AttendanceActor actor, long requestId) {
         long ownerId = requests.findInternUserIdById(requestId)
-                .orElseThrow(() -> new LeaveException("Leave request not found"));
+                .orElseThrow(AttendanceRecordNotFoundException::new);
         Map<Long, LockedAccountMutationEligibility> lockedAccounts = lockAccounts(
                 List.of(actor.userId(), ownerId));
         AccountIdentity ownerIdentity = accounts.requireIdentityById(ownerId);
@@ -791,7 +798,7 @@ public class LeaveApplicationService {
 
     private DecisionOutcome rejectInTransaction(AttendanceActor actor, long requestId) {
         long ownerId = requests.findInternUserIdById(requestId)
-                .orElseThrow(() -> new LeaveException("Leave request not found"));
+                .orElseThrow(AttendanceRecordNotFoundException::new);
         Map<Long, LockedAccountMutationEligibility> lockedAccounts = lockAccounts(
                 List.of(actor.userId(), ownerId));
         AccountIdentity ownerIdentity = accounts.requireIdentityById(ownerId);

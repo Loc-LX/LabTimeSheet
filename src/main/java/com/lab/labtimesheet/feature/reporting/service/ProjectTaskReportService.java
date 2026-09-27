@@ -18,6 +18,8 @@ import com.lab.labtimesheet.feature.project.model.dto.TaskView;
 import com.lab.labtimesheet.feature.project.model.dto.TaskWorkLogView;
 import com.lab.labtimesheet.feature.project.service.TaskQueryService;
 import com.lab.labtimesheet.feature.project.service.TaskService;
+import com.lab.labtimesheet.feature.project.exception.ProjectAccessDeniedException;
+import com.lab.labtimesheet.feature.reporting.exception.ProjectTaskReportRecordNotFoundException;
 import com.lab.labtimesheet.platform.authorization.AuthorizationCapability;
 import com.lab.labtimesheet.platform.authorization.AuthorizationColumn;
 import com.lab.labtimesheet.platform.authorization.AuthorizationPolicy;
@@ -123,7 +125,12 @@ public class ProjectTaskReportService {
                     List.of());
         }
 
-        ProjectTaskContext context = projects.taskContext(actor.userId(), projectId);
+        final ProjectTaskContext context;
+        try {
+            context = projects.taskContext(actor.userId(), projectId);
+        } catch (ProjectAccessDeniedException denied) {
+            throw new ProjectTaskReportRecordNotFoundException();
+        }
         requireReportAccess(actor, context);
         boolean detailedMemberHours = canViewMemberHours(actor, context);
         ProjectDetail project = projects.detail(actor.userId(), projectId);
@@ -181,7 +188,7 @@ public class ProjectTaskReportService {
     private void requireReportAccess(ProjectActorView actor, ProjectTaskContext context) {
         if (!authorizationPolicy.allows(
                 AuthorizationCapability.PROJECT_TASK_REPORT, request(actor, context))) {
-            throw new AccessDeniedException("Project and Task report access is not permitted");
+            throw new ProjectTaskReportRecordNotFoundException();
         }
     }
 

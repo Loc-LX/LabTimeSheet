@@ -16,6 +16,7 @@ import com.lab.labtimesheet.feature.project.model.dto.ProjectTaskContext;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectTaskMemberView;
 import com.lab.labtimesheet.feature.project.service.ProjectQueryService;
 import com.lab.labtimesheet.feature.reporting.model.dto.ProjectTaskReportMemberHours;
+import com.lab.labtimesheet.feature.reporting.exception.ProjectTaskReportRecordNotFoundException;
 import com.lab.labtimesheet.feature.project.model.TaskProgress;
 import com.lab.labtimesheet.feature.project.model.TaskStatus;
 import com.lab.labtimesheet.feature.project.model.dto.TaskHistoryView;
@@ -124,7 +125,7 @@ class ProjectTaskReportServiceTest {
         org.mockito.Mockito.verifyNoMoreInteractions(projects);
     }
 
-    /** RPT-005 and B.8 require the report capability to be checked against the resolved Project scope. */
+    /** AUTH-002 and RPT-005 require selected Project denial to disclose the same unavailable record result. */
     @Test
     void deniesSelectedProjectWhenPolicyRejectsRPT005() {
         AuthorizationPolicy policy = mock(AuthorizationPolicy.class);
@@ -140,8 +141,7 @@ class ProjectTaskReportServiceTest {
         var guardedReports = new ProjectTaskReportService(projects, tasks, taskQueries, policy);
 
         assertThatThrownBy(() -> guardedReports.build("admin@example.test", 42L, null, null, null, null))
-                .isInstanceOf(org.springframework.security.access.AccessDeniedException.class)
-                .hasMessage("Project and Task report access is not permitted");
+                .isInstanceOf(ProjectTaskReportRecordNotFoundException.class);
 
         verify(policy, times(2)).allows(
                 org.mockito.ArgumentMatchers.eq(AuthorizationCapability.PROJECT_TASK_REPORT),
