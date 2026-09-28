@@ -241,9 +241,9 @@ class AttendanceReportPageWebTest {
     }
 
     /**
-     * Protects {@code D1} and {@code AC-AUTH-011}. Observable break: removing the Admin grant from the default
-     * catalogue would hide the no-target selector; with the default catalogue Admin must still see an authorized
-     * Intern choice before the withdrawal fixture is applied.
+     * Protects {@code RPT-004} rendering of the no-target selector for Admin. {@code AttendanceReportQueryService}
+     * is mocked here, so this test does not exercise the policy; {@code AdminDashboardWebTest} is the full-context
+     * control that the default catalogue lets Admin open the Attendance report without an Intern.
      */
     @Test
     void defaultCatalogueAllowsAdminAttendanceTargetSelectionWithoutInternId() throws Exception {

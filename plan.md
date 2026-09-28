@@ -35,7 +35,8 @@ and integration commits, is in git history: `git show b71fc29:plan.md`.
 
 - **B-03 step 5a (project) accepted by the reviewer on 28 September 2026 and committed as 06c841d; not pushed.** Project reads and lifecycle, membership, invitation, exit and leadership operations ask the shared AuthorizationPolicy using Project-owned scope resolution. Evidence and gates are recorded under *Evidence for Task B-03 (step 5a: project)*.
 - **B-03 step 5b (Task decisions and AC-ARC-002) accepted by the reviewer on 28 September 2026; not yet committed.** Task creation, assignment, estimate, forecast, edit, deletion, comments, work logs, status changes and exit-task redistribution ask the shared AuthorizationPolicy with Task-owned scope resolution; the Task list and the Project/Task report keep policy calls and statements constant from one row to fifty. Evidence is under *Evidence for Task B-03 (step 5b: tasks and AC-ARC-002)*.
-- **B-04 (one Admin capability withdrawal) submitted for review, 28 September 2026.** Withdrawing the Admin Attendance report cell changes that cell alone in the matrix; the withdrawal exposed an unscoped Attendance report page that listed Intern options without asking the policy, now fixed in the attendance module. Evidence is under *Evidence for Task B-04*.
+- **B-04 (one Admin capability withdrawal) accepted by the reviewer on 28 September 2026 and committed as f2407e0; not pushed.** Withdrawing the Admin Attendance report cell changes that cell alone in the matrix; the withdrawal exposed an unscoped Attendance report page that listed Intern options without asking the policy, now fixed in the attendance module. Evidence is under *Evidence for Task B-04*.
+- **B.10 evidence (constitution closure of `AUTH-002` and `AUTH-012`) submitted for review, 28 September 2026.** Evidence is under *Evidence for B.10 (constitution closure inventory)*; the decision and constitution wording follow the reviewer's reading of it.
 - **B-03 step 4 (identity) submitted for reviewer decision, 27 September 2026.** Identity account creation, activation resend and directory reads use MANAGE_ACCOUNTS; account lock/deactivate/reinstate use ACCOUNT_LIFECYCLE; SMTP setup and deferral use GLOBAL_CONFIGURATION. Evidence and verification are recorded under *Evidence for Task B-03 (step 4: identity)*. No commit or push was made; reviewer decision remains pending.
 - **Part C brought into part B, local only.** `work/fix/platform/authorization-matrix` merges part C at `25d63aa` so that B-03 steps 4 and 5 build on part C's identity and project code. Part C still reaches `main` through its own pull request, which must merge before part B's; part C's commits are not rewritten.
 - **B-06 submitted for review, 27 September 2026.** On `work/fix/platform/authorization-matrix`, record-level attendance denials and selected Project/Task report denials now use non-disclosing responses; web integration evidence, disclosure ledger, impact notes and gates are recorded under *Evidence for Task B-06*. No commit or push was made. The reviewer decides acceptance and the project/identity disclosure scope.
@@ -984,3 +985,108 @@ Task: withdraw the Admin `ATTENDANCE_REPORT` capability for the Attendance repor
 - **Change state.** No commit or push. Nine paths are changed: `plan.md`, two production Java files, four modified test files, and two new test files. Nothing under `src/` outside the listed production and test files changed.
 
 Task B-04 fix round 1 is ready for review.
+## Evidence for B.10 (constitution closure inventory)
+
+### Scope and method
+
+This is evidence for the reviewer and lead to decide whether to close or narrow the known-gap rows `AUTH-002` and `AUTH-012`. It records the current committed implementation and the checks run on 28 September 2026. No production source, constitution, or decision record was edited; no commit or push was made. The role inventory uses the required Java and template searches below; matches are classified by their behavior, not by the spelling of a role alone. Source line ranges identify every matched occurrence in a method or file group; each R4 decision site is listed separately.
+
+### 1. `AUTH-002`: four propositions and current test evidence
+
+| Proposition | Test and principal assertion | Scope and result |
+|---|---|---|
+| A hidden control does not authorize the operation. | `RecordDisclosureWebIntegrationTest#foreignLeaveAndMissingLeaveHaveTheSameNotFoundResponse`: `assertThat(ownerPage).doesNotContain("/attendance/leave/" + leaveId + "/approve");`; the direct POST additionally asserts `assertThat(hiddenApprove.getResponse().getStatus()).isEqualTo(403);`. | Leave detail hides the decision link from its owner, rejects a forged approve POST, and confirms the request remains `PENDING`. A parallel correction test at `#foreignAndMissingCorrectionTargetsHaveTheSameNotFoundResponse` checks the hidden decision link and a 403 POST. This proposition has direct assertions. |
+| An unauthenticated request redirects to sign-in. | `RecordDisclosureWebIntegrationTest#unauthenticatedRequestsRedirectToSignIn`: `.andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl("/login"))`. | Full-context `MockMvc` GET `/dashboard` and a real `/projects/{projectId}` record both assert a 3xx and exact `/login` destination; the record response also asserts the private project name and description are absent from its body. `AdminDashboardWebTest#dashboardRequiresAuthentication` still asserts only 3xx; the new test closes this proposition for the dashboard and record route. |
+| An authenticated actor with the wrong role is denied the whole route. | `RecordDisclosureWebIntegrationTest#nonAdminIsDeniedFromAdminAccountRoutes`: `.andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isForbidden());`. | An authenticated Mentor requests `/admin/accounts/{targetUserId}` and receives 403. The coarse `/admin/**` gate is exercised. |
+| A foreign record and a nonexistent record have the same not-found response. | The `assertSameNotFound` helper asserts foreign status `404`, equal missing status, `error/generic` for both, and equal normalized response bodies. | Direct pairs cover leave GET/edit/cancel; Project/Task report HTML/XLSX; Daily Project Work report HTML/XLSX; attendance history; correction detail/decision; selected Project/Task actions; guessed invitation and exit-request IDs. Foreign and missing notification IDs are separately asserted to redirect identically without mutation (302), not as 404. This is the listed route scope, not a claim about every record route. |
+
+Relevant same-response test methods are `foreignLeaveAndMissingLeaveHaveTheSameNotFoundResponse`, `inaccessibleAndMissingProjectUseTheSameReportNotFoundResponse`, `dailyReportHtmlAndExportHideForeignAndMissingProjects`, `nonInternAndMissingTargetHaveTheSameAttendanceHistoryNotFoundResponse`, `foreignAndMissingCorrectionTargetsHaveTheSameNotFoundResponse`, `hiddenProjectAndTaskActionsAreRejectedWithoutMutation`, `nonRecipientCannotRespondToInvitationByGuessingItsId`, `nonOwningMentorCannotApproveExitRequestByGuessingItsId`, and `foreignAndMissingNotificationIdsRedirectIdenticallyWithoutMutation` in `RecordDisclosureWebIntegrationTest`.
+
+### 2. `AUTH-012`: the 13 unbuilt matrix cells
+
+The test ledger contains these operations and rule references (`src/test/resources/authorization/unbuilt-operations.tsv`); matrix cell status is determined by `AuthorizationMatrixIntegrationTest#isUnbuiltCell`. The combined Project lifecycle capability has partial probes for activate/complete while edit details remains an unbuilt operation; the combined Task capability has three partial actor cells and one wholly unbuilt Current Leader cell.
+
+| Capability / actor cell | Unbuilt operation | Rule |
+|---|---|---|
+| Block, unblock, or reopen another member's Task / Current Leader | Leader block, unblock or reopen of another member's Task | `TSK-023`, `TSK-025` |
+| Decide leave, correction, or attendance exception; amend or reverse that decision / Admin | Decide leave, correction, or attendance exception; amend or reverse that decision | `ATT-024` |
+| Same / Owning Mentor | Same | `ATT-024` |
+| Same / Current Leader | Same | `ATT-024` |
+| Same / Active member / assignee | Same | `ATT-024` |
+| Ask to reopen a finalized attendance period / Admin | Ask to reopen a finalized attendance period | `ATT-022` |
+| Same / Owning Mentor | Same | `ATT-022` |
+| Same / Current Leader | Same | `ATT-022` |
+| Same / Active member / assignee | Same | `ATT-022` |
+| Approve or reject a request to reopen a finalized attendance period / Admin | Approve or reject a request to reopen a finalized attendance period | `ATT-022` |
+| Same / Owning Mentor | Same | `ATT-022` |
+| Same / Current Leader | Same | `ATT-022` |
+| Same / Active member / assignee | Same | `ATT-022` |
+
+`Edit Project details` (`AUTH-012`) and `Submit an attendance exception request` (`ATT-024`) are also recorded in the operation ledger, but their combined capability cells are reported as `PARTIAL` because the other operations in those capabilities have probes; they are not additional wholly unbuilt cells. The full Maven run reported these exact matrix summaries:
+
+```text
+B-01 matrix result: 131 cells exercised; 13 cells unbuilt; 0 mismatches
+B-04 matrix result: 131 cells exercised; 13 cells unbuilt; 1 mismatches
+```
+
+B-04's one mismatch is the expected Admin `View and export the Attendance report (RPT-004)` denial in the deliberate withdrawal run. Its separate withdrawal integration test passes. These values are reported as produced by the test; the B-04 diagnostic is not represented as zero mismatches.
+
+### 3. `AUTH-012`: role-reference inventory in production source
+
+The Windows PowerShell-safe equivalent of the requested Java search was run as `rg -n` with seven `-e` patterns:
+
+```powershell
+$a = @('-e','GlobalRole[.](ADMIN|MENTOR|INTERN)','-e','[\x22]ADMIN[\x22]','-e','[\x22]MENTOR[\x22]','-e','[\x22]INTERN[\x22]','-e','hasRole','-e','hasAnyRole','-e','[.]role[(][)]')
+rg -n $a src/main/java
+```
+
+It returned 204 Java lines. The template search `rg -n 'sec:authorize|hasRole|#authorization' src/main/resources/templates` returned 18 lines. Reclassified by the lead on 28 September 2026 after reading each site, the count is **222** (Java 204 plus template 18): **R1 69, R2 11, R3 113, R4 2, R5 27**. The remaining R4 entries are the two B.2 exceptions only. Grouped entries below give each matching line or line range within the named file/method; R4 sites are split out individually.
+
+| File and line(s) | Class / method or scope | Class | Reason |
+|---|---|---|---|
+| `config/SecurityConfiguration.java:129,133` | request authorization rules | R2 | Coarse `/admin/**` gate and authenticated application routes, as permitted by B.4. |
+| `reporting/service/DashboardService.java:55,75,99,126`; `reporting/controller/DashboardController.java:43-74` | dashboard composition and role route selection | R3 | Selects role dashboard after account checks; no business capability is granted by these branches. |
+| `project/service/TaskDashboardService.java:51-54` | `dashboard` | R3 | Chooses Mentor/Intern layout over Project data already filtered by `listVisible`; display branch only. |
+| `project/controller/ProjectController.java:98,114,140,987`; `reporting/controller/DailyProjectWorkReportController.java:59,84,101` | controller presentation and self-target handling | R3 | Chooses form choices/output or a dashboard branch; service still authorizes requested data. |
+| `attendance/controller/AttendanceRequestController.java:96,99,126,145,148,169` | request pages | R3 | Supplies role-specific labels/form presentation; query and mutation paths retain service checks. |
+| `reporting/service/ProjectTaskReportService.java:196-223`; `reporting/service/DailyProjectWorkReportService.java:73-83`; `reporting/service/AttendanceReportService.java:74,116` | report project/scope shaping | R1 | Resolves actor column or role-specific candidate scope used with policy-filtered report queries. |
+| `reporting/controller/AttendanceReportNavigationAdvice.java:55`; `reporting/controller/OperationalReportAuthorization.java:50-81`; `reporting/controller/ProjectTaskReportNavigationAdvice.java:54-57`; `reporting/controller/DailyProjectWorkReportNavigationAdvice.java:61-69` | report navigation authorization | R1 | Resolves actor column/scope and calls the shared policy for report links or project choices. |
+| `calendar/service/CalendarAuthorizationRequests.java:23`; `notification/service/NotificationAuthorizationRequests.java:23`; `internship/service/InternshipAuthorizationRequests.java:23,33,37`; `identity/service/IdentityAuthorizationRequests.java:23` | authorization request factories | R1 | Validates persisted role/status and constructs the policy request; the policy decides capability. |
+| `project/service/ProjectAuthorizationRequests.java:26-105`; `project/service/TaskAuthorizationRequests.java:77-130` | authorization request factories | R1 | Resolves policy actor columns from stored Project/Task scope and does not grant operations itself. |
+| `attendance/service/AttendanceAuthorizationRequests.java:29-30`; `attendance/service/AttendanceCurrentUserService.java:43`; `attendance/service/AttendanceReportQueryService.java:188-339`; `attendance/service/AttendanceApplicationService.java:163-181` | authorization/scope resolution | R1 | Resolves and validates actor/target roles and builds scoped policy inputs or target selectors. |
+| `attendance/service/LeaveApplicationService.java:101,165,210,213,227,267-270,310,316,385,391,470,476,481,660-681,688`; `attendance/service/AttendanceCorrectionApplicationService.java:97,104-111,157-170,211-224,316-328,619,626` | request scope, actor consistency, owner visibility and validation | R1 | Resolves records and actor scope before policy decisions; explicit decision guards at lines 632 and 694 are listed as R4 below. |
+| `project/service/ProjectQueryService.java:103,152,157,314,693,700-705,725,749-752` | Project actor/scope, dashboard summaries, list shaping | R1 | Resolves role scope or shapes already authorized Project rows; listed query guards at 181, 220, 241, 367 and 390 are R4. |
+| `project/service/TaskService.java:213,1011` | Task actor/scope context | R1 | Carries persisted actor role and Project context into operation-specific policy resolution; `requireReadableProject` line 1027 is R4. |
+| `identity/service/InternshipService.java:81-83,132,138,164,179,191,215,252,265,279,342,357,359,374,461,478,538,579,584,588,596` | account-role mapping, creation and profile validation | R5 | Role-valued account/profile data, filtering and command validation, not an authorization capability branch. |
+| `internship/controller/AccountController.java:50,64,215`; `internship/model/dto/LockedAccountMutationEligibility.java:38,41,52`; `identity/model/dto/CreateAccountForm.java:53`; `identity/service/AccountService.java:367,440,644,767`; `identity/repository/AppUserRepository.java:47`; `identity/model/entity/AppUser.java:106` | forms, DTO, repository, entity and account data | R5 | Reads, validates, persists or selects role-valued data; not an operation permission check. |
+| `project/service/ProjectService.java:320,397-398,571,1059,2196,2203,2211,2217,2233` | policy request inputs and creation validation | R1 | Resolves stored actor/scope and passes it to `ProjectAuthorizationRequests`; role checks validate creation inputs. Invitation decision guard at 467 is R4. |
+| `project/service/ProjectQueryService.java:181` | `currentLeaderProjectForDailyReport` | R1 | Resolves the Current Leader column (an active Intern holding the current leadership term of an open Project, PLAN B.2); `DailyProjectWorkReportService` then asks `DAILY_PROJECT_REPORT` with that column. The role check only refuses; it grants nothing the policy does not. |
+| `project/service/ProjectQueryService.java:220` | `listCurrentLeaderProjectsForDailyReport` | R1 | Resolves the Current Leader column (an active Intern holding the current leadership term of an open Project, PLAN B.2); `DailyProjectWorkReportService` then asks `DAILY_PROJECT_REPORT` with that column. The role check only refuses; it grants nothing the policy does not. |
+| `project/service/ProjectQueryService.java:241` | `hasCurrentLeaderProjectForDailyReport` | R1 | Resolves the Current Leader column (an active Intern holding the current leadership term of an open Project, PLAN B.2); `DailyProjectWorkReportService` then asks `DAILY_PROJECT_REPORT` with that column. The role check only refuses; it grants nothing the policy does not. |
+| `project/service/ProjectQueryService.java:367` | `membershipIntervals` | R2 | Identity guard on an Intern's own-record read (own membership intervals; invitations addressed to the caller). The query filters by the caller's id, no §5.2 row governs the read, and the guard only refuses other roles, which hold no such records. |
+| `project/service/ProjectQueryService.java:390` | `pendingInvitations` | R2 | Identity guard on an Intern's own-record read (own membership intervals; invitations addressed to the caller). The query filters by the caller's id, no §5.2 row governs the read, and the guard only refuses other roles, which hold no such records. |
+| `project/service/ProjectService.java:467` | `respondToInvitation` | R1 | Resolves the addressed-recipient scope of the invitation; `PROJECT_INVITATIONS` is then asked with that column (step 5a). |
+| `project/service/TaskService.java:1027` | `requireReadableProject` | R1 | Routes a former member of a closed Project to the decision `ProjectQueryService.taskContext` already took through the policy from stored membership history (`AUTH-006`, step 5b ruling). |
+| `attendance/service/LeaveApplicationService.java:694` | `requireMentor` | R4 — B.2 exception | §5.2 decide leave (`ATT-024`): active Mentor-only gate remains until ACC-026 supplies responsible-Mentor scope. This is the existing B.2 exception. |
+| `attendance/service/AttendanceCorrectionApplicationService.java:632` | `requireMentor` | R4 — B.2 exception | §5.2 decide attendance correction (`ATT-024`): active Mentor-only gate remains until ACC-026 supplies responsible-Mentor scope. This is the existing B.2 exception. |
+
+`AttendanceRequestController`'s `mentor` model flag shows the decision controls by the same Mentor role gate as these two B.2 exceptions; it moves to the policy together with them when `ACC-026` is built.
+| `templates/fragments/workflows.html:85`; `templates/fragments/layout.html:26-38,61,77`; `templates/fragments/error-layout.html:36-37` | navigation, optional history and error-page fragments | R3 | Hides links or chooses presentation for coarse role routes; server-side services authorize the operation. |
+| All remaining role-bearing data matches included by the search are in the R5 data/DTO/repository/entity/form/enum/validation groups above; role-valued strings used as stored facts or transfer objects are not treated as permissions. | — | — | Each search hit is counted once in the totals above. |
+
+There is **no global `LEADER` role authority**: Current Leader is a Project-scoped capability/column (`PROJECT_LEADERSHIP` / `CURRENT_LEADER`). The required `rg -n 'ROLE_LEADER|LEADER' src/main` search returned 52 lines. The hits group by source as follows: `authorization-matrix.tsv:15`; `AuthorizationCapability.java:19`; `AuthorizationColumn.java:10`; V1 SQL at 603, 630, 635, 691, 698, 1059 and V3 SQL at 48, 66, 70; `ProjectTaskReportService.java:232`; `DailyProjectWorkReportService.java:84`; `OperationalReportAuthorization.java:86`; `DailyProjectWorkReportNavigationAdvice.java:75`; `ProjectAuthorizationRequests.java:72,85,105`; `TaskAuthorizationRequests.java:54,68,123`; `ProjectService.java:72,154,406,497,579,583,720,725,735,758,764,1327,1334,1445,1491,1919,1924,2045`; `ProjectController.java:63,611,631,680,762,794,1004`; and the domain/data names `ProjectExitRequestType.java:10`, `InvitationResolutionCode.java:17`, `NotificationType.java:16`, `ProjectExitRequestEntity.java:125`, plus a comment in `templates/projects/leadership.html:2`. These are a capability/column, resolver logic, persistence vocabulary, Project/Task/report behavior, domain event/DTO names, or presentation text. None is `ROLE_LEADER` or `hasRole("LEADER")`; the output contained 52 matches.
+
+### 4. Carry-over Javadoc
+
+Changed only the Javadoc above `AttendanceReportPageWebTest#defaultCatalogueAllowsAdminAttendanceTargetSelectionWithoutInternId` to state: "Protects `RPT-004` rendering of the no-target selector for Admin. `AttendanceReportQueryService` is mocked here, so this test does not exercise the policy; `AdminDashboardWebTest` is the full-context control that the default catalogue lets Admin open the Attendance report without an Intern." The test code and assertions were unchanged.
+
+### 5. Verification results
+
+- `.\mvnw.cmd -B clean test`: **BUILD SUCCESS**, 940 tests, 0 failures, 0 errors, 0 skipped; Maven 3.9.16, Java 25.0.4.1, Spring Boot 4.1.0, PostgreSQL 18.4 through Testcontainers. The matrix diagnostics are recorded verbatim above.
+- `npm run test:ui`: **38 passed, 0 failed, 0 skipped**; Node 24.16.0 and npm 11.13.0. Documentation-link test passed.
+- First E2E attempt (from B.10a) failed because the app clock was on 29 September while the browser test supplied 28 September. The failure screenshot showed the date constraint `Value must be 09/29/2026 or later`. B.10b reran the critical and correction journeys with both `LAB_E2E_START_INSTANT=2026-09-29T01:00:00Z` and `E2E_BUSINESS_DATE=2026-09-29`: `npm run test:e2e` reported 4 passed and 2 skipped. The critical Admin/Intern/Mentor journey and missed-checkout correction journey passed; both report journeys were skipped in this first run because credentials were intentionally not set; both smoke checks passed. A separate report run against a fresh disposable database loaded with `scripts/demo-seed.sql` followed by `scripts/demo-seed-v2.sql` used `E2E_EMAIL=intern1@example.com` and `E2E_PASSWORD` set to the demo password documented in the seed header: `npx playwright test src/test/e2e/report-journeys.spec.mjs --project=chromium` reported 2 passed, 0 failed, 0 skipped. Together, every critical, correction, report and smoke journey passed in the corrected-date runs.
+- Both E2E app processes were stopped; each disposable `labtimesheet-e2e-postgres` container on `127.0.0.1:55433` was removed after its run. The protected `labtimesheet-postgres` container on port 55432 was not touched.
+- `git diff --check`: passed with no output.
+- `git status --short`: two changed paths, `plan.md` and `src/test/java/com/lab/labtimesheet/feature/reporting/controller/AttendanceReportPageWebTest.java`. `git diff --stat src/main` is empty. No commit or push was made. UI documentation links are intact.
+
+B.10 evidence round 2 is ready for review.

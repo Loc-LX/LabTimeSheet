@@ -96,6 +96,38 @@ class RecordDisclosureWebIntegrationTest {
     @Autowired private TaskService tasks;
     @Autowired private NotificationRepository notificationRows;
 
+    /**
+     * Protects {@code AUTH-002}: an unauthenticated caller is sent to sign-in and learns nothing about the record.
+     */
+    @Test
+    @Transactional
+    void unauthenticatedRequestsRedirectToSignIn() throws Exception {
+        long adminId = initializeAdminAndSmtp();
+        long mentorId = createActiveAccount(adminId, new CreateAccountCommand(
+                "mentor@example.test", "Mentor", GlobalRole.MENTOR, null, null, null));
+        long internId = createActiveIntern(adminId, "leader@example.test", "INT-LEADER");
+        internships.activateInternship(internId, adminId);
+        String privateProjectName = "Unauthenticated project sentinel";
+        long projectId = projects.create(mentorId, new ProjectCreateCommand(
+                privateProjectName, "Unauthenticated record disclosure sentinel",
+                LocalDate.of(2026, 8, 14), LocalDate.of(2026, 12, 31), internId));
+
+        mvc.perform(get("/dashboard"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status()
+                        .is3xxRedirection())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .redirectedUrl("/login"));
+
+        MvcResult recordResponse = mvc.perform(get("/projects/{projectId}", projectId))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status()
+                        .is3xxRedirection())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .redirectedUrl("/login"))
+                .andReturn();
+        assertThat(recordResponse.getResponse().getContentAsString())
+                .doesNotContain(privateProjectName, "Unauthenticated record disclosure sentinel");
+    }
+
     /** Protects AUTH-002 and B-06 across Leave GET, edit and cancel routes, plus server-side denial of a hidden decision action. */
     @Test
     @Transactional
