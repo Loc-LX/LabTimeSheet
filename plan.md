@@ -124,7 +124,7 @@ and in the constitution.
    - **Email delivery planning:** `PLAN.md` and `TASKS.md` drafted on 27 September 2026 against current code; `ED-01` carries `C-07`, adding the `NOT-012` payload predicate as `V6`; approved by the maintainer the same day after independent review.
    - **Leave planning:** `PLAN.md` and `TASKS.md` drafted on 27 September 2026 against current code; they carry the leave part of `C-05`; approved by the maintainer the same day after independent review.
    - **Missed-checkout correction planning:** `PLAN.md` and `TASKS.md` drafted on 27 September 2026 against current code; they carry the correction part of `C-05`; approved by the maintainer the same day after independent review.
-   - **Attendance exception planning:** `PLAN.md` and `TASKS.md` drafted on 27 September 2026 against current code; the feature is built on the V3 tables, adds no attendance contract migration, and AE-02 extends `ck_notifications_type` for `NOT-002`; awaiting review.
+   - **Attendance exception planning:** `PLAN.md` and `TASKS.md` drafted on 27 September 2026 against current code; the feature is built on the V3 tables, adds no attendance contract migration, and AE-02 extends `ck_notifications_type` for `NOT-002`; independent review passed on 28 September 2026 after one round of fixes; awaiting maintainer approval.
 
 ## Waiting on a decision
 
