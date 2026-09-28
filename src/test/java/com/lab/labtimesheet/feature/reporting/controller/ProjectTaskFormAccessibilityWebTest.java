@@ -18,6 +18,8 @@ import com.lab.labtimesheet.feature.project.controller.TaskController;
 import com.lab.labtimesheet.feature.project.model.dto.TaskAssigneeChoice;
 import com.lab.labtimesheet.feature.project.service.TaskService;
 import com.lab.labtimesheet.platform.service.SmtpConfigurationService;
+import com.lab.labtimesheet.platform.authorization.AuthorizationCatalogue;
+import com.lab.labtimesheet.platform.authorization.AuthorizationPolicy;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -26,10 +28,12 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest({ProjectController.class, TaskController.class})
+@Import({AuthorizationCatalogue.class, AuthorizationPolicy.class})
 class ProjectTaskFormAccessibilityWebTest {
 
     @Autowired

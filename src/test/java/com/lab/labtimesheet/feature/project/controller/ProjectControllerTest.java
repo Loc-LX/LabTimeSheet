@@ -39,6 +39,8 @@ import com.lab.labtimesheet.feature.project.exception.TaskConflictException;
 import com.lab.labtimesheet.feature.project.exception.TaskValidationException;
 import com.lab.labtimesheet.feature.project.model.dto.RemainingEffortForecastInput;
 import com.lab.labtimesheet.platform.service.SmtpConfigurationService;
+import com.lab.labtimesheet.platform.authorization.AuthorizationCatalogue;
+import com.lab.labtimesheet.platform.authorization.AuthorizationPolicy;
 import java.time.Instant;
 import java.time.Clock;
 import java.time.LocalDate;
@@ -56,9 +58,11 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(ProjectController.class)
+@Import({AuthorizationCatalogue.class, AuthorizationPolicy.class})
 class ProjectControllerTest {
 
     @Autowired
@@ -86,6 +90,11 @@ class ProjectControllerTest {
     void serverBusinessDate() {
         when(clock.instant()).thenReturn(Instant.parse("2026-08-15T01:00:00Z"));
         when(clock.getZone()).thenReturn(ZoneId.of("Asia/Ho_Chi_Minh"));
+        when(pages.authenticatedActor(org.mockito.ArgumentMatchers.anyString())).thenAnswer(invocation -> {
+            String username = invocation.getArgument(0);
+            String role = username.contains("admin") ? "ADMIN" : username.contains("mentor") ? "MENTOR" : "INTERN";
+            return new ProjectActorView(20L, role);
+        });
     }
 
     @Test

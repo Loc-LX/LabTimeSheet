@@ -4,6 +4,7 @@ import java.time.Clock;
 
 import com.lab.labtimesheet.feature.identity.repository.AppUserRepository;
 import com.lab.labtimesheet.feature.identity.repository.UserActionTokenRepository;
+import com.lab.labtimesheet.platform.authorization.AuthorizationPolicy;
 import com.lab.labtimesheet.platform.service.MailDeliveryService;
 import org.springframework.security.core.session.SessionRegistry;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -23,8 +24,9 @@ public final class AccountServiceTestFactory {
             Clock clock,
             TransactionTemplate transactions,
             SessionRegistry sessions,
-            String publicOrigin) {
+            String publicOrigin,
+            AuthorizationPolicy authorizationPolicy) {
         return new AccountService(
-                users, tokens, mailDelivery, passwords, clock, transactions, sessions, publicOrigin);
+                users, tokens, mailDelivery, passwords, clock, transactions, sessions, publicOrigin, authorizationPolicy);
     }
 }

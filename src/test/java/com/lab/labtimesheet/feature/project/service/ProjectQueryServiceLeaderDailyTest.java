@@ -41,7 +41,8 @@ class ProjectQueryServiceLeaderDailyTest {
     @BeforeEach
     void setUp() {
         queries = new ProjectQueryService(
-                projects, exitRequests, invitations, accounts, internships, taskQueries, taskTransfers);
+                projects, exitRequests, invitations, accounts, internships, taskQueries, taskTransfers,
+                ProjectAuthorizationTestPolicy.create());
     }
 
     @Test

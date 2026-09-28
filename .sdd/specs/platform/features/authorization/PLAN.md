@@ -69,6 +69,8 @@ The row "Manage SMTP, HolidayAPI, attendance policy, global calendar" also cover
 
 The row "Manage accounts/global roles at creation" covers creating an account with its global role, resending its activation email and reading the account directory. This mapping is recorded here rather than left to the implementer.
 
+Reading a Project, the Project list, its members, its leadership and its invitations falls under the row "View all Projects/tasks/progress"; reading retained history falls under "View Project/Task retained history", and aggregate progress under "View aggregate Project progress". The project module checks the scope words of each row, such as "Issue/revoke own in Own" or the former-membership condition of `AUTH-006`, before it supplies a column. This mapping is recorded here rather than left to the implementer.
+
 ### B.3 Where the catalogue lives
 
 A resource file of `platform`, read once at startup, one entry per capability and actor column,

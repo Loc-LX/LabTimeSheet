@@ -1,6 +1,7 @@
 package com.lab.labtimesheet.feature.project.service;
 
 import com.lab.labtimesheet.feature.identity.model.AccountStatus;
+import com.lab.labtimesheet.feature.identity.model.dto.AccountIdentity;
 import com.lab.labtimesheet.feature.internship.model.dto.LockedAccountMutationEligibility;
 import com.lab.labtimesheet.feature.identity.service.AccountService;
 import com.lab.labtimesheet.feature.internship.service.InternshipService;
@@ -36,6 +37,10 @@ import com.lab.labtimesheet.feature.project.service.TaskQueryService;
 import com.lab.labtimesheet.feature.project.service.TaskTransferResult;
 import com.lab.labtimesheet.feature.project.service.TaskTransferService;
 import com.lab.labtimesheet.platform.model.GlobalRole;
+import com.lab.labtimesheet.platform.authorization.AuthorizationCapability;
+import com.lab.labtimesheet.platform.authorization.AuthorizationColumn;
+import com.lab.labtimesheet.platform.authorization.AuthorizationPolicy;
+import com.lab.labtimesheet.platform.authorization.AuthorizationRequest;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import java.time.Clock;
@@ -78,6 +83,7 @@ public class ProjectService {
     private final TaskTransferService taskTransfers;
     private final NotificationService notifications;
     private final Clock clock;
+    private final AuthorizationPolicy authorizationPolicy;
 
     /** EntityManager flushes and clears the persistence context before bulk deletes. */
     // EntityManager dùng để flush và clear trước khi xóa project draft.
@@ -131,7 +137,7 @@ public class ProjectService {
         // PRJ-024: start date được phép ở quá khứ; ngày ghi work log vẫn do TSK-014 giới hạn.
         var lockedAccounts = lockAccountsForTargetMutation( // → AccountService: FOR UPDATE + snapshot
                 List.of(actorUserId, command.initialLeaderUserId())); // lock Mentor + Leader được chọn
-        requireActiveMentor(snapshotFor(lockedAccounts, actorUserId)); // Mentor phải ACTIVE
+        requireCreationCapability(snapshotFor(lockedAccounts, actorUserId));
         var initialLeader = snapshotFor(lockedAccounts, command.initialLeaderUserId()); // lấy snapshot Leader
         requireEligibleInternForProjectTarget(initialLeader); // Intern đủ điều kiện thực tập
         var project = ProjectEntity.plan( // → Entity: dựng Project PLANNED + membership + leadership trong memory
@@ -215,9 +221,7 @@ public class ProjectService {
         }
 
         var route = projectRoute(projectId); // đọc mentorId + leaderId nhẹ, chưa lock project — → Repo
-        if (route.mentorUserId() != actorUserId) { // chỉ Mentor sở hữu project mới được add
-            throw new ProjectAccessDeniedException();
-        }
+        requireOwnerRouteCapability(AuthorizationCapability.MANAGE_PROJECT_MEMBERS, actorUserId, route);
         var pendingInvitationRoutes = invitations.findPendingNotificationRoutesByProjectIdAndInvitedInternUserIds( // →
                                                                                                                    // Repo
                 projectId, internUserIds); // lời mời PENDING trùng Intern chọn (sẽ bị supersede sau)
@@ -232,9 +236,9 @@ public class ProjectService {
                 projectId,
                 internUserIds,
                 invitationNotificationUserIds(pendingInvitationRoutes)); // so recipient trước/sau lock — đổi thì retry
-        requireActiveMentor(snapshotFor(lockedAccounts, actorUserId)); // Mentor phải còn ACTIVE
         var project = lockedProject(projectId); // → Repo: FOR UPDATE — giữ quyền sửa project
-        project.authorizeOwner(actorUserId); // xác nhận lại owner trên aggregate sau lock
+        requireProjectCapability(AuthorizationCapability.MANAGE_PROJECT_MEMBERS,
+                snapshotFor(lockedAccounts, actorUserId), project);
         var selectedInterns = internUserIds.stream()
                 .map(userId -> snapshotFor(lockedAccounts, userId)) // lấy snapshot từng Intern đã lock
                 .peek(this::requireEligibleInternForProjectTarget) // throw nếu không đủ điều kiện thực tập
@@ -304,20 +308,17 @@ public class ProjectService {
             throw new ProjectRuleViolationException("Choose one or more unique Interns.");
         }
         var route = projectRoute(projectId); // đọc mentorId + leaderId nhẹ — → Repo
-        if (!Objects.equals(route.currentLeaderUserId(), actorUserId)) {
-            throw new ProjectAccessDeniedException(); // chỉ Leader hiện tại được mời
-        }
+        requireLeaderRouteCapability(AuthorizationCapability.PROJECT_INVITATIONS, actorUserId, route);
         List<Long> selectedIds = List.copyOf(invitedInternUserIds);
         List<Long> accountIds = new java.util.ArrayList<>();
         accountIds.add(actorUserId);
         accountIds.addAll(selectedIds); // gộp Leader + Intern được mời để lock
         var lockedAccounts = lockAccountsForTargetMutation(accountIds); // → AccountService: FOR UPDATE + snapshot
         var actor = snapshotFor(lockedAccounts, actorUserId);
-        requireEligibleInternForProjectActor(actor); // Leader phải ACTIVE + eligible
         var project = lockedProject(projectId); // → Repo: FOR UPDATE
-        if (project.currentLeader().internUserId() != actorUserId) { // xác nhận lại Leader sau lock
-            throw new ProjectAccessDeniedException();
-        }
+        requireCapability(AuthorizationCapability.PROJECT_INVITATIONS,
+                ProjectAuthorizationRequests.currentLeaderOnly(actor.role(), actor.accountStatus(), actor.userId(), project));
+        requireEligibleInternForProjectActor(actor); // Leader phải ACTIVE + eligible
         requireOpenProject(project); // project phải PLANNED hoặc ACTIVE
         List<Long> invitationIds = new java.util.ArrayList<>();
         for (long invitedInternUserId : selectedIds) {
@@ -397,9 +398,15 @@ public class ProjectService {
         boolean issuingLeader = actor.role() == GlobalRole.INTERN
                 && invitation.issuingLeadershipTerm().isCurrent()
                 && invitation.issuingLeadershipTerm().internUserId() == actorUserId;
-        if (!owner && !issuingLeader) { // chỉ Mentor owner hoặc Leader đã gửi lời mời
-            throw new ProjectAccessDeniedException();
+        Set<AuthorizationColumn> invitationColumns = new java.util.HashSet<>();
+        if (owner) {
+            invitationColumns.add(AuthorizationColumn.OWNING_MENTOR);
         }
+        if (issuingLeader) {
+            invitationColumns.add(AuthorizationColumn.CURRENT_LEADER);
+        }
+        requireCapability(AuthorizationCapability.PROJECT_INVITATIONS,
+                new AuthorizationRequest(invitationColumns, project.status().name(), null, null));
         if (issuingLeader) {
             requireEligibleInternForProjectActor(actor); // Leader phải eligible
         }
@@ -461,6 +468,9 @@ public class ProjectService {
             throw new ProjectAccessDeniedException();
         }
         requireActiveAccount(actor);
+        requireCapability(AuthorizationCapability.PROJECT_INVITATIONS,
+                new AuthorizationRequest(Set.of(AuthorizationColumn.ACTIVE_MEMBER_ASSIGNEE),
+                        project.status().name(), null, null));
         if (!eligibleInternForProjectMutation(invitee)) { // Intern không còn eligible → auto revoke
             if (!invitation.isPending()) {
                 throw new ProjectRuleViolationException("Invitation is no longer pending");
@@ -549,6 +559,7 @@ public class ProjectService {
     public long requestMemberRemoval(
             long actorUserId, long projectId, long targetMembershipId, String reason) {
         var route = projectRoute(projectId); // đọc mentorId nhẹ — → Repo
+        requireLeaderRouteCapability(AuthorizationCapability.MEMBERSHIP_EXIT, actorUserId, route);
         var snapshotMemberIds = projects.findCurrentInternUserIdsByProjectId(projectId); // snapshot member trước lock
         var accountIds = concat(actorUserId, snapshotMemberIds); // Leader + tất cả member hiện tại
         accountIds.add(route.mentorUserId()); // Mentor cũng cần lock (nhận notification)
@@ -556,6 +567,8 @@ public class ProjectService {
         var actor = snapshotFor(lockedAccounts, actorUserId);
         var project = lockedProject(projectId); // → Repo: FOR UPDATE
         var leader = requireCurrentLeader(project, actorUserId, actor); // actor phải là Leader hiện tại
+        requireCapability(AuthorizationCapability.MEMBERSHIP_EXIT,
+                ProjectAuthorizationRequests.currentLeaderOnly(actor.role(), actor.accountStatus(), actor.userId(), project));
         requireOpenProject(project); // project chưa COMPLETED
         var target = membershipInProject(project, targetMembershipId); // tìm membership target trong aggregate
         if (!target.isCurrent() || target.id().equals(leader.id())) { // không được loại Leader hoặc member đã rời
@@ -601,6 +614,7 @@ public class ProjectService {
         var actor = snapshotFor(lockedAccounts, actorUserId);
         var project = lockedProject(projectId); // → Repo: FOR UPDATE
         var requester = currentMembershipForUser(project, actorUserId, actor); // actor phải là member hiện tại
+        requireProjectCapability(AuthorizationCapability.MEMBERSHIP_EXIT, actor, project);
         requireOpenProject(project); // project chưa COMPLETED
         var normalizedReason = requireReason(reason); // lý do không được rỗng
         ensureNoPendingExit(requester.id()); // chặn trùng yêu cầu rời đang PENDING
@@ -673,6 +687,7 @@ public class ProjectService {
                 || requester.internUserId() != actorUserId) { // chỉ người tạo request mới được hủy
             throw new ProjectAccessDeniedException();
         }
+        requireProjectCapability(AuthorizationCapability.MEMBERSHIP_EXIT, actor, project);
         requireEligibleInternForProjectActor(actor); // requester phải eligible
         requireOpenProject(project); // project chưa COMPLETED
         if (!request.isPending()) { // chỉ hủy request đang PENDING
@@ -707,9 +722,7 @@ public class ProjectService {
     @Transactional
     public void changeLeader(long actorUserId, long projectId, long internUserId) {
         var route = projectRoute(projectId); // đọc mentorId + leaderId nhẹ — → Repo
-        if (route.mentorUserId() != actorUserId) { // chỉ Mentor sở hữu project
-            throw new ProjectAccessDeniedException();
-        }
+        requireOwnerRouteCapability(AuthorizationCapability.PROJECT_LEADERSHIP, actorUserId, route);
         var pendingInvitationRoutes = invitations.findPendingNotificationRoutesByProjectId(projectId); // tất cả lời mời
                                                                                                        // PENDING
         var accountIds = concat(actorUserId, List.of(internUserId)); // Mentor + Leader mới
@@ -718,9 +731,9 @@ public class ProjectService {
         var lockedAccounts = lockAccountsForTargetMutation(accountIds); // → AccountService: FOR UPDATE + snapshot
         requireStablePendingInvitationRecipients(
                 projectId, null, invitationNotificationUserIds(pendingInvitationRoutes)); // so recipient trước/sau lock
-        requireActiveMentor(snapshotFor(lockedAccounts, actorUserId)); // Mentor phải ACTIVE
         var project = lockedProject(projectId); // → Repo: FOR UPDATE
-        project.authorizeOwner(actorUserId); // xác nhận owner sau lock
+        requireProjectCapability(AuthorizationCapability.PROJECT_LEADERSHIP,
+                snapshotFor(lockedAccounts, actorUserId), project);
         if (!Objects.equals(route.currentLeaderUserId(), project.currentLeader().internUserId())) { // Leader đổi giữa
                                                                                                     // chừng → retry
             throw new ProjectRuleViolationException("Project leadership changed; retry the mutation");
@@ -1151,7 +1164,7 @@ public class ProjectService {
     public void approveExit(long actorMentorUserId, long projectId, long requestId, String note) {
         var route = exitRequestRoute(requestId); // lấy projectId + requesterUserId — → Repo
         requireRouteProject(projectId, route.projectId()); // URL nested phải khớp project thật
-        var locked = lockOwnedProject(actorMentorUserId, projectId, // lock account → lock project (Mentor-owned)
+        var locked = lockOwnedProject(actorMentorUserId, projectId, AuthorizationCapability.MEMBERSHIP_EXIT, // lock account → lock project (Mentor-owned)
                 List.of(route.requesterUserId()));
         var project = locked.project();
         requireOpenProject(project); // project chưa COMPLETED
@@ -1226,7 +1239,7 @@ public class ProjectService {
     public void rejectExit(long actorMentorUserId, long projectId, long requestId, String note) {
         var route = exitRequestRoute(requestId); // lấy projectId + requesterUserId — → Repo
         requireRouteProject(projectId, route.projectId()); // URL nested phải khớp project thật
-        var locked = lockOwnedProject(actorMentorUserId, projectId, // lock account → lock project (Mentor-owned)
+        var locked = lockOwnedProject(actorMentorUserId, projectId, AuthorizationCapability.MEMBERSHIP_EXIT, // lock account → lock project (Mentor-owned)
                 List.of(route.requesterUserId()));
         var project = locked.project();
         requireOpenProject(project); // project chưa COMPLETED
@@ -1268,7 +1281,7 @@ public class ProjectService {
             long projectId,
             long targetMembershipId,
             Long replacementLeaderUserId) {
-        var locked = lockOwnedProject(actorMentorUserId, projectId); // lock account → lock project (Mentor-owned)
+        var locked = lockOwnedProject(actorMentorUserId, projectId, AuthorizationCapability.MANAGE_PROJECT_MEMBERS); // lock account → lock project (Mentor-owned)
         var project = locked.project();
         requireOpenProject(project); // project chưa COMPLETED
         var target = membershipInProject(project, targetMembershipId); // tìm membership cần loại
@@ -1372,7 +1385,7 @@ public class ProjectService {
     // Chức năng: mọi Task DONE → ACTIVE→COMPLETED, đóng invitation/exit đang chờ.
     @Transactional
     public void complete(long actorMentorUserId, long projectId) {
-        var locked = lockOwnedProject(actorMentorUserId, projectId); // lock account → lock project (Mentor-owned)
+        var locked = lockOwnedProject(actorMentorUserId, projectId, AuthorizationCapability.EDIT_PROJECT); // lock account → lock project (Mentor-owned)
         var project = locked.project();
         if (project.status() != ProjectStatus.ACTIVE) { // chỉ complete project đang ACTIVE
             throw new ProjectRuleViolationException("Only an active Project can be completed");
@@ -1438,7 +1451,7 @@ public class ProjectService {
      */
     @Transactional
     public void cancel(long actorMentorUserId, long projectId, String reason) {
-        var locked = lockOwnedProject(actorMentorUserId, projectId);
+        var locked = lockOwnedProject(actorMentorUserId, projectId, AuthorizationCapability.VIEW_ALL_PROJECTS);
         var project = locked.project();
         if (reason == null || reason.isBlank()) {
             throw new ProjectRuleViolationException("A cancellation reason is required");
@@ -1446,6 +1459,8 @@ public class ProjectService {
         if (project.status() != ProjectStatus.PLANNED && project.status() != ProjectStatus.ACTIVE) {
             throw new ProjectRuleViolationException("Only a planned or active Project can be cancelled");
         }
+        requireProjectCapability(AuthorizationCapability.CANCEL_PROJECT,
+                snapshotFor(locked.accounts(), actorMentorUserId), project);
         var at = clock.instant();
         long currentLeaderUserId = project.currentLeader().internUserId();
         var memberIds = project.memberships().stream()
@@ -1533,19 +1548,17 @@ public class ProjectService {
     @Transactional
     public void activate(long actorUserId, long projectId) {
         var route = projectRoute(projectId); // đọc mentorId nhẹ — → Repo
-        if (route.mentorUserId() != actorUserId) { // chỉ Mentor sở hữu project mới được activate
-            throw new ProjectAccessDeniedException();
-        }
+        requireOwnerRouteCapability(AuthorizationCapability.EDIT_PROJECT, actorUserId, route);
         // Bước chuẩn bị trước khi activate — chống race condition khi nhiều request cùng lúc:
         // 1) Chụp snapshot danh sách Intern đang là member (chưa lock DB)
         var snapshotMemberIds = projects.findCurrentInternUserIdsByProjectId(projectId).stream()
                 .collect(Collectors.toUnmodifiableSet()); // → Repo: đọc userId member hiện tại
         // 2) Lock Mentor + toàn bộ member theo thứ tự ID tăng dần (Account trước, Project sau)
         var lockedAccounts = lockAccounts(concat(actorUserId, snapshotMemberIds)); // → AccountService: FOR UPDATE
-        requireActiveMentor(snapshotFor(lockedAccounts, actorUserId)); // Mentor vẫn ACTIVE sau lock
         // 3) Lock project — giữ quyền sửa cho đến khi activate xong
         var project = lockedProject(projectId); // → Repo: SELECT ... FOR UPDATE
-        project.authorizeOwner(actorUserId); // xác nhận lại Mentor là owner trên aggregate
+        requireProjectCapability(AuthorizationCapability.EDIT_PROJECT,
+                snapshotFor(lockedAccounts, actorUserId), project);
         // 4) So snapshot trước lock vs membership sau lock — ai add/xóa member giữa chừng thì bắt retry
         if (!snapshotMemberIds.equals(currentInternUserIds(project))) {
             throw new ProjectRuleViolationException("Project membership changed; retry activation");
@@ -1596,9 +1609,13 @@ public class ProjectService {
     @Transactional
     public void delete(long actorUserId, long projectId) {
         var lockedAccounts = lockAccounts(List.of(actorUserId));
-        requireActiveMentor(snapshotFor(lockedAccounts, actorUserId));
         var project = lockedProject(projectId); // giữ Project lock tới khi toàn bộ thao tác kết thúc
-        project.authorizeOwner(actorUserId); // từ chối đồng nhất trước khi kiểm tra dữ liệu con
+        requireOwnerScope(actorUserId, snapshotFor(lockedAccounts, actorUserId), project);
+        if (project.status() != ProjectStatus.PLANNED) {
+            throw new ProjectRuleViolationException("Only a planned Project can be deleted");
+        }
+        requireProjectCapability(AuthorizationCapability.DELETE_EMPTY_PLANNED_PROJECT,
+                snapshotFor(lockedAccounts, actorUserId), project);
         project.requireDeletable(actorUserId, projects.isEmptyDraft(projectId));
         entityManager.flush();
         entityManager.clear();
@@ -1626,6 +1643,26 @@ public class ProjectService {
     private ProjectMutationRoute projectRoute(long projectId) {
         return projects.findMutationRouteById(projectId)
                 .orElseThrow(ProjectAccessDeniedException::new);
+    }
+
+    private void requireOwnerRouteCapability(
+            AuthorizationCapability capability, long actorUserId, ProjectMutationRoute route) {
+        var actor = routeActor(actorUserId);
+        requireCapability(capability, ProjectAuthorizationRequests.owningMentorRoute(actor, route));
+    }
+
+    private void requireLeaderRouteCapability(
+            AuthorizationCapability capability, long actorUserId, ProjectMutationRoute route) {
+        var actor = routeActor(actorUserId);
+        requireCapability(capability, ProjectAuthorizationRequests.currentLeaderRoute(actor, route));
+    }
+
+    private AccountIdentity routeActor(long actorUserId) {
+        try {
+            return accounts.requireIdentityById(actorUserId);
+        } catch (IllegalArgumentException exception) {
+            throw new ProjectAccessDeniedException();
+        }
     }
 
     // Lấy projectId + invitedInternUserId từ invitationId (dùng khi chưa có
@@ -1656,8 +1693,9 @@ public class ProjectService {
     }
 
     // Overload không có thêm recipient — gọi overload đầy đủ bên dưới.
-    private LockedOwnedProject lockOwnedProject(long actorMentorUserId, long projectId) {
-        return lockOwnedProject(actorMentorUserId, projectId, List.of());
+    private LockedOwnedProject lockOwnedProject(
+            long actorMentorUserId, long projectId, AuthorizationCapability capability) {
+        return lockOwnedProject(actorMentorUserId, projectId, capability, List.of());
     }
 
     /**
@@ -1690,11 +1728,9 @@ public class ProjectService {
     // Chuẩn bị trước khi Mentor sửa project: xác nhận quyền sở hữu và danh sách
     // người cần nhận thông báo.
     private LockedOwnedProject lockOwnedProject(
-            long actorMentorUserId, long projectId, Collection<Long> additionalAccountIds) {
+            long actorMentorUserId, long projectId, AuthorizationCapability capability,
+            Collection<Long> additionalAccountIds) {
         var route = projectRoute(projectId);
-        if (route.mentorUserId() != actorMentorUserId) {
-            throw new ProjectAccessDeniedException();
-        }
         var pendingInvitationRoutes = invitations.findPendingNotificationRoutesByProjectId(projectId);
         var snapshotMemberIds = projects.findCurrentInternUserIdsByProjectId(projectId).stream()
                 .collect(Collectors.toUnmodifiableSet());
@@ -1707,9 +1743,10 @@ public class ProjectService {
                 .collect(Collectors.toUnmodifiableMap(NotificationRecipient::userId, recipient -> recipient));
         requireStablePendingInvitationRecipients(
                 projectId, null, invitationNotificationUserIds(pendingInvitationRoutes));
-        requireActiveMentor(snapshotFor(lockedAccounts, actorMentorUserId));
         var project = lockedProject(projectId);
-        project.authorizeOwner(actorMentorUserId);
+        requireOwnerScope(actorMentorUserId,
+                snapshotFor(lockedAccounts, actorMentorUserId), project);
+        requireProjectCapability(capability, snapshotFor(lockedAccounts, actorMentorUserId), project);
         if (!snapshotMemberIds.equals(currentInternUserIds(project))) {
             throw new ProjectRuleViolationException("Project membership changed; retry mutation");
         }
@@ -2152,6 +2189,35 @@ public class ProjectService {
         // Phải đồng thời đúng role và trạng thái. Sai actor là authorization failure,
         // không phải lỗi field form.
         if (account.role() != GlobalRole.MENTOR || account.accountStatus() != AccountStatus.ACTIVE) {
+            throw new ProjectAccessDeniedException();
+        }
+    }
+
+    private void requireCreationCapability(LockedAccountMutationEligibility actor) {
+        requireCapability(AuthorizationCapability.CREATE_PROJECT,
+                ProjectAuthorizationRequests.forProjectCreation(actor.role(), actor.accountStatus()));
+    }
+
+    private void requireProjectCapability(
+            AuthorizationCapability capability,
+            LockedAccountMutationEligibility actor,
+            ProjectEntity project) {
+        requireCapability(capability, ProjectAuthorizationRequests.forProject(
+                actor.role(), actor.accountStatus(), actor.userId(), project));
+    }
+
+    private void requireOwnerScope(
+            long actorUserId, LockedAccountMutationEligibility actor, ProjectEntity project) {
+        var resolved = ProjectAuthorizationRequests.forProject(
+                actor.role(), actor.accountStatus(), actorUserId, project);
+        Set<AuthorizationColumn> ownerColumns = resolved.actorColumns().contains(AuthorizationColumn.OWNING_MENTOR)
+                ? Set.of(AuthorizationColumn.OWNING_MENTOR) : Set.of();
+        requireCapability(AuthorizationCapability.VIEW_ALL_PROJECTS,
+                new AuthorizationRequest(ownerColumns, project.status().name(), null, null));
+    }
+
+    private void requireCapability(AuthorizationCapability capability, AuthorizationRequest request) {
+        if (!authorizationPolicy.allows(capability, request)) {
             throw new ProjectAccessDeniedException();
         }
     }

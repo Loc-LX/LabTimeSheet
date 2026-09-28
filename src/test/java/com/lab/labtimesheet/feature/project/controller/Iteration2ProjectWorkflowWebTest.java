@@ -40,6 +40,8 @@ import com.lab.labtimesheet.feature.project.model.dto.TaskCommentView;
 import com.lab.labtimesheet.feature.project.model.dto.TaskHistoryView;
 import com.lab.labtimesheet.feature.project.model.dto.TaskWorkLogView;
 import com.lab.labtimesheet.platform.service.SmtpConfigurationService;
+import com.lab.labtimesheet.platform.authorization.AuthorizationCatalogue;
+import com.lab.labtimesheet.platform.authorization.AuthorizationPolicy;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -52,11 +54,13 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 /** Production web contract for Project invitation, exit-transfer, and retained History workflows. */
 @WebMvcTest(ProjectController.class)
+@Import({AuthorizationCatalogue.class, AuthorizationPolicy.class})
 class Iteration2ProjectWorkflowWebTest {
 
     @Autowired

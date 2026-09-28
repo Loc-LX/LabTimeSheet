@@ -155,7 +155,7 @@ public interface ProjectRepository extends JpaRepository<ProjectEntity, Long> {
     // Lấy Mentor và Leader hiện tại trước khi Service khóa tài khoản liên quan.
     @Query("""
             select new com.lab.labtimesheet.feature.project.model.dto.ProjectMutationRoute(
-                    project.id, project.mentorUserId, term.membership.internUserId)
+                    project.id, project.mentorUserId, term.membership.internUserId, project.status)
             from ProjectEntity project
             left join project.leadershipTerms term on term.endedAt is null
             where project.id = :projectId

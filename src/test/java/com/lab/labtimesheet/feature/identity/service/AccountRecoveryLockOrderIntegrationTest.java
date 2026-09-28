@@ -86,7 +86,7 @@ class AccountRecoveryLockOrderIntegrationTest {
         doNothing().when(mail).send(anyString(), anyString(), anyString());
         AccountService recovery = new AccountService(
                 gatedUsers, gatedTokens, mail, passwords, clock, transactions, sessions,
-                "http://localhost");
+                "http://localhost", IdentityAuthorizationTestPolicy.create());
 
         try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
             Future<Boolean> consume = executor.submit(() -> {

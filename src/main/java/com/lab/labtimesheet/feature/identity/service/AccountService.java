@@ -26,7 +26,6 @@ import com.lab.labtimesheet.feature.identity.repository.UserActionTokenRepositor
 import com.lab.labtimesheet.platform.model.GlobalRole;
 import com.lab.labtimesheet.platform.authorization.AuthorizationCapability;
 import com.lab.labtimesheet.platform.authorization.AuthorizationPolicy;
-import com.lab.labtimesheet.platform.authorization.AuthorizationCatalogue;
 import com.lab.labtimesheet.platform.authorization.AuthorizationRequest;
 import com.lab.labtimesheet.platform.service.MailDeliveryService;
 import org.springframework.beans.factory.annotation.Value;
@@ -57,19 +56,6 @@ public class AccountService {
     private final SessionRegistry sessions;
     private final String publicOrigin;
     private final AuthorizationPolicy authorizationPolicy;
-
-    AccountService(
-            AppUserRepository users,
-            UserActionTokenRepository tokens,
-            MailDeliveryService mailDelivery,
-            PasswordEncoder passwords,
-            Clock clock,
-            TransactionTemplate transactions,
-            SessionRegistry sessions,
-            String publicOrigin) {
-        this(users, tokens, mailDelivery, passwords, clock, transactions, sessions, publicOrigin,
-                new AuthorizationPolicy(AuthorizationCatalogue.loadDefault()));
-    }
 
     @Autowired
     AccountService(

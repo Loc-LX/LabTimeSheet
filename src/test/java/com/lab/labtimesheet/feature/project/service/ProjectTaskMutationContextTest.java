@@ -8,10 +8,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.lab.labtimesheet.feature.identity.service.AccountService;
+import com.lab.labtimesheet.feature.identity.model.AccountStatus;
+import com.lab.labtimesheet.feature.identity.model.dto.AccountIdentity;
 import com.lab.labtimesheet.feature.internship.service.InternshipService;
 import com.lab.labtimesheet.feature.notification.service.NotificationService;
 import com.lab.labtimesheet.feature.project.exception.ProjectAccessDeniedException;
 import com.lab.labtimesheet.feature.project.model.InvitationResponse;
+import com.lab.labtimesheet.feature.project.model.ProjectStatus;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectInvitationRoute;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectMutationRoute;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectTaskContext;
@@ -23,6 +26,7 @@ import com.lab.labtimesheet.feature.project.repository.ProjectInvitationReposito
 import com.lab.labtimesheet.feature.project.repository.ProjectRepository;
 import com.lab.labtimesheet.feature.project.service.TaskQueryService;
 import com.lab.labtimesheet.feature.project.service.TaskTransferService;
+import com.lab.labtimesheet.platform.model.GlobalRole;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.List;
@@ -87,9 +91,9 @@ class ProjectTaskMutationContextTest {
                 Set.of(41L));
         var service = new ProjectService(
                 projects, invitations, exitRequests, accounts, internships, queries, taskQueries, taskTransfers, notifications,
-                Clock.systemUTC());
+                Clock.systemUTC(), ProjectAuthorizationTestPolicy.create());
         when(projects.findMutationRouteById(projectId))
-                .thenReturn(Optional.of(new ProjectMutationRoute(projectId, 10L, actorUserId)));
+                .thenReturn(Optional.of(new ProjectMutationRoute(projectId, 10L, actorUserId, ProjectStatus.ACTIVE)));
         when(projects.findCurrentInternUserIdsByProjectId(projectId)).thenReturn(List.of(actorUserId));
         when(projects.findLockedById(projectId)).thenReturn(Optional.of(project));
         when(project.memberships()).thenReturn(List.of(currentMember));
@@ -117,9 +121,9 @@ class ProjectTaskMutationContextTest {
         long projectId = 30L;
         var service = new ProjectService(
                 projects, invitations, exitRequests, accounts, internships, queries, taskQueries, taskTransfers, notifications,
-                Clock.systemUTC());
+                Clock.systemUTC(), ProjectAuthorizationTestPolicy.create());
         when(projects.findMutationRouteById(projectId))
-                .thenReturn(Optional.of(new ProjectMutationRoute(projectId, 10L, 40L)));
+                .thenReturn(Optional.of(new ProjectMutationRoute(projectId, 10L, 40L, ProjectStatus.ACTIVE)));
         when(projects.findCurrentInternUserIdsByProjectId(projectId)).thenReturn(List.of(40L, 41L));
 
         assertThrows(ProjectAccessDeniedException.class,
@@ -136,9 +140,11 @@ class ProjectTaskMutationContextTest {
         long projectId = 30L;
         var service = new ProjectService(
                 projects, invitations, exitRequests, accounts, internships, queries, taskQueries, taskTransfers, notifications,
-                Clock.systemUTC());
+                Clock.systemUTC(), ProjectAuthorizationTestPolicy.create());
         when(projects.findMutationRouteById(projectId))
-                .thenReturn(Optional.of(new ProjectMutationRoute(projectId, 10L, 40L)));
+                .thenReturn(Optional.of(new ProjectMutationRoute(projectId, 10L, 40L, ProjectStatus.PLANNED)));
+        when(accounts.requireIdentityById(actorUserId)).thenReturn(new AccountIdentity(
+                actorUserId, "actor@example.test", "Actor", GlobalRole.INTERN, AccountStatus.ACTIVE));
 
         assertThrows(ProjectAccessDeniedException.class,
                 () -> service.activate(actorUserId, projectId));
@@ -154,7 +160,7 @@ class ProjectTaskMutationContextTest {
         long invitationId = 30L;
         var service = new ProjectService(
                 projects, invitations, exitRequests, accounts, internships, queries, taskQueries, taskTransfers, notifications,
-                Clock.systemUTC());
+                Clock.systemUTC(), ProjectAuthorizationTestPolicy.create());
         when(invitations.findRouteById(invitationId))
                 .thenReturn(Optional.of(new ProjectInvitationRoute(40L, 50L)));
 

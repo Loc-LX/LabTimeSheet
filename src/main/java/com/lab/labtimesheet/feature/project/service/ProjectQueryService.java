@@ -29,6 +29,10 @@ import com.lab.labtimesheet.feature.project.repository.ProjectRepository;
 import com.lab.labtimesheet.feature.project.service.TaskQueryService;
 import com.lab.labtimesheet.feature.project.service.TaskTransferService;
 import com.lab.labtimesheet.platform.model.GlobalRole;
+import com.lab.labtimesheet.platform.authorization.AuthorizationCapability;
+import com.lab.labtimesheet.platform.authorization.AuthorizationColumn;
+import com.lab.labtimesheet.platform.authorization.AuthorizationPolicy;
+import com.lab.labtimesheet.platform.authorization.AuthorizationRequest;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -61,6 +65,8 @@ public class ProjectQueryService {
     private final InternshipService internships;
     private final TaskQueryService taskQueries;
     private final TaskTransferService taskTransfers;
+
+    private final AuthorizationPolicy authorizationPolicy;
 
     /**
      * Resolves an active authenticated account to its stable user identifier.
@@ -255,6 +261,8 @@ public class ProjectQueryService {
         Pageable bounded = boundedPage(requestedPage);
         // Admin=all | Mentor=project của mình | Intern=đang/đã tham gia
         Slice<ProjectEntity> visiblePage = visibleProjectSlice(actor, actorUserId, bounded);
+        visiblePage.getContent().forEach(project -> requireVisibleProject(
+                actorUserId, project, AuthorizationCapability.VIEW_ALL_PROJECTS));
         List<ProjectSummary> summaries = visiblePage.getContent().stream()
                 .map(ProjectQueryService::summary)
                 .toList();
@@ -281,9 +289,16 @@ public class ProjectQueryService {
     // Chức năng: header + canManage + isCurrentLeader → detail.html.
     public ProjectDetail detail(long actorUserId, long projectId) {
         var actor = activeActor(actorUserId);
-        var project = visibleProject(actorUserId, projectId); //service: kiểm tra quyền xem project này
+        var project = visibleProject(actorUserId, projectId, AuthorizationCapability.VIEW_ALL_PROJECTS);
         var terminal = project.status() == ProjectStatus.COMPLETED || project.status() == ProjectStatus.CANCELLED;
         Long currentLeaderId = terminal ? null : project.currentLeader().internUserId();
+        boolean owningMentor = project.mentorUserId() == actorUserId;
+        boolean canManage = !terminal && owningMentor && authorizationPolicy.allows(
+                AuthorizationCapability.EDIT_PROJECT, ProjectAuthorizationRequests.forProject(actor, project));
+        boolean canDelete = owningMentor && projects.isEmptyDraft(projectId)
+                && authorizationPolicy.allows(
+                        AuthorizationCapability.DELETE_EMPTY_PLANNED_PROJECT,
+                        ProjectAuthorizationRequests.forProject(actor, project));
         // → detail.html: tên, status, Mentor, Leader, canManage, isCurrentLeader
         return new ProjectDetail(
                 project.id(),
@@ -294,8 +309,8 @@ public class ProjectQueryService {
                 project.endDate(),
                 displayName(project.mentorUserId()),
                 currentLeaderId == null ? null : displayName(currentLeaderId),
-                !terminal && project.mentorUserId() == actorUserId,
-                project.mentorUserId() == actorUserId && projects.isEmptyDraft(projectId),
+                canManage,
+                canDelete,
                 !terminal && actor.role() == GlobalRole.INTERN && currentLeaderId == actorUserId,
                 project.cancellationReason(),
                 project.cancelledByMentorUserId() == null ? null : displayName(project.cancelledByMentorUserId()),
@@ -314,7 +329,7 @@ public class ProjectQueryService {
     // === QUERY | bảng thành viên ===
     // Chức năng: membership history + ai là Leader → members.html.
     public List<ProjectMemberView> members(long actorUserId, long projectId) {
-        var project = visibleProject(actorUserId, projectId);
+        var project = visibleProject(actorUserId, projectId, AuthorizationCapability.VIEW_ALL_PROJECTS);
         Long leaderUserId = project.status() == ProjectStatus.COMPLETED || project.status() == ProjectStatus.CANCELLED
                 ? null
                 : project.currentLeader().internUserId();
@@ -380,8 +395,14 @@ public class ProjectQueryService {
                         actorUserId, com.lab.labtimesheet.feature.project.model.InvitationStatus.PENDING)
                 .stream()
                 .map(invitation -> {
+                    if (invitation.invitedInternUserId() != actorUserId) {
+                        throw new ProjectAccessDeniedException();
+                    }
                     var project = projects.findById(invitation.projectId())
                             .orElseThrow(ProjectAccessDeniedException::new);
+                    requireCapability(AuthorizationCapability.VIEW_ALL_PROJECTS,
+                            new AuthorizationRequest(Set.of(AuthorizationColumn.ACTIVE_MEMBER_ASSIGNEE),
+                                    project.status().name(), null, null));
                     return new PendingProjectInvitationView(
                             invitation.id(),
                             project.id(),
@@ -403,7 +424,7 @@ public class ProjectQueryService {
     // === QUERY | lịch sử kỳ Leader ===
     // Chức năng: các kỳ Leader (mới nhất trước) → leadership.html.
     public List<ProjectLeadershipTermView> leadership(long actorUserId, long projectId) {
-        return visibleProject(actorUserId, projectId).leadershipTerms().stream()
+        return visibleProject(actorUserId, projectId, AuthorizationCapability.VIEW_ALL_PROJECTS).leadershipTerms().stream()
                 .sorted((left, right) -> right.startedAt().compareTo(left.startedAt()))
                 .map(term -> new ProjectLeadershipTermView(
                         term.id(),
@@ -432,7 +453,7 @@ public class ProjectQueryService {
     // === QUERY | lịch sử project (read-only) ===
     // Chức năng: membership, invitation, exit, task → history.html + workflows.html.
     public ProjectHistoryView history(long actorUserId, long projectId) {
-        var project = visibleProject(actorUserId, projectId); // → Repo: ProjectRepository
+        var project = visibleProject(actorUserId, projectId, AuthorizationCapability.VIEW_PROJECT_TASK_HISTORY);
         var memberships = project.memberships().stream()
                 .map(membership -> new ProjectMemberView(
                         membership.id(),
@@ -564,7 +585,7 @@ public class ProjectQueryService {
     // === QUERY | hàng chờ exit ===
     // Chức năng: yêu cầu rời PENDING + số task chưa DONE → detail.html badge + workflows.html.
     public List<ProjectExitReadinessView> exitReadiness(long actorUserId, long projectId) {
-        var project = visibleProject(actorUserId, projectId);
+        var project = visibleProject(actorUserId, projectId, AuthorizationCapability.VIEW_ALL_PROJECTS);
         var currentLeaderId = project.status() == ProjectStatus.COMPLETED || project.status() == ProjectStatus.CANCELLED
                 ? null : project.currentLeader().id();
         // → workflows.html: hàng chờ exit — ai chờ, còn bao nhiêu task chưa DONE
@@ -597,7 +618,7 @@ public class ProjectQueryService {
     @Transactional(readOnly = true)
     public ProjectTaskContext taskContext(long actorUserId, long projectId) {
         var project = projects.findById(projectId).orElseThrow(ProjectAccessDeniedException::new);
-        requireVisibleProject(actorUserId, project);
+        requireVisibleProject(actorUserId, project, AuthorizationCapability.VIEW_ALL_PROJECTS);
         return taskContext(actorUserId, project,
                 exitRequests.findPendingTargetMembershipIdsByProjectId(projectId));
     }
@@ -621,7 +642,7 @@ public class ProjectQueryService {
      */
     ProjectTaskContext taskContext(
             long actorUserId, ProjectEntity project, Set<Long> pendingExitMembershipIds) {
-        requireVisibleProject(actorUserId, project);
+        requireVisibleProject(actorUserId, project, AuthorizationCapability.VIEW_ALL_PROJECTS);
         if (project.status() == ProjectStatus.COMPLETED || project.status() == ProjectStatus.CANCELLED) {
             return new ProjectTaskContext(
                     project.id(),
@@ -669,6 +690,13 @@ public class ProjectQueryService {
     @Transactional(readOnly = true)
     public ProjectDashboardSummary dashboardSummary(long actorUserId) {
         var actor = activeActor(actorUserId);
+        AuthorizationColumn column = switch (actor.role()) {
+            case ADMIN -> AuthorizationColumn.ADMIN;
+            case MENTOR -> AuthorizationColumn.OWNING_MENTOR;
+            case INTERN -> AuthorizationColumn.ACTIVE_MEMBER_ASSIGNEE;
+        };
+        requireCapability(AuthorizationCapability.VIEW_AGGREGATE_PROJECT_PROGRESS,
+                new AuthorizationRequest(Set.of(column), null, null, null));
         return switch (actor.role().name()) {
             case "ADMIN" -> new ProjectDashboardSummary(projects.countActiveProjects(), 0L);
             case "MENTOR" -> new ProjectDashboardSummary(
@@ -684,23 +712,34 @@ public class ProjectQueryService {
     }
 
     // Tải Project và chặn người không thuộc phạm vi xem; lỗi giống nhau dù ID không tồn tại hay không có quyền.
-    private ProjectEntity visibleProject(long actorUserId, long projectId) {
+    private ProjectEntity visibleProject(
+            long actorUserId, long projectId, AuthorizationCapability capability) {
         var project = projects.findById(projectId).orElseThrow(ProjectAccessDeniedException::new);
-        requireVisibleProject(actorUserId, project);
+        requireVisibleProject(actorUserId, project, capability);
         return project;
     }
 
-    // Admin xem mọi Project; Mentor chỉ xem Project sở hữu; Intern xem Project đang tham gia hoặc completed từng tham gia.
-    private void requireVisibleProject(long actorUserId, ProjectEntity project) {
+    private void requireVisibleProject(
+            long actorUserId, ProjectEntity project, AuthorizationCapability capability) {
         var actor = activeActor(actorUserId);
-        var visible = "ADMIN".equals(actor.role().name())
-                || ("MENTOR".equals(actor.role().name()) && project.mentorUserId() == actorUserId)
-                || ("INTERN".equals(actor.role().name())
-                        && (project.hasCurrentMember(actorUserId)
-                                || ((project.status() == ProjectStatus.COMPLETED
-                                        || project.status() == ProjectStatus.CANCELLED)
-                                        && project.hasEverHadMember(actorUserId))));
-        if (!visible) {
+        boolean formerMember = actor.role() == GlobalRole.INTERN
+                && (project.status() == ProjectStatus.COMPLETED || project.status() == ProjectStatus.CANCELLED)
+                && project.hasEverHadMember(actorUserId);
+        if (!formerMember) {
+            requireProjectCapability(capability, actor, project);
+            return;
+        }
+        requireCapability(capability, new AuthorizationRequest(
+                Set.of(AuthorizationColumn.ACTIVE_MEMBER_ASSIGNEE), project.status().name(), null, null));
+    }
+
+    private void requireProjectCapability(
+            AuthorizationCapability capability, AccountIdentity actor, ProjectEntity project) {
+        requireCapability(capability, ProjectAuthorizationRequests.forProject(actor, project));
+    }
+
+    private void requireCapability(AuthorizationCapability capability, AuthorizationRequest request) {
+        if (!authorizationPolicy.allows(capability, request)) {
             throw new ProjectAccessDeniedException();
         }
     }

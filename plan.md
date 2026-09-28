@@ -33,6 +33,7 @@ and integration commits, is in git history: `git show b71fc29:plan.md`.
 
 ## Now
 
+- **B-03 step 5a (project) submitted for review.** On work/fix/platform/authorization-matrix at 039d825, Project reads and lifecycle, membership, invitation, exit and leadership operations now ask the shared AuthorizationPolicy using Project-owned scope resolution. Evidence and gates are recorded under *Evidence for Task B-03 (step 5a: project)*. No commit or push was made; review and acceptance remain pending.
 - **B-03 step 4 (identity) submitted for reviewer decision, 27 September 2026.** Identity account creation, activation resend and directory reads use MANAGE_ACCOUNTS; account lock/deactivate/reinstate use ACCOUNT_LIFECYCLE; SMTP setup and deferral use GLOBAL_CONFIGURATION. Evidence and verification are recorded under *Evidence for Task B-03 (step 4: identity)*. No commit or push was made; reviewer decision remains pending.
 - **Part C brought into part B, local only.** `work/fix/platform/authorization-matrix` merges part C at `25d63aa` so that B-03 steps 4 and 5 build on part C's identity and project code. Part C still reaches `main` through its own pull request, which must merge before part B's; part C's commits are not rewritten.
 - **B-06 submitted for review, 27 September 2026.** On `work/fix/platform/authorization-matrix`, record-level attendance denials and selected Project/Task report denials now use non-disclosing responses; web integration evidence, disclosure ledger, impact notes and gates are recorded under *Evidence for Task B-06*. No commit or push was made. The reviewer decides acceptance and the project/identity disclosure scope.
@@ -781,3 +782,75 @@ the other way round.
 - **Verification.** Focused retry `InternshipLifecycleIntegrationTest#accountCreationUsesManageAccountsPolicy`: 1/1. `AuthorizationMatrixIntegrationTest` in the final clean run: 127 cells exercised, 17 unbuilt, 0 mismatches. `.\mvnw.cmd -B clean test`: BUILD SUCCESS, 926 tests, 0 failures, 0 errors, 0 skipped; Maven 3.9.16, Java 25.0.4.1, PostgreSQL 18.4 through Testcontainers. `npm run test:ui`: 38/38 passed on Node 24.16.0 and npm 11.13.0, including documentation-link checks. `git diff --check` produced no output. The documentation link check found no broken link. No Playwright browser suite was requested or run.
 - **GitNexus final checks.** `node .gitnexus/run.cjs analyze --index-only` completed with 8,693 nodes, 28,831 edges, 352 clusters and 739 flows (GitNexus 1.6.12). Windows FTS could not load; process extraction reported omitted candidates/callees and walks cut by budget, so missing flows are not evidence of no call path. `node .gitnexus/run.cjs detect-changes --scope all --repo .` reported 9 files, 43 symbols, 101 affected processes and CRITICAL risk; no partial/truncated marker appeared in its result. This risk finding is reported for reviewer assessment, not represented as cleared.
 - **Working tree.** The change remains uncommitted and unpushed. `git status --short` is recorded in the handoff; no independent review or acceptance is claimed.
+
+## Evidence for Task B-03 (step 5a: project)
+
+- **Scope.** Began clean on work/fix/platform/authorization-matrix at 039d825. Project module code and focused test fixtures/tests changed; no commit or push was made. No assertion was weakened or removed. No .env was read; database port 55432, container labtimesheet-postgres, protected branches/worktrees, AGENTS.md and CLAUDE.md were not touched. Documentation link checks passed.
+- **Policy injection corrected.** The first submission gave `ProjectService`, `ProjectController` and `ProjectQueryService` a default policy built from the catalogue and an optional setter, and step 4 had left `AccountService` a secondary constructor that built its own policy; the reviews missed both at first. All four now take the shared policy only through their constructors, as every other module does, and production code builds no policy of its own (Authorization PLAN B.3).
+- **Assertion changes.** `ProjectServiceAuthorizationTest` now uses the real catalogue-backed policy and tests denial for an Admin with no `PROJECT_INVITATIONS` scope; the access-denial and no-notification assertions remain. No architecture test asserted constructor parameters for these four classes, so none required an update.
+- **Impact before policy-injection correction.** Bare `AccountService` impact at 15:50:33 UTC selected the class at source line 46: CRITICAL, 31 direct callers, 115 processes, exact. Bare `AccountService --kind Method` at 15:50:51 UTC was ambiguous: the secondary constructor at line 61 (UID suffix `#8`) was CRITICAL (candidate 247 impacted, 1 direct); the Spring constructor at line 74 (UID suffix `#9`) was HIGH (144 impacted, 1 direct). The selected secondary constructor was rerun by UID at 15:51:04 UTC: CRITICAL, 1 direct caller, 243 impacted, 112 processes, exact. Text search `rg -n -F "new AccountService(" src/main` returned no production callers; matches were confined to test sources.
+- **Plan mapping.** Authorization PLAN B.2 now records: “Reading a Project, the Project list, its members, its leadership and its invitations falls under the row ‘View all Projects/tasks/progress’; reading retained history falls under ‘View Project/Task retained history’, and aggregate progress under ‘View aggregate Project progress’. The project module checks the scope words of each row, such as ‘Issue/revoke own in Own’ or the former-membership condition of AUTH-006, before it supplies a column. This mapping is recorded here rather than left to the implementer.”
+- **Capability mapping.** create → “Create Project” → active owning Mentor; Project mutation checks resolve active owner / current Leader from stored route and aggregate. addMembers, removeMemberDirectly → “Directly add/remove Project members” → OWNING_MENTOR. issueInvitations, revokeInvitation, respondToInvitation → “Issue/revoke Project invitation” → CURRENT_LEADER for issuing and own-term revoke, OWNING_MENTOR for owner-scoped revoke, ACTIVE_MEMBER_ASSIGNEE only for the addressed member's own response; module checks current issuing term or exact recipient before supplying that column. requestMemberRemoval, requestOwnLeave, cancelExit, approveExit, rejectExit → “Request/decide membership exit” → CURRENT_LEADER for another member's removal request, ACTIVE_MEMBER_ASSIGNEE for own leave, OWNING_MENTOR for decisions/direct removal; target/request ownership checks stay in project. changeLeader → “Appoint/change Project Leader” → OWNING_MENTOR. activate, complete → “Edit/activate/complete Project” → OWNING_MENTOR. cancel → “Cancel a PLANNED or ACTIVE Project” → OWNING_MENTOR after preserving module status/reason validation. delete → “Delete an empty PLANNED Project (PRJ-002)” → OWNING_MENTOR after preserving module status and emptiness guards. Project list/detail/members/leadership/invitation/workflow/exit readiness/task context reads → “View all Projects/tasks/progress”; history → “View Project/Task retained history” after current/former membership checks (AUTH-006); aggregate dashboard progress → “View aggregate Project progress”. Project state sent to policy is the stored Project state. Policy denials retain existing project exception types and messages.
+- **Impact before the first edits.** Bare-method impact was run on 27 September 2026 at 13:38:20 UTC; its batch output contained candidate headings without usable per-method summaries. create was ambiguous: selected ProjectService.create at line 126 returned LOW, while the ProjectController.create candidate was UNKNOWN. addMembers was rerun by selected UID on 27 September 2026 at 13:49:03 UTC: selected ProjectService.addMembers at line 206 returned LOW with 2 direct callers and the AddMembers flow (12 hits); two receiver-typed callers were dropped, so counts are lower bounds. The same-name ProjectController.addMembers candidate was UNKNOWN. Text search confirmed the production path from ProjectController.addMembers to the service and the ProjectService.addMember wrapper to addMembers; no external production caller was found. | Method at baseline `039d825` | UTC | Risk | Direct callers | Processes | Bound |
+|---|---|---:|---:|---:|---|
+| ProjectController.list | 15:15:10 | UNKNOWN | 0 | 0 | lower-bound; 11 dropped callsites |
+| ProjectController.createForm | 15:15:14 | UNKNOWN | 0 | 0 | exact |
+| ProjectController.create | 15:15:18 | UNKNOWN | 0 | 0 | lower-bound; 4 dropped callsites |
+| ProjectController.populateMembersModel | 15:10:03 | CRITICAL | 2 | 6 | exact |
+| ProjectController.populateLeadershipModel | 15:10:07 | HIGH | 2 | 3 | exact |
+| ProjectController.populateWorkflowModel | 15:10:11 | LOW | 1 | 1 | exact |
+| ProjectController.canCreateProject | 15:10:14 | UNKNOWN | — | — | absent at baseline; not found |
+| ProjectController.ownerCan | 15:10:18 | UNKNOWN | — | — | absent at baseline; not found |
+| ProjectController.leaderCan | 15:10:21 | UNKNOWN | — | — | absent at baseline; not found |
+| ProjectController.setAuthorizationPolicy | 15:10:25 | UNKNOWN | — | — | absent at baseline; not found |
+| ProjectService.create | 15:15:22 | LOW | 1 | 1 | lower-bound; 4 dropped callsites |
+| ProjectService.addMembers | 15:15:25 | LOW | 2 | 1 | lower-bound; dropped typed callers |
+| ProjectService.issueInvitations | 15:10:32 | LOW | 2 | 1 | exact |
+| ProjectService.revokeInvitation (route overload, line 381) | 15:15:29 | LOW | 2 | 1 | exact |
+| ProjectService.respondToInvitation | 15:15:32 | LOW | 1 | 1 | exact |
+| ProjectService.requestMemberRemoval | 15:10:45 | LOW | 1 | 1 | exact |
+| ProjectService.requestOwnLeave | 15:15:36 | LOW | 1 | 1 | exact |
+| ProjectService.cancelExit (project overload, line 655) | 15:15:39 | LOW | 2 | 1 | lower-bound |
+| ProjectService.changeLeader | 15:15:43 | LOW | 1 | 1 | lower-bound |
+| ProjectService.approveExit (project overload, line 1150) | 15:16:00 | LOW | 2 | 1 | lower-bound |
+| ProjectService.rejectExit (project overload, line 1225) | 15:16:03 | LOW | 2 | 1 | exact |
+| ProjectService.directRemoveMember | 15:11:09 | LOW | 1 | 1 | exact |
+| ProjectService.complete | 15:16:07 | LOW | 1 | 1 | exact |
+| ProjectService.cancel | 15:16:10 | LOW | 1 | 1 | lower-bound |
+| ProjectService.activate | 15:16:14 | LOW | 1 | 1 | lower-bound |
+| ProjectService.delete | 15:16:17 | LOW | 1 | 1 | lower-bound |
+| ProjectService.requireOwnerRouteCapability | 15:11:29 | UNKNOWN | — | — | absent at baseline; not found |
+| ProjectService.requireLeaderRouteCapability | 15:11:33 | UNKNOWN | — | — | absent at baseline; not found |
+| ProjectService.routeActor | 15:11:36 | UNKNOWN | — | — | absent at baseline; not found |
+| ProjectService.lockOwnedProject (overload at line 1659) | 15:16:21 | HIGH | 3 | 3 | exact |
+| ProjectService.lockOwnedProject (overload at line 1692) | 15:16:24 | CRITICAL | 3 | 5 | exact |
+| ProjectService.requireCreationCapability | 15:11:43 | UNKNOWN | — | — | absent at baseline; not found |
+| ProjectService.requireProjectCapability | 15:11:47 | UNKNOWN | — | — | absent at baseline; not found |
+| ProjectService.requireOwnerScope | 15:11:50 | UNKNOWN | — | — | absent at baseline; not found |
+| ProjectService.requireCapability | 15:11:54 | UNKNOWN | — | — | absent at baseline; not found |
+| ProjectService.setAuthorizationPolicy | 15:10:25 | UNKNOWN | — | — | absent at baseline; not found |
+| ProjectQueryService.listPage | 15:11:58 | LOW | 2 | 1 | lower-bound |
+| ProjectQueryService.detail | 15:16:28 | CRITICAL | 8 | 14 | exact |
+| ProjectQueryService.members | 15:16:31 | CRITICAL | 6 | 19 | lower-bound |
+| ProjectQueryService.pendingInvitations | 15:12:09 | LOW | 1 | 2 | exact |
+| ProjectQueryService.leadership | 15:16:35 | HIGH | 1 | 4 | exact |
+| ProjectQueryService.history | 15:16:38 | LOW | 2 | 2 | lower-bound |
+| ProjectQueryService.exitReadiness | 15:12:20 | CRITICAL | 2 | 11 | exact |
+| ProjectQueryService.taskContext(actor, projectId) | 15:16:42 | UNKNOWN | 0 | 0 | lower-bound; 2 dropped callsites |
+| ProjectQueryService.taskContext(actor, project, exits) | 15:16:46 | CRITICAL | 5 | 5 | lower-bound; 2 dropped callsites |
+| ProjectQueryService.dashboardSummary | 15:12:28 | LOW | 2 | 1 | exact |
+| ProjectQueryService.visibleProject | 15:12:31 | CRITICAL | 5 | 18 | exact |
+| ProjectQueryService.requireVisibleProject | 15:12:36 | CRITICAL | 3 | 15 | exact |
+| ProjectQueryService.requireProjectCapability | 15:18:00 | UNKNOWN | — | — | absent at baseline; not found |
+| ProjectQueryService.requireCapability | 15:18:04 | UNKNOWN | — | — | absent at baseline; not found |
+| ProjectQueryService.setAuthorizationPolicy | 15:18:07 | UNKNOWN | — | — | absent at baseline; not found |
+| ProjectRepository.findMutationRouteById | 15:12:41 | CRITICAL | 2 | 12 | lower-bound |
+| ProjectMutationRoute record component `status` / canonical constructor | — | UNKNOWN | — | — | structural change; no baseline method symbol |
+
+UNKNOWN caller text search at baseline: `ProjectController.list`, `createForm` and `create` are MVC route handlers (GET/POST mappings); `create` calls `ProjectService.create`. The two-argument `ProjectQueryService.taskContext` has production calls from `TaskService.loadTaskAccess`, `ProjectTaskReportService` and `TaskDashboardService`; the three-argument overload is called by `ProjectService`. New helper methods listed as absent have no baseline callers because their symbols do not exist at `039d825`.
+
+Per-method impact was not preserved before these edits, the fifth such departure in part B; impact was rerun method by method at the baseline `039d825` and is recorded above. The reviewer accepted this compensation on 27 September 2026; a further departure is reverted without exception.
+- **RED and restoration.** (1) Temporarily removing the PROJECT_INVITATIONS policy call from owner revocation made ProjectServiceAuthorizationTest.refusesOwnerRevocationWhenPolicyDeniesItsProjectInvitationColumn fail: expected ProjectAccessDeniedException, observed ProjectRuleViolationException for the deliberately non-pending invitation; the check was restored. (2) Temporarily changing the “Appoint/change Project Leader” / Owning Mentor matrix cell from Yes to No made AuthorizationMatrixIntegrationTest fail at that counterexample setup, with expected allowed=true and observed denial; the matrix cell was restored. (3) Temporarily removing the former-member history exception made ProjectServiceIntegrationTest.completedProjectQueriesReturnHistoricalMembersWithoutRequiringACurrentLeader error with ProjectAccessDeniedException; the former-member path was restored. No test assertion expectation was changed; route fixtures were extended for the stored Project status and the preflight actor snapshot.
+- **Verification.** Final `.\mvnw.cmd -B clean test`: BUILD SUCCESS, 927 tests, 0 failures, 0 errors, 0 skipped (Maven 3.9.16, Java 25.0.4.1, PostgreSQL 18.4 through Testcontainers). `npm run test:ui`: 38/38 passed. `AuthorizationMatrixIntegrationTest`: 127 exercised, 17 unbuilt, 0 mismatches. `RecordDisclosureWebIntegrationTest`: 11/11; `LayerStructureTest`: 2/2; `ModuleBoundaryCycleTest`: 5/5. `git diff --check` produced no output. During the first full run, 7 errors came from two MVC slices missing the policy bean (4 in `Iteration2ProjectWorkflowWebTest`, 3 in `ProjectTaskFormAccessibilityWebTest`); both classes were rerun alone, and final run passed after importing the real catalogue and policy. `ProjectControllerTest` first errored because the real report advice reached an unstubbed actor; after adding actor fixture data it passed 41/41.
+- **GitNexus.** node .gitnexus/run.cjs analyze --index-only completed with 8,731 nodes, 29,103 edges, 353 clusters and 742 flows. FTS was unavailable; extraction dropped 630 candidate entrypoints, 2,557 callees and 420 flows, so an absent flow is not proof of no impact. node .gitnexus/run.cjs detect-changes --scope all --repo . reported 6 files, 65 symbols, 492 affected processes and CRITICAL risk, without a partial/truncated marker in the detector result. This graph risk is left for reviewer assessment.
+- **Handoff.** The work remains uncommitted and unpushed. Reviewer acceptance and independent review are pending; no completion verdict is recorded here.
