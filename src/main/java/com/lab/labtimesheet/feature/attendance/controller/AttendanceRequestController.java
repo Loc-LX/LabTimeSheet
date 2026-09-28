@@ -5,6 +5,7 @@ import com.lab.labtimesheet.feature.attendance.exception.AttendanceExceptionRequ
 import com.lab.labtimesheet.feature.attendance.exception.LeaveException;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceExceptionKind;
+import com.lab.labtimesheet.feature.attendance.model.LeaveStatus;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceHistoryItem;
 import com.lab.labtimesheet.platform.model.GlobalRole;
 import com.lab.labtimesheet.feature.attendance.model.dto.CorrectionDecision;
@@ -325,7 +326,7 @@ public class AttendanceRequestController {
     }
 
     /**
-     * Cancels an authorized leave request while its service deadline remains open.
+     * Withdraws a pending request or cancels approved leave while its service deadline remains open.
      *
      * @param principal authenticated actor
      * @param requestId leave request identifier
@@ -336,8 +337,9 @@ public class AttendanceRequestController {
     public String cancelLeave(
             Principal principal, @PathVariable long requestId, RedirectAttributes redirectAttributes) {
         try {
-            leave.cancel(currentUsers.actor(principal), requestId);
-            redirectAttributes.addFlashAttribute("message", "Leave request cancelled");
+            var changed = leave.cancel(currentUsers.actor(principal), requestId);
+            redirectAttributes.addFlashAttribute("message", changed.status() == LeaveStatus.WITHDRAWN
+                    ? "Leave request withdrawn" : "Approved leave cancelled");
         } catch (LeaveException failure) {
             redirectAttributes.addFlashAttribute("requestError", failure.getMessage());
         }

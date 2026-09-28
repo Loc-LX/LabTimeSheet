@@ -331,6 +331,60 @@ class AttendanceRequestControllerWebTest {
         verify(corrections).decide(actor, 11L, CorrectionDecision.REOPEN, "Recheck");
     }
 
+    /**
+     * Protects {@code LEV-011}, {@code LEV-013}, and {@code AC-LEV-005}: the existing POST route
+     * dispatches its state-specific owner action and reports withdrawal for pending leave and
+     * cancellation for approved leave.
+     */
+    @Test
+    void leaveCancelRouteWithdrawsPendingAndCancelsApproved() throws Exception {
+        AttendanceActor actor = new AttendanceActor(7L, GlobalRole.INTERN);
+        when(currentUsers.actor(org.mockito.ArgumentMatchers.any())).thenReturn(actor);
+        when(leave.cancel(actor, 10L)).thenReturn(leaveView(10L, LeaveStatus.WITHDRAWN));
+        when(leave.cancel(actor, 11L)).thenReturn(leaveView(11L, LeaveStatus.CANCELLED));
+
+        mvc.perform(post("/attendance/leave/10/cancel")
+                        .with(user("intern@example.test").roles("INTERN")).with(csrf()))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/attendance/leave/10"))
+                .andExpect(flash().attribute("message", "Leave request withdrawn"));
+        mvc.perform(post("/attendance/leave/11/cancel")
+                        .with(user("intern@example.test").roles("INTERN")).with(csrf()))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/attendance/leave/11"))
+                .andExpect(flash().attribute("message", "Approved leave cancelled"));
+
+        verify(leave).cancel(actor, 10L);
+        verify(leave).cancel(actor, 11L);
+    }
+
+    /**
+     * Protects {@code LEV-011}, {@code LEV-013}, and {@code AC-LEV-007}: pending leave exposes
+     * "Withdraw request", approved leave exposes "Cancel approved leave", and neither label is
+     * shown for the other state.
+     */
+    @Test
+    void leavePageShowsTheActionMatchingEachRequestState() throws Exception {
+        AttendanceActor actor = new AttendanceActor(7L, GlobalRole.INTERN);
+        when(currentUsers.actor(org.mockito.ArgumentMatchers.any())).thenReturn(actor);
+        when(calendar.currentBusinessDate()).thenReturn(LocalDate.of(2026, 8, 21));
+        when(leave.list(actor)).thenReturn(List.of());
+        when(leave.balance(actor, YearMonth.of(2026, 8))).thenReturn(
+                new com.lab.labtimesheet.feature.attendance.model.dto.LeaveBalance(
+                        YearMonth.of(2026, 8), 0, 3));
+        when(leave.view(actor, 10L)).thenReturn(leaveView(10L, LeaveStatus.PENDING));
+        when(leave.view(actor, 11L)).thenReturn(leaveView(11L, LeaveStatus.APPROVED));
+
+        mvc.perform(get("/attendance/leave/10").with(user("intern@example.test").roles("INTERN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Withdraw request")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("Cancel approved leave"))));
+        mvc.perform(get("/attendance/leave/11").with(user("intern@example.test").roles("INTERN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Cancel approved leave")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("Withdraw request"))));
+    }
+
     @Test
     void rejectedLeaveRetainsSafeInputWithAnInlineError() throws Exception {
         AttendanceActor actor = new AttendanceActor(7L, GlobalRole.INTERN);
@@ -597,5 +651,22 @@ class AttendanceRequestControllerWebTest {
         } finally {
             TimeZone.setDefault(previousZone);
         }
+    }
+
+    private static LeaveRequestView leaveView(long id, LeaveStatus status) {
+        Instant submittedAt = Instant.parse("2026-08-20T00:00:00Z");
+        return new LeaveRequestView(
+                id,
+                7L,
+                LocalDate.of(2026, 8, 28),
+                LocalDate.of(2026, 8, 28),
+                "Family",
+                status,
+                submittedAt,
+                Instant.parse("2026-08-28T01:00:00Z"),
+                status == LeaveStatus.CANCELLED ? 2L : null,
+                status == LeaveStatus.CANCELLED ? submittedAt.plusSeconds(30) : null,
+                status == LeaveStatus.CANCELLED ? submittedAt.plusSeconds(60) : null,
+                List.of());
     }
 }

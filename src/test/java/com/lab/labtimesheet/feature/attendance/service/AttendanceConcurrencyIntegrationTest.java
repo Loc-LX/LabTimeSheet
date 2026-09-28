@@ -301,6 +301,10 @@ class AttendanceConcurrencyIntegrationTest {
                 .containsExactly(CorrectionEventType.SUBMITTED, CorrectionEventType.APPROVED);
     }
 
+    /**
+     * Protects {@code LEV-013} and {@code LEV-007}: an edit racing a pending withdrawal finishes
+     * with one retained request state and records the owner transition as {@code WITHDRAWN}.
+     */
     @Test
     void poolSizedInternLeaveMutationBurstCompletesWithoutNestedExpiryConnection() throws Exception {
         long internId = createActiveIntern();
@@ -321,11 +325,11 @@ class AttendanceConcurrencyIntegrationTest {
                     return "EDITED";
                 }
                 leaves.cancel(actor, second.id());
-                return "CANCELLED";
+                return "WITHDRAWN";
             } catch (RuntimeException failure) {
                 return "FAILURE:" + failure.getClass().getSimpleName();
             }
-        })).containsExactlyInAnyOrder("EDITED", "CANCELLED");
+        })).containsExactlyInAnyOrder("EDITED", "WITHDRAWN");
     }
 
     @Test

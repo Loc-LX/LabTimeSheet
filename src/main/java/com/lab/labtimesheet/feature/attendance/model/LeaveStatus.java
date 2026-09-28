@@ -8,6 +8,8 @@ public enum LeaveStatus {
     APPROVED,
     /** Mentor rejected the request or an unresolved request crossed its first counted start. */
     REJECTED,
-    /** Intern cancelled the request before its first counted start. */
+    /** Intern withdrew an undecided request before its first counted start. */
+    WITHDRAWN,
+    /** Intern cancelled an approved request before its first counted start. */
     CANCELLED
 }

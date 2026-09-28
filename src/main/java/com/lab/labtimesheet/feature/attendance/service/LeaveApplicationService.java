@@ -316,7 +316,7 @@ public class LeaveApplicationService {
     }
 
     /**
-     * Cancels a pending or approved request before its first counted start.
+     * Withdraws a pending request or cancels an approved request before its first counted start.
      *
      * <p>Authorization, expiry, and cancellation share one independent {@code REQUIRES_NEW} transaction and row
      * lock. The independent boundary does not join an ambient caller transaction, so a late pending request returns
@@ -324,18 +324,40 @@ public class LeaveApplicationService {
      *
      * @param actor authenticated Intern owner
      * @param requestId request identifier
-     * @return cancelled request projection retaining its allocations
+     * @return changed request projection retaining its allocations and decision history
      */
     public LeaveRequestView cancel(AttendanceActor actor, long requestId) {
         requireIntern(actor);
-        MutationOutcome outcome = independentTransactions().execute(status -> cancelInTransaction(actor, requestId));
+        MutationOutcome outcome = independentTransactions().execute(
+                status -> mutateOwnedRequest(actor, requestId, true));
         if (outcome.expired()) {
             throw new LeaveException("Leave cannot be cancelled after its first counted start");
         }
         return outcome.view();
     }
 
-    private MutationOutcome cancelInTransaction(AttendanceActor actor, long requestId) {
+    /**
+     * Withdraws only a pending request before its first counted start.
+     *
+     * <p>The same owner authorization, independent transaction, and row lock used by the existing cancellation route
+     * apply. An approved request has a different owner action and is refused here.</p>
+     *
+     * @param actor authenticated Intern owner
+     * @param requestId request identifier
+     * @return withdrawn request projection retaining its allocations
+     */
+    public LeaveRequestView withdraw(AttendanceActor actor, long requestId) {
+        requireIntern(actor);
+        MutationOutcome outcome = independentTransactions().execute(
+                status -> mutateOwnedRequest(actor, requestId, false));
+        if (outcome.expired()) {
+            throw new LeaveException("Leave cannot be withdrawn after its first counted start");
+        }
+        return outcome.view();
+    }
+
+    private MutationOutcome mutateOwnedRequest(
+            AttendanceActor actor, long requestId, boolean cancelApprovedRequests) {
         long ownerId = requests.findInternUserIdById(requestId)
                 .orElseThrow(() -> new LeaveException("Leave request not found"));
         lockAccounts(List.of(actor.userId(), ownerId));
@@ -352,7 +374,15 @@ public class LeaveApplicationService {
         if (!now.isBefore(request.firstCountedStartAt())) {
             throw new LeaveException("Leave cannot be cancelled after its first counted start");
         }
-        request.cancel(now);
+        if (request.status() == LeaveStatus.PENDING) {
+            request.withdraw(now);
+        } else if (cancelApprovedRequests && request.status() == LeaveStatus.APPROVED) {
+            request.cancel(now);
+        } else {
+            throw new LeaveException(cancelApprovedRequests
+                    ? "Only pending or approved leave can be changed"
+                    : "Only pending leave can be withdrawn");
+        }
         return new MutationOutcome(view(requests.saveAndFlush(request)), false);
     }
 

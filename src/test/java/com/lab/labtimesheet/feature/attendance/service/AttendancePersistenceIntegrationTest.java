@@ -74,6 +74,7 @@ import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.time.OffsetDateTime;
 import java.time.DayOfWeek;
 import java.time.LocalTime;
 import java.math.BigDecimal;
@@ -107,6 +108,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 import static com.lab.labtimesheet.feature.attendance.model.entity.LeaveEntityFixtures.allocatedDay;
@@ -162,6 +164,9 @@ class AttendancePersistenceIntegrationTest {
 
     @Autowired
     private EntityManager entityManager;
+
+    @Autowired
+    private JdbcTemplate jdbc;
 
     @Autowired
     private TransactionTemplate transactions;
@@ -770,6 +775,10 @@ class AttendancePersistenceIntegrationTest {
                 .containsExactly(LocalDate.of(2026, 8, 17));
     }
 
+    /**
+     * Protects {@code LEV-013} and {@code AC-LEV-007}: editing then withdrawing a pending request
+     * leaves it {@code WITHDRAWN} and retains its frozen allocation instead of recording a cancellation.
+     */
     @Test
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
@@ -784,8 +793,9 @@ class AttendancePersistenceIntegrationTest {
         assertThat(edited.allocations().getFirst().leaveDate()).isEqualTo(LocalDate.of(2026, 8, 17));
 
         var cancelled = leaves.cancel(intern, edited.id());
-        assertThat(cancelled.status()).isEqualTo(LeaveStatus.CANCELLED);
-        assertThat(cancelled.cancelledAt()).isEqualTo(clock.instant());
+        assertThat(cancelled.status()).isEqualTo(LeaveStatus.WITHDRAWN);
+        assertThat(cancelled.cancelledAt()).isNull();
+        assertThat(cancelled.allocations()).isEqualTo(edited.allocations());
     }
 
     @Test
@@ -858,6 +868,11 @@ class AttendancePersistenceIntegrationTest {
         }
     }
 
+    /**
+     * Protects {@code LEV-013}, {@code LEV-004}, {@code LEV-006}, and {@code AC-DB-011}: a pending
+     * cancel must become a timestamped withdrawal, retain both day rows and release exactly one
+     * reserved date so an identical next request is accepted.
+     */
     @Test
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
@@ -865,13 +880,43 @@ class AttendancePersistenceIntegrationTest {
         AttendanceActor intern = new AttendanceActor(internId, GlobalRole.INTERN);
         var submitted = leaves.submit(intern, new LeaveRequestCommand(
                 LocalDate.of(2026, 8, 17), LocalDate.of(2026, 8, 17), "rehydrate"));
+        List<LeaveAllocation> allocations = submitted.allocations();
+        assertThat(allocations).hasSize(1);
         entityManager.clear();
 
-        assertThat(leaves.cancel(intern, submitted.id()).status()).isEqualTo(LeaveStatus.CANCELLED);
+        var withdrawn = leaves.cancel(intern, submitted.id());
+        assertThat(withdrawn.status().name()).isEqualTo("WITHDRAWN");
+        assertThat(withdrawn.allocations()).isEqualTo(allocations);
+        assertThat(withdrawn.decidedByMentorUserId()).isNull();
+        assertThat(withdrawn.decidedAt()).isNull();
+        assertThat(withdrawn.cancelledAt()).isNull();
+        assertThat(jdbc.queryForObject(
+                        "SELECT withdrawn_at FROM leave_requests WHERE id = ?", OffsetDateTime.class, submitted.id())
+                        .toInstant())
+                .isEqualTo(clock.instant());
         assertThat(leaveRequests.findById(submitted.id()).orElseThrow().status())
-                .isEqualTo(LeaveStatus.CANCELLED);
+                .extracting(Enum::name).isEqualTo("WITHDRAWN");
+        assertThat(leaveDays.findByRequestIdOrderByLeaveDate(submitted.id()))
+                .extracting(day -> day.leaveDate(), day -> day.quotaMonth(),
+                        day -> day.policyVersionId(), day -> day.monthlyQuotaSnapshot())
+                .containsExactly(org.assertj.core.groups.Tuple.tuple(
+                        allocations.getFirst().leaveDate(), allocations.getFirst().quotaMonth(),
+                        allocations.getFirst().policyVersionId(), allocations.getFirst().monthlyQuotaSnapshot()));
+        assertThat(leaveDays.countReservedExcluding(
+                        internId, LocalDate.of(2026, 8, 1),
+                        List.of(LeaveStatus.PENDING.name(), LeaveStatus.APPROVED.name()), null))
+                .isZero();
+        assertThat(leaves.submit(intern, new LeaveRequestCommand(
+                        LocalDate.of(2026, 8, 17), LocalDate.of(2026, 8, 17), "same dates after withdrawal"))
+                .status())
+                .isEqualTo(LeaveStatus.PENDING);
     }
 
+    /**
+     * Protects {@code LEV-011}, {@code LEV-004}, and {@code AC-LEV-005}: approved cancellation
+     * before the first counted start releases one allocation while retaining the approving Mentor
+     * and the exact approval instant; cancellation at that boundary leaves the approved row intact.
+     */
     @Test
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
@@ -892,8 +937,14 @@ class AttendancePersistenceIntegrationTest {
                         null))
                 .isEqualTo(1);
 
+        assertThatThrownBy(() -> leaves.withdraw(intern, beforeStart.id()))
+                .isInstanceOf(LeaveException.class);
+
         var cancelled = leaves.cancel(intern, beforeStart.id());
         assertThat(cancelled.status()).isEqualTo(LeaveStatus.CANCELLED);
+        assertThat(cancelled.decidedByMentorUserId()).isEqualTo(approvedBeforeStart.decidedByMentorUserId());
+        assertThat(cancelled.decidedAt()).isEqualTo(approvedBeforeStart.decidedAt());
+        assertThat(cancelled.cancelledAt()).isEqualTo(clock.instant());
         assertThat(cancelled.allocations()).hasSize(1);
         assertThat(leaveDays.findByRequestIdOrderByLeaveDate(beforeStart.id())).hasSize(1);
         assertThat(leaveDays.countReservedExcluding(

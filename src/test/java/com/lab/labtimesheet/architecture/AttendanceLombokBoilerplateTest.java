@@ -370,6 +370,7 @@ class AttendanceLombokBoilerplateTest {
                 method(Modifier.PUBLIC, "decidedByMentorUserId", Long.class),
                 method(Modifier.PUBLIC, "decidedAt", Instant.class),
                 method(Modifier.PUBLIC, "cancelledAt", Instant.class),
+                method(Modifier.PUBLIC, "withdrawnAt", Instant.class),
                 method(
                         Modifier.PUBLIC,
                         "edit",
@@ -381,7 +382,8 @@ class AttendanceLombokBoilerplateTest {
                 method(Modifier.PUBLIC, "approve", void.class, long.class, Instant.class),
                 method(Modifier.PUBLIC, "reject", void.class, long.class, Instant.class),
                 method(Modifier.PUBLIC, "autoReject", void.class, Instant.class),
-                method(Modifier.PUBLIC, "cancel", void.class, Instant.class));
+                method(Modifier.PUBLIC, "cancel", void.class, Instant.class),
+                method(Modifier.PUBLIC, "withdraw", void.class, Instant.class));
         assertMethodSurface(
                 AttendanceCorrectionEntity.class,
                 method(Modifier.PUBLIC, "id", long.class),
@@ -560,6 +562,8 @@ class AttendanceLombokBoilerplateTest {
                 method(Modifier.PUBLIC, "edit", com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestView.class,
                         AttendanceActor.class, long.class, com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestCommand.class),
                 method(Modifier.PUBLIC, "cancel", com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestView.class,
+                        AttendanceActor.class, long.class),
+                method(Modifier.PUBLIC, "withdraw", com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestView.class,
                         AttendanceActor.class, long.class),
                 method(Modifier.PUBLIC, "approve", com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestView.class,
                         AttendanceActor.class, long.class),

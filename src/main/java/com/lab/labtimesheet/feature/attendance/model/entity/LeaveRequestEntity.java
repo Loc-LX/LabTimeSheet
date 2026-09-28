@@ -55,6 +55,9 @@ public class LeaveRequestEntity {
     @Column(name = "cancelled_at")
     private Instant cancelledAt;
 
+    @Column(name = "withdrawn_at")
+    private Instant withdrawnAt;
+
     @Version
     private long version;
 
@@ -155,7 +158,7 @@ public class LeaveRequestEntity {
     /**
      * Returns the current durable leave state.
      *
-     * @return pending, approved, rejected, or cancelled
+     * @return pending, approved, rejected, withdrawn, or cancelled
      */
     public LeaveStatus status() {
         return LeaveStatus.valueOf(status);
@@ -204,6 +207,15 @@ public class LeaveRequestEntity {
      */
     public Instant cancelledAt() {
         return cancelledAt;
+    }
+
+    /**
+     * Returns the optional server withdrawal timestamp.
+     *
+     * @return withdrawal instant, or {@code null} when the request was not withdrawn
+     */
+    public Instant withdrawnAt() {
+        return withdrawnAt;
     }
 
     /**
@@ -264,16 +276,29 @@ public class LeaveRequestEntity {
     }
 
     /**
-     * Cancels a pending or approved request before its first counted start.
+     * Cancels an approved request before its first counted start, retaining its approval actor and time.
      *
      * @param now server cancellation timestamp
      */
     public void cancel(Instant now) {
-        if (!LeaveStatus.PENDING.name().equals(status) && !LeaveStatus.APPROVED.name().equals(status)) {
-            throw new IllegalStateException("Only pending or approved leave can be cancelled");
+        if (!LeaveStatus.APPROVED.name().equals(status)) {
+            throw new IllegalStateException("Only approved leave can be cancelled");
         }
         status = LeaveStatus.CANCELLED.name();
         cancelledAt = now;
+    }
+
+    /**
+     * Withdraws an undecided request without changing its decision or allocated-day history.
+     *
+     * @param now server withdrawal timestamp
+     */
+    public void withdraw(Instant now) {
+        if (!LeaveStatus.PENDING.name().equals(status)) {
+            throw new IllegalStateException("Only pending leave can be withdrawn");
+        }
+        status = LeaveStatus.WITHDRAWN.name();
+        withdrawnAt = now;
     }
 
     private void requirePending() {
