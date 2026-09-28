@@ -2,7 +2,7 @@
 
 <a id="attendance-spec"></a>
 
-**Version:** 1.10.0 · **Owner:** Loc-LX · **Status:** APPROVED BUSINESS BASELINE · **Date:** 2026-09-21
+**Version:** 1.11.0 · **Owner:** Loc-LX · **Status:** APPROVED BUSINESS BASELINE · **Date:** 2026-09-28
 
 Part of the Lab Timesheet specification. Rules every feature shares, including the
 glossary, the authorization model, the domain model, and failure handling, are in
@@ -161,7 +161,7 @@ Canonical workflow: [feature contract](features/period-finalization/SPEC.md).
 
 | ID | Requirement |
 |---|---|
-| NOT-011 | WHEN leave, a correction, or an attendance exception request is submitted, THE system SHALL notify the Intern's responsible Mentor under `ACC-026`, and WHEN any such request becomes overdue, SHALL notify that Mentor again. WHEN such a request is decided, or its decision is amended or reversed under `ATT-024`, or a late arrival or early departure is marked excused without a request, THE system SHALL notify the Intern. WHEN a request to reopen a finalized attendance period is made under `ATT-022`, THE system SHALL notify every active user whom the authorization policy of `AUTH-012` permits to approve or reject it, and SHALL NOT choose those recipients by role; under the §5.2 matrix they are the active Admins today. WHEN it is approved or rejected, THE system SHALL notify the requester and, where different, the Intern's responsible Mentor. |
+| NOT-011 | WHEN leave, a correction, or an attendance exception request is submitted, THE system SHALL notify the Intern's responsible Mentor under `ACC-026`, and WHEN any such request becomes overdue, SHALL notify that Mentor again. WHEN such a request is decided, or its decision is amended or reversed under `ATT-024`, or a late arrival or early departure is marked excused without a request, THE system SHALL notify the Intern. WHERE the Intern has no responsible Mentor, or that Mentor's account is `LOCKED` or `DEACTIVATED`, THE system SHALL NOT send a submission notice or overdue reminder to that Mentor, and SHALL instead notify every active user whom the authorization policy of `AUTH-012` permits to assign a responsible Mentor under `ACC-026`, naming the Intern as needing a responsible Mentor; under the §5.2 matrix they are the active Admins today. WHEN a pending or overdue request moves to a newly assigned responsible Mentor under `ACC-026`, THE system SHALL notify that Mentor of each moved request with the submission notice of its kind. WHEN a request to reopen a finalized attendance period is made under `ATT-022`, THE system SHALL notify every active user whom the authorization policy of `AUTH-012` permits to approve or reject it, and SHALL NOT choose those recipients by role; under the §5.2 matrix they are the active Admins today. WHEN it is approved or rejected, THE system SHALL notify the requester and, where different, the Intern's responsible Mentor. |
 
 ### Integrity (from platform §19.3)
 
