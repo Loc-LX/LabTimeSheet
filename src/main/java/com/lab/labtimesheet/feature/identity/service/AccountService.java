@@ -534,6 +534,16 @@ public class AccountService {
         return users.findActiveMentorIdentities();
     }
 
+    /**
+     * Returns all active Admin identities as scalar cross-feature notification recipients.
+     *
+     * @return active Admin identities in database display-name order
+     */
+    @Transactional(readOnly = true)
+    public List<AccountIdentity> activeAdminIdentities() {
+        return users.findIdentitiesByRoleAndStatusOrderByDisplayName(GlobalRole.ADMIN, AccountStatus.ACTIVE);
+    }
+
     /** Returns account identities filtered by role and status in database display-name order. */
     @Transactional(readOnly = true)
     public List<AccountIdentity> identitiesByRoleAndStatusOrderedByDisplayName(

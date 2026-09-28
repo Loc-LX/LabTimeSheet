@@ -405,6 +405,19 @@ public class InternshipService {
         return internProfiles.findById(userId).map(InternProfile::getStudentCode);
     }
 
+    /**
+     * Resolves the optional responsible Mentor identifier without exposing the Internship entity across modules.
+     *
+     * @param internUserId owning Intern account
+     * @return responsible Mentor account identifier when one is assigned
+     */
+    @Transactional(readOnly = true)
+    public Optional<Long> responsibleMentorUserId(long internUserId) {
+        return internProfiles.findById(internUserId)
+                .map(InternProfile::getResponsibleMentorUserId)
+                .filter(java.util.Objects::nonNull);
+    }
+
     private void correctProfile(long userId, AccountIdentityCorrection correction) {
         InternProfile profile = lockInternProfile(userId);
         if (correction.studentCode() != null) {
