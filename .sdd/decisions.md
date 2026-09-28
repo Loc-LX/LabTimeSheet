@@ -95,6 +95,7 @@ came from, not whether the choice is settled.
 | D44 | What the constitution records after part E | Credit the exact production response assertions and the four independent readiness refusals, each by name, and keep the `SEC-011` and `SEC-013` known-gap rows for the clauses no test asserts; no rule, layer or obligation changes | constitution `2.0.5` |
 | D45 | How the V3 probes are written and judged | `AC-DB-001` replays the Flyway migrations; the V3 backfill applies `ATT-020` at the migration's server time; C-02 ends red on its work branch; the probes fix V3's column names | `AC-DB-001`, `D27`, `D32`, data-model tasks |
 | D46 | How a Task blocked before transition history existed is unblocked | Either `TODO` or `IN_PROGRESS`, chosen by the authorized actor; the unblock is recorded, and no block record is invented for the earlier block | `TSK-025`, `AC-TSK-022` |
+| D48 | What the constitution records after part B | Credit the tests part B added under `AUTH-002` and `AUTH-012`, each by name and for what it asserts; narrow both known-gap rows to the clauses no test asserts; no rule, layer or obligation changes | constitution `2.0.6` |
 
 D1 through D5 came from reading the specification against its own history. D6
 through D9 came from the audit described at the end of this page, which read the
@@ -2315,6 +2316,18 @@ production code. The constitution credits only the assertions those tests make a
 - Once the Task is blocked again, `TSK-025` applies in full.
 
 **Status:** decided.
+
+## D48. What does the constitution record after part B?
+
+**Decided on 28 September 2026 by Loc-LX.** Authorization part B routed every built §5.2 cell through one policy (tasks B-01 to B-04 and B-06). Plan section B.10 closes a known-gap row only when the tests assert every clause of its rule, and otherwise narrows it to the clauses left unasserted. The constitution credits what the tests assert and claims nothing more.
+
+- `AUTH-002`: the enforcement column credits `RecordDisclosureWebIntegrationTest` for the sign-in redirect, the whole-route 403, the same not-found pairs on the record routes it lists, and the refused hidden decision controls. The known-gap row stays, narrowed to the record routes the test does not list and to notification IDs, which answer foreign and absent alike with the same redirect instead of the not-found response the rule names.
+- `AUTH-012`: the enforcement column credits `AuthorizationMatrixIntegrationTest` for 131 of the 144 cells, `AuthorizationWithdrawalIntegrationTest` for the one-cell withdrawal, and `AuthorizationPolicyTest` for the catalogue's predicates. The known-gap row stays, narrowed to the 13 cells of operations not yet built, the leave and correction decisions that wait for `ACC-026`, and the absence of a test that fails on a new role decision outside the policy.
+- Withdrawing the Admin Attendance report cell exposed an unscoped report page that listed Interns without asking the policy; B-04 fixed it in the attendance module. It is recorded here because it is the case `AC-AUTH-011` exists to catch.
+- No rule, layer or obligation changes. The constitution becomes `2.0.6`.
+
+**Status:** decided.
+
 ## What the audit checked and found sound
 
 Listing what passed matters as much as what failed, because a reader otherwise
