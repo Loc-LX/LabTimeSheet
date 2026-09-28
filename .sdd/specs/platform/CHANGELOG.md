@@ -1,5 +1,10 @@
 # Changelog — Platform module
 
+## 1.12.0 — 2026-09-28
+
+Counts only, following `D46` and `D47`: `AC-TSK-022` and `AC-ACC-023` bring the acceptance
+scenarios to 169. No platform rule changed.
+
 ## 1.11.0 — 2026-09-23
 
 Structure only (`D40`). Four features take shared work that had no feature:

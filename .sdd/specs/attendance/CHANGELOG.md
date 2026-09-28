@@ -1,5 +1,9 @@
 # Changelog — Attendance module
 
+## 1.11.0 — 2026-09-28
+
+`D47`. `NOT-011` names who is notified of a submission or an overdue request when the Intern has no responsible Mentor or that Mentor is `LOCKED` or `DEACTIVATED`, and notifies a newly assigned Mentor of each request that moves to them.
+
 ## 1.10.0 — 2026-09-22
 
 `D39`, corrected on second review. `DB-018` requires a `WITHDRAWN` leave request to carry

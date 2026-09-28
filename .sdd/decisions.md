@@ -95,6 +95,7 @@ came from, not whether the choice is settled.
 | D44 | What the constitution records after part E | Credit the exact production response assertions and the four independent readiness refusals, each by name, and keep the `SEC-011` and `SEC-013` known-gap rows for the clauses no test asserts; no rule, layer or obligation changes | constitution `2.0.5` |
 | D45 | How the V3 probes are written and judged | `AC-DB-001` replays the Flyway migrations; the V3 backfill applies `ATT-020` at the migration's server time; C-02 ends red on its work branch; the probes fix V3's column names | `AC-DB-001`, `D27`, `D32`, data-model tasks |
 | D46 | How a Task blocked before transition history existed is unblocked | Either `TODO` or `IN_PROGRESS`, chosen by the authorized actor; the unblock is recorded, and no block record is invented for the earlier block | `TSK-025`, `AC-TSK-022` |
+| D47 | Who is told about an attendance request when the Intern has no responsible Mentor available | The request is still accepted; the submission and overdue notices go to the users who may assign a responsible Mentor (the active Admins today), never to a missing, locked or deactivated Mentor; a newly assigned Mentor is notified of each request that moves to them | `NOT-011`, `ACC-026`, `AC-ACC-023` |
 
 D1 through D5 came from reading the specification against its own history. D6
 through D9 came from the audit described at the end of this page, which read the
@@ -2387,3 +2388,24 @@ September 2026 because it records a business decision rather than an architectur
 one. `D15` has since widened when a forecast may be recorded.
 
 > The original Task estimate remains the immutable whole-Task planning baseline after the first work log. When an unfinished Task with retained work is reassigned, the current Project Leader records an append-only Remaining effort forecast with the actual-effort snapshot and reassignment context; this preserves both original planning variance and the latest delivery forecast without overwriting history. We rejected replacing the baseline because it would compare lifetime multi-author effort with the latest assignee context, and rejected per-assignment estimates because the product does not retain assignment periods and does not use estimates to evaluate individual Interns.
+
+## D47. Who is told about an attendance request when the Intern has no responsible Mentor available?
+
+**Decided on 28 September 2026 by Loc-LX.** ADAPTED. `NOT-011` sends every leave, correction and attendance exception submission, and every overdue reminder, to the Intern's responsible Mentor. It did not say what happens when there is no such Mentor to reach.
+
+- An `ACTIVE` Intern without any responsible Mentor cannot arise through the application: `ACC-021` keeps an internship `NOT_STARTED` until one is assigned, and only an `ACTIVE` Intern may submit these requests. It still exists in stored data, because V3 added `intern_profiles.responsible_mentor_user_id` without filling it for Interns already `ACTIVE`, and neither demo seed assigns one.
+- `ACC-026` already covers a responsible Mentor who is `LOCKED` or `DEACTIVATED`: Admins see the Intern as needing a new responsible Mentor, and neither an Admin nor another Mentor may decide. It did not say who is told about a request submitted meanwhile, or whether a newly assigned Mentor learns of the requests that move to them.
+- The request is still accepted. Refusing it would cost the Intern the 48-hour submission window over a gap only an Admin can close.
+- The submission notice and the overdue reminder go to every active user whom the authorization policy of `AUTH-012` permits to assign a responsible Mentor under `ACC-026` (the active Admins under the §5.2 matrix today), naming the Intern as needing a responsible Mentor. They never go to a Mentor who is missing, `LOCKED` or `DEACTIVATED`. Receiving the notice does not make an Admin an approver.
+- When an Admin assigns or replaces the responsible Mentor, the new Mentor receives, for each pending or overdue request that moves to them, the submission notice of that request's kind.
+- The decision deadline keeps running, and an overdue request is still never rejected (`D14`).
+- Every regenerated demo seed assigns a responsible Mentor to each `ACTIVE` Intern (`ACC-021`).
+
+Benchmarks, read on 28 September 2026:
+
+| Source | What it does | Here |
+|---|---|---|
+| [Microsoft Entra entitlement management, approval settings](https://learn.microsoft.com/en-us/entra/id-governance/entitlement-management-access-package-approval-policy) | "Fallback approvers receive the request if entitlement management can't find the manager"; a pending request forwarded to alternate approvers reaches them by email. | Adapted: the fallback recipient is whoever may assign a responsible Mentor, and only as the person who fixes the assignment, because `ACC-026` forbids an Admin approver; forwarding becomes the notice to a newly assigned Mentor. |
+| [Dynamics 365, approval steps](https://learn.microsoft.com/en-us/dynamics365/fin-ops-core/fin-ops/organization-administration/configure-approval-step-workflow) | An overdue document is escalated to the users on an escalation path. | Followed: the overdue reminder goes to the same fallback recipients while no responsible Mentor is available. |
+| [Atlassian knowledge base, empty approver field](https://support.atlassian.com/jira/kb/error-everyone-from-all-groups-in-group-picker-multiple-groups-field-must-approve-but-there-are-no-groups-while-transitioning-the-issue/) | A request whose approver field is empty cannot proceed: "…must approve, but there are no groups." | Not followed, for the Intern's deadline reason above. |
+| Microsoft Entra, same page | A request no one decides in time is denied automatically. | Not followed: `D14` keeps an overdue request undecided. |
