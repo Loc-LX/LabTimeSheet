@@ -7,11 +7,21 @@ import com.lab.labtimesheet.feature.attendance.model.AttendanceExceptionSource;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceExceptionView;
 import com.lab.labtimesheet.feature.attendance.model.entity.AttendanceExceptionDecisionEntity;
 import com.lab.labtimesheet.feature.attendance.model.entity.AttendanceExceptionEntity;
+import com.lab.labtimesheet.feature.attendance.model.entity.AttendanceRecordEntity;
 import com.lab.labtimesheet.feature.attendance.repository.AttendanceExceptionDecisionRepository;
 import com.lab.labtimesheet.feature.attendance.repository.AttendanceExceptionRepository;
+import com.lab.labtimesheet.feature.attendance.repository.AttendanceRecordRepository;
+import com.lab.labtimesheet.feature.notification.model.NotificationType;
+import com.lab.labtimesheet.feature.notification.model.dto.NotificationAction;
+import com.lab.labtimesheet.feature.notification.model.dto.NotificationEvent;
+import com.lab.labtimesheet.feature.notification.service.NotificationService;
+import java.time.LocalDate;
+import java.time.YearMonth;
+import java.util.List;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Optional;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,6 +32,9 @@ public class AttendanceExceptionService {
     private final Clock clock;
     private final AttendanceExceptionRepository exceptions;
     private final AttendanceExceptionDecisionRepository decisions;
+    private final AttendanceRecordRepository records;
+    private final AttendanceExceptionNotificationRecipients recipients;
+    private final NotificationService notifications;
 
     /**
      * Creates the persistence boundary with the application clock and Attendance repositories.
@@ -29,12 +42,19 @@ public class AttendanceExceptionService {
      * @param clock authoritative application clock
      * @param exceptions current-state exception repository
      * @param decisions append-only decision history repository
+     * @param records attendance records used to resolve each request owner
+     * @param recipients shared D47 recipient resolver
+     * @param notifications in-app notification publisher
      */
     public AttendanceExceptionService(Clock clock, AttendanceExceptionRepository exceptions,
-            AttendanceExceptionDecisionRepository decisions) {
+            AttendanceExceptionDecisionRepository decisions, AttendanceRecordRepository records,
+            AttendanceExceptionNotificationRecipients recipients, NotificationService notifications) {
         this.clock = clock;
         this.exceptions = exceptions;
         this.decisions = decisions;
+        this.records = records;
+        this.recipients = recipients;
+        this.notifications = notifications;
     }
 
     /**
@@ -76,6 +96,70 @@ public class AttendanceExceptionService {
                 exceptionId, kind, outcome, decisionNote, actorUserId, occurredAt, reason));
         row.applyDecision(outcome, actorUserId, occurredAt, decisionNote);
         exceptions.flush();
+    }
+
+    /**
+     * Transitions one bounded batch of submitted requests whose decision deadline has elapsed.
+     *
+     * @param batchSize maximum candidate requests to lock and process
+     * @return number of requests newly transitioned to OVERDUE
+     * @throws IllegalArgumentException when the batch size is not positive
+     */
+    @Transactional
+    int expireOverdue(int batchSize) {
+        if (batchSize <= 0) {
+            throw new IllegalArgumentException("batchSize must be positive");
+        }
+        List<Long> candidates = exceptions.findOverdueIds(clock.instant(), PageRequest.of(0, batchSize));
+        int changed = 0;
+        for (long exceptionId : candidates) {
+            AttendanceExceptionEntity row = exceptions.findForUpdateById(exceptionId).orElse(null);
+            if (row != null && transitionIfDue(row)) {
+                changed++;
+            }
+        }
+        return changed;
+    }
+
+    /**
+     * Applies the overdue transition before a read-time decision workflow proceeds.
+     *
+     * @param exceptionId exception whose decision deadline may have elapsed
+     */
+    @Transactional
+    void expireIfDue(long exceptionId) {
+        exceptions.findForUpdateById(exceptionId).ifPresent(this::transitionIfDue);
+    }
+
+    /**
+     * Reports whether the Intern's work month contains a pending or overdue submitted exception request.
+     *
+     * @param internUserId Intern whose period is being checked
+     * @param month calendar work month
+     * @return {@code true} when an unresolved request is attached to an attendance row in the month
+     */
+    @Transactional(readOnly = true)
+    public boolean hasUnresolvedExceptionRequest(long internUserId, YearMonth month) {
+        LocalDate monthStart = month.atDay(1);
+        return exceptions.existsUnresolvedRequestForInternAndWorkDate(
+                internUserId, monthStart, monthStart.plusMonths(1));
+    }
+
+    private boolean transitionIfDue(AttendanceExceptionEntity row) {
+        Instant now = clock.instant();
+        if (!row.isOverdueAt(now)) {
+            return false;
+        }
+        row.markOverdue();
+        exceptions.saveAndFlush(row);
+        AttendanceRecordEntity record = records.findById(row.attendanceRecordId()).orElseThrow();
+        notifications.publish(
+                new NotificationEvent(NotificationType.SYSTEM, "OVERDUE",
+                        "Attendance exception request overdue",
+                        "Attendance exception request (" + row.id() + ") is awaiting a Mentor decision."),
+                new NotificationAction("/attendance", false, null),
+                recipients.forIntern(record.internUserId()));
+        return true;
     }
 
     /**

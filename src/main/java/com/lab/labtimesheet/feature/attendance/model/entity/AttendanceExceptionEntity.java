@@ -87,8 +87,27 @@ public class AttendanceExceptionEntity {
     /** @return persisted exception identifier */
     public long id() { return id; }
 
+    /** @return attendance record whose violation this exception concerns */
+    public long attendanceRecordId() { return attendanceRecordId; }
+
     /** @return current status */
     public AttendanceExceptionStatus status() { return AttendanceExceptionStatus.valueOf(status); }
+
+    /** Reports whether this submitted pending request has reached its decision deadline. */
+    public boolean isOverdueAt(Instant now) {
+        return AttendanceExceptionSource.REQUEST.name().equals(source)
+                && AttendanceExceptionStatus.PENDING.name().equals(status)
+                && !decisionDeadline.isAfter(now);
+    }
+
+    /** Marks this still-pending Intern request overdue without setting any decision fields. */
+    public void markOverdue() {
+        if (!AttendanceExceptionSource.REQUEST.name().equals(source)
+                || !AttendanceExceptionStatus.PENDING.name().equals(status)) {
+            throw new IllegalStateException("Only a pending Intern request can become overdue");
+        }
+        status = AttendanceExceptionStatus.OVERDUE.name();
+    }
 
     /**
      * Synchronizes the current effective decision fields with the decision row inserted in this transaction.

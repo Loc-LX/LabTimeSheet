@@ -24,7 +24,6 @@ import com.lab.labtimesheet.feature.internship.service.InternshipService;
 import com.lab.labtimesheet.feature.notification.model.NotificationType;
 import com.lab.labtimesheet.feature.notification.model.dto.NotificationAction;
 import com.lab.labtimesheet.feature.notification.model.dto.NotificationEvent;
-import com.lab.labtimesheet.feature.notification.model.dto.NotificationRecipient;
 import com.lab.labtimesheet.feature.notification.service.NotificationService;
 import com.lab.labtimesheet.platform.model.GlobalRole;
 import java.time.Clock;
@@ -57,6 +56,7 @@ public class AttendanceExceptionRequestService {
     private final CalendarApplicationService calendar;
     private final AccountService accounts;
     private final InternshipService internships;
+    private final AttendanceExceptionNotificationRecipients recipients;
     private final NotificationService notifications;
     private final AttendanceApplicationService attendance;
     private final TransactionTemplate historyTransaction;
@@ -65,6 +65,7 @@ public class AttendanceExceptionRequestService {
             AttendanceExceptionRepository exceptions, AttendancePeriodRepository periods,
             AttendanceCorrectionRepository corrections, AttendanceExceptionService exceptionPersistence,
             CalendarApplicationService calendar, AccountService accounts, InternshipService internships,
+            AttendanceExceptionNotificationRecipients recipients,
             NotificationService notifications, AttendanceApplicationService attendance,
             PlatformTransactionManager transactionManager) {
         this.clock = clock;
@@ -76,6 +77,7 @@ public class AttendanceExceptionRequestService {
         this.calendar = calendar;
         this.accounts = accounts;
         this.internships = internships;
+        this.recipients = recipients;
         this.notifications = notifications;
         this.attendance = attendance;
         this.historyTransaction = new TransactionTemplate(transactionManager);
@@ -189,22 +191,12 @@ public class AttendanceExceptionRequestService {
     }
 
     private void publishSubmission(long exceptionId, long internId, AttendanceExceptionKind kind) {
-        List<NotificationRecipient> recipients = submissionRecipients(internId);
         notifications.publish(
                 new NotificationEvent(NotificationType.ATTENDANCE_EXCEPTION_SUBMITTED, "SUBMITTED",
                         "Attendance exception request submitted",
                         "An Intern submitted a " + kind.name().toLowerCase().replace('_', ' ')
                                 + " exception request (" + exceptionId + ")."),
-                new NotificationAction("/attendance", false, null), recipients);
-    }
-
-    private List<NotificationRecipient> submissionRecipients(long internId) {
-        List<AccountIdentity> mentors = internships.responsibleMentorUserId(internId)
-                .flatMap(accounts::identityById)
-                .filter(identity -> identity.role() == GlobalRole.MENTOR && identity.status() == AccountStatus.ACTIVE)
-                .map(List::of)
-                .orElseGet(accounts::activeAdminIdentities);
-        return mentors.stream().map(identity -> new NotificationRecipient(identity.id(), identity.email())).toList();
+                new NotificationAction("/attendance", false, null), recipients.forIntern(internId));
     }
 
     private static AccessDeniedException unavailableRecord() {

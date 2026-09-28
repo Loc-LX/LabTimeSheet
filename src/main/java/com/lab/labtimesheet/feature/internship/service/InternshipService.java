@@ -407,15 +407,14 @@ public class InternshipService {
 
     /**
      * Resolves the optional responsible Mentor identifier without exposing the Internship entity across modules.
+     * Reads the stored value with a scalar query so an assignment made earlier in the same transaction is seen.
      *
      * @param internUserId owning Intern account
      * @return responsible Mentor account identifier when one is assigned
      */
     @Transactional(readOnly = true)
     public Optional<Long> responsibleMentorUserId(long internUserId) {
-        return internProfiles.findById(internUserId)
-                .map(InternProfile::getResponsibleMentorUserId)
-                .filter(java.util.Objects::nonNull);
+        return internProfiles.findResponsibleMentorUserId(internUserId);
     }
 
     private void correctProfile(long userId, AccountIdentityCorrection correction) {

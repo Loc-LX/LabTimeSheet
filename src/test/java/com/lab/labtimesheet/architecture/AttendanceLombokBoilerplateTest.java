@@ -41,6 +41,7 @@ import com.lab.labtimesheet.feature.attendance.service.AttendanceApplicationServ
 import com.lab.labtimesheet.feature.attendance.service.AttendanceCorrectionApplicationService;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceCurrentUserService;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceDeadlineScheduler;
+import com.lab.labtimesheet.feature.attendance.service.AttendanceExceptionService;
 import com.lab.labtimesheet.feature.calendar.service.AttendancePolicyApplicationService;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceService;
 import com.lab.labtimesheet.feature.calendar.service.AttendancePolicyTimeline;
@@ -148,7 +149,8 @@ class AttendanceLombokBoilerplateTest {
                 constructor(
                         PACKAGE_PRIVATE,
                         LeaveApplicationService.class,
-                        AttendanceCorrectionApplicationService.class));
+                        AttendanceCorrectionApplicationService.class,
+                        AttendanceExceptionService.class));
 
         assertConstructors(
                 AttendancePolicyEntity.class,
@@ -317,6 +319,7 @@ class AttendanceLombokBoilerplateTest {
                 AttendanceRecordEntity.class,
                 method(Modifier.PUBLIC, "toDomain", AttendanceRecord.class, AttendancePolicy.class),
                 method(Modifier.PUBLIC, "id", long.class),
+                method(Modifier.PUBLIC, "internUserId", long.class),
                 method(Modifier.PUBLIC, "setCheckOutAt", void.class, Instant.class),
                 method(Modifier.PUBLIC, "workDate", LocalDate.class),
                 method(Modifier.PUBLIC, "policyVersionId", long.class));

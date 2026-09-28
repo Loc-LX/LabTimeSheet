@@ -30,6 +30,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.transaction.annotation.Transactional;
 
 @Import(AttendancePersistenceIntegrationTest.IntegrationConfiguration.class)
 @SpringBootTest
@@ -312,6 +313,23 @@ class AttendanceExceptionRequestIntegrationTest {
         assertThat(exceptions.find(requestId).orElseThrow().status()).hasToString("PENDING");
         assertThat(notificationRecipientIds()).containsExactlyInAnyOrderElementsOf(expectedAdmins);
         assertThat(notificationRecipientIds()).doesNotContain(mentorId);
+    }
+
+    /**
+     * Protects {@code NOT-011} and {@code ACC-026}: a Mentor assigned after the InternProfile was read in the same
+     * transaction must receive the submission notice. Observable break: the cached entity supplies the prior null
+     * assignment and sends the notice to Admins. Expected: exactly the newly assigned Mentor receives SUBMITTED.
+     */
+    @Test
+    @Transactional
+    void submissionNoticeUsesMentorAssignedAfterProfileWasReadInSameTransaction() {
+        long recordId = lateRecord();
+        assertThat(internships.studentCodeByUserId(internId)).isPresent();
+        assignMentor(mentorId);
+
+        requests.requestExcuse(actor, recordId, AttendanceExceptionKind.LATE_ARRIVAL, "Train delay");
+
+        assertThat(notificationRecipientIds()).containsExactly(mentorId);
     }
 
     private long createActiveUser(String email, GlobalRole role, String studentCode) {
