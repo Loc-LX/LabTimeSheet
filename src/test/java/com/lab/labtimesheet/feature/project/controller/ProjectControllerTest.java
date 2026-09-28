@@ -1051,6 +1051,20 @@ class ProjectControllerTest {
         verify(projects).activate(10L, 30L);
     }
 
+    /**
+     * Protects {@code PRJ-002} and {@code AC-PRJ-014}. Observable break: a direct route moves a
+     * {@code COMPLETED} Project back to {@code PLANNED}; expected: the request receives the generic
+     * 404 refusal and never reaches {@code ProjectService}.
+     */
+    @Test
+    @WithMockUser(username = "mentor@example.test")
+    void directRequestToMoveACompletedProjectBackToPlannedIsRefused() throws Exception {
+        mvc.perform(post("/projects/30/plan").with(csrf()))
+                .andExpect(status().isNotFound());
+
+        org.mockito.Mockito.verifyNoInteractions(projects);
+    }
+
     @Test
     @WithMockUser(username = "mentor@example.test")
     void stateChangingRoutesRequireCsrf() throws Exception {
