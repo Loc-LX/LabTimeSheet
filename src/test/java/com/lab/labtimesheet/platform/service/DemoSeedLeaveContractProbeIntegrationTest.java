@@ -65,9 +65,10 @@ class DemoSeedLeaveContractProbeIntegrationTest {
                 if (includeV2Seed) {
                     statement.execute(Files.readString(Path.of("scripts", "demo-seed-v2.sql")));
                 }
-                assertThat(scalar(statement, "SELECT max(version) FROM flyway_schema_history WHERE success"))
-                        .as("the seed ran against the latest Flyway schema")
-                        .isEqualTo("7");
+                assertThat(scalar(statement,
+                        "SELECT count(*) FROM flyway_schema_history WHERE version = '7' AND success"))
+                        .as("the seed ran on a schema that includes the Leave contract V7")
+                        .isEqualTo("1");
                 assertThat(scalar(statement, """
                         SELECT count(*)
                         FROM intern_profiles

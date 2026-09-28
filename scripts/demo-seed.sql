@@ -1158,8 +1158,8 @@ INSERT INTO notifications (
     (SELECT id FROM app_users WHERE email = 'intern8@example.com'),
     'PROJECT_INVITATION_CREATED', 'New project invitation',
     'You have a pending invitation to Attendance Analytics.', '/projects', NULL,
-    'UNAVAILABLE', 'intern8@example.com', 'New project invitation',
-    'You have a pending invitation to Attendance Analytics.', 0, NULL, NULL,
+    'UNAVAILABLE', NULL, NULL,
+    NULL, 0, NULL, NULL,
     'SMTP is not active in the demo seed.',
     TIMESTAMPTZ '2026-08-23 09:01:00+07', TIMESTAMPTZ '2026-08-23 09:01:00+07', 0
 ),
