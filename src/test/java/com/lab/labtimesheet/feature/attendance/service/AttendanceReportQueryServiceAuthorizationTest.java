@@ -1,6 +1,7 @@
 package com.lab.labtimesheet.feature.attendance.service;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -19,6 +20,7 @@ import com.lab.labtimesheet.feature.identity.service.AccountService;
 import com.lab.labtimesheet.feature.internship.service.InternshipService;
 import com.lab.labtimesheet.platform.authorization.AuthorizationCatalogue;
 import com.lab.labtimesheet.platform.authorization.AuthorizationPolicy;
+import com.lab.labtimesheet.platform.authorization.WithdrawnAuthorizationCatalogues;
 import com.lab.labtimesheet.platform.model.GlobalRole;
 import java.time.Clock;
 import java.time.LocalDate;
@@ -106,5 +108,48 @@ class AttendanceReportQueryServiceAuthorizationTest {
         verify(accounts).requireIdentityById(7L);
         verifyNoMoreInteractions(accounts);
         verifyNoInteractions(records, queries, calendar, corrections);
+    }
+
+    /**
+     * Protects {@code AUTH-012}, {@code AC-AUTH-011}, and {@code D1}. Observable break: an Admin whose
+     * ATTENDANCE_REPORT cell is withdrawn could open the unscoped detail selector; the Attendance-owned policy
+     * boundary must deny that request before target options are read.
+     */
+    @Test
+    void withdrawnAttendanceReportPolicyDeniesAdminDetailSelection() {
+        given(accounts.requireIdentityById(1L)).willReturn(new AccountIdentity(
+                1L, "admin@example.test", "Admin", GlobalRole.ADMIN, AccountStatus.ACTIVE));
+        AttendanceReportQueryService withdrawnReports = reports(new AuthorizationPolicy(
+                WithdrawnAuthorizationCatalogues.attendanceReportAdminWithdrawn()));
+
+        assertThatThrownBy(() -> withdrawnReports.requireDetailSelectionAccess(
+                new AttendanceActor(1L, GlobalRole.ADMIN)))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessage("An active Mentor or Admin is required");
+
+        verify(accounts).requireIdentityById(1L);
+        verifyNoMoreInteractions(accounts);
+        verifyNoInteractions(records, queries, calendar, corrections);
+    }
+
+    /** Protects {@code AUTH-012} and {@code RPT-004}: a granted active Mentor must retain the unscoped selector. */
+    @Test
+    void withdrawnAttendanceReportPolicyRetainsActiveMentorDetailSelection() {
+        given(accounts.requireIdentityById(2L)).willReturn(new AccountIdentity(
+                2L, "mentor@example.test", "Mentor", GlobalRole.MENTOR, AccountStatus.ACTIVE));
+        AttendanceReportQueryService withdrawnReports = reports(new AuthorizationPolicy(
+                WithdrawnAuthorizationCatalogues.attendanceReportAdminWithdrawn()));
+
+        assertDoesNotThrow(() -> withdrawnReports.requireDetailSelectionAccess(
+                new AttendanceActor(2L, GlobalRole.MENTOR)));
+
+        verify(accounts).requireIdentityById(2L);
+        verifyNoMoreInteractions(accounts);
+        verifyNoInteractions(records, queries, calendar, corrections);
+    }
+
+    private AttendanceReportQueryService reports(AuthorizationPolicy policy) {
+        return new AttendanceReportQueryService(
+                Clock.systemUTC(), accounts, internships, records, queries, calendar, corrections, policy);
     }
 }

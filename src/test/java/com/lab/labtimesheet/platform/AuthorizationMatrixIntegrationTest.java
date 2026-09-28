@@ -236,14 +236,25 @@ class AuthorizationMatrixIntegrationTest {
                         + capabilityProbes.stream().map(Subprobe::name).toList());
             }
         }
-        resultLines.forEach(line -> System.out.println("B-01 cell: " + line));
-        System.out.println("B-01 matrix result: " + testedCells + " cells exercised; " + unbuiltCells
+        String matrixLabel = matrixResultLabel();
+        resultLines.forEach(line -> System.out.println(matrixLabel + " cell: " + line));
+        System.out.println(matrixLabel + " matrix result: " + testedCells + " cells exercised; " + unbuiltCells
                 + " cells unbuilt; " + mismatches.size() + " mismatches");
-        System.out.println("B-01 unbuilt operations: " + readUnbuiltOperations());
+        System.out.println(matrixLabel + " unbuilt operations: " + readUnbuiltOperations());
         assertThat(testedCells + unbuiltCells).as("every §5.2 actor cell is either exercised or unbuilt")
                 .isEqualTo((long) matrix.size() * ACTORS.size());
-        assertThat(mismatches).containsExactlyEntriesOf(readOpenCells());
+        assertThat(mismatches).containsExactlyEntriesOf(expectedMismatches());
         assertThat(registeredRows).hasSize(REGISTERED_CAPABILITIES.size());
+    }
+
+    /** @return matrix label used by this catalogue-specific test context */
+    String matrixResultLabel() {
+        return "B-01";
+    }
+
+    /** @return expected matrix exceptions for this policy catalogue */
+    Map<Cell, Outcome> expectedMismatches() throws Exception {
+        return readOpenCells();
     }
 
     private static boolean isUnbuiltCell(String capability, String actor) {
@@ -498,7 +509,7 @@ class AuthorizationMatrixIntegrationTest {
                     tasks.correctWorkLog(fixture.emailForActor(actor), fixture.projectId(), workLog.id(),
                             null, workLog.version(), 45, "Matrix corrected work log");
                 }, fixture -> prepareOwnTasks(fixture, true))));
-        result.put(REGISTERED_CAPABILITIES.get(25), List.of(probe("build and export Attendance report",
+        result.put(REGISTERED_CAPABILITIES.get(25), List.of(probeWithControl("build and export Attendance report",
                 (fixture, actor) -> {
                     Principal principal = () -> fixture.emailForActor(actor);
                     Long requestedIntern = actor == fixture.adminId() || actor == fixture.mentorId()
@@ -507,7 +518,7 @@ class AuthorizationMatrixIntegrationTest {
                             PROBE_WORK_DATE, PROBE_WORK_DATE);
                     reportExports.attendanceXlsx(report);
                     reportExports.attendancePdf(report);
-                })));
+                }, fixture -> { }, "Owning Mentor")));
         result.put(REGISTERED_CAPABILITIES.get(26), List.of(probe("view only actor's own attendance date",
                 (fixture, actor) -> attendance.history(new AttendanceActor(actor, fixture.roleFor(actor)), actor,
                         PROBE_WORK_DATE, PROBE_WORK_DATE))));
@@ -887,8 +898,8 @@ class AuthorizationMatrixIntegrationTest {
             boolean commitSetup) {}
 
     private record MatrixRow(String capability, Map<String, String> cells) {}
-    private record Cell(String capability, String actor) {}
-    private record Outcome(String actual, String task) {}
+    record Cell(String capability, String actor) {}
+    record Outcome(String actual, String task) {}
     private record UnbuiltOperation(String operation, String rule, String plan) {}
 
     private static final class Fixture {

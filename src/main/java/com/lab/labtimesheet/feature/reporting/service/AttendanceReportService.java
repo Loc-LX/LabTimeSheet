@@ -74,6 +74,7 @@ public class AttendanceReportService {
         boolean ownScope = actor.role() == GlobalRole.INTERN;
         long targetId = resolveTarget(actor, requestedInternId, ownScope);
         if (!ownScope && requestedInternId == null) {
+            reportQueries.requireDetailSelectionAccess(actor);
             return emptyDetailSelection(from, to, internships.eligibleInternOptions(to));
         }
         AttendanceReport report = reportQueries.query(actor, targetId, from, to);

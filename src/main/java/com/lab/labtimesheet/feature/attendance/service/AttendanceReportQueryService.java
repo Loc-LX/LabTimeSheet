@@ -170,6 +170,34 @@ public class AttendanceReportQueryService {
                 compliance);
     }
 
+    /**
+     * Requires policy permission to open the broad Mentor/Admin detail-selection page before target options load.
+     *
+     * <p>Under {@code AUTH-012} and {@code AC-AUTH-011}, the Attendance module resolves the persisted actor identity
+     * and delegates the capability decision to the shared policy. Interns have no actor column for cross-user target
+     * selection.</p>
+     *
+     * @param actor authenticated Attendance actor
+     * @throws AccessDeniedException when the actor is missing, mismatched, inactive, or not granted this capability
+     */
+    public void requireDetailSelectionAccess(AttendanceActor actor) {
+        if (actor == null) {
+            throw new AccessDeniedException("An attendance actor is required");
+        }
+        AccountIdentity identity = accounts.requireIdentityById(actor.userId());
+        GlobalRole expectedRole = GlobalRole.valueOf(actor.role().name());
+        if (identity.role() != expectedRole) {
+            throw new AccessDeniedException("Attendance actor role does not match the account");
+        }
+        Set<AuthorizationColumn> actorColumns = actorColumns(actor, identity, null);
+        boolean allowed = authorizationPolicy.allows(
+                AuthorizationCapability.ATTENDANCE_REPORT,
+                new AuthorizationRequest(actorColumns, identity.status().name(), null, null));
+        if (!allowed) {
+            throw new AccessDeniedException("An active Mentor or Admin is required");
+        }
+    }
+
     private static AttendanceReportDay toDay(
             LocalDate date,
             AttendanceReportClassification classification,
@@ -290,16 +318,7 @@ public class AttendanceReportQueryService {
         if (target == null || target.role() != GlobalRole.INTERN) {
             throw new AccessDeniedException(invalidTargetMessage);
         }
-        Set<AuthorizationColumn> actorColumns = Set.of();
-        if (identity.status() == AccountStatus.ACTIVE) {
-            actorColumns = switch (actor.role()) {
-                case ADMIN -> Set.of(AuthorizationColumn.ADMIN);
-                case MENTOR -> Set.of(AuthorizationColumn.OWNING_MENTOR);
-                case INTERN -> actor.userId() == target.id()
-                        ? Set.of(AuthorizationColumn.ACTIVE_MEMBER_ASSIGNEE)
-                        : Set.of();
-            };
-        }
+        Set<AuthorizationColumn> actorColumns = actorColumns(actor, identity, target);
         boolean allowed = authorizationPolicy.allows(
                 AuthorizationCapability.ATTENDANCE_REPORT,
                 new AuthorizationRequest(actorColumns, identity.status().name(), target.status().name(), null));
@@ -309,6 +328,21 @@ public class AttendanceReportQueryService {
                     : "An active Mentor or Admin is required";
             throw new AccessDeniedException(message);
         }
+    }
+
+    /** Resolves the catalogue actor column from persisted identity and, for Interns, the target identity. */
+    private static Set<AuthorizationColumn> actorColumns(
+            AttendanceActor actor, AccountIdentity identity, AccountIdentity target) {
+        if (identity.status() != AccountStatus.ACTIVE) {
+            return Set.of();
+        }
+        return switch (actor.role()) {
+            case ADMIN -> Set.of(AuthorizationColumn.ADMIN);
+            case MENTOR -> Set.of(AuthorizationColumn.OWNING_MENTOR);
+            case INTERN -> target != null && actor.userId() == target.id()
+                    ? Set.of(AuthorizationColumn.ACTIVE_MEMBER_ASSIGNEE)
+                    : Set.of();
+        };
     }
 
     private static void validateRange(LocalDate from, LocalDate to) {

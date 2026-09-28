@@ -15,6 +15,7 @@ import com.lab.labtimesheet.feature.identity.model.AccountStatus;
 import com.lab.labtimesheet.feature.identity.model.dto.AccountIdentity;
 import com.lab.labtimesheet.feature.identity.service.AccountService;
 import com.lab.labtimesheet.feature.internship.service.InternshipService;
+import com.lab.labtimesheet.feature.internship.model.dto.EligibleInternOption;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
 import com.lab.labtimesheet.platform.model.GlobalRole;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceReport;
@@ -237,6 +238,27 @@ class AttendanceReportPageWebTest {
         verify(reportQueries).query(
                 new AttendanceActor(5, GlobalRole.INTERN), 5,
                 LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 15));
+    }
+
+    /**
+     * Protects {@code D1} and {@code AC-AUTH-011}. Observable break: removing the Admin grant from the default
+     * catalogue would hide the no-target selector; with the default catalogue Admin must still see an authorized
+     * Intern choice before the withdrawal fixture is applied.
+     */
+    @Test
+    void defaultCatalogueAllowsAdminAttendanceTargetSelectionWithoutInternId() throws Exception {
+        given(currentUsers.actor(any(Principal.class)))
+                .willReturn(new AttendanceActor(1, GlobalRole.ADMIN));
+        given(accounts.requireIdentityByEmail("admin@example.test"))
+                .willReturn(new AccountIdentity(
+                        1L, "admin@example.test", "Admin", GlobalRole.ADMIN, AccountStatus.ACTIVE));
+        given(calendar.currentBusinessDate()).willReturn(TO);
+        given(internships.eligibleInternOptions(TO)).willReturn(List.of(
+                new EligibleInternOption(7L, "Target Intern", "S7", FROM, TO)));
+
+        mvc.perform(get("/reports/attendance").with(user("admin@example.test").roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Target Intern (S7)")));
     }
 
     private static AccountIdentity intern(long id, String name) {
