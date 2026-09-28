@@ -15,7 +15,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.lab.labtimesheet.feature.attendance.exception.LeaveException;
+import com.lab.labtimesheet.feature.attendance.exception.AttendanceExceptionRequestException;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
+import com.lab.labtimesheet.feature.attendance.model.AttendanceExceptionKind;
 import com.lab.labtimesheet.feature.calendar.model.AttendancePolicy;
 import com.lab.labtimesheet.platform.model.GlobalRole;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceViolations;
@@ -27,11 +29,13 @@ import com.lab.labtimesheet.feature.attendance.model.dto.CorrectionEventView;
 import com.lab.labtimesheet.feature.attendance.model.dto.CorrectionRequestCommand;
 import com.lab.labtimesheet.feature.attendance.model.dto.CorrectionSummary;
 import com.lab.labtimesheet.feature.attendance.model.dto.CorrectionView;
+import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceHistoryItem;
 import com.lab.labtimesheet.feature.attendance.model.dto.LeaveAllocation;
 import com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestCommand;
 import com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestSummary;
 import com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestView;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceApplicationService;
+import com.lab.labtimesheet.feature.attendance.service.AttendanceExceptionRequestService;
 import com.lab.labtimesheet.feature.calendar.service.CalendarApplicationService;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceCorrectionApplicationService;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceCurrentUserService;
@@ -56,7 +60,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 /** Production web contract for discoverable leave and missed-checkout correction workflows. */
-@WebMvcTest(AttendanceRequestController.class)
+@WebMvcTest({AttendanceRequestController.class, AttendanceController.class})
 class AttendanceRequestControllerWebTest {
 
     @Autowired
@@ -78,7 +82,181 @@ class AttendanceRequestControllerWebTest {
     private AttendanceCorrectionApplicationService corrections;
 
     @MockitoBean
+    private AttendanceExceptionRequestService exceptionRequests;
+
+    @MockitoBean
     private SmtpConfigurationService smtpConfiguration;
+
+    /**
+     * EXC-002 and AC-EXC-001: the excuse form must expose the selected row and violation to the Intern.
+     * Observable failure: the route or labelled reason field is missing; expected is HTTP 200 with hidden
+     * attendanceRecordId 55, kind LATE_ARRIVAL, and a labelled reason textarea.
+     */
+    @Test
+    void internCanOpenAnExcuseRequestFormForALateArrival() throws Exception {
+        AttendanceActor actor = new AttendanceActor(7L, GlobalRole.INTERN);
+        when(currentUsers.actor(org.mockito.ArgumentMatchers.any())).thenReturn(actor);
+        when(exceptionRequests.requestableRow(actor, 55L))
+                .thenReturn(historyItem(55L, LocalDate.of(2026, 8, 20), true, false));
+
+        mvc.perform(get("/attendance/exceptions/new")
+                        .param("attendanceRecordId", "55")
+                        .param("kind", "LATE_ARRIVAL")
+                        .with(user("intern@example.test").roles("INTERN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("name=\"attendanceRecordId\" value=\"55\"")))
+                .andExpect(content().string(containsString("name=\"kind\" value=\"LATE_ARRIVAL\"")))
+                .andExpect(content().string(containsString("<textarea")))
+                .andExpect(content().string(containsString("for=\"reason\"")))
+                .andExpect(content().string(containsString("20/08/2026")));
+    }
+
+    /**
+     * EXC-002 and AC-EXC-001: a valid Intern submission delegates the exact request and confirms success.
+     * Observable failure: the service is skipped or feedback is lost; expected is row 55/LATE_ARRIVAL/reason
+     * "Bus delay", a redirect to own history, and requestNotice "Your excuse request was submitted.".
+     */
+    @Test
+    void successfulExcuseRequestRedirectsToHistoryWithNotice() throws Exception {
+        AttendanceActor actor = new AttendanceActor(7L, GlobalRole.INTERN);
+        when(currentUsers.actor(org.mockito.ArgumentMatchers.any())).thenReturn(actor);
+        when(calendar.currentBusinessDate()).thenReturn(LocalDate.of(2026, 8, 21));
+        when(attendance.history(actor, 7L, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 21)))
+                .thenReturn(List.of());
+        when(exceptionRequests.requestExcuse(actor, 55L, AttendanceExceptionKind.LATE_ARRIVAL, "Bus delay"))
+                .thenReturn(91L);
+
+        mvc.perform(post("/attendance/exceptions")
+                        .with(user("intern@example.test").roles("INTERN")).with(csrf())
+                        .param("attendanceRecordId", "55")
+                        .param("kind", "LATE_ARRIVAL")
+                        .param("reason", "Bus delay"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/attendance"))
+                .andExpect(flash().attribute("requestNotice", "Your excuse request was submitted."));
+        verify(exceptionRequests).requestExcuse(actor, 55L, AttendanceExceptionKind.LATE_ARRIVAL, "Bus delay");
+
+        mvc.perform(get("/attendance")
+                        .with(user("intern@example.test").roles("INTERN"))
+                        .flashAttr("requestNotice", "Your excuse request was submitted."))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Your excuse request was submitted.")));
+    }
+
+    /**
+     * EXC-002 and AC-EXC-001: a business refusal returns the Intern to the same request without losing input.
+     * Observable failure: the error, row/kind query or reason disappears; expected is row 55, LATE_ARRIVAL,
+     * reason "Bus delay", and the service's exact refusal message in requestError.
+     */
+    @Test
+    void rejectedExcuseRequestRetainsSelectionAndReason() throws Exception {
+        AttendanceActor actor = new AttendanceActor(7L, GlobalRole.INTERN);
+        when(currentUsers.actor(org.mockito.ArgumentMatchers.any())).thenReturn(actor);
+        when(exceptionRequests.requestableRow(actor, 55L))
+                .thenReturn(historyItem(55L, LocalDate.of(2026, 8, 20), true, false));
+        when(exceptionRequests.requestExcuse(actor, 55L, AttendanceExceptionKind.LATE_ARRIVAL, "Bus delay"))
+                .thenThrow(new AttendanceExceptionRequestException("The attendance period is finalized"));
+
+        var result = mvc.perform(post("/attendance/exceptions")
+                        .with(user("intern@example.test").roles("INTERN")).with(csrf())
+                        .param("attendanceRecordId", "55")
+                        .param("kind", "LATE_ARRIVAL")
+                        .param("reason", "Bus delay"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/attendance/exceptions/new?attendanceRecordId=55&kind=LATE_ARRIVAL"))
+                .andExpect(flash().attribute("requestError", "The attendance period is finalized"))
+                .andExpect(flash().attribute("reason", "Bus delay"))
+                .andReturn();
+        verify(exceptionRequests).requestExcuse(actor, 55L, AttendanceExceptionKind.LATE_ARRIVAL, "Bus delay");
+
+        mvc.perform(get("/attendance/exceptions/new")
+                        .with(user("intern@example.test").roles("INTERN"))
+                        .param("attendanceRecordId", "55")
+                        .param("kind", "LATE_ARRIVAL")
+                        .flashAttrs(result.getFlashMap()))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("name=\"attendanceRecordId\" value=\"55\"")))
+                .andExpect(content().string(containsString("name=\"kind\" value=\"LATE_ARRIVAL\"")))
+                .andExpect(content().string(containsString("The attendance period is finalized")))
+                .andExpect(content().string(containsString("Bus delay")));
+    }
+
+    /**
+     * EXC-002 and AC-EXC-001: malformed request fields must be handled before calling the domain service.
+     * Observable failure: BOGUS reaches the service or produces a bad-request page; expected is a form redirect
+     * with requestError and no service invocation.
+     */
+    @Test
+    void malformedExcuseKindRedirectsToFormWithoutCallingService() throws Exception {
+        when(currentUsers.actor(org.mockito.ArgumentMatchers.any()))
+                .thenReturn(new AttendanceActor(7L, GlobalRole.INTERN));
+
+        mvc.perform(post("/attendance/exceptions")
+                        .with(user("intern@example.test").roles("INTERN")).with(csrf())
+                        .param("attendanceRecordId", "55")
+                        .param("kind", "BOGUS")
+                        .param("reason", "Retained reason"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/attendance/exceptions/new?attendanceRecordId=55&kind=BOGUS"))
+                .andExpect(flash().attributeExists("requestError"))
+                .andExpect(flash().attribute("reason", "Retained reason"));
+        org.mockito.Mockito.verifyNoInteractions(exceptionRequests);
+    }
+
+    /**
+     * EXC-002 and AC-EXC-001: the state-changing request endpoint must enforce CSRF.
+     * Observable failure: a session-authenticated POST without a token reaches the request flow; expected is
+     * HTTP 403 and no call to AttendanceExceptionRequestService.
+     */
+    @Test
+    void excuseRequestPostRequiresCsrf() throws Exception {
+        mvc.perform(post("/attendance/exceptions")
+                        .with(user("intern@example.test").roles("INTERN"))
+                        .param("attendanceRecordId", "55")
+                        .param("kind", "LATE_ARRIVAL")
+                        .param("reason", "Bus delay"))
+                .andExpect(status().isForbidden());
+        org.mockito.Mockito.verifyNoInteractions(exceptionRequests);
+    }
+
+    /**
+     * EXC-002 and AC-EXC-001: only a violation matching each Intern-owned row gets an excuse-request link.
+     * Observable failure: a late/early link is absent, mislabeled, or appears for an on-time row; expected are
+     * the matching two links for rows 55 and 56 and no excuse link for row 57.
+     */
+    @Test
+    void ownHistoryLinksEachExcuseToItsRecordedViolationOnly() throws Exception {
+        AttendanceActor actor = new AttendanceActor(7L, GlobalRole.INTERN);
+        when(currentUsers.actor(org.mockito.ArgumentMatchers.any())).thenReturn(actor);
+        when(calendar.currentBusinessDate()).thenReturn(LocalDate.of(2026, 8, 21));
+        when(attendance.history(actor, 7L, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 21)))
+                .thenReturn(List.of(
+                        historyItem(55L, LocalDate.of(2026, 8, 20), true, false),
+                        historyItem(56L, LocalDate.of(2026, 8, 19), false, true),
+                        historyItem(57L, LocalDate.of(2026, 8, 18), false, false)));
+
+        mvc.perform(get("/attendance").with(user("intern@example.test").roles("INTERN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString(
+                        "href=\"/attendance/exceptions/new?attendanceRecordId=55&amp;kind=LATE_ARRIVAL\"")))
+                .andExpect(content().string(containsString("Request excuse for late arrival")))
+                .andExpect(content().string(containsString(
+                        "href=\"/attendance/exceptions/new?attendanceRecordId=56&amp;kind=EARLY_DEPARTURE\"")))
+                .andExpect(content().string(containsString("Request excuse for early departure")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString(
+                        "attendanceRecordId=57&amp;kind="))));
+    }
+
+    private static AttendanceHistoryItem historyItem(
+            long recordId, LocalDate workDate, boolean late, boolean earlyDeparture) {
+        AttendancePolicy policy = new AttendancePolicy(
+                1L, LocalDate.of(2026, 1, 1), ZoneId.of("Asia/Ho_Chi_Minh"),
+                LocalTime.of(8, 0), LocalTime.of(17, 0), 15, 15, 3,
+                BigDecimal.valueOf(0.1), Set.of(DayOfWeek.MONDAY));
+        return new AttendanceHistoryItem(
+                workDate, Instant.parse("2026-08-20T02:00:00Z"), Instant.parse("2026-08-20T09:00:00Z"),
+                policy, new AttendanceViolations(late, earlyDeparture, false), recordId);
+    }
 
     @Test
     void legacyRequestRouteRedirectsToLeaveWorkflow() throws Exception {

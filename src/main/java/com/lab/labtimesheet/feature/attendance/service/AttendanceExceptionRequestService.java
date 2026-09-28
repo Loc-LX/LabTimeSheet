@@ -7,6 +7,7 @@ import com.lab.labtimesheet.feature.attendance.model.AttendanceExceptionSource;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceRecord;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceViolations;
 import com.lab.labtimesheet.feature.attendance.model.CorrectionStatus;
+import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceHistoryItem;
 import com.lab.labtimesheet.feature.attendance.model.entity.AttendanceCorrectionEntity;
 import com.lab.labtimesheet.feature.attendance.model.entity.AttendanceExceptionEntity;
 import com.lab.labtimesheet.feature.attendance.model.entity.AttendanceRecordEntity;
@@ -37,6 +38,9 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /** Owns Intern attendance-exception submissions, eligibility checks, deadlines, and submission notifications. */
 @Service
@@ -54,12 +58,15 @@ public class AttendanceExceptionRequestService {
     private final AccountService accounts;
     private final InternshipService internships;
     private final NotificationService notifications;
+    private final AttendanceApplicationService attendance;
+    private final TransactionTemplate historyTransaction;
 
     AttendanceExceptionRequestService(Clock clock, AttendanceRecordRepository records,
             AttendanceExceptionRepository exceptions, AttendancePeriodRepository periods,
             AttendanceCorrectionRepository corrections, AttendanceExceptionService exceptionPersistence,
             CalendarApplicationService calendar, AccountService accounts, InternshipService internships,
-            NotificationService notifications) {
+            NotificationService notifications, AttendanceApplicationService attendance,
+            PlatformTransactionManager transactionManager) {
         this.clock = clock;
         this.records = records;
         this.exceptions = exceptions;
@@ -70,6 +77,29 @@ public class AttendanceExceptionRequestService {
         this.accounts = accounts;
         this.internships = internships;
         this.notifications = notifications;
+        this.attendance = attendance;
+        this.historyTransaction = new TransactionTemplate(transactionManager);
+        this.historyTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+    }
+
+    /**
+     * Reads the one attendance history row an Intern may reference in an excuse request.
+     *
+     * @param actor authenticated Attendance actor
+     * @param attendanceRecordId retained attendance row identifier
+     * @return history projection for the requested owned row
+     * @throws AccessDeniedException when the row is missing or belongs to another Intern
+     */
+    @Transactional(readOnly = true)
+    public AttendanceHistoryItem requestableRow(AttendanceActor actor, long attendanceRecordId) {
+        AttendanceRecordEntity row = records.findByIdAndInternUserId(attendanceRecordId, actor.userId())
+                .orElseThrow(AttendanceExceptionRequestService::unavailableRecord);
+        return historyTransaction.execute(status -> attendance.history(
+                        actor, actor.userId(), row.workDate(), row.workDate()))
+                .stream()
+                .filter(item -> item.attendanceRecordId() == attendanceRecordId)
+                .findFirst()
+                .orElseThrow(AttendanceExceptionRequestService::unavailableRecord);
     }
 
     /**

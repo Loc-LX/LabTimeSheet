@@ -214,6 +214,36 @@ class AttendanceExceptionRequestIntegrationTest {
     }
 
     /**
+     * Protects {@code EXC-002}: the request form may read only one row owned by the Intern.
+     * Observable failure: a foreign or missing identifier returns another row or a distinguishable error.
+     * Expected: the own row has work date {@code WORK_DATE}, while foreign and missing IDs both throw
+     * {@code AccessDeniedException("Attendance record not found")}.
+     */
+    @Test
+    void requestableRowReturnsOnlyTheOwnedWorkDateAndUsesTheSameDenial() {
+        long ownRecord = lateRecord();
+        long otherInternId = createActiveUser("row-owner-" + UUID.randomUUID() + "@example.test",
+                GlobalRole.INTERN, "ROW-" + UUID.randomUUID().toString().substring(0, 8));
+        fixtureInternIds.add(otherInternId);
+        internships.activateInternship(otherInternId, adminId);
+        clock.set(Instant.parse("2026-08-14T02:01:00Z"));
+        attendance.checkIn(otherInternId);
+        long foreignRecord = records.findByInternUserIdAndWorkDate(otherInternId, WORK_DATE).orElseThrow().id();
+
+        var own = requests.requestableRow(actor, ownRecord);
+        Throwable foreign = org.assertj.core.api.Assertions.catchThrowable(
+                () -> requests.requestableRow(actor, foreignRecord));
+        Throwable missing = org.assertj.core.api.Assertions.catchThrowable(
+                () -> requests.requestableRow(actor, Long.MAX_VALUE));
+
+        assertThat(own.workDate()).isEqualTo(WORK_DATE);
+        assertThat(foreign).isInstanceOf(AccessDeniedException.class);
+        assertThat(foreign.getClass()).isEqualTo(missing.getClass());
+        assertThat(foreign.getMessage()).isEqualTo("Attendance record not found");
+        assertThat(missing.getMessage()).isEqualTo(foreign.getMessage());
+    }
+
+    /**
      * Protects {@code EXC-002}, {@code ATT-020}, and {@code AC-EXC-001}: finalized periods reject requests.
      * Observable break: a request is inserted for a finalized month. Expected: refusal and zero exception rows.
      */

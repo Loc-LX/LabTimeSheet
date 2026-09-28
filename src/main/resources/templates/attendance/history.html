@@ -12,6 +12,7 @@
     <p class="page-description">Review recorded punches and the policy snapshot applied to each work date.</p>
     <p class="alert" th:if="${message}" role="status" th:text="${message}"></p>
     <p class="alert alert-error" th:if="${error}" role="alert" th:text="${error}"></p>
+    <th:block th:if="${requestNotice}" th:replace="~{fragments/components :: alert('success', ${requestNotice})}"></th:block>
 
     <div class="inline-actions" th:if="${ownHistory}">
         <form method="post" th:action="@{/attendance/check-in}"><button class="button button-primary" type="submit">Check in</button></form>
@@ -45,6 +46,10 @@
             <td th:text="|${item.scheduledStartDisplay}–${item.scheduledEndDisplay} (${item.policy.zoneId})|"></td>
             <td th:text="|${item.policy.checkInGraceMinutes} min / ${item.policy.checkoutGraceMinutes} min|"></td>
             <td><span th:text="${item.resultDisplay}"></span>
+                <a class="button" th:if="${ownHistory and item.attendanceRecordId > 0 and item.violations.late}"
+                   th:href="@{/attendance/exceptions/new(attendanceRecordId=${item.attendanceRecordId},kind='LATE_ARRIVAL')}">Request excuse for late arrival</a>
+                <a class="button" th:if="${ownHistory and item.attendanceRecordId > 0 and item.violations.earlyDeparture}"
+                   th:href="@{/attendance/exceptions/new(attendanceRecordId=${item.attendanceRecordId},kind='EARLY_DEPARTURE')}">Request excuse for early departure</a>
                 <a class="button" th:if="${ownHistory and item.checkOutAt == null and item.attendanceRecordId > 0}"
                    th:href="@{/attendance/corrections(attendanceRecordId=${item.attendanceRecordId})}">Request correction</a></td>
         </tr>
