@@ -200,7 +200,7 @@ INSERT INTO intern_profiles (
 ) VALUES
 (
     (SELECT id FROM app_users WHERE email = 'intern1@example.com'), 'STU-1001',
-    'Software Engineering', '+84 901 100 001', DATE '2026-08-01', DATE '2026-09-30',
+    'Software Engineering', '+84 901 100 001', DATE '2026-08-01', DATE '2026-10-31',
     'ACTIVE', TIMESTAMPTZ '2026-08-01 09:20:00+07', NULL, NULL,
     TIMESTAMPTZ '2026-08-01 09:20:00+07', TIMESTAMPTZ '2026-08-01 09:20:00+07', 0
 ),
@@ -382,7 +382,7 @@ INSERT INTO projects (
     (SELECT id FROM app_users WHERE email = 'mentor2@example.com'),
     'Attendance Analytics',
     'Attendance summaries, correction flows, and policy-aware reporting.',
-    'ACTIVE', DATE '2026-07-01', DATE '2026-09-30',
+    'ACTIVE', DATE '2026-07-01', DATE '2026-10-31',
     TIMESTAMPTZ '2026-07-01 09:00:00+07', NULL,
     TIMESTAMPTZ '2026-07-01 09:00:00+07', TIMESTAMPTZ '2026-08-20 10:00:00+07', 0
 ),
@@ -464,6 +464,14 @@ INSERT INTO project_memberships (
     (SELECT id FROM app_users WHERE email = 'mentor3@example.com'),
     (SELECT id FROM app_users WHERE email = 'mentor3@example.com'),
     TIMESTAMPTZ '2026-05-01 09:35:00+07', TIMESTAMPTZ '2026-08-16 17:00:00+07', 0
+),
+(
+    (SELECT id FROM projects WHERE name = 'Demo Onboarding Portal'),
+    (SELECT user_id FROM intern_profiles WHERE student_code = 'STU-1004'),
+    (SELECT created_at FROM projects WHERE name = 'Demo Onboarding Portal'), NULL,
+    (SELECT id FROM app_users WHERE email = 'mentor1@example.com'), NULL,
+    (SELECT created_at FROM projects WHERE name = 'Demo Onboarding Portal'),
+    (SELECT created_at FROM projects WHERE name = 'Demo Onboarding Portal'), 0
 );
 
 INSERT INTO project_leadership_terms (
@@ -519,6 +527,18 @@ INSERT INTO project_leadership_terms (
     (SELECT id FROM app_users WHERE email = 'mentor3@example.com'),
     (SELECT id FROM app_users WHERE email = 'mentor3@example.com'),
     TIMESTAMPTZ '2026-05-01 09:30:00+07'
+),
+(
+    (SELECT id FROM projects WHERE name = 'Demo Onboarding Portal'),
+    (
+        SELECT pm.id FROM project_memberships pm
+        JOIN projects p ON p.id = pm.project_id
+        JOIN intern_profiles ip ON ip.user_id = pm.intern_user_id
+        WHERE p.name = 'Demo Onboarding Portal' AND ip.student_code = 'STU-1004'
+    ),
+    (SELECT created_at FROM projects WHERE name = 'Demo Onboarding Portal'), NULL,
+    (SELECT id FROM app_users WHERE email = 'mentor1@example.com'), NULL,
+    (SELECT created_at FROM projects WHERE name = 'Demo Onboarding Portal')
 );
 
 INSERT INTO project_invitations (
