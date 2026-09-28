@@ -1,5 +1,10 @@
 # Changelog — Platform module
 
+## 1.12.0 — 2026-09-28
+
+Counts only, following `D47`: `AC-ACC-023` brings the acceptance scenarios to 168. No platform
+rule changed.
+
 ## 1.11.0 — 2026-09-23
 
 Structure only (`D40`). Four features take shared work that had no feature:

@@ -1,6 +1,6 @@
 # Responsible Mentor Spec
 
-**Version:** 1.1.0 · **Owner:** Loc-LX · **Status:** APPROVED BUSINESS BASELINE · **Date:** 2026-09-21
+**Version:** 1.2.0 · **Owner:** Loc-LX · **Status:** APPROVED BUSINESS BASELINE · **Date:** 2026-09-28
 
 **Module:** `internship` · **Shared contract:** [MODULE.md](../../MODULE.md)
 
@@ -35,7 +35,7 @@ Pending and overdue attendance requests follow the new Mentor; retained decision
 
 | ID | Requirement |
 |---|---|
-| ACC-026 | THE system SHALL let an Admin assign one active Mentor as an Intern's responsible Mentor and replace that assignment. WHEN the assignment changes, THE system SHALL move every pending or overdue leave, correction, and attendance exception request of that Intern to the new Mentor, SHALL leave every earlier decision attributed to the Mentor who made it, and SHALL NOT make the Admin an approver. WHILE an Intern's responsible Mentor is `LOCKED` or `DEACTIVATED`, THE system SHALL show that Intern to Admins as needing a new responsible Mentor, and SHALL NOT let an Admin or any other Mentor decide the Intern's requests. |
+| ACC-026 | THE system SHALL let an Admin assign one active Mentor as an Intern's responsible Mentor and replace that assignment. WHEN the assignment changes, THE system SHALL move every pending or overdue leave, correction, and attendance exception request of that Intern to the new Mentor, SHALL leave every earlier decision attributed to the Mentor who made it, and SHALL NOT make the Admin an approver. WHILE an Intern's responsible Mentor is `LOCKED` or `DEACTIVATED`, or an `ACTIVE` Intern has none, THE system SHALL show that Intern to Admins as needing a new responsible Mentor, SHALL still accept that Intern's leave, correction, and attendance exception requests, and SHALL NOT let an Admin or any other Mentor decide the Intern's requests. |
 | DB-021 | THE schema SHALL let an Intern profile reference at most one responsible Mentor, whose account's global role is `MENTOR`. |
 
 
@@ -95,6 +95,7 @@ claim full test coverage. Actors and outcomes are summaries of the canonical rul
 | Scenario | Requirements | Given / when | Expected result |
 |---|---|---|---|
 | AC-ACC-014 | ACC-026 | An Intern's responsible Mentor is locked while the Intern has a pending leave request, a pending correction, and an overdue exception request | The Intern appears to Admins as needing a new responsible Mentor; neither an Admin nor another Mentor can decide the requests; after an Admin assigns a new Mentor all three move to that Mentor, and decisions made earlier still name the original Mentor. |
+| AC-ACC-023 | ACC-026, NOT-011 | An `ACTIVE` Intern whose responsible Mentor is `LOCKED` submits a leave request, a correction, and an attendance exception request, and the decision deadline of one of them passes; an Admin then assigns another active Mentor. Repeat for an `ACTIVE` Intern whose profile has no responsible Mentor | All three requests are accepted and stay undecided. The locked Mentor receives no notice. Each submission and the overdue reminder notify every active Admin, naming the Intern as needing a responsible Mentor, and no Admin can decide the requests. After the assignment the new Mentor receives one submission notice per moved request and can decide each of them. |
 | AC-DB-008 | DB-021 | SQL probes set an Admin account, then an Intern account, then a Mentor account as an Intern's responsible Mentor | The first two are refused; the Mentor commits. |
 
 Shared and cross-feature scenarios in [MODULE.md](../../MODULE.md#7-acceptance-criteria)

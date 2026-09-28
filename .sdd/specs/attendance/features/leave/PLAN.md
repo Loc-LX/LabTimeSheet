@@ -4,7 +4,7 @@
 
 | Part | Subject | Rules | State |
 |---|---|---|---|
-| C-05 (Leave) | Leave request lifecycle, frozen quota allocations, decision history, and the Leave portion of the attendance contract | `LEV-001`–`LEV-013`, `DB-002`, `ATT-020`, `ATT-024`, `DB-017`, `DB-018`, `NOT-011`; `AC-LEV-001`–`AC-LEV-008`, `AC-DB-005`, `AC-DB-006`, `AC-DB-010`, `AC-DB-011` | Drafted on 27 September 2026 against current code; approved by the maintainer the same day after independent review |
+| C-05 (Leave) | Leave request lifecycle, frozen quota allocations, decision history, and the Leave portion of the attendance contract | `LEV-001`–`LEV-013`, `DB-002`, `ATT-020`, `ATT-024`, `DB-017`, `DB-018`, `NOT-011`; `AC-LEV-001`–`AC-LEV-008`, `AC-DB-005`, `AC-DB-006`, `AC-DB-010`, `AC-DB-011` | Drafted on 27 September 2026 against current code; approved by the maintainer the same day after independent review; amended on 28 September 2026 under `D47` |
 
 ## Part C-05 (Leave)
 

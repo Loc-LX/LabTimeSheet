@@ -4,7 +4,7 @@
 
 | Part | Subject | Rules | State |
 |---|---|---|---|
-| AE | Excuse requests and marks, decision history, attendance history, and compliance reporting | `EXC-001`–`EXC-007`, `DB-016`, `ATT-009`, `ATT-011`, `ATT-016`, `ATT-020`, `ATT-022`, `ATT-024`, `DB-017`, `NOT-011`; `AC-EXC-001`–`AC-EXC-004`, `AC-ATT-006`, `AC-ATT-009`, the exception cases of `AC-DB-006` | Drafted on 27 September 2026 against current code; independent review passed on 28 September 2026; awaiting maintainer approval |
+| AE | Excuse requests and marks, decision history, attendance history, and compliance reporting | `EXC-001`–`EXC-007`, `DB-016`, `ATT-009`, `ATT-011`, `ATT-016`, `ATT-020`, `ATT-022`, `ATT-024`, `DB-017`, `NOT-011`; `AC-EXC-001`–`AC-EXC-004`, `AC-ATT-006`, `AC-ATT-009`, the exception cases of `AC-DB-006` | Drafted on 27 September 2026 against current code; approved by the maintainer on 28 September 2026 after independent review |
 
 ## Part AE — Attendance exception
 

@@ -4,7 +4,7 @@
 
 | Part | Subject | Rules | State |
 |---|---|---|---|
-| MC | Missed-checkout correction lifecycle, decision history, and the correction portion of the attendance contract | `COR-001`–`COR-009`, `ATT-020`, `ATT-022`, `ATT-024`, `DB-017`, `DB-018`, `NOT-011`; `AC-COR-001`–`AC-COR-006`, `AC-ATT-009`, `AC-DB-006`, `AC-DB-011` | Drafted on 27 September 2026 against current code; approved by the maintainer the same day after independent review |
+| MC | Missed-checkout correction lifecycle, decision history, and the correction portion of the attendance contract | `COR-001`–`COR-009`, `ATT-020`, `ATT-022`, `ATT-024`, `DB-017`, `DB-018`, `NOT-011`; `AC-COR-001`–`AC-COR-006`, `AC-ATT-009`, `AC-DB-006`, `AC-DB-011` | Drafted on 27 September 2026 against current code; approved by the maintainer the same day after independent review; amended on 28 September 2026 under `D47` |
 
 ## Part MC — Missed-checkout correction
 
