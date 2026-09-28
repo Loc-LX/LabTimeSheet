@@ -185,7 +185,7 @@ public class LeaveRequestEntity {
     /**
      * Returns the optional Mentor decision actor.
      *
-     * @return Mentor identifier, or {@code null} for pending/automatic rejection
+     * @return Mentor identifier, or {@code null} when the request has not been decided by a Mentor
      */
     public Long decidedByMentorUserId() {
         return decidedByMentorUserId;
@@ -253,8 +253,10 @@ public class LeaveRequestEntity {
      * @param now server decision timestamp
      */
     public void reject(long actorUserId, Instant now) {
-        if (status != null && !LeaveStatus.PENDING.name().equals(status)) {
-            throw new IllegalStateException("Only pending leave can be rejected");
+        if (status != null
+                && !LeaveStatus.PENDING.name().equals(status)
+                && !LeaveStatus.OVERDUE.name().equals(status)) {
+            throw new IllegalStateException("Only pending or overdue leave can be rejected");
         }
         status = LeaveStatus.REJECTED.name();
         decidedByMentorUserId = actorUserId;
@@ -262,7 +264,7 @@ public class LeaveRequestEntity {
     }
 
     /**
-     * Applies the scheduler/request-time expiry transition without inventing an account foreign key.
+     * Marks an undecided request overdue without inventing a decision actor or releasing its frozen allocation.
      *
      * @param now server timestamp at the inclusive first-counted-start boundary
      */
@@ -270,9 +272,7 @@ public class LeaveRequestEntity {
         if (status != null && !LeaveStatus.PENDING.name().equals(status)) {
             return;
         }
-        status = LeaveStatus.REJECTED.name();
-        decidedByMentorUserId = null;
-        decidedAt = now;
+        status = LeaveStatus.OVERDUE.name();
     }
 
     /**
@@ -289,21 +289,21 @@ public class LeaveRequestEntity {
     }
 
     /**
-     * Withdraws an undecided request without changing its decision or allocated-day history.
+     * Withdraws a pending or overdue request without changing its decision or allocated-day history.
      *
      * @param now server withdrawal timestamp
      */
     public void withdraw(Instant now) {
-        if (!LeaveStatus.PENDING.name().equals(status)) {
-            throw new IllegalStateException("Only pending leave can be withdrawn");
+        if (!LeaveStatus.PENDING.name().equals(status) && !LeaveStatus.OVERDUE.name().equals(status)) {
+            throw new IllegalStateException("Only pending or overdue leave can be withdrawn");
         }
         status = LeaveStatus.WITHDRAWN.name();
         withdrawnAt = now;
     }
 
     private void requirePending() {
-        if (!LeaveStatus.PENDING.name().equals(status)) {
-            throw new IllegalStateException("Only pending leave can be approved");
+        if (!LeaveStatus.PENDING.name().equals(status) && !LeaveStatus.OVERDUE.name().equals(status)) {
+            throw new IllegalStateException("Only pending or overdue leave can be approved");
         }
     }
 }

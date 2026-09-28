@@ -326,7 +326,7 @@ public class AttendanceRequestController {
     }
 
     /**
-     * Withdraws a pending request or cancels approved leave while its service deadline remains open.
+     * Withdraws a pending request before its first counted start or an overdue request, or cancels approved leave before its deadline.
      *
      * @param principal authenticated actor
      * @param requestId leave request identifier

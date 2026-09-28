@@ -130,7 +130,8 @@ class AttendanceLombokBoilerplateTest {
                         InternshipService.class,
                         CalendarApplicationService.class,
                         TransactionTemplate.class,
-                        NotificationService.class));
+                        NotificationService.class,
+                        type("com.lab.labtimesheet.feature.attendance.service.AttendanceExceptionNotificationRecipients")));
         assertConstructors(
                 AttendanceCorrectionApplicationService.class,
                 constructor(
@@ -572,7 +573,8 @@ class AttendanceLombokBoilerplateTest {
                 method(Modifier.PUBLIC, "view", com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestView.class,
                         AttendanceActor.class, long.class),
                 method(Modifier.PUBLIC, "list", List.class, AttendanceActor.class),
-                method(Modifier.PUBLIC, "expirePending", int.class, int.class));
+                method(Modifier.PUBLIC, "expirePending", int.class, int.class),
+                method(Modifier.PUBLIC, "hasUnresolvedLeaveRequest", boolean.class, long.class, java.time.YearMonth.class));
         assertMethodSurface(
                 AttendanceCorrectionApplicationService.class,
                 method(Modifier.PUBLIC, "submit", com.lab.labtimesheet.feature.attendance.model.dto.CorrectionView.class,
@@ -620,6 +622,14 @@ class AttendanceLombokBoilerplateTest {
 
     private static ConstructorContract constructor(int modifiers, Class<?>... parameterTypes) {
         return new ConstructorContract(modifiers, List.of(parameterTypes));
+    }
+
+    private static Class<?> type(String name) {
+        try {
+            return Class.forName(name);
+        } catch (ClassNotFoundException failure) {
+            throw new AssertionError("Expected class " + name, failure);
+        }
     }
 
     private static RecordComponentContract component(String name, Class<?> type) {

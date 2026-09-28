@@ -9,7 +9,7 @@ import com.lab.labtimesheet.platform.model.GlobalRole;
 import java.util.List;
 import org.springframework.stereotype.Component;
 
-/** Resolves the shared D47 recipient route for Attendance exception request notifications. */
+/** Resolves the {@code D47} recipient route for Attendance request notifications, used by attendance exception and Leave requests: the active responsible Mentor, or every active Admin when that Mentor is absent, {@code LOCKED} or {@code DEACTIVATED}. */
 @Component
 final class AttendanceExceptionNotificationRecipients {
 

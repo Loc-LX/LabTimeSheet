@@ -10,6 +10,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.lab.labtimesheet.feature.identity.model.AccountStatus;
@@ -54,7 +55,7 @@ class LeaveApplicationServiceTest {
                 mock(InternshipService.class),
                 mock(CalendarApplicationService.class),
                 mock(TransactionTemplate.class),
-                mock(NotificationService.class));
+                mock(NotificationService.class), mock(AttendanceExceptionNotificationRecipients.class));
 
         assertThatThrownBy(() -> service.submit(
                         new AttendanceActor(42L, GlobalRole.INTERN),
@@ -63,6 +64,11 @@ class LeaveApplicationServiceTest {
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
+    /**
+     * Protects LEV-009 and LEV-010: the bounded overdue sweep rechecks the server clock after the locked row is
+     * acquired. Observable break: it skips a row that reaches the inclusive boundary while waiting. Expected: the
+     * request receives the OVERDUE transition at exactly {@code afterLock}.
+     */
     @Test
     void expirySamplesClockAfterLockedRowAcquisition() {
         Instant beforeLock = Instant.parse("2026-08-14T00:59:59Z");
@@ -112,9 +118,10 @@ class LeaveApplicationServiceTest {
                 internships,
                 mock(CalendarApplicationService.class),
                 mock(TransactionTemplate.class),
-                mock(NotificationService.class));
+                mock(NotificationService.class), mock(AttendanceExceptionNotificationRecipients.class));
 
-        assertThat(service.expirePending(1)).isEqualTo(1);
+        service.expirePending(1);
+        verify(locked).autoReject(afterLock);
     }
 
     /**
@@ -186,7 +193,7 @@ class LeaveApplicationServiceTest {
                 internships,
                 mock(CalendarApplicationService.class),
                 mock(TransactionTemplate.class),
-                mock(NotificationService.class));
+                mock(NotificationService.class), mock(AttendanceExceptionNotificationRecipients.class));
         AttendanceActor admin = new AttendanceActor(9L, GlobalRole.ADMIN);
 
         assertThatThrownBy(() -> service.approve(admin, 77L))
@@ -233,7 +240,7 @@ class LeaveApplicationServiceTest {
                         internships,
                         calendar,
                         mock(TransactionTemplate.class),
-                        mock(NotificationService.class))
+                        mock(NotificationService.class), mock(AttendanceExceptionNotificationRecipients.class))
                 .submit(
                         new AttendanceActor(42L, GlobalRole.INTERN),
                         new LeaveRequestCommand(workday, workday, "Family matter"));

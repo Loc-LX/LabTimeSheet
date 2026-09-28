@@ -14,6 +14,20 @@ import org.springframework.data.repository.query.Param;
 /** Spring Data persistence boundary for full-day leave request state. */
 public interface LeaveRequestRepository extends JpaRepository<LeaveRequestEntity, Long> {
 
+    /** Checks whether a pending or overdue request overlaps one inclusive business month. */
+    @Query("""
+            select (count(request) > 0) from LeaveRequestEntity request
+            where request.internUserId = :internId
+              and request.status in :statuses
+              and request.startDate <= :monthEnd
+              and request.endDate >= :monthStart
+            """)
+    boolean existsUnresolvedRequestForInternAndMonth(
+            @Param("internId") long internId,
+            @Param("statuses") List<String> statuses,
+            @Param("monthStart") LocalDate monthStart,
+            @Param("monthEnd") LocalDate monthEnd);
+
     /** @return one Intern's retained requests, newest first */
     List<LeaveRequestEntity> findByInternUserIdOrderBySubmittedAtDescIdDesc(long internUserId);
 

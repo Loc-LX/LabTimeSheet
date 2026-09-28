@@ -34,6 +34,7 @@ class NotificationActionContractTest {
     void acceptsOnlySafeRelativeApplicationRoutes() {
         new NotificationAction("/projects/7/invitation", false);
         new NotificationAction("/attendance/requests", false);
+        new NotificationAction("/attendance/leave/19", false);
         new NotificationAction(null, false);
     }
 }

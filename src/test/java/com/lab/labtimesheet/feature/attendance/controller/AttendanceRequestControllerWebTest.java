@@ -359,9 +359,8 @@ class AttendanceRequestControllerWebTest {
     }
 
     /**
-     * Protects {@code LEV-011}, {@code LEV-013}, and {@code AC-LEV-007}: pending leave exposes
-     * "Withdraw request", approved leave exposes "Cancel approved leave", and neither label is
-     * shown for the other state.
+     * Protects {@code LEV-010}, {@code LEV-011}, {@code LEV-013}, and {@code AC-LEV-007}: pending and overdue leave
+     * expose "Withdraw request", overdue displays "Overdue", and approved leave exposes only its cancellation.
      */
     @Test
     void leavePageShowsTheActionMatchingEachRequestState() throws Exception {
@@ -374,6 +373,7 @@ class AttendanceRequestControllerWebTest {
                         YearMonth.of(2026, 8), 0, 3));
         when(leave.view(actor, 10L)).thenReturn(leaveView(10L, LeaveStatus.PENDING));
         when(leave.view(actor, 11L)).thenReturn(leaveView(11L, LeaveStatus.APPROVED));
+        when(leave.view(actor, 12L)).thenReturn(leaveView(12L, LeaveStatus.OVERDUE));
 
         mvc.perform(get("/attendance/leave/10").with(user("intern@example.test").roles("INTERN")))
                 .andExpect(status().isOk())
@@ -383,6 +383,11 @@ class AttendanceRequestControllerWebTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Cancel approved leave")))
                 .andExpect(content().string(org.hamcrest.Matchers.not(containsString("Withdraw request"))));
+        mvc.perform(get("/attendance/leave/12").with(user("intern@example.test").roles("INTERN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Overdue")))
+                .andExpect(content().string(containsString("Withdraw request")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("Cancel approved leave"))));
     }
 
     @Test

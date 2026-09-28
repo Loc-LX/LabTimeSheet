@@ -83,7 +83,6 @@ The Leave part is ready when `AC-LEV-001`–`AC-LEV-008`, `AC-DB-005`, `AC-DB-00
 | A policy version above four is lawful history | Preserve the 0–31 stored quota range and snapshots as C.5 directs; Calendar owns any conditional quota-contract migration. |
 | Leave closes a period that a cross-month request still affects | Exercise each touched period and race its final decision/withdrawal with finalization under `AC-ATT-009`. |
 | Current Mentor-wide checks are carried into the target permission design | Route only the decision capability through `AUTH-012` after B-02; exercise responsible and non-responsible Mentor cells. |
-| Prompt maps `LEV-011` and `LEV-013` to the opposite actions | The canonical Leave SPEC maps `LEV-011` to approved cancellation/amendment and `LEV-013` to pending/overdue withdrawal; keep this mapping and report the prompt mismatch. |
 | The overdue scan and `ix_leave_requests_pending_cutoff` | The index keeps serving `PENDING` rows only. The scheduler marks `PENDING` requests past their first counted start `OVERDUE`; `NOT-011` notifies the Mentor once at that transition, so `OVERDUE` rows are never scanned again. |
 
 ### Not in this part
@@ -92,4 +91,3 @@ The Leave part is ready when `AC-LEV-001`–`AC-LEV-008`, `AC-DB-005`, `AC-DB-00
 - Calendar-owned quota policy changes are not carried by this Leave migration. `D7` sets the current monthly quota rule; `C.5` decides whether historical quota constraints can narrow.
 - `D23` supplies the 48-hour deadline decision for correction and attendance exception, not a new Leave deadline. `D27`'s period backfill ran in V3; this plan does not replay it. `D31` governs attendance-exception amendments, not Leave.
 - A Leave decision reversal is not implemented or notified: `LEV-011` explicitly forbids reversing Leave decisions. `NOT-011` notification of reversals applies only where the owning feature permits reversal under `ATT-024`.
-- The request prompt labels `LEV-011` as withdrawal and `LEV-013` as cancellation, contrary to the canonical Leave SPEC and `DB-018`; implementation follows the SPEC labels above pending review of that prompt mismatch.
