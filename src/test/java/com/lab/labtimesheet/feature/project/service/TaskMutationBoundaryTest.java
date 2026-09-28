@@ -14,6 +14,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.spy;
 
 import com.lab.labtimesheet.feature.identity.model.AccountStatus;
 import com.lab.labtimesheet.feature.internship.model.InternshipStatus;
@@ -82,7 +83,7 @@ class TaskMutationBoundaryTest {
     @Mock private NotificationService notifications;
     @Mock private TaskRemainingEffortForecastRepository forecasts;
     private final AuthorizationPolicy authorizationPolicy =
-            new AuthorizationPolicy(AuthorizationCatalogue.loadDefault());
+            spy(new AuthorizationPolicy(AuthorizationCatalogue.loadDefault()));
 
     private TaskService service;
     private ProjectTaskContext context;
@@ -115,6 +116,10 @@ class TaskMutationBoundaryTest {
         lenient().when(accounts.requireAccountIdByEmail("member@example.test")).thenReturn(5L);
         lenient().when(accounts.requireIdentityById(5L)).thenReturn(new AccountIdentity(
                 5L, "member@example.test", "Member", GlobalRole.INTERN, AccountStatus.ACTIVE));
+        lenient().when(accounts.requireIdentityById(6L)).thenReturn(new AccountIdentity(
+                6L, "leader@example.test", "Leader", GlobalRole.INTERN, AccountStatus.ACTIVE));
+        lenient().when(accounts.requireIdentityById(3L)).thenReturn(new AccountIdentity(
+                3L, "mentor@example.test", "Mentor", GlobalRole.MENTOR, AccountStatus.ACTIVE));
         lenient().when(projectMutations.taskMutationContext(5L, 10L)).thenReturn(context);
     }
 
@@ -184,6 +189,7 @@ class TaskMutationBoundaryTest {
     }
 
     @Test
+    /** Protects AUTH-012 and the "Create/edit own Task work log" row: an allowed log write must be checked by that policy capability. */
     void pendingExitCurrentAssigneeRetainsExistingWorkLogRight() {
         LocalDate workDate = LocalDate.of(2026, 8, 14);
         ProjectTaskContext pending = new ProjectTaskContext(
@@ -197,7 +203,8 @@ class TaskMutationBoundaryTest {
                 Set.of(70L));
         when(projectMutations.taskMutationContext(5L, 10L)).thenReturn(pending);
         Task task = mock(Task.class);
-        when(task.getAssigneeMembershipId()).thenReturn(70L);
+        lenient().when(task.getAssigneeMembershipId()).thenReturn(70L);
+        lenient().when(task.getStatus()).thenReturn(TaskStatus.TODO);
         TaskWorkLog saved = mock(TaskWorkLog.class);
         when(tasks.findLockedByIdAndProjectIdAndDeletedAtIsNull(25L, 10L))
                 .thenReturn(Optional.of(task));
@@ -223,6 +230,9 @@ class TaskMutationBoundaryTest {
 
         service.addWorkLog("member@example.test", 10L, 25L, workDate, 60, "Existing right");
 
+        verify(authorizationPolicy).allows(
+                eq(com.lab.labtimesheet.platform.authorization.AuthorizationCapability.OWN_TASK_WORK_LOG),
+                any(com.lab.labtimesheet.platform.authorization.AuthorizationRequest.class));
         verify(workLogs).saveAndFlush(any(TaskWorkLog.class));
     }
 
@@ -557,6 +567,7 @@ class TaskMutationBoundaryTest {
         LocalDate workDate = LocalDate.of(2026, 8, 14);
         Task task = org.mockito.Mockito.mock(Task.class);
         when(task.getAssigneeMembershipId()).thenReturn(70L);
+        when(task.getStatus()).thenReturn(TaskStatus.TODO);
         TaskWorkLog saved = org.mockito.Mockito.mock(TaskWorkLog.class);
         when(tasks.findLockedByIdAndProjectIdAndDeletedAtIsNull(25L, 10L))
                 .thenReturn(Optional.of(task));
@@ -621,6 +632,7 @@ class TaskMutationBoundaryTest {
         TaskWorkLogCandidate candidate = new TaskWorkLogCandidate(90L, 10L, 25L, 70L, workDate);
         TaskWorkLog locked = org.mockito.Mockito.mock(TaskWorkLog.class);
         Task task = org.mockito.Mockito.mock(Task.class);
+        when(task.getStatus()).thenReturn(TaskStatus.TODO);
         when(locked.getProjectId()).thenReturn(10L);
         when(locked.getTaskId()).thenReturn(25L);
         when(locked.getMembershipId()).thenReturn(70L);

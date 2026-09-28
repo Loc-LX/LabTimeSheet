@@ -33,7 +33,8 @@ and integration commits, is in git history: `git show b71fc29:plan.md`.
 
 ## Now
 
-- **B-03 step 5a (project) submitted for review.** On work/fix/platform/authorization-matrix at 039d825, Project reads and lifecycle, membership, invitation, exit and leadership operations now ask the shared AuthorizationPolicy using Project-owned scope resolution. Evidence and gates are recorded under *Evidence for Task B-03 (step 5a: project)*. No commit or push was made; review and acceptance remain pending.
+- **B-03 step 5a (project) accepted by the reviewer on 28 September 2026 and committed as 06c841d; not pushed.** Project reads and lifecycle, membership, invitation, exit and leadership operations ask the shared AuthorizationPolicy using Project-owned scope resolution. Evidence and gates are recorded under *Evidence for Task B-03 (step 5a: project)*.
+- **B-03 step 5b (Task decisions and AC-ARC-002) accepted by the reviewer on 28 September 2026; not yet committed.** Task creation, assignment, estimate, forecast, edit, deletion, comments, work logs, status changes and exit-task redistribution ask the shared AuthorizationPolicy with Task-owned scope resolution; the Task list and the Project/Task report keep policy calls and statements constant from one row to fifty. Evidence is under *Evidence for Task B-03 (step 5b: tasks and AC-ARC-002)*.
 - **B-03 step 4 (identity) submitted for reviewer decision, 27 September 2026.** Identity account creation, activation resend and directory reads use MANAGE_ACCOUNTS; account lock/deactivate/reinstate use ACCOUNT_LIFECYCLE; SMTP setup and deferral use GLOBAL_CONFIGURATION. Evidence and verification are recorded under *Evidence for Task B-03 (step 4: identity)*. No commit or push was made; reviewer decision remains pending.
 - **Part C brought into part B, local only.** `work/fix/platform/authorization-matrix` merges part C at `25d63aa` so that B-03 steps 4 and 5 build on part C's identity and project code. Part C still reaches `main` through its own pull request, which must merge before part B's; part C's commits are not rewritten.
 - **B-06 submitted for review, 27 September 2026.** On `work/fix/platform/authorization-matrix`, record-level attendance denials and selected Project/Task report denials now use non-disclosing responses; web integration evidence, disclosure ledger, impact notes and gates are recorded under *Evidence for Task B-06*. No commit or push was made. The reviewer decides acceptance and the project/identity disclosure scope.
@@ -853,4 +854,98 @@ Per-method impact was not preserved before these edits, the fifth such departure
 - **RED and restoration.** (1) Temporarily removing the PROJECT_INVITATIONS policy call from owner revocation made ProjectServiceAuthorizationTest.refusesOwnerRevocationWhenPolicyDeniesItsProjectInvitationColumn fail: expected ProjectAccessDeniedException, observed ProjectRuleViolationException for the deliberately non-pending invitation; the check was restored. (2) Temporarily changing the “Appoint/change Project Leader” / Owning Mentor matrix cell from Yes to No made AuthorizationMatrixIntegrationTest fail at that counterexample setup, with expected allowed=true and observed denial; the matrix cell was restored. (3) Temporarily removing the former-member history exception made ProjectServiceIntegrationTest.completedProjectQueriesReturnHistoricalMembersWithoutRequiringACurrentLeader error with ProjectAccessDeniedException; the former-member path was restored. No test assertion expectation was changed; route fixtures were extended for the stored Project status and the preflight actor snapshot.
 - **Verification.** Final `.\mvnw.cmd -B clean test`: BUILD SUCCESS, 927 tests, 0 failures, 0 errors, 0 skipped (Maven 3.9.16, Java 25.0.4.1, PostgreSQL 18.4 through Testcontainers). `npm run test:ui`: 38/38 passed. `AuthorizationMatrixIntegrationTest`: 127 exercised, 17 unbuilt, 0 mismatches. `RecordDisclosureWebIntegrationTest`: 11/11; `LayerStructureTest`: 2/2; `ModuleBoundaryCycleTest`: 5/5. `git diff --check` produced no output. During the first full run, 7 errors came from two MVC slices missing the policy bean (4 in `Iteration2ProjectWorkflowWebTest`, 3 in `ProjectTaskFormAccessibilityWebTest`); both classes were rerun alone, and final run passed after importing the real catalogue and policy. `ProjectControllerTest` first errored because the real report advice reached an unstubbed actor; after adding actor fixture data it passed 41/41.
 - **GitNexus.** node .gitnexus/run.cjs analyze --index-only completed with 8,731 nodes, 29,103 edges, 353 clusters and 742 flows. FTS was unavailable; extraction dropped 630 candidate entrypoints, 2,557 callees and 420 flows, so an absent flow is not proof of no impact. node .gitnexus/run.cjs detect-changes --scope all --repo . reported 6 files, 65 symbols, 492 affected processes and CRITICAL risk, without a partial/truncated marker in the detector result. This graph risk is left for reviewer assessment.
-- **Handoff.** The work remains uncommitted and unpushed. Reviewer acceptance and independent review are pending; no completion verdict is recorded here.
+- **Handoff.** accepted by the reviewer on 28 September 2026 and committed as 06c841d; not pushed
+
+## Evidence for Task B-03 (step 5b: tasks and AC-ARC-002)
+
+- **Scope.** Worktree `work/fix/platform/authorization-matrix` at base `06c841d`. TaskService decisions, ProjectService exit-task redistribution, the `CANCEL_PROJECT` matrix probes, and AC-ARC-002 request-work-bound integration coverage. No commit or push is authorized in this step.
+- **Pre-edit impact.** GitNexus 1.6.12 `analyze --index-only` completed on 28 September 2026. The per-method impact batch ran from 04:11:54 to 04:16:13 UTC against the bound `labtimesheet` index in this worktree; each row records that batch interval because the CLI did not emit a reliable per-method timestamp. `Class#method` returned not found; `impact <method> --file <path>` resolved names and ambiguous overload candidates, whose source locations were checked against the declarations. Reported caller and process counts are lower bounds: the index dropped unresolved receiver call sites, its flow extraction omitted candidates/callees, and several overloaded or private helpers returned UNKNOWN. Those results remain UNKNOWN rather than being treated as unused; source references were text-searched. HIGH/CRITICAL findings are within the lead-approved authorization scope.
+
+  | Method | UTC | Risk | Direct callers | Processes | Bound |
+  |---|---:|---:|---:|---:|---|
+  | `TaskService.create` | 04:11:54-04:16:13 | LOW | 1 | 1 | lower-bound; 4 receiver call sites dropped |
+  | `TaskService.changeStatus` overloads (lines 183, 202, 292) | 04:11:54-04:16:13 | UNKNOWN aggregate; resolved overloads LOW | 1, 2, 0 | 0 (overload details not enriched) | lower-bound; zero-caller overload text-checked |
+  | `TaskService.edit` overloads (lines 315, 350) | 04:11:54-04:16:13 | UNKNOWN aggregate; resolved overload LOW | 2, 0 | 0 (overload details not enriched) | lower-bound; zero-caller overload text-checked |
+  | `TaskService.estimate` | 04:11:54-04:16:13 | LOW | 1 | 1 | lower-bound; 1 receiver call site dropped |
+  | `TaskService.softDelete` overloads (lines 417, 439) | 04:11:54-04:16:13 | UNKNOWN aggregate; resolved overload LOW | 2, 0 | 0 (overload details not enriched) | lower-bound; zero-caller overload text-checked |
+  | `TaskService.reassign` overloads (lines 462, 473, 607) | 04:11:54-04:16:13 | UNKNOWN aggregate; resolved overloads LOW | 3, 2, 0 | 0 (overload details not enriched) | lower-bound; zero-caller overload text-checked |
+  | `TaskService.correctForecast` | 04:11:54-04:16:13 | LOW | 1 | 1 | lower-bound; 1 receiver call site dropped |
+  | `TaskService.addComment` | 04:11:54-04:16:13 | LOW | 1 | 1 | exact |
+  | `TaskService.addWorkLog` overloads (lines 687, 737) | 04:11:54-04:16:13 | UNKNOWN aggregate; resolved overload LOW | 2, 0 | 0 (overload details not enriched) | lower-bound; zero-caller overload text-checked |
+  | `TaskService.correctWorkLog` overloads (lines 768, 817) | 04:11:54-04:16:13 | UNKNOWN aggregate; resolved overload LOW | 2, 0 | 0 (overload details not enriched) | lower-bound; zero-caller overload text-checked |
+  | `TaskService.list` | 04:11:54-04:16:13 | HIGH | 2 | 4 | lower-bound; 11 receiver call sites dropped; project and reporting flows |
+  | `TaskService.details` | 04:11:54-04:16:13 | LOW | 1 | 1 | exact |
+  | `TaskService.assignmentChoices` | 04:11:54-04:16:13 | HIGH | 2 | 3 | lower-bound; 2 receiver call sites dropped |
+  | `TaskService.canSetEstimateOnCreate` | 04:11:54-04:16:13 | LOW | 1 | 2 | exact |
+  | `TaskService.requireMutationAccess` overloads | 04:11:54-04:16:13 | UNKNOWN | 0 each | 0 | private helper; text search confirms service call sites |
+  | `TaskService.requireReadableProject` | 04:11:54-04:16:13 | HIGH | 2 | 3 | exact graph walk |
+  | `TaskService.requireDefinitionMutationActor` | 04:11:54-04:16:13 | LOW | 2 | 2 | exact graph walk |
+  | `ProjectService.transferTasks` overloads | 04:11:54-04:16:13 | UNKNOWN aggregate; resolved overloads LOW | 1, 1, 0, 0 | not enriched | lower-bound; selected transfer method confirmed by line and `taskTransfers.transferBatch` text search |
+  | `TaskTransferService.transferBatch` overloads | 04:11:54-04:16:13 | UNKNOWN aggregate; resolved overloads LOW | 2, 2, 1 | not enriched | lower-bound; overload ambiguity |
+  | `TaskTransferService.requireLeader` | 04:11:54-04:16:13 | HIGH | 2 | 4 | exact graph walk; includes transfer and direct-removal paths |
+
+- **Capability mapping.**
+
+  | TaskService operation | Policy capability | Scope and stored facts supplied by Task |
+  |---|---|---|
+  | `create` | `CREATE_TASK` | Active member column only for self-assignment; current project state. |
+  | Create-time estimate; `estimate` | `TASK_ESTIMATE` | Current Leader (the matrix grants no other column); stored Task status; active Project lifecycle checks remain. |
+  | `edit`, `softDelete` | `EDIT_OR_DELETE_TASK` | Creator who is also current assignee; stored Task status. |
+  | `reassign` | `ASSIGN_TASK` | Current Leader; locked Task state; transfer eligibility remains a structural guard. |
+  | Reassignment forecast; `correctForecast` | `REMAINING_EFFORT_FORECAST` | Current Leader and locked Task/forecast facts. |
+  | `addComment` | `COMMENT_ON_TASK` | Active Project member or owning Mentor. |
+  | `addWorkLog` | `OWN_TASK_WORK_LOG` | Current assignee; active Project and stored Task state. |
+  | `correctWorkLog` | `OWN_TASK_WORK_LOG` | Stored log author while still an active Project member, including after Task reassignment (`TSK-016`). |
+  | Assignee status change | `OWN_ASSIGNED_TASK_STATUS` | Current assignee and stored current/target Task states. |
+  | Owning Mentor status change | `BLOCK_UNBLOCK_REOPEN_TASK` | Owning Mentor and stored current/target Task states; no Leader block/unblock/reopen capability is added. |
+  | `list`, `details` | `VIEW_ALL_PROJECTS` | Stored identity and Project context; a former member's read of a closed Project is decided once by `ProjectQueryService.taskContext` from stored membership history (`AUTH-006`). |
+  | `assignmentChoices`, `canSetEstimateOnCreate` | `CREATE_TASK`, `TASK_ESTIMATE` respectively, plus Project read scope | Stored identity, Project context, and operation-specific capability checks. |
+  | Exit-task redistribution | `REDISTRIBUTE_PENDING_EXIT_TASKS` | Current Leader resolved after Project lock; TaskTransferService retains structural eligibility guards without a second policy decision. |
+
+  Denials preserve `TaskNotFoundException`. No role is inferred by TaskService and no synthetic account, Project, or Task facts are passed to policy.
+- **Dashboard.** TaskDashboardService selects a dashboard layout by role over Projects already filtered by listVisible, which applies VIEW_ALL_PROJECTS; the branch grants nothing (Authorization PLAN B.4).
+- **CANCEL_PROJECT.** Removed the planned and active cancellation operations from both unbuilt-operation ledgers. Isolated Project probes exercise each of the four columns for both `PLANNED` and `ACTIVE`: only the owning Mentor cancels, and denied roles leave Project state unchanged. A separate owning-Mentor probe confirms a `COMPLETED` Project is denied and remains unchanged.
+- **AC-ARC-002.** For each measured GET, a warm-up precedes clearing Hibernate Statistics and spy invocations; the second request records `AuthorizationPolicy.allows` invocations, prepared statements, and rendered Task rows.
+
+  | Page | Tasks | Policy calls | Prepared statements | Rendered rows |
+  |---|---:|---:|---:|---:|
+  | `/projects/{id}/tasks` | 1 | 8 | 14 | 1 |
+  | `/projects/{id}/tasks` | 50 | 8 | 14 | 50 |
+  | `/reports/project-tasks?projectId={id}` | 1 | 17 | 23 | 1 |
+  | `/reports/project-tasks?projectId={id}` | 50 | 17 | 23 | 50 |
+
+- **RED and restoration.** (1) Temporarily omitting the `OWN_TASK_WORK_LOG` policy call made `TaskMutationBoundaryTest.pendingExitCurrentAssigneeRetainsExistingWorkLogRight` fail: Mockito reported “Wanted but not invoked” for `authorizationPolicy.allows(OWN_TASK_WORK_LOG, …)`; the call was restored. (2) Temporarily changing the `ASSIGN_TASK` / `Current Leader` cell from Yes to No made the matrix fail at the `reassign unfinished Task` counterexample (`setup invalid ... service action was denied ... TaskNotFoundException`); the cell was restored. (3) Temporarily loading Project member names inside each Task-list row made `RequestWorkBoundWebIntegrationTest` fail its measured-count equality assertion (`expected: 57L but was: 8L`); the batched lookup was restored. All three probes were temporary; no weakening or deletion of assertions was needed.
+- **Verification.** The focused Task/project/matrix/request-bound batch passed. Final `.\mvnw.cmd -B clean test`: BUILD SUCCESS, 929 tests, 0 failures, 0 errors, 0 skipped; Maven 3.9.16, Java 25.0.4.1, Spring Boot 4.1.0, PostgreSQL 18.4 via Testcontainers. Matrix result: `B-01 matrix result: 131 cells exercised; 13 cells unbuilt; 0 mismatches`. `TaskMutationBoundaryTest`: 25/25; `AuthorizationMatrixIntegrationTest`: 2/2; `RequestWorkBoundWebIntegrationTest`: 1/1; `RecordDisclosureWebIntegrationTest`: 11/11; `LayerStructureTest`: 2/2; `ModuleBoundaryCycleTest`: 5/5. `npm run test:ui`: 38/38 passed on Node 24.16.0 and npm 11.13.0, including the relative-document-link check. `git diff --check` produced no output. No Playwright browser suite was requested or run.
+- **Code and link checks.** Production search in `feature/project` found no `new AuthorizationPolicy(`, `loadDefault()`, or `setAuthorizationPolicy`. A search for `"INTERN".equals` and `"MENTOR".equals` in `feature/project/service` finds four role gates: `TaskDashboardService.dashboard` (twice), which selects a layout over Projects already filtered by `listVisible` and grants nothing; and `ProjectQueryService.membershipIntervals` and `ProjectQueryService.pendingInvitations`, which predate part B and restrict an Intern's own intervals and own invitation inbox. The last two are listed for the B.10 check of `AUTH-012`. UI documentation-link verification reported no broken links.
+- **GitNexus change analysis.** `node .gitnexus/run.cjs detect-changes --scope all --repo .` reported 9 files, 57 symbols, 55 affected processes and CRITICAL risk, with no `partial` or `truncated` marker in the output. FTS was unavailable. The detector did not include the two new untracked Java files in its changed-symbol list; their callers were checked by source search, and that graph coverage limit remains for reviewer assessment. The CRITICAL graph risk is not represented as cleared.
+
+### Fix round 1
+
+- **Impact before edits.** Repository `labtimesheet`, branch `work/fix/platform/authorization-matrix`, baseline `06c841d`; GitNexus 1.6.12 index refreshed with `node .gitnexus/run.cjs analyze --index-only .` on 28 September 2026 before the edits. The impact batch ran at 05:27:16 UTC. Counts are graph lower bounds where noted; callers were checked by source search.
+
+  | Target | Risk | Direct callers | Impacted symbols | Processes | Callers / limits |
+  |---|---|---:|---:|---:|---|
+  | `TaskService.edit` (versioned overload) | LOW | 2 | 2 | 1 | `TaskController.edit`; two receiver call sites dropped, so source search was also used. |
+  | `TaskService.softDelete` (versioned overload) | LOW | 2 | 2 | 1 | `TaskController.delete`; two receiver call sites dropped, so source search was also used. |
+  | `TaskService.estimate` | LOW | 1 | 1 | 1 | `TaskController.estimate`; one receiver call site dropped. |
+  | `TaskService.requireReadableProject` | CRITICAL | 4 | 164 | 87 | `list`, `details`, `assignmentChoices`, `canSetEstimateOnCreate`; exact graph walk, but process enrichment includes unrelated flows and is treated as an upper-bound review signal, not a precise feature count. |
+  | `ProjectService.transferTasksInternal` (task-transfer overload at line 1036) | LOW | 4 | 7 | not enriched | Correct overload selected by `taskTransfers.transferBatch` text search; other overloads resolved 2/2/0 callers, with the zero-caller overload remaining UNKNOWN. |
+  | `TaskAuthorizationRequests.forHistoricalReader` | CRITICAL | 1 | 10 | 78 | New untracked helper was included after index refresh; source search confirmed its only caller was `TaskService.requireReadableProject`. Graph process enrichment is overbroad and lower-bound evidence. |
+
+  GitNexus extraction limits on Windows: FTS unavailable, 643 entrypoint candidates and 2,629 callees dropped, and 94 walks cut by budget. The authorization path's CRITICAL classification was disclosed before continuing; it is within the approved change scope and remains visible for review.
+- **F1.** Restored the original structural guards and placed each policy call after the Task state guard it replaced: edit now checks actor membership, locked Task, unfinished status, then `EDIT_OR_DELETE_TASK`; soft delete checks actor membership, locked Task, unfinished status, then the policy; estimate checks actor membership and `TASK_ESTIMATE` before input validation, then locks and checks Task status. Added `currentLeaderGetsReopenValidationWhenEditingDoneTask`, `currentLeaderGetsReopenValidationWhenSoftDeletingDoneTask`, and `nonLeaderEstimateIsDeniedBeforeInvalidEstimateValidation`, each with AUTH-012 and §5.2 Javadoc. Outcomes assert the unchanged validation type/message for DONE edit/delete and concealed `TaskNotFoundException` for a non-Leader's estimate of zero.
+- **F2.** Restored `projectRoute` / `requireLeaderRouteCapability(REDISTRIBUTE_PENDING_EXIT_TASKS, ...)` before member snapshot and locks; retained the policy check after lock. Added `nonLeaderTransferIsDeniedBeforeLifecycleAndLeavesTaskUnchanged`, which checks both ACTIVE and COMPLETED Project states and retained assignee state.
+- **F3.** Deleted `forHistoricalReader`; the closed-Project former-member path returns only after `taskContext` has resolved retained membership, with the specified AUTH-006 comment. Other reads still use `VIEW_ALL_PROJECTS` and `forReader`. Existing `formerMemberReadsOnlyCompletedProjectTaskHistory` covers former-member Task list and details; new `neverMemberCannotReadClosedProjectTaskList` verifies a never-member stays denied.
+- **F4.** Corrected the capability mapping and role-gate evidence. Production has four string role gates in the named dashboard/query methods; the two ProjectQueryService gates predate part B and are listed for the B.10 AUTH-012 check. The UI link test found no broken documentation links. All recorded Maven commands use `.\mvnw.cmd`.
+- **RED and restoration.** (1) Temporarily moving the edit policy before `requireUnfinished` made `currentLeaderGetsReopenValidationWhenEditingDoneTask` fail: expected `TaskValidationException` with `Reopen the Task before reassignment or editing`, observed `TaskNotFoundException`. The guard was restored. (2) Temporarily removing the transfer preflight made `nonLeaderTransferIsDeniedBeforeLifecycleAndLeavesTaskUnchanged` fail on COMPLETED: expected `ProjectAccessDeniedException`, observed `ProjectRuleViolationException` for terminal lifecycle. The gate was restored. Neither test expectation was weakened.
+- **Verification.** Focused command `.\mvnw.cmd -B '-Dtest=TaskMutationBoundaryTest,TaskCreationIntegrationTest,ProjectInvitationExitIntegrationTest,ProjectServiceIntegrationTest,AuthorizationMatrixIntegrationTest,RequestWorkBoundWebIntegrationTest,RecordDisclosureWebIntegrationTest,LayerStructureTest,ModuleBoundaryCycleTest' test`: BUILD SUCCESS, 168 tests, 0 failures, 0 errors, 0 skipped. `AuthorizationMatrixIntegrationTest`: 131 exercised, 13 unbuilt, 0 mismatches. `RequestWorkBoundWebIntegrationTest`: 1/1, with the exact observations below. `npm run test:ui`: 38/38 passed (Node 24.16.0, npm 11.13.0); this includes documentation link verification. Full `.\mvnw.cmd -B clean test`: BUILD SUCCESS, 934 tests, 0 failures, 0 errors, 0 skipped (Maven 3.9.16, Java 25.0.4.1, PostgreSQL 18.4 through Testcontainers).
+
+  `B-01 matrix result: 131 cells exercised; 13 cells unbuilt; 0 mismatches`
+
+  `AC-ARC-002 / task list: 1 row=8 policy, 14 statements; 50 rows=8 policy, 14 statements`
+
+  `AC-ARC-002 / Project Task report: 1 row=17 policy, 23 statements; 50 rows=17 policy, 23 statements`
+
+- **Change state.** No commit or push. The worktree has 13 changed paths: 11 modified tracked files plus the pre-existing untracked `TaskAuthorizationRequests.java` and `RequestWorkBoundWebIntegrationTest.java`.
+
+Step 5b fix round 2 is ready for review.

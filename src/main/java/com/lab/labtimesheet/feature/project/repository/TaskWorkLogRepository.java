@@ -37,6 +37,10 @@ public interface TaskWorkLogRepository extends JpaRepository<TaskWorkLog, Long> 
      */
     List<TaskWorkLog> findAllByTaskIdAndProjectIdOrderByWorkDateAscIdAsc(long taskId, long projectId);
 
+    /** Loads retained work histories for selected Project Tasks in stable Task/date order. */
+    List<TaskWorkLog> findAllByProjectIdAndTaskIdInOrderByTaskIdAscWorkDateAscIdAsc(
+            long projectId, List<Long> taskIds);
+
     /**
      * Lists only the selected local date's retained logs for a Project in stable Task/log order.
      *

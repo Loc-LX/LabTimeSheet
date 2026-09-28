@@ -1,6 +1,7 @@
 package com.lab.labtimesheet.platform;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.lab.labtimesheet.config.TestcontainersConfiguration;
 import com.lab.labtimesheet.feature.calendar.model.dto.AttendancePolicyCommand;
@@ -121,8 +122,6 @@ class AuthorizationMatrixIntegrationTest {
             "Approve or reject a request to reopen a finalized attendance period (`ATT-022`)");
     private static final List<UnbuiltOperation> UNBUILT_IN_CODE = List.of(
             new UnbuiltOperation("Edit Project details", "AUTH-012", "Project lifecycle plan (to be written)"),
-            new UnbuiltOperation("Cancel a PLANNED Project", "PRJ-023", "Project lifecycle plan (to be written)"),
-            new UnbuiltOperation("Cancel an ACTIVE Project", "PRJ-023", "Project lifecycle plan (to be written)"),
             new UnbuiltOperation("Leader block, unblock or reopen of another member's Task", "TSK-023, TSK-025",
                     "Task management plan, after part C creates task_status_transitions (Authorization plan B.7)"),
             new UnbuiltOperation("Submit an attendance exception request", "ATT-024",
@@ -135,8 +134,6 @@ class AuthorizationMatrixIntegrationTest {
                     "Period finalization plan, after part C creates the reopen request data"));
     private static final Map<String, List<String>> UNBUILT_BY_CAPABILITY = Map.of(
             "Edit/activate/complete Project", List.of("Edit Project details"),
-            "Cancel a `PLANNED` or `ACTIVE` Project (`PRJ-023`)",
-                    List.of("Cancel a PLANNED Project", "Cancel an ACTIVE Project"),
             "Block, unblock, or reopen another member's Task (`TSK-023`)",
                     List.of("Leader block, unblock or reopen of another member's Task"),
             "Submit own leave, correction, or exception request",
@@ -326,7 +323,11 @@ class AuthorizationMatrixIntegrationTest {
                             LocalDate.of(2026, 8, 1), LocalDate.of(2026, 12, 31), fixture.leaderId()));
                     projects.delete(actor, emptyProjectId);
                 })));
-        result.put(REGISTERED_CAPABILITIES.get(6), List.of());
+        result.put(REGISTERED_CAPABILITIES.get(6), List.of(
+                probeWithControl("cancel PLANNED Project", (fixture, actor) ->
+                        cancelProjectForMatrix(fixture, actor, "PLANNED"), fixture -> {}, "Owning Mentor"),
+                probeWithControl("cancel ACTIVE Project", (fixture, actor) ->
+                        cancelProjectForMatrix(fixture, actor, "ACTIVE"), fixture -> {}, "Owning Mentor")));
         result.put(REGISTERED_CAPABILITIES.get(7), List.of(
                 probe("directly add Project member", (fixture, actor) ->
                         projects.addMember(actor, fixture.projectId(), fixture.targetInternId())),
@@ -597,6 +598,48 @@ class AuthorizationMatrixIntegrationTest {
                     tasks.addWorkLog(fixture.email("member"), fixture.projectId(), memberTask,
                             PROBE_WORK_DATE, 30, "Member's prior work"));
         }
+    }
+
+    private void cancelProjectForMatrix(Fixture fixture, long actorId, String initialStatus) {
+        long projectId = projects.create(fixture.mentorId(), new ProjectCreateCommand(
+                "Matrix-cancel " + initialStatus + " " + fixture.label, null,
+                LocalDate.of(2026, 8, 1), LocalDate.of(2026, 12, 31), fixture.leaderId()));
+        if (initialStatus.equals("ACTIVE")) {
+            projects.activate(fixture.mentorId(), projectId);
+        }
+        try {
+            projects.cancel(actorId, projectId, "Matrix authorization probe");
+        } catch (ProjectAccessDeniedException denied) {
+            assertThat(projectStatus(projectId)).isEqualTo(initialStatus);
+            throw denied;
+        }
+        assertThat(actorId).isEqualTo(fixture.mentorId());
+        assertThat(projectStatus(projectId)).isEqualTo("CANCELLED");
+    }
+
+    /** Protects PRJ-023 and AUTH-012: an owning Mentor cannot cancel a completed Project. */
+    @Test
+    void owningMentorCannotCancelACompletedProject() {
+        new TransactionTemplate(transactionManager).execute(status -> {
+            Fixture fixture = seedFixture("CANCEL_PROJECT completed Mentor probe");
+            long projectId = projects.create(fixture.mentorId(), new ProjectCreateCommand(
+                    "Matrix-completed-cancel " + fixture.label, null,
+                    LocalDate.of(2026, 8, 1), LocalDate.of(2026, 12, 31), fixture.leaderId()));
+            projects.activate(fixture.mentorId(), projectId);
+            projects.complete(fixture.mentorId(), projectId);
+            assertThatThrownBy(() -> projects.cancel(fixture.mentorId(), projectId, "Completed probe"))
+                    .isInstanceOf(ProjectAccessDeniedException.class);
+            assertThat(projectStatus(projectId)).isEqualTo("COMPLETED");
+            status.setRollbackOnly();
+            return null;
+        });
+    }
+
+    private String projectStatus(long projectId) {
+        return jdbc.sql("select status from projects where id = :id")
+                .param("id", projectId)
+                .query(String.class)
+                .single();
     }
 
     private long seedTask(Fixture fixture, long creatorUserId, long assigneeMembershipId) {

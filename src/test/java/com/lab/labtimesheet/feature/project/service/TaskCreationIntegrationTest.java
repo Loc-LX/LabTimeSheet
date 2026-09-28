@@ -1228,6 +1228,64 @@ class TaskCreationIntegrationTest {
                 .isEqualTo("Historical task");
     }
 
+    /**
+     * Protects AUTH-006 and §5.2 stored membership history. Observable break: a never-member is
+     * admitted to a closed Project's Task list; the hand-derived expected result is a concealed
+     * TaskNotFoundException because no retained membership interval exists.
+     */
+    @Test
+    void neverMemberCannotReadClosedProjectTaskList() {
+        createMemberTask("Closed Project history");
+        insertIntern("never-member-closed-history@example.test");
+        completeProject();
+
+        assertThatThrownBy(() -> taskService.list("never-member-closed-history@example.test", projectId))
+                .isInstanceOf(TaskNotFoundException.class);
+    }
+
+    /**
+     * Protects AUTH-012 and §5.2 edit ordering. Observable break: a DONE Task is hidden as an
+     * authorization miss; the hand-derived expected result is the established reopen validation.
+     */
+    @Test
+    void currentLeaderGetsReopenValidationWhenEditingDoneTask() {
+        TaskView task = createMemberTask("Done task edit");
+        setStatus(task.id(), TaskStatus.DONE);
+
+        assertThatThrownBy(() -> taskService.edit(
+                "leader@example.test", projectId, task.id(), task.version(), "Changed", null, null))
+                .isInstanceOf(TaskValidationException.class)
+                .hasMessage("Reopen the Task before reassignment or editing");
+    }
+
+    /**
+     * Protects AUTH-012 and §5.2 delete ordering. Observable break: a DONE Task is hidden as an
+     * authorization miss; the hand-derived expected result is the established reopen validation.
+     */
+    @Test
+    void currentLeaderGetsReopenValidationWhenSoftDeletingDoneTask() {
+        TaskView task = createMemberTask("Done task delete");
+        setStatus(task.id(), TaskStatus.DONE);
+
+        assertThatThrownBy(() -> taskService.softDelete(
+                "leader@example.test", projectId, task.id(), task.version()))
+                .isInstanceOf(TaskValidationException.class)
+                .hasMessage("Reopen the Task before reassignment or editing");
+    }
+
+    /**
+     * Protects AUTH-012 and §5.2 estimate ordering. Observable break: invalid estimate input leaks
+     * validation to a non-Leader; the hand-derived result is the same concealed Task-not-found.
+     */
+    @Test
+    void nonLeaderEstimateIsDeniedBeforeInvalidEstimateValidation() {
+        TaskView task = createMemberTask("Estimate authorization");
+
+        assertThatThrownBy(() -> taskService.estimate(
+                "member@example.test", projectId, task.id(), task.version(), 0))
+                .isInstanceOf(TaskNotFoundException.class);
+    }
+
     @Test
     void viewCapabilitiesFollowCurrentMembershipAssignmentAndProjectLifecycle() {
         TaskView task = createMemberTask("Capability task");

@@ -1042,10 +1042,9 @@ public class ProjectService {
             Map<Long, Long> expectedTaskVersions,
             Map<Long, RemainingEffortForecastInput> forecastInputs,
             long recipientMembershipId) {
-        var route = projectRoute(projectId); // đọc leaderId nhẹ — → Repo
-        if (!Objects.equals(route.currentLeaderUserId(), actorUserId)) { // chỉ Leader hiện tại
-            throw new ProjectAccessDeniedException();
-        }
+        var route = projectRoute(projectId);
+        requireLeaderRouteCapability(
+                AuthorizationCapability.REDISTRIBUTE_PENDING_EXIT_TASKS, actorUserId, route);
         var snapshotMemberIds = projects.findCurrentInternUserIdsByProjectId(projectId).stream()
                 .collect(Collectors.toUnmodifiableSet()); // snapshot member trước lock
         var lockedAccounts = lockAccounts(concat(actorUserId, snapshotMemberIds)); // lock Leader + members
@@ -1054,7 +1053,13 @@ public class ProjectService {
             throw new ProjectRuleViolationException("Project membership changed; retry Task transfer");
         }
         requireOpenProject(project); // project chưa COMPLETED
-        var leader = requireCurrentLeader(project, actorUserId, snapshotFor(lockedAccounts, actorUserId));
+        var actor = snapshotFor(lockedAccounts, actorUserId);
+        if (!authorizationPolicy.allows(AuthorizationCapability.REDISTRIBUTE_PENDING_EXIT_TASKS,
+                ProjectAuthorizationRequests.currentLeaderOnly(
+                        actor.role(), actor.accountStatus(), actorUserId, project))) {
+            throw new ProjectAccessDeniedException();
+        }
+        var leader = requireCurrentLeader(project, actorUserId, actor);
         var pendingExitRequests = exitRequests.findLockedPendingByProjectId(projectId); // tất cả exit request PENDING
         var pendingExitMembershipIds = pendingExitRequests.stream()
                 .map(ProjectExitRequestEntity::targetMembershipId)

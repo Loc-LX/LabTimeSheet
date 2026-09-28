@@ -926,6 +926,40 @@ class ProjectInvitationExitIntegrationTest {
                 "select status from project_membership_exit_requests where id = ?", requestId));
     }
 
+    /**
+     * Protects AUTH-012 §5.2 transfer ordering. Observable break: the closed Project lifecycle
+     * error leaks before authorization; the hand-derived result is access denied in both states,
+     * with the stored assignee unchanged.
+     */
+    @Test
+    void nonLeaderTransferIsDeniedBeforeLifecycleAndLeavesTaskUnchanged() {
+        long mentorId = user("mentor-transfer-order@example.test", "MENTOR");
+        long leaderId = intern("leader-transfer-order@example.test", "I281");
+        long memberId = intern("member-transfer-order@example.test", "I282");
+        long recipientId = intern("recipient-transfer-order@example.test", "I283");
+        long activeProjectId = createProject(mentorId, leaderId, "Active transfer order");
+        projects.addMembers(mentorId, activeProjectId, List.of(memberId, recipientId));
+        long sourceMembershipId = membershipId(activeProjectId, memberId);
+        long recipientMembershipId = membershipId(activeProjectId, recipientId);
+        long leaderMembershipId = membershipId(activeProjectId, leaderId);
+        long taskId = insertTask(activeProjectId, sourceMembershipId, leaderMembershipId,
+                "Transfer order", "TODO");
+        jdbc.update("update projects set status = 'ACTIVE', activated_at = ?, updated_at = ? where id = ?",
+                NOW.atOffset(java.time.ZoneOffset.UTC), NOW.atOffset(java.time.ZoneOffset.UTC), activeProjectId);
+        entityManager.clear();
+
+        assertThrows(ProjectAccessDeniedException.class, () -> projects.transferTasks(
+                memberId, activeProjectId, sourceMembershipId, Set.of(taskId), recipientMembershipId));
+        assertEquals(sourceMembershipId, number(
+                "select assignee_membership_id from tasks where id = ?", taskId));
+
+        completeProject(activeProjectId, mentorId);
+        assertThrows(ProjectAccessDeniedException.class, () -> projects.transferTasks(
+                memberId, activeProjectId, sourceMembershipId, Set.of(taskId), recipientMembershipId));
+        assertEquals(sourceMembershipId, number(
+                "select assignee_membership_id from tasks where id = ?", taskId));
+    }
+
     @Test
     void routeBoundExitTransferRejectsTerminalRequestWithoutChangingTask() {
         long mentorId = user("mentor-terminal-transfer@example.test", "MENTOR");

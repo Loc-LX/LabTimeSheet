@@ -14,4 +14,7 @@ public interface TaskCommentRepository extends JpaRepository<TaskComment, Long> 
      * @return comments ordered by creation instant and then identifier
      */
     List<TaskComment> findAllByTaskIdOrderByCreatedAtAscIdAsc(long taskId);
+
+    /** Loads comment histories for selected Tasks in stable Task and creation order. */
+    List<TaskComment> findAllByTaskIdInOrderByTaskIdAscCreatedAtAscIdAsc(List<Long> taskIds);
 }
