@@ -702,3 +702,57 @@ the other way round.
 - **E2E A.** With empty PostgreSQL 18.4, app port 8083, and business date 2026-09-22, `critical-journeys` plus `smoke` passed 4/4. The app was stopped and the disposable container removed before E2E B.
 - **E2E B.** On a new PostgreSQL 18.4 container, Flyway V1–V8 and both demo seed scripts completed. The query for non-null payload fields on `NOT_REQUIRED`/`UNAVAILABLE` notifications returned 0. `report-journeys` passed 2/2 using the documented disposable demo account; an initial run without credentials skipped 2/2 and was rerun with the fixture credentials. The app was stopped and the disposable container removed.
 - **Final verification.** `git diff --check` passed. `npm run test:ui` was rerun after this evidence edit and passed 38/38. Containers with the `labtimesheet-ed01-` prefix were absent and ports 55437 and 8083 were free; Mailpit was left running. Resolved versions: Maven 3.9.16, Java 25.0.4.1, Docker 29.7.2, PostgreSQL 18.4/Testcontainers 2.0.5, Node 24.16.0, npm 11.13.0, and `@playwright/test` 1.62.1.
+
+## Evidence for Task ED-02 (29 September 2026)
+
+- **Scope and constraints.** Started on branch `work/fix/notification/email-payload-contract` at base `e09c323`. Provides behavioral evidence for `NOT-002` across real domain operations under `AC-NOT-001` and `AC-NOT-004`. No production code under `src/main` was modified; changes are strictly test-only in `ProjectInvitationExitIntegrationTest` and `AttendancePersistenceIntegrationTest`. No commit, push, stash, or branch switch. External database port 55432 and external containers were untouched; all tests execute against dynamic Testcontainers PostgreSQL 18.4 instances.
+- **GitNexus impact analysis.** Pre-edit impact analysis was conducted prior to modifying the test classes:
+  - `ProjectInvitationExitIntegrationTest`: UTC `2026-09-29T04:55:21Z`, impacted symbols: 0, candidate risk: `UNKNOWN`.
+  - `AttendancePersistenceIntegrationTest`: UTC `2026-09-29T04:55:34Z`, impacted symbols: 0, candidate risk: `UNKNOWN`.
+  In accordance with `AGENTS.md`, `UNKNOWN` was treated as unresolved rather than low; text searches confirmed usages and call paths.
+- **NOT-002 Event Family Mapping and Verification Matrix.**
+
+| Event Family / Notification Type | Trigger / Business Action | Delivery Channel | Email Status without SMTP | Recipients Rule Source | Verification Test Reference |
+|---|---|---|---|---|---|
+| `PROJECT_INVITATION_CREATED` | Leader issues invitation | In-app + email requested (`UNAVAILABLE` without SMTP) | `UNAVAILABLE` | `NOT-010`: invitee only | `ProjectInvitationExitIntegrationTest#invitationWorkflowPersistsUnavailableNotificationsWithoutRetroactiveSend` |
+| `PROJECT_INVITATION_RESOLVED` | Invitee declines/accepts, Mentor/Leader revokes, or superseded (Mentor direct add) | In-app + email requested (`UNAVAILABLE` without SMTP) | `UNAVAILABLE` | `NOT-010`: decline/accept &rarr; Mentor + Leader; revoke/superseded &rarr; Mentor + Leader + invitee | `ProjectInvitationExitIntegrationTest#invitationWorkflowPersistsUnavailableNotificationsWithoutRetroactiveSend` |
+| `MEMBERSHIP_EXIT_REQUESTED` | Member requests own leave, or Leader requests member removal | In-app + email requested (`UNAVAILABLE` without SMTP) | `UNAVAILABLE` | `NOT-010`: own leave &rarr; Mentor + Leader; removal &rarr; Mentor + target member | `ProjectInvitationExitIntegrationTest#membershipExitWorkflowPersistsUnavailableNotificationsWithoutRetroactiveSend` |
+| `MEMBERSHIP_EXIT_RESOLVED` | Member cancels own leave, Mentor rejects/approves exit | In-app + email requested (`UNAVAILABLE` without SMTP) | `UNAVAILABLE` | `NOT-010`: requester + target + current Leader collapsed | `ProjectInvitationExitIntegrationTest#membershipExitWorkflowPersistsUnavailableNotificationsWithoutRetroactiveSend` |
+| `MEMBERSHIP_CHANGED` | Mentor adds member | In-app + email requested (`UNAVAILABLE` without SMTP) | `UNAVAILABLE` | *Spec gap*: no rule in NOT specs; observed implementation notifies added member (`[memberId]`) | `ProjectInvitationExitIntegrationTest#membershipAndLeadershipChangesPersistUnavailableNotificationsWithoutRetroactiveSend` |
+| `LEADERSHIP_CHANGED` | Mentor changes leader | In-app + email requested (`UNAVAILABLE` without SMTP) | `UNAVAILABLE` | *Spec gap*: no rule in NOT specs; observed implementation notifies former and new leader (`[formerLeaderId, newLeaderId]`) | `ProjectInvitationExitIntegrationTest#membershipAndLeadershipChangesPersistUnavailableNotificationsWithoutRetroactiveSend` |
+| `TASK_ASSIGNED` | Task created / assigned | In-app + email requested (`UNAVAILABLE` without SMTP) / In-app only (no email requested / `NOT_REQUIRED` for self-assigned task) | `UNAVAILABLE` (non-self) / `NOT_REQUIRED` (self) | `TSK-010`: assignee only | `TaskCreationIntegrationTest#leaderAssignmentNotifiesOnlyNewAssigneeWithUnavailableEmail` |
+| `TASK_REASSIGNED` | Task reassigned | In-app + email requested (`UNAVAILABLE` without SMTP) | `UNAVAILABLE` | `TSK-010`: previous and new assignees | `TaskCreationIntegrationTest#reassignmentNotifiesPreviousAndNewAssigneeExactlyOnce` |
+| `LEAVE_SUBMITTED` | Intern submits leave | In-app + email requested (`UNAVAILABLE` without SMTP) | `UNAVAILABLE` | `NOT-011` (Attendance plan) | `AttendancePersistenceIntegrationTest#leaveNotificationsUseGlobalMentorsForSubmissionAndInternForDecisionWithoutCancellation` |
+| `LEAVE_DECIDED` | Mentor approves leave | In-app + email requested (`UNAVAILABLE` without SMTP) | `UNAVAILABLE` | `NOT-011` (Attendance plan) | `AttendancePersistenceIntegrationTest#mentorLeaveApprovalWithoutSmtpPersistsUnavailableNotificationAndDoesNotReplayOnSmtpActivation` |
+| `CORRECTION_SUBMITTED` | Intern submits missed checkout correction | In-app + email requested (`UNAVAILABLE` without SMTP) | `UNAVAILABLE` | `NOT-011` (Attendance plan) | `AttendancePersistenceIntegrationTest#correctionNotificationsCoverSubmissionDecisionRevertAndRequestTimeAutoRejectionOnce` |
+| `CORRECTION_DECIDED` | Mentor approves correction | In-app + email requested (`UNAVAILABLE` without SMTP) | `UNAVAILABLE` | `NOT-011` (Attendance plan) | `AttendancePersistenceIntegrationTest#mentorCorrectionApprovalWithoutSmtpPersistsUnavailableNotificationAndDoesNotReplayOnSmtpActivation` |
+
+- **Spec Gap on Membership and Leadership Changes.** `MEMBERSHIP_CHANGED` and `LEADERSHIP_CHANGED` have no recipient rules in the `NOT` feature specifications. The tests verify delivery channel (`In-app + email requested (UNAVAILABLE without SMTP)`), email status (`UNAVAILABLE`), and zero emails dispatched (`mail.calls == 0`). The observed recipients (`[memberId]` for member addition and `[formerLeaderId, newLeaderId]` for leadership replacement) are recorded as a specification gap.
+- **Direct Database Commit Assertions.** In both test suites, after every business transition, JDBC queries directly inspect underlying domain tables to verify that domain states are genuinely committed to PostgreSQL:
+  - Project lifecycle: verifies `project_invitations.status` (`DECLINED`, `ACCEPTED`, `REVOKED`, `SUPERSEDED`), `project_memberships` (active membership created upon acceptance or direct addition, `left_at IS NOT NULL` upon approved exit), `project_exit_requests.status` (`CANCELLED`, `REJECTED`, `APPROVED`), and `project_leadership_terms` (former leader term ended and replacement leader term activated).
+  - Attendance lifecycle: verifies `leave_requests.status = 'APPROVED'` and `attendance_corrections.status = 'APPROVED'`.
+- **TDD RED/GREEN Cycle Evidence.** Every newly added test was individually inverted and confirmed to fail (RED) before restoration to passing (GREEN):
+  1. `invitationWorkflowPersistsUnavailableNotificationsWithoutRetroactiveSend`: Inverted email status assertion failed with `org.opentest4j.AssertionFailedError: expected: <[SENT]> but was: <[UNAVAILABLE]>` at `ProjectInvitationExitIntegrationTest.java:1623`. Restored to GREEN.
+  2. `membershipExitWorkflowPersistsUnavailableNotificationsWithoutRetroactiveSend`: Inverted email status assertion failed with `org.opentest4j.AssertionFailedError: expected: <[SENT, SENT]> but was: <[UNAVAILABLE, UNAVAILABLE]>` at `ProjectInvitationExitIntegrationTest.java:1693`. Restored to GREEN.
+  3. `membershipAndLeadershipChangesPersistUnavailableNotificationsWithoutRetroactiveSend`: Inverted email status assertion failed with `org.opentest4j.AssertionFailedError: expected: <[SENT]> but was: <[UNAVAILABLE]>` at `ProjectInvitationExitIntegrationTest.java:1769`. Restored to GREEN.
+  4. `mentorLeaveApprovalWithoutSmtpPersistsUnavailableNotificationAndDoesNotReplayOnSmtpActivation`: Inverted email status assertion failed with `org.opentest4j.AssertionFailedError: expected: SENT but was: UNAVAILABLE` at `AttendancePersistenceIntegrationTest.java:2175`. Restored to GREEN.
+  5. `mentorCorrectionApprovalWithoutSmtpPersistsUnavailableNotificationAndDoesNotReplayOnSmtpActivation`: Inverted email status assertion failed with `org.opentest4j.AssertionFailedError: expected: SENT but was: UNAVAILABLE` at `AttendancePersistenceIntegrationTest.java:2227`. Restored to GREEN.
+  6. **Fix Round 1 (F1 - Inverted superseded recipients):** Inverting the superseded recipient check to expect only `[7]` failed with `org.opentest4j.AssertionFailedError: expected: <[7]> but was: <[2, 3, 7]>` at `ProjectInvitationExitIntegrationTest.java:1675`. Restored to GREEN.
+  7. **Fix Round 1 (F2 - Inverted retroactive email status):** Inverting the post-SMTP activation check to expect `PENDING` failed with `org.opentest4j.AssertionFailedError: expected: <[PENDING]> but was: <[UNAVAILABLE]>` at `ProjectInvitationExitIntegrationTest.java:1695`. Restored to GREEN.
+- **Focused Test Suite Results.** Focused suite execution command:
+  `./mvnw.cmd "-Dtest=ProjectInvitationExitIntegrationTest,AttendancePersistenceIntegrationTest,NotificationServiceIntegrationTest" test`
+  - Total tests run: 98, Failures: 0, Errors: 0, Skipped: 0 (`BUILD SUCCESS`, total time: 04:18 min).
+  - Breakdown:
+    - `ProjectInvitationExitIntegrationTest`: 40 tests, 0 failures, 0 errors, 0 skipped.
+    - `AttendancePersistenceIntegrationTest`: 48 tests, 0 failures, 0 errors, 0 skipped.
+    - `NotificationServiceIntegrationTest`: 10 tests, 0 failures, 0 errors, 0 skipped.
+- **Retroactive Send Prevention (AC-NOT-001, AC-NOT-004, NOT-005).** In all five new test methods, after SMTP is activated: `NotificationService.retryDueEmails()` returns 0; no mail is sent (`mail.calls == 0` / `mail.messages` empty); every notification row the test created still has `email_status = 'UNAVAILABLE'`; and the number of those rows equals the count taken immediately before activation.
+- **Final gates.**
+  - Executed commands: `.\mvnw.cmd clean test` and `npm run test:ui`.
+  - Maven Surefire verification: Tests run: 934, Failures: 0, Errors: 0, Skipped: 0 across 146 Surefire report files (`BUILD SUCCESS`, total time: 20:27 min).
+  - UI contract test: `npm run test:ui` passed (38 of 38 tests pass, 0 fail; duration 875 ms).
+  - End-to-end (E2E) browser suite was not run because this round did not modify any production code in `src/main`, static assets, or Thymeleaf templates.
+
+Task ED-02 is ready for review.
+Task ED-02 fix round 1 is ready for review.
+Task ED-02 final gates are ready for review.
