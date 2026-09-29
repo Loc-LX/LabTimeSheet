@@ -756,3 +756,65 @@ the other way round.
 Task ED-02 is ready for review.
 Task ED-02 fix round 1 is ready for review.
 Task ED-02 final gates are ready for review.
+
+## Evidence for Task ED-03 (29 September 2026)
+
+- **Scope and constraints.** Started on branch `work/fix/notification/email-payload-contract` at base `dfd9443`. Implemented `NOT-007` (Admin failed-email inspection and manual retry) with acceptance criteria `AC-NOT-002` and `AC-NOT-007`. Modified only permitted files: `NotificationDeliveryView.java` (added `emailTo` and `lastError`), `NotificationService.java` (only `deliveryView` mapping), `FailedEmailController.java` (new), `failed-email.html` (new), `layout.html` (added Failed email link), `FailedEmailWebIntegrationTest.java` (new), `failed-email.spec.mjs` (new), and `plan.md`. No commit, push, stash, or branch switch. External database port 55432, containers with prefix `labtimesheet-*`, and other worktrees were untouched.
+- **GitNexus impact analysis.** Pre-edit impact analysis was conducted before changing production symbols:
+  - `NotificationDeliveryView`: direction upstream, impactedCount: 2, risk: `LOW`. Callers: `deliveryView` and `failedEmailViews` within `NotificationService`.
+  - `deliveryView`: direction upstream, impactedCount: 1, risk: `LOW`. Caller: `failedEmailViews` within `NotificationService`.
+- **Done When Mapping Table.**
+
+| "Done when" Condition | Test Method / Spec Reference | Verification Details |
+|---|---|---|
+| Admin view lists failed delivery | `FailedEmailWebIntegrationTest.adminGetShowsOnlyFailedEmailDetailsAndOmitsOtherStates` | Admin GET `/admin/notifications/failed-email` renders only the `FAILED` row with recipient address, title, attempts, and last error; omits titles of other states (`PENDING`, `SENT`, `UNAVAILABLE`, `NOT_REQUIRED`). |
+| Authorized retry re-enters bounded retry | `FailedEmailWebIntegrationTest.adminPostRetryOnFailedEmailStartsRetryCycleAndFlashesSuccess` | Admin POST `/admin/notifications/failed-email/{id}/retry` transitions row from `FAILED` to `PENDING` (attempts=1, next_attempt_at scheduled), flashes `Email retry started.`. |
+| Refused actor cannot inspect or retry | `FailedEmailWebIntegrationTest.unauthorizedActorsAndMissingCsrfAreRefusedWithoutMutatingData` | Mentor and Intern receive 403 on both GET and POST; unauthenticated requests redirect to `/login`; requests missing CSRF receive 403; zero rows mutated. |
+| Original in-app row remains unique | `FailedEmailWebIntegrationTest.adminPostRetryOnFailedEmailStartsRetryCycleAndFlashesSuccess` | Total count of notification rows in PostgreSQL remains unchanged before and after retry; existing row is re-entered without creating duplicate row. |
+| End-to-end browser coverage exercises inspection and retry | `failed-email.spec.mjs: NOT-007 Admin failed-email inspection and retry browser flow with database verification` | Full Playwright journey: seeds `FAILED` row via `E2E_DB_CONTAINER`, navigates via sidebar menu, verifies display, clicks Retry, observes `Email retry started.`, verifies row disappears from table, confirms DB state change and count invariant. |
+
+- **TDD Behavioral RED/GREEN Cycle Evidence.**
+  - **Behavioral RED (08:34 UTC):** `FailedEmailWebIntegrationTest` executed with real PostgreSQL (Testcontainers) and real Spring Security / NotificationService beans.
+    - Test `adminPostRetryOnFailedEmailStartsRetryCycleAndFlashesSuccess` failed behaviorally: `java.lang.AssertionError: Flash attribute 'message' expected:<Email retry started.> but was:<null>` at line 228.
+    - Test `adminPostRetryOnNonFailedOrNonExistentRowFlashesNoLongerFailedMessage` failed behaviorally: `java.lang.AssertionError: Flash attribute 'message' expected:<This email is no longer in a failed state.> but was:<null>` at line 263.
+  - **GREEN (08:37 UTC):**
+    - `FailedEmailController.java`: added `RedirectAttributes` to `retry`, flashing `Email retry started.` when `retryFailedEmail` returns true and `This email is no longer in a failed state.` when false. Removed unused `java.util.List` import.
+    - `failed-email.html`: set page title to `Failed email`, empty state text to `No failed email.`, added `<p class="alert" role="status" th:if="${message}" th:text="${message}"></p>`, updated table columns to Recipient, Title, Attempts, Last error, Last updated, and an untitled Action column with Retry button, and removed handwritten CSRF input.
+    - `layout.html`: updated sidebar icon reference from `#mail-x` to `#settings`.
+    - All 4 tests in `FailedEmailWebIntegrationTest` passed (0 failures, 0 errors).
+- **Focused Test Suite Results (Surefire Reports).**
+  - Executed command: `.\mvnw.cmd "-Dtest=FailedEmailWebIntegrationTest,NotificationServiceIntegrationTest" test`
+  - Surefire report files:
+    - `com.lab.labtimesheet.feature.notification.controller.FailedEmailWebIntegrationTest.txt`: Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 43.51 s.
+    - `com.lab.labtimesheet.feature.notification.service.NotificationServiceIntegrationTest.txt`: Tests run: 10, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 55.73 s.
+  - Total: 14 tests, 0 failures, 0 errors, 0 skipped (`BUILD SUCCESS`, total time: 01:44 min).
+- **End-to-End (E2E) Browser Coverage.**
+  - Executed on disposable PostgreSQL 18.4 container `tmp-ed03-postgres` at `127.0.0.1:55437` and application port 8083 (`dev,e2e` profiles).
+  - Executed command: `$env:E2E_DB_CONTAINER="tmp-ed03-postgres"; $env:PLAYWRIGHT_BASE_URL="http://127.0.0.1:8083"; npx playwright test src/test/e2e/failed-email.spec.mjs`
+  - Result: 1 passed (11.2s). Verified: bootstraps administrator, seeds designated `FAILED` row via SQL, navigates via sidebar "Failed email" link, verifies table columns and data, clicks "Retry", verifies flash message `Email retry started.`, verifies row removed from table, verifies DB status is no longer `FAILED` and total count unchanged, and verifies unauthenticated access redirects to `/login`.
+  - Application stopped, temporary container removed, and ports 55437 and 8083 verified clear.
+- **Verification Gates and Static Checks.**
+  - `git diff --check` passed cleanly (no whitespace errors or unwanted blank lines).
+  - Line endings verified LF-only across all modified and newly created files.
+  - `npm run test:ui` passed 38 of 38 tests (duration 1060 ms).
+  - GitNexus graph change analysis (`detect-changes --scope all`): clean check, 3 files, 5 symbols, medium risk.
+- **Final gates.**
+  - Executed commands: `.\mvnw.cmd clean test`, `npm run test:ui`, full Playwright E2E suite (Turn A and Turn B) against disposable PostgreSQL 18.4 container `tmp-ed03-postgres` (`127.0.0.1:55437`, app port 8083, `E2E_BUSINESS_DATE=2026-09-22`, `LAB_E2E_START_INSTANT=2026-09-22T01:00:00Z`), and `node .gitnexus/run.cjs detect-changes --scope all --repo .`.
+  - Maven Surefire verification: Tests run: 939, Failures: 0, Errors: 0, Skipped: 0 across 147 Surefire report text files (`BUILD SUCCESS`, total time: 21:33 min). The count is 939, not 938: besides the four FailedEmailWebIntegrationTest tests, the new failed-email.html adds one case to the parameterized FrontendSourceContractTest.everyTemplateTableIsWrappedInAScrollRegion, which passes.
+  - UI contract test: `npm run test:ui` passed (38 of 38 tests pass, 0 fail; duration 1380 ms).
+  - Full E2E browser verification by spec:
+    - Turn A (empty PostgreSQL 18.4):
+      - `src/test/e2e/critical-journeys.spec.mjs`: 2 passed, 0 failed, 0 skipped.
+      - `src/test/e2e/smoke.spec.mjs`: 2 passed, 0 failed, 0 skipped.
+      - `src/test/e2e/failed-email.spec.mjs`: 1 passed, 0 failed, 0 skipped (executed with the bootstrapped administrator account from Turn A).
+      - Note on RED: The end-to-end spec was written after the controller existed, so no end-to-end RED was observed; the behavioural REDs of FailedEmailWebIntegrationTest cover the flash messages it asserts.
+    - Turn B (seeded database, Flyway V1–V8, `demo-seed.sql`, and `demo-seed-v2.sql`):
+      - `src/test/e2e/report-journeys.spec.mjs`: 2 passed, 0 failed, 0 skipped (authenticated as seeded `intern2@example.com` / `DemoPassword123!`).
+    - Across all 4 specs: 7 passed, 0 failed, 0 skipped.
+    - Application was stopped, disposable container `tmp-ed03-postgres` removed, and ports 55437 and 8083 verified clear.
+  - GitNexus graph change analysis (`detect-changes --scope all`): clean check (`partial: false`, `truncated: false`), 4 files, 5 symbols (`NotificationDeliveryView`, `recipientUserId`, `title`, `NotificationService`, `deliveryView`), 4 affected execution flows, risk level `medium`.
+  - Static checks: `git diff --check` passed cleanly; line endings verified LF-only.
+
+Task ED-03 is ready for review.
+Task ED-03 fix round 1 is ready for review.
+Task ED-03 final gates are ready for review.

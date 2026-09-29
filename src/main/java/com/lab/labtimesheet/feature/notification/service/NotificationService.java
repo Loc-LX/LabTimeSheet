@@ -262,7 +262,7 @@ public class NotificationService {
         return new NotificationDeliveryView(
                 notification.getId(), notification.getRecipientUserId(), notification.getTitle(),
                 notification.getEmailStatus(), notification.getEmailAttempts(), notification.getEmailNextAttemptAt(),
-                notification.getUpdatedAt());
+                notification.getUpdatedAt(), notification.getEmailTo(), notification.getEmailLastError());
     }
 
     private AccountService requireAccountService() {
