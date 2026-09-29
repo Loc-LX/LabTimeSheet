@@ -818,3 +818,26 @@ Task ED-02 final gates are ready for review.
 Task ED-03 is ready for review.
 Task ED-03 fix round 1 is ready for review.
 Task ED-03 final gates are ready for review.
+
+## Evidence for Task ED-04 (29 September 2026)
+
+Ở lần chạy trước, hai test dừng do Docker không kết nối được; các RED và kết quả focused dưới đây là lần chạy lại sau khi Docker Server hoạt động.
+
+- **GitNexus impact.** Repository `labtimesheet`, branch `work/fix/notification/email-payload-contract`, HEAD `029be06`; index được refresh bằng `analyze --index-only --skip-fts --worker-timeout 600` vì chậm HEAD ba commit và chưa có test secret-link. Impact upstream cho `NotificationServiceIntegrationTest` và `SecretLinkDeliveryIntegrationTest` lúc 10:09:06 UTC trả 0 callers, 0 affected processes, `risk: UNKNOWN`; text search xác nhận các class được khai báo trong test và nhắc trong spec. Aggregate process listing bị truncated. Impact bổ sung `requestPasswordReset` lúc 10:17 UTC: 12 callers trực tiếp, gồm `PasswordRecoveryController.request`, một identity flow, risk MEDIUM; không có HIGH/CRITICAL.
+- **Fix-round impact (29 September 2026, 10:25 UTC).** The matrix test method returned risk UNKNOWN, 0 callers and 0 affected processes; this remains unresolved rather than being treated as low. requestPasswordReset returned risk MEDIUM, 12 direct callers and one affected identity flow, including PasswordRecoveryController.request; no HIGH/CRITICAL risk.
+- **Acceptance-to-test map.** `AC-NOT-001`: `AttendancePersistenceIntegrationTest#mentorLeaveApprovalWithoutSmtpPersistsUnavailableNotificationAndDoesNotReplayOnSmtpActivation` và `#mentorCorrectionApprovalWithoutSmtpPersistsUnavailableNotificationAndDoesNotReplayOnSmtpActivation` (ED-02). `AC-NOT-004`: `ProjectInvitationExitIntegrationTest#invitationWorkflowPersistsUnavailableNotificationsWithoutRetroactiveSend`, `#membershipExitWorkflowPersistsUnavailableNotificationsWithoutRetroactiveSend`, `#membershipAndLeadershipChangesPersistUnavailableNotificationsWithoutRetroactiveSend` (ED-02), cùng hai test attendance ở trên. `AC-NOT-003`: `SecretLinkDeliveryIntegrationTest#acNot003SecretLinkDeliveryFailureInvalidatesTokenAndExcludesRawLinkFromPersistenceAndLogs`. `AC-NOT-007`: `NotificationServiceIntegrationTest#acNot007StateMatrixFromCreationThroughAdminRetryAndTerminalRefusals`.
+- **RED ma trận AC-NOT-007.** Trước khi đảo assertion và sau khi khôi phục, SHA-256 của `NotificationServiceIntegrationTest.java` đều là `7278e595f1afd83f11d7e46b6ac07c90c65dcb036c64916f21baf4a7975a2419`. Lệnh `.\mvnw.cmd "-Dtest=NotificationServiceIntegrationTest#acNot007StateMatrixFromCreationThroughAdminRetryAndTerminalRefusals" test` với assertion C bị đảo trả đỏ đúng tại dòng 480: `expected: "SENT" but was: "UNAVAILABLE"`.
+- **RED mutation secret-link AC-NOT-003.** Trước mutation, `AccountService.java` SHA-256 là `43ae5a206ab1156316ffda401a3e88160beb8210061ebe588173a81c675df2b5`, đúng với HEAD. Tạm comment `invalidateTokenAfterDeliveryFailure(pending.tokenId());` trong `requestPasswordReset`, rồi chạy `.\mvnw.cmd -Dtest=SecretLinkDeliveryIntegrationTest test`; test đỏ ở assertion `failedResetTokenEntity.getInvalidatedAt()` dòng 158 với lỗi nguyên văn `java.lang.AssertionError: Expecting actual not to be null`. Sau khi bỏ comment, SHA-256 vẫn là `43ae5a206ab1156316ffda401a3e88160beb8210061ebe588173a81c675df2b5`; `git diff --stat -- src/main` rỗng.
+- **Sửa H1 / mục 2g.** Ngay sau khi tạo mỗi notification A, B, C, D, test đọc `title` và `body` từ DB rồi lưu. Sau đó so sánh lại đúng các giá trị đã lưu sau retry worker, Admin retry và entity mutators; không còn so sánh body với literal viết cứng. Các assertion trạng thái, payload, attempt count và số notification khác vẫn giữ nguyên.
+- **Focused GREEN, Surefire.** Chạy `.\mvnw.cmd "-Dtest=NotificationServiceIntegrationTest,SecretLinkDeliveryIntegrationTest" test` trên PostgreSQL 18.4 qua Testcontainers. `NotificationServiceIntegrationTest.txt`: 11 tests, 0 failures, 0 errors, 0 skipped (82.78 s). `SecretLinkDeliveryIntegrationTest.txt`: 1 test, 0 failures, 0 errors, 0 skipped (25.69 s). Tổng 12 tests xanh; Maven 3.9.16, Java 25.0.4.1; `BUILD SUCCESS`, 02:13 min. Không chạy full Maven.
+- **Final checks.** Assertion RED đã được khôi phục; mutation `AccountService` đã được trả về HEAD. `src/main` không có diff; `git diff --check` sạch; ba file bàn giao dùng LF. Không thêm hoặc sửa documentation link.
+
+- **Final gates.**
+  - Commands run: `docker version` (Server Engine 29.7.2), `.\mvnw.cmd clean test` (`BUILD SUCCESS`, 21:04), and `npm run test:ui` (exit 0).
+  - Surefire total from 148 report files: 941 tests, 0 failures, 0 errors, 0 skipped; no report files were unparsed. The ED-04 classes report 11/11 and 1/1 passing.
+  - UI suite: 38 tests, 38 pass, 0 fail, 0 skipped (2.07 s).
+  - End-to-end tests were not run: ED-04 adds tests only and changes no production code or template.
+
+Task ED-04 is ready for review.
+Task ED-04 fix round 1 is ready for review.
+Task ED-04 final gates are ready for review.
