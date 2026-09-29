@@ -127,7 +127,7 @@ public class AttendanceCorrectionEntity {
     /**
      * Returns current correction state.
      *
-     * @return pending, approved, or rejected state
+     * @return pending, overdue, approved, or rejected state
      */
     public CorrectionStatus status() {
         return CorrectionStatus.valueOf(status);
@@ -163,7 +163,7 @@ public class AttendanceCorrectionEntity {
     /**
      * Returns Mentor decision actor.
      *
-     * @return deciding user identifier, or {@code null} while pending/auto-rejected
+     * @return deciding user identifier, or {@code null} while pending/overdue
      */
     public Long decidedByMentorUserId() {
         return decidedByMentorUserId;
@@ -188,6 +188,19 @@ public class AttendanceCorrectionEntity {
     }
 
     /**
+     * Transitions a pending correction to overdue without changing decision fields.
+     *
+     * @param now server expiry timestamp
+     */
+    public void markOverdue(Instant now) {
+        requireUnlocked();
+        if (status() != CorrectionStatus.PENDING) {
+            return;
+        }
+        status = CorrectionStatus.OVERDUE.name();
+    }
+
+    /**
      * Applies an approval transition without changing the raw attendance row.
      *
      * @param mentorUserId active Mentor actor
@@ -196,8 +209,8 @@ public class AttendanceCorrectionEntity {
      */
     public void approve(long mentorUserId, Instant now, String note) {
         requireUnlocked();
-        if (status() != CorrectionStatus.PENDING) {
-            throw new IllegalStateException("Only pending correction can be approved");
+        if (status() != CorrectionStatus.PENDING && status() != CorrectionStatus.OVERDUE) {
+            throw new IllegalStateException("Only pending or overdue correction can be approved");
         }
         status = CorrectionStatus.APPROVED.name();
         decidedByMentorUserId = mentorUserId;
@@ -214,8 +227,8 @@ public class AttendanceCorrectionEntity {
      */
     public void reject(long mentorUserId, Instant now, String note) {
         requireUnlocked();
-        if (status() != CorrectionStatus.PENDING) {
-            throw new IllegalStateException("Only pending correction can be rejected");
+        if (status() != CorrectionStatus.PENDING && status() != CorrectionStatus.OVERDUE) {
+            throw new IllegalStateException("Only pending or overdue correction can be rejected");
         }
         status = CorrectionStatus.REJECTED.name();
         decidedByMentorUserId = mentorUserId;
@@ -230,39 +243,13 @@ public class AttendanceCorrectionEntity {
      */
     public void reopen(Instant now) {
         requireUnlocked();
-        if (status() == CorrectionStatus.PENDING) {
-            throw new IllegalStateException("Pending correction is already open");
+        if (status() == CorrectionStatus.PENDING || status() == CorrectionStatus.OVERDUE) {
+            throw new IllegalStateException("Correction is not decided");
         }
         status = CorrectionStatus.PENDING.name();
         decidedByMentorUserId = null;
         decidedAt = null;
         decisionNote = null;
-    }
-
-    /**
-     * Automatically rejects a still-pending correction when the decision deadline expires.
-     *
-     * @param now server expiry timestamp
-     */
-    public void autoReject(Instant now) {
-        requireUnlocked();
-        if (status() != CorrectionStatus.PENDING) {
-            return;
-        }
-        status = CorrectionStatus.REJECTED.name();
-        decidedAt = now;
-        decisionNote = "Decision window expired";
-    }
-
-    /**
-     * Locks an approved/rejected correction after its decision deadline.
-     *
-     * @param now server lock timestamp
-     */
-    public void lock(Instant now) {
-        if (lockedAt == null) {
-            lockedAt = now;
-        }
     }
 
     private void requireUnlocked() {

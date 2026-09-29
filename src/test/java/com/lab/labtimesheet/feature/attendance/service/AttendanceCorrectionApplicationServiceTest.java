@@ -57,7 +57,8 @@ class AttendanceCorrectionApplicationServiceTest {
                 mock(InternshipService.class),
                 calendar(),
                 mock(TransactionTemplate.class),
-                mock(NotificationService.class));
+                mock(NotificationService.class),
+                mock(AttendanceExceptionNotificationRecipients.class));
 
         assertThatThrownBy(() -> service.submit(
                         new AttendanceActor(42L, GlobalRole.INTERN),
@@ -127,7 +128,8 @@ class AttendanceCorrectionApplicationServiceTest {
                 internships,
                 calendar(),
                 mock(TransactionTemplate.class),
-                mock(NotificationService.class));
+                mock(NotificationService.class),
+                mock(AttendanceExceptionNotificationRecipients.class));
 
         assertThat(service.expire(1)).isEqualTo(1);
     }
@@ -158,7 +160,8 @@ class AttendanceCorrectionApplicationServiceTest {
                 mock(InternshipService.class),
                 calendar(),
                 mock(TransactionTemplate.class),
-                mock(NotificationService.class));
+                mock(NotificationService.class),
+                mock(AttendanceExceptionNotificationRecipients.class));
 
         assertThat(service.prepareHistory(List.of(first, second)))
                 .containsEntry(101L, null)
@@ -228,7 +231,8 @@ class AttendanceCorrectionApplicationServiceTest {
                 internships,
                 calendar(),
                 mock(TransactionTemplate.class),
-                mock(NotificationService.class));
+                mock(NotificationService.class),
+                mock(AttendanceExceptionNotificationRecipients.class));
 
         service.submit(
                 new AttendanceActor(42L, GlobalRole.INTERN),

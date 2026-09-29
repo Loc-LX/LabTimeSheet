@@ -669,6 +669,39 @@ class AttendanceRequestControllerWebTest {
                 .andExpect(content().string(org.hamcrest.Matchers.not(containsString("value=\"APPROVE\""))));
     }
 
+    /**
+     * Protects {@code COR-006} and {@code COR-007}: an overdue correction renders an Overdue badge and exposes
+     * Approve and Reject actions to a Mentor without offering Reopen.
+     */
+    @Test
+    void overdueCorrectionRendersOverdueBadgeAndMentorDecisionActions() throws Exception {
+        AttendanceActor mentor = new AttendanceActor(2L, GlobalRole.MENTOR);
+        when(currentUsers.actor(org.mockito.ArgumentMatchers.any())).thenReturn(mentor);
+        when(leave.list(mentor)).thenReturn(List.of());
+        when(corrections.list(mentor)).thenReturn(List.of());
+        AttendancePolicy policy = new AttendancePolicy(
+                1L, LocalDate.of(2026, 1, 1), ZoneId.of("Asia/Ho_Chi_Minh"),
+                LocalTime.of(8, 0), LocalTime.of(17, 0), 15, 15, 3,
+                BigDecimal.valueOf(0.1), Set.of(DayOfWeek.MONDAY));
+        when(corrections.view(mentor, 11L)).thenReturn(new CorrectionView(
+                11L, 55L, 7L, null, LocalDateTime.of(2026, 8, 20, 16, 0), null,
+                "Missed", CorrectionStatus.OVERDUE, Instant.parse("2026-08-20T10:00:00Z"),
+                Instant.parse("2026-08-21T10:00:00Z"), Instant.parse("2026-08-21T10:00:00Z"),
+                null, policy, new AttendanceViolations(false, false, true),
+                List.of(new CorrectionEventView(1L, CorrectionEventType.SUBMITTED, null,
+                                CorrectionStatus.PENDING, 7L, "Missed", Instant.parse("2026-08-20T10:00:00Z")),
+                        new CorrectionEventView(2L, CorrectionEventType.OVERDUE, CorrectionStatus.PENDING,
+                                CorrectionStatus.OVERDUE, null, null, Instant.parse("2026-08-22T10:00:00Z")))));
+
+        mvc.perform(get("/attendance/corrections/11").with(user("mentor@example.test").roles("MENTOR")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Overdue")))
+                .andExpect(content().string(containsString("Approve")))
+                .andExpect(content().string(containsString("Reject")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("Reopen"))))
+                .andExpect(content().string(containsString("Save decision")));
+    }
+
     @Test
     void correctionInstantsRenderInTheAttachedHistoricalPolicyZone() throws Exception {
         TimeZone previousZone = TimeZone.getDefault();

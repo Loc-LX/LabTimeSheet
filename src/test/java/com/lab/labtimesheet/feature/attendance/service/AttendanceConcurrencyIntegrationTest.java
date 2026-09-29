@@ -272,7 +272,7 @@ class AttendanceConcurrencyIntegrationTest {
         assertThat(correctionRequests.findAll())
                 .filteredOn(row -> row.attendanceRecordId() == firstRecordId
                         || row.attendanceRecordId() == secondRecordId)
-                .allSatisfy(row -> assertThat(row.status()).isEqualTo(CorrectionStatus.REJECTED));
+                .allSatisfy(row -> assertThat(row.status()).isEqualTo(CorrectionStatus.OVERDUE));
     }
 
     @Test

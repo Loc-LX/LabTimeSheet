@@ -707,13 +707,12 @@ class AttendancePersistenceIntegrationTest {
         clock.set(submitted.decisionDeadline());
 
         assertThat(corrections.list(intern)).singleElement()
-                .satisfies(summary -> assertThat(summary.status()).isEqualTo(CorrectionStatus.REJECTED.name()));
-        assertThat(correctionRequests.findById(submitted.id()).orElseThrow().lockedAt()).isNotNull();
+                .satisfies(summary -> assertThat(summary.status()).isEqualTo(CorrectionStatus.OVERDUE.name()));
+        assertThat(correctionRequests.findById(submitted.id()).orElseThrow().lockedAt()).isNull();
         assertThat(corrections.expire(100)).isZero();
         assertThat(correctionEvents.findByCorrectionIdOrderByOccurredAtAscIdAsc(submitted.id()))
                 .extracting(event -> event.toView().type())
-                .containsExactly(CorrectionEventType.SUBMITTED, CorrectionEventType.AUTO_REJECTED,
-                        CorrectionEventType.LOCKED);
+                .containsExactly(CorrectionEventType.SUBMITTED, CorrectionEventType.OVERDUE);
     }
 
     /** Protects NOT-011 and D47: request-time expiry emits one SYSTEM overdue reminder with the stable leave action, and scheduler repeats are idempotent. */
@@ -1535,10 +1534,7 @@ class AttendancePersistenceIntegrationTest {
     void correctionNotificationsCoverSubmissionDecisionRevertAndRequestTimeAutoRejectionOnce() {
         long mentor = createActiveMentor();
         createActiveMentor();
-        List<Long> activeMentorIds = accounts.activeGlobalMentorIdentities().stream()
-                .map(identity -> identity.id())
-                .toList();
-        assertThat(activeMentorIds).hasSize(2).doesNotHaveDuplicates();
+        jdbc.update("update intern_profiles set responsible_mentor_user_id = ? where user_id = ?", mentor, internId);
         doReturn(false).when(mailDelivery).isAvailable();
         AttendanceActor intern = new AttendanceActor(internId, GlobalRole.INTERN);
         clock.set(Instant.parse("2026-08-14T02:00:00Z"));
@@ -1560,8 +1556,7 @@ class AttendancePersistenceIntegrationTest {
                 .toList();
         assertThat(submissions)
                 .extracting(NotificationEntity::getRecipientUserId)
-                .containsExactlyInAnyOrderElementsOf(activeMentorIds)
-                .doesNotHaveDuplicates();
+                .containsExactly(mentor);
         assertThat(submissions).allSatisfy(row ->
                 assertThat(row.getEmailStatus()).isEqualTo(NotificationEmailStatus.UNAVAILABLE));
 
@@ -1576,7 +1571,7 @@ class AttendancePersistenceIntegrationTest {
                 CorrectionDecision.REOPEN,
                 "reopen for review");
         clock.set(submitted.decisionDeadline());
-        assertThat(corrections.view(intern, submitted.id()).status()).isEqualTo(CorrectionStatus.REJECTED);
+        assertThat(corrections.view(intern, submitted.id()).status()).isEqualTo(CorrectionStatus.OVERDUE);
         assertThat(corrections.expire(100)).isZero();
         assertThat(corrections.expire(100)).isZero();
 
@@ -1600,7 +1595,7 @@ class AttendancePersistenceIntegrationTest {
         List<NotificationEntity> decisions = notificationRows.findAll().stream()
                 .filter(row -> row.getNotificationType() == NotificationType.CORRECTION_DECIDED)
                 .toList();
-        assertThat(decisions).hasSize(4);
+        assertThat(decisions).hasSize(3);
         assertThat(decisions).allSatisfy(row -> {
             assertThat(row.getRecipientUserId()).isEqualTo(internId);
             assertThat(row.getActionUrl()).isEqualTo("/attendance");
@@ -1612,8 +1607,15 @@ class AttendancePersistenceIntegrationTest {
                 .anySatisfy(body -> {
                     assertThat(body).contains("REJECTED");
                     assertThat(body).doesNotContain("AUTO_REJECTED");
-                })
-                .anySatisfy(body -> assertThat(body).contains("AUTO_REJECTED"));
+                });
+        List<NotificationEntity> reminders = notificationRows.findAll().stream()
+                .filter(row -> row.getNotificationType() == NotificationType.SYSTEM)
+                .toList();
+        assertThat(reminders).singleElement().satisfies(row -> {
+            assertThat(row.getRecipientUserId()).isEqualTo(mentor);
+            assertThat(row.getTitle()).isEqualTo("Correction request overdue");
+            assertThat(row.getActionUrl()).isEqualTo("/attendance/corrections");
+        });
     }
 
     @Test
@@ -1767,21 +1769,20 @@ class AttendancePersistenceIntegrationTest {
                         java.time.LocalDateTime.of(2026, 8, 14, 14, 0), "ambient late decision"));
 
         clock.set(submittedCorrection.decisionDeadline());
-        assertThatThrownBy(() -> ambientMutations.decideCorrection(
-                        new AttendanceActor(mentor, GlobalRole.MENTOR),
-                        submittedCorrection.id(),
-                        CorrectionDecision.APPROVE))
-                .isInstanceOf(CorrectionException.class);
+        ambientMutations.decideCorrection(
+                new AttendanceActor(mentor, GlobalRole.MENTOR),
+                submittedCorrection.id(),
+                CorrectionDecision.APPROVE);
         assertThat(correctionRequests.findById(submittedCorrection.id()).orElseThrow().status())
-                .isEqualTo(CorrectionStatus.REJECTED);
+                .isEqualTo(CorrectionStatus.APPROVED);
         assertThat(correctionRequests.findById(submittedCorrection.id()).orElseThrow().lockedAt())
-                .isEqualTo(submittedCorrection.decisionDeadline());
+                .isNull();
         assertThat(correctionEvents.findByCorrectionIdOrderByOccurredAtAscIdAsc(submittedCorrection.id()))
                 .extracting(event -> event.toView().type())
                 .containsExactly(
                         CorrectionEventType.SUBMITTED,
-                        CorrectionEventType.AUTO_REJECTED,
-                        CorrectionEventType.LOCKED);
+                        CorrectionEventType.OVERDUE,
+                        CorrectionEventType.APPROVED);
     }
 
     @Test
@@ -1870,13 +1871,13 @@ class AttendancePersistenceIntegrationTest {
         clock.set(submitted.decisionDeadline());
         assertThat(corrections.expire(100)).isEqualTo(1);
         var expired = corrections.view(new AttendanceActor(internId, GlobalRole.INTERN), submitted.id());
-        assertThat(expired.status()).isEqualTo(CorrectionStatus.REJECTED);
-        assertThat(expired.lockedAt()).isEqualTo(submitted.decisionDeadline());
+        assertThat(expired.status()).isEqualTo(CorrectionStatus.OVERDUE);
+        assertThat(expired.lockedAt()).isNull();
         assertThat(correctionRequests.findById(submitted.id()).orElseThrow().requestedCheckoutAt())
                 .isEqualTo(expired.proposedCheckout().atZone(expired.policy().zoneId()).toInstant());
         assertThat(correctionEvents.findByCorrectionIdOrderByOccurredAtAscIdAsc(submitted.id()))
                 .extracting(event -> event.toView().type().name())
-                .containsExactly("SUBMITTED", "AUTO_REJECTED", "LOCKED");
+                .containsExactly("SUBMITTED", "OVERDUE");
         assertThat(corrections.expire(100)).isEqualTo(0);
     }
 
@@ -1899,16 +1900,16 @@ class AttendancePersistenceIntegrationTest {
                         "late decision"));
 
         clock.set(submitted.decisionDeadline());
-        assertThatThrownBy(() -> corrections.decide(
-                        new AttendanceActor(mentor, GlobalRole.MENTOR),
-                        submitted.id(),
-                        CorrectionDecision.APPROVE,
-                        "too late"))
-                .isInstanceOf(CorrectionException.class);
+        var decided = corrections.decide(
+                new AttendanceActor(mentor, GlobalRole.MENTOR),
+                submitted.id(),
+                CorrectionDecision.APPROVE,
+                "approved overdue");
+        assertThat(decided.status()).isEqualTo(CorrectionStatus.APPROVED);
         assertThat(correctionRequests.findById(submitted.id()).orElseThrow().status())
-                .isEqualTo(CorrectionStatus.REJECTED);
+                .isEqualTo(CorrectionStatus.APPROVED);
         assertThat(correctionRequests.findById(submitted.id()).orElseThrow().lockedAt())
-                .isEqualTo(submitted.decisionDeadline());
+                .isNull();
     }
 
     @Test
@@ -1951,12 +1952,13 @@ class AttendancePersistenceIntegrationTest {
 
         clock.set(Instant.parse("2026-08-16T00:00:00Z"));
         assertThat(corrections.expire(1)).isEqualTo(1);
-        assertThat(correctionRequests.findAll()).extracting(AttendanceCorrectionEntity::lockedAt)
-                .satisfiesExactlyInAnyOrder(
-                        locked -> assertThat(locked).isNotNull(),
-                        unlocked -> assertThat(unlocked).isNull());
+        assertThat(correctionRequests.findAll()).extracting(AttendanceCorrectionEntity::status)
+                .containsExactlyInAnyOrder(CorrectionStatus.OVERDUE, CorrectionStatus.PENDING);
         assertThat(corrections.expire(1)).isEqualTo(1);
-        assertThat(correctionRequests.findAll()).allSatisfy(row -> assertThat(row.lockedAt()).isNotNull());
+        assertThat(correctionRequests.findAll()).allSatisfy(row -> {
+            assertThat(row.status()).isEqualTo(CorrectionStatus.OVERDUE);
+            assertThat(row.lockedAt()).isNull();
+        });
     }
 
     @Test
@@ -2018,9 +2020,9 @@ class AttendancePersistenceIntegrationTest {
         assertThat(item.checkOutAt()).isNull();
         assertThat(item.violations().missingCheckout()).isTrue();
         assertThat(correctionRequests.findById(submitted.id()).orElseThrow().status())
-                .isEqualTo(CorrectionStatus.REJECTED);
+                .isEqualTo(CorrectionStatus.OVERDUE);
         assertThat(correctionRequests.findById(submitted.id()).orElseThrow().lockedAt())
-                .isEqualTo(submitted.decisionDeadline());
+                .isNull();
     }
 
     @Test

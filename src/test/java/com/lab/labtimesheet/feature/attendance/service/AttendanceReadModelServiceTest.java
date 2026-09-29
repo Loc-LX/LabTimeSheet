@@ -131,7 +131,8 @@ class AttendanceReadModelServiceTest {
                 mock(com.lab.labtimesheet.feature.attendance.repository.AttendanceCorrectionEventRepository.class),
                 accounts, mock(InternshipService.class), mock(CalendarApplicationService.class),
                 mock(TransactionTemplate.class),
-                mock(com.lab.labtimesheet.feature.notification.service.NotificationService.class));
+                mock(com.lab.labtimesheet.feature.notification.service.NotificationService.class),
+                mock(com.lab.labtimesheet.feature.attendance.service.AttendanceExceptionNotificationRecipients.class));
 
         assertThat(service.list(new AttendanceActor(7L, GlobalRole.INTERN)))
                 .extracting(CorrectionSummary::status)
