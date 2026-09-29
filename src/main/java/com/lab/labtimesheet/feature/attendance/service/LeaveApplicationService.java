@@ -330,7 +330,7 @@ public class LeaveApplicationService {
     }
 
     /**
-     * Withdraws pending leave before or overdue leave after its first counted start, or cancels approved leave before it.
+     * Cancels approved leave before its first counted start while retaining its approval history and allocations.
      *
      * <p>Authorization, expiry, and cancellation share one independent {@code REQUIRES_NEW} transaction and row
      * lock. The independent boundary does not join an ambient caller transaction, so a pending request first marked
@@ -345,13 +345,13 @@ public class LeaveApplicationService {
         MutationOutcome outcome = independentTransactions().execute(
                 status -> mutateOwnedRequest(actor, requestId, true));
         if (outcome.expired()) {
-            throw new LeaveException("Leave cannot be cancelled after its first counted start");
+            throw new LeaveException("Only approved leave can be cancelled");
         }
         return outcome.view();
     }
 
     /**
-     * Withdraws a pending request before, or an overdue request after, its first counted start.
+     * Withdraws pending or overdue leave while retaining its date allocations.
      *
      * <p>The same owner authorization, independent transaction, and row lock used by the existing cancellation route
      * apply. An approved request has a different owner action and is refused here.</p>
@@ -382,18 +382,25 @@ public class LeaveApplicationService {
             request.autoReject(now);
             requests.saveAndFlush(request);
             publishOverdueReminder(request);
+            if (cancelApprovedRequests) {
+                return new MutationOutcome(view(request), true);
+            }
         }
-        if (request.status() == LeaveStatus.APPROVED && !now.isBefore(request.firstCountedStartAt())) {
-            throw new LeaveException("Leave cannot be cancelled after its first counted start");
-        }
-        if (request.status() == LeaveStatus.PENDING || request.status() == LeaveStatus.OVERDUE) {
-            request.withdraw(now);
-        } else if (cancelApprovedRequests && request.status() == LeaveStatus.APPROVED) {
-            request.cancel(now);
+        if (cancelApprovedRequests) {
+            if (request.status() == LeaveStatus.APPROVED && !now.isBefore(request.firstCountedStartAt())) {
+                throw new LeaveException("Leave cannot be cancelled after its first counted start");
+            }
+            if (request.status() == LeaveStatus.APPROVED) {
+                request.cancel(now);
+            } else {
+                throw new LeaveException("Only approved leave can be cancelled");
+            }
         } else {
-            throw new LeaveException(cancelApprovedRequests
-                    ? "Only pending or approved leave can be changed"
-                    : "Only pending leave can be withdrawn");
+            if (request.status() == LeaveStatus.PENDING || request.status() == LeaveStatus.OVERDUE) {
+                request.withdraw(now);
+            } else {
+                throw new LeaveException("Only pending or overdue leave can be withdrawn");
+            }
         }
         return new MutationOutcome(view(requests.saveAndFlush(request)), false);
     }

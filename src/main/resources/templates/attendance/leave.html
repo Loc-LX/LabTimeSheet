@@ -55,10 +55,13 @@
             <p class="field-error" id="leave-edit-form-error" role="alert" th:if="${leaveEditInput != null and requestError != null}" th:text="${requestError}">Leave edit error</p>
             <div class="form-actions"><button class="button" type="submit">Save leave</button></div>
         </form>
-        <div class="inline-actions" th:if="${intern and (selectedLeave.status.name() == 'PENDING' or selectedLeave.status.name() == 'OVERDUE')}"><form method="post" th:action="@{/attendance/leave/{id}/cancel(id=${selectedLeave.id})}"><button class="button button-danger" type="submit">Withdraw request</button></form></div>
+        <div class="inline-actions" th:if="${intern and (selectedLeave.status.name() == 'PENDING' or selectedLeave.status.name() == 'OVERDUE')}"><form method="post" th:action="@{/attendance/leave/{id}/withdraw(id=${selectedLeave.id})}"><button class="button button-danger" type="submit">Withdraw request</button></form></div>
         <div class="inline-actions" th:if="${intern and selectedLeave.status.name() == 'APPROVED'}"><form method="post" th:action="@{/attendance/leave/{id}/cancel(id=${selectedLeave.id})}"><button class="button button-danger" type="submit">Cancel approved leave</button></form></div>
         <div class="inline-actions" th:if="${mentor and (selectedLeave.status.name() == 'PENDING' or selectedLeave.status.name() == 'OVERDUE')}"><form method="post" th:action="@{/attendance/leave/{id}/approve(id=${selectedLeave.id})}"><button class="button button-primary" type="submit">Approve</button></form><form method="post" th:action="@{/attendance/leave/{id}/reject(id=${selectedLeave.id})}"><button class="button button-danger" type="submit">Reject</button></form></div>
-        <ul><li th:each="allocation : ${selectedLeave.allocations}" th:text="${#temporals.format(allocation.leaveDate, 'dd/MM/yyyy') + ' · quota month ' + #temporals.format(allocation.quotaMonth, 'MM/yyyy')}">Allocation</li></ul>
+        <section th:each="group : ${selectedLeave.allocationsByQuotaMonth()}">
+            <h3 th:text="|Quota month ${#temporals.format(group.key, 'MM/yyyy')}|">Quota month</h3>
+            <ul><li th:each="allocation : ${group.value}" th:text="${#temporals.format(allocation.leaveDate, 'dd/MM/yyyy')}">Allocation</li></ul>
+        </section>
     </section>
 </main>
 </body>

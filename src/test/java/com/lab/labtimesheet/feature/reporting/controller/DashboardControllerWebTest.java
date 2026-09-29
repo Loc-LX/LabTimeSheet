@@ -19,11 +19,13 @@ import com.lab.labtimesheet.feature.notification.model.NotificationType;
 import com.lab.labtimesheet.feature.notification.model.dto.NotificationInbox;
 import com.lab.labtimesheet.feature.notification.model.dto.NotificationInboxItem;
 import com.lab.labtimesheet.feature.notification.service.NotificationService;
+import com.lab.labtimesheet.feature.attendance.model.dto.LeaveBalance;
 import com.lab.labtimesheet.feature.reporting.model.dto.DashboardView;
 import com.lab.labtimesheet.feature.reporting.service.DashboardService;
 import com.lab.labtimesheet.platform.model.GlobalRole;
 import com.lab.labtimesheet.platform.service.SmtpConfigurationService;
 import java.time.Instant;
+import java.time.YearMonth;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -111,7 +113,8 @@ class DashboardControllerWebTest {
     @Test
     void internRendersInternDashboardWithoutClientSuppliedBusinessDate() throws Exception {
         var dashboard = new DashboardView.Intern(
-                "Intern", DashboardView.AttendanceState.NOT_CHECKED_IN, 1, 0, List.of());
+                "Intern", DashboardView.AttendanceState.NOT_CHECKED_IN, 1, 0, List.of(),
+                new LeaveBalance(YearMonth.of(2026, 8), 0, 3));
         given(dashboards.intern("intern@example.test")).willReturn(dashboard);
         given(smtpConfiguration.hasActiveConfiguration()).willReturn(true);
 

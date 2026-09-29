@@ -5,7 +5,6 @@ import com.lab.labtimesheet.feature.attendance.exception.AttendanceExceptionRequ
 import com.lab.labtimesheet.feature.attendance.exception.LeaveException;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceExceptionKind;
-import com.lab.labtimesheet.feature.attendance.model.LeaveStatus;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceHistoryItem;
 import com.lab.labtimesheet.platform.model.GlobalRole;
 import com.lab.labtimesheet.feature.attendance.model.dto.CorrectionDecision;
@@ -22,7 +21,6 @@ import java.security.Principal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
-import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.Map;
 import lombok.AccessLevel;
@@ -326,7 +324,7 @@ public class AttendanceRequestController {
     }
 
     /**
-     * Withdraws a pending request before its first counted start or an overdue request, or cancels approved leave before its deadline.
+     * Cancels approved leave before its first counted start.
      *
      * @param principal authenticated actor
      * @param requestId leave request identifier
@@ -337,9 +335,28 @@ public class AttendanceRequestController {
     public String cancelLeave(
             Principal principal, @PathVariable long requestId, RedirectAttributes redirectAttributes) {
         try {
-            var changed = leave.cancel(currentUsers.actor(principal), requestId);
-            redirectAttributes.addFlashAttribute("message", changed.status() == LeaveStatus.WITHDRAWN
-                    ? "Leave request withdrawn" : "Approved leave cancelled");
+            leave.cancel(currentUsers.actor(principal), requestId);
+            redirectAttributes.addFlashAttribute("message", "Approved leave cancelled");
+        } catch (LeaveException failure) {
+            redirectAttributes.addFlashAttribute("requestError", failure.getMessage());
+        }
+        return "redirect:/attendance/leave/" + requestId;
+    }
+
+    /**
+     * Withdraws pending or overdue leave while retaining its date allocations.
+     *
+     * @param principal authenticated Intern
+     * @param requestId leave request identifier
+     * @param redirectAttributes transition feedback destination
+     * @return selected Leave detail redirect
+     */
+    @PostMapping("/leave/{requestId}/withdraw")
+    public String withdrawLeave(
+            Principal principal, @PathVariable long requestId, RedirectAttributes redirectAttributes) {
+        try {
+            leave.withdraw(currentUsers.actor(principal), requestId);
+            redirectAttributes.addFlashAttribute("message", "Leave request withdrawn");
         } catch (LeaveException failure) {
             redirectAttributes.addFlashAttribute("requestError", failure.getMessage());
         }

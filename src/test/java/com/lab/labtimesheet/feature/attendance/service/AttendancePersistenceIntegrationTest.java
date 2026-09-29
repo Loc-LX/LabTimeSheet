@@ -518,6 +518,60 @@ class AttendancePersistenceIntegrationTest {
                 .reservedDays()).isEqualTo(2);
     }
 
+    /**
+     * Protects {@code LEV-001}, {@code LEV-002}, {@code LEV-003}, and {@code AC-LEV-001}: inclusive ranges allocate
+     * only eligible dates under each date's applicable policy and quota month. Observable break: weekends, a global
+     * day off, or the new policy's excluded Thursday is stored, or a date receives another month's snapshot. Hand
+     * calculation yields Aug 28/31 under policy 1 with quota 3 and Sep 1/4 under the scheduled policy with quota 4.
+     */
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
+    void crossMonthSubmissionStoresOnlyEligibleDatesWithEachMonthsPolicySnapshot() {
+        AttendanceActor intern = new AttendanceActor(internId, GlobalRole.INTERN);
+        var septemberPolicy = policyApplication.schedule(adminId, new AttendancePolicyCommand(
+                LocalDate.of(2026, 9, 1),
+                ZoneId.of("Asia/Ho_Chi_Minh"),
+                LocalTime.of(8, 30),
+                LocalTime.of(15, 30),
+                30,
+                30,
+                4,
+                BigDecimal.valueOf(0.25),
+                Set.of(DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY, DayOfWeek.FRIDAY)));
+        calendar.createManual(adminId, LocalDate.of(2026, 9, 2), "National holiday", true);
+
+        var submitted = leaves.submit(intern, new LeaveRequestCommand(
+                LocalDate.of(2026, 8, 28), LocalDate.of(2026, 9, 4), "Cross-month leave"));
+        assertThat(submitted.allocations())
+                .extracting(LeaveAllocation::leaveDate, LeaveAllocation::quotaMonth,
+                        LeaveAllocation::policyVersionId, LeaveAllocation::monthlyQuotaSnapshot)
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple(LocalDate.of(2026, 8, 28), LocalDate.of(2026, 8, 1), 1L, 3),
+                        org.assertj.core.groups.Tuple.tuple(LocalDate.of(2026, 8, 31), LocalDate.of(2026, 8, 1), 1L, 3),
+                        org.assertj.core.groups.Tuple.tuple(LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 1),
+                                septemberPolicy.policy().id(), 4),
+                        org.assertj.core.groups.Tuple.tuple(LocalDate.of(2026, 9, 4), LocalDate.of(2026, 9, 1),
+                                septemberPolicy.policy().id(), 4));
+
+        long requestCount = leaveRequests.count();
+        assertThatThrownBy(() -> leaves.submit(intern, new LeaveRequestCommand(
+                LocalDate.of(2026, 8, 29), LocalDate.of(2026, 8, 30), "Weekend")))
+                .isInstanceOf(LeaveException.class)
+                .hasMessage("Leave must contain at least one eligible workday");
+        assertThatThrownBy(() -> leaves.submit(intern, new LeaveRequestCommand(
+                LocalDate.of(2026, 9, 2), LocalDate.of(2026, 9, 2), "Holiday")))
+                .isInstanceOf(LeaveException.class)
+                .hasMessage("Leave must contain at least one eligible workday");
+        assertThatThrownBy(() -> new LeaveRequestCommand(
+                LocalDate.of(2026, 8, 17), LocalDate.of(2026, 8, 17), "  "))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new LeaveRequestCommand(
+                LocalDate.of(2026, 8, 18), LocalDate.of(2026, 8, 17), "Reversed"))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(leaveRequests.count()).isEqualTo(requestCount);
+    }
+
     /** Protects LEV-010 and AC-LEV-004: the first authorized queue read at the deadline must persist OVERDUE before returning the row. */
     @Test
     void leaveQueueFirstAccessExpiresPendingRequestBeforeScheduler() {
@@ -738,7 +792,7 @@ class AttendancePersistenceIntegrationTest {
         leaves.reject(mentor, rejected.id());
         var cancelled = leaves.submit(intern, new LeaveRequestCommand(
                 LocalDate.of(2026, 8, 25), LocalDate.of(2026, 8, 25), "cancelled"));
-        leaves.cancel(intern, cancelled.id());
+        leaves.withdraw(intern, cancelled.id());
         var replacement = policyApplication.schedule(
                 adminId, new AttendancePolicyCommand(
                 LocalDate.of(2026, 9, 1), ZoneId.of("UTC"), LocalTime.of(9, 0), LocalTime.of(17, 0),
@@ -904,10 +958,10 @@ class AttendancePersistenceIntegrationTest {
         assertThat(edited.allocations()).hasSize(1);
         assertThat(edited.allocations().getFirst().leaveDate()).isEqualTo(LocalDate.of(2026, 8, 17));
 
-        var cancelled = leaves.cancel(intern, edited.id());
-        assertThat(cancelled.status()).isEqualTo(LeaveStatus.WITHDRAWN);
-        assertThat(cancelled.cancelledAt()).isNull();
-        assertThat(cancelled.allocations()).isEqualTo(edited.allocations());
+        var withdrawn = leaves.withdraw(intern, edited.id());
+        assertThat(withdrawn.status()).isEqualTo(LeaveStatus.WITHDRAWN);
+        assertThat(withdrawn.cancelledAt()).isNull();
+        assertThat(withdrawn.allocations()).isEqualTo(edited.allocations());
     }
 
     @Test
@@ -982,13 +1036,13 @@ class AttendancePersistenceIntegrationTest {
 
     /**
      * Protects {@code LEV-013}, {@code LEV-004}, {@code LEV-006}, and {@code AC-DB-011}: a pending
-     * cancel must become a timestamped withdrawal, retain both day rows and release exactly one
+     * withdrawal retains its day rows and releases exactly one
      * reserved date so an identical next request is accepted.
      */
     @Test
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
-    void rehydratedPendingLeaveCanBeCancelledBeforeItsFirstCountedStart() {
+    void rehydratedPendingLeaveCanBeWithdrawnBeforeItsFirstCountedStart() {
         AttendanceActor intern = new AttendanceActor(internId, GlobalRole.INTERN);
         var submitted = leaves.submit(intern, new LeaveRequestCommand(
                 LocalDate.of(2026, 8, 17), LocalDate.of(2026, 8, 17), "rehydrate"));
@@ -996,7 +1050,7 @@ class AttendancePersistenceIntegrationTest {
         assertThat(allocations).hasSize(1);
         entityManager.clear();
 
-        var withdrawn = leaves.cancel(intern, submitted.id());
+        var withdrawn = leaves.withdraw(intern, submitted.id());
         assertThat(withdrawn.status().name()).isEqualTo("WITHDRAWN");
         assertThat(withdrawn.allocations()).isEqualTo(allocations);
         assertThat(withdrawn.decidedByMentorUserId()).isNull();
@@ -1050,7 +1104,8 @@ class AttendancePersistenceIntegrationTest {
                 .isEqualTo(1);
 
         assertThatThrownBy(() -> leaves.withdraw(intern, beforeStart.id()))
-                .isInstanceOf(LeaveException.class);
+                .isInstanceOf(LeaveException.class)
+                .hasMessage("Only pending or overdue leave can be withdrawn");
 
         var cancelled = leaves.cancel(intern, beforeStart.id());
         assertThat(cancelled.status()).isEqualTo(LeaveStatus.CANCELLED);
@@ -1077,6 +1132,309 @@ class AttendancePersistenceIntegrationTest {
         assertThat(leaveRequests.findById(afterStart.id()).orElseThrow().status())
                 .isEqualTo(LeaveStatus.APPROVED);
         assertThat(leaveDays.findByRequestIdOrderByLeaveDate(afterStart.id())).hasSize(1);
+    }
+
+    /**
+     * Protects {@code LEV-013} and {@code AC-LEV-005}: withdrawing an approved leave request after its first counted start
+     * is refused with the pending/overdue message instead of cancellation rejection. Observable break: the cancellation
+     * error message is returned or status changes. Expected: row remains APPROVED and allocations are preserved.
+     */
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
+    void withdrawalRejectsApprovedLeaveAfterStartWithoutChangingItsStatus() {
+        AttendanceActor intern = new AttendanceActor(internId, GlobalRole.INTERN);
+        long mentor = createActiveMentor();
+        var request = leaves.submit(intern, new LeaveRequestCommand(
+                LocalDate.of(2026, 8, 19), LocalDate.of(2026, 8, 19), "approved before start"));
+        var approved = leaves.approve(new AttendanceActor(mentor, GlobalRole.MENTOR), request.id());
+        clock.set(approved.firstCountedStartAt());
+
+        assertThatThrownBy(() -> leaves.withdraw(intern, request.id()))
+                .isInstanceOf(LeaveException.class)
+                .hasMessage("Only pending or overdue leave can be withdrawn");
+        assertThat(leaveRequests.findById(request.id()).orElseThrow().status())
+                .isEqualTo(LeaveStatus.APPROVED);
+        assertThat(leaveDays.findByRequestIdOrderByLeaveDate(request.id())).hasSize(1);
+    }
+
+    /**
+     * Protects {@code LEV-011}, {@code LEV-013}, and {@code AC-LEV-005}: cancel refuses pending leave and withdraw
+     * refuses approved leave. Observable break: either route applies the other state transition. Expected: the
+     * pending row and its one reserved August day remain unchanged after cancellation is refused.
+     */
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
+    void cancellationRejectsPendingLeaveWithoutChangingItsReservation() {
+        AttendanceActor intern = new AttendanceActor(internId, GlobalRole.INTERN);
+        var submitted = leaves.submit(intern, new LeaveRequestCommand(
+                LocalDate.of(2026, 8, 20), LocalDate.of(2026, 8, 20), "pending stays pending"));
+
+        assertThatThrownBy(() -> leaves.cancel(intern, submitted.id()))
+                .isInstanceOf(LeaveException.class)
+                .hasMessage("Only approved leave can be cancelled");
+        assertThat(leaveRequests.findById(submitted.id()).orElseThrow().status()).isEqualTo(LeaveStatus.PENDING);
+        assertThat(leaveDays.findByRequestIdOrderByLeaveDate(submitted.id())).hasSize(1);
+        assertThat(leaves.balance(intern, YearMonth.of(2026, 8)).reservedDays()).isEqualTo(1);
+    }
+
+    /**
+     * Protects {@code LEV-006} and {@code AC-LEV-002}: only PENDING, OVERDUE, and APPROVED ranges block an inclusive
+     * application overlap. Observable break: an active state passes through to PostgreSQL, or retained REJECTED,
+     * WITHDRAWN, and CANCELLED history keeps blocking. Each conflict overlaps Aug 18; exactly three active outcomes
+     * are refused in Java, while the three released states allow a one-day replacement within quota three.
+     */
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
+    void activeLeaveStatesRejectOverlapsAndReleasedStatesAllowThem() {
+        AttendanceActor intern = new AttendanceActor(internId, GlobalRole.INTERN);
+        AttendanceActor mentor = new AttendanceActor(createActiveMentor(), GlobalRole.MENTOR);
+        LocalDate start = LocalDate.of(2026, 8, 17);
+        LocalDate overlapDate = LocalDate.of(2026, 8, 18);
+
+        var pending = leaves.submit(intern, new LeaveRequestCommand(start, overlapDate, "pending overlap"));
+        assertOverlapRejectedInApplication(intern, overlapDate);
+        leaves.withdraw(intern, pending.id());
+
+        var overdue = leaves.submit(intern, new LeaveRequestCommand(start, overlapDate, "overdue overlap"));
+        clock.set(overdue.firstCountedStartAt());
+        leaves.list(intern);
+        assertThat(leaveRequests.findById(overdue.id()).orElseThrow().status()).isEqualTo(LeaveStatus.OVERDUE);
+        assertOverlapRejectedInApplication(intern, overlapDate);
+        leaves.withdraw(intern, overdue.id());
+        clock.set(Instant.parse("2026-08-14T00:00:00Z"));
+
+        var approved = leaves.submit(intern, new LeaveRequestCommand(start, overlapDate, "approved overlap"));
+        leaves.approve(mentor, approved.id());
+        assertOverlapRejectedInApplication(intern, overlapDate);
+        leaves.cancel(intern, approved.id());
+
+        var rejected = leaves.submit(intern, new LeaveRequestCommand(start, overlapDate, "rejected overlap"));
+        leaves.reject(mentor, rejected.id());
+        leaves.submit(intern, new LeaveRequestCommand(overlapDate, overlapDate, "after rejected"));
+        var afterRejected = leaveRequests.findByInternUserIdOrderBySubmittedAtDescIdDesc(internId).getFirst();
+        leaves.withdraw(intern, afterRejected.id());
+
+        var withdrawn = leaves.submit(intern, new LeaveRequestCommand(start, overlapDate, "withdrawn overlap"));
+        leaves.withdraw(intern, withdrawn.id());
+        var afterWithdrawn = leaves.submit(intern,
+                new LeaveRequestCommand(overlapDate, overlapDate, "after withdrawn"));
+        leaves.withdraw(intern, afterWithdrawn.id());
+
+        var cancelled = leaves.submit(intern, new LeaveRequestCommand(start, overlapDate, "cancelled overlap"));
+        leaves.approve(mentor, cancelled.id());
+        leaves.cancel(intern, cancelled.id());
+        var afterCancelled = leaves.submit(intern,
+                new LeaveRequestCommand(overlapDate, overlapDate, "after cancelled"));
+        assertThat(afterCancelled.status()).isEqualTo(LeaveStatus.PENDING);
+    }
+
+    /**
+     * Protects {@code LEV-004}, {@code LEV-005}, {@code LEV-013}, and {@code AC-LEV-002}: approved, overdue, and
+     * pending days all consume the month's quota, and withdrawal releases the overdue reservation. Observable break:
+     * one active state is omitted from the count or its withdrawal does not free capacity. Three one-day requests
+     * exactly fill quota three; a fourth is refused, then accepted after one overdue day is withdrawn.
+     */
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
+    void approvedOverdueAndPendingDaysFillQuotaUntilOverdueIsWithdrawn() {
+        AttendanceActor intern = new AttendanceActor(internId, GlobalRole.INTERN);
+        AttendanceActor mentor = new AttendanceActor(createActiveMentor(), GlobalRole.MENTOR);
+        var approved = leaves.submit(intern, new LeaveRequestCommand(
+                LocalDate.of(2026, 8, 17), LocalDate.of(2026, 8, 17), "approved"));
+        leaves.approve(mentor, approved.id());
+        var overdue = leaves.submit(intern, new LeaveRequestCommand(
+                LocalDate.of(2026, 8, 18), LocalDate.of(2026, 8, 18), "overdue"));
+        clock.set(overdue.firstCountedStartAt());
+        leaves.list(intern);
+        var pending = leaves.submit(intern, new LeaveRequestCommand(
+                LocalDate.of(2026, 8, 19), LocalDate.of(2026, 8, 19), "pending"));
+        assertThat(pending.status()).isEqualTo(LeaveStatus.PENDING);
+
+        assertThatThrownBy(() -> leaves.submit(intern, new LeaveRequestCommand(
+                LocalDate.of(2026, 8, 20), LocalDate.of(2026, 8, 20), "over quota")))
+                .isInstanceOf(LeaveException.class)
+                .hasMessage("Monthly leave quota exceeded for 2026-08-01");
+
+        leaves.withdraw(intern, overdue.id());
+        assertThat(leaves.submit(intern, new LeaveRequestCommand(
+                LocalDate.of(2026, 8, 20), LocalDate.of(2026, 8, 20), "after withdrawal")).status())
+                .isEqualTo(LeaveStatus.PENDING);
+    }
+
+    /**
+     * Protects {@code LEV-007} and {@code AC-LEV-003}: a valid pending edit retains its request ID and replaces the
+     * allocation rows with the new dates and frozen snapshots. Observable break: old dates survive, the parent ID
+     * changes, or a request with three reserved days is charged against itself. The hand-derived final allocation
+     * is Aug 20, 21, and 24, all under policy 1, quota month Aug 1, and snapshot 3.
+     */
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
+    void validEditReplacesDatesKeepsIdentityAndExcludesItsOwnReservation() {
+        AttendanceActor intern = new AttendanceActor(internId, GlobalRole.INTERN);
+        var submitted = leaves.submit(intern, new LeaveRequestCommand(
+                LocalDate.of(2026, 8, 17), LocalDate.of(2026, 8, 18), "original"));
+
+        var edited = leaves.edit(intern, submitted.id(), new LeaveRequestCommand(
+                LocalDate.of(2026, 8, 20), LocalDate.of(2026, 8, 21), "moved"));
+        assertThat(edited.id()).isEqualTo(submitted.id());
+        assertThat(edited.allocations()).extracting(LeaveAllocation::leaveDate)
+                .containsExactly(LocalDate.of(2026, 8, 20), LocalDate.of(2026, 8, 21));
+        assertThat(leaveDays.findByRequestIdOrderByLeaveDate(submitted.id()))
+                .extracting(day -> day.leaveDate())
+                .containsExactly(LocalDate.of(2026, 8, 20), LocalDate.of(2026, 8, 21));
+
+        var fullQuotaReplacement = leaves.edit(intern, submitted.id(), new LeaveRequestCommand(
+                LocalDate.of(2026, 8, 20), LocalDate.of(2026, 8, 24), "three eligible days"));
+        assertThat(fullQuotaReplacement.id()).isEqualTo(submitted.id());
+        assertThat(fullQuotaReplacement.allocations())
+                .extracting(LeaveAllocation::leaveDate, LeaveAllocation::policyVersionId,
+                        LeaveAllocation::quotaMonth, LeaveAllocation::monthlyQuotaSnapshot)
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple(LocalDate.of(2026, 8, 20), 1L, LocalDate.of(2026, 8, 1), 3),
+                        org.assertj.core.groups.Tuple.tuple(LocalDate.of(2026, 8, 21), 1L, LocalDate.of(2026, 8, 1), 3),
+                        org.assertj.core.groups.Tuple.tuple(LocalDate.of(2026, 8, 24), 1L, LocalDate.of(2026, 8, 1), 3));
+    }
+
+    /**
+     * Protects {@code LEV-006}, {@code LEV-007}, and {@code AC-LEV-003}: overlap and quota refusals leave all old
+     * request fields and day allocations intact. Observable break: validation deletes/edits before it rejects.
+     * One original day plus another active two-day range fills quota 3; an overlap returns the overlap error first,
+     * and a disjoint two-day replacement returns the August quota error.
+     */
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
+    void invalidEditOverlapAndQuotaKeepOriginalRangeReasonAndAllocation() {
+        AttendanceActor intern = new AttendanceActor(internId, GlobalRole.INTERN);
+        var original = leaves.submit(intern, new LeaveRequestCommand(
+                LocalDate.of(2026, 8, 17), LocalDate.of(2026, 8, 17), "keep me"));
+        leaves.submit(intern, new LeaveRequestCommand(
+                LocalDate.of(2026, 8, 18), LocalDate.of(2026, 8, 19), "other request"));
+
+        assertThatThrownBy(() -> leaves.edit(intern, original.id(), new LeaveRequestCommand(
+                LocalDate.of(2026, 8, 19), LocalDate.of(2026, 8, 20), "overlap")))
+                .isInstanceOf(LeaveException.class)
+                .hasMessage("Leave overlaps an existing active request");
+        assertThatThrownBy(() -> leaves.edit(intern, original.id(), new LeaveRequestCommand(
+                LocalDate.of(2026, 8, 20), LocalDate.of(2026, 8, 21), "over quota")))
+                .isInstanceOf(LeaveException.class)
+                .hasMessage("Monthly leave quota exceeded for 2026-08-01");
+
+        var retained = leaveRequests.findById(original.id()).orElseThrow();
+        assertThat(retained.startDate()).isEqualTo(LocalDate.of(2026, 8, 17));
+        assertThat(retained.endDate()).isEqualTo(LocalDate.of(2026, 8, 17));
+        assertThat(retained.reason()).isEqualTo("keep me");
+        assertThat(leaveDays.findByRequestIdOrderByLeaveDate(original.id()))
+                .extracting(day -> day.leaveDate(), day -> day.policyVersionId(),
+                        day -> day.quotaMonth(), day -> day.monthlyQuotaSnapshot())
+                .containsExactly(org.assertj.core.groups.Tuple.tuple(
+                        LocalDate.of(2026, 8, 17), 1L, LocalDate.of(2026, 8, 1), 3));
+    }
+
+    /**
+     * Protects {@code LEV-003}, {@code LEV-004}, and {@code AC-LEV-006}: balance counts pending/overdue/approved only,
+     * keeps cross-month rows tied to their frozen snapshots, and clamps remaining quota to zero after a smaller
+     * future quota takes effect. Observable break: released states reserve days, the snapshot is rewritten, or the
+     * remainder becomes negative. Hand count is Sep 4 reserved against replacement quota 1 and Oct 2 reserved against 3,
+     * with 1 and 2 of those days belonging to the cross-month request respectively.
+     */
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
+    void monthlyBalanceCountsOnlyReservedStatusesAndClampsAfterQuotaReplacement() {
+        AttendanceActor intern = new AttendanceActor(internId, GlobalRole.INTERN);
+        AttendanceActor mentor = new AttendanceActor(createActiveMentor(), GlobalRole.MENTOR);
+        var initialSeptemberPolicy = policyApplication.schedule(adminId, new AttendancePolicyCommand(
+                LocalDate.of(2026, 9, 1), ZoneId.of("Asia/Ho_Chi_Minh"), LocalTime.of(8, 30),
+                LocalTime.of(15, 30), 30, 30, 4, BigDecimal.valueOf(0.25),
+                Set.of(DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY,
+                        DayOfWeek.THURSDAY, DayOfWeek.FRIDAY)));
+        var octoberPolicy = policyApplication.schedule(adminId, new AttendancePolicyCommand(
+                LocalDate.of(2026, 10, 1), ZoneId.of("Asia/Ho_Chi_Minh"), LocalTime.of(8, 30),
+                LocalTime.of(15, 30), 30, 30, 3, BigDecimal.valueOf(0.25),
+                Set.of(DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY,
+                        DayOfWeek.THURSDAY, DayOfWeek.FRIDAY)));
+
+        var withdrawn = leaves.submit(intern, new LeaveRequestCommand(
+                LocalDate.of(2026, 9, 7), LocalDate.of(2026, 9, 7), "withdrawn"));
+        leaves.withdraw(intern, withdrawn.id());
+
+        var cancelled = leaves.submit(intern, new LeaveRequestCommand(
+                LocalDate.of(2026, 9, 8), LocalDate.of(2026, 9, 8), "cancelled"));
+        leaves.approve(mentor, cancelled.id());
+        leaves.cancel(intern, cancelled.id());
+
+        var rejected = leaves.submit(intern, new LeaveRequestCommand(
+                LocalDate.of(2026, 9, 9), LocalDate.of(2026, 9, 9), "rejected"));
+        leaves.reject(mentor, rejected.id());
+
+        var pending = leaves.submit(intern, new LeaveRequestCommand(
+                LocalDate.of(2026, 9, 10), LocalDate.of(2026, 9, 10), "pending"));
+
+        var overdue = leaves.submit(intern, new LeaveRequestCommand(
+                LocalDate.of(2026, 9, 11), LocalDate.of(2026, 9, 11), "overdue"));
+        clock.set(overdue.firstCountedStartAt());
+        leaves.list(intern);
+        assertThat(leaveRequests.findById(overdue.id()).orElseThrow().status()).isEqualTo(LeaveStatus.OVERDUE);
+        clock.set(Instant.parse("2026-08-14T00:00:00Z"));
+
+        var approved = leaves.submit(intern, new LeaveRequestCommand(
+                LocalDate.of(2026, 9, 14), LocalDate.of(2026, 9, 14), "approved"));
+        leaves.approve(mentor, approved.id());
+
+        var crossMonth = leaves.submit(intern, new LeaveRequestCommand(
+                LocalDate.of(2026, 9, 30), LocalDate.of(2026, 10, 2), "cross month"));
+
+        var replacementPolicy = policyApplication.schedule(adminId, new AttendancePolicyCommand(
+                LocalDate.of(2026, 9, 1), ZoneId.of("Asia/Ho_Chi_Minh"), LocalTime.of(8, 30),
+                LocalTime.of(15, 30), 30, 30, 1, BigDecimal.valueOf(0.25),
+                Set.of(DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY,
+                        DayOfWeek.THURSDAY, DayOfWeek.FRIDAY)));
+
+        assertThat(replacementPolicy.policy().monthlyLeaveQuota()).isEqualTo(1);
+        assertThat(leaves.balance(intern, YearMonth.of(2026, 9)))
+                .isEqualTo(new LeaveBalance(YearMonth.of(2026, 9), 4, 1, 0, 1));
+        assertThat(leaves.balance(intern, YearMonth.of(2026, 10)))
+                .isEqualTo(new LeaveBalance(YearMonth.of(2026, 10), 2, 3, 1, 2));
+        assertThat(crossMonth.allocations())
+                .extracting(LeaveAllocation::leaveDate, LeaveAllocation::quotaMonth,
+                        LeaveAllocation::policyVersionId, LeaveAllocation::monthlyQuotaSnapshot)
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple(LocalDate.of(2026, 9, 30), LocalDate.of(2026, 9, 1),
+                                initialSeptemberPolicy.policy().id(), 4),
+                        org.assertj.core.groups.Tuple.tuple(LocalDate.of(2026, 10, 1), LocalDate.of(2026, 10, 1),
+                                octoberPolicy.policy().id(), 3),
+                        org.assertj.core.groups.Tuple.tuple(LocalDate.of(2026, 10, 2), LocalDate.of(2026, 10, 1),
+                                octoberPolicy.policy().id(), 3));
+        assertThat(leaveDays.findByRequestIdOrderByLeaveDate(crossMonth.id()))
+                .extracting(
+                        day -> day.leaveDate(),
+                        day -> day.policyVersionId(),
+                        day -> day.quotaMonth(),
+                        day -> day.monthlyQuotaSnapshot())
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple(
+                                LocalDate.of(2026, 9, 30), initialSeptemberPolicy.policy().id(),
+                                LocalDate.of(2026, 9, 1), 4),
+                        org.assertj.core.groups.Tuple.tuple(
+                                LocalDate.of(2026, 10, 1), octoberPolicy.policy().id(),
+                                LocalDate.of(2026, 10, 1), 3),
+                        org.assertj.core.groups.Tuple.tuple(
+                                LocalDate.of(2026, 10, 2), octoberPolicy.policy().id(),
+                                LocalDate.of(2026, 10, 1), 3));
+        assertThat(pending.status()).isEqualTo(LeaveStatus.PENDING);
+    }
+
+    private void assertOverlapRejectedInApplication(AttendanceActor intern, LocalDate date) {
+        assertThatThrownBy(() -> leaves.submit(intern, new LeaveRequestCommand(date, date, "conflicting")))
+                .isInstanceOf(LeaveException.class)
+                .hasMessage("Leave overlaps an existing active request")
+                .hasNoCause();
     }
 
     /** Protects NOT-011 and D47: submission targets the responsible Mentor or fallback Admins, with decisions still sent to the Intern. */
@@ -1352,8 +1710,9 @@ class AttendancePersistenceIntegrationTest {
     }
 
     /**
-     * Protects LEV-010 and LEV-013: late owner cancellation marks OVERDUE then completes the permitted withdrawal.
-     * Observable break: it remains REJECTED or throws before withdrawal. Expected: a retained WITHDRAWN row.
+     * Protects LEV-010, LEV-011, LEV-013, and AC-LEV-004: cancel on a late pending request commits OVERDUE and its one
+     * reminder, then rejects the wrong owner operation. Observable break: the request is withdrawn or the expiry rolls
+     * back. Expected: exact error "Only approved leave can be cancelled" and one overdue row.
      */
     @Test
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
@@ -1364,9 +1723,17 @@ class AttendancePersistenceIntegrationTest {
                 LocalDate.of(2026, 8, 17), LocalDate.of(2026, 8, 17), "late cancel"));
 
         clock.set(submitted.firstCountedStartAt());
-        assertThat(leaves.cancel(intern, submitted.id()).status()).isEqualTo(LeaveStatus.WITHDRAWN);
+        int systemNoticesBefore = notificationRows.findAll().stream()
+                .filter(row -> row.getNotificationType() == NotificationType.SYSTEM)
+                .toList().size();
+        assertThatThrownBy(() -> leaves.cancel(intern, submitted.id()))
+                .isInstanceOf(LeaveException.class)
+                .hasMessage("Only approved leave can be cancelled");
         assertThat(leaveRequests.findById(submitted.id()).orElseThrow().status())
-                .isEqualTo(LeaveStatus.WITHDRAWN);
+                .isEqualTo(LeaveStatus.OVERDUE);
+        assertThat(notificationRows.findAll().stream()
+                        .filter(row -> row.getNotificationType() == NotificationType.SYSTEM))
+                .hasSize(systemNoticesBefore + 1);
     }
 
     /**
@@ -1383,7 +1750,7 @@ class AttendancePersistenceIntegrationTest {
                 LocalDate.of(2026, 8, 17), LocalDate.of(2026, 8, 17), "ambient late cancel"));
 
         clock.set(submittedLeave.firstCountedStartAt());
-        ambientMutations.cancelLeave(intern, submittedLeave.id());
+        ambientMutations.withdrawLeave(intern, submittedLeave.id());
         assertThat(leaveRequests.findById(submittedLeave.id()).orElseThrow().status())
                 .isEqualTo(LeaveStatus.WITHDRAWN);
 
@@ -2164,8 +2531,8 @@ class AttendancePersistenceIntegrationTest {
         }
 
         @Transactional(propagation = Propagation.REQUIRES_NEW)
-        public void cancelLeave(AttendanceActor actor, long requestId) {
-            leaves.cancel(actor, requestId);
+        public void withdrawLeave(AttendanceActor actor, long requestId) {
+            leaves.withdraw(actor, requestId);
         }
 
         @Transactional(propagation = Propagation.REQUIRES_NEW)

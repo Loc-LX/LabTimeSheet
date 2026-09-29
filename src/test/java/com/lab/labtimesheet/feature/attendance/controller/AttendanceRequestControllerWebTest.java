@@ -3,6 +3,7 @@ package com.lab.labtimesheet.feature.attendance.controller;
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
@@ -337,13 +338,13 @@ class AttendanceRequestControllerWebTest {
      * cancellation for approved leave.
      */
     @Test
-    void leaveCancelRouteWithdrawsPendingAndCancelsApproved() throws Exception {
+    void leaveWithdrawalAndCancellationRoutesCallOnlyTheirMatchingServiceOperation() throws Exception {
         AttendanceActor actor = new AttendanceActor(7L, GlobalRole.INTERN);
         when(currentUsers.actor(org.mockito.ArgumentMatchers.any())).thenReturn(actor);
-        when(leave.cancel(actor, 10L)).thenReturn(leaveView(10L, LeaveStatus.WITHDRAWN));
+        when(leave.withdraw(actor, 10L)).thenReturn(leaveView(10L, LeaveStatus.WITHDRAWN));
         when(leave.cancel(actor, 11L)).thenReturn(leaveView(11L, LeaveStatus.CANCELLED));
 
-        mvc.perform(post("/attendance/leave/10/cancel")
+        mvc.perform(post("/attendance/leave/10/withdraw")
                         .with(user("intern@example.test").roles("INTERN")).with(csrf()))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl("/attendance/leave/10"))
@@ -354,8 +355,10 @@ class AttendanceRequestControllerWebTest {
                 .andExpect(redirectedUrl("/attendance/leave/11"))
                 .andExpect(flash().attribute("message", "Approved leave cancelled"));
 
-        verify(leave).cancel(actor, 10L);
+        verify(leave).withdraw(actor, 10L);
         verify(leave).cancel(actor, 11L);
+        verify(leave, never()).cancel(actor, 10L);
+        verify(leave, never()).withdraw(actor, 11L);
     }
 
     /**
@@ -378,16 +381,44 @@ class AttendanceRequestControllerWebTest {
         mvc.perform(get("/attendance/leave/10").with(user("intern@example.test").roles("INTERN")))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Withdraw request")))
-                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("Cancel approved leave"))));
+                .andExpect(content().string(containsString("/attendance/leave/10/withdraw")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("Cancel approved leave"))))
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("/attendance/leave/10/cancel"))));
         mvc.perform(get("/attendance/leave/11").with(user("intern@example.test").roles("INTERN")))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Cancel approved leave")))
-                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("Withdraw request"))));
+                .andExpect(content().string(containsString("/attendance/leave/11/cancel")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("Withdraw request"))))
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("/attendance/leave/11/withdraw"))));
         mvc.perform(get("/attendance/leave/12").with(user("intern@example.test").roles("INTERN")))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Overdue")))
                 .andExpect(content().string(containsString("Withdraw request")))
-                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("Cancel approved leave"))));
+                .andExpect(content().string(containsString("/attendance/leave/12/withdraw")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("Cancel approved leave"))))
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("/attendance/leave/12/cancel"))));
+    }
+
+    /**
+     * Protects {@code LEV-003}, {@code LEV-004}, and {@code AC-LEV-006}: selecting a quota month recomputes that
+     * month's balance. Observable break: the route silently displays the current month or stale figures. For
+     * September the fixture supplies 2 reserved days, quota 4, and therefore 2 remaining days.
+     */
+    @Test
+    void selectedQuotaMonthLoadsAndDisplaysItsOwnBalance() throws Exception {
+        AttendanceActor actor = new AttendanceActor(7L, GlobalRole.INTERN);
+        when(currentUsers.actor(org.mockito.ArgumentMatchers.any())).thenReturn(actor);
+        when(leave.list(actor)).thenReturn(List.of());
+        when(leave.balance(actor, YearMonth.of(2026, 9))).thenReturn(
+                new com.lab.labtimesheet.feature.attendance.model.dto.LeaveBalance(
+                        YearMonth.of(2026, 9), 2, 4));
+
+        mvc.perform(get("/attendance/leave").param("month", "2026-09")
+                        .with(user("intern@example.test").roles("INTERN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("2 reserved / 4 quota / 2 remaining")));
+
+        verify(leave).balance(actor, YearMonth.of(2026, 9));
     }
 
     @Test
@@ -564,6 +595,11 @@ class AttendanceRequestControllerWebTest {
                 .andExpect(content().string(containsString("id=\"decision-form-error\"")));
     }
 
+    /**
+     * Protects {@code LEV-003} and {@code AC-LEV-006}: cross-month allocations are rendered under separate quota-month
+     * headings. Observable break: a date is shown under the request's overall range or another month's group.
+     * The fixture hand-calculates one August date and one September date, so each group must contain exactly one date.
+     */
     @Test
     void retainedLeaveAllocationsAndCorrectionEventsRenderWithoutExposingRawMutationState() throws Exception {
         AttendanceActor intern = new AttendanceActor(7L, GlobalRole.INTERN);
@@ -576,11 +612,26 @@ class AttendanceRequestControllerWebTest {
                 LeaveStatus.PENDING, Instant.parse("2026-08-20T00:00:00Z"),
                 Instant.parse("2026-08-28T01:00:00Z"), null, null, null,
                 List.of(new LeaveAllocation(LocalDate.of(2026, 8, 28),
-                        LocalDate.of(2026, 8, 1), 1L, 3))));
+                                LocalDate.of(2026, 8, 1), 1L, 3),
+                        new LeaveAllocation(LocalDate.of(2026, 9, 1),
+                                LocalDate.of(2026, 9, 1), 2L, 4))));
 
-        mvc.perform(get("/attendance/leave/10").with(user("intern@example.test").roles("INTERN")))
+        var response = mvc.perform(get("/attendance/leave/10").with(user("intern@example.test").roles("INTERN")))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("28/08/2026 · quota month 08/2026")));
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        int firstGroup = response.indexOf("Quota month 08/2026");
+        int secondGroup = response.indexOf("Quota month 09/2026");
+        int endOfSection = response.indexOf("</section>", secondGroup);
+        org.assertj.core.api.Assertions.assertThat(firstGroup).isGreaterThanOrEqualTo(0);
+        org.assertj.core.api.Assertions.assertThat(secondGroup).isGreaterThan(firstGroup);
+        org.assertj.core.api.Assertions.assertThat(endOfSection).isGreaterThan(secondGroup);
+
+        String augustBlock = response.substring(firstGroup, secondGroup);
+        String septemberBlock = response.substring(secondGroup, endOfSection);
+        org.assertj.core.api.Assertions.assertThat(augustBlock).contains("28/08/2026").doesNotContain("01/09/2026");
+        org.assertj.core.api.Assertions.assertThat(septemberBlock).contains("01/09/2026").doesNotContain("28/08/2026");
 
         AttendanceActor mentor = new AttendanceActor(2L, GlobalRole.MENTOR);
         when(currentUsers.actor(org.mockito.ArgumentMatchers.any())).thenReturn(mentor);
