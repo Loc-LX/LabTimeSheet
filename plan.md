@@ -127,6 +127,7 @@ and in the constitution.
    - **Step-8 planning:** Project lifecycle `PLAN.md` and `TASKS.md` drafted on 26 September 2026 against current code and C-06, and approved by the maintainer the same day after independent review. Data-model C.4 and C-06 were amended the same day: the grant half of `TSK-023` writes `task_status_transitions`, whose contract `DB-020` V3 already enforces, so it ships with the Task management plan after the authorization policy of part B instead of with C-06.
    - **Task management planning:** `PLAN.md` and `TASKS.md` drafted on 26 September 2026 against current code; the grant half of `TSK-023` waits for part B's authorization policy; approved by the maintainer the same day after independent review.
    - **Email delivery planning:** `PLAN.md` and `TASKS.md` drafted on 27 September 2026 against current code; `ED-01` carries `C-07`, adding the `NOT-012` payload predicate as the next migration; approved by the maintainer the same day after independent review; ED-01 completed on 29 September 2026 on its own branch, awaiting independent review.
+   - **Email delivery ED-01 to ED-05 complete, 29 September 2026.** On the local branch `work/fix/notification/email-payload-contract`, not merged: every acceptance scenario of the plan passes; see *Evidence for Task ED-05*.
    - **Leave planning:** `PLAN.md` and `TASKS.md` drafted on 27 September 2026 against current code; they carry the leave part of `C-05`; approved by the maintainer the same day after independent review; amended on 28 September 2026 under `D47`; LV-01 completed on 28 September 2026 on its own branch, awaiting independent review.
    - **Missed-checkout correction planning:** `PLAN.md` and `TASKS.md` drafted on 27 September 2026 against current code; they carry the correction part of `C-05`; approved by the maintainer the same day after independent review; amended on 28 September 2026 under `D47`.
    - **Attendance exception planning:** `PLAN.md` and `TASKS.md` drafted on 27 September 2026 against current code; the feature is built on the V3 tables, adds no attendance contract migration, and AE-02 extends `ck_notifications_type` for `NOT-002`; approved by the maintainer on 28 September 2026 after independent review; `D47` settles who is notified when the Intern has no responsible Mentor available; AE-01 completed on 28 September 2026 on its own branch, awaiting independent review; AE-02 part 1 (service, V6 notification types, submission notice) completed on 28 September 2026 on its own branch, awaiting independent review; AE-02 part 2 implementation is pending the form-retention test and manual browser verification; AE-03 completed on 28 September 2026 on its own branch, awaiting independent review.
@@ -139,6 +140,8 @@ and in the constitution.
 | Editing Project details: §5.2 grants the owning Mentor *Edit* on its Project, but no Project lifecycle rule defines the editable fields, the statuses that allow editing, or the effect of a date change on existing Tasks, and no code edits a Project; part C does not depend on it | A rule and an acceptance scenario from the maintainer | Project lifecycle `PLAN.md`, *Not in this part* |
 | Whether to close or keep Gitea PR #13, which conflicts with main and carries the retired Task branch of `D17` | The maintainer | This file, under *Now* |
 | Calendar preview of Task due dates (`TSK-006`): the affected-Task query exists, but no preview shows it, and the calendar module cannot call the project module without a boundary design under `ARC-005` | A Global calendar plan | Evidence for Task T1-02 |
+| Whether notification email may be sent inside the user's request: on 29 September 2026 Complete Project took 10.9 s because nine emails were sent one after another (about 1.1 s each); NOT-006 sets no time limit, so this is not a defect against the specification | The maintainer (a non-functional requirement with a number) | Evidence for Task ED-05 |
+| Who receives MEMBERSHIP_CHANGED and LEADERSHIP_CHANGED notices: NOT-002 requires both channels but no rule names the recipients; the code notifies the added member, and the former and new Leader | The maintainer | Evidence for Task ED-02 |
 
 The plan and tasks of step 5 now live beside the Architecture feature SPEC in
 [`PLAN.md`](.sdd/specs/platform/features/architecture/PLAN.md) and
@@ -841,3 +844,47 @@ Task ED-03 final gates are ready for review.
 Task ED-04 is ready for review.
 Task ED-04 fix round 1 is ready for review.
 Task ED-04 final gates are ready for review.
+
+## Evidence for Task ED-05 (29 September 2026)
+
+- **Validation gate — rule/acceptance to test evidence.** Test names and adding commits were checked in repository history. No requested rule or acceptance criterion lacked test evidence.
+
+| Rule / AC | Test evidence | Commit |
+|---|---|---|
+| NOT-002 | `ProjectInvitationExitIntegrationTest#invitationWorkflowPersistsUnavailableNotificationsWithoutRetroactiveSend`; `ProjectInvitationExitIntegrationTest#membershipExitWorkflowPersistsUnavailableNotificationsWithoutRetroactiveSend`; `ProjectInvitationExitIntegrationTest#membershipAndLeadershipChangesPersistUnavailableNotificationsWithoutRetroactiveSend`; `AttendancePersistenceIntegrationTest#leaveNotificationsUseGlobalMentorsForSubmissionAndInternForDecisionWithoutCancellation`; `AttendancePersistenceIntegrationTest#correctionNotificationsCoverSubmissionDecisionRevertAndRequestTimeAutoRejectionOnce`; `TaskCreationIntegrationTest#leaderAssignmentNotifiesOnlyNewAssigneeWithUnavailableEmail`; `TaskCreationIntegrationTest#reassignmentNotifiesPreviousAndNewAssigneeExactlyOnce` | `dfd9443` (three Project tests); `existing before ED-01` (four other tests) |
+| NOT-004 | `NotificationServiceIntegrationTest#transientFailureLeavesDomainCommittedAndRetainsPendingRetryState`; `NotificationServiceIntegrationTest#acNot007StateMatrixFromCreationThroughAdminRetryAndTerminalRefusals`; `ProjectInvitationExitIntegrationTest#invitationWorkflowPersistsUnavailableNotificationsWithoutRetroactiveSend` | `existing before ED-01`; `c5a8c05`; `dfd9443` |
+| NOT-005 | `ProjectInvitationExitIntegrationTest#invitationWorkflowPersistsUnavailableNotificationsWithoutRetroactiveSend`; `NotificationServiceIntegrationTest#acNot007StateMatrixFromCreationThroughAdminRetryAndTerminalRefusals` | `dfd9443`; `c5a8c05` |
+| NOT-006 | `NotificationServiceIntegrationTest#ordinaryEmailRetriesUseTheFiveBoundedDelaysThenBecomeTerminalAndManualRetryReusesTheRow`; `NotificationServiceIntegrationTest#acNot007StateMatrixFromCreationThroughAdminRetryAndTerminalRefusals` | `existing before ED-01`; `c5a8c05` |
+| NOT-007 | `FailedEmailWebIntegrationTest#adminGetShowsOnlyFailedEmailDetailsAndOmitsOtherStates`; `FailedEmailWebIntegrationTest#adminPostRetryOnFailedEmailStartsRetryCycleAndFlashesSuccess`; `FailedEmailWebIntegrationTest#unauthorizedActorsAndMissingCsrfAreRefusedWithoutMutatingData`; `failed-email.spec.mjs` | `029be06` |
+| NOT-008 | `SecretLinkDeliveryIntegrationTest#acNot003SecretLinkDeliveryFailureInvalidatesTokenAndExcludesRawLinkFromPersistenceAndLogs` | `c5a8c05` |
+| NOT-010 (Project notification recipients) | `ProjectInvitationExitIntegrationTest#invitationWorkflowPersistsUnavailableNotificationsWithoutRetroactiveSend`; `ProjectInvitationExitIntegrationTest#membershipExitWorkflowPersistsUnavailableNotificationsWithoutRetroactiveSend`; `smtp-absent-project-workflow.spec.mjs` | `dfd9443`; `ED-05, this change` |
+| NOT-012 | `NotificationEmailPayloadContractProbeIntegrationTest#acceptsEveryLawfulEmailPayloadShape`; `NotificationServiceIntegrationTest#acNot007StateMatrixFromCreationThroughAdminRetryAndTerminalRefusals` | `e09c323`; `c5a8c05` |
+| AC-NOT-001 | `AttendancePersistenceIntegrationTest#mentorLeaveApprovalWithoutSmtpPersistsUnavailableNotificationAndDoesNotReplayOnSmtpActivation`; `AttendancePersistenceIntegrationTest#mentorCorrectionApprovalWithoutSmtpPersistsUnavailableNotificationAndDoesNotReplayOnSmtpActivation` | `dfd9443` |
+| AC-NOT-002 | `NotificationServiceIntegrationTest#ordinaryEmailRetriesUseTheFiveBoundedDelaysThenBecomeTerminalAndManualRetryReusesTheRow`; `FailedEmailWebIntegrationTest#adminPostRetryOnFailedEmailStartsRetryCycleAndFlashesSuccess` | `existing before ED-01`; `029be06` |
+| AC-NOT-003 | `SecretLinkDeliveryIntegrationTest#acNot003SecretLinkDeliveryFailureInvalidatesTokenAndExcludesRawLinkFromPersistenceAndLogs` | `c5a8c05` |
+| AC-NOT-004 | `ProjectInvitationExitIntegrationTest#invitationWorkflowPersistsUnavailableNotificationsWithoutRetroactiveSend`; `ProjectInvitationExitIntegrationTest#membershipExitWorkflowPersistsUnavailableNotificationsWithoutRetroactiveSend`; `smtp-absent-project-workflow.spec.mjs` | `dfd9443`; `ED-05, this change` |
+| AC-NOT-007 | `NotificationServiceIntegrationTest#acNot007StateMatrixFromCreationThroughAdminRetryAndTerminalRefusals`; `FailedEmailWebIntegrationTest#adminPostRetryOnFailedEmailStartsRetryCycleAndFlashesSuccess` | `c5a8c05`; `029be06` |
+
+- **Clock decision.** The ED branch does not contain the seed fix 75bc877, so intern1's internship ends on 30 September 2026 here; 22 September 2026 is a workday inside the windows of intern1 (1 August–30 September), intern6 (10 July–10 October) and Project 1 (1 August–31 October), and is the pair the branch's other seeded end-to-end spec already uses.
+- **Scenario and database verification.** On disposable PostgreSQL 18.4 at host port 55437 and app port 8083, with `E2E_BUSINESS_DATE=2026-09-22` and `LAB_E2E_START_INSTANT=2026-09-22T01:00:00Z`, seeded `scripts/demo-seed.sql` then `scripts/demo-seed-v2.sql`. SMTP remained DRAFT with zero ACTIVE rows. `intern1` invited `intern6` to Project 1; `intern6` accepted and requested own exit; `mentor1` approved it. SQL verified ACCEPTED and APPROVED, each required notification type existed with `UNAVAILABLE`, no new target-type notification had another email state, exact NOT-010 recipient sets matched, and `intern6` saw the matching “Membership exit request updated” inbox notice.
+- **RED.** Temporarily changed the matrix query state from `UNAVAILABLE` to `SENT` and ran only `npx playwright test src/test/e2e/smtp-absent-project-workflow.spec.mjs`. It failed as intended:
+
+  ```text
+  Error: PROJECT_INVITATION_CREATED must have an UNAVAILABLE row
+  Expected: > 0
+  Received:   0
+  ```
+
+- **GREEN.** Restored `UNAVAILABLE`, reseeded the disposable database, and reran the same single spec: 1 passed, 0 failed, 0 skipped (12.1 s). Mentor's approve confirmation dialog was accepted by the test; the final SQL exit state was APPROVED.
+- **Checks in the first round.** Commands run: `docker version` (Server Engine 29.7.2), `npx playwright test src/test/e2e/smtp-absent-project-workflow.spec.mjs` (1 passed, 0 failed, 0 skipped), and `npm run test:ui` (38 passed, 0 failed, 0 skipped). End-to-end coverage was limited to the new spec; no full E2E suite or Maven suite was run. Temporary app and container `ed05-postgres-20260929` were stopped/removed; ports 55437 and 8083 were clear. `git diff --check` passed. No file under `src/main` was touched.
+
+- **Final gates.**
+  - Commands: `docker version`; `.\mvnw.cmd clean test`; `npm run test:ui`; `npx playwright test src/test/e2e/critical-journeys.spec.mjs src/test/e2e/smoke.spec.mjs`; `npx playwright test src/test/e2e/failed-email.spec.mjs`; `npx playwright test src/test/e2e/report-journeys.spec.mjs`; `npx playwright test src/test/e2e/smtp-absent-project-workflow.spec.mjs`. All E2E runs used `E2E_BUSINESS_DATE=2026-09-22` and `LAB_E2E_START_INSTANT=2026-09-22T01:00:00Z`.
+  - Surefire: 148 report files, 941 tests, 0 failures, 0 errors, 0 skipped; `BUILD SUCCESS` (27:18).
+  - UI: 38 passed, 0 failed, 0 skipped.
+  - E2E A, empty database: `critical-journeys.spec.mjs` 2 passed, 0 failed, 0 skipped; `smoke.spec.mjs` 2 passed, 0 failed, 0 skipped; `failed-email.spec.mjs` 1 passed, 0 failed, 0 skipped. The first two specs shared one empty DB; `failed-email` used a separate empty DB.
+  - E2E B, freshly seeded databases: `report-journeys.spec.mjs` 2 passed, 0 failed, 0 skipped; `smtp-absent-project-workflow.spec.mjs` 1 passed, 0 failed, 0 skipped on a different seed.
+  - Temporary E2E apps and containers were stopped/removed; ports 55437 and 8083 are clear. `git diff --check` passed.
+
+Task ED-05 is ready for review.
+Task ED-05 final gates are ready for review.

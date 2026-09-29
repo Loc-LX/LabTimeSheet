@@ -4,7 +4,7 @@
 
 | Part | Subject | Rules | State |
 |---|---|---|---|
-| ED | Ordinary notification email delivery, retry, secret-link separation, and the notification schema contract | `NOT-002`, `NOT-004`–`NOT-008`, `NOT-012`; `AC-NOT-001`–`AC-NOT-004`, `AC-NOT-007`; ED-01 | Drafted on 27 September 2026 against current code; approved by the maintainer the same day after independent review |
+| ED | Ordinary notification email delivery, retry, secret-link separation, and the notification schema contract | `NOT-002`, `NOT-004`–`NOT-008`, `NOT-012`; `AC-NOT-001`–`AC-NOT-004`, `AC-NOT-007`; ED-01 | Drafted on 27 September 2026 against current code; approved by the maintainer the same day after independent review; Implemented as ED-01 to ED-05 on 29 September 2026 on the local branch `work/fix/notification/email-payload-contract`; not yet merged. |
 
 ## Part ED — Email delivery
 
