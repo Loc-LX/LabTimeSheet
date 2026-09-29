@@ -353,6 +353,50 @@ class AttendanceConcurrencyIntegrationTest {
     }
 
     /**
+     * Protects {@code COR-001} and {@code AC-COR-001}: two concurrent submissions on the same attendance row
+     * serialize so exactly one request and one SUBMITTED event commit, while the other receives the duplicate conflict refusal.
+     * Hand-derived expected values: one outcome "SUCCESS", one outcome "One correction request already exists for this attendance row",
+     * exactly 1 correction row in database, exactly 1 SUBMITTED event for that correction.
+     */
+    @Test
+    void concurrentSubmissionsOnSameAttendanceRowCommitOneCorrectionAndOneFailure() throws Exception {
+        long internId = createActiveIntern();
+        LocalDate workDate = LocalDate.of(2026, 11, 13);
+        long recordId = records.saveAndFlush(new AttendanceRecordEntity(
+                internId,
+                workDate,
+                1L,
+                Instant.parse("2026-11-13T02:00:00Z"),
+                null)).id();
+        clock.set(Instant.parse("2026-11-13T09:01:00Z"));
+
+        List<String> outcomes = runConcurrently(() -> {
+            try {
+                corrections.submit(
+                        new AttendanceActor(internId, GlobalRole.INTERN),
+                        recordId,
+                        new CorrectionRequestCommand(
+                                LocalDateTime.of(2026, 11, 13, 14, 0),
+                                "concurrent submission"));
+                return "SUCCESS";
+            } catch (CorrectionException failure) {
+                return failure.getMessage();
+            }
+        });
+
+        assertThat(outcomes).containsExactlyInAnyOrder(
+                "SUCCESS",
+                "One correction request already exists for this attendance row");
+        AttendanceCorrectionEntity persisted = correctionRequests.findByAttendanceRecordId(recordId).orElseThrow();
+        assertThat(correctionRequests.findAll().stream()
+                .filter(correction -> correction.attendanceRecordId() == recordId)
+                .count()).isEqualTo(1L);
+        assertThat(correctionEvents.findByCorrectionIdOrderByOccurredAtAscIdAsc(persisted.id()))
+                .extracting(event -> event.toView().type())
+                .containsExactly(CorrectionEventType.SUBMITTED);
+    }
+
+    /**
      * Protects {@code LEV-013} and {@code LEV-007}: an edit racing a pending withdrawal finishes
      * with one retained request state and records the owner transition as {@code WITHDRAWN}.
      */

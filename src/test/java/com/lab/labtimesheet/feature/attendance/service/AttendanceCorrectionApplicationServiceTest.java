@@ -176,8 +176,8 @@ class AttendanceCorrectionApplicationServiceTest {
      * checkout grace. For an attendance row on 14 August 2026 that makes scheduled end
      * 15:30 local, which is {@code 2026-08-14T08:30:00Z}, and the checkout cutoff 16:00 local,
      * which is {@code 2026-08-14T09:00:00Z}. {@code COR-003} anchors the inclusive submission
-     * deadline to scheduled end plus 24 hours, so it falls at 15:30 local the following day,
-     * {@code 2026-08-15T08:30:00Z}. The rule states that same figure in words.
+     * deadline to scheduled end plus 48 hours, so it falls at 15:30 two days later,
+     * {@code 2026-08-16T08:30:00Z}. The rule states that same figure in words.
      *
      * <p>The assertion names the wrong anchor as well as the right one, because the two differ by
      * exactly the checkout grace and a test that only asserted "some instant on 15 August" would
@@ -187,8 +187,8 @@ class AttendanceCorrectionApplicationServiceTest {
     void correctionSubmissionDeadlineAnchorsToScheduledEndRatherThanTheCheckoutCutoff() {
         Instant scheduledEndOfTheAttendanceDate = Instant.parse("2026-08-14T08:30:00Z");
         Instant checkoutCutoffOfTheAttendanceDate = Instant.parse("2026-08-14T09:00:00Z");
-        Instant expectedDeadline = scheduledEndOfTheAttendanceDate.plusSeconds(24 * 60 * 60L);
-        Instant cutoffAnchoredDeadline = checkoutCutoffOfTheAttendanceDate.plusSeconds(24 * 60 * 60L);
+        Instant expectedDeadline = scheduledEndOfTheAttendanceDate.plusSeconds(48 * 60 * 60L);
+        Instant cutoffAnchoredDeadline = checkoutCutoffOfTheAttendanceDate.plusSeconds(48 * 60 * 60L);
 
         AttendanceRecordRepository records = mock(AttendanceRecordRepository.class);
         AttendanceRecordEntity entity = mock(AttendanceRecordEntity.class);

@@ -66,8 +66,8 @@ public class AttendanceCorrectionEntity {
      * @param requestedCheckoutAt proposed effective checkout instant
      * @param reason normalized Intern explanation
      * @param submittedAt server submission timestamp
-     * @param submissionDeadline inclusive scheduled-end-plus-24-hour deadline
-     * @param decisionDeadline separate submitted-plus-24-hour decision deadline
+     * @param submissionDeadline inclusive scheduled-end-plus-48-hour deadline
+     * @param decisionDeadline separate submitted-plus-48-hour decision deadline
      */
     public AttendanceCorrectionEntity(
             long attendanceRecordId,
@@ -145,7 +145,7 @@ public class AttendanceCorrectionEntity {
     /**
      * Returns inclusive submission deadline.
      *
-     * @return scheduled-end-plus-24-hour boundary
+     * @return scheduled-end-plus-48-hour boundary
      */
     public Instant submissionDeadline() {
         return submissionDeadline;
@@ -154,7 +154,7 @@ public class AttendanceCorrectionEntity {
     /**
      * Returns exclusive decision-window expiry instant.
      *
-     * @return submitted-plus-24-hour boundary
+     * @return submitted-plus-48-hour boundary
      */
     public Instant decisionDeadline() {
         return decisionDeadline;

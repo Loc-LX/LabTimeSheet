@@ -45,8 +45,6 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Service
 public class AttendanceExceptionRequestService {
 
-    private static final long REQUEST_WINDOW_SECONDS = 48 * 60 * 60L;
-
     private final Clock clock;
     private final AttendanceRecordRepository records;
     private final AttendanceExceptionRepository exceptions;
@@ -147,7 +145,7 @@ public class AttendanceExceptionRequestService {
 
         Instant scheduledEnd = ZonedDateTime.of(record.workDate(), record.policy().scheduledEnd(),
                 record.policy().zoneId()).toInstant();
-        Instant submissionDeadline = scheduledEnd.plusSeconds(REQUEST_WINDOW_SECONDS);
+        Instant submissionDeadline = AttendanceRequestWindows.submissionDeadline(scheduledEnd);
         if (now.isAfter(submissionDeadline)) {
             throw new AttendanceExceptionRequestException("The attendance exception submission deadline has passed");
         }
@@ -162,7 +160,7 @@ public class AttendanceExceptionRequestService {
         long exceptionId;
         try {
             exceptionId = exceptionPersistence.open(attendanceRecordId, kind, AttendanceExceptionSource.REQUEST,
-                    reason.strip(), submissionDeadline, now.plusSeconds(REQUEST_WINDOW_SECONDS));
+                    reason.strip(), submissionDeadline, AttendanceRequestWindows.decisionDeadline(now));
         } catch (DataIntegrityViolationException duplicate) {
             throw duplicateRequest(duplicate);
         }

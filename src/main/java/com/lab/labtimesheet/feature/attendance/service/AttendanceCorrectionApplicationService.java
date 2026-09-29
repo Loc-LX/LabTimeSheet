@@ -164,7 +164,7 @@ public class AttendanceCorrectionApplicationService {
     }
 
     /**
-     * Submits one correction through the inclusive scheduled-end-plus-24-hour deadline.
+     * Submits one correction through the inclusive scheduled-end-plus-48-hour deadline.
      *
      * <p>Submission publishes to every active global Mentor after the correction row and immutable submitted event
      * are flushed. SMTP absence is retained as {@code UNAVAILABLE} by the notification boundary without rolling back
@@ -202,7 +202,7 @@ public class AttendanceCorrectionApplicationService {
         Instant now = clock.instant();
         Instant scheduledEnd = scheduledEnd(record);
         Instant checkoutCutoff = scheduledEnd.plusSeconds(record.policy().checkoutGraceMinutes() * 60L);
-        Instant submissionDeadline = scheduledEnd.plusSeconds(24 * 60 * 60L);
+        Instant submissionDeadline = AttendanceRequestWindows.submissionDeadline(scheduledEnd);
         if (!now.isAfter(checkoutCutoff)) {
             throw new CorrectionException("Correction opens after the attached checkout cutoff");
         }
@@ -224,7 +224,7 @@ public class AttendanceCorrectionApplicationService {
                 command.reason(),
                 now,
                 submissionDeadline,
-                now.plusSeconds(24 * 60 * 60L));
+                AttendanceRequestWindows.decisionDeadline(now));
         try {
             correction = corrections.saveAndFlush(correction);
             append(correction, CorrectionEventType.SUBMITTED, null, CorrectionStatus.PENDING, actor.userId(), null, now);
