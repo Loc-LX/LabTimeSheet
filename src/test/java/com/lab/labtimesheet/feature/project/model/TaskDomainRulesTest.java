@@ -19,6 +19,9 @@ class TaskDomainRulesTest {
             TaskStatus.BLOCKED, Set.of(TaskStatus.TODO, TaskStatus.IN_PROGRESS),
             TaskStatus.DONE, Set.of(TaskStatus.IN_PROGRESS));
 
+    /**
+     * TSK-008 (WHERE any other status transition is requested, THE system SHALL reject it; THE system SHALL NOT provide a configurable workflow engine in v1).
+     */
     @ParameterizedTest
     @MethodSource("allStatusTransitions")
     void acceptsOnlyTheFixedStatusGraph(TaskStatus current, TaskStatus target, boolean expected) {

@@ -48,6 +48,7 @@ import com.lab.labtimesheet.feature.project.repository.TaskRepository;
 import com.lab.labtimesheet.feature.project.repository.TaskStatusTransitionRepository;
 import com.lab.labtimesheet.feature.project.repository.TaskWorkLogRepository;
 import com.lab.labtimesheet.platform.authorization.AuthorizationCapability;
+import com.lab.labtimesheet.platform.authorization.AuthorizationColumn;
 import com.lab.labtimesheet.platform.authorization.AuthorizationPolicy;
 import com.lab.labtimesheet.platform.authorization.AuthorizationRequest;
 import java.time.Clock;
@@ -210,8 +211,20 @@ public class TaskService {
         if (!"ACTIVE".equals(access.project().status())) {
             throw new TaskNotFoundException();
         }
-        boolean owningMentor = access.identity().role() == com.lab.labtimesheet.platform.model.GlobalRole.MENTOR
-                && access.identity().id() == access.project().mentorUserId();
+        Task task = requireLockedTask(projectId, taskId);
+        AuthorizationRequest blockUnblockRequest = TaskAuthorizationRequests.forOwningMentorTask(
+                access.identity(), access.project(), task, command.target());
+        boolean blockUnblockAllowed = authorizationPolicy.allows(
+                AuthorizationCapability.BLOCK_UNBLOCK_REOPEN_TASK, blockUnblockRequest);
+        boolean ownAssignedAllowed = authorizationPolicy.allows(
+                AuthorizationCapability.OWN_ASSIGNED_TASK_STATUS,
+                TaskAuthorizationRequests.forAssignedTask(
+                        access.identity(), access.project(), task, command.target()));
+        if (!blockUnblockAllowed && !ownAssignedAllowed) {
+            throw new TaskNotFoundException();
+        }
+        boolean owningMentor = blockUnblockAllowed
+                && blockUnblockRequest.actorColumns().contains(AuthorizationColumn.OWNING_MENTOR);
         ProjectTaskMemberView actorMembership = owningMentor
                 ? null
                 : requireActorMembership(access.project(), access.actor().userId());
@@ -220,18 +233,6 @@ public class TaskService {
                 access.project().currentLeaderMembershipId() == null
                         ? List.of()
                         : List.of(access.project().currentLeaderMembershipId()));
-        Task task = requireLockedTask(projectId, taskId);
-        boolean owningMentorStatusAllowed = authorizationPolicy.allows(
-                AuthorizationCapability.BLOCK_UNBLOCK_REOPEN_TASK,
-                TaskAuthorizationRequests.forOwningMentorTask(
-                        access.identity(), access.project(), task, command.target()));
-        boolean ownAssignedStatusAllowed = authorizationPolicy.allows(
-                AuthorizationCapability.OWN_ASSIGNED_TASK_STATUS,
-                TaskAuthorizationRequests.forAssignedTask(
-                        access.identity(), access.project(), task, command.target()));
-        if (!owningMentorStatusAllowed && !ownAssignedStatusAllowed) {
-            throw new TaskNotFoundException();
-        }
         requireTaskVersion(task, expectedVersion);
         TaskStatus previous = task.getStatus();
         TaskStatus target = command.target();
@@ -262,7 +263,9 @@ public class TaskService {
         }
         TaskView result = view(saveTask(task), assigneeName(access, task.getAssigneeMembershipId()));
         List<NotificationRecipient> recipients = new ArrayList<>(leaderRecipients);
-        if (owningMentor && (previous == TaskStatus.BLOCKED || target == TaskStatus.BLOCKED || reopen)) {
+        boolean isBlockUnblockReopen = previous == TaskStatus.BLOCKED || target == TaskStatus.BLOCKED || reopen;
+        boolean isAssignee = actorMembership != null && actorMembership.membershipId() == task.getAssigneeMembershipId();
+        if (!isAssignee && isBlockUnblockReopen) {
             recipients.addAll(notificationRecipients(
                     access.project(), access.actor().userId(), List.of(task.getAssigneeMembershipId())));
         }

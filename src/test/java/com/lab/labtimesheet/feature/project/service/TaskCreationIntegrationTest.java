@@ -297,6 +297,8 @@ class TaskCreationIntegrationTest {
     }
 
     /**
+     * AC-PRJ-012 (target keeps existing rights but cannot receive or create new tasks),
+     * PRJ-021 (target of pending exit keeps existing rights but cannot receive or create new tasks),
      * TSK-003, TSK-018 and AC-TSK-019 preserve the pending-exit guard: the requester cannot
      * create a self-Task and a Leader cannot assign new work to that membership.
      */
@@ -507,6 +509,7 @@ class TaskCreationIntegrationTest {
     }
 
     /**
+     * CAL-009 (task due date cannot fall on a global day off),
      * TSK-005, AC-TSK-002 require creation and edits outside the Project range or on a current
      * global day off to be rejected. From an August 1–31 Project, the manually derived invalid
      * inputs are July 31, September 1, and the configured August 15 day off; the two valid range
@@ -901,6 +904,10 @@ class TaskCreationIntegrationTest {
                 .isInstanceOf(TaskNotFoundException.class);
     }
 
+    /**
+     * AUTH-008 (THE system SHALL refuse a Mentor's attempt to create, assign, reassign, edit, or soft-delete a Task),
+     * AUTH-009 (WHILE a Project is open, THE system SHALL permit its active members to view every non-deleted Task, assignee, status, aggregate progress, comment thread, and authorized history entry in that Project, and to comment on any non-deleted Task).
+     */
     @Test
     void authorizationMatrixKeepsEveryDeniedActorNonDisclosingAndStateUnchanged() {
         TaskView task = createMemberTask("Complete authorization matrix");
@@ -1024,7 +1031,10 @@ class TaskCreationIntegrationTest {
                 "/projects/%d/tasks/%d".formatted(projectId, task.id()));
     }
 
-    /** Protects §5.2 and {@code TSK-023}: a Mentor cannot start another member's Task. */
+    /**
+     * AUTH-008 (WHILE a Project is ACTIVE, THE system SHALL permit its owning Mentor only the block, unblock, and reopen transitions of TSK-023, and SHALL refuse every other status change by a Mentor).
+     * Protects §5.2 and {@code TSK-023}: a Mentor cannot start another member's Task.
+     */
     @Test
     void owningMentorCannotStartAnotherMembersTask() {
         TaskView task = taskService.create(
@@ -1044,6 +1054,8 @@ class TaskCreationIntegrationTest {
     }
 
     /**
+     * AUTH-008 (THE system SHALL permit a Mentor to view a Task, comment on it, and read its retained history),
+     * AUTH-009 (WHILE a Project is open, THE system SHALL permit its active members to view every non-deleted Task, assignee, status, aggregate progress, comment thread, and authorized history entry in that Project, and to comment on any non-deleted Task),
      * TSK-011, TSK-012 and AC-TSK-006 require an active member, current Leader, and owning Mentor
      * to append comments before Project completion. The three authorized appends produce exactly
      * three retained rows; completion then refuses another append and does not change that count.
@@ -1125,6 +1137,9 @@ class TaskCreationIntegrationTest {
                 .extracting(TaskCommentView::body).containsExactly("Keep this note");
     }
 
+    /**
+     * AUTH-008 (THE system SHALL permit a Mentor to view a Task, comment on it, and read its retained history).
+     */
     @Test
     void authorizedMentorCanCommentOnDoneTaskRetainingClosedAssigneeHistory() {
         TaskView task = createMemberTask("Closed assignee history");
@@ -1143,6 +1158,58 @@ class TaskCreationIntegrationTest {
                 "/projects/%d/tasks/%d".formatted(projectId, task.id()));
     }
 
+    /**
+     * AUTH-008 (THE system SHALL refuse a Mentor's attempt to create, assign, reassign, edit, or soft-delete a Task).
+     */
+    @Test
+    void owningMentorCannotCreateTask() {
+        assertThatThrownBy(() -> taskService.create(
+                        "mentor@example.test",
+                        new CreateTaskCommand(projectId, memberMembershipId, "Mentor forbidden task", null, null)))
+                .isInstanceOf(TaskNotFoundException.class);
+        assertThat(taskCount()).isZero();
+    }
+
+    /**
+     * AC-AUTH-006 (Member sees and comments on all Tasks; status/log controls exist only on their assigned Task).
+     */
+    @Test
+    void memberSeesAndCommentsOnAllTasksWhileStatusAndLogControlsExistOnlyOnAssignedTask() {
+        TaskView assignedTask = createMemberTask("Assigned to member");
+        TaskView otherTask = taskService.create(
+                "leader@example.test",
+                new CreateTaskCommand(projectId, leaderMembershipId, "Assigned to leader", null, null));
+        activateProject();
+
+        // 1. Member sees all non-deleted tasks
+        TaskListView list = taskService.list("member@example.test", projectId);
+        assertThat(list.tasks()).extracting(TaskView::id).containsExactlyInAnyOrder(assignedTask.id(), otherTask.id());
+
+        // 2. Member comments on own task and on other member's task
+        taskService.addComment("member@example.test", projectId, assignedTask.id(), "Member on own task");
+        taskService.addComment("member@example.test", projectId, otherTask.id(), "Member on leader task");
+        assertThat(commentCount()).isEqualTo(2);
+
+        // 3. Status controls: Member can change status on assigned task, but is refused on other member's task
+        TaskView inProgress = taskService.changeStatus("member@example.test", projectId, assignedTask.id(), TaskStatus.IN_PROGRESS);
+        assertThat(inProgress.status()).isEqualTo(TaskStatus.IN_PROGRESS);
+
+        assertThatThrownBy(() -> taskService.changeStatus("member@example.test", projectId, otherTask.id(), TaskStatus.IN_PROGRESS))
+                .isInstanceOf(TaskNotFoundException.class);
+
+        // 4. Details view reflects permissions: assigned task allows status change; other task does not, but both allow comments
+        TaskDetails assignedDetails = taskService.details("member@example.test", projectId, assignedTask.id());
+        assertThat(assignedDetails.canChangeStatus()).isTrue();
+        assertThat(assignedDetails.canComment()).isTrue();
+
+        TaskDetails otherDetails = taskService.details("member@example.test", projectId, otherTask.id());
+        assertThat(otherDetails.canChangeStatus()).isFalse();
+        assertThat(otherDetails.canComment()).isTrue();
+    }
+
+    /**
+     * AUTH-009 (WHILE a Project is open, THE system SHALL permit its active members to view every non-deleted Task, assignee, status, aggregate progress, comment thread, and authorized history entry in that Project, and to comment on any non-deleted Task).
+     */
     @Test
     void authorizedListsAndDetailsExcludeDeletedTasksAndReportEmptyAsNotApplicable() {
         TaskView todo = createMemberTask("Todo");
@@ -1308,7 +1375,7 @@ class TaskCreationIntegrationTest {
         assertThat(taskService.details("mentor@example.test", projectId, task.id()).canChangeStatus())
                 .isTrue();
         assertThat(taskService.details("leader@example.test", projectId, task.id()).canChangeStatus())
-                .isFalse();
+                .isTrue();
 
         completeProject();
 
@@ -1493,6 +1560,10 @@ class TaskCreationIntegrationTest {
                 .isInstanceOf(TaskValidationException.class);
     }
 
+    /**
+     * AC-PRJ-008 (progress changes from N/A to 50 % with accurate status counts and minutes),
+     * PRJ-015, PRJ-016.
+     */
     @Test
     void projectProgressAndHistoryReadPersistedWorkAndRetainedDeletedRows() {
         TaskView deleted = createMemberTask("Deleted effort");
@@ -1547,6 +1618,40 @@ class TaskCreationIntegrationTest {
         assertThat(progress.completionPercentage()).isEmpty();
     }
 
+    /**
+     * AC-PRJ-008 (Project progress changes from N/A to 50% with accurate status counts and minutes),
+     * PRJ-015, PRJ-016.
+     */
+    @Test
+    void projectProgressChangesFromEmptyDenominatorToFiftyPercentWithAccurateStatusCountsAndMinutes() {
+        TaskProjectProgress emptyProgress = taskQueries.projectProgress(projectId);
+        assertThat(emptyProgress.completionPercentage()).isEmpty();
+
+        TaskView task1 = createMemberTask("Task 1");
+        TaskView task2 = createMemberTask("Task 2");
+        TaskView task3 = createMemberTask("Task 3");
+        TaskView task4 = createMemberTask("Task 4");
+        setStatus(task2.id(), TaskStatus.IN_PROGRESS);
+        setStatus(task3.id(), TaskStatus.DONE);
+        setStatus(task4.id(), TaskStatus.DONE);
+
+        taskWorkLogs.saveAndFlush(new TaskWorkLog(
+                projectId, task3.id(), memberMembershipId,
+                LocalDate.of(2026, 8, 20), 60, "Work 3", Instant.parse("2026-08-20T01:00:00Z")));
+        taskWorkLogs.saveAndFlush(new TaskWorkLog(
+                projectId, task4.id(), memberMembershipId,
+                LocalDate.of(2026, 8, 20), 120, "Work 4", Instant.parse("2026-08-20T02:00:00Z")));
+
+        TaskProjectProgress progress = taskQueries.projectProgress(projectId);
+        assertThat(progress.todo()).isEqualTo(1L);
+        assertThat(progress.inProgress()).isEqualTo(1L);
+        assertThat(progress.blocked()).isZero();
+        assertThat(progress.done()).isEqualTo(2L);
+        assertThat(progress.totalTasks()).isEqualTo(4L);
+        assertThat(progress.totalMinutes()).isEqualTo(180L);
+        assertThat(progress.completionPercentage()).hasValue(50.0);
+    }
+
     @Test
     void dailyReportReadsPostgresRetainedDeletedLogsAndLatestForecastSnapshot() {
         TaskView worked = taskService.create("leader@example.test", new CreateTaskCommand(
@@ -1590,6 +1695,10 @@ class TaskCreationIntegrationTest {
         assertThat(htmlDataset.overallTotalMinutes()).isEqualTo(60L);
     }
 
+    /**
+     * AC-TSK-012 (Leader estimate freezes upon first retained log and derives signed variance at DONE),
+     * TSK-020, TSK-021.
+     */
     @Test
     void leaderEstimateIsVisibleAndLifetimeVarianceIsDerivedFromRetainedLogs() {
         TaskView task = taskService.create("leader@example.test", new CreateTaskCommand(
@@ -1622,6 +1731,9 @@ class TaskCreationIntegrationTest {
                 .effortPlanning().varianceState()).isEqualTo(TaskVarianceState.PENDING);
     }
 
+    /**
+     * AC-TSK-012 (ordinary-member forged mutation is denied), TSK-020, TSK-021.
+     */
     @Test
     void estimateBoundsAndMemberForgeryAreRejectedWhileUnestimatedTaskIsNADisplay() {
         TaskView minimum = taskService.create("leader@example.test", new CreateTaskCommand(
@@ -1659,6 +1771,9 @@ class TaskCreationIntegrationTest {
                 .effortPlanning().varianceState()).isEqualTo(TaskVarianceState.NOT_ESTIMATED);
     }
 
+    /**
+     * AC-TSK-013 (worked reassignment requires an atomic forecast snapshot), TSK-022.
+     */
     @Test
     void workedReassignmentPersistsForecastProvenanceAndSnapshot() {
         TaskView task = taskService.create("leader@example.test", new CreateTaskCommand(
@@ -1710,6 +1825,9 @@ class TaskCreationIntegrationTest {
         }
     }
 
+    /**
+     * AC-TSK-013 (unworked reassignment rejects unsolicited forecast), TSK-022.
+     */
     @Test
     void unsolicitedForecastOnUnworkedReassignmentDoesNotMutateState() {
         TaskView task = taskService.create("leader@example.test", new CreateTaskCommand(
@@ -1727,6 +1845,10 @@ class TaskCreationIntegrationTest {
                 .remainingEffortForecasts()).isEmpty();
     }
 
+    /**
+     * AC-TSK-012 (lifetime actual spans authors/assignments and DONE Task variance is signed actual minus estimate),
+     * TSK-020, TSK-021.
+     */
     @Test
     void multiAuthorLifetimeActualAndOriginalEstimateSurviveWorkedReassignment() {
         TaskView task = taskService.create("leader@example.test", new CreateTaskCommand(

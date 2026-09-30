@@ -3,6 +3,7 @@ package com.lab.labtimesheet.feature.project.service;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -12,8 +13,12 @@ import com.lab.labtimesheet.feature.internship.service.InternshipService;
 import com.lab.labtimesheet.feature.project.exception.ProjectAccessDeniedException;
 import com.lab.labtimesheet.feature.project.exception.ProjectRuleViolationException;
 import com.lab.labtimesheet.feature.project.exception.TaskNotFoundException;
+import com.lab.labtimesheet.feature.project.exception.TaskValidationException;
+import com.lab.labtimesheet.feature.project.model.TaskStatus;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectCreateCommand;
 import com.lab.labtimesheet.feature.project.model.dto.CreateTaskCommand;
+import com.lab.labtimesheet.feature.project.model.dto.TaskView;
+import com.lab.labtimesheet.feature.project.model.dto.TaskWorkLogView;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
@@ -116,6 +121,10 @@ class ProjectServiceIntegrationTest {
                         user("other-mentor@example.test", "MENTOR"), projectId, Long.MAX_VALUE));
     }
 
+    /**
+     * AC-PRJ-003 (leader change closes one term and leaves every Task assignee unchanged),
+     * PRJ-006, PRJ-007.
+     */
     @Test
     void leaderChangeClosesOneTermAndDoesNotMoveTaskAssignments() {
         long mentorId = user("mentor-leader@example.test", "MENTOR");
@@ -787,6 +796,10 @@ class ProjectServiceIntegrationTest {
                 "select internship_status from intern_profiles where user_id = ?", departingId));
     }
 
+    /**
+     * AC-PRJ-006 (activation rejected atomically when a Task is assigned to a former member),
+     * PRJ-012, PRJ-013.
+     */
     @Test
     void activationRejectsATaskAssignedToAFormerMemberWithoutPartialMutation() {
         long mentorId = user("mentor-guard@example.test", "MENTOR");
@@ -864,6 +877,117 @@ class ProjectServiceIntegrationTest {
 
         assertEquals("2026-08-14", text("select start_date::text from projects where id = ?", projectId));
         assertEquals("PLANNED", text("select status from projects where id = ?", projectId));
+    }
+
+    /**
+     * AC-PRJ-003 (former Leader loses Task-management controls after leader change), PRJ-006, PRJ-007.
+     */
+    @Test
+    void formerLeaderLosesTaskManagementControlsAfterLeaderChange() {
+        long mentorId = user("mentor-ac-prj-003@example.test", "MENTOR");
+        String firstLeaderEmail = "first-leader-ac-prj-003@example.test";
+        long firstLeaderId = intern(firstLeaderEmail, "I060");
+        String nextLeaderEmail = "next-leader-ac-prj-003@example.test";
+        long nextLeaderId = intern(nextLeaderEmail, "I061");
+        long memberId = intern("member-ac-prj-003@example.test", "I062");
+        long projectId = createProject(mentorId, firstLeaderId, "Leadership controls");
+        projectService.addMember(mentorId, projectId, nextLeaderId);
+        projectService.addMember(mentorId, projectId, memberId);
+        projectService.activate(mentorId, projectId);
+        long memberMembershipId = membershipId(projectId, memberId);
+
+        long taskId = insertTask(projectId, memberId, "Member task", null);
+
+        // Leader changes from firstLeader to nextLeader
+        projectService.changeLeader(mentorId, projectId, nextLeaderId);
+        entityManager.clear();
+
+        // Old term closes, new term opens, task assignee remains unchanged
+        assertEquals(1, count("select count(*) from project_leadership_terms where project_id = ? and ended_at is null", projectId));
+        assertEquals(1, count("select count(*) from project_leadership_terms where project_id = ? and ended_at is not null", projectId));
+        assertEquals(memberMembershipId, number("select assignee_membership_id from tasks where id = ?", taskId));
+
+        // Former Leader loses Task-management controls
+        assertThrows(TaskNotFoundException.class,
+                () -> taskService.changeStatus(firstLeaderEmail, projectId, taskId, TaskStatus.BLOCKED));
+
+        // New Leader has Task-management controls
+        TaskView blocked = taskService.changeStatus(nextLeaderEmail, projectId, taskId, TaskStatus.BLOCKED);
+        assertEquals(TaskStatus.BLOCKED, blocked.status());
+    }
+
+    /**
+     * AC-PRJ-007 (Mentor completes Project with a BLOCKED Task: rejected; after all active Tasks
+     * reach DONE, completion succeeds and all mutation becomes read-only), PRJ-014.
+     */
+    @Test
+    void mentorCompletesProjectWithBlockedTaskIsRejectedUntilDoneAndBecomesReadOnly() {
+        long mentorId = user("mentor-complete-blocked@example.test", "MENTOR");
+        long leaderId = intern("leader-complete-blocked@example.test", "I040");
+        long memberId = intern("member-complete-blocked@example.test", "I041");
+        long projectId = createProject(mentorId, leaderId, "Complete blocked project");
+        projectService.addMember(mentorId, projectId, memberId);
+
+        long taskId = insertTask(projectId, memberId, "Blocked task", null);
+        jdbc.update("update tasks set status = 'BLOCKED' where id = ?", taskId);
+
+        projectService.activate(mentorId, projectId);
+        entityManager.clear();
+
+        // 1. Completion is rejected while a Task is BLOCKED
+        assertThrows(ProjectRuleViolationException.class, () -> projectService.complete(mentorId, projectId));
+        assertEquals("ACTIVE", text("select status from projects where id = ?", projectId));
+
+        // 2. After all active Tasks reach DONE, completion succeeds
+        jdbc.update("update tasks set status = 'DONE' where id = ?", taskId);
+        entityManager.clear();
+        projectService.complete(mentorId, projectId);
+        assertEquals("COMPLETED", text("select status from projects where id = ?", projectId));
+
+        // 3. All mutation becomes read-only
+        assertThrows(ProjectAccessDeniedException.class,
+                () -> projectService.addMember(mentorId, projectId, intern("extra-after-complete@example.test", "I042")));
+        assertThrows(ProjectAccessDeniedException.class,
+                () -> projectService.activate(mentorId, projectId));
+    }
+
+    /**
+     * AC-PRJ-016 (past-started Project created, reversed range refused; work log dated before Leader
+     * joined is refused under TSK-014, and work log on/after join date is accepted), PRJ-024, TSK-014.
+     */
+    @Test
+    void mentorCreatesPastStartedProjectReversedRangeRefusedAndLeaderWorkLogEnforcesJoinedAt() {
+        long mentorId = user("mentor-ac-prj-016@example.test", "MENTOR");
+        String leaderEmail = "leader-ac-prj-016@example.test";
+        long leaderId = intern(leaderEmail, "I050");
+        LocalDate pastStart = LocalDate.of(2026, 8, 7);
+        LocalDate validEnd = LocalDate.of(2026, 9, 30);
+
+        // 1. First Project created with 7 August start
+        long projectId = projectService.create(
+                mentorId,
+                new ProjectCreateCommand("Past Started 7 Aug", null, pastStart, validEnd, leaderId));
+        assertEquals("2026-08-07", text("select start_date::text from projects where id = ?", projectId));
+
+        // 2. Reversed range is refused
+        assertThrows(ProjectRuleViolationException.class, () -> projectService.create(
+                mentorId,
+                new ProjectCreateCommand("Reversed Range", null, validEnd, pastStart, leaderId)));
+
+        // 3. Activate project, task assigned to Leader
+        projectService.activate(mentorId, projectId);
+        long taskId = insertTask(projectId, leaderId, "Leader Task", null);
+        entityManager.clear();
+
+        // 4. Work log dated 10 August (before Leader joined on 14 August) is refused under TSK-014
+        assertThrows(TaskValidationException.class, () -> taskService.addWorkLog(
+                leaderEmail, projectId, taskId, LocalDate.of(2026, 8, 10), 60, "Before joined"));
+
+        // 5. Work log dated 14 August (server date when Leader joined) is accepted
+        TaskWorkLogView log = taskService.addWorkLog(
+                leaderEmail, projectId, taskId, LocalDate.of(2026, 8, 14), 60, "On join date");
+        assertNotNull(log);
+        assertEquals(60, log.minutes());
     }
 
     private long createProject(long mentorId, long leaderId, String name) {
