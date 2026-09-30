@@ -2,7 +2,7 @@
 
 Tasks of [PLAN.md](PLAN.md), part P1. The shared Project module contract remains in [`MODULE.md`](../../MODULE.md); the platform schema work is C-06 of the [Data model plan](../../../platform/features/data-model/PLAN.md), shipped with this plan's cancellation code (P1-02).
 
-**State:** approved on 26 September 2026 with part P1, after independent review.
+**State:** approved on 26 September 2026 with part P1; updated on 30 September 2026 for traceability.
 
 Tasks run on the part C integration branch `work/fix/architecture/schema-contracts`, because data-model C.4 ships this code with C-06; that branch merges `main` in and reaches `main` once, when part C is done. Before changing any symbol, run GitNexus impact and report callers, processes and risk; resolve `UNKNOWN` by text search and report HIGH/CRITICAL before proceeding. Every behavior task follows TDD and `TST-001`–`TST-010`: identify the rule/scenario, see the focused PostgreSQL test fail for the intended reason, document its rule trace in Javadoc, implement, run focused and affected suites, then refactor without weakening assertions. No migration or production symbol changes until its impact is recorded.
 
@@ -12,6 +12,7 @@ Tasks run on the part C integration branch `work/fix/architecture/schema-contrac
 | P1-02 | Implement `PRJ-023` cancellation for both `PLANNED` and `ACTIVE`, including required reason, actor/time, retained interval closure, invitation revocation, exit supersession, member notifications, immutable aggregate, and unchanged Task/effort history. Carry the Project contract migration of C-06 in the same change: the next free Flyway version tightens `projects` so a `CANCELLED` row carries the cancelling Mentor, time and nonblank reason (`DB-019`); `DB-020` is already enforced by V3 and is unchanged. | `AC-PRJ-015` passes for both starting states and rollback/refusal cases. The cancellation half of `AC-DB-007` and the `AC-DB-012` PostgreSQL probes see their expected failure first, then pass against C-06. |
 | P1-03 | Close and preserve lifecycle behavior for `PRJ-001`, `PRJ-012`–`PRJ-016`, and `PRJ-024`; coordinate `PRJ-013` implementation with Task management rather than duplicating it. | Existing and new acceptance tests prove atomic creation, activation readiness, completion/read-only effects, progress/counts, and date bounds; cross-feature Task guards pass. Any discovered SPEC/code disagreement is reported for a maintainer decision. `AC-PRJ-014` in full: a `COMPLETED` Project refuses a move back to `ACTIVE` or `PLANNED` both through the service and by a direct request, and stays `COMPLETED`. |
 | P1-04 | Close lifecycle and schema verification after P1-01 through P1-03 are complete. | C-06 PostgreSQL probes for `DB-019`, `AC-DB-007` and `AC-DB-012` pass with the feature code; full Maven, disposable E2E, `npm run test:ui`, `git diff --check`, GitNexus analyze and detect-changes pass and are recorded in `plan.md`. |
+| P1-05 | Establish traceability for lifecycle rules `AC-PRJ-009`, `AUTH-007`, and `AC-AUTH-003`. | every listed ID is named in the Javadoc of at least one passing test whose assertions prove it; focused tests, then full Maven, UI and end-to-end gates pass |
 
 ## Verification gates
 
