@@ -64,7 +64,7 @@ The design for `D49` (`NOT-006`, `AC-NOT-008`) and `D50` (`NOT-013`, `AC-PRJ-017
    Only the execution thread where the update row count is exactly 1 proceeds to send the email via SMTP. No database lock is held across the SMTP network call. After transmission completes, a subsequent transaction updates the row to `SENT` on success (`NotificationEntity.markSent`), or advances the retry count and computes the next delay of the `NOT-006` schedule on failure (`NotificationEntity.retainPendingRetry`).
 
 4. **Network timeouts:**
-   SMTP connect, read, and write timeouts must be strictly shorter than the 5-minute lease duration so that a slow or hanging mail server cannot outlast the lease window. `MailDeliveryService` sends through `JavaMailSmtpProbe`, which sets the connect and read timeouts to 5000 ms (`JavaMailSmtpProbe.java:23`, `50-51`) and sets no write timeout. ED-06 adds a 5000 ms write timeout beside them, so every SMTP wait stays well within the lease.
+   SMTP connect, read, and write timeouts must be strictly shorter than the 5-minute lease duration so that a slow or hanging mail server cannot outlast the lease window. `MailDeliveryService` sends through `JavaMailSmtpProbe`, which already sets the connect, read and write timeouts to 5000 ms (`JavaMailSmtpProbe.java:23`, `50-52`), so every SMTP wait stays well within the lease.
 
 5. **Crash recovery:**
    If the application or server crashes while an email is being transmitted, the database row remains in `PENDING` status with `email_next_attempt_at` set to the lease expiry (lease time + 5 minutes). Upon application restart, once the lease duration expires, `NotificationDeliveryScheduler` sweeps the row and retries delivery, satisfying the "and on restart" clause of `NOT-006`.

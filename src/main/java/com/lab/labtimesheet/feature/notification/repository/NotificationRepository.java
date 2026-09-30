@@ -59,14 +59,36 @@ public interface NotificationRepository extends JpaRepository<NotificationEntity
     Optional<NotificationEntity> findForUpdateById(@Param("id") long id);
 
     /**
-     * Selects a bounded due-email batch in retry order while locking each row for one worker.
+     * Atomically acquires an email delivery lease by advancing {@code emailNextAttemptAt}
+     * for a due {@code PENDING} notification.
+     *
+     * @param id notification identifier
+     * @param now current server instant
+     * @param leaseExpiresAt instant until which this delivery lease is valid
+     * @return 1 if lease was acquired, 0 if already claimed or no longer due
+     */
+    @Modifying(clearAutomatically = true)
+    @Query("""
+            update NotificationEntity n
+            set n.emailNextAttemptAt = :leaseExpiresAt,
+                n.updatedAt = :now
+            where n.id = :id
+              and n.emailStatus = com.lab.labtimesheet.feature.notification.model.NotificationEmailStatus.PENDING
+              and n.emailNextAttemptAt <= :now
+            """)
+    int acquireEmailDeliveryLease(
+            @Param("id") long id,
+            @Param("now") Instant now,
+            @Param("leaseExpiresAt") Instant leaseExpiresAt);
+
+    /**
+     * Selects a bounded due-email batch in retry order for delivery dispatch.
      *
      * @param status pending delivery state
      * @param now server instant used for the due boundary
      * @param page bounded batch request
-     * @return locked due rows, oldest due first
+     * @return candidate due rows, oldest due first
      */
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             select n from NotificationEntity n
             where n.emailStatus = :status

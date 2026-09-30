@@ -1,12 +1,19 @@
 package com.lab.labtimesheet.feature.project.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import com.lab.labtimesheet.config.TestcontainersConfiguration;
+import com.lab.labtimesheet.feature.identity.service.BootstrapService;
 import com.lab.labtimesheet.feature.project.exception.ProjectAccessDeniedException;
 import com.lab.labtimesheet.feature.project.exception.ProjectRuleViolationException;
 import com.lab.labtimesheet.feature.project.model.InvitationResponse;
@@ -42,9 +49,19 @@ import com.lab.labtimesheet.platform.model.dto.SmtpConnection;
 import com.lab.labtimesheet.platform.model.dto.SmtpDraft;
 import com.lab.labtimesheet.platform.service.SmtpConfigurationService;
 import com.lab.labtimesheet.platform.service.SmtpProbe;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
+import java.time.Duration;
 
 @Import({TestcontainersConfiguration.class, ProjectInvitationExitIntegrationTest.MailProbeConfiguration.class})
 @SpringBootTest
+@AutoConfigureMockMvc
 @ActiveProfiles("test")
 @Transactional
 class ProjectInvitationExitIntegrationTest {
@@ -71,6 +88,12 @@ class ProjectInvitationExitIntegrationTest {
 
     @PersistenceContext
     private EntityManager entityManager;
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Autowired
+    private BootstrapService bootstrap;
 
     @Test
     void leaderInvitationAcceptsOnlyTheIntendedInternAndMentorDirectAddSupersedesIt() {
@@ -1954,6 +1977,108 @@ class ProjectInvitationExitIntegrationTest {
         assertTrue(!allLeadershipRecipients.contains(mentorId));
     }
 
+    /**
+     * Protects {@code NOT-006}, {@code NOT-012}, {@code AC-NOT-008}, and {@code D49}.
+     * Verifies that when SMTP is active and holds message delivery, completing a project
+     * (which raises multiple emails) commits its domain action and in-app notifications and
+     * returns immediately while messages are still held in PENDING state.
+     * Once released, emails reach SENT, and the initial attempt begins within one minute of commit.
+     */
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
+    void acNot008ProjectCompletionReturnsBeforeSmtpDeliveryAndDispatchesAsynchronously() throws Exception {
+        mail.reset();
+        bootstrap.bootstrap("admin-ac008@example.test", "Admin User", "correct horse battery staple");
+        long adminId = jdbc.queryForObject("select id from app_users where email = ?", Long.class, "admin-ac008@example.test");
+        String mentorEmail = "mentor-ac008@example.test";
+        long mentorId = user(mentorEmail, "MENTOR");
+        long leaderId = intern("leader-ac008@example.test", "I230");
+        long memberId = intern("member-ac008@example.test", "I231");
+
+        long projectId = createProject(mentorId, leaderId, "Asynchronous Delivery Project");
+        projects.addMember(mentorId, projectId, memberId);
+
+        activateSmtp(adminId);
+        mail.reset();
+
+        jdbc.update("update projects set status = 'ACTIVE', activated_at = timestamp with time zone '2026-08-13 00:00:00+00', updated_at = timestamp with time zone '2026-08-13 00:00:00+00' where id = ?", projectId);
+        jdbc.update("update project_leadership_terms set started_at = timestamp with time zone '2026-08-12 00:00:00+00', ended_at = timestamp with time zone '2026-08-13 00:00:00+00' where project_id = ? and ended_at is not null", projectId);
+        jdbc.update("update project_leadership_terms set started_at = timestamp with time zone '2026-08-13 00:00:00+00' where project_id = ? and ended_at is null", projectId);
+
+        Long minCompletionId = jdbc.queryForObject("select coalesce(max(id), 0) from notifications", Long.class);
+        mail.blockForOverlap();
+        // Wall-clock instant captured immediately before the HTTP call; used to verify that
+        // SMTP dispatch begins within 60 s of the commit, regardless of the fixed test clock
+        // (TestcontainersConfiguration supplies Clock.fixed, so created_at is always the
+        // anchored test instant, not a live timestamp — cannot compare the two directly).
+        Instant wallBeforeDispatch = Instant.now();
+
+        try {
+            MvcResult mvcResult = mockMvc.perform(
+                    post("/projects/" + projectId + "/complete")
+                            .with(csrf())
+                            .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user(mentorEmail).roles("MENTOR")))
+                    .andExpect(status().is3xxRedirection())
+                    .andReturn();
+
+            // When latch is held: response returned (status 3xx), all completion emails are PENDING
+            int statusCode = mvcResult.getResponse().getStatus();
+            assertTrue(statusCode >= 300 && statusCode < 400);
+
+            // Project status and in-app notifications committed
+            assertEquals("COMPLETED", text("select status from projects where id = ?", projectId));
+            List<String> inAppTypes = jdbc.queryForList(
+                    "select notification_type from notifications where id > ? and action_url like ? order by id",
+                    String.class, minCompletionId, "/projects/" + projectId + "%");
+            assertTrue(inAppTypes.contains("MEMBERSHIP_CHANGED"));
+            assertTrue(inAppTypes.contains("LEADERSHIP_CHANGED"));
+
+            // While held, all email statuses are PENDING
+            List<String> heldStatuses = jdbc.queryForList(
+                    "select email_status from notifications where id > ? and action_url like ? and email_status is not null order by id",
+                    String.class, minCompletionId, "/projects/" + projectId + "%");
+            assertFalse(heldStatuses.isEmpty());
+            assertTrue(heldStatuses.stream().allMatch("PENDING"::equals));
+
+            // Release SMTP delivery
+            mail.releaseOverlap();
+
+            // Await delivery to reach SENT
+            long deadline = System.currentTimeMillis() + 5000;
+            List<String> finalStatuses;
+            do {
+                Thread.sleep(50);
+                finalStatuses = jdbc.queryForList(
+                        "select email_status from notifications where id > ? and action_url like ? and email_status is not null order by id",
+                        String.class, minCompletionId, "/projects/" + projectId + "%");
+            } while (System.currentTimeMillis() < deadline && !finalStatuses.stream().allMatch("SENT"::equals));
+
+            assertTrue(finalStatuses.stream().allMatch("SENT"::equals));
+            assertTrue(mail.calls >= 2);
+
+            // For each email, the fake sender's first attempt must begin within 60 s of the
+            // HTTP call that triggered the commit (wallBeforeDispatch).  We compare against wall
+            // time rather than DB created_at because the test clock is fixed and does not advance
+            // with real time, so the two clocks cannot be subtracted meaningfully.
+            List<String> sentRecipients = jdbc.queryForList(
+                    "select email_to from notifications where id > ? and action_url like ? and email_status = 'SENT'",
+                    String.class, minCompletionId, "/projects/" + projectId + "%");
+            assertFalse(sentRecipients.isEmpty());
+            for (String emailTo : sentRecipients) {
+                Instant deliveryStartedAt = mail.sendStartTimes.get(emailTo);
+                assertNotNull(deliveryStartedAt, "fake sender must record delivery start time for " + emailTo);
+                long secondsAfterDispatch = deliveryStartedAt.getEpochSecond() - wallBeforeDispatch.getEpochSecond();
+                assertTrue(secondsAfterDispatch >= 0 && secondsAfterDispatch <= 60,
+                        "delivery attempt must begin within 60s of commit dispatch; wallBefore="
+                                + wallBeforeDispatch.getEpochSecond() + ", delivered="
+                                + deliveryStartedAt.getEpochSecond() + ", diff=" + secondsAfterDispatch);
+            }
+        } finally {
+            mail.releaseOverlap();
+        }
+    }
+
     @TestConfiguration(proxyBeanMethods = false)
     static class MailProbeConfiguration {
         @Bean
@@ -1965,18 +2090,53 @@ class ProjectInvitationExitIntegrationTest {
 
     static final class RecordingSmtpProbe implements SmtpProbe {
         private volatile int calls;
+        private volatile boolean blockForOverlap;
+        private volatile CountDownLatch entered = new CountDownLatch(0);
+        private volatile CountDownLatch release = new CountDownLatch(0);
         private final java.util.concurrent.CopyOnWriteArrayList<String> recipients =
                 new java.util.concurrent.CopyOnWriteArrayList<>();
+        final java.util.concurrent.ConcurrentHashMap<String, Instant> sendStartTimes =
+                new java.util.concurrent.ConcurrentHashMap<>();
 
         @Override
         public void send(SmtpConnection connection, String recipient, String subject, String body) {
+            sendStartTimes.putIfAbsent(recipient, Instant.now());
             calls++;
             recipients.add(recipient);
+            if (blockForOverlap) {
+                entered.countDown();
+                try {
+                    if (!release.await(10, TimeUnit.SECONDS)) {
+                        throw new IllegalStateException("timed out waiting to release SMTP overlap");
+                    }
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException("SMTP overlap interrupted", interrupted);
+                }
+            }
         }
 
         void reset() {
             calls = 0;
             recipients.clear();
+            sendStartTimes.clear();
+            blockForOverlap = false;
+            entered = new CountDownLatch(0);
+            release = new CountDownLatch(0);
+        }
+
+        void blockForOverlap() {
+            blockForOverlap = true;
+            entered = new CountDownLatch(1);
+            release = new CountDownLatch(1);
+        }
+
+        boolean awaitEntered() throws InterruptedException {
+            return entered.await(10, TimeUnit.SECONDS);
+        }
+
+        void releaseOverlap() {
+            release.countDown();
         }
     }
 }
