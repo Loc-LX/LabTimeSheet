@@ -28,6 +28,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.time.format.DateTimeParseException;
+import java.util.HashMap;
 import java.util.Map;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -460,6 +461,8 @@ public class AttendanceRequestController {
      * @param correctionId correction identifier
      * @param decision requested state transition
      * @param note optional decision note
+     * @param reason optional justification for amend and reverse transitions
+     * @param proposedCheckout immutable field rejection guard
      * @param redirectAttributes transition feedback destination
      * @return selected Correction detail redirect
      */
@@ -469,19 +472,29 @@ public class AttendanceRequestController {
             @PathVariable long correctionId,
             @RequestParam String decision,
             @RequestParam(required = false) String note,
+            @RequestParam(required = false) String reason,
+            @RequestParam(required = false) String proposedCheckout,
             RedirectAttributes redirectAttributes) {
         try {
+            if (proposedCheckout != null) {
+                throw new CorrectionException("The proposed checkout cannot be changed");
+            }
             corrections.decide(
                     currentUsers.actor(principal),
                     correctionId,
                     requiredDecision(decision),
-                    note);
+                    note,
+                    reason);
             redirectAttributes.addFlashAttribute("message", "Correction decision saved");
         } catch (CorrectionException | IllegalArgumentException failure) {
             redirectAttributes.addFlashAttribute("requestError", failure.getMessage());
-            redirectAttributes.addFlashAttribute("correctionDecisionInput", Map.of(
-                    "decision", decision,
-                    "note", note == null ? "" : note));
+            Map<String, Object> input = new HashMap<>();
+            input.put("decision", decision);
+            input.put("note", note == null ? "" : note);
+            if (reason != null) {
+                input.put("reason", reason);
+            }
+            redirectAttributes.addFlashAttribute("correctionDecisionInput", input);
         }
         return "redirect:/attendance/corrections/" + correctionId;
     }

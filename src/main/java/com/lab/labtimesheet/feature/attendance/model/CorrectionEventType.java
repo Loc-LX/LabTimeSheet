@@ -8,12 +8,16 @@ public enum CorrectionEventType {
     APPROVED,
     /** Mentor rejection. */
     REJECTED,
-    /** Mentor reopens a prior decision inside the window. */
-    REOPENED,
+    /** Mentor amends the decision note. */
+    AMENDED,
+    /** Mentor reverses an approved or rejected decision. */
+    REVERSED,
     /** Decision deadline elapsed before Mentor action. */
     OVERDUE,
     /** Scheduler/request-time automatic rejection. */
     AUTO_REJECTED,
     /** Decision window lock marker. */
-    LOCKED
+    LOCKED,
+    /** Legacy history only: before MC-04 a Mentor could reopen a decision to pending; kept so stored rows still load, never written. */
+    REOPENED
 }

@@ -13,6 +13,7 @@ import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceApplicationService;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceCorrectionApplicationService;
 import com.lab.labtimesheet.feature.attendance.service.LeaveApplicationService;
+import com.lab.labtimesheet.feature.attendance.model.dto.CorrectionDecision;
 import com.lab.labtimesheet.feature.attendance.model.dto.CorrectionRequestCommand;
 import com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestCommand;
 import com.lab.labtimesheet.feature.reporting.service.AttendanceReportService;
@@ -245,6 +246,21 @@ class AuthorizationMatrixIntegrationTest {
                 .isEqualTo((long) matrix.size() * ACTORS.size());
         assertThat(mismatches).containsExactlyEntriesOf(expectedMismatches());
         assertThat(registeredRows).hasSize(REGISTERED_CAPABILITIES.size());
+    }
+
+    /**
+     * Protects {@code AUTH-012}: an active Mentor who is not the designated responsible Mentor
+     * for the Intern is denied deciding the correction request (counter-example for Owning Mentor).
+     */
+    @Test
+    void activeMentorWhoIsNotResponsibleMentorCannotDecideCorrection() {
+        Fixture fixture = seedFixture("non-responsible-mentor-decide");
+        prepareDecidableCorrection(fixture);
+        assertThatThrownBy(() -> corrections.decide(
+                new AttendanceActor(fixture.targetMentorId(), GlobalRole.MENTOR),
+                fixture.decidableCorrectionId(), CorrectionDecision.APPROVE,
+                "Non-responsible mentor", null))
+                .isInstanceOf(AccessDeniedException.class);
     }
 
     /** @return matrix label used by this catalogue-specific test context */
@@ -575,10 +591,27 @@ class AuthorizationMatrixIntegrationTest {
         result.put(REGISTERED_CAPABILITIES.get(32), List.of(probeWithControl("build Daily Project Work Report",
                 (fixture, actor) -> dailyReports.build(fixture.emailForActor(actor), fixture.projectId(), PROBE_WORK_DATE),
                 fixture -> projects.activate(fixture.mentorId(), fixture.projectId()), "Owning Mentor")));
-        result.put(REGISTERED_CAPABILITIES.get(33), List.of());
+        result.put(REGISTERED_CAPABILITIES.get(33), List.of(
+                probeCommitted("decide correction request (ATT-024)", (fixture, actor) -> {
+                    corrections.decide(new AttendanceActor(actor, fixture.roleFor(actor)),
+                            fixture.decidableCorrectionId(), CorrectionDecision.APPROVE,
+                            "Matrix approved", null);
+                }, this::prepareDecidableCorrection)));
         result.put(REGISTERED_CAPABILITIES.get(34), List.of());
         result.put(REGISTERED_CAPABILITIES.get(35), List.of());
         return result;
+    }
+
+    private void prepareDecidableCorrection(Fixture fixture) {
+        jdbc.sql("update intern_profiles set responsible_mentor_user_id = :mentor where user_id = :intern")
+                .param("mentor", fixture.mentorId()).param("intern", fixture.memberId()).update();
+        long policyId = jdbc.sql("select id from attendance_policy_versions order by id limit 1")
+                .query(Long.class).single();
+        long recId = insertMissingCheckout(fixture.memberId(), policyId);
+        var view = corrections.submit(new AttendanceActor(fixture.memberId(), GlobalRole.INTERN), recId,
+                new CorrectionRequestCommand(
+                        java.time.LocalDateTime.of(2026, 8, 13, 17, 0), "Matrix decide correction"));
+        fixture.decidableCorrectionId(view.id());
     }
 
     private void prepareMissingCheckoutRows(Fixture fixture) {
@@ -983,6 +1016,9 @@ class AuthorizationMatrixIntegrationTest {
         void correctionRecordIds(long leaderRecord, long memberRecord) {
             leaderCorrectionRecordId = leaderRecord; memberCorrectionRecordId = memberRecord;
         }
+        private long decidableCorrectionId;
+        long decidableCorrectionId() { return decidableCorrectionId; }
+        void decidableCorrectionId(long value) { decidableCorrectionId = value; }
         long leaderLeaveId() { return leaderLeaveId; }
         long memberLeaveId() { return memberLeaveId; }
         void leaveRequestIds(long leaderRequest, long memberRequest) {

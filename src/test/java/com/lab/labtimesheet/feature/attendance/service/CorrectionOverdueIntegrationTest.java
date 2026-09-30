@@ -244,7 +244,7 @@ class CorrectionOverdueIntegrationTest {
         clock.set(deadline);
 
         var decided = corrections.decide(new AttendanceActor(mentorId, GlobalRole.MENTOR), id,
-                CorrectionDecision.APPROVE, "Approved overdue request");
+                CorrectionDecision.APPROVE, "Approved overdue request", null);
         assertThat(decided.status()).isEqualTo(CorrectionStatus.APPROVED);
 
         var loaded = correctionRepository.findById(id).orElseThrow();
@@ -277,7 +277,7 @@ class CorrectionOverdueIntegrationTest {
         clock.set(deadline);
 
         var decided = corrections.decide(new AttendanceActor(mentorId, GlobalRole.MENTOR), id,
-                CorrectionDecision.REJECT, "Rejected overdue request");
+                CorrectionDecision.REJECT, "Rejected overdue request", null);
         assertThat(decided.status()).isEqualTo(CorrectionStatus.REJECTED);
 
         var loaded = correctionRepository.findById(id).orElseThrow();
@@ -296,15 +296,15 @@ class CorrectionOverdueIntegrationTest {
     }
 
     /**
-     * Protects {@code COR-008}, {@code DB-017}, and {@code DB-018}: a decided request after deadline is never locked
-     * (no locked_at, no LOCKED event). REOPEN after deadline is rejected with "Correction decision window is closed"
-     * without modifying the database.
+     * Protects {@code COR-005}, {@code COR-007}, and {@code AC-COR-003}:
+     * a decided request after the deadline is never locked ({@code locked_at} is null, no {@code LOCKED} event).
+     * An AMEND without reason is refused, while an AMEND with reason succeeds, keeping status {@code APPROVED}.
      */
     @Test
-    void decidedRequestAfterDeadlineIsNotLockedAndReopenIsRejected() {
+    void decidedRequestAfterDeadlineIsNotLockedAndStaysAmendable() {
         long id = createPendingCorrection(internId, recordId);
         corrections.decide(new AttendanceActor(mentorId, GlobalRole.MENTOR), id,
-                CorrectionDecision.APPROVE, "Initial approval");
+                CorrectionDecision.APPROVE, "Initial approval", null);
         Instant deadline = correctionRepository.findById(id).orElseThrow().decisionDeadline();
         clock.set(deadline.plusSeconds(3600));
 
@@ -323,47 +323,85 @@ class CorrectionOverdueIntegrationTest {
         assertThat(eventList).extracting(CorrectionEventView::type)
                 .containsExactly(CorrectionEventType.SUBMITTED, CorrectionEventType.APPROVED);
 
+        // AMEND without reason: rejected, status remains APPROVED, events unchanged
         assertThatThrownBy(() -> corrections.decide(new AttendanceActor(mentorId, GlobalRole.MENTOR), id,
-                CorrectionDecision.REOPEN, "Attempted reopen after deadline"))
+                CorrectionDecision.AMEND, "Attempted amend after deadline without reason", null))
                 .isInstanceOf(CorrectionException.class)
-                .hasMessage("Correction decision window is closed");
+                .hasMessage("A reason is required to amend or reverse a correction decision");
 
-        // Verify DB unchanged after rejected reopen
-        var loadedAfter = correctionRepository.findById(id).orElseThrow();
-        assertThat(loadedAfter.status()).isEqualTo(CorrectionStatus.APPROVED);
-        assertThat(correctionEvents.findByCorrectionIdOrderByOccurredAtAscIdAsc(id))
-                .hasSize(2);
+        var loadedAfterRefusal = correctionRepository.findById(id).orElseThrow();
+        assertThat(loadedAfterRefusal.status()).isEqualTo(CorrectionStatus.APPROVED);
+        assertThat(correctionEvents.findByCorrectionIdOrderByOccurredAtAscIdAsc(id)).hasSize(2);
+
+        // AMEND with reason: succeeds after deadline, status remains APPROVED
+        var amended = corrections.decide(new AttendanceActor(mentorId, GlobalRole.MENTOR), id,
+                CorrectionDecision.AMEND, "Amended note after deadline", "valid reason for amendment");
+        assertThat(amended.status()).isEqualTo(CorrectionStatus.APPROVED);
+
+        var loadedAfterAmend = correctionRepository.findById(id).orElseThrow();
+        assertThat(loadedAfterAmend.status()).isEqualTo(CorrectionStatus.APPROVED);
+        assertThat(loadedAfterAmend.lockedAt()).isNull();
+
+        List<CorrectionEventView> eventsAfterAmend =
+                correctionEvents.findByCorrectionIdOrderByOccurredAtAscIdAsc(id).stream()
+                        .map(AttendanceCorrectionEventEntity::toView)
+                        .toList();
+        assertThat(eventsAfterAmend).extracting(CorrectionEventView::type)
+                .containsExactly(CorrectionEventType.SUBMITTED, CorrectionEventType.APPROVED, CorrectionEventType.AMENDED);
+        assertThat(eventsAfterAmend.get(2).note()).isEqualTo("valid reason for amendment");
     }
 
     /**
-     * Protects {@code COR-006}: REOPEN is refused for PENDING and OVERDUE corrections without changing state or history.
-     * Observable break: either unresolved state gains a decision/event; the hand-derived expected event counts are one
-     * before expiry and two after the single OVERDUE transition.
+     * Protects {@code COR-005}, {@code COR-007}, and {@code COR-008}: AMEND and REVERSE are only valid
+     * on already-decided corrections (APPROVED or REJECTED). Both AMEND and REVERSE on PENDING and OVERDUE
+     * corrections are rejected without writing any history events.
      */
     @Test
-    void reopenIsRejectedForPendingAndOverdueWithoutWritingHistory() {
+    void amendAndReverseAreRejectedForPendingAndOverdueWithoutWritingHistory() {
         long id = createPendingCorrection(internId, recordId);
 
+        // PENDING: AMEND rejected
         assertThatThrownBy(() -> corrections.decide(new AttendanceActor(mentorId, GlobalRole.MENTOR), id,
-                CorrectionDecision.REOPEN, "Premature reopen"))
+                CorrectionDecision.AMEND, "Premature amend", "valid reason"))
                 .isInstanceOf(CorrectionException.class)
-                .hasMessage("Correction is not decided");
+                .hasMessage("Only approved or rejected correction can be amended or reversed");
         assertThat(correctionRepository.findById(id).orElseThrow().status()).isEqualTo(CorrectionStatus.PENDING);
         assertThat(correctionEvents.findByCorrectionIdOrderByOccurredAtAscIdAsc(id)).hasSize(1);
 
+        // PENDING: REVERSE rejected
+        assertThatThrownBy(() -> corrections.decide(new AttendanceActor(mentorId, GlobalRole.MENTOR), id,
+                CorrectionDecision.REVERSE, null, "valid reason"))
+                .isInstanceOf(CorrectionException.class)
+                .hasMessage("Only approved or rejected correction can be amended or reversed");
+        assertThat(correctionRepository.findById(id).orElseThrow().status()).isEqualTo(CorrectionStatus.PENDING);
+        assertThat(correctionEvents.findByCorrectionIdOrderByOccurredAtAscIdAsc(id)).hasSize(1);
+
+        // Advance past deadline to OVERDUE
         Instant deadline = correctionRepository.findById(id).orElseThrow().decisionDeadline();
         clock.set(deadline);
         assertThat(corrections.expire(100)).isEqualTo(1);
+        assertThat(correctionRepository.findById(id).orElseThrow().status()).isEqualTo(CorrectionStatus.OVERDUE);
+        assertThat(correctionEvents.findByCorrectionIdOrderByOccurredAtAscIdAsc(id)).hasSize(2);
+
+        // OVERDUE: AMEND rejected
         assertThatThrownBy(() -> corrections.decide(new AttendanceActor(mentorId, GlobalRole.MENTOR), id,
-                CorrectionDecision.REOPEN, "Overdue reopen"))
+                CorrectionDecision.AMEND, "Overdue amend", "valid reason"))
                 .isInstanceOf(CorrectionException.class)
-                .hasMessage("Correction is not decided");
+                .hasMessage("Only approved or rejected correction can be amended or reversed");
+        assertThat(correctionEvents.findByCorrectionIdOrderByOccurredAtAscIdAsc(id)).hasSize(2);
+
+        // OVERDUE: REVERSE rejected
+        assertThatThrownBy(() -> corrections.decide(new AttendanceActor(mentorId, GlobalRole.MENTOR), id,
+                CorrectionDecision.REVERSE, null, "valid reason"))
+                .isInstanceOf(CorrectionException.class)
+                .hasMessage("Only approved or rejected correction can be amended or reversed");
+        assertThat(correctionEvents.findByCorrectionIdOrderByOccurredAtAscIdAsc(id)).hasSize(2);
+
         var overdue = correctionRepository.findById(id).orElseThrow();
         assertThat(overdue.status()).isEqualTo(CorrectionStatus.OVERDUE);
         assertThat(overdue.decidedAt()).isNull();
         assertThat(overdue.decidedByMentorUserId()).isNull();
         assertThat(overdue.lockedAt()).isNull();
-        assertThat(correctionEvents.findByCorrectionIdOrderByOccurredAtAscIdAsc(id)).hasSize(2);
     }
 
     /**
@@ -457,7 +495,7 @@ class CorrectionOverdueIntegrationTest {
 
         // Subcase 5: Decision notice goes to Intern
         corrections.decide(new AttendanceActor(mentorId, GlobalRole.MENTOR), id,
-                CorrectionDecision.APPROVE, "Approved");
+                CorrectionDecision.APPROVE, "Approved", null);
         int internDecisionNotifs = countNotifications(internId, "Correction decision");
         assertThat(internDecisionNotifs).isGreaterThanOrEqualTo(1);
     }
@@ -479,7 +517,7 @@ class CorrectionOverdueIntegrationTest {
         assertThat(corrections.hasUnresolvedCorrection(internId, YearMonth.of(2026, 8))).isTrue();
 
         corrections.decide(new AttendanceActor(mentorId, GlobalRole.MENTOR), id,
-                CorrectionDecision.APPROVE, "Approved");
+                CorrectionDecision.APPROVE, "Approved", null);
         assertThat(corrections.hasUnresolvedCorrection(internId, YearMonth.of(2026, 8))).isFalse();
     }
 

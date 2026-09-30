@@ -423,7 +423,8 @@ class AttendanceLombokBoilerplateTest {
                         long.class,
                         Instant.class,
                         String.class),
-                method(Modifier.PUBLIC, "reopen", void.class, Instant.class),
+                method(Modifier.PUBLIC, "amend", void.class, long.class, Instant.class, String.class),
+                method(Modifier.PUBLIC, "reverse", void.class, long.class, Instant.class),
                 method(Modifier.PUBLIC, "markOverdue", void.class, Instant.class));
         assertMethodSurface(
                 AttendanceCorrectionEventEntity.class,
@@ -590,7 +591,7 @@ class AttendanceLombokBoilerplateTest {
                 method(Modifier.PUBLIC, "submit", com.lab.labtimesheet.feature.attendance.model.dto.CorrectionView.class,
                         AttendanceActor.class, long.class, com.lab.labtimesheet.feature.attendance.model.dto.CorrectionRequestCommand.class),
                 method(Modifier.PUBLIC, "decide", com.lab.labtimesheet.feature.attendance.model.dto.CorrectionView.class,
-                        AttendanceActor.class, long.class, com.lab.labtimesheet.feature.attendance.model.dto.CorrectionDecision.class, String.class),
+                        AttendanceActor.class, long.class, com.lab.labtimesheet.feature.attendance.model.dto.CorrectionDecision.class, String.class, String.class),
                 method(Modifier.PUBLIC, "view", com.lab.labtimesheet.feature.attendance.model.dto.CorrectionView.class,
                         AttendanceActor.class, long.class),
                 method(Modifier.PUBLIC, "list", List.class, AttendanceActor.class),

@@ -375,11 +375,53 @@ class AttendanceRequestControllerWebTest {
                 .andExpect(status().is3xxRedirection());
         mvc.perform(post("/attendance/corrections/11/decide")
                         .with(user("mentor@example.test").roles("MENTOR")).with(csrf())
-                        .param("decision", "REOPEN").param("note", "Recheck"))
+                        .param("decision", "AMEND").param("note", "Recheck").param("reason", "new info"))
                 .andExpect(status().is3xxRedirection());
 
         verify(leave).approve(actor, 10L);
-        verify(corrections).decide(actor, 11L, CorrectionDecision.REOPEN, "Recheck");
+        verify(corrections).decide(actor, 11L, CorrectionDecision.AMEND, "Recheck", "new info");
+    }
+
+    /**
+     * Protects COR-005, COR-007, COR-009: web routing rejects proposedCheckout tampering without calling the service,
+     * rejects invalid decision REOPEN, and dispatches valid AMEND and REVERSE transitions with reasons.
+     */
+    @Test
+    void correctionDecisionWebRejectsProposedCheckoutAndDispatchesAmendAndReverse() throws Exception {
+        AttendanceActor actor = new AttendanceActor(2L, GlobalRole.MENTOR);
+        when(currentUsers.actor(org.mockito.ArgumentMatchers.any())).thenReturn(actor);
+
+        // 1. proposedCheckout parameter is rejected without calling service
+        mvc.perform(post("/attendance/corrections/11/decide")
+                        .with(user("mentor@example.test").roles("MENTOR")).with(csrf())
+                        .param("decision", "AMEND")
+                        .param("note", "new note")
+                        .param("reason", "new reason")
+                        .param("proposedCheckout", "2026-08-20T17:00"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/attendance/corrections/11"))
+                .andExpect(flash().attribute("requestError", "The proposed checkout cannot be changed"));
+        verify(corrections, never()).decide(any(), eq(11L), any(), any(), any());
+
+        // 2. REOPEN decision is rejected as invalid
+        mvc.perform(post("/attendance/corrections/11/decide")
+                        .with(user("mentor@example.test").roles("MENTOR")).with(csrf())
+                        .param("decision", "REOPEN")
+                        .param("note", "reopen note"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/attendance/corrections/11"))
+                .andExpect(flash().attribute("requestError", "Choose a valid correction decision."));
+        verify(corrections, never()).decide(any(), eq(11L), any(), any(), any());
+
+        // 3. REVERSE route succeeds with reason
+        mvc.perform(post("/attendance/corrections/11/decide")
+                        .with(user("mentor@example.test").roles("MENTOR")).with(csrf())
+                        .param("decision", "REVERSE")
+                        .param("reason", "reverse reason"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/attendance/corrections/11"))
+                .andExpect(flash().attribute("message", "Correction decision saved"));
+        verify(corrections).decide(actor, 11L, CorrectionDecision.REVERSE, null, "reverse reason");
     }
 
     /**
@@ -715,7 +757,9 @@ class AttendanceRequestControllerWebTest {
 
         mvc.perform(get("/attendance/corrections/11").with(user("mentor@example.test").roles("MENTOR")))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("Reopen")))
+                .andExpect(content().string(containsString("Amend decision")))
+                .andExpect(content().string(containsString("Reverse decision")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("Reopen"))))
                 .andExpect(content().string(org.hamcrest.Matchers.not(containsString("value=\"APPROVE\""))));
     }
 

@@ -335,7 +335,7 @@ class CorrectionSubmissionWindowIntegrationTest {
         clock.set(approveAt);
 
         CorrectionView decidedView = corrections.decide(
-                mentorActor, view.id(), CorrectionDecision.APPROVE, "Approved before deadline");
+                mentorActor, view.id(), CorrectionDecision.APPROVE, "Approved before deadline", null);
 
         assertThat(decidedView.status()).isEqualTo(CorrectionStatus.APPROVED);
         assertThat(correctionRequests.findById(view.id()).orElseThrow().status()).isEqualTo(CorrectionStatus.APPROVED);

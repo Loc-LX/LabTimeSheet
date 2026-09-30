@@ -237,19 +237,39 @@ public class AttendanceCorrectionEntity {
     }
 
     /**
-     * Reopens a decision to pending while the separate decision window remains open.
+     * Amends the decision note of an already-decided correction without changing its status.
      *
-     * @param now server transition timestamp used for the surrounding event
+     * @param actorId active responsible Mentor identifier
+     * @param now server timestamp
+     * @param note non-blank amended decision note
      */
-    public void reopen(Instant now) {
-        requireUnlocked();
-        if (status() == CorrectionStatus.PENDING || status() == CorrectionStatus.OVERDUE) {
-            throw new IllegalStateException("Correction is not decided");
+    public void amend(long actorId, Instant now, String note) {
+        if (status() != CorrectionStatus.APPROVED && status() != CorrectionStatus.REJECTED) {
+            throw new IllegalStateException("Only approved or rejected correction can be amended");
         }
-        status = CorrectionStatus.PENDING.name();
-        decidedByMentorUserId = null;
-        decidedAt = null;
-        decisionNote = null;
+        if (note == null || note.isBlank()) {
+            throw new IllegalArgumentException("An amendment needs the new decision note");
+        }
+        decidedByMentorUserId = actorId;
+        decidedAt = now;
+        decisionNote = note.strip();
+    }
+
+    /**
+     * Reverses an approved or rejected decision to the opposite outcome.
+     *
+     * @param actorId active responsible Mentor identifier
+     * @param now server timestamp
+     */
+    public void reverse(long actorId, Instant now) {
+        if (status() != CorrectionStatus.APPROVED && status() != CorrectionStatus.REJECTED) {
+            throw new IllegalStateException("Only approved or rejected correction can be reversed");
+        }
+        status = status() == CorrectionStatus.APPROVED
+                ? CorrectionStatus.REJECTED.name()
+                : CorrectionStatus.APPROVED.name();
+        decidedByMentorUserId = actorId;
+        decidedAt = now;
     }
 
     private void requireUnlocked() {

@@ -5,6 +5,7 @@ import com.lab.labtimesheet.platform.authorization.AuthorizationColumn;
 import com.lab.labtimesheet.platform.authorization.AuthorizationPolicy;
 import com.lab.labtimesheet.platform.authorization.AuthorizationRequest;
 import com.lab.labtimesheet.platform.authorization.AuthorizationCapability;
+import com.lab.labtimesheet.platform.model.GlobalRole;
 import java.util.EnumSet;
 import java.util.Set;
 import org.springframework.security.access.AccessDeniedException;
@@ -38,6 +39,24 @@ public final class AttendanceAuthorizationRequests {
             }
         }
         return new AuthorizationRequest(columns, scopeState, null, null);
+    }
+
+    /**
+     * Resolves the policy request for deciding an attendance request.
+     * Only an active Mentor who is the designated responsible Mentor for the intern receives the OWNING_MENTOR column.
+     *
+     * @param actor authenticated Attendance actor
+     * @param activeAccount whether the persisted actor account is active and matches the actor role
+     * @param responsible whether the actor is the responsible Mentor for the intern
+     * @return policy request with OWNING_MENTOR column only when activeAccount, role=MENTOR, and responsible are all true
+     */
+    public static AuthorizationRequest decisionRequest(
+            AttendanceActor actor, boolean activeAccount, boolean responsible) {
+        Set<AuthorizationColumn> columns = EnumSet.noneOf(AuthorizationColumn.class);
+        if (activeAccount && actor != null && actor.role() == GlobalRole.MENTOR && responsible) {
+            columns.add(AuthorizationColumn.OWNING_MENTOR);
+        }
+        return new AuthorizationRequest(columns, null, null, null);
     }
 
     /**

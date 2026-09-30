@@ -62,6 +62,7 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import jakarta.persistence.EntityManager;
 import com.lab.labtimesheet.feature.calendar.model.entity.AttendancePolicyEntity;
@@ -299,7 +300,7 @@ class RecordDisclosureWebIntegrationTest {
                         .with(user("mentor@example.test").roles("MENTOR"))).andReturn());
     }
 
-    /** Protects AUTH-002 on correction detail and submission routes, plus the hidden Mentor decision action. */
+    /** Protects AUTH-002 on correction detail and submission routes. */
     @Test
     @Transactional
     void foreignAndMissingCorrectionTargetsHaveTheSameNotFoundResponse() throws Exception {
@@ -329,6 +330,21 @@ class RecordDisclosureWebIntegrationTest {
                         .param("attendanceRecordId", Long.toString(Long.MAX_VALUE))
                         .param("proposedCheckout", "2026-08-13T15:00")
                         .param("reason", "Forged attendance ID")).andReturn());
+    }
+
+    /**
+     * Protects `AUTH-002` and `AUTH-012`: the owning Intern's correction page shows no Mentor decision action, and a forged decision POST is refused with 403 by the policy while the correction stays `PENDING`. It runs committed because decisions use an independent transaction.
+     */
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
+    void owningInternCannotSeeOrUseTheMentorDecisionAction() throws Exception {
+        long adminId = initializeAdminAndSmtp();
+        long ownerId = createActiveIntern(adminId, "owner@example.test", "INT-OWNER");
+        internships.activateInternship(ownerId, adminId);
+        long recordId = createMissingCheckout(ownerId);
+        var correction = corrections.submit(new AttendanceActor(ownerId, GlobalRole.INTERN), recordId,
+                new CorrectionRequestCommand(LocalDateTime.of(2026, 8, 13, 15, 0), "Missed checkout"));
 
         String ownerPage = mvc.perform(get("/attendance/corrections/{correctionId}", correction.id())
                         .with(user("owner@example.test").roles("INTERN")))
@@ -343,13 +359,10 @@ class RecordDisclosureWebIntegrationTest {
     }
 
     private long createMissingCheckout(long internId) {
-        AttendancePolicyEntity policy = entityManager.getReference(AttendancePolicyEntity.class, 1L);
         AttendanceRecordEntity row = new AttendanceRecordEntity(
-                internId, LocalDate.of(2026, 8, 13), policy.toDomain().id(),
+                internId, LocalDate.of(2026, 8, 13), 1L,
                 Instant.parse("2026-08-13T02:00:00Z"), null);
-        entityManager.persist(row);
-        entityManager.flush();
-        return row.id();
+        return attendanceRecords.saveAndFlush(row).id();
     }
 
     /** Protects AUTH-002 and B-06 against hidden Project, Task and membership actions sent directly. */
