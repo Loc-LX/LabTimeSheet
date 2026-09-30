@@ -904,6 +904,10 @@ class TaskCreationIntegrationTest {
                 .isInstanceOf(TaskNotFoundException.class);
     }
 
+    /**
+     * AUTH-008 (THE system SHALL refuse a Mentor's attempt to create, assign, reassign, edit, or soft-delete a Task),
+     * AUTH-009 (WHILE a Project is open, THE system SHALL permit its active members to view every non-deleted Task, assignee, status, aggregate progress, comment thread, and authorized history entry in that Project, and to comment on any non-deleted Task).
+     */
     @Test
     void authorizationMatrixKeepsEveryDeniedActorNonDisclosingAndStateUnchanged() {
         TaskView task = createMemberTask("Complete authorization matrix");
@@ -1027,7 +1031,10 @@ class TaskCreationIntegrationTest {
                 "/projects/%d/tasks/%d".formatted(projectId, task.id()));
     }
 
-    /** Protects §5.2 and {@code TSK-023}: a Mentor cannot start another member's Task. */
+    /**
+     * AUTH-008 (WHILE a Project is ACTIVE, THE system SHALL permit its owning Mentor only the block, unblock, and reopen transitions of TSK-023, and SHALL refuse every other status change by a Mentor).
+     * Protects §5.2 and {@code TSK-023}: a Mentor cannot start another member's Task.
+     */
     @Test
     void owningMentorCannotStartAnotherMembersTask() {
         TaskView task = taskService.create(
@@ -1047,6 +1054,8 @@ class TaskCreationIntegrationTest {
     }
 
     /**
+     * AUTH-008 (THE system SHALL permit a Mentor to view a Task, comment on it, and read its retained history),
+     * AUTH-009 (WHILE a Project is open, THE system SHALL permit its active members to view every non-deleted Task, assignee, status, aggregate progress, comment thread, and authorized history entry in that Project, and to comment on any non-deleted Task),
      * TSK-011, TSK-012 and AC-TSK-006 require an active member, current Leader, and owning Mentor
      * to append comments before Project completion. The three authorized appends produce exactly
      * three retained rows; completion then refuses another append and does not change that count.
@@ -1128,6 +1137,9 @@ class TaskCreationIntegrationTest {
                 .extracting(TaskCommentView::body).containsExactly("Keep this note");
     }
 
+    /**
+     * AUTH-008 (THE system SHALL permit a Mentor to view a Task, comment on it, and read its retained history).
+     */
     @Test
     void authorizedMentorCanCommentOnDoneTaskRetainingClosedAssigneeHistory() {
         TaskView task = createMemberTask("Closed assignee history");
@@ -1146,6 +1158,58 @@ class TaskCreationIntegrationTest {
                 "/projects/%d/tasks/%d".formatted(projectId, task.id()));
     }
 
+    /**
+     * AUTH-008 (THE system SHALL refuse a Mentor's attempt to create, assign, reassign, edit, or soft-delete a Task).
+     */
+    @Test
+    void owningMentorCannotCreateTask() {
+        assertThatThrownBy(() -> taskService.create(
+                        "mentor@example.test",
+                        new CreateTaskCommand(projectId, memberMembershipId, "Mentor forbidden task", null, null)))
+                .isInstanceOf(TaskNotFoundException.class);
+        assertThat(taskCount()).isZero();
+    }
+
+    /**
+     * AC-AUTH-006 (Member sees and comments on all Tasks; status/log controls exist only on their assigned Task).
+     */
+    @Test
+    void memberSeesAndCommentsOnAllTasksWhileStatusAndLogControlsExistOnlyOnAssignedTask() {
+        TaskView assignedTask = createMemberTask("Assigned to member");
+        TaskView otherTask = taskService.create(
+                "leader@example.test",
+                new CreateTaskCommand(projectId, leaderMembershipId, "Assigned to leader", null, null));
+        activateProject();
+
+        // 1. Member sees all non-deleted tasks
+        TaskListView list = taskService.list("member@example.test", projectId);
+        assertThat(list.tasks()).extracting(TaskView::id).containsExactlyInAnyOrder(assignedTask.id(), otherTask.id());
+
+        // 2. Member comments on own task and on other member's task
+        taskService.addComment("member@example.test", projectId, assignedTask.id(), "Member on own task");
+        taskService.addComment("member@example.test", projectId, otherTask.id(), "Member on leader task");
+        assertThat(commentCount()).isEqualTo(2);
+
+        // 3. Status controls: Member can change status on assigned task, but is refused on other member's task
+        TaskView inProgress = taskService.changeStatus("member@example.test", projectId, assignedTask.id(), TaskStatus.IN_PROGRESS);
+        assertThat(inProgress.status()).isEqualTo(TaskStatus.IN_PROGRESS);
+
+        assertThatThrownBy(() -> taskService.changeStatus("member@example.test", projectId, otherTask.id(), TaskStatus.IN_PROGRESS))
+                .isInstanceOf(TaskNotFoundException.class);
+
+        // 4. Details view reflects permissions: assigned task allows status change; other task does not, but both allow comments
+        TaskDetails assignedDetails = taskService.details("member@example.test", projectId, assignedTask.id());
+        assertThat(assignedDetails.canChangeStatus()).isTrue();
+        assertThat(assignedDetails.canComment()).isTrue();
+
+        TaskDetails otherDetails = taskService.details("member@example.test", projectId, otherTask.id());
+        assertThat(otherDetails.canChangeStatus()).isFalse();
+        assertThat(otherDetails.canComment()).isTrue();
+    }
+
+    /**
+     * AUTH-009 (WHILE a Project is open, THE system SHALL permit its active members to view every non-deleted Task, assignee, status, aggregate progress, comment thread, and authorized history entry in that Project, and to comment on any non-deleted Task).
+     */
     @Test
     void authorizedListsAndDetailsExcludeDeletedTasksAndReportEmptyAsNotApplicable() {
         TaskView todo = createMemberTask("Todo");

@@ -432,6 +432,9 @@ class TaskControllerTest {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Reload")));
     }
 
+    /**
+     * AC-AUTH-006 (Member sees and comments on all Tasks; status/log controls exist only on their assigned Task).
+     */
     @Test
     void taskDetailsHideUnavailableActionsAndShowAssignee() throws Exception {
         given(taskService.details(ACTOR_EMAIL, 10L, 25L))
@@ -446,6 +449,25 @@ class TaskControllerTest {
                         org.hamcrest.Matchers.containsString("Add comment"))));
     }
 
+    /**
+     * AC-AUTH-006 (Member sees and comments on all Tasks; status/log controls exist only on their assigned Task).
+     */
+    @Test
+    void unassignedMemberTaskDetailShowsCommentsAndHidesStatusAndLogControls() throws Exception {
+        given(taskService.details(ACTOR_EMAIL, 10L, 25L))
+                .willReturn(new TaskDetails(task(25L), List.of(), false, true));
+
+        mockMvc.perform(get("/projects/10/tasks/25").with(user(ACTOR_EMAIL)))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Member Name")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Add comment")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("Change status"))));
+    }
+
+    /**
+     * AUTH-009 (WHILE a Project is open, THE system SHALL permit its active members to view every non-deleted Task, assignee, status, aggregate progress, comment thread, and authorized history entry in that Project, and to comment on any non-deleted Task).
+     */
     @Test
     void taskDetailsRenderAvailableActions() throws Exception {
         given(taskService.details(ACTOR_EMAIL, 10L, 25L))
@@ -457,6 +479,9 @@ class TaskControllerTest {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Add comment")));
     }
 
+    /**
+     * TSK-008 (WHERE any other status transition is requested, THE system SHALL reject it; THE system SHALL NOT provide a configurable workflow engine in v1).
+     */
     @ParameterizedTest(name = "{0} exposes only {1}")
     @MethodSource("allowedStatusChoices")
     void taskDetailsExposeOnlyAllowedStatusTransitions(TaskStatus current, List<TaskStatus> expected) throws Exception {

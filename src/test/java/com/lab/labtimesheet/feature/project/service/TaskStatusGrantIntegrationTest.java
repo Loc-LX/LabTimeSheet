@@ -96,6 +96,7 @@ class TaskStatusGrantIntegrationTest {
     }
 
     /**
+     * AUTH-005 (The transitions a current Leader MAY make on another member's Task are those of TSK-023 and no others),
      * TSK-007, TSK-023, TSK-025, AC-TSK-016, AC-TSK-018, NOT-003:
      * When the project is ACTIVE, the current Leader is permitted by policy BLOCK_UNBLOCK_REOPEN_TASK
      * to block another member's TODO task, unblock it back to TODO, and reopen a DONE task with a
@@ -149,6 +150,7 @@ class TaskStatusGrantIntegrationTest {
     }
 
     /**
+     * AUTH-005 (the transitions a current Leader may make on another member's Task are those of TSK-023 and no others),
      * TSK-007, TSK-023, AC-TSK-003, AC-AUTH-004:
      * Current Leader cannot start another member's task (TODO -> IN_PROGRESS) or mark it DONE
      * (IN_PROGRESS -> DONE). Both attempts must be refused with TaskNotFoundException, leaving
@@ -212,6 +214,7 @@ class TaskStatusGrantIntegrationTest {
     }
 
     /**
+     * AUTH-005 (The transitions a current Leader MAY make on another member's Task are those of TSK-023 and no others),
      * TSK-023, AUTH-012, AC-AUTH-004:
      * Refuses status change when the project is not ACTIVE (e.g. PLANNED), when the leader's term
      * has ended, or when the actor is a regular member attempting to block another member's task.
@@ -311,6 +314,7 @@ class TaskStatusGrantIntegrationTest {
     }
 
     /**
+     * AUTH-008 (WHILE a Project is ACTIVE, THE system SHALL permit its owning Mentor only the block, unblock, and reopen transitions of TSK-023, and SHALL refuse every other status change by a Mentor),
      * TSK-023, NOT-003, AC-TSK-018:
      * Owning mentor can still block, unblock, and reopen tasks. Under NOT-003, when the owning mentor
      * blocks another member's task, notifications are dispatched to BOTH the assignee and the current leader.

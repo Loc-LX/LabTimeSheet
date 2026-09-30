@@ -784,6 +784,53 @@ class TaskWorkLogIntegrationTest {
         }
     }
 
+    /**
+     * AUTH-005 (a Leader, like an ordinary member, may log work on a Task only while assigned to it).
+     */
+    @Test
+    void leaderLikeOrdinaryMemberMayLogWorkOnTaskOnlyWhileAssignedToIt() {
+        long taskAId = insertTask(
+                fixture.firstProjectId(), fixture.otherMembershipId(), fixture.firstMembershipId(), "Task A");
+        long taskBId = insertTask(
+                fixture.firstProjectId(), fixture.firstMembershipId(), fixture.firstMembershipId(), "Task B");
+
+        long mentorId = jdbc.sql("select mentor_user_id from projects where id = :id")
+                .param("id", fixture.firstProjectId())
+                .query(Long.class)
+                .single();
+        String memberNEmail = "worklog-member-n-" + SEQUENCE.incrementAndGet() + "@example.test";
+        long memberNId = insertIntern(memberNEmail);
+        insertMembership(fixture.firstProjectId(), memberNId, mentorId);
+
+        assertThatThrownBy(() -> taskService.addWorkLog(
+                        fixture.email(), fixture.firstProjectId(), taskAId, WORK_DATE, 60, "Leader on member task"))
+                .isInstanceOf(TaskNotFoundException.class);
+        assertThat(jdbc.sql("select count(*) from task_work_logs where task_id = :taskId")
+                .param("taskId", taskAId).query(Long.class).single()).isZero();
+
+        assertThatThrownBy(() -> taskService.addWorkLog(
+                        memberNEmail, fixture.firstProjectId(), taskAId, WORK_DATE, 60, "Other member on task A"))
+                .isInstanceOf(TaskNotFoundException.class);
+        assertThat(jdbc.sql("select count(*) from task_work_logs where task_id = :taskId")
+                .param("taskId", taskAId).query(Long.class).single()).isZero();
+
+        TaskWorkLogView logB = taskService.addWorkLog(
+                fixture.email(), fixture.firstProjectId(), taskBId, WORK_DATE, 60, "Leader on own task");
+        assertThat(logB.minutes()).isEqualTo(60);
+        assertThat(logB.membershipId()).isEqualTo(fixture.firstMembershipId());
+
+        boolean worked = workLogs.existsByTaskIdAndProjectId(taskAId, fixture.firstProjectId());
+        RemainingEffortForecastInput forecast = worked ? new RemainingEffortForecastInput(60, "Handover") : null;
+        TaskView reassigned = taskService.reassign(
+                fixture.email(), fixture.firstProjectId(), taskAId, null, fixture.firstMembershipId(), forecast);
+        assertThat(reassigned.assigneeMembershipId()).isEqualTo(fixture.firstMembershipId());
+
+        TaskWorkLogView logA = taskService.addWorkLog(
+                fixture.email(), fixture.firstProjectId(), taskAId, WORK_DATE, 90, "Leader on assigned Task A");
+        assertThat(logA.minutes()).isEqualTo(90);
+        assertThat(logA.membershipId()).isEqualTo(fixture.firstMembershipId());
+    }
+
     private Future<Throwable> submitStatus(
             ExecutorService executor, CountDownLatch start, TaskStatus target, long expectedVersion) {
         return executor.submit(() -> {
