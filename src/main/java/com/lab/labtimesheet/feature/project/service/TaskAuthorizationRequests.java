@@ -70,13 +70,20 @@ final class TaskAuthorizationRequests {
         return request(columns, project, task.getStatus().name(), null);
     }
 
-    /** Supplies only the owning-Mentor scope for the Mentor's constrained Task status changes. */
+    /** Supplies owning-Mentor and current-Leader scope for BLOCK_UNBLOCK_REOPEN_TASK. */
     static AuthorizationRequest forOwningMentorTask(
             AccountIdentity actor, ProjectTaskContext project, Task task, TaskStatus target) {
         EnumSet<AuthorizationColumn> columns = EnumSet.noneOf(AuthorizationColumn.class);
         if (actor.status() == AccountStatus.ACTIVE && actor.role() == GlobalRole.MENTOR
                 && actor.id() == project.mentorUserId()) {
             columns.add(AuthorizationColumn.OWNING_MENTOR);
+        }
+        if (actor.status() == AccountStatus.ACTIVE && actor.role() == GlobalRole.INTERN) {
+            ProjectTaskMemberView membership = activeMembership(actor, project);
+            if (membership != null && project.currentLeaderMembershipId() != null
+                    && membership.membershipId() == project.currentLeaderMembershipId()) {
+                columns.add(AuthorizationColumn.CURRENT_LEADER);
+            }
         }
         return request(columns, project, task.getStatus().name(), target == null ? null : target.name());
     }

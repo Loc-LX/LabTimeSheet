@@ -1308,7 +1308,7 @@ class TaskCreationIntegrationTest {
         assertThat(taskService.details("mentor@example.test", projectId, task.id()).canChangeStatus())
                 .isTrue();
         assertThat(taskService.details("leader@example.test", projectId, task.id()).canChangeStatus())
-                .isFalse();
+                .isTrue();
 
         completeProject();
 
