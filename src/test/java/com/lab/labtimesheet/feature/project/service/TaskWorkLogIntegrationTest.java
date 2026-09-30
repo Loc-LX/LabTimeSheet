@@ -244,6 +244,10 @@ class TaskWorkLogIntegrationTest {
                 .isInstanceOf(TaskValidationException.class);
     }
 
+    /**
+     * AC-TSK-007 (assignee logs work, Task is reassigned, former assignee corrects own prior log),
+     * TSK-013, TSK-014, TSK-015, TSK-016.
+     */
     @Test
     void authorCorrectionRetainsStoredIdentityAndRejectsAnotherMember() {
         TaskWorkLogView original = taskService.addWorkLog(
@@ -271,6 +275,9 @@ class TaskWorkLogIntegrationTest {
                 .isInstanceOf(TaskNotFoundException.class);
     }
 
+    /**
+     * AC-TSK-013 (forecast correction appends successor before incoming work begins), TSK-022.
+     */
     @Test
     void forecastCorrectionAppendsSuccessorWithCurrentHistoryAndDetailMetadata() {
         long predecessorId = createForecastedTransfer();
@@ -302,6 +309,9 @@ class TaskWorkLogIntegrationTest {
                 .isEqualTo(140L);
     }
 
+    /**
+     * AC-TSK-013 (rejects stale forecast correction based on superseded predecessor), TSK-022.
+     */
     @Test
     void forecastCorrectionRejectsSupersededPredecessorWithoutAppendingAnotherSuccessor() {
         long predecessorId = createForecastedTransfer();
@@ -374,6 +384,9 @@ class TaskWorkLogIntegrationTest {
                 fixture.firstProjectId(), fixture.firstTaskId())).hasSize(1);
     }
 
+    /**
+     * AC-TSK-013 (rejects late forecast correction after incoming member's first new log), TSK-022.
+     */
     @Test
     void forecastCorrectionRejectsAfterIncomingWorkBeginsWithoutAppending() {
         long predecessorId = createForecastedTransfer();
@@ -470,6 +483,9 @@ class TaskWorkLogIntegrationTest {
         assertThat(history.getFirst().getActualMinutesSnapshot()).isEqualTo(60L);
     }
 
+    /**
+     * AC-TSK-013 (rejects unauthorized forecast correction by non-leader), TSK-022.
+     */
     @Test
     void forecastCorrectionRejectsIncomingNonLeaderWithoutAppending() {
         long predecessorId = createForecastedTransfer();

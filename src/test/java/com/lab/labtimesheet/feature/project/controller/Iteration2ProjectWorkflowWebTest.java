@@ -113,6 +113,9 @@ class Iteration2ProjectWorkflowWebTest {
         verify(projects).respondToInvitation(20L, 90L, InvitationResponse.ACCEPT);
     }
 
+    /**
+     * AC-PRJ-012 (pending warning shows remaining count and readiness), PRJ-020, PRJ-021, PRJ-022.
+     */
     @Test
     void currentLeaderSeesActionOnlyWorkflowsAndSeparateReadOnlyHistory() throws Exception {
         ProjectActorView actor = new ProjectActorView(20L, "INTERN");

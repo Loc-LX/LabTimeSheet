@@ -1,6 +1,7 @@
 package com.lab.labtimesheet.feature.project.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -500,6 +501,8 @@ class ProjectInvitationExitIntegrationTest {
     }
 
     /**
+     * AC-PRJ-012 (repeated transfer batches before Mentor approval close membership and request),
+     * PRJ-020, PRJ-021, PRJ-022, DB-012.
      * TSK-009, TSK-004 and AC-TSK-011 require an exit batch to reassign current Tasks while retaining
      * their Task-owned history. The worked IN_PROGRESS Task's creator, comment, 45-minute work log,
      * and final Leader assignment actor/time must be present after transfer and remain identical
@@ -656,6 +659,10 @@ class ProjectInvitationExitIntegrationTest {
         assertEquals(notificationCount, count("select count(*) from notifications"));
     }
 
+    /**
+     * AC-PRJ-013 (Leader own leave requires replacement before approval and transfer batches),
+     * PRJ-008, PRJ-010, PRJ-020, PRJ-021, PRJ-022.
+     */
     @Test
     void leaderExitRequiresReplacementAndLeaderChangeDoesNotMoveAssignments() {
         long mentorId = user("mentor-leader-exit@example.test", "MENTOR");
@@ -682,6 +689,10 @@ class ProjectInvitationExitIntegrationTest {
         assertEquals(0, count("select count(*) from project_memberships where id = ? and left_at is null", leaderMembershipId));
     }
 
+    /**
+     * AC-PRJ-012 (cancellation and rejection restore eligibility while keeping completed reassignments),
+     * PRJ-020, PRJ-021, PRJ-022.
+     */
     @Test
     void cancellationAndRejectionRestoreEligibilityWithoutUndoingCompletedBatches() {
         long mentorId = user("mentor-reject-exit@example.test", "MENTOR");
@@ -718,6 +729,10 @@ class ProjectInvitationExitIntegrationTest {
                 "select assignee_membership_id from tasks where id = ?", secondTaskId));
     }
 
+    /**
+     * AC-PRJ-004 (direct removal transfers all unfinished Tasks to the current Leader and retains
+     * done assignment), PRJ-008, PRJ-009.
+     */
     @Test
     void directMentorRemovalTransfersAllUnfinishedTasksAtomicallyAndKeepsDoneAssignment() {
         long mentorId = user("mentor-direct-remove@example.test", "MENTOR");
@@ -739,6 +754,10 @@ class ProjectInvitationExitIntegrationTest {
         assertEquals(0, count("select count(*) from project_memberships where id = ? and left_at is null", targetMembershipId));
     }
 
+    /**
+     * AC-TSK-014 (direct removal rejected before any mutation when target owns worked unfinished Tasks),
+     * TSK-022, PRJ-008, PRJ-009, PRJ-010.
+     */
     @Test
     void directMentorRemovalRejectsWorkedUnfinishedTasksBeforeAnyMutation() {
         long mentorId = user("mentor-direct-worked-remove@example.test", "MENTOR");
@@ -801,6 +820,10 @@ class ProjectInvitationExitIntegrationTest {
                 "select assignee_membership_id from tasks where id = ?", taskId));
     }
 
+    /**
+     * AC-TSK-014 (after forecast-aware transfers, eligible unworked Tasks retain automatic transfer),
+     * TSK-022, PRJ-008, PRJ-009, PRJ-010.
+     */
     @Test
     void directLeaderRemovalAutoTransfersOnlyRemainingUnworkedTasksAfterForecastAwareTransfer() {
         long mentorId = user("mentor-direct-forecast-leader@example.test", "MENTOR");
@@ -869,6 +892,10 @@ class ProjectInvitationExitIntegrationTest {
                 "/projects/" + projectId + "/tasks/" + unworkedTaskId));
     }
 
+    /**
+     * AC-PRJ-004 (Leader removal requires a replacement and transfers unfinished Tasks to that replacement),
+     * PRJ-008, PRJ-009, PRJ-010, PRJ-011.
+     */
     @Test
     void directMentorRemovalOfCurrentLeaderReplacesLeadershipBeforeTransferring() {
         long mentorId = user("mentor-direct-leader@example.test", "MENTOR");
@@ -1460,6 +1487,130 @@ class ProjectInvitationExitIntegrationTest {
                                 + "where project_id = ? and invited_intern_user_id = ? and status = 'PENDING'",
                         projectId,
                         inviteeId));
+    }
+
+    /**
+     * AC-PRJ-012 (Pending warning shows remaining count and readiness),
+     * PRJ-020, PRJ-021, PRJ-022.
+     */
+    @Test
+    void exitReadinessWarningShowsRemainingCountAndReadinessBeforeAndAfterTransfers() {
+        long mentorId = user("mentor-exit-warning@example.test", "MENTOR");
+        long leaderId = intern("leader-exit-warning@example.test", "I185");
+        long targetId = intern("target-exit-warning@example.test", "I186");
+        long recipientId = intern("recipient-exit-warning@example.test", "I187");
+        long projectId = createProject(mentorId, leaderId, "Exit warning");
+        projects.addMembers(mentorId, projectId, java.util.List.of(targetId, recipientId));
+        long targetMembershipId = membershipId(projectId, targetId);
+        long recipientMembershipId = membershipId(projectId, recipientId);
+        long leaderMembershipId = membershipId(projectId, leaderId);
+        long taskId = insertTask(projectId, targetMembershipId, leaderMembershipId, "Remaining task", "TODO");
+        long requestId = projects.requestMemberRemoval(leaderId, projectId, targetMembershipId, "Handover");
+
+        // 1. Pending warning shows remaining count = 1 and readiness = false
+        var readinessBefore = projectPages.exitReadiness(leaderId, projectId).getFirst();
+        assertEquals(requestId, readinessBefore.requestId());
+        assertEquals(targetMembershipId, readinessBefore.targetMembershipId());
+        assertEquals(1L, readinessBefore.unfinishedTaskCount());
+        assertFalse(readinessBefore.readyForApproval());
+
+        // 2. Transfer task to recipient
+        projects.transferTasks(leaderId, projectId, targetMembershipId, java.util.Set.of(taskId), recipientMembershipId);
+
+        // 3. After transfer, remaining count = 0 and readiness = true
+        var readinessAfter = projectPages.exitReadiness(leaderId, projectId).getFirst();
+        assertEquals(0L, readinessAfter.unfinishedTaskCount());
+        assertTrue(readinessAfter.readyForApproval());
+    }
+
+    /**
+     * AC-PRJ-012 (approval remains blocked until zero unfinished Tasks),
+     * PRJ-020, PRJ-021, PRJ-022.
+     */
+    @Test
+    void approvalRemainsBlockedUntilZeroUnfinishedTasks() {
+        long mentorId = user("mentor-exit-blocked@example.test", "MENTOR");
+        long leaderId = intern("leader-exit-blocked@example.test", "I188");
+        long targetId = intern("target-exit-blocked@example.test", "I189");
+        long recipientId = intern("recipient-exit-blocked@example.test", "I190");
+        long projectId = createProject(mentorId, leaderId, "Blocked exit approval");
+        projects.addMembers(mentorId, projectId, java.util.List.of(targetId, recipientId));
+        long targetMembershipId = membershipId(projectId, targetId);
+        long recipientMembershipId = membershipId(projectId, recipientId);
+        long leaderMembershipId = membershipId(projectId, leaderId);
+        long taskId = insertTask(projectId, targetMembershipId, leaderMembershipId, "Unfinished exit task", "TODO");
+        long requestId = projects.requestMemberRemoval(leaderId, projectId, targetMembershipId, "Handover required");
+
+        // 1. approveExit is refused while at least one unfinished Task remains
+        assertThrows(ProjectRuleViolationException.class,
+                () -> projects.approveExit(mentorId, requestId, "Attempt while task unfinished"));
+        assertEquals("PENDING", text(
+                "select status from project_membership_exit_requests where id = ?", requestId));
+
+        // 2. Transfer the unfinished task to recipient
+        projects.transferTasks(leaderId, projectId, targetMembershipId, java.util.Set.of(taskId), recipientMembershipId);
+
+        // 3. approveExit succeeds when zero unfinished Tasks remain
+        projects.approveExit(mentorId, requestId, "Approved with zero unfinished");
+        assertEquals("APPROVED", text(
+                "select status from project_membership_exit_requests where id = ?", requestId));
+        assertEquals(0, count("select count(*) from project_memberships where id = ? and left_at is null", targetMembershipId));
+    }
+
+    /**
+     * AC-PRJ-013 (new Leader performs repeatable transfer batches to eligible current members,
+     * including a newly direct-added or invitation-accepted member),
+     * PRJ-008, PRJ-010, PRJ-020, PRJ-021, PRJ-022.
+     */
+    @Test
+    void leaderExitTransferBatchesCanTargetNewlyDirectAddedOrInvitationAcceptedMembers() {
+        long mentorId = user("mentor-batches-dest@example.test", "MENTOR");
+        long leaderId = intern("leader-batches-dest@example.test", "I191");
+        long replacementId = intern("replacement-batches-dest@example.test", "I192");
+        long directMemberId = intern("direct-batches-dest@example.test", "I193");
+        long invitedMemberId = intern("invited-batches-dest@example.test", "I194");
+        long projectId = createProject(mentorId, leaderId, "Batches destination");
+        projects.addMember(mentorId, projectId, replacementId);
+        long leaderMembershipId = membershipId(projectId, leaderId);
+        long replacementMembershipId = membershipId(projectId, replacementId);
+
+        long firstTaskId = insertTask(projectId, leaderMembershipId, leaderMembershipId, "To direct added", "TODO");
+        long secondTaskId = insertTask(projectId, leaderMembershipId, leaderMembershipId, "To invited", "TODO");
+
+        // Leader requests own leave
+        long requestId = projects.requestOwnLeave(leaderId, projectId, "Leaving with 2 tasks");
+
+        // Mentor appoints replacement Leader
+        projects.changeLeader(mentorId, projectId, replacementId);
+
+        // 1. Mentor directly adds a new member
+        projects.addMember(mentorId, projectId, directMemberId);
+        long directMembershipId = membershipId(projectId, directMemberId);
+
+        // 2. An invited member accepts invitation
+        long invitationId = projects.issueInvitation(replacementId, projectId, invitedMemberId);
+        projects.respondToInvitation(invitedMemberId, invitationId, InvitationResponse.ACCEPT);
+        long invitedMembershipId = membershipId(projectId, invitedMemberId);
+
+        // 3. Batch 1: Transfer firstTaskId to newly direct-added member
+        projects.transferTasks(
+                replacementId, projectId, leaderMembershipId,
+                java.util.Set.of(firstTaskId), directMembershipId);
+        assertEquals(directMembershipId, number(
+                "select assignee_membership_id from tasks where id = ?", firstTaskId));
+
+        // 4. Batch 2: Transfer secondTaskId to newly invitation-accepted member
+        projects.transferTasks(
+                replacementId, projectId, leaderMembershipId,
+                java.util.Set.of(secondTaskId), invitedMembershipId);
+        assertEquals(invitedMembershipId, number(
+                "select assignee_membership_id from tasks where id = ?", secondTaskId));
+
+        // 5. Approval succeeds once all tasks are transferred away
+        projects.approveExit(mentorId, requestId, "Approved after both batches");
+        assertEquals("APPROVED", text(
+                "select status from project_membership_exit_requests where id = ?", requestId));
+        assertEquals(0, count("select count(*) from project_memberships where id = ? and left_at is null", leaderMembershipId));
     }
 
     private long createProject(long mentorId, long leaderId, String name) {
