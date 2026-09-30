@@ -2,7 +2,7 @@
 
 <a id="notification-spec"></a>
 
-**Version:** 1.4.0 · **Owner:** Loc-LX · **Status:** APPROVED BUSINESS BASELINE · **Date:** 2026-09-21
+**Version:** 1.5.0 · **Owner:** Loc-LX · **Status:** APPROVED BUSINESS BASELINE · **Date:** 2026-09-30
 
 Part of the Lab Timesheet specification. Rules every feature shares, including the
 glossary, the authorization model, the domain model, and failure handling, are in
@@ -42,7 +42,7 @@ Every capability by role is in the permission matrix, [platform spec](../platfor
 
 #### §12.2 Notification channels and retry
 
-`NOT-003` and `NOT-010` are in [the project spec](../project/MODULE.md), and `NOT-011` is in [the attendance spec](../attendance/MODULE.md): each chooses its recipients from data those specs own.
+`NOT-003`, `NOT-010` and `NOT-013` are in [the project spec](../project/MODULE.md), and `NOT-011` is in [the attendance spec](../attendance/MODULE.md): each chooses its recipients from data those specs own.
 
 Feature contracts: [Notification inbox](features/inbox/SPEC.md), [Notification email delivery](features/email-delivery/SPEC.md).
 

@@ -97,6 +97,8 @@ came from, not whether the choice is settled.
 | D46 | How a Task blocked before transition history existed is unblocked | Either `TODO` or `IN_PROGRESS`, chosen by the authorized actor; the unblock is recorded, and no block record is invented for the earlier block | `TSK-025`, `AC-TSK-022` |
 | D47 | Who is told about an attendance request when the Intern has no responsible Mentor available | The request is still accepted; the submission and overdue notices go to the users who may assign a responsible Mentor (the active Admins today), never to a missing, locked or deactivated Mentor; a newly assigned Mentor is notified of each request that moves to them | `NOT-011`, `ACC-026`, `AC-ACC-023` |
 | D48 | What the constitution records after part B | Credit the tests part B added under `AUTH-002` and `AUTH-012`, each by name and for what it asserts; narrow both known-gap rows to the clauses no test asserts; no rule, layer or obligation changes | constitution `2.0.6` |
+| D49 | Whether notification email may be sent inside the user's request | No: the first attempt runs after the commit, outside the request, and begins within one minute; no response waits for SMTP | `NOT-006`, `AC-NOT-008` |
+| D50 | Who receives `MEMBERSHIP_CHANGED` and `LEADERSHIP_CHANGED` | Each Intern whose membership interval or leadership term the action opens or closes, never the user who performed it | `NOT-013`, `NOT-002`, `AC-PRJ-017` |
 
 D1 through D5 came from reading the specification against its own history. D6
 through D9 came from the audit described at the end of this page, which read the
@@ -2422,3 +2424,42 @@ Benchmarks, read on 28 September 2026:
 | [Dynamics 365, approval steps](https://learn.microsoft.com/en-us/dynamics365/fin-ops-core/fin-ops/organization-administration/configure-approval-step-workflow) | An overdue document is escalated to the users on an escalation path. | Followed: the overdue reminder goes to the same fallback recipients while no responsible Mentor is available. |
 | [Atlassian knowledge base, empty approver field](https://support.atlassian.com/jira/kb/error-everyone-from-all-groups-in-group-picker-multiple-groups-field-must-approve-but-there-are-no-groups-while-transitioning-the-issue/) | A request whose approver field is empty cannot proceed: "…must approve, but there are no groups." | Not followed, for the Intern's deadline reason above. |
 | Microsoft Entra, same page | A request no one decides in time is denied automatically. | Not followed: `D14` keeps an overdue request undecided. |
+
+## D49. May notification email be sent inside the user's request?
+
+**Decided on 30 September 2026 by Loc-LX.** ENTERPRISE-BACKED. `NOT-006` required an immediate attempt and set no bound on the user's response. The code makes the first attempt after the commit but on the request thread, so on 29 September 2026 Complete Project took 10.9 s: nine emails were sent one after another, about 1.1 s each (Evidence for Task ED-05).
+
+- No user response waits for an SMTP attempt. The first attempt runs after the domain action commits, outside the request that raised it.
+- The first attempt begins no later than one minute after the commit. The retry schedule after a failure is unchanged.
+- An attempt not made because the application stopped is made after restart from the retained `PENDING` state; the one-minute bound does not apply to it.
+- A response-time figure such as "within 1 s" is not adopted. The 29 September measurement leaves about 1 s to Complete Project's own work, so such a bound would measure the action rather than SMTP. The requirement is instead that SMTP time is never part of the response, which a test proves with an SMTP server that holds every message.
+- Recorded in `NOT-006` and `AC-NOT-008` (Email delivery 1.2.0). The code does not follow yet; it is planned and built as Task ED-06.
+
+Benchmarks, read on 30 September 2026:
+
+| Source | What it does | Here |
+|---|---|---|
+| [Atlassian, Troubleshooting slow/stuck notification issues in Jira](https://confluence.atlassian.com/jirakb/troubleshooting-slow-stuck-notification-issues-in-jira-service-management-server-1041076874.html) | "Regardless of the type of notification that is triggered, each notification ends up in the same Mail Queue"; the queue "is automatically flushed by the Mail Queue Service every 1 minute by default". | Followed: email leaves the request, and the first attempt begins within one minute. |
+| [Azure DevOps, Troubleshoot notification emails](https://learn.microsoft.com/en-us/azure/devops/organizations/notifications/troubleshoot-not-getting-email?view=azure-devops) | Names causes of delayed email but does not describe the delivery mechanism. | Not used as evidence. |
+
+**Status:** decided.
+
+## D50. Who receives `MEMBERSHIP_CHANGED` and `LEADERSHIP_CHANGED`?
+
+**Decided on 30 September 2026 by Loc-LX.** LAB-POLICY. `NOT-002` requires in-app and email delivery when membership or leadership changes, but no rule named the recipients (Evidence for Task ED-02). The code notifies each Intern whose membership or leadership term the action opens or closes, including an Intern who accepts an invitation.
+
+- `MEMBERSHIP_CHANGED` goes to each Intern whose Project membership interval the action opens or closes: the initial member when a Project is created, an added member, an Intern who joins by accepting an invitation, a removed member, and every current member when the Project is completed or cancelled.
+- `LEADERSHIP_CHANGED` goes to each Intern whose leadership term the action opens or closes: the initial Leader, the outgoing and the incoming Leader on a replacement, and the current Leader when the Project is completed or cancelled.
+- The user who performed the action is not notified of it. Today this removes one notice: the Intern who accepts an invitation. The issuing Leader and the owning Mentor still receive `PROJECT_INVITATION_RESOLVED` under `NOT-010`.
+- Duplicate recipients collapse, as for every notification.
+- Recorded as `NOT-013` in the project module, with `AC-PRJ-017`. The code change and the recipient assertions are Task ED-07.
+
+Benchmarks, read on 30 September 2026:
+
+| Source | What it does | Here |
+|---|---|---|
+| [Azure DevOps, Add users or groups to a team or project](https://learn.microsoft.com/en-us/azure/devops/organizations/security/add-users-team-project?view=azure-devops) | "When the operation succeeds, new users receive an email invitation to sign in to the project. Existing users don't receive a formal notification." | Not followed: `NOT-002` already requires the notice; this decision only names who receives it. |
+| [Azure DevOps, Prevent notification emails to yourself](https://learn.microsoft.com/en-us/azure/devops/organizations/notifications/exclude-self-from-email?view=azure-devops) | A team subscription can "select the **Skip initiator** option to prevent the user who triggered the event from receiving the notification." | Adapted: the initiator is always skipped here, as `NOT-003` already does for an assignee's own Task changes. |
+| Jira | No Atlassian page read states whether a user added to a project role is notified. | No benchmark. |
+
+**Status:** decided.

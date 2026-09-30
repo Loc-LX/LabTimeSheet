@@ -1,6 +1,6 @@
 # Notification email delivery Spec
 
-**Version:** 1.1.1 · **Owner:** Loc-LX · **Status:** APPROVED BUSINESS BASELINE · **Date:** 2026-09-21
+**Version:** 1.2.0 · **Owner:** Loc-LX · **Status:** APPROVED BUSINESS BASELINE · **Date:** 2026-09-30
 
 **Module:** `notification` · **Shared contract:** [MODULE.md](../../MODULE.md)
 
@@ -42,7 +42,7 @@ NOT-008 keeps activation/reset links out of ordinary queued delivery.
 | NOT-002 | WHEN leave, a correction, or an attendance exception is submitted, decided, or marked, membership or leadership changes, a Project invitation is created or resolved, a membership exit is requested or resolved, or a Task is assigned or reassigned, THE system SHALL request both in-app and email delivery. THE system SHALL use the types `PROJECT_INVITATION_CREATED`, `PROJECT_INVITATION_RESOLVED`, `MEMBERSHIP_EXIT_REQUESTED`, and `MEMBERSHIP_EXIT_RESOLVED` for the Project workflow. |
 | NOT-004 | WHERE SMTP is absent or transiently failing, THE system SHALL still commit the domain action listed in `NOT-002`. WHERE SMTP is absent, THE system SHALL record delivery as `UNAVAILABLE`; WHERE delivery fails transiently, THE system SHALL retain `PENDING` retry state. |
 | NOT-005 | WHEN SMTP is later configured, THE system SHALL NOT fabricate or retroactively send an email for an event already recorded `UNAVAILABLE`. THE system SHALL keep that event's in-app record available. |
-| NOT-006 | WHEN non-secret email is raised, THE system SHALL attempt delivery immediately and, after a failure, retry after 1 minute, 5 minutes, 30 minutes, 2 hours, and 12 hours. WHERE the fifth retry also fails, THE system SHALL mark delivery terminally `FAILED`. |
+| NOT-006 | WHEN non-secret email is raised, THE system SHALL make its first delivery attempt after the domain action commits, outside the request that performed the action, and SHALL begin that attempt no later than one minute after the commit. THE system SHALL NOT make the response to that request wait for any delivery attempt. WHERE the application stops before the first attempt, THE system SHALL make it after restart from the retained `PENDING` state. After a failed attempt, THE system SHALL retry after 1 minute, 5 minutes, 30 minutes, 2 hours, and 12 hours. WHERE the fifth retry also fails, THE system SHALL mark delivery terminally `FAILED`. |
 | NOT-007 | THE system SHALL permit an Admin to inspect failed ordinary email and invoke a manual retry. WHEN that retry is invoked, THE system SHALL re-enter bounded retry state without duplicating the in-app notification. |
 | NOT-008 | THE system SHALL NOT route activation or password-reset mail through the ordinary notification outbox, because the raw link must not be persisted. WHERE such a send fails, THE system SHALL invalidate the token and require explicit regeneration. |
 | NOT-012 | THE system SHALL hold each notification's email delivery in exactly one of `NOT_REQUIRED`, `PENDING`, `SENT`, `FAILED` or `UNAVAILABLE`. `NOT_REQUIRED` SHALL mean the notification designates no email and SHALL carry no delivery payload. `PENDING` SHALL mean an attempt is scheduled and SHALL carry a payload and a next-attempt time. `SENT` SHALL mean an attempt succeeded and SHALL carry its send time. `FAILED` SHALL mean the attempts of `NOT-006` are exhausted. `UNAVAILABLE` SHALL mean no active SMTP revision existed when the notification committed, SHALL carry no payload, and SHALL NOT be sent once SMTP becomes active again. THE system SHALL permit only these transitions: `NOT_REQUIRED`, `PENDING` or `UNAVAILABLE` at creation; `PENDING` to `SENT`, to `PENDING` for a further attempt, or to `FAILED`; and `FAILED` to `PENDING` on an explicit retry under `NOT-007`. `NOT_REQUIRED`, `SENT` and `UNAVAILABLE` SHALL be terminal. |
@@ -72,6 +72,8 @@ move an `UNAVAILABLE` row (`NOT-005`).
 Inherit [module constraints](../../MODULE.md#4-non-functional-requirements) and
 [platform constraints](../../../platform/MODULE.md#4-non-functional-requirements),
 including authorization, history, concurrency, server time and test evidence.
+
+Response time: `NOT-006` keeps every SMTP attempt out of the user's response and begins the first attempt no later than one minute after the domain action commits (`D49`).
 
 ## 5. Data
 
@@ -112,7 +114,7 @@ claim full test coverage. Actors and outcomes are summaries of the canonical rul
 
 | Operation | Actor and observable outcome | Canonical rules | Existing acceptance scenarios | Acceptance boundary or open decision |
 |---|---|---|---|---|
-| [Choose email events and attempt delivery](#choose-email-events-and-attempt-delivery) | Worker attempts designated email while domain and in-app outcomes survive mail failure | [NOT-002](SPEC.md), [NOT-004](SPEC.md), [NOT-012](SPEC.md) | [AC-NOT-001](SPEC.md), [AC-NOT-004](SPEC.md), [AC-NOT-007](SPEC.md) | Settled by `D38`: `NOT-012` names all five states, their invariants and the permitted transitions. |
+| [Choose email events and attempt delivery](#choose-email-events-and-attempt-delivery) | Worker attempts designated email while domain and in-app outcomes survive mail failure | [NOT-002](SPEC.md), [NOT-004](SPEC.md), [NOT-006](SPEC.md), [NOT-012](SPEC.md) | [AC-NOT-001](SPEC.md), [AC-NOT-004](SPEC.md), [AC-NOT-007](SPEC.md), [AC-NOT-008](SPEC.md) | Settled by `D38`: `NOT-012` names all five states, their invariants and the permitted transitions. |
 | [Retry and inspect failure](#retry-and-inspect-failure) | Worker and Admin retry ordinary failed mail without duplicate in-app records | [NOT-005](SPEC.md), [NOT-006](SPEC.md), [NOT-007](SPEC.md) | [AC-NOT-001](SPEC.md), [AC-NOT-002](SPEC.md) | Use exact retry delays/attempt counts; an UNAVAILABLE event is not sent retroactively. |
 | [Exclude secret links](#exclude-secret-links) | Identity secret-link delivery invalidates failed tokens instead of queuing raw links | [NOT-008](SPEC.md) | [AC-NOT-003](SPEC.md) | Verify no raw token/link remains in persistence or logs; regeneration is explicit. |
 
@@ -125,6 +127,7 @@ claim full test coverage. Actors and outcomes are summaries of the canonical rul
 | AC-NOT-003 | NOT-008 | Reset/activation delivery fails | Raw link is never queued; token is invalidated and explicit regeneration is required. |
 | AC-NOT-004 | NOT-002–NOT-005, NOT-010 | SMTP is absent during invitation and membership-exit request/decision workflows | Every domain transition and in-app notification commits with deduplicated recipients; email is `UNAVAILABLE` and is not sent retroactively. |
 | AC-NOT-007 | NOT-012, NOT-004–NOT-007 | Four notifications are raised: one designating no email, one while SMTP is active, one while no SMTP revision is active, and one whose attempts all fail; SMTP is then activated, the failed one is retried by an Admin, and a transition is attempted out of each terminal state | The four reach `NOT_REQUIRED`, `SENT`, `UNAVAILABLE` and `FAILED` respectively. `NOT_REQUIRED` and `UNAVAILABLE` carry no payload; `SENT` carries a send time; `PENDING` carries a payload and a next-attempt time. Activating SMTP moves no `UNAVAILABLE` row. The Admin retry returns only the `FAILED` row to `PENDING`. Every attempt to leave `NOT_REQUIRED`, `SENT` or `UNAVAILABLE` is refused and the in-app notification is unaffected throughout. |
+| AC-NOT-008 | NOT-006, NOT-012 | SMTP is active and its server holds every message until the test releases it; a Mentor completes a Project whose completion raises at least two emails | The completion and its in-app notifications commit and the response returns while every message is still held, and each email is `PENDING` at that moment. Once the server is released, each email reaches `SENT`, and every first attempt began no later than one minute after the commit. |
 
 Shared and cross-feature scenarios in [MODULE.md](../../MODULE.md#7-acceptance-criteria)
 also apply. Scenario ownership follows the behavior exercised, not every prerequisite
@@ -139,6 +142,8 @@ schema, dependency, PLAN.md or TASKS.md.
 ## Notes / Open Questions
 
 `D38` settles the complete delivery status set in `NOT-012`, with the state transition table above. It states what `AC-NOT-001` and `AC-NOT-004` already required and adds no new delivery behavior. The schema needs one change: `ck_notifications_email_payload` only exempts `NOT_REQUIRED` and `UNAVAILABLE` from carrying a payload, and must forbid one (`D38`). Nothing here has been validated against the running application. UC-11 stays in MODULE.md as the combined domain/inbox/email flow.
+
+`D49` rewrites `NOT-006`: the first attempt leaves the user's request and begins within one minute of the commit, proved by `AC-NOT-008`. Until Task ED-06 is built, the code still makes that attempt on the request thread.
 
 Read [shared open questions](../../MODULE.md#notes--open-questions) before approving
 the technical plan. [plan.md](../../../../../plan.md) is the only progress tracker.

@@ -1,5 +1,9 @@
 # Changelog — Notification email delivery
 
+## 1.2.0 — 2026-09-30
+
+`D49` rewrites `NOT-006`: the first delivery attempt runs after the domain action commits, outside the user's request, and begins no later than one minute after the commit; the retry schedule is unchanged. `AC-NOT-008` is new. The code does not follow yet (Task ED-06).
+
 ## 1.1.1 — 2026-09-22
 
 Note only (`D38`, third review). The note no longer says the schema already requires what

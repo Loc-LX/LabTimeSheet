@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
+import java.util.Map;
 import java.time.Instant;
 import java.sql.Timestamp;
 import java.time.ZoneId;
@@ -20,10 +21,13 @@ import com.lab.labtimesheet.config.TestcontainersConfiguration;
 import com.lab.labtimesheet.feature.identity.model.dto.CreateAccountCommand;
 import com.lab.labtimesheet.feature.identity.service.AccountService;
 import com.lab.labtimesheet.feature.identity.service.BootstrapService;
+import com.lab.labtimesheet.feature.notification.model.NotificationEmailStatus;
 import com.lab.labtimesheet.feature.notification.model.NotificationType;
 import com.lab.labtimesheet.feature.notification.model.dto.NotificationAction;
 import com.lab.labtimesheet.feature.notification.model.dto.NotificationEvent;
 import com.lab.labtimesheet.feature.notification.model.dto.NotificationRecipient;
+import com.lab.labtimesheet.feature.notification.model.entity.NotificationEntity;
+import com.lab.labtimesheet.feature.notification.repository.NotificationRepository;
 import com.lab.labtimesheet.platform.model.GlobalRole;
 import com.lab.labtimesheet.platform.model.SecurityMode;
 import com.lab.labtimesheet.platform.model.dto.SmtpConnection;
@@ -80,6 +84,9 @@ class NotificationServiceIntegrationTest {
 
     @Autowired
     private RecordingSmtpProbe mail;
+
+    @Autowired
+    private NotificationRepository notificationRepository;
 
     @MockitoSpyBean
     private AuthorizationPolicy authorizationPolicy;
@@ -466,6 +473,254 @@ class NotificationServiceIntegrationTest {
                 new NotificationAction("/tasks/10", true),
                 List.of(new NotificationRecipient(adminId, "notification-designation@example.com"))))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    /**
+     * AC-NOT-007 / NOT-012, NOT-004, NOT-005, NOT-006, NOT-007: Complete lifecycle state and payload matrix.
+     *
+     * <p>Protects the 5-state notification delivery lifecycle from publication through Admin retry and
+     * terminal transitions:
+     * <ul>
+     *   <li>(a) When SMTP is inactive, email-designated event C commits with state {@code UNAVAILABLE} and no delivery payload.</li>
+     *   <li>(b) When SMTP is active and mail succeeds, email-designated event A commits with state {@code SENT}, non-null {@code email_sent_at}, and payload; non-designated event B commits with state {@code NOT_REQUIRED} and no payload.</li>
+     *   <li>(c) When SMTP fails, email-designated event D begins in state {@code PENDING} with payload and {@code email_next_attempt_at}, progresses through 5 retries (6 attempts total) per NOT-006, and reaches terminal {@code FAILED} with null next attempt.</li>
+     *   <li>(d) SMTP activation does not retroactively send or alter existing {@code UNAVAILABLE} row C (NOT-005).</li>
+     *   <li>(e) Admin manual retry succeeds only for {@code FAILED} row D (re-entering {@code PENDING}) and returns {@code false} without mutating {@code SENT} A, {@code NOT_REQUIRED} B, or {@code UNAVAILABLE} C.</li>
+     *   <li>(f) Attempting to leave terminal states {@code SENT}, {@code NOT_REQUIRED}, and {@code UNAVAILABLE} via due worker and entity mutators is refused: {@code markSent} and {@code retainPendingRetry} are no-ops; {@code requeueFailedEmail} throws {@link IllegalStateException}.</li>
+     *   <li>(g) The in-app notification rows, their titles, bodies, and total count remain invariant throughout.</li>
+     * </ul>
+     *
+     * <p>Observable break: If UNAVAILABLE rows are retroactively sent, terminal states allow transitions,
+     * or non-FAILED rows are retried, delivery invariants are breached.
+     * Hand-derived expected values: A=SENT (sent_at not null, payload non-null), B=NOT_REQUIRED (no payload),
+     * C=UNAVAILABLE (no payload), D starts PENDING (attempt 1) -> FAILED (attempt 6) -> PENDING upon retry;
+     * retry on A, B, C returns false; terminal mutations rejected; row count remains 4.
+     */
+    @Test
+    void acNot007StateMatrixFromCreationThroughAdminRetryAndTerminalRefusals() {
+        bootstrap.bootstrap("notification-matrix@example.com", "Admin", "correct horse battery staple");
+        long adminId = accounts.requireActiveAdminId("notification-matrix@example.com");
+
+        // a. Khi chưa có SMTP active: phát thông báo C, loại có yêu cầu email. Kiểm: UNAVAILABLE, không có payload.
+        publish(
+                new NotificationEvent(
+                        NotificationType.PROJECT_INVITATION_CREATED, "CREATED", "Matrix Notification C", "Body of C"),
+                new NotificationAction("/projects/7/invitation", false),
+                List.of(new NotificationRecipient(adminId, "notification-matrix@example.com")));
+
+        long idC = jdbc.queryForObject(
+                "select id from notifications where recipient_user_id = ? and title = ?",
+                Long.class, adminId, "Matrix Notification C");
+        Map<String, Object> rowC = jdbc.queryForMap(
+                "select email_status, email_to, email_subject, email_body, email_attempts, email_next_attempt_at, email_sent_at, title, body from notifications where id = ?",
+                idC);
+        String titleC = (String) rowC.get("title");
+        String bodyC = (String) rowC.get("body");
+        assertThat(rowC.get("email_status")).isEqualTo("UNAVAILABLE");
+        assertThat(rowC.get("email_to")).isNull();
+        assertThat(rowC.get("email_subject")).isNull();
+        assertThat(rowC.get("email_body")).isNull();
+        assertThat(rowC.get("email_next_attempt_at")).isNull();
+        assertThat(rowC.get("email_sent_at")).isNull();
+        assertThat(mail.calls).isZero();
+
+        // b. Bật SMTP, với fake mail gửi THÀNH CÔNG: phát A, loại có yêu cầu email; kiểm SENT, có email_sent_at.
+        //    Phát B, loại không yêu cầu email (ví dụ TASK_STATUS_CHANGED); kiểm NOT_REQUIRED, không có payload.
+        activateSmtp(adminId);
+        mail.reset();
+        mail.fail = false;
+
+        publish(
+                new NotificationEvent(
+                        NotificationType.LEAVE_DECIDED, "APPROVED", "Matrix Notification A", "Body of A"),
+                new NotificationAction("/attendance/leave", false),
+                List.of(new NotificationRecipient(adminId, "notification-matrix@example.com")));
+
+        long idA = jdbc.queryForObject(
+                "select id from notifications where recipient_user_id = ? and title = ?",
+                Long.class, adminId, "Matrix Notification A");
+        Map<String, Object> rowA = jdbc.queryForMap(
+                "select email_status, email_to, email_subject, email_body, email_attempts, email_next_attempt_at, email_sent_at, title, body from notifications where id = ?",
+                idA);
+        String titleA = (String) rowA.get("title");
+        String bodyA = (String) rowA.get("body");
+        assertThat(rowA.get("email_status")).isEqualTo("SENT");
+        assertThat(rowA.get("email_sent_at")).isNotNull();
+        assertThat(rowA.get("email_to")).isEqualTo("notification-matrix@example.com");
+        assertThat(rowA.get("email_subject")).isEqualTo("Matrix Notification A");
+        assertThat(rowA.get("email_body")).isNotNull();
+        assertThat(mail.calls).isEqualTo(1);
+
+        publish(
+                new NotificationEvent(
+                        NotificationType.TASK_STATUS_CHANGED, "IN_PROGRESS", "Matrix Notification B", "Body of B"),
+                new NotificationAction("/tasks/1", false),
+                List.of(new NotificationRecipient(adminId, "notification-matrix@example.com")));
+
+        long idB = jdbc.queryForObject(
+                "select id from notifications where recipient_user_id = ? and title = ?",
+                Long.class, adminId, "Matrix Notification B");
+        Map<String, Object> rowB = jdbc.queryForMap(
+                "select email_status, email_to, email_subject, email_body, email_attempts, email_next_attempt_at, email_sent_at, title, body from notifications where id = ?",
+                idB);
+        String titleB = (String) rowB.get("title");
+        String bodyB = (String) rowB.get("body");
+        assertThat(rowB.get("email_status")).isEqualTo("NOT_REQUIRED");
+        assertThat(rowB.get("email_to")).isNull();
+        assertThat(rowB.get("email_subject")).isNull();
+        assertThat(rowB.get("email_body")).isNull();
+        assertThat(rowB.get("email_next_attempt_at")).isNull();
+        assertThat(rowB.get("email_sent_at")).isNull();
+        assertThat(mail.calls).isEqualTo(1);
+
+        // c. Chuyển fake mail sang THẤT BẠI: phát D. Ngay sau lần thử đầu tiên, kiểm D là PENDING, có payload và có email_next_attempt_at.
+        //    Sau đó cho chạy hết các lượt retry theo NOT-006 bằng cách tiến đồng hồ theo cách helper sẵn có đang làm. Kiểm D thành FAILED sau đúng 6 lần thử.
+        mail.fail = true;
+        publish(
+                new NotificationEvent(
+                        NotificationType.MEMBERSHIP_EXIT_RESOLVED, "APPROVED", "Matrix Notification D", "Body of D"),
+                new NotificationAction("/projects/7/members", false),
+                List.of(new NotificationRecipient(adminId, "notification-matrix@example.com")));
+
+        long idD = jdbc.queryForObject(
+                "select id from notifications where recipient_user_id = ? and title = ?",
+                Long.class, adminId, "Matrix Notification D");
+        Map<String, Object> rowD = jdbc.queryForMap(
+                "select email_status, email_to, email_subject, email_body, email_attempts, email_next_attempt_at, email_sent_at, title, body from notifications where id = ?",
+                idD);
+        String titleD = (String) rowD.get("title");
+        String bodyD = (String) rowD.get("body");
+        assertThat(rowD.get("email_status")).isEqualTo("PENDING");
+        assertThat(rowD.get("email_to")).isEqualTo("notification-matrix@example.com");
+        assertThat(rowD.get("email_subject")).isEqualTo("Matrix Notification D");
+        assertThat(rowD.get("email_body")).isNotNull();
+        assertThat(rowD.get("email_next_attempt_at")).isNotNull();
+        assertThat(((Number) rowD.get("email_attempts")).intValue()).isEqualTo(1);
+
+        Instant base = Instant.parse("2026-08-14T00:00:00Z");
+        for (int retry = 0; retry < 4; retry++) {
+            markDue(idD, base);
+            assertThat(notifications.retryDueEmails()).isEqualTo(1);
+            assertThat(jdbc.queryForObject("select email_attempts from notifications where id = ?", Integer.class, idD))
+                    .isEqualTo(retry + 2);
+            assertThat(jdbc.queryForObject("select email_status from notifications where id = ?", String.class, idD))
+                    .isEqualTo("PENDING");
+            assertThat(jdbc.queryForObject("select email_next_attempt_at from notifications where id = ?", Object.class, idD))
+                    .isNotNull();
+            assertInboxContent(idD, titleD, bodyD);
+        }
+        markDue(idD, base);
+        assertThat(notifications.retryDueEmails()).isEqualTo(1);
+        assertThat(jdbc.queryForObject("select email_status from notifications where id = ?", String.class, idD))
+                .isEqualTo("FAILED");
+        assertThat(jdbc.queryForObject("select email_attempts from notifications where id = ?", Integer.class, idD))
+                .isEqualTo(6);
+        assertThat(jdbc.queryForObject("select email_next_attempt_at from notifications where id = ?", Object.class, idD))
+                .isNull();
+        assertInboxContent(idD, titleD, bodyD);
+
+        // d. Kiểm C vẫn là UNAVAILABLE: việc bật SMTP không làm dòng nào đổi trạng thái.
+        Map<String, Object> rowCAfter = jdbc.queryForMap(
+                "select email_status, email_to, email_subject, email_body, email_attempts, email_next_attempt_at, email_sent_at from notifications where id = ?",
+                idC);
+        assertThat(rowCAfter.get("email_status")).isEqualTo("UNAVAILABLE");
+        assertThat(rowCAfter.get("email_to")).isNull();
+        assertThat(rowCAfter.get("email_subject")).isNull();
+        assertThat(rowCAfter.get("email_body")).isNull();
+        assertThat(rowCAfter.get("email_next_attempt_at")).isNull();
+        assertThat(rowCAfter.get("email_sent_at")).isNull();
+        assertInboxContent(idC, titleC, bodyC);
+
+        // e. Admin gọi retryFailedEmail lần lượt cho A, B, C, D, trong lúc fake vẫn thất bại. Chỉ D trả true và về PENDING; A, B, C trả false và giữ nguyên.
+        Map<String, Object> rowABeforeManualRetry = deliveryAndInboxState(idA);
+        Map<String, Object> rowBBeforeManualRetry = deliveryAndInboxState(idB);
+        Map<String, Object> rowCBeforeManualRetry = deliveryAndInboxState(idC);
+        assertThat(notifications.retryFailedEmail(idA, adminId)).isFalse();
+        assertThat(jdbc.queryForObject("select email_status from notifications where id = ?", String.class, idA)).isEqualTo("SENT");
+
+        assertThat(notifications.retryFailedEmail(idB, adminId)).isFalse();
+        assertThat(jdbc.queryForObject("select email_status from notifications where id = ?", String.class, idB)).isEqualTo("NOT_REQUIRED");
+
+        assertThat(notifications.retryFailedEmail(idC, adminId)).isFalse();
+        assertThat(jdbc.queryForObject("select email_status from notifications where id = ?", String.class, idC)).isEqualTo("UNAVAILABLE");
+
+        assertThat(notifications.retryFailedEmail(idD, adminId)).isTrue();
+        assertThat(jdbc.queryForObject("select email_status from notifications where id = ?", String.class, idD)).isEqualTo("PENDING");
+        assertThat(jdbc.queryForObject("select email_attempts from notifications where id = ?", Integer.class, idD)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("select email_next_attempt_at from notifications where id = ?", Object.class, idD)).isNotNull();
+        assertThat(deliveryAndInboxState(idA)).isEqualTo(rowABeforeManualRetry);
+        assertThat(deliveryAndInboxState(idB)).isEqualTo(rowBBeforeManualRetry);
+        assertThat(deliveryAndInboxState(idC)).isEqualTo(rowCBeforeManualRetry);
+        assertInboxContent(idA, titleA, bodyA);
+        assertInboxContent(idB, titleB, bodyB);
+        assertInboxContent(idC, titleC, bodyC);
+        assertInboxContent(idD, titleD, bodyD);
+        assertThat(countFor(adminId)).isEqualTo(4);
+
+        // f. Thử rời trạng thái cuối: tiến đồng hồ thật xa rồi gọi retryDueEmails(); sau đó, trong một transaction, gọi markSent, retainPendingRetry và requeueFailedEmail trực tiếp trên entity của A, B và C. Kiểm trạng thái cả ba dòng không đổi (requeueFailedEmail phải ném IllegalStateException).
+        markDue(idD, Instant.parse("2020-01-01T00:00:00Z"));
+        notifications.retryDueEmails();
+
+        assertThat(jdbc.queryForObject("select email_status from notifications where id = ?", String.class, idA)).isEqualTo("SENT");
+        assertThat(jdbc.queryForObject("select email_status from notifications where id = ?", String.class, idB)).isEqualTo("NOT_REQUIRED");
+        assertThat(jdbc.queryForObject("select email_status from notifications where id = ?", String.class, idC)).isEqualTo("UNAVAILABLE");
+        assertThat(deliveryAndInboxState(idA)).isEqualTo(rowABeforeManualRetry);
+        assertThat(deliveryAndInboxState(idB)).isEqualTo(rowBBeforeManualRetry);
+        assertThat(deliveryAndInboxState(idC)).isEqualTo(rowCBeforeManualRetry);
+        assertInboxContent(idA, titleA, bodyA);
+        assertInboxContent(idB, titleB, bodyB);
+        assertInboxContent(idC, titleC, bodyC);
+        assertInboxContent(idD, titleD, bodyD);
+        assertThat(countFor(adminId)).isEqualTo(4);
+
+        new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+            Instant now = Instant.now();
+            for (long id : List.of(idA, idB, idC)) {
+                NotificationEntity entity = notificationRepository.findById(id).orElseThrow();
+                NotificationEmailStatus currentStatus = entity.getEmailStatus();
+
+                entity.markSent(now);
+                assertThat(entity.getEmailStatus()).isEqualTo(currentStatus);
+
+                entity.retainPendingRetry(now, now.plusSeconds(300), "terminal refusal check");
+                assertThat(entity.getEmailStatus()).isEqualTo(currentStatus);
+
+                assertThatThrownBy(() -> entity.requeueFailedEmail(now))
+                        .isInstanceOf(IllegalStateException.class)
+                        .hasMessage("Only a failed email can be retried");
+                assertThat(entity.getEmailStatus()).isEqualTo(currentStatus);
+            }
+        });
+
+        assertThat(jdbc.queryForObject("select email_status from notifications where id = ?", String.class, idA)).isEqualTo("SENT");
+        assertThat(jdbc.queryForObject("select email_status from notifications where id = ?", String.class, idB)).isEqualTo("NOT_REQUIRED");
+        assertThat(jdbc.queryForObject("select email_status from notifications where id = ?", String.class, idC)).isEqualTo("UNAVAILABLE");
+        assertInboxContent(idA, titleA, bodyA);
+        assertInboxContent(idB, titleB, bodyB);
+        assertInboxContent(idC, titleC, bodyC);
+        assertInboxContent(idD, titleD, bodyD);
+
+        // g. Xuyên suốt: số dòng notifications và nội dung phần in-app (title, body) của A, B, C, D không đổi.
+        assertThat(jdbc.queryForObject("select count(*) from notifications where recipient_user_id = ?", Integer.class, adminId))
+                .isEqualTo(4);
+
+        assertInboxContent(idA, titleA, bodyA);
+        assertInboxContent(idB, titleB, bodyB);
+        assertInboxContent(idC, titleC, bodyC);
+        assertInboxContent(idD, titleD, bodyD);
+    }
+
+    private void assertInboxContent(long notificationId, String expectedTitle, String expectedBody) {
+        assertThat(jdbc.queryForObject("select title from notifications where id = ?", String.class, notificationId))
+                .isEqualTo(expectedTitle);
+        assertThat(jdbc.queryForObject("select body from notifications where id = ?", String.class, notificationId))
+                .isEqualTo(expectedBody);
+    }
+
+    private Map<String, Object> deliveryAndInboxState(long notificationId) {
+        return jdbc.queryForMap(
+                "select email_status, email_to, email_subject, email_body, email_attempts, email_next_attempt_at, email_sent_at, title, body from notifications where id = ?",
+                notificationId);
     }
 
     private int publish(

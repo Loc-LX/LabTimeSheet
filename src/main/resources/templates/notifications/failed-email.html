@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{fragments/layout :: shell(
+          pageTitle='Failed email',
+          section='Admin',
+          activeNav='failed-email',
+          primaryAction=~{},
+          content=~{::main})}">
+<body>
+<main>
+    <p class="page-description">Review failed ordinary-email deliveries and invoke manual retry. Email body is never displayed.</p>
+    <p class="alert" role="status" th:if="${message}" th:text="${message}"></p>
+    <p th:if="${#lists.isEmpty(failedEmails)}">No failed email.</p>
+    <div class="table-scroll" th:unless="${#lists.isEmpty(failedEmails)}">
+        <table class="data-table">
+            <caption class="sr-only">Failed email deliveries</caption>
+            <thead>
+                <tr>
+                    <th scope="col">Recipient</th>
+                    <th scope="col">Title</th>
+                    <th scope="col">Attempts</th>
+                    <th scope="col">Last error</th>
+                    <th scope="col">Last updated</th>
+                    <th scope="col"></th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr th:each="entry : ${failedEmails}">
+                    <td th:text="${entry.emailTo}">Recipient</td>
+                    <td th:text="${entry.title}">Title</td>
+                    <td th:text="${entry.attempts}">Attempts</td>
+                    <td th:text="${entry.lastError}">Last error</td>
+                    <td th:text="${#temporals.format(entry.updatedAt.atZone(T(java.time.ZoneId).of('Asia/Ho_Chi_Minh')), 'dd/MM/yyyy HH:mm')}">Last updated</td>
+                    <td>
+                        <form method="post" th:action="@{/admin/notifications/failed-email/{id}/retry(id=${entry.id})}">
+                            <button class="button" type="submit">Retry</button>
+                        </form>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</main>
+</body>
+</html>

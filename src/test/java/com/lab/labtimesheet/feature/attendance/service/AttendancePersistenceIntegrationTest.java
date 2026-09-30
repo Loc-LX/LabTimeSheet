@@ -61,6 +61,7 @@ import com.lab.labtimesheet.feature.notification.model.NotificationEmailStatus;
 import com.lab.labtimesheet.feature.notification.model.NotificationType;
 import com.lab.labtimesheet.feature.notification.model.entity.NotificationEntity;
 import com.lab.labtimesheet.feature.notification.repository.NotificationRepository;
+import com.lab.labtimesheet.feature.notification.service.NotificationService;
 import com.lab.labtimesheet.platform.model.GlobalRole;
 import com.lab.labtimesheet.platform.model.SecurityMode;
 import com.lab.labtimesheet.platform.model.dto.SmtpConnection;
@@ -191,6 +192,9 @@ class AttendancePersistenceIntegrationTest {
 
     @Autowired
     private NotificationRepository notificationRows;
+
+    @Autowired
+    private NotificationService notifications;
 
     @Autowired
     private AttendancePolicyApplicationService policyApplication;
@@ -2686,5 +2690,120 @@ class AttendancePersistenceIntegrationTest {
         public Instant instant() {
             return instant;
         }
+    }
+
+    /**
+     * Protects {@code NOT-002} and {@code AC-NOT-001}.
+     * Observable break: Mentor leave approval without SMTP erroneously marks email as required or fails domain transaction,
+     * or replays retroactive email on subsequent SMTP activation.
+     */
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
+    void mentorLeaveApprovalWithoutSmtpPersistsUnavailableNotificationAndDoesNotReplayOnSmtpActivation() {
+        long mentor = createActiveMentor();
+        AttendanceActor intern = new AttendanceActor(internId, GlobalRole.INTERN);
+
+        jdbc.update("delete from smtp_configurations");
+        mail.clear();
+
+        var submitted = leaves.submit(intern, new LeaveRequestCommand(
+                LocalDate.of(2026, 8, 17), LocalDate.of(2026, 8, 17), "Leave without SMTP"));
+        leaves.approve(new AttendanceActor(mentor, GlobalRole.MENTOR), submitted.id());
+        org.junit.jupiter.api.Assertions.assertEquals("APPROVED",
+                jdbc.queryForObject("select status from leave_requests where id = ?", String.class, submitted.id()));
+
+        var leaveDecided = notificationRows.findAll().stream()
+                .filter(row -> row.getNotificationType() == NotificationType.LEAVE_DECIDED
+                        && row.getBody().contains("APPROVED"))
+                .findFirst().orElseThrow();
+        assertThat(leaveDecided.getEmailStatus()).isEqualTo(NotificationEmailStatus.UNAVAILABLE);
+        assertThat(leaveDecided.getActionUrl()).isEqualTo("/attendance");
+        assertThat(mail.messages).isEmpty();
+
+        // F2: Verify notification count and UNAVAILABLE status before SMTP activation
+        int countBeforeSmtp = jdbc.queryForObject("select count(*) from notifications where action_url = ?", Integer.class, "/attendance");
+        List<String> statusesBeforeSmtp = jdbc.queryForList("select email_status from notifications where action_url = ? order by id", String.class, "/attendance");
+        assertThat(statusesBeforeSmtp).allMatch("UNAVAILABLE"::equals);
+
+        // Activate SMTP subsequently
+        long draftId = smtp.saveDraft(adminId, new SmtpDraft(
+                "mailpit", 1025, SecurityMode.NONE, null, null, "admin@example.test", "Lab Timesheet"));
+        smtp.testDraft(draftId, adminId, "admin@example.test");
+        smtp.activate(draftId, adminId);
+        mail.clear();
+
+        // Verify no retroactive email replay (AC-NOT-004, NOT-005)
+        assertThat(notifications.retryDueEmails()).isZero();
+        assertThat(mail.messages).isEmpty();
+
+        int countAfterSmtp = jdbc.queryForObject("select count(*) from notifications where action_url = ?", Integer.class, "/attendance");
+        assertThat(countAfterSmtp).isEqualTo(countBeforeSmtp);
+        List<String> statusesAfterSmtp = jdbc.queryForList("select email_status from notifications where action_url = ? order by id", String.class, "/attendance");
+        assertThat(statusesAfterSmtp).containsOnly("UNAVAILABLE");
+    }
+
+    /**
+     * Protects {@code NOT-002} and {@code AC-NOT-001}.
+     * Observable break: Mentor correction approval without SMTP erroneously marks email as required or fails domain transaction,
+     * or replays retroactive email on subsequent SMTP activation.
+     */
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
+    void mentorCorrectionApprovalWithoutSmtpPersistsUnavailableNotificationAndDoesNotReplayOnSmtpActivation() {
+        long mentor = createActiveMentor();
+        AttendanceActor intern = new AttendanceActor(internId, GlobalRole.INTERN);
+        clock.set(Instant.parse("2026-08-14T02:00:00Z"));
+        attendance.checkIn(internId);
+        long recordId = records.findByInternUserIdAndWorkDate(internId, LocalDate.of(2026, 8, 14))
+                .orElseThrow()
+                .id();
+
+        jdbc.update("delete from smtp_configurations");
+        mail.clear();
+
+        clock.set(Instant.parse("2026-08-14T09:01:00Z"));
+        var submitted = corrections.submit(
+                intern,
+                recordId,
+                new CorrectionRequestCommand(
+                        java.time.LocalDateTime.of(2026, 8, 14, 14, 0), "Correction without SMTP"));
+        corrections.decide(
+                new AttendanceActor(mentor, GlobalRole.MENTOR),
+                submitted.id(),
+                CorrectionDecision.APPROVE,
+                null);
+        org.junit.jupiter.api.Assertions.assertEquals("APPROVED",
+                jdbc.queryForObject("select status from attendance_corrections where id = ?", String.class, submitted.id()));
+
+        var correctionDecided = notificationRows.findAll().stream()
+                .filter(row -> row.getNotificationType() == NotificationType.CORRECTION_DECIDED
+                        && row.getBody().contains("APPROVED"))
+                .findFirst().orElseThrow();
+        assertThat(correctionDecided.getEmailStatus()).isEqualTo(NotificationEmailStatus.UNAVAILABLE);
+        assertThat(correctionDecided.getActionUrl()).isEqualTo("/attendance");
+        assertThat(mail.messages).isEmpty();
+
+        // F2: Verify notification count and UNAVAILABLE status before SMTP activation
+        int countBeforeSmtp = jdbc.queryForObject("select count(*) from notifications where action_url = ?", Integer.class, "/attendance");
+        List<String> statusesBeforeSmtp = jdbc.queryForList("select email_status from notifications where action_url = ? order by id", String.class, "/attendance");
+        assertThat(statusesBeforeSmtp).allMatch("UNAVAILABLE"::equals);
+
+        // Activate SMTP subsequently
+        long draftId = smtp.saveDraft(adminId, new SmtpDraft(
+                "mailpit", 1025, SecurityMode.NONE, null, null, "admin@example.test", "Lab Timesheet"));
+        smtp.testDraft(draftId, adminId, "admin@example.test");
+        smtp.activate(draftId, adminId);
+        mail.clear();
+
+        // Verify no retroactive email replay (AC-NOT-004, NOT-005)
+        assertThat(notifications.retryDueEmails()).isZero();
+        assertThat(mail.messages).isEmpty();
+
+        int countAfterSmtp = jdbc.queryForObject("select count(*) from notifications where action_url = ?", Integer.class, "/attendance");
+        assertThat(countAfterSmtp).isEqualTo(countBeforeSmtp);
+        List<String> statusesAfterSmtp = jdbc.queryForList("select email_status from notifications where action_url = ? order by id", String.class, "/attendance");
+        assertThat(statusesAfterSmtp).containsOnly("UNAVAILABLE");
     }
 }
