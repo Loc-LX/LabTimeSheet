@@ -10,6 +10,8 @@ public enum CorrectionEventType {
     REJECTED,
     /** Mentor reopens a prior decision inside the window. */
     REOPENED,
+    /** Decision deadline elapsed before Mentor action. */
+    OVERDUE,
     /** Scheduler/request-time automatic rejection. */
     AUTO_REJECTED,
     /** Decision window lock marker. */

@@ -2,6 +2,8 @@ package com.lab.labtimesheet.feature.reporting.model.dto;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Objects;
+import com.lab.labtimesheet.feature.attendance.model.dto.LeaveBalance;
 
 /**
  * Closed set of immutable, role-specific dashboard projections rendered by Reporting.
@@ -41,9 +43,15 @@ public sealed interface DashboardView {
      * @param activeProjects active Projects containing a current eligible membership
      * @param assignedTasks current assigned Task count
      * @param priorityTasks ordered Task-owned priority items; empty when none are assigned
+     * @param leaveBalance current business month's reserved, quota, and remaining leave balance
      */
     record Intern(String displayName, AttendanceState attendanceState, long activeProjects,
-                  long assignedTasks, List<AssignedTask> priorityTasks) implements DashboardView {
+                  long assignedTasks, List<AssignedTask> priorityTasks,
+                  LeaveBalance leaveBalance) implements DashboardView {
+
+        public Intern {
+            Objects.requireNonNull(leaveBalance, "leaveBalance");
+        }
     }
 
     /**

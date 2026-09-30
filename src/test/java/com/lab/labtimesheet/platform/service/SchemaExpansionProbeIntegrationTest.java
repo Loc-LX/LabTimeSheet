@@ -39,7 +39,7 @@ import org.springframework.test.context.ActiveProfiles;
  * PostgreSQL probes for the V3 expansion of plan section C.3, run against the schema that the
  * repository's Flyway migrations produce.
  *
- * <p>Protects {@code AC-DB-001}, {@code AC-DB-008}, {@code AC-DB-010}, {@code DB-002},
+ * <p>Protects {@code AC-DB-001}, {@code AC-DB-005}, {@code AC-DB-008}, {@code AC-DB-010}, {@code DB-002},
  * {@code DB-006}, {@code PRJ-002},
  * {@code DB-011}, {@code DB-014} through {@code DB-022}, and the column names of {@code D45}.
  * Against V1+V2, a probe of a new table must fail with {@code 42P01}, a probe of a new column with
@@ -52,6 +52,7 @@ import org.springframework.test.context.ActiveProfiles;
 class SchemaExpansionProbeIntegrationTest {
 
     private static final String CHECK_VIOLATION = "23514";
+    private static final String EXCLUSION_VIOLATION = "23P01";
     private static final Pattern DIAGRAM_ENTITY = Pattern.compile("(?m)^    ([a-z][a-z0-9_]*) \\{$");
     private static final Pattern DIAGRAM_FOREIGN_KEY = Pattern.compile(
             "(?m)^    [a-z][a-z0-9_]* (?:\\|\\||o\\|)--(?:o\\{|\\|\\{|o\\|) "
@@ -61,8 +62,9 @@ class SchemaExpansionProbeIntegrationTest {
     private DataSource dataSource;
 
     /**
-     * Runs independent acceptance and refusal probes for the six V3 tables, every expanded
-     * predicate, and the added columns. A newly lawful value that the old schema rejects is an
+     * Runs independent PostgreSQL probes for V3 tables, predicates, added columns, and AC-DB-005's leave range
+     * exclusion. The date pair 24–25 and 25–26 shares the inclusive 25th and must fail for one Intern, while 26–27
+     * and 24–25 for a different Intern must succeed. A newly lawful value that the old schema rejects is an
      * observable RED; a missing table or column is also RED, but the asserted SQLSTATE and
      * constraint prevent a missing-object error from masquerading as a working refusal.
      *
@@ -376,6 +378,26 @@ class SchemaExpansionProbeIntegrationTest {
                                     CURRENT_TIMESTAMP, CURRENT_TIMESTAMP + INTERVAL '1 second')
                             """, f.internId);
                 }));
+        probes.add(accepts("AC-DB-005: btree_gist is installed for the leave exclusion", (c, f) -> {
+            assertThat(scalarLong(c, "SELECT count(*) FROM pg_extension WHERE extname='btree_gist'"))
+                    .isEqualTo(1);
+        }));
+        probes.add(accepts("AC-DB-005: inclusive same-Intern overlap is excluded while independent ranges are accepted",
+                (c, f) -> {
+                    pendingLeave(c, f.internId, Date.valueOf("2026-08-24"), Date.valueOf("2026-08-25"));
+                    assertRefusedInSavepoint(c, f, "ex_leave_requests_no_overlap", (connection, fixture) ->
+                            pendingLeave(connection, fixture.internId,
+                                    Date.valueOf("2026-08-25"), Date.valueOf("2026-08-26")));
+                    pendingLeave(c, f.internId, Date.valueOf("2026-08-26"), Date.valueOf("2026-08-27"));
+
+                    long otherInternId = user(c, "INTERN");
+                    insert(c, """
+                            INSERT INTO intern_profiles
+                              (user_id, student_code, internship_start_date, internship_end_date)
+                            VALUES (?, ?, DATE '2026-01-01', DATE '2026-12-31')
+                            """, otherInternId, "student-" + UUID.randomUUID());
+                    pendingLeave(c, otherInternId, Date.valueOf("2026-08-24"), Date.valueOf("2026-08-25"));
+                }));
 
         probes.add(accepts("DB-018 and COR-007: an OVERDUE correction has no decision actor or time", (c, f) -> {
             long correctionId = pendingCorrection(c, f.attendanceId);
@@ -457,11 +479,11 @@ class SchemaExpansionProbeIntegrationTest {
             connection.releaseSavepoint(savepoint);
         }
         assertThat((Object) failure).as("legacy row must be refused before the V3 row is tried").isNotNull();
-        if (!CHECK_VIOLATION.equals(failure.getSQLState())
+        if ((!CHECK_VIOLATION.equals(failure.getSQLState()) && !EXCLUSION_VIOLATION.equals(failure.getSQLState()))
                 || !expectedConstraint.equals(serverError(failure).getConstraint())) {
             throw failure;
         }
-        assertThat(failure.getSQLState()).isEqualTo(CHECK_VIOLATION);
+        assertThat(failure.getSQLState()).isIn(CHECK_VIOLATION, EXCLUSION_VIOLATION);
         assertThat(serverError(failure).getConstraint()).isEqualTo(expectedConstraint);
     }
 

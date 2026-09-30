@@ -1092,13 +1092,13 @@ INSERT INTO attendance_correction_events (
 INSERT INTO leave_requests (
     intern_user_id, start_date, end_date, reason, status, submitted_at,
     first_counted_start_at, decided_by_mentor_user_id, decided_at,
-    decision_note, cancelled_at, created_at, updated_at, version
+    decision_note, cancelled_at, withdrawn_at, created_at, updated_at, version
 ) VALUES
 (
     (SELECT user_id FROM intern_profiles WHERE student_code = 'STU-1001'),
     DATE '2026-08-26', DATE '2026-08-27', 'University examination preparation.', 'PENDING',
     TIMESTAMPTZ '2026-08-20 10:00:00+07', TIMESTAMPTZ '2026-08-25 17:00:00+07',
-    NULL, NULL, NULL, NULL,
+    NULL, NULL, NULL, NULL, NULL,
     TIMESTAMPTZ '2026-08-20 10:00:00+07', TIMESTAMPTZ '2026-08-20 10:00:00+07', 0
 ),
 (
@@ -1106,7 +1106,7 @@ INSERT INTO leave_requests (
     DATE '2026-08-12', DATE '2026-08-13', 'University workshop attendance.', 'APPROVED',
     TIMESTAMPTZ '2026-08-01 10:00:00+07', TIMESTAMPTZ '2026-08-11 17:00:00+07',
     (SELECT id FROM app_users WHERE email = 'mentor1@example.com'),
-    TIMESTAMPTZ '2026-08-02 10:00:00+07', 'Approved for the two scheduled workdays.', NULL,
+    TIMESTAMPTZ '2026-08-02 10:00:00+07', 'Approved for the two scheduled workdays.', NULL, NULL,
     TIMESTAMPTZ '2026-08-01 10:00:00+07', TIMESTAMPTZ '2026-08-02 10:00:00+07', 0
 ),
 (
@@ -1114,14 +1114,14 @@ INSERT INTO leave_requests (
     DATE '2026-08-25', DATE '2026-08-26', 'Family appointment.', 'REJECTED',
     TIMESTAMPTZ '2026-08-05 10:00:00+07', TIMESTAMPTZ '2026-08-24 17:00:00+07',
     (SELECT id FROM app_users WHERE email = 'mentor1@example.com'),
-    TIMESTAMPTZ '2026-08-06 10:00:00+07', 'The request did not match the project delivery window.', NULL,
+    TIMESTAMPTZ '2026-08-06 10:00:00+07', 'The request did not match the project delivery window.', NULL, NULL,
     TIMESTAMPTZ '2026-08-05 10:00:00+07', TIMESTAMPTZ '2026-08-06 10:00:00+07', 0
 ),
 (
     (SELECT user_id FROM intern_profiles WHERE student_code = 'STU-1006'),
-    DATE '2026-08-22', DATE '2026-08-22', 'Personal appointment.', 'CANCELLED',
+    DATE '2026-08-22', DATE '2026-08-22', 'Personal appointment.', 'WITHDRAWN',
     TIMESTAMPTZ '2026-08-01 11:00:00+07', TIMESTAMPTZ '2026-08-21 17:00:00+07',
-    NULL, NULL, NULL, TIMESTAMPTZ '2026-08-10 10:00:00+07',
+    NULL, NULL, NULL, NULL, TIMESTAMPTZ '2026-08-10 10:00:00+07',
     TIMESTAMPTZ '2026-08-01 11:00:00+07', TIMESTAMPTZ '2026-08-10 10:00:00+07', 0
 );
 
@@ -1201,4 +1201,19 @@ INSERT INTO notifications (
 
 -- Keep the script all-or-nothing: a failed foreign-key, check, or exclusion
 -- constraint rolls back the reset and every demo row above.
+-- Responsible Mentors for every ACTIVE Intern (ACC-021, D47): the Mentor of the earliest current membership, else mentor1.
+UPDATE intern_profiles ip
+SET responsible_mentor_user_id = COALESCE(
+    (
+        SELECT p.mentor_user_id
+        FROM project_memberships pm
+        JOIN projects p ON p.id = pm.project_id
+        WHERE pm.intern_user_id = ip.user_id AND pm.left_at IS NULL
+        ORDER BY pm.joined_at, pm.id
+        LIMIT 1
+    ),
+    (SELECT id FROM app_users WHERE email = 'mentor1@example.com')
+)
+WHERE ip.internship_status = 'ACTIVE';
+
 COMMIT;

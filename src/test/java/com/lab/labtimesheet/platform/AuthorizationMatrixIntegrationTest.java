@@ -545,7 +545,7 @@ class AuthorizationMatrixIntegrationTest {
                                     java.time.LocalDateTime.of(2026, 8, 13, 17, 0), "Matrix correction"));
                 }, this::prepareMissingCheckoutRows)));
         result.put(REGISTERED_CAPABILITIES.get(29), List.of(probeCommitted("withdraw own pending leave request",
-                (fixture, actor) -> leaves.cancel(new AttendanceActor(actor, fixture.roleFor(actor)),
+                (fixture, actor) -> leaves.withdraw(new AttendanceActor(actor, fixture.roleFor(actor)),
                         actor == fixture.leaderId() ? fixture.leaderLeaveId() : fixture.memberLeaveId()),
                 fixture -> fixture.leaveRequestIds(
                         leaves.submit(new AttendanceActor(fixture.leaderId(), GlobalRole.INTERN),

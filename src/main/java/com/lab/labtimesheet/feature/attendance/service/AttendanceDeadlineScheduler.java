@@ -16,11 +16,13 @@ public class AttendanceDeadlineScheduler {
 
     private final LeaveApplicationService leave;
     private final AttendanceCorrectionApplicationService corrections;
+    private final AttendanceExceptionService exceptions;
 
     /** Processes at most one bounded batch of each deadline type per invocation. */
     @Scheduled(fixedDelayString = "${lab.attendance.deadline-sweep-ms:60000}")
     public void sweep() {
         leave.expirePending(BATCH_SIZE);
         corrections.expire(BATCH_SIZE);
+        exceptions.expireOverdue(BATCH_SIZE);
     }
 }

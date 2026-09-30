@@ -10,6 +10,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.lab.labtimesheet.feature.identity.model.AccountStatus;
@@ -56,7 +57,8 @@ class LeaveApplicationServiceTest {
                 mock(InternshipService.class),
                 mock(CalendarApplicationService.class),
                 mock(TransactionTemplate.class),
-                mock(NotificationService.class), AttendanceAuthorizationTestPolicy.create());
+                mock(NotificationService.class), AttendanceAuthorizationTestPolicy.create(),
+                mock(AttendanceExceptionNotificationRecipients.class));
 
         assertThatThrownBy(() -> service.submit(
                         new AttendanceActor(42L, GlobalRole.INTERN),
@@ -86,7 +88,8 @@ class LeaveApplicationServiceTest {
                 mock(InternshipService.class),
                 calendar,
                 mock(TransactionTemplate.class),
-                mock(NotificationService.class), AttendanceAuthorizationTestPolicy.create());
+                mock(NotificationService.class), AttendanceAuthorizationTestPolicy.create(),
+                mock(AttendanceExceptionNotificationRecipients.class));
 
         assertThatThrownBy(() -> service.balance(
                         new AttendanceActor(42L, GlobalRole.INTERN), java.time.YearMonth.of(2026, 8)))
@@ -143,9 +146,11 @@ class LeaveApplicationServiceTest {
                 internships,
                 mock(CalendarApplicationService.class),
                 mock(TransactionTemplate.class),
-                mock(NotificationService.class), AttendanceAuthorizationTestPolicy.create());
+                mock(NotificationService.class), AttendanceAuthorizationTestPolicy.create(),
+                mock(AttendanceExceptionNotificationRecipients.class));
 
-        assertThat(service.expirePending(1)).isEqualTo(1);
+        service.expirePending(1);
+        verify(locked).autoReject(afterLock);
     }
 
     /**
@@ -217,7 +222,8 @@ class LeaveApplicationServiceTest {
                 internships,
                 mock(CalendarApplicationService.class),
                 mock(TransactionTemplate.class),
-                mock(NotificationService.class), AttendanceAuthorizationTestPolicy.create());
+                mock(NotificationService.class), AttendanceAuthorizationTestPolicy.create(),
+                mock(AttendanceExceptionNotificationRecipients.class));
         AttendanceActor admin = new AttendanceActor(9L, GlobalRole.ADMIN);
 
         assertThatThrownBy(() -> service.approve(admin, 77L))
@@ -265,7 +271,8 @@ class LeaveApplicationServiceTest {
                         internships,
                         calendar,
                         mock(TransactionTemplate.class),
-                        mock(NotificationService.class), AttendanceAuthorizationTestPolicy.create())
+                        mock(NotificationService.class), AttendanceAuthorizationTestPolicy.create(),
+                mock(AttendanceExceptionNotificationRecipients.class))
                 .submit(
                         new AttendanceActor(42L, GlobalRole.INTERN),
                         new LeaveRequestCommand(workday, workday, "Family matter"));

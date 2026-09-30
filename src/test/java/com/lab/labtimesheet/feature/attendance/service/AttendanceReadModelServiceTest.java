@@ -62,7 +62,8 @@ class AttendanceReadModelServiceTest {
                 Clock.fixed(Instant.parse("2026-08-20T00:00:00Z"), ZoneOffset.UTC),
                 requests, mock(LeaveRequestDayRepository.class), accounts, mock(InternshipService.class),
                 mock(CalendarApplicationService.class), mock(TransactionTemplate.class),
-                mock(com.lab.labtimesheet.feature.notification.service.NotificationService.class), policy);
+                mock(com.lab.labtimesheet.feature.notification.service.NotificationService.class), policy,
+                mock(AttendanceExceptionNotificationRecipients.class));
 
         service.list(new AttendanceActor(7L, GlobalRole.INTERN));
 
@@ -76,14 +77,18 @@ class AttendanceReadModelServiceTest {
         LeaveRequestRepository requests = mock(LeaveRequestRepository.class);
         LeaveRequestEntity approved = mock(LeaveRequestEntity.class);
         LeaveRequestEntity pending = mock(LeaveRequestEntity.class);
+        LeaveRequestEntity overdue = mock(LeaveRequestEntity.class);
         when(approved.id()).thenReturn(2L);
         when(approved.internUserId()).thenReturn(7L);
         when(approved.status()).thenReturn(LeaveStatus.APPROVED);
         when(pending.id()).thenReturn(1L);
         when(pending.internUserId()).thenReturn(7L);
         when(pending.status()).thenReturn(LeaveStatus.PENDING);
+        when(overdue.id()).thenReturn(3L);
+        when(overdue.internUserId()).thenReturn(7L);
+        when(overdue.status()).thenReturn(LeaveStatus.OVERDUE);
         when(requests.findByInternUserIdOrderBySubmittedAtDescIdDesc(7L))
-                .thenReturn(List.of(approved, pending));
+                .thenReturn(List.of(approved, pending, overdue));
         AccountService accounts = mock(AccountService.class);
         when(accounts.requireIdentityById(7L)).thenReturn(internIdentity());
 
@@ -93,11 +98,12 @@ class AttendanceReadModelServiceTest {
                 accounts, mock(InternshipService.class), mock(CalendarApplicationService.class),
                 mock(TransactionTemplate.class),
                 mock(com.lab.labtimesheet.feature.notification.service.NotificationService.class),
-                AttendanceAuthorizationTestPolicy.create());
+                AttendanceAuthorizationTestPolicy.create(),
+                mock(AttendanceExceptionNotificationRecipients.class));
 
         assertThat(service.list(new AttendanceActor(7L, GlobalRole.INTERN)))
                 .extracting(LeaveRequestSummary::status)
-                .containsExactly(LeaveStatus.PENDING, LeaveStatus.APPROVED);
+                .containsExactly(LeaveStatus.OVERDUE, LeaveStatus.PENDING, LeaveStatus.APPROVED);
     }
 
     @Test
@@ -112,7 +118,8 @@ class AttendanceReadModelServiceTest {
         when(calendar.policyTimeline()).thenReturn(new AttendancePolicyTimeline(List.of(policy)));
         LeaveRequestDayRepository days = mock(LeaveRequestDayRepository.class);
         when(days.countReserved(7L, LocalDate.of(2026, 8, 1),
-                List.of(LeaveStatus.PENDING.name(), LeaveStatus.APPROVED.name()))).thenReturn(2L);
+                List.of(LeaveStatus.PENDING.name(), LeaveStatus.OVERDUE.name(), LeaveStatus.APPROVED.name())))
+                .thenReturn(2L);
         AccountService accounts = mock(AccountService.class);
         when(accounts.requireIdentityById(7L)).thenReturn(internIdentity());
 
@@ -121,7 +128,8 @@ class AttendanceReadModelServiceTest {
                 mock(LeaveRequestRepository.class), days, accounts, mock(InternshipService.class), calendar,
                 mock(TransactionTemplate.class),
                 mock(com.lab.labtimesheet.feature.notification.service.NotificationService.class),
-                AttendanceAuthorizationTestPolicy.create());
+                AttendanceAuthorizationTestPolicy.create(),
+                mock(AttendanceExceptionNotificationRecipients.class));
 
         LeaveBalance balance = service.balance(
                 new AttendanceActor(7L, GlobalRole.INTERN), YearMonth.of(2026, 8));
@@ -153,7 +161,8 @@ class AttendanceReadModelServiceTest {
                 accounts, mock(InternshipService.class), mock(CalendarApplicationService.class),
                 mock(TransactionTemplate.class),
                 mock(com.lab.labtimesheet.feature.notification.service.NotificationService.class),
-                AttendanceAuthorizationTestPolicy.create());
+                AttendanceAuthorizationTestPolicy.create(),
+                mock(AttendanceExceptionNotificationRecipients.class));
 
         assertThat(service.list(new AttendanceActor(7L, GlobalRole.INTERN)))
                 .extracting(CorrectionSummary::status)

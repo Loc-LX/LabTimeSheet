@@ -51,6 +51,10 @@ public class InternProfile {
     @Getter
     private InternshipStatus internshipStatus;
 
+    @Column(name = "responsible_mentor_user_id", insertable = false, updatable = false)
+    @Getter
+    private Long responsibleMentorUserId;
+
     @Column(name = "activated_at")
     @Getter
     private Instant activatedAt;

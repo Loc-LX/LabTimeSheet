@@ -7,7 +7,11 @@ import com.lab.labtimesheet.feature.identity.service.AccountService;
 import com.lab.labtimesheet.feature.internship.service.InternshipService;
 import com.lab.labtimesheet.feature.attendance.exception.AttendanceException;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceCurrentState;
+import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
+import com.lab.labtimesheet.feature.attendance.model.dto.LeaveBalance;
+import com.lab.labtimesheet.feature.attendance.service.LeaveApplicationService;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceApplicationService;
+import com.lab.labtimesheet.feature.calendar.service.CalendarApplicationService;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectDashboardSummary;
 import com.lab.labtimesheet.feature.project.service.ProjectQueryService;
 import com.lab.labtimesheet.feature.reporting.exception.DashboardAccessDeniedException;
@@ -20,6 +24,7 @@ import com.lab.labtimesheet.platform.model.GlobalRole;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.time.YearMonth;
 
 /**
  * Composes authorized dashboard projections exclusively from public feature services and DTOs.
@@ -40,6 +45,8 @@ public class DashboardService {
     private final ProjectQueryService projects;
     private final TaskDashboardService tasks;
     private final AttendanceApplicationService attendance;
+    private final CalendarApplicationService calendar;
+    private final LeaveApplicationService leave;
 
     /**
      * Builds system-wide Admin counts after confirming an active persisted Admin identity.
@@ -103,6 +110,8 @@ public class DashboardService {
         } catch (AttendanceException exception) {
             throw new DashboardAccessDeniedException("Active Intern account and internship required");
         }
+        YearMonth currentQuotaMonth = YearMonth.from(calendar.currentBusinessDate());
+        LeaveBalance leaveBalance = leave.balance(new AttendanceActor(intern.id(), GlobalRole.INTERN), currentQuotaMonth);
         ProjectDashboardSummary projectSummary = projects.dashboardSummary(intern.id());
         TaskDashboardView taskSummary = tasks.dashboard(email);
         return new DashboardView.Intern(
@@ -113,7 +122,8 @@ public class DashboardService {
                 taskSummary.priorityTasks().stream()
                         .map(task -> new AssignedTask(
                                 task.title(), task.projectName(), task.status().name(), task.dueDate()))
-                        .toList());
+                        .toList(),
+                leaveBalance);
     }
 
     private AccountIdentity activeAccount(String email, GlobalRole role) {

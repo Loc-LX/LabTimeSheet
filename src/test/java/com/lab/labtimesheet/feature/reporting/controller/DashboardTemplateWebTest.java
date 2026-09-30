@@ -10,6 +10,7 @@ import com.lab.labtimesheet.feature.notification.model.NotificationType;
 import com.lab.labtimesheet.feature.notification.model.dto.NotificationInbox;
 import com.lab.labtimesheet.feature.notification.model.dto.NotificationInboxItem;
 import com.lab.labtimesheet.feature.reporting.model.dto.DashboardView;
+import com.lab.labtimesheet.feature.attendance.model.dto.LeaveBalance;
 import com.lab.labtimesheet.platform.service.SmtpConfigurationService;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -75,6 +76,10 @@ class DashboardTemplateWebTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Today")))
                 .andExpect(content().string(containsString("Checked in")))
+                .andExpect(content().string(containsString("Leave balance")))
+                .andExpect(content().string(containsString("08/2026")))
+                .andExpect(content().string(containsString("2 reserved / 3 quota / 1 remaining")))
+                .andExpect(content().string(containsString("href=\"/attendance/leave\"")))
                 .andExpect(content().string(containsString("My real task")))
                 .andExpect(content().string(containsString("18/08/2026")))
                 .andExpect(content().string(containsString("Check out")))
@@ -116,7 +121,8 @@ class DashboardTemplateWebTest {
                     1,
                     1,
                     List.of(new DashboardView.AssignedTask(
-                            "My real task", "Intern Portal", "IN_PROGRESS", LocalDate.of(2026, 8, 18)))));
+                            "My real task", "Intern Portal", "IN_PROGRESS", LocalDate.of(2026, 8, 18))),
+                    new LeaveBalance(java.time.YearMonth.of(2026, 8), 2, 3)));
             return "dashboard/intern";
         }
 

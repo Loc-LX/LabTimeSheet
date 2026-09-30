@@ -55,6 +55,9 @@ public class LeaveRequestEntity {
     @Column(name = "cancelled_at")
     private Instant cancelledAt;
 
+    @Column(name = "withdrawn_at")
+    private Instant withdrawnAt;
+
     @Version
     private long version;
 
@@ -155,7 +158,7 @@ public class LeaveRequestEntity {
     /**
      * Returns the current durable leave state.
      *
-     * @return pending, approved, rejected, or cancelled
+     * @return pending, approved, rejected, withdrawn, or cancelled
      */
     public LeaveStatus status() {
         return LeaveStatus.valueOf(status);
@@ -182,7 +185,7 @@ public class LeaveRequestEntity {
     /**
      * Returns the optional Mentor decision actor.
      *
-     * @return Mentor identifier, or {@code null} for pending/automatic rejection
+     * @return Mentor identifier, or {@code null} when the request has not been decided by a Mentor
      */
     public Long decidedByMentorUserId() {
         return decidedByMentorUserId;
@@ -204,6 +207,15 @@ public class LeaveRequestEntity {
      */
     public Instant cancelledAt() {
         return cancelledAt;
+    }
+
+    /**
+     * Returns the optional server withdrawal timestamp.
+     *
+     * @return withdrawal instant, or {@code null} when the request was not withdrawn
+     */
+    public Instant withdrawnAt() {
+        return withdrawnAt;
     }
 
     /**
@@ -241,8 +253,10 @@ public class LeaveRequestEntity {
      * @param now server decision timestamp
      */
     public void reject(long actorUserId, Instant now) {
-        if (status != null && !LeaveStatus.PENDING.name().equals(status)) {
-            throw new IllegalStateException("Only pending leave can be rejected");
+        if (status != null
+                && !LeaveStatus.PENDING.name().equals(status)
+                && !LeaveStatus.OVERDUE.name().equals(status)) {
+            throw new IllegalStateException("Only pending or overdue leave can be rejected");
         }
         status = LeaveStatus.REJECTED.name();
         decidedByMentorUserId = actorUserId;
@@ -250,7 +264,7 @@ public class LeaveRequestEntity {
     }
 
     /**
-     * Applies the scheduler/request-time expiry transition without inventing an account foreign key.
+     * Marks an undecided request overdue without inventing a decision actor or releasing its frozen allocation.
      *
      * @param now server timestamp at the inclusive first-counted-start boundary
      */
@@ -258,27 +272,38 @@ public class LeaveRequestEntity {
         if (status != null && !LeaveStatus.PENDING.name().equals(status)) {
             return;
         }
-        status = LeaveStatus.REJECTED.name();
-        decidedByMentorUserId = null;
-        decidedAt = now;
+        status = LeaveStatus.OVERDUE.name();
     }
 
     /**
-     * Cancels a pending or approved request before its first counted start.
+     * Cancels an approved request before its first counted start, retaining its approval actor and time.
      *
      * @param now server cancellation timestamp
      */
     public void cancel(Instant now) {
-        if (!LeaveStatus.PENDING.name().equals(status) && !LeaveStatus.APPROVED.name().equals(status)) {
-            throw new IllegalStateException("Only pending or approved leave can be cancelled");
+        if (!LeaveStatus.APPROVED.name().equals(status)) {
+            throw new IllegalStateException("Only approved leave can be cancelled");
         }
         status = LeaveStatus.CANCELLED.name();
         cancelledAt = now;
     }
 
+    /**
+     * Withdraws a pending or overdue request without changing its decision or allocated-day history.
+     *
+     * @param now server withdrawal timestamp
+     */
+    public void withdraw(Instant now) {
+        if (!LeaveStatus.PENDING.name().equals(status) && !LeaveStatus.OVERDUE.name().equals(status)) {
+            throw new IllegalStateException("Only pending or overdue leave can be withdrawn");
+        }
+        status = LeaveStatus.WITHDRAWN.name();
+        withdrawnAt = now;
+    }
+
     private void requirePending() {
-        if (!LeaveStatus.PENDING.name().equals(status)) {
-            throw new IllegalStateException("Only pending leave can be approved");
+        if (!LeaveStatus.PENDING.name().equals(status) && !LeaveStatus.OVERDUE.name().equals(status)) {
+            throw new IllegalStateException("Only pending or overdue leave can be approved");
         }
     }
 }

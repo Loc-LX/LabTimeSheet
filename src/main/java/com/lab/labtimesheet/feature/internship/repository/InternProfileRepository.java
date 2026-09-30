@@ -40,6 +40,10 @@ public interface InternProfileRepository extends JpaRepository<InternProfile, Lo
     /** Counts Intern profiles in a lifecycle state. */
     long countByInternshipStatus(InternshipStatus status);
 
+    /** Reads the currently stored responsible Mentor identifier without using a possibly stale managed profile. */
+    @Query("select p.responsibleMentorUserId from InternProfile p where p.userId = :internUserId")
+    Optional<Long> findResponsibleMentorUserId(@Param("internUserId") long internUserId);
+
     /** Returns due profile IDs in stable account order; the identity intersection is composed by the service. */
     @Query("""
             select p.userId from InternProfile p

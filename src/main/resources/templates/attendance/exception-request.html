@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{fragments/layout :: shell(
+          pageTitle='Request excuse',
+          section='Intern',
+          activeNav='attendance',
+          primaryAction=~{::#primary-action},
+          content=~{::main})}">
+<body>
+<a id="primary-action" class="button" th:href="@{/attendance}">Back to attendance</a>
+<main>
+    <p class="page-description">Request an excuse for a recorded attendance violation.</p>
+    <th:block th:if="${requestError}" th:replace="~{fragments/components :: alert('error', ${requestError})}"></th:block>
+
+    <section class="panel form-panel">
+        <header class="panel-header"><h2 class="panel-title">Request excuse</h2></header>
+        <p th:if="${workDate != null}" th:text="|Work date: ${workDate}|">Work date</p>
+        <p th:if="${violationLabel != null}" th:text="|Violation: ${violationLabel}|">Violation</p>
+        <form class="form-grid" method="post" th:action="@{/attendance/exceptions}">
+            <input type="hidden" name="attendanceRecordId" th:value="${attendanceRecordId}">
+            <input type="hidden" name="kind" th:value="${kind}">
+            <div class="field">
+                <label class="field-label" for="reason">Reason</label>
+                <textarea class="control" id="reason" name="reason" rows="4" maxlength="500" required
+                          th:text="${reason}"></textarea>
+            </div>
+            <div class="form-actions"><button class="button button-primary" type="submit">Submit request</button></div>
+        </form>
+    </section>
+</main>
+</body>
+</html>

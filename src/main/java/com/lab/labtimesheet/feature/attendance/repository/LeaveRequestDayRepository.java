@@ -12,7 +12,7 @@ import org.springframework.data.repository.query.Param;
 public interface LeaveRequestDayRepository extends JpaRepository<LeaveRequestDayEntity, LeaveRequestDayId> {
 
     /**
-     * Counts reserved days in one quota month for pending/approved requests.
+     * Counts reserved days in one quota month for pending/overdue/approved requests.
      *
      * @param internId owning Intern
      * @param quotaMonth first date of the month

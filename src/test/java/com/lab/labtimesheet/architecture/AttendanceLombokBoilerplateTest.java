@@ -42,6 +42,7 @@ import com.lab.labtimesheet.feature.attendance.service.AttendanceCorrectionAppli
 import com.lab.labtimesheet.platform.authorization.AuthorizationPolicy;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceCurrentUserService;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceDeadlineScheduler;
+import com.lab.labtimesheet.feature.attendance.service.AttendanceExceptionService;
 import com.lab.labtimesheet.feature.calendar.service.AttendancePolicyApplicationService;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceService;
 import com.lab.labtimesheet.feature.calendar.service.AttendancePolicyTimeline;
@@ -138,7 +139,8 @@ class AttendanceLombokBoilerplateTest {
                         CalendarApplicationService.class,
                         TransactionTemplate.class,
                         NotificationService.class,
-                        AuthorizationPolicy.class));
+                        AuthorizationPolicy.class,
+                        type("com.lab.labtimesheet.feature.attendance.service.AttendanceExceptionNotificationRecipients")));
         assertConstructors(
                 AttendanceCorrectionApplicationService.class,
                 constructor(
@@ -152,13 +154,15 @@ class AttendanceLombokBoilerplateTest {
                         CalendarApplicationService.class,
                         TransactionTemplate.class,
                         NotificationService.class,
-                        AuthorizationPolicy.class));
+                        AuthorizationPolicy.class,
+                        type("com.lab.labtimesheet.feature.attendance.service.AttendanceExceptionNotificationRecipients")));
         assertConstructors(
                 AttendanceDeadlineScheduler.class,
                 constructor(
                         PACKAGE_PRIVATE,
                         LeaveApplicationService.class,
-                        AttendanceCorrectionApplicationService.class));
+                        AttendanceCorrectionApplicationService.class,
+                        AttendanceExceptionService.class));
 
         assertConstructors(
                 AttendancePolicyEntity.class,
@@ -327,6 +331,7 @@ class AttendanceLombokBoilerplateTest {
                 AttendanceRecordEntity.class,
                 method(Modifier.PUBLIC, "toDomain", AttendanceRecord.class, AttendancePolicy.class),
                 method(Modifier.PUBLIC, "id", long.class),
+                method(Modifier.PUBLIC, "internUserId", long.class),
                 method(Modifier.PUBLIC, "setCheckOutAt", void.class, Instant.class),
                 method(Modifier.PUBLIC, "workDate", LocalDate.class),
                 method(Modifier.PUBLIC, "policyVersionId", long.class));
@@ -377,6 +382,7 @@ class AttendanceLombokBoilerplateTest {
                 method(Modifier.PUBLIC, "decidedByMentorUserId", Long.class),
                 method(Modifier.PUBLIC, "decidedAt", Instant.class),
                 method(Modifier.PUBLIC, "cancelledAt", Instant.class),
+                method(Modifier.PUBLIC, "withdrawnAt", Instant.class),
                 method(
                         Modifier.PUBLIC,
                         "edit",
@@ -388,7 +394,8 @@ class AttendanceLombokBoilerplateTest {
                 method(Modifier.PUBLIC, "approve", void.class, long.class, Instant.class),
                 method(Modifier.PUBLIC, "reject", void.class, long.class, Instant.class),
                 method(Modifier.PUBLIC, "autoReject", void.class, Instant.class),
-                method(Modifier.PUBLIC, "cancel", void.class, Instant.class));
+                method(Modifier.PUBLIC, "cancel", void.class, Instant.class),
+                method(Modifier.PUBLIC, "withdraw", void.class, Instant.class));
         assertMethodSurface(
                 AttendanceCorrectionEntity.class,
                 method(Modifier.PUBLIC, "id", long.class),
@@ -417,8 +424,7 @@ class AttendanceLombokBoilerplateTest {
                         Instant.class,
                         String.class),
                 method(Modifier.PUBLIC, "reopen", void.class, Instant.class),
-                method(Modifier.PUBLIC, "autoReject", void.class, Instant.class),
-                method(Modifier.PUBLIC, "lock", void.class, Instant.class));
+                method(Modifier.PUBLIC, "markOverdue", void.class, Instant.class));
         assertMethodSurface(
                 AttendanceCorrectionEventEntity.class,
                 method(Modifier.PUBLIC, "toView", com.lab.labtimesheet.feature.attendance.model.dto.CorrectionEventView.class));
@@ -568,6 +574,8 @@ class AttendanceLombokBoilerplateTest {
                         AttendanceActor.class, long.class, com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestCommand.class),
                 method(Modifier.PUBLIC, "cancel", com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestView.class,
                         AttendanceActor.class, long.class),
+                method(Modifier.PUBLIC, "withdraw", com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestView.class,
+                        AttendanceActor.class, long.class),
                 method(Modifier.PUBLIC, "approve", com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestView.class,
                         AttendanceActor.class, long.class),
                 method(Modifier.PUBLIC, "reject", com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestView.class,
@@ -575,7 +583,8 @@ class AttendanceLombokBoilerplateTest {
                 method(Modifier.PUBLIC, "view", com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestView.class,
                         AttendanceActor.class, long.class),
                 method(Modifier.PUBLIC, "list", List.class, AttendanceActor.class),
-                method(Modifier.PUBLIC, "expirePending", int.class, int.class));
+                method(Modifier.PUBLIC, "expirePending", int.class, int.class),
+                method(Modifier.PUBLIC, "hasUnresolvedLeaveRequest", boolean.class, long.class, java.time.YearMonth.class));
         assertMethodSurface(
                 AttendanceCorrectionApplicationService.class,
                 method(Modifier.PUBLIC, "submit", com.lab.labtimesheet.feature.attendance.model.dto.CorrectionView.class,
@@ -586,7 +595,8 @@ class AttendanceLombokBoilerplateTest {
                         AttendanceActor.class, long.class),
                 method(Modifier.PUBLIC, "list", List.class, AttendanceActor.class),
                 method(Modifier.PUBLIC, "prepareHistory", Map.class, List.class),
-                method(Modifier.PUBLIC, "expire", int.class, int.class));
+                method(Modifier.PUBLIC, "expire", int.class, int.class),
+                method(Modifier.PUBLIC, "hasUnresolvedCorrection", boolean.class, long.class, java.time.YearMonth.class));
         assertMethodSurface(
                 AttendanceDeadlineScheduler.class,
                 method(Modifier.PUBLIC, "sweep", void.class));
@@ -623,6 +633,14 @@ class AttendanceLombokBoilerplateTest {
 
     private static ConstructorContract constructor(int modifiers, Class<?>... parameterTypes) {
         return new ConstructorContract(modifiers, List.of(parameterTypes));
+    }
+
+    private static Class<?> type(String name) {
+        try {
+            return Class.forName(name);
+        } catch (ClassNotFoundException failure) {
+            throw new AssertionError("Expected class " + name, failure);
+        }
     }
 
     private static RecordComponentContract component(String name, Class<?> type) {

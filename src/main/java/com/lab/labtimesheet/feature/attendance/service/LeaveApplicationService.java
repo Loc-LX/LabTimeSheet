@@ -60,7 +60,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * Transactional boundary for full-day leave requests and their frozen policy/quota allocations.
- * Pending and approved rows reserve quota; rejected and cancelled rows retain history but release it logically.
+ * Pending, overdue, and approved rows reserve quota; rejected, withdrawn, and cancelled rows retain history but release it logically.
  * Submission and decision notifications are published in the same transaction; cancellation deliberately remains
  * silent under the notification requirements.
  */
@@ -68,7 +68,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 @RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 public class LeaveApplicationService {
 
-    private static final List<String> RESERVED = List.of(LeaveStatus.PENDING.name(), LeaveStatus.APPROVED.name());
+    private static final List<String> RESERVED = List.of(
+            LeaveStatus.PENDING.name(), LeaveStatus.OVERDUE.name(), LeaveStatus.APPROVED.name());
 
     private final Clock clock;
     private final LeaveRequestRepository requests;
@@ -79,17 +80,18 @@ public class LeaveApplicationService {
     private final TransactionTemplate transactions;
     private final NotificationService notifications;
     private final AuthorizationPolicy authorizationPolicy;
+    private final AttendanceExceptionNotificationRecipients recipients;
 
     /**
      * Lists retained leave requests visible to the authenticated Attendance actor.
      *
      * <p>Interns receive only their own rows. Active global Mentors and Admins receive the
      * decision/read-only queue respectively. Pending rows whose first counted start has
-     * arrived are locked and auto-rejected before the actionable queue is built, so a late
+     * arrived are locked and marked overdue before the actionable queue is built, so a late
      * scheduler cannot leave stale decision affordances on this first-access read path.</p>
      *
      * @param actor authenticated Attendance actor
-     * @return actionable pending summaries first, followed by retained history in newest-first order
+     * @return actionable pending/overdue summaries first, followed by retained history in newest-first order
      */
     @Transactional
     public List<LeaveRequestSummary> list(AttendanceActor actor) {
@@ -107,7 +109,8 @@ public class LeaveApplicationService {
                         request.id(), request.internUserId(), request.startDate(), request.endDate(),
                         request.reason(), request.status(), request.submittedAt()))
                 .sorted(Comparator.comparing(
-                                (LeaveRequestSummary row) -> row.status() != LeaveStatus.PENDING)
+                                (LeaveRequestSummary row) -> row.status() != LeaveStatus.PENDING
+                                        && row.status() != LeaveStatus.OVERDUE)
                         .thenComparing(LeaveRequestSummary::submittedAt,
                                 Comparator.nullsLast(Comparator.reverseOrder()))
                         .thenComparing(LeaveRequestSummary::id, Comparator.reverseOrder()))
@@ -136,11 +139,10 @@ public class LeaveApplicationService {
                         .sorted()
                         .toList());
         requireActiveExpiryActor(actor, lockedAccounts);
-        Map<Long, AccountIdentity> ownerIdentities = identities(ownerIds);
         for (LeaveRequestEntity candidate : due) {
             LeaveRequestEntity request = lockedRequest(candidate.id());
             requireReader(actor, request, lockedAccounts);
-            expireIfNeeded(request, clock.instant(), ownerIdentities.get(request.internUserId()));
+            expireIfNeeded(request, clock.instant());
         }
     }
 
@@ -187,11 +189,31 @@ public class LeaveApplicationService {
     }
 
     /**
+     * Reports whether an Intern has a pending or overdue request touching a business month.
+     *
+     * <p>ATT-019 through ATT-021 must consult this property before finalizing a period; AC-ATT-009 for Leave is
+     * proven when period finalization is implemented.</p>
+     *
+     * @param internUserId Intern account identifier
+     * @param month business month to check
+     * @return {@code true} when at least one unresolved request overlaps the month
+     */
+    @Transactional(readOnly = true)
+    public boolean hasUnresolvedLeaveRequest(long internUserId, YearMonth month) {
+        if (internUserId <= 0 || month == null) {
+            throw new IllegalArgumentException("Intern and business month are required");
+        }
+        List<String> unresolved = List.of(LeaveStatus.PENDING.name(), LeaveStatus.OVERDUE.name());
+        return requests.existsUnresolvedRequestForInternAndMonth(
+                internUserId, unresolved, month.atDay(1), month.atEndOfMonth());
+    }
+
+    /**
      * Submits one full-day inclusive request and materializes eligible workdays with policy/quota snapshots.
      * The account and Intern profile are pessimistically locked through the allocation and quota writes, while the
      * requested dates are checked against the account service's inclusive lifecycle window.
      *
-     * <p>The submission notification is written in this transaction for every active global Mentor. SMTP absence is
+     * <p>The submission notification is written in this transaction for the responsible Mentor or fallback Admins. SMTP absence is
      * represented by the notification boundary and does not roll back the leave request.</p>
      *
      * @param actor authenticated Intern owner
@@ -214,14 +236,7 @@ public class LeaveApplicationService {
             AttendanceAuthorizationRequests.requireAllowed(
                     authorizationPolicy, AuthorizationCapability.SUBMIT_ATTENDANCE_REQUEST, policyRequest);
         }
-        List<Long> mentorIds = accounts.activeGlobalMentorIdentities().stream()
-                .map(AccountIdentity::id)
-                .toList();
-        Map<Long, LockedAccountMutationEligibility> lockedAccounts = lockAccounts(
-                accountIds(actor.userId(), mentorIds));
-        List<AccountIdentity> mentorIdentities = mentorIds.stream()
-                .map(accounts::requireIdentityById)
-                .toList();
+        lockAccounts(List.of(actor.userId()));
         InternWorkWindow window = lockEligibleIntern(
                 actor.userId(), command.startDate(), command.endDate());
         if (actor.role() == GlobalRole.INTERN) {
@@ -252,7 +267,7 @@ public class LeaveApplicationService {
         try {
             request = requests.saveAndFlush(request);
             persistAllocations(request, allocations);
-            publishSubmissionNotification(activeMentorRecipients(mentorIdentities, lockedAccounts));
+            publishSubmissionNotification(recipients.forIntern(actor.userId()));
             return view(request);
         } catch (DataIntegrityViolationException conflict) {
             throw new LeaveException("Leave overlaps an existing active request", conflict);
@@ -316,24 +331,24 @@ public class LeaveApplicationService {
                 && lockedActor.role() == actor.role();
         LeaveRequestEntity request = lockedRequest(requestId);
         requireOwner(request, actor.userId());
-        if (request.status() != LeaveStatus.PENDING) {
-            throw new LeaveException("Only pending leave before its first counted start can be edited");
-        }
-        InternWorkWindow window = lockIntern(actor.userId(), command.startDate());
-        Instant now = clock.instant();
-        if (request.status() == LeaveStatus.PENDING && !now.isBefore(request.firstCountedStartAt())) {
-            request.autoReject(now);
-            requests.saveAndFlush(request);
-            publishDecisionNotification(ownerIdentity, "AUTO_REJECTED");
-            return new MutationOutcome(null, true);
-        }
         AuthorizationRequest policyRequest = AttendanceAuthorizationRequests.request(
                 actor, activeActor, ownerId, lockedActor == null ? null : lockedActor.accountStatus().name());
         AttendanceAuthorizationRequests.requireAllowed(
                 authorizationPolicy, AuthorizationCapability.SUBMIT_ATTENDANCE_REQUEST, policyRequest);
+        if (request.status() != LeaveStatus.PENDING) {
+            throw new LeaveException("Only pending leave before its first counted start can be edited");
+        }
+        Instant now = clock.instant();
+        if (request.status() == LeaveStatus.PENDING && !now.isBefore(request.firstCountedStartAt())) {
+            request.autoReject(now);
+            requests.saveAndFlush(request);
+            publishOverdueReminder(request);
+            return new MutationOutcome(null, true);
+        }
         if (!now.isBefore(request.firstCountedStartAt())) {
             throw new LeaveException("Only pending leave before its first counted start can be edited");
         }
+        InternWorkWindow window = lockIntern(actor.userId(), command.startDate());
         requireEligibleIntern(window, command.startDate(), command.endDate());
         List<AllocatedDate> allocations = allocations(window, command.startDate(), command.endDate());
         if (allocations.isEmpty()) {
@@ -356,28 +371,52 @@ public class LeaveApplicationService {
     }
 
     /**
-     * Cancels a pending or approved request before its first counted start.
+     * Cancels approved leave before its first counted start while retaining its approval history and allocations.
      *
      * <p>Authorization, expiry, and cancellation share one independent {@code REQUIRES_NEW} transaction and row
-     * lock. The independent boundary does not join an ambient caller transaction, so a late pending request returns
-     * an internal sentinel only after automatic rejection commits; guessed IDs are authorized before expiry.</p>
+     * lock. The independent boundary does not join an ambient caller transaction, so a pending request first marked
+     * overdue during access commits before the owner action returns; guessed IDs are authorized before expiry.</p>
      *
      * @param actor authenticated Intern owner
      * @param requestId request identifier
-     * @return cancelled request projection retaining its allocations
+     * @return changed request projection retaining its allocations and decision history
      */
     public LeaveRequestView cancel(AttendanceActor actor, long requestId) {
         if (actor == null) {
             throw new AccessDeniedException("An attendance actor is required");
         }
-        MutationOutcome outcome = independentTransactions().execute(status -> cancelInTransaction(actor, requestId));
+        MutationOutcome outcome = independentTransactions().execute(
+                status -> mutateOwnedRequest(actor, requestId, true));
         if (outcome.expired()) {
-            throw new LeaveException("Leave cannot be cancelled after its first counted start");
+            throw new LeaveException("Only approved leave can be cancelled");
         }
         return outcome.view();
     }
 
-    private MutationOutcome cancelInTransaction(AttendanceActor actor, long requestId) {
+    /**
+     * Withdraws pending or overdue leave while retaining its date allocations.
+     *
+     * <p>The same owner authorization, independent transaction, and row lock used by the existing cancellation route
+     * apply. An approved request has a different owner action and is refused here.</p>
+     *
+     * @param actor authenticated Intern owner
+     * @param requestId request identifier
+     * @return withdrawn request projection retaining its allocations; overdue requests remain withdrawable after their start
+     */
+    public LeaveRequestView withdraw(AttendanceActor actor, long requestId) {
+        if (actor == null) {
+            throw new AccessDeniedException("An attendance actor is required");
+        }
+        MutationOutcome outcome = independentTransactions().execute(
+                status -> mutateOwnedRequest(actor, requestId, false));
+        if (outcome.expired()) {
+            throw new LeaveException("Leave cannot be withdrawn after its first counted start");
+        }
+        return outcome.view();
+    }
+
+    private MutationOutcome mutateOwnedRequest(
+            AttendanceActor actor, long requestId, boolean cancelApprovedRequests) {
         long ownerId = requests.findInternUserIdById(requestId)
                 .orElseThrow(AttendanceRecordNotFoundException::new);
         Map<Long, LockedAccountMutationEligibility> lockedAccounts = lockAccounts(List.of(actor.userId(), ownerId));
@@ -398,23 +437,36 @@ public class LeaveApplicationService {
         if (request.status() == LeaveStatus.PENDING && !now.isBefore(request.firstCountedStartAt())) {
             request.autoReject(now);
             requests.saveAndFlush(request);
-            publishDecisionNotification(ownerIdentity, "AUTO_REJECTED");
-            return new MutationOutcome(null, true);
+            publishOverdueReminder(request);
+            if (cancelApprovedRequests) {
+                return new MutationOutcome(view(request), true);
+            }
         }
-        if (!now.isBefore(request.firstCountedStartAt())) {
-            throw new LeaveException("Leave cannot be cancelled after its first counted start");
+        if (cancelApprovedRequests) {
+            if (request.status() == LeaveStatus.APPROVED && !now.isBefore(request.firstCountedStartAt())) {
+                throw new LeaveException("Leave cannot be cancelled after its first counted start");
+            }
+            if (request.status() == LeaveStatus.APPROVED) {
+                request.cancel(now);
+            } else {
+                throw new LeaveException("Only approved leave can be cancelled");
+            }
+        } else {
+            if (request.status() == LeaveStatus.PENDING || request.status() == LeaveStatus.OVERDUE) {
+                request.withdraw(now);
+            } else {
+                throw new LeaveException("Only pending or overdue leave can be withdrawn");
+            }
         }
-        request.cancel(now);
         return new MutationOutcome(view(requests.saveAndFlush(request)), false);
     }
 
     /**
-     * Approves a pending request for any active Mentor before the same immutable boundary.
+     * Approves a pending request before, or an overdue request after, its immutable first-counted-start boundary.
      *
-     * <p>Active-Mentor authorization, request-time expiry, and approval share one independent {@code REQUIRES_NEW}
-     * transaction and one target-row lock. The independent boundary does not join an ambient caller transaction; an
-     * expired request returns an internal sentinel only after automatic rejection commits, then the public method
-     * reports the closed decision window.</p>
+     * <p>Active-Mentor authorization, request-time overdue transition, and approval share one independent
+     * {@code REQUIRES_NEW} transaction and one target-row lock. A request that becomes overdue during this access
+     * receives its one overdue reminder before the decision is applied.</p>
      *
      * @param actor authenticated active Mentor
      * @param requestId request identifier
@@ -430,12 +482,11 @@ public class LeaveApplicationService {
     }
 
     /**
-     * Rejects a pending request for any active Mentor before its first counted start.
+     * Rejects a pending request before, or an overdue request after, its first counted start.
      *
-     * <p>Active-Mentor authorization, request-time expiry, and rejection share one independent {@code REQUIRES_NEW}
-     * transaction and one target-row lock. The independent boundary does not join an ambient caller transaction; an
-     * expired request returns an internal sentinel only after automatic rejection commits, then the public method
-     * reports the closed decision window.</p>
+     * <p>Active-Mentor authorization, request-time overdue transition, and rejection share one independent
+     * {@code REQUIRES_NEW} transaction and one target-row lock. A request that becomes overdue during this access
+     * receives its one overdue reminder before the decision is applied.</p>
      *
      * @param actor authenticated active Mentor
      * @param requestId request identifier
@@ -485,15 +536,16 @@ public class LeaveApplicationService {
             throw new AccessDeniedException("Leave is outside the requested scope");
         }
         LeaveRequestEntity request = lockedRequest(requestId);
-        expireIfNeeded(request, clock.instant(), ownerIdentity);
+        expireIfNeeded(request, clock.instant());
         return view(request);
     }
 
     /**
-     * Processes a bounded set of pending requests at their first counted start.
+     * Moves a bounded batch of undecided {@code PENDING} requests whose first counted start has passed to
+     * {@code OVERDUE}, keeping their quota and sending one reminder each.
      *
      * @param batchSize maximum requests transitioned in this transaction
-     * @return count of newly auto-rejected requests
+     * @return count of newly overdue requests
      */
     @Transactional
     public int expirePending(int batchSize) {
@@ -509,7 +561,6 @@ public class LeaveApplicationService {
                 .sorted()
                 .toList();
         lockAccounts(ownerIds);
-        Map<Long, AccountIdentity> ownerIdentities = identities(ownerIds);
         int changed = 0;
         for (LeaveRequestRepository.ExpiredRecipientRoute candidate : expired) {
             LeaveRequestEntity request = lockedRequest(candidate.getRequestId());
@@ -517,7 +568,7 @@ public class LeaveApplicationService {
             if (request.status() == LeaveStatus.PENDING && !now.isBefore(request.firstCountedStartAt())) {
                 request.autoReject(now);
                 requests.saveAndFlush(request);
-                publishDecisionNotification(ownerIdentities.get(request.internUserId()), "AUTO_REJECTED");
+                publishOverdueReminder(request);
                 changed++;
             }
         }
@@ -696,12 +747,23 @@ public class LeaveApplicationService {
         }
     }
 
-    private void expireIfNeeded(LeaveRequestEntity request, Instant now, AccountIdentity ownerIdentity) {
+    private void expireIfNeeded(LeaveRequestEntity request, Instant now) {
         if (request.status() == LeaveStatus.PENDING && !now.isBefore(request.firstCountedStartAt())) {
             request.autoReject(now);
             requests.saveAndFlush(request);
-            publishDecisionNotification(ownerIdentity, "AUTO_REJECTED");
+            publishOverdueReminder(request);
         }
+    }
+
+    private void publishOverdueReminder(LeaveRequestEntity request) {
+        notifications.publish(
+                new NotificationEvent(
+                        NotificationType.SYSTEM,
+                        "OVERDUE",
+                        "Leave request overdue",
+                        "An undecided Leave request is overdue."),
+                new NotificationAction("/attendance/leave/" + request.id(), false),
+                recipients.forIntern(request.internUserId()));
     }
 
     private void publishSubmissionNotification(List<NotificationRecipient> recipients) {
@@ -754,20 +816,6 @@ public class LeaveApplicationService {
         return java.util.stream.Stream.of(firstId, secondId).distinct().sorted().toList();
     }
 
-    private static List<NotificationRecipient> activeMentorRecipients(
-            List<AccountIdentity> candidates,
-            Map<Long, LockedAccountMutationEligibility> lockedAccounts) {
-        return candidates.stream()
-                .filter(identity -> {
-                    LockedAccountMutationEligibility locked = lockedAccounts.get(identity.id());
-                    return locked != null
-                            && locked.role() == GlobalRole.MENTOR
-                            && locked.accountStatus() == AccountStatus.ACTIVE;
-                })
-                .map(identity -> new NotificationRecipient(identity.id(), identity.email()))
-                .toList();
-    }
-
     private DecisionOutcome approveInTransaction(AttendanceActor actor, long requestId) {
         long ownerId = requests.findInternUserIdById(requestId)
                 .orElseThrow(AttendanceRecordNotFoundException::new);
@@ -780,10 +828,10 @@ public class LeaveApplicationService {
         if (request.status() == LeaveStatus.PENDING && !now.isBefore(request.firstCountedStartAt())) {
             request.autoReject(now);
             requests.saveAndFlush(request);
-            publishDecisionNotification(ownerIdentity, "AUTO_REJECTED");
-            return new DecisionOutcome(null, true);
+            publishOverdueReminder(request);
         }
-        if (request.status() != LeaveStatus.PENDING || !now.isBefore(request.firstCountedStartAt())) {
+        if ((request.status() != LeaveStatus.PENDING && request.status() != LeaveStatus.OVERDUE)
+                || (request.status() == LeaveStatus.PENDING && !now.isBefore(request.firstCountedStartAt()))) {
             throw new LeaveException("Leave is no longer pending before its first counted start");
         }
         try {
@@ -808,10 +856,10 @@ public class LeaveApplicationService {
         if (request.status() == LeaveStatus.PENDING && !now.isBefore(request.firstCountedStartAt())) {
             request.autoReject(now);
             requests.saveAndFlush(request);
-            publishDecisionNotification(ownerIdentity, "AUTO_REJECTED");
-            return new DecisionOutcome(null, true);
+            publishOverdueReminder(request);
         }
-        if (request.status() != LeaveStatus.PENDING || !now.isBefore(request.firstCountedStartAt())) {
+        if ((request.status() != LeaveStatus.PENDING && request.status() != LeaveStatus.OVERDUE)
+                || (request.status() == LeaveStatus.PENDING && !now.isBefore(request.firstCountedStartAt()))) {
             throw new LeaveException("Leave is no longer pending before its first counted start");
         }
         request.reject(actor.userId(), now);

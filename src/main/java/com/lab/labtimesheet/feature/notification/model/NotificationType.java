@@ -1,7 +1,8 @@
 package com.lab.labtimesheet.feature.notification.model;
 
 /**
- * Stored notification families permitted by the V1 schema.
+ * Stored notification families permitted by {@code ck_notifications_type}; V6 adds the two attendance exception
+ * families, which request both channels under NOT-002.
  *
  * <p>Leave and correction decisions use the scalar transition in the event DTO to retain
  * {@code REVERTED} and {@code AUTO_REJECTED} outcomes without allocating a schema event type that
@@ -12,6 +13,8 @@ public enum NotificationType {
     LEAVE_DECIDED(true),
     CORRECTION_SUBMITTED(true),
     CORRECTION_DECIDED(true),
+    ATTENDANCE_EXCEPTION_SUBMITTED(true),
+    ATTENDANCE_EXCEPTION_DECIDED(true),
     MEMBERSHIP_CHANGED(true),
     LEADERSHIP_CHANGED(true),
     PROJECT_INVITATION_CREATED(true),
