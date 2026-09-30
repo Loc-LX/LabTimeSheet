@@ -462,7 +462,7 @@ class NotificationServiceIntegrationTest {
         bootstrap.bootstrap("notification-matrix@example.com", "Admin", "correct horse battery staple");
         long adminId = accounts.requireActiveAdminId("notification-matrix@example.com");
 
-        // a. Khi chưa có SMTP active: phát thông báo C, loại có yêu cầu email. Kiểm: UNAVAILABLE, không có payload.
+        // a. Before active SMTP: publish notification C (email required). Verify: UNAVAILABLE, no payload.
         publish(
                 new NotificationEvent(
                         NotificationType.PROJECT_INVITATION_CREATED, "CREATED", "Matrix Notification C", "Body of C"),
@@ -485,8 +485,8 @@ class NotificationServiceIntegrationTest {
         assertThat(rowC.get("email_sent_at")).isNull();
         assertThat(mail.calls).isZero();
 
-        // b. Bật SMTP, với fake mail gửi THÀNH CÔNG: phát A, loại có yêu cầu email; kiểm SENT, có email_sent_at.
-        //    Phát B, loại không yêu cầu email (ví dụ TASK_STATUS_CHANGED); kiểm NOT_REQUIRED, không có payload.
+        // b. Enable SMTP with fake mail SUCCESS: publish A (email required); verify SENT with email_sent_at.
+        //    Publish B (no email required, e.g. TASK_STATUS_CHANGED); verify NOT_REQUIRED, no payload.
         activateSmtp(adminId);
         mail.reset();
         mail.fail = false;
@@ -534,8 +534,8 @@ class NotificationServiceIntegrationTest {
         assertThat(rowB.get("email_sent_at")).isNull();
         assertThat(mail.calls).isEqualTo(1);
 
-        // c. Chuyển fake mail sang THẤT BẠI: phát D. Ngay sau lần thử đầu tiên, kiểm D là PENDING, có payload và có email_next_attempt_at.
-        //    Sau đó cho chạy hết các lượt retry theo NOT-006 bằng cách tiến đồng hồ theo cách helper sẵn có đang làm. Kiểm D thành FAILED sau đúng 6 lần thử.
+        // c. Set fake mail to FAILURE: publish D. Right after first attempt, verify D is PENDING with payload and email_next_attempt_at.
+        //    Then exhaust retries per NOT-006 by advancing clock via existing helper. Verify D becomes FAILED after exactly 6 attempts.
         mail.fail = true;
         publish(
                 new NotificationEvent(
@@ -580,7 +580,7 @@ class NotificationServiceIntegrationTest {
                 .isNull();
         assertInboxContent(idD, titleD, bodyD);
 
-        // d. Kiểm C vẫn là UNAVAILABLE: việc bật SMTP không làm dòng nào đổi trạng thái.
+        // d. Verify C remains UNAVAILABLE: enabling SMTP does not alter existing row states.
         Map<String, Object> rowCAfter = jdbc.queryForMap(
                 "select email_status, email_to, email_subject, email_body, email_attempts, email_next_attempt_at, email_sent_at from notifications where id = ?",
                 idC);
@@ -592,7 +592,7 @@ class NotificationServiceIntegrationTest {
         assertThat(rowCAfter.get("email_sent_at")).isNull();
         assertInboxContent(idC, titleC, bodyC);
 
-        // e. Admin gọi retryFailedEmail lần lượt cho A, B, C, D, trong lúc fake vẫn thất bại. Chỉ D trả true và về PENDING; A, B, C trả false và giữ nguyên.
+        // e. Admin calls retryFailedEmail sequentially on A, B, C, D while fake still fails. Only D returns true and returns to PENDING; A, B, C return false and remain unchanged.
         Map<String, Object> rowABeforeManualRetry = deliveryAndInboxState(idA);
         Map<String, Object> rowBBeforeManualRetry = deliveryAndInboxState(idB);
         Map<String, Object> rowCBeforeManualRetry = deliveryAndInboxState(idC);
@@ -618,7 +618,7 @@ class NotificationServiceIntegrationTest {
         assertInboxContent(idD, titleD, bodyD);
         assertThat(countFor(adminId)).isEqualTo(4);
 
-        // f. Thử rời trạng thái cuối: tiến đồng hồ thật xa rồi gọi retryDueEmails(); sau đó, trong một transaction, gọi markSent, retainPendingRetry và requeueFailedEmail trực tiếp trên entity của A, B và C. Kiểm trạng thái cả ba dòng không đổi (requeueFailedEmail phải ném IllegalStateException).
+        // f. Attempt transition out of terminal states: advance clock far ahead and call retryDueEmails(); then in one transaction, call markSent, retainPendingRetry, and requeueFailedEmail directly on entities A, B, and C. Verify status of all three rows is unchanged (requeueFailedEmail must throw IllegalStateException).
         markDue(idD, Instant.parse("2020-01-01T00:00:00Z"));
         notifications.retryDueEmails();
 
@@ -661,7 +661,7 @@ class NotificationServiceIntegrationTest {
         assertInboxContent(idC, titleC, bodyC);
         assertInboxContent(idD, titleD, bodyD);
 
-        // g. Xuyên suốt: số dòng notifications và nội dung phần in-app (title, body) của A, B, C, D không đổi.
+        // g. Throughout: notification row count and in-app content (title, body) for A, B, C, D remain unchanged.
         assertThat(jdbc.queryForObject("select count(*) from notifications where recipient_user_id = ?", Integer.class, adminId))
                 .isEqualTo(4);
 
