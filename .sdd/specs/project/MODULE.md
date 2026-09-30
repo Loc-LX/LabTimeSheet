@@ -2,7 +2,7 @@
 
 <a id="project-spec"></a>
 
-**Version:** 1.6.0 · **Owner:** Loc-LX · **Status:** APPROVED BUSINESS BASELINE · **Date:** 2026-09-21
+**Version:** 1.7.0 · **Owner:** Loc-LX · **Status:** APPROVED BUSINESS BASELINE · **Date:** 2026-09-30
 
 Part of the Lab Timesheet specification. Rules every feature shares, including the
 glossary, the authorization model, the domain model, and failure handling, are in
@@ -33,7 +33,7 @@ Progress is tracked only in [plan.md](../../../plan.md).
 | [P6 — Work logs and effort](MODULE.md#project-p6): record actual work and preserve estimate/forecast history | `TSK-013`–`TSK-017`, `TSK-020`–`TSK-022`, `TSK-024`, `DB-013` | `UC-06`–`UC-07`, forecasts in `UC-14`; `AC-TSK-007`–`AC-TSK-009`, `AC-TSK-012`–`AC-TSK-013`, `AC-TSK-017` |
 
 **Shared contracts:** `AUTH-004`–`AUTH-009` and `AUTH-011` apply wherever a part uses
-membership, leadership, assignee rights or history. `NOT-003` and `NOT-010` retain one
+membership, leadership, assignee rights or history. `NOT-003`, `NOT-010` and `NOT-013` retain one
 recipient definition across parts. Integrity rules remain together after the business
 rules; §7 groups the shared authorization and database scenarios separately.
 A use case crossing parts remains one use case; its repeated reference is not a copy.
@@ -136,6 +136,7 @@ Feature contracts: [Project invitations](features/invitations/SPEC.md), [Members
 |---|---|
 | NOT-003 | WHEN a Task comment is added or a Task status changes, THE system SHALL create an in-app notification only. WHEN someone other than the assignee blocks, unblocks, or reopens a Task, THE system SHALL notify the assignee, and WHERE that actor is the owning Mentor, SHALL also notify the current Leader. |
 | NOT-010 | WHEN an invitation is created, THE system SHALL notify the invitee. WHEN it is answered, THE system SHALL notify the issuing Leader and the owning Mentor. WHEN it is revoked or superseded, THE system SHALL notify the invitee, the issuing Leader, and the owning Mentor, collapsing duplicate recipients. WHEN a Leader requests a removal, THE system SHALL notify the owning Mentor and the target; WHEN a member requests their own leave, THE system SHALL notify the owning Mentor and the current Leader; WHEN such a request is decided or cancelled, THE system SHALL notify the requester, the target, and the current Leader, collapsing duplicate recipients. WHEN a member creates a self-Task, THE system SHALL send no notification. |
+| NOT-013 | WHEN an action opens or closes a Project membership interval, THE system SHALL notify each Intern whose interval it opens or closes with `MEMBERSHIP_CHANGED`. WHEN an action opens or closes a leadership term, THE system SHALL notify each Intern whose term it opens or closes with `LEADERSHIP_CHANGED`. THE system SHALL NOT notify the user who performed the action, and SHALL collapse duplicate recipients. |
 
 ### Use cases
 

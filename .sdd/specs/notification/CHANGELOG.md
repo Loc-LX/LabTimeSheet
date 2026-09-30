@@ -1,5 +1,9 @@
 # Changelog — Notification module
 
+## 1.5.0 — 2026-09-30
+
+§12.2 now names `NOT-013` with `NOT-003` and `NOT-010` as recipient rules kept in the project spec (`D50`). No rule of this shared contract changed.
+
 ## 1.4.0 — 2026-09-21
 
 `D38` closes this module's open clarification: `NOT-012` in

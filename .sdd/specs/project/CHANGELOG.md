@@ -1,5 +1,9 @@
 # Changelog — Project module
 
+## 1.7.0 — 2026-09-30
+
+`D50` adds `NOT-013`: `MEMBERSHIP_CHANGED` and `LEADERSHIP_CHANGED` go to each Intern whose membership interval or leadership term the action opens or closes, never to the user who performed it. The shared-contracts note now names `NOT-013` with `NOT-003` and `NOT-010`. The code still notifies an Intern who accepts an invitation (Task ED-07).
+
 ## 1.6.0 — 2026-09-21
 
 Navigation cleanup (`D38`). The parallel `feature-project/` compatibility index is

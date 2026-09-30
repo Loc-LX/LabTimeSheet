@@ -1,5 +1,9 @@
 # Changelog — Membership and leadership
 
+## 1.2.0 — 2026-09-30
+
+`AC-PRJ-017` is new and traces `NOT-013` (`D50`) on the *Add eligible members* and *Assign or replace Leader* rows.
+
 ## 1.1.0 — 2026-09-21
 
 Status only (`D38`). No question affecting this document is open, so its Status
