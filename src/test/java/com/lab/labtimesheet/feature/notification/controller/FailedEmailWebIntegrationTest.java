@@ -228,6 +228,16 @@ class FailedEmailWebIntegrationTest {
                 .andExpect(flash().attribute("message", "Email retry started."));
 
         // Row is no longer FAILED: absent SMTP causes immediate retry failure which retains PENDING state
+        long deadline = System.currentTimeMillis() + 5000;
+        while (System.currentTimeMillis() < deadline) {
+            Integer attempts = jdbc.queryForObject(
+                    "SELECT email_attempts FROM notifications WHERE id = ?", Integer.class, failedNotificationId);
+            if (attempts != null && attempts >= 1) {
+                break;
+            }
+            Thread.sleep(25);
+        }
+
         String updatedStatus = jdbc.queryForObject(
                 "SELECT email_status FROM notifications WHERE id = ?", String.class, failedNotificationId);
         assertThat(updatedStatus).isEqualTo("PENDING");

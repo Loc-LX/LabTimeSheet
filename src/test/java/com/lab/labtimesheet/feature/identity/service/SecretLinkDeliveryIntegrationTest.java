@@ -102,7 +102,7 @@ class SecretLinkDeliveryIntegrationTest {
         activateSmtp(adminId);
         mail.clear();
 
-        // --- Case a: Tạo tài khoản khi gửi mail lỗi ---
+        // --- Case a: account creation when mail delivery fails ---
         mail.setFail(true);
         var command = new CreateAccountCommand(
                 "secret-intern@example.com", "Secret Intern", GlobalRole.INTERN, "STU-SEC-01",
@@ -124,7 +124,7 @@ class SecretLinkDeliveryIntegrationTest {
         assertThat(users.findById(creation.userId()).orElseThrow().getAccountStatus())
                 .isEqualTo(AccountStatus.PENDING_ACTIVATION);
 
-        // Sau đó gọi resendActivation khi gửi mail thành công
+        // Then call resendActivation when mail delivery succeeds
         mail.clear();
         mail.setFail(false);
         AccountCreation resendCreation = accounts.resendActivation(creation.userId(), adminId);
@@ -133,15 +133,15 @@ class SecretLinkDeliveryIntegrationTest {
         String newRawActivationToken = mail.lastToken();
         assertThat(newRawActivationToken).isNotBlank().isNotEqualTo(failedRawActivationToken);
 
-        // Token cũ vẫn bị vô hiệu
+        // The old token remains invalidated
         assertThat(accounts.activate(failedRawActivationToken, "InitialPassword123!")).isFalse();
 
-        // Có token mới dùng được
+        // A new usable token is issued
         assertThat(accounts.activate(newRawActivationToken, "InitialPassword123!")).isTrue();
         assertThat(users.findById(creation.userId()).orElseThrow().getAccountStatus())
                 .isEqualTo(AccountStatus.ACTIVE);
 
-        // --- Case b: Yêu cầu đặt lại mật khẩu khi gửi mail lỗi ---
+        // --- Case b: password reset request when mail delivery fails ---
         mail.clear();
         mail.setFail(true);
         boolean resetRequested = accounts.requestPasswordReset("secret-intern@example.com");
@@ -157,10 +157,10 @@ class SecretLinkDeliveryIntegrationTest {
         UserActionToken failedResetTokenEntity = resetTokens.getFirst();
         assertThat(failedResetTokenEntity.getInvalidatedAt()).isNotNull();
 
-        // resetPassword bằng token đó trả false
+        // resetPassword with that token returns false
         assertThat(accounts.resetPassword(failedRawResetToken, "ReplacementPassword123!")).isFalse();
 
-        // Yêu cầu lại khi gửi thành công
+        // Request again when delivery succeeds
         mail.clear();
         mail.setFail(false);
         boolean secondResetRequested = accounts.requestPasswordReset("secret-intern@example.com");
@@ -169,17 +169,17 @@ class SecretLinkDeliveryIntegrationTest {
         String newRawResetToken = mail.lastToken();
         assertThat(newRawResetToken).isNotBlank().isNotEqualTo(failedRawResetToken);
 
-        // Token cũ vẫn trả false
+        // The old token still returns false
         assertThat(accounts.resetPassword(failedRawResetToken, "ReplacementPassword123!")).isFalse();
 
-        // Token mới dùng được
+        // The new token is usable
         assertThat(accounts.resetPassword(newRawResetToken, "ReplacementPassword123!")).isTrue();
         assertThat(passwords.matches(
                 "ReplacementPassword123!",
                 users.findById(creation.userId()).orElseThrow().getPasswordHash()))
                 .isTrue();
 
-        // --- Case c: Trong cả a và b: không dòng nào trong notifications chứa token thô, /activate hay /reset ---
+        // --- Case c: in both a and b: no row in notifications contains the raw token, /activate, or /reset ---
         List<Map<String, Object>> notificationRows = jdbc.queryForList(
                 "select title, body, email_subject, email_body from notifications");
         for (Map<String, Object> row : notificationRows) {
@@ -197,7 +197,7 @@ class SecretLinkDeliveryIntegrationTest {
             }
         }
 
-        // Log bắt bằng OutputCaptureExtension không chứa token thô
+        // Logs captured via OutputCaptureExtension do not contain the raw token
         String logs = output.getAll();
         assertThat(logs)
                 .doesNotContain(failedRawActivationToken)

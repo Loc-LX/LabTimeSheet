@@ -149,9 +149,9 @@ public class ProjectService {
                 projectInternEligibility(initialLeader), // bọc userId + eligible flag
                 clock.instant());
         long projectId = projects.saveAndFlush(project).id(); // → Repo: JPA cascade INSERT 3 bảng
-        notifyMembershipChanged(projectId, "INITIAL_MEMBER_ADDED", List.of(initialLeader.userId())); // →
+        notifyMembershipChanged(actorUserId, projectId, "INITIAL_MEMBER_ADDED", List.of(initialLeader.userId())); // →
                                                                                                      // NotificationService
-        notifyLeadershipChanged(projectId, "INITIAL_LEADER_ASSIGNED", List.of(initialLeader.userId())); // →
+        notifyLeadershipChanged(actorUserId, projectId, "INITIAL_LEADER_ASSIGNED", List.of(initialLeader.userId())); // →
                                                                                                         // NotificationService
         return projectId;
     }
@@ -260,7 +260,7 @@ public class ProjectService {
                                                                                                                        // trùng
         projects.flush(); // → Repo: INSERT project_memberships
         addedMemberships.forEach(
-                membership -> notifyMembershipChanged(projectId, "MEMBER_ADDED", List.of(membership.internUserId()))); // →
+                membership -> notifyMembershipChanged(actorUserId, projectId, "MEMBER_ADDED", List.of(membership.internUserId()))); // →
                                                                                                                        // NotificationService
     }
 
@@ -535,7 +535,7 @@ public class ProjectService {
                 clock.instant());
         invitations.flush(); // → Repo: UPDATE project_invitations
         notifyInvitationResponse(invitation, project.mentorUserId(), invitation.resolutionCode());
-        notifyMembershipChanged(project.id(), "INVITATION_ACCEPTED", List.of(actorUserId)); // → NotificationService
+        notifyMembershipChanged(actorUserId, project.id(), "INVITATION_ACCEPTED", List.of(actorUserId)); // → NotificationService
     }
 
     /**
@@ -754,6 +754,7 @@ public class ProjectService {
         project.completeLeaderChange(actorUserId, change); // → Entity: mở term mới
         projects.flush(); // → Repo: INSERT leadership_term mới
         notifyLeadershipChanged( // → NotificationService
+                actorUserId,
                 projectId,
                 "LEADER_CHANGED",
                 List.of(outgoingLeaderUserId, change.replacement().internUserId()));
@@ -1193,6 +1194,7 @@ public class ProjectService {
         projects.flush(); // → Repo: UPDATE project_memberships
         exitRequests.flush(); // → Repo: UPDATE exit_requests
         notifyMembershipChanged( // → NotificationService
+                actorMentorUserId,
                 project.id(),
                 "MEMBER_REMOVED",
                 List.of(target.internUserId()),
@@ -1323,6 +1325,7 @@ public class ProjectService {
             project.completeLeaderChange(actorMentorUserId, change);
             projects.flush(); // → Repo: INSERT leadership_term mới
             notifyLeadershipChanged(
+                    actorMentorUserId,
                     projectId,
                     "LEADER_CHANGED",
                     List.of(outgoingLeaderUserId, change.replacement().internUserId()),
@@ -1355,6 +1358,7 @@ public class ProjectService {
         var at = clock.instant();
         target.close(at, actorMentorUserId); // → Entity: đóng membership
         notifyMembershipChanged(
+                actorMentorUserId,
                 project.id(),
                 "MEMBER_REMOVED",
                 List.of(target.internUserId()),
@@ -1436,11 +1440,13 @@ public class ProjectService {
         project.complete(actorMentorUserId, at); // → Entity: ACTIVE → COMPLETED, đóng membership + leadership
         projects.flush(); // → Repo: UPDATE projects + memberships + leadership_terms
         notifyMembershipChanged( // → NotificationService
+                actorMentorUserId,
                 project.id(),
                 "PROJECT_COMPLETED",
                 currentMemberUserIds,
                 locked.notificationRecipients());
         notifyLeadershipChanged( // → NotificationService
+                actorMentorUserId,
                 project.id(),
                 "LEADER_REMOVED",
                 List.of(currentLeaderUserId),
@@ -1487,8 +1493,8 @@ public class ProjectService {
         exitRequests.flush();
         project.cancel(actorMentorUserId, at, reason);
         projects.flush();
-        notifyMembershipChanged(projectId, "PROJECT_CANCELLED", memberIds, locked.notificationRecipients());
-        notifyLeadershipChanged(projectId, "LEADER_REMOVED", List.of(currentLeaderUserId),
+        notifyMembershipChanged(actorMentorUserId, projectId, "PROJECT_CANCELLED", memberIds, locked.notificationRecipients());
+        notifyLeadershipChanged(actorMentorUserId, projectId, "LEADER_REMOVED", List.of(currentLeaderUserId),
                 locked.notificationRecipients());
     }
 
@@ -1852,29 +1858,37 @@ public class ProjectService {
      * one account.
      * </p>
      *
+     * @param actorUserId     initiating actor account excluded from receiving the notice
      * @param projectId       owning Project identifier
      * @param transition      retained membership transition
      * @param affectedUserIds Intern accounts whose membership interval changed
      */
     private void notifyMembershipChanged(
-            long projectId, String transition, Collection<Long> affectedUserIds) {
-        publishMembershipChanged(projectId, transition, notificationRecipients(affectedUserIds)); // →
+            long actorUserId, long projectId, String transition, Collection<Long> affectedUserIds) {
+        publishMembershipChanged(actorUserId, projectId, transition, notificationRecipients(affectedUserIds)); // →
                                                                                                   // NotificationService.publish
     }
 
     // Overload: dùng recipientFacts đã lock (complete, directRemove...).
     private void notifyMembershipChanged(
+            long actorUserId,
             long projectId,
             String transition,
             Collection<Long> affectedUserIds,
             Map<Long, NotificationRecipient> recipientFacts) {
         publishMembershipChanged(
-                projectId, transition, notificationRecipients(affectedUserIds, recipientFacts));
+                actorUserId, projectId, transition, notificationRecipients(affectedUserIds, recipientFacts));
     }
 
     // Gửi thông báo thay đổi membership (Create Project: INITIAL_MEMBER_ADDED).
     private void publishMembershipChanged(
-            long projectId, String transition, List<NotificationRecipient> recipients) {
+            long actorUserId, long projectId, String transition, List<NotificationRecipient> recipients) {
+        List<NotificationRecipient> filteredRecipients = recipients.stream()
+                .filter(recipient -> recipient.userId() != actorUserId)
+                .toList();
+        if (filteredRecipients.isEmpty()) {
+            return;
+        }
         notifications.publish(
                 new NotificationEvent(
                         NotificationType.MEMBERSHIP_CHANGED,
@@ -1882,7 +1896,7 @@ public class ProjectService {
                         "Project membership updated",
                         "A Project membership changed for Project " + projectId + "."),
                 new NotificationAction(projectActionUrl(projectId), false, projectId),
-                recipients);
+                filteredRecipients);
     }
 
     /**
@@ -1896,29 +1910,37 @@ public class ProjectService {
      * account IDs.
      * </p>
      *
+     * @param actorUserId     initiating actor account excluded from receiving the notice
      * @param projectId       owning Project identifier
      * @param transition      retained leadership transition
      * @param affectedUserIds outgoing/incoming Leader accounts as applicable
      */
     private void notifyLeadershipChanged(
-            long projectId, String transition, Collection<Long> affectedUserIds) {
-        publishLeadershipChanged(projectId, transition, notificationRecipients(affectedUserIds)); // →
+            long actorUserId, long projectId, String transition, Collection<Long> affectedUserIds) {
+        publishLeadershipChanged(actorUserId, projectId, transition, notificationRecipients(affectedUserIds)); // →
                                                                                                   // NotificationService.publish
     }
 
     // Overload: dùng recipientFacts đã lock.
     private void notifyLeadershipChanged(
+            long actorUserId,
             long projectId,
             String transition,
             Collection<Long> affectedUserIds,
             Map<Long, NotificationRecipient> recipientFacts) {
         publishLeadershipChanged(
-                projectId, transition, notificationRecipients(affectedUserIds, recipientFacts));
+                actorUserId, projectId, transition, notificationRecipients(affectedUserIds, recipientFacts));
     }
 
     // Gửi thông báo thay đổi Leader (Create Project: INITIAL_LEADER_ASSIGNED).
     private void publishLeadershipChanged(
-            long projectId, String transition, List<NotificationRecipient> recipients) {
+            long actorUserId, long projectId, String transition, List<NotificationRecipient> recipients) {
+        List<NotificationRecipient> filteredRecipients = recipients.stream()
+                .filter(recipient -> recipient.userId() != actorUserId)
+                .toList();
+        if (filteredRecipients.isEmpty()) {
+            return;
+        }
         notifications.publish(
                 new NotificationEvent(
                         NotificationType.LEADERSHIP_CHANGED,
@@ -1926,7 +1948,7 @@ public class ProjectService {
                         "Project leadership updated",
                         "Project leadership changed for Project " + projectId + "."),
                 new NotificationAction(projectActionUrl(projectId), false, projectId),
-                recipients);
+                filteredRecipients);
     }
 
     /**

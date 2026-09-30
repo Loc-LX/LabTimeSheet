@@ -141,6 +141,8 @@ and in the constitution.
    - **Email delivery planning:** `PLAN.md` and `TASKS.md` drafted on 27 September 2026 against current code; `ED-01` carries `C-07`, adding the `NOT-012` payload predicate as the next migration; approved by the maintainer the same day after independent review; ED-01 completed on 29 September 2026 on its own branch, awaiting independent review.
    - **Email delivery ED-01 to ED-05 complete, 29 September 2026.** On the local branch `work/fix/notification/email-payload-contract`; merged on 30 September 2026 into the local integration branch `work/integration/attendance`, not into `main`: every acceptance scenario of the plan passes; see *Evidence for Task ED-05*.
    - **Email delivery decisions `D49` and `D50`, 30 September 2026.** Decided by the maintainer: `NOT-006` now keeps SMTP out of the user's response (`AC-NOT-008`), and `NOT-013` names the recipients of `MEMBERSHIP_CHANGED` and `LEADERSHIP_CHANGED` (`AC-PRJ-017`). The specification is updated; the code does not follow yet. Tasks ED-06 and ED-07 are still to be planned.
+   - **V8 dev-database preflight, 30 September 2026.** The lead ran the read-only check on `labtimesheet-postgres`: Flyway history `1:true 2:true`, and `notifications` holds no rows, so no `NOT_REQUIRED` or `UNAVAILABLE` row carries a payload. V8 can run once the attendance chain, which carries V9, and this branch are both merged.
+   - **Email delivery ED-06 and ED-07 planned, 30 September 2026.** `PLAN.md` and `TASKS.md` of Email delivery carry the design for `D49` and `D50`; awaiting lead review. The code follows after the 2 October 2026 demo.
    - **Leave planning:** `PLAN.md` and `TASKS.md` drafted on 27 September 2026 against current code; they carry the leave part of `C-05`; approved by the maintainer the same day after independent review; amended on 28 September 2026 under `D47`; LV-01 completed on 28 September 2026 on its own branch, awaiting independent review; LV-03 completed on 29 September 2026 on its own branch, awaiting independent review (taken before LV-02 because LV-02's reservation and balance cases need OVERDUE); LV-02 completed on 29 September 2026 on its own branch, awaiting independent review.
    - **Missed-checkout correction planning:** `PLAN.md` and `TASKS.md` drafted on 27 September 2026 against current code; they carry the correction part of `C-05`; approved by the maintainer the same day after independent review; amended on 28 September 2026 under `D47`; MC-02 completed on 29 September 2026 on its own branch, awaiting independent review (taken before MC-01 because MC-01's `DB-017` predicate refuses new `AUTO_REJECTED` events, so MC-01 must ship together with MC-03's overdue transition, whose deadline cases need MC-02's 48-hour windows); MC-01 and MC-03 completed on 29 September 2026 as one change on their own branch, awaiting independent review.
    - **Attendance exception planning:** `PLAN.md` and `TASKS.md` drafted on 27 September 2026 against current code; the feature is built on the V3 tables, adds no attendance contract migration, and AE-02 extends `ck_notifications_type` for `NOT-002`; approved by the maintainer on 28 September 2026 after independent review; `D47` settles who is notified when the Intern has no responsible Mentor available; AE-01 completed on 28 September 2026 on its own branch, awaiting independent review; AE-02 part 1 (service, V6 notification types, submission notice) completed on 28 September 2026 on its own branch, awaiting independent review; AE-02 part 2 implementation is pending the form-retention test and manual browser verification; AE-03 completed on 28 September 2026 on its own branch, awaiting independent review.
@@ -1514,3 +1516,94 @@ Task ED-05 final gates are ready for review.
 - **Full gates.** After deleting the old `target/surefire-reports`, `./mvnw.cmd -B test` passed 1045 tests, 0 failures, 0 errors, 0 skipped (`BUILD SUCCESS` in 26 min 32 s; 160 XML report files; Maven 3.9.16, Java 25.0.4.1, PostgreSQL 18.4/Testcontainers 2.0.5, Docker 29.7.2). `npm run build` passed (Tailwind CSS 4.3.3). `npm run test:ui` passed 38/38, 0 failures, 0 skipped (Node 24.16.0, npm 11.13.0, `@playwright/test` 1.62.1).
 - **E2E A, empty databases.** Disposable PostgreSQL 18.4 container `labtimesheet-merge-gate-a` ran at `127.0.0.1:55435`; the `e2e` app used `127.0.0.1:8082`, `PLAYWRIGHT_BASE_URL=http://127.0.0.1:8082`, and business date `2026-09-22`. Flyway applied V1–V9; no seed scripts ran. `critical-journeys.spec.mjs` and `smoke.spec.mjs` passed 4/4, 0 failures, 0 skipped. A second disposable container `labtimesheet-merge-gate-a2` on a separate empty database ran `failed-email.spec.mjs` and passed 1/1, 0 failures, 0 skipped. After each run, the app was stopped, the container removed, and ports 55435 and 8082 were clear.
 - **E2E B, seeded databases.** Fresh disposable PostgreSQL 18.4 container `labtimesheet-merge-gate-b` ran at `127.0.0.1:55435`; the `e2e` app used port 8082 and business date `2026-09-22`. Flyway reached V9 via V1–V9; `scripts/demo-seed.sql` and `scripts/demo-seed-v2.sql` both completed. Before the browser run, a query of every `ACTIVE` Intern confirmed that all 6 had a responsible Mentor. `report-journeys.spec.mjs` ran with seeded `intern2@example.com` and passed 2/2, 0 failures, 0 skipped. A second disposable container `labtimesheet-merge-gate-b2` ran `smtp-absent-project-workflow.spec.mjs` on a separate seed with SMTP not active and passed 1/1, 0 failures, 0 skipped. After each run, the app was stopped, the container removed, and ports 55435 and 8082 were clear.
+## Evidence for Task ED-07 (30 September 2026)
+
+The 2 October 2026 demo was cancelled on 30 September 2026, so ED-07 code started the same day.
+
+- **GitNexus impact analysis.**
+  - `publishMembershipChanged`: 2 direct callers (`ProjectService.notifyMembershipChanged(ProjectEntity, ProjectMembershipTransition, Long)` and overloaded `notifyMembershipChanged(ProjectEntity, ProjectMembershipTransition)`), 18 impacted symbols, 7 processes, risk `CRITICAL`.
+  - `publishLeadershipChanged`: 2 direct callers (`ProjectService.notifyLeadershipChanged(ProjectEntity, ProjectLeadershipTransition, Long)` and overloaded `notifyLeadershipChanged(ProjectEntity, ProjectLeadershipTransition)`), 12 impacted symbols, 5 processes, risk `CRITICAL`.
+  - `notifyMembershipChanged`: index reported `risk: UNKNOWN` with 2 ambiguous overload candidates; disambiguation showed each overload has 9 impacted symbols, 4 processes, risk `LOW`.
+  - `notifyLeadershipChanged`: index reported `risk: UNKNOWN` with 2 ambiguous overload candidates; disambiguation showed each overload has 6 impacted symbols, 3 processes, risk `LOW`.
+- **RED evidence.**
+  - Test name: `membershipAndLeadershipNotificationsExcludeInitiatorAcrossProjectLifecycle`
+  - Location: `src/test/java/com/lab/labtimesheet/feature/project/service/ProjectInvitationExitIntegrationTest.java:1895`
+  - Failure reason: `respondToInvitation` published `MEMBERSHIP_CHANGED` (transition `INVITATION_ACCEPTED`) to the accepting intern because actor exclusion was not yet implemented.
+  - Verbatim error:
+    ```text
+    org.opentest4j.AssertionFailedError: expected: <[]> but was: <[4]>
+    ```
+- **Modified existing assertion.**
+  - Location: `src/test/java/com/lab/labtimesheet/feature/project/service/ProjectInvitationExitIntegrationTest.java:192`
+  - Change: `List.of(acceptedInviteeId)` replaced with `List.of()`
+  - Reason: Per D50, the accepting intern is the initiator of the invitation acceptance action and is excluded from receiving their own `MEMBERSHIP_CHANGED` notification (`INVITATION_ACCEPTED` produces an empty recipient set).
+- **Focused test execution.**
+  - Command: `.\mvnw test "-Dtest=ProjectInvitationExitIntegrationTest,ProjectServiceIntegrationTest,NotificationServiceIntegrationTest"`
+  - Results: Tests run: 79, Failures: 0, Errors: 0, Skipped: 0 across 3 test classes (`ProjectInvitationExitIntegrationTest`: 42 tests, `ProjectServiceIntegrationTest`: 26 tests, `NotificationServiceIntegrationTest`: 11 tests). `BUILD SUCCESS`.
+
+- Full gates: `docker version` (Server Engine 29.7.2); `.\mvnw test` passed 943 tests, 0 failures, 0 errors, 0 skipped across 148 `TEST-*.xml` report files (`BUILD SUCCESS`, total time 16:25 min, Finished at 2026-09-30T16:58:45+07:00); `npm run test:ui` passed 38/38; `git diff --check` clean.
+- E2E A (empty database on `labtimesheet-ed07-gate-a`, port 55437/8083, `E2E_BUSINESS_DATE=2026-09-22`, `LAB_E2E_START_INSTANT=2026-09-22T01:00:00Z`): `critical-journeys.spec.mjs` 2 passed, 0 failed, 0 skipped; `smoke.spec.mjs` 2 passed, 0 failed, 0 skipped; `failed-email.spec.mjs` 1 passed, 0 failed, 0 skipped (5 passed, 0 failed, 0 skipped in total).
+- E2E B (freshly seeded databases on `labtimesheet-ed07-gate-b`, port 55437/8083, `E2E_BUSINESS_DATE=2026-09-22`, `LAB_E2E_START_INSTANT=2026-09-22T01:00:00Z`): `report-journeys.spec.mjs` 2 passed, 0 failed, 0 skipped (authenticated as seeded `intern2@example.com` / `DemoPassword123!`); `smtp-absent-project-workflow.spec.mjs` 1 passed, 0 failed, 0 skipped on a different seed (3 passed, 0 failed, 0 skipped in total). Both disposable containers and temporary applications stopped and removed; ports 55437 and 8083 verified clear.
+
+## Evidence for Task ED-06 (30 September 2026)
+
+- **GitNexus impact analysis and lead ruling.**
+  - GitNexus rated `scheduleDelivery` CRITICAL (48 symbols, 18 processes); the lead approved proceeding because D49 intends to change delivery for every notification-raising flow; the in-app notification row still commits in the same transaction, and the full Maven and E2E runs cover the affected processes.
+  - GitNexus change detection over working tree: 5 files, 49 symbols, 29 affected processes.
+- **RED evidence for AC-NOT-008.**
+  - Test name: `acNot008ProjectCompletionReturnsBeforeSmtpDeliveryAndDispatchesAsynchronously`
+  - Location: `src/test/java/com/lab/labtimesheet/feature/project/service/ProjectInvitationExitIntegrationTest.java:1946`
+  - Failure reason: `projects.complete(...)` timed out on `completionFuture.get(2, TimeUnit.SECONDS)` because SMTP delivery ran synchronously on the request thread while probe was held in `blockForOverlap`.
+  - Verbatim error:
+    ```text
+    java.util.concurrent.TimeoutException
+        at java.base/java.util.concurrent.FutureTask.get(FutureTask.java:206)
+        at com.lab.labtimesheet.feature.project.service.ProjectInvitationExitIntegrationTest.acNot008ProjectCompletionReturnsBeforeSmtpDeliveryAndDispatchesAsynchronously(ProjectInvitationExitIntegrationTest.java:2000)
+    ```
+- **Concurrency lease contention verification.**
+  - Test name: `concurrencyLeaseContentionEnsuresSingleDelivery`
+  - Location: `src/test/java/com/lab/labtimesheet/feature/notification/service/NotificationServiceIntegrationTest.java:706`
+  - Result: 2 concurrent worker threads competing to deliver the same pending notification row resulted in exactly 1 delivery (`mail.calls == 1`, no duplicate delivery) due to atomic lease acquisition query (`acquireEmailDeliveryLease`).
+- **Changed assertions.**
+  - `overlappingRetryWorkerSendsNothingWhileTheDeliveryLeaseIsHeld` (`src/test/java/com/lab/labtimesheet/feature/notification/service/NotificationServiceIntegrationTest.java:224`): assertion for overlapping `retryDueEmails` was changed from blocking on the row lock to returning 0 immediately (`assertThat(worker.get(500, TimeUnit.MILLISECONDS)).isZero()`) because the atomic delivery lease replaces row-level database locking (email-delivery PLAN Design point 3; `D49`).
+  - `acNot008ProjectCompletionReturnsBeforeSmtpDeliveryAndDispatchesAsynchronously` (`src/test/java/com/lab/labtimesheet/feature/project/service/ProjectInvitationExitIntegrationTest.java:1990`): rewritten to invoke Project completion via real MockMvc HTTP endpoint (`POST /projects/{projectId}/complete`, with CSRF and authenticated owning Mentor). Asserts HTTP response redirect (status 3xx) while probe latch is held, with all domain rows committed and email statuses PENDING; asserts all emails reach SENT upon latch release; and verifies that the initial delivery attempt begins within 60 seconds of commit dispatch.
+- **Tests adding asynchronous delivery wait steps.**
+  - `NotificationServiceIntegrationTest.java`:
+    - `transientFailureLeavesDomainCommittedAndRetainsPendingRetryState`: added `awaitEmailAttempts(adminId, 1)` and `awaitMailCalls(1)`.
+    - `deliverySucceedsAndDispatchesAsynchronously`: added `awaitEmailStatus(adminId, "SENT")`.
+    - `overlappingRetryWorkerSendsNothingWhileTheDeliveryLeaseIsHeld`: added `awaitEmailStatus(adminId, "SENT")`.
+    - `oneRecipientFailureDoesNotStarveLaterRecipients`: added `awaitMailCalls(2)` and `awaitEmailStatus(secondId, "SENT")`.
+    - `acNot007StateMatrixFromCreationThroughAdminRetryAndTerminalRefusals`: added `awaitEmailStatus(adminId, "SENT")`.
+    - `concurrencyLeaseContentionEnsuresSingleDelivery`: added `awaitEmailStatus(adminId, "SENT")`.
+  - `FailedEmailWebIntegrationTest.java`:
+    - `retryButtonSubmitsPostAndTransitionsRow`: added `awaitEmailStatus("SENT")` following Admin retry POST redirect.
+- **New restart crash-recovery test for NOT-006 / D49.**
+  - Test name: `pendingNotificationWithLiveLeaseIsNotRetriedUntilLeaseExpires`
+  - Location: `src/test/java/com/lab/labtimesheet/feature/notification/service/NotificationServiceIntegrationTest.java:770`
+  - Verifies that a PENDING notification due at `T` acquires a real 5-minute delivery lease via `notificationRepository.acquireEmailDeliveryLease` with `now = T` (asserting update count = 1 and `email_next_attempt_at = T + 5 min`), simulating crash before send. Verifies `retryDueEmails` returns 0 when Clock is `T + 4 min`, and returns 1 with row transitioning to `SENT` when Clock advances to `T + 5 min + 1 s`.
+- **Focused test execution (NotificationServiceIntegrationTest).**
+  - Command: `.\mvnw test "-Dtest=NotificationServiceIntegrationTest"`
+  - Results: Tests run: 13, Failures: 0, Errors: 0, Skipped: 0. `BUILD SUCCESS` (02:13 min, Finished at 2026-09-30T19:30:12+07:00).
+- **Focused test execution (11 classes).**
+  - Command: `.\mvnw test "-Dtest=NotificationServiceIntegrationTest,NotificationInboxIntegrationTest,FailedEmailWebIntegrationTest,ProjectInvitationExitIntegrationTest,AttendancePersistenceIntegrationTest,AttendanceExceptionOverdueIntegrationTest,AttendanceExceptionRequestIntegrationTest,AccountRecoveryLockOrderIntegrationTest,AccountScalarLookupIntegrationTest,ActiveMentorIdentityIntegrationTest,InternWorkWindowIntegrationTest"`
+  - Results: Tests run: 138, Failures: 0, Errors: 0, Skipped: 0 across 11 test classes:
+    - `AttendanceExceptionOverdueIntegrationTest`: 8 tests
+    - `AttendanceExceptionRequestIntegrationTest`: 13 tests
+    - `AttendancePersistenceIntegrationTest`: 48 tests
+    - `AccountRecoveryLockOrderIntegrationTest`: 1 test
+    - `AccountScalarLookupIntegrationTest`: 1 test
+    - `ActiveMentorIdentityIntegrationTest`: 1 test
+    - `InternWorkWindowIntegrationTest`: 4 tests
+    - `FailedEmailWebIntegrationTest`: 4 tests
+    - `NotificationInboxIntegrationTest`: 2 tests
+    - `NotificationServiceIntegrationTest`: 13 tests
+    - `ProjectInvitationExitIntegrationTest`: 43 tests
+    `BUILD SUCCESS` (07:06 min, Finished at 2026-09-30T19:16:49+07:00).
+- **UI test suite.**
+  - Command: `npm run test:ui`
+  - Results: 38/38 tests passed (0 fail, 0 skipped, 2372.9 ms).
+
+- Full gates: `docker version` (Server Engine 29.7.2); `.\mvnw test` passed 946 tests, 0 failures, 0 errors, 0 skipped across 148 `TEST-*.xml` report files (`BUILD SUCCESS`, total time 20:54 min, Finished at 2026-09-30T19:51:38+07:00); `npm run test:ui` passed 38/38 (0 fail, 0 skipped, 1185.5 ms); `git diff --check` clean.
+- E2E A (empty database on `labtimesheet-ed06-gate-a`, port 55437/8083, `E2E_BUSINESS_DATE=2026-09-22`, `LAB_E2E_START_INSTANT=2026-09-22T01:00:00Z`): `critical-journeys.spec.mjs` 2 passed, 0 failed, 0 skipped; `smoke.spec.mjs` 2 passed, 0 failed, 0 skipped; `failed-email.spec.mjs` 1 passed, 0 failed, 0 skipped (5 passed, 0 failed, 0 skipped in total).
+- E2E B (freshly seeded databases on `labtimesheet-ed06-gate-b`, port 55437/8083, `E2E_BUSINESS_DATE=2026-09-22`, `LAB_E2E_START_INSTANT=2026-09-22T01:00:00Z`): `report-journeys.spec.mjs` 2 passed, 0 failed, 0 skipped (authenticated as seeded `intern2@example.com` / `DemoPassword123!`); `smtp-absent-project-workflow.spec.mjs` 1 passed, 0 failed, 0 skipped on a different seed (3 passed, 0 failed, 0 skipped in total). Both disposable containers and temporary applications stopped and removed; ports 55437 and 8083 verified clear.
+

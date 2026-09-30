@@ -7,9 +7,12 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 import java.util.Map;
+import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.sql.Timestamp;
 import java.time.ZoneId;
+import org.springframework.test.util.ReflectionTestUtils;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -88,6 +91,9 @@ class NotificationServiceIntegrationTest {
     @Autowired
     private NotificationRepository notificationRepository;
 
+    @Autowired
+    private java.time.Clock clock;
+
     @MockitoSpyBean
     private AuthorizationPolicy authorizationPolicy;
 
@@ -158,6 +164,9 @@ class NotificationServiceIntegrationTest {
                 new NotificationAction("/attendance/leave", false),
                 List.of(new NotificationRecipient(adminId, "notification-failure@example.com")));
 
+        awaitEmailAttempts(adminId, 1);
+        awaitMailCalls(1);
+
         assertThat(countFor(adminId)).isEqualTo(1);
         assertThat(statusFor(adminId)).isEqualTo("PENDING");
         assertThat(attemptsFor(adminId)).isEqualTo(1);
@@ -182,6 +191,7 @@ class NotificationServiceIntegrationTest {
         long notificationId = jdbc.queryForObject(
                 "select id from notifications where recipient_user_id = ?", Long.class, adminId);
         Instant base = Instant.parse("2026-08-14T00:00:00Z");
+        awaitEmailAttempts(adminId, 1);
         assertThat(nextAttemptFor(adminId).toString()).contains("2026-08-14 07:01");
         List<Instant> delays = List.of(
                 base.plusSeconds(5 * 60),
@@ -210,6 +220,7 @@ class NotificationServiceIntegrationTest {
 
         mail.fail = false;
         assertThat(notifications.retryFailedEmail(notificationId, adminId)).isTrue();
+        awaitEmailStatus(adminId, "SENT");
         assertThat(statusFor(adminId)).isEqualTo("SENT");
         assertThat(countFor(adminId)).isEqualTo(1);
     }
@@ -237,13 +248,20 @@ class NotificationServiceIntegrationTest {
                 "select display_name from app_users where id = ?", String.class, adminId))
                 .isEqualTo("Committed marker");
         assertThat(countFor(adminId)).isEqualTo(1);
+        awaitEmailStatus(adminId, "SENT");
         assertThat(statusFor(adminId)).isEqualTo("SENT");
         assertThat(mail.calls).isEqualTo(1);
         assertThat(mail.lastTransactionActive).isFalse();
     }
 
+    /**
+     * Protects {@code NOT-006}, {@code D49}, and email-delivery PLAN Design point 3.
+     * Verifies that the delivery lease acquired during initial delivery dispatch prevents an
+     * overlapping {@link NotificationService#retryDueEmails()} sweep from attempting or sending
+     * a duplicate email, returning 0 attempted messages while delivery is in flight.
+     */
     @Test
-    void immediateDeliveryHoldsRowLockAgainstOverlappingRetryWorker() throws Exception {
+    void overlappingRetryWorkerSendsNothingWhileTheDeliveryLeaseIsHeld() throws Exception {
         bootstrap.bootstrap("notification-overlap@example.com", "Admin", "correct horse battery staple");
         long adminId = accounts.requireActiveAdminId("notification-overlap@example.com");
         activateSmtp(adminId);
@@ -260,12 +278,12 @@ class NotificationServiceIntegrationTest {
             assertThat(mail.awaitEntered()).isTrue();
 
             Future<Integer> worker = executor.submit(notifications::retryDueEmails);
-            assertThatThrownBy(() -> worker.get(500, TimeUnit.MILLISECONDS))
-                    .isInstanceOf(TimeoutException.class);
+            assertThat(worker.get(500, TimeUnit.MILLISECONDS)).isZero();
             assertThat(mail.calls).isEqualTo(1);
 
             mail.releaseOverlap();
             immediate.get(10, TimeUnit.SECONDS);
+            awaitEmailStatus(adminId, "SENT");
             assertThat(worker.get(10, TimeUnit.SECONDS)).isZero();
         } finally {
             mail.releaseOverlap();
@@ -297,6 +315,9 @@ class NotificationServiceIntegrationTest {
                 List.of(
                         new NotificationRecipient(adminId, "notification-first@example.com"),
                         new NotificationRecipient(secondId, "notification-second@example.com")));
+
+        awaitMailCalls(2);
+        awaitEmailStatus(secondId, "SENT");
 
         assertThat(countFor(adminId)).isEqualTo(1);
         assertThat(countFor(secondId)).isEqualTo(1);
@@ -435,6 +456,7 @@ class NotificationServiceIntegrationTest {
                         "Review invite"),
                 new NotificationAction("/projects/7/invitation", false),
                 List.of(new NotificationRecipient(adminId, "notification-designation@example.com")));
+        awaitEmailStatus(adminId, "SENT");
         assertThat(statusFor(adminId)).isEqualTo("SENT");
         assertThat(mail.calls).isEqualTo(1);
 
@@ -501,7 +523,7 @@ class NotificationServiceIntegrationTest {
         bootstrap.bootstrap("notification-matrix@example.com", "Admin", "correct horse battery staple");
         long adminId = accounts.requireActiveAdminId("notification-matrix@example.com");
 
-        // a. Khi chưa có SMTP active: phát thông báo C, loại có yêu cầu email. Kiểm: UNAVAILABLE, không có payload.
+        // a. Before active SMTP: publish notification C (email required). Verify: UNAVAILABLE, no payload.
         publish(
                 new NotificationEvent(
                         NotificationType.PROJECT_INVITATION_CREATED, "CREATED", "Matrix Notification C", "Body of C"),
@@ -524,8 +546,8 @@ class NotificationServiceIntegrationTest {
         assertThat(rowC.get("email_sent_at")).isNull();
         assertThat(mail.calls).isZero();
 
-        // b. Bật SMTP, với fake mail gửi THÀNH CÔNG: phát A, loại có yêu cầu email; kiểm SENT, có email_sent_at.
-        //    Phát B, loại không yêu cầu email (ví dụ TASK_STATUS_CHANGED); kiểm NOT_REQUIRED, không có payload.
+        // b. Enable SMTP with fake mail SUCCESS: publish A (email required); verify SENT with email_sent_at.
+        //    Publish B (no email required, e.g. TASK_STATUS_CHANGED); verify NOT_REQUIRED, no payload.
         activateSmtp(adminId);
         mail.reset();
         mail.fail = false;
@@ -539,6 +561,7 @@ class NotificationServiceIntegrationTest {
         long idA = jdbc.queryForObject(
                 "select id from notifications where recipient_user_id = ? and title = ?",
                 Long.class, adminId, "Matrix Notification A");
+        awaitEmailStatus(adminId, "SENT");
         Map<String, Object> rowA = jdbc.queryForMap(
                 "select email_status, email_to, email_subject, email_body, email_attempts, email_next_attempt_at, email_sent_at, title, body from notifications where id = ?",
                 idA);
@@ -573,8 +596,8 @@ class NotificationServiceIntegrationTest {
         assertThat(rowB.get("email_sent_at")).isNull();
         assertThat(mail.calls).isEqualTo(1);
 
-        // c. Chuyển fake mail sang THẤT BẠI: phát D. Ngay sau lần thử đầu tiên, kiểm D là PENDING, có payload và có email_next_attempt_at.
-        //    Sau đó cho chạy hết các lượt retry theo NOT-006 bằng cách tiến đồng hồ theo cách helper sẵn có đang làm. Kiểm D thành FAILED sau đúng 6 lần thử.
+        // c. Set fake mail to FAILURE: publish D. Right after first attempt, verify D is PENDING with payload and email_next_attempt_at.
+        //    Then exhaust retries per NOT-006 by advancing clock via existing helper. Verify D becomes FAILED after exactly 6 attempts.
         mail.fail = true;
         publish(
                 new NotificationEvent(
@@ -585,6 +608,7 @@ class NotificationServiceIntegrationTest {
         long idD = jdbc.queryForObject(
                 "select id from notifications where recipient_user_id = ? and title = ?",
                 Long.class, adminId, "Matrix Notification D");
+        awaitEmailAttempts(adminId, 1);
         Map<String, Object> rowD = jdbc.queryForMap(
                 "select email_status, email_to, email_subject, email_body, email_attempts, email_next_attempt_at, email_sent_at, title, body from notifications where id = ?",
                 idD);
@@ -619,7 +643,7 @@ class NotificationServiceIntegrationTest {
                 .isNull();
         assertInboxContent(idD, titleD, bodyD);
 
-        // d. Kiểm C vẫn là UNAVAILABLE: việc bật SMTP không làm dòng nào đổi trạng thái.
+        // d. Verify C remains UNAVAILABLE: enabling SMTP does not alter existing row states.
         Map<String, Object> rowCAfter = jdbc.queryForMap(
                 "select email_status, email_to, email_subject, email_body, email_attempts, email_next_attempt_at, email_sent_at from notifications where id = ?",
                 idC);
@@ -631,7 +655,7 @@ class NotificationServiceIntegrationTest {
         assertThat(rowCAfter.get("email_sent_at")).isNull();
         assertInboxContent(idC, titleC, bodyC);
 
-        // e. Admin gọi retryFailedEmail lần lượt cho A, B, C, D, trong lúc fake vẫn thất bại. Chỉ D trả true và về PENDING; A, B, C trả false và giữ nguyên.
+        // e. Admin calls retryFailedEmail sequentially on A, B, C, D while fake still fails. Only D returns true and returns to PENDING; A, B, C return false and remain unchanged.
         Map<String, Object> rowABeforeManualRetry = deliveryAndInboxState(idA);
         Map<String, Object> rowBBeforeManualRetry = deliveryAndInboxState(idB);
         Map<String, Object> rowCBeforeManualRetry = deliveryAndInboxState(idC);
@@ -645,6 +669,7 @@ class NotificationServiceIntegrationTest {
         assertThat(jdbc.queryForObject("select email_status from notifications where id = ?", String.class, idC)).isEqualTo("UNAVAILABLE");
 
         assertThat(notifications.retryFailedEmail(idD, adminId)).isTrue();
+        awaitEmailAttempts(adminId, 1);
         assertThat(jdbc.queryForObject("select email_status from notifications where id = ?", String.class, idD)).isEqualTo("PENDING");
         assertThat(jdbc.queryForObject("select email_attempts from notifications where id = ?", Integer.class, idD)).isEqualTo(1);
         assertThat(jdbc.queryForObject("select email_next_attempt_at from notifications where id = ?", Object.class, idD)).isNotNull();
@@ -657,7 +682,7 @@ class NotificationServiceIntegrationTest {
         assertInboxContent(idD, titleD, bodyD);
         assertThat(countFor(adminId)).isEqualTo(4);
 
-        // f. Thử rời trạng thái cuối: tiến đồng hồ thật xa rồi gọi retryDueEmails(); sau đó, trong một transaction, gọi markSent, retainPendingRetry và requeueFailedEmail trực tiếp trên entity của A, B và C. Kiểm trạng thái cả ba dòng không đổi (requeueFailedEmail phải ném IllegalStateException).
+        // f. Attempt transition out of terminal states: advance clock far ahead and call retryDueEmails(); then in one transaction, call markSent, retainPendingRetry, and requeueFailedEmail directly on entities A, B, and C. Verify status of all three rows is unchanged (requeueFailedEmail must throw IllegalStateException).
         markDue(idD, Instant.parse("2020-01-01T00:00:00Z"));
         notifications.retryDueEmails();
 
@@ -700,7 +725,7 @@ class NotificationServiceIntegrationTest {
         assertInboxContent(idC, titleC, bodyC);
         assertInboxContent(idD, titleD, bodyD);
 
-        // g. Xuyên suốt: số dòng notifications và nội dung phần in-app (title, body) của A, B, C, D không đổi.
+        // g. Throughout: notification row count and in-app content (title, body) for A, B, C, D remain unchanged.
         assertThat(jdbc.queryForObject("select count(*) from notifications where recipient_user_id = ?", Integer.class, adminId))
                 .isEqualTo(4);
 
@@ -708,6 +733,144 @@ class NotificationServiceIntegrationTest {
         assertInboxContent(idB, titleB, bodyB);
         assertInboxContent(idC, titleC, bodyC);
         assertInboxContent(idD, titleD, bodyD);
+    }
+
+    /**
+     * Protects {@code NOT-006} and the 5-minute lease requirement.
+     * When two concurrent delivery attempts race for the same due PENDING notification,
+     * atomic lease acquisition ensures exactly one worker delivers the email and the other
+     * aborts without sending a duplicate.
+     */
+    @Test
+    void concurrencyLeaseContentionEnsuresSingleDelivery() throws Exception {
+        bootstrap.bootstrap("notification-admin@example.com", "Admin", "correct horse battery staple");
+        long adminId = accounts.requireActiveAdminId("notification-admin@example.com");
+        activateSmtp(adminId);
+        mail.reset();
+
+        Instant now = clock.instant();
+        long notifId = jdbc.queryForObject(
+                """
+                insert into notifications (recipient_user_id, notification_type, title, body, action_url,
+                    email_status, email_to, email_subject, email_body, email_attempts, email_next_attempt_at,
+                    created_at, updated_at, version)
+                values (?, 'PROJECT_INVITATION_CREATED', 'Lease Test', 'Lease Test Body', '/projects/1',
+                    'PENDING', 'lease-recipient@example.com', 'Lease Subject', 'Lease Body', 0, ?,
+                    ?, ?, 0)
+                returning id
+                """,
+                Long.class, adminId, Timestamp.from(now.minusSeconds(10)), Timestamp.from(now), Timestamp.from(now));
+
+        CountDownLatch startLatch = new CountDownLatch(1);
+        CountDownLatch doneLatch = new CountDownLatch(2);
+
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            for (int i = 0; i < 2; i++) {
+                executor.submit(() -> {
+                    try {
+                        startLatch.await();
+                        notifications.deliver(notifId);
+                    } catch (Exception ignored) {
+                    } finally {
+                        doneLatch.countDown();
+                    }
+                });
+            }
+
+            startLatch.countDown();
+            assertThat(doneLatch.await(5, TimeUnit.SECONDS)).isTrue();
+
+            assertThat(mail.calls).isEqualTo(1);
+            awaitEmailStatus(adminId, "SENT");
+            assertThat(statusFor(adminId)).isEqualTo("SENT");
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    /**
+     * Protects {@code NOT-006} and {@code D49}.
+     *
+     * <p>A PENDING notification due at {@code T} acquires a real 5-minute delivery lease via
+     * {@link NotificationRepository#acquireEmailDeliveryLease(long, Instant, Instant)} with
+     * {@code now = T}, advancing {@code email_next_attempt_at} to {@code T + 5 min} with update
+     * count 1 without sending, simulating an application stop/crash immediately after lease acquisition.
+     *
+     * <p>When the service clock is set to {@code T + 4 min} (within the active lease window),
+     * {@link NotificationService#retryDueEmails()} returns 0 and sends no mail.
+     * When the service clock advances to {@code T + 5 min + 1 s} (after lease expiry),
+     * {@code retryDueEmails()} dispatches exactly 1 message, returning 1 and transitioning the
+     * notification row to {@code SENT}.
+     *
+     * <p>Observable break: if the lease boundary is not respected, a concurrent or restarted worker
+     * could deliver the same message twice. If the row is never retried after expiry, crash recovery
+     * is broken.
+     *
+     * <p>Hand-derived expected values: update count = 1 and {@code email_next_attempt_at = T + 5 min};
+     * {@code retryDueEmails()} with Clock = T + 4 min returns 0; {@code retryDueEmails()} with
+     * Clock = T + 5 min + 1 s returns 1 and status becomes {@code SENT}.
+     */
+    @Test
+    void pendingNotificationWithLiveLeaseIsNotRetriedUntilLeaseExpires() {
+        bootstrap.bootstrap("notification-lease-restart@example.com", "Admin", "correct horse battery staple");
+        long adminId = accounts.requireActiveAdminId("notification-lease-restart@example.com");
+        activateSmtp(adminId);
+        mail.reset();
+
+        // T = the fixed test-clock instant (Clock.fixed from TestcontainersConfiguration).
+        Instant T = clock.instant();
+
+        // Insert a PENDING row due at T (email_next_attempt_at = T).
+        long notifId = jdbc.queryForObject(
+                """
+                insert into notifications (recipient_user_id, notification_type, title, body, action_url,
+                    email_status, email_to, email_subject, email_body, email_attempts, email_next_attempt_at,
+                    created_at, updated_at, version)
+                values (?, 'LEAVE_DECIDED', 'Lease Restart Test', 'Restart Body', '/attendance/leave',
+                    'PENDING', 'notification-lease-restart@example.com', 'Restart Subject', 'Restart Body',
+                    0, ?,
+                    ?, ?, 0)
+                returning id
+                """,
+                Long.class,
+                adminId,
+                Timestamp.from(T),
+                Timestamp.from(T),
+                Timestamp.from(T));
+
+        // Real lease acquisition step with now = T (advancing email_next_attempt_at to T + 5 min),
+        // simulating the application stopping immediately after acquiring the lease without sending.
+        int acquired = new TransactionTemplate(transactionManager).execute(
+                status -> notificationRepository.acquireEmailDeliveryLease(
+                        notifId, T, T.plus(Duration.ofMinutes(5))));
+
+        assertThat(acquired).isEqualTo(1);
+        Timestamp expectedNextAttempt = Timestamp.from(T.plus(Duration.ofMinutes(5)));
+        assertThat(jdbc.queryForObject(
+                "select email_next_attempt_at from notifications where id = ?", Timestamp.class, notifId))
+                .isEqualTo(expectedNextAttempt);
+
+        try {
+            // With Clock = T + 4 min: retryDueEmails sends 0 emails (within lease).
+            ReflectionTestUtils.setField(
+                    notifications, "clock", Clock.fixed(T.plus(Duration.ofMinutes(4)), ZoneId.of("Asia/Ho_Chi_Minh")));
+            assertThat(notifications.retryDueEmails()).isZero();
+            assertThat(mail.calls).isZero();
+            assertThat(statusFor(adminId)).isEqualTo("PENDING");
+
+            // With Clock = T + 5 min + 1 s: retryDueEmails sends exactly 1 email and row becomes SENT.
+            ReflectionTestUtils.setField(
+                    notifications,
+                    "clock",
+                    Clock.fixed(T.plus(Duration.ofMinutes(5)).plusSeconds(1), ZoneId.of("Asia/Ho_Chi_Minh")));
+            assertThat(notifications.retryDueEmails()).isEqualTo(1);
+            awaitEmailStatus(adminId, "SENT");
+            assertThat(statusFor(adminId)).isEqualTo("SENT");
+            assertThat(mail.calls).isEqualTo(1);
+        } finally {
+            ReflectionTestUtils.setField(notifications, "clock", clock);
+        }
     }
 
     private void assertInboxContent(long notificationId, String expectedTitle, String expectedBody) {
@@ -765,6 +928,57 @@ class NotificationServiceIntegrationTest {
         jdbc.update("update notifications set email_next_attempt_at = ? where id = ?", Timestamp.from(now), notificationId);
     }
 
+    private void awaitEmailAttempts(long recipientId, int expectedAttempts) {
+        long deadline = System.currentTimeMillis() + 5000;
+        while (System.currentTimeMillis() < deadline) {
+            try {
+                if (attemptsFor(recipientId) >= expectedAttempts) {
+                    return;
+                }
+            } catch (Exception ignored) {
+            }
+            try {
+                Thread.sleep(25);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException(e);
+            }
+        }
+    }
+
+    private void awaitEmailStatus(long recipientId, String expectedStatus) {
+        long deadline = System.currentTimeMillis() + 5000;
+        while (System.currentTimeMillis() < deadline) {
+            try {
+                if (expectedStatus.equals(statusFor(recipientId))) {
+                    return;
+                }
+            } catch (Exception ignored) {
+            }
+            try {
+                Thread.sleep(25);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException(e);
+            }
+        }
+    }
+
+    private void awaitMailCalls(int expectedCalls) {
+        long deadline = System.currentTimeMillis() + 5000;
+        while (System.currentTimeMillis() < deadline) {
+            if (mail.calls >= expectedCalls) {
+                return;
+            }
+            try {
+                Thread.sleep(25);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException(e);
+            }
+        }
+    }
+
     @TestConfiguration(proxyBeanMethods = false)
     static class MailProbeConfiguration {
         @Bean
@@ -775,6 +989,7 @@ class NotificationServiceIntegrationTest {
     }
 
     static final class RecordingSmtpProbe implements SmtpProbe {
+        private final Object lock = new Object();
         private volatile boolean fail;
         private volatile String failRecipient;
         private volatile int calls;
@@ -787,8 +1002,10 @@ class NotificationServiceIntegrationTest {
 
         @Override
         public void send(SmtpConnection connection, String recipient, String subject, String body) {
-            calls++;
-            recipients.add(recipient);
+            synchronized (lock) {
+                calls++;
+                recipients.add(recipient);
+            }
             lastTransactionActive = TransactionSynchronizationManager.isActualTransactionActive();
             if (fail || recipient.equals(failRecipient)) {
                 throw new IllegalStateException("simulated SMTP failure");
@@ -807,14 +1024,16 @@ class NotificationServiceIntegrationTest {
         }
 
         void reset() {
-            calls = 0;
+            synchronized (lock) {
+                calls = 0;
+                recipients.clear();
+            }
             fail = false;
             failRecipient = null;
             lastTransactionActive = false;
             blockForOverlap = false;
             entered = new CountDownLatch(0);
             release = new CountDownLatch(0);
-            recipients.clear();
         }
 
         void blockForOverlap() {
