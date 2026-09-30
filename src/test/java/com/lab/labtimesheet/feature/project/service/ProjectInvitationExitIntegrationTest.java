@@ -189,7 +189,7 @@ class ProjectInvitationExitIntegrationTest {
                 notificationRecipients(
                         "PROJECT_INVITATION_RESOLVED", "/projects/" + projectId + "/invitations/" + acceptedInvitationId));
         assertEquals(
-                List.of(acceptedInviteeId),
+                List.of(),
                 notificationRecipients(
                         "MEMBERSHIP_CHANGED", "/projects/" + projectId, "INVITATION_ACCEPTED"));
     }
@@ -1851,6 +1851,107 @@ class ProjectInvitationExitIntegrationTest {
         List<String> statusesAfterSmtp = jdbc.queryForList(
                 "select email_status from notifications where action_url like ? order by id", String.class, "/projects/" + projectId + "%");
         assertEquals(List.of("UNAVAILABLE"), statusesAfterSmtp.stream().distinct().toList());
+    }
+
+    /**
+     * Protects {@code AC-PRJ-017}, {@code NOT-013}, {@code NOT-002}, {@code D50}.
+     * Verifies exact recipient sets for membership and leadership changes across
+     * project lifecycle: project creation, member addition, leader replacement,
+     * invitation acceptance, exit approval, and project completion.
+     * The initiating actor (e.g. accepting Intern) and the owning Mentor are excluded.
+     */
+    @Test
+    void membershipAndLeadershipNotificationsExcludeInitiatorAcrossProjectLifecycle() {
+        long mentorId = user("mentor-ac17@example.test", "MENTOR");
+        long initialLeaderId = intern("initial-leader-ac17@example.test", "I201");
+        long addedMemberId = intern("added-member-ac17@example.test", "I202");
+        long invitedInternId = intern("invited-intern-ac17@example.test", "I203");
+        long projectId = createProject(mentorId, initialLeaderId, "AC-PRJ-017 Project");
+
+        // 1. Project creation with initial leader
+        assertEquals(
+                List.of(initialLeaderId),
+                notificationRecipients("MEMBERSHIP_CHANGED", "/projects/" + projectId, "INITIAL_MEMBER_ADDED"));
+        assertEquals(
+                List.of(initialLeaderId),
+                notificationRecipients("LEADERSHIP_CHANGED", "/projects/" + projectId, "INITIAL_LEADER_ASSIGNED"));
+
+        // 2. Mentor adds a member
+        projects.addMember(mentorId, projectId, addedMemberId);
+        assertEquals(
+                List.of(addedMemberId),
+                notificationRecipients("MEMBERSHIP_CHANGED", "/projects/" + projectId, "MEMBER_ADDED"));
+
+        // 3. Mentor replaces the leader
+        projects.changeLeader(mentorId, projectId, addedMemberId);
+        assertEquals(
+                Stream.of(initialLeaderId, addedMemberId).sorted().toList(),
+                notificationRecipients("LEADERSHIP_CHANGED", "/projects/" + projectId, "LEADER_CHANGED"));
+
+        // 4. An Intern accepts an invitation
+        long invitationId = projects.issueInvitation(addedMemberId, projectId, invitedInternId);
+        projects.respondToInvitation(invitedInternId, invitationId, InvitationResponse.ACCEPT);
+        // Under D50 / NOT-013 / AC-PRJ-017, the accepting intern does NOT receive MEMBERSHIP_CHANGED for their own acceptance
+        assertEquals(
+                List.of(),
+                notificationRecipients("MEMBERSHIP_CHANGED", "/projects/" + projectId, "INVITATION_ACCEPTED"));
+
+        // 5. Mentor approves removal of a member (initialLeaderId)
+        long initialLeaderMembershipId = membershipId(projectId, initialLeaderId);
+        long removalRequestId = projects.requestMemberRemoval(
+                addedMemberId, projectId, initialLeaderMembershipId, "Handover completed");
+        projects.approveExit(mentorId, removalRequestId, "Removal approved");
+        assertEquals(
+                List.of(initialLeaderId),
+                notificationRecipients("MEMBERSHIP_CHANGED", "/projects/" + projectId, "MEMBER_REMOVED"));
+
+        // 6. Mentor completes the project
+        jdbc.update("update projects set status = 'ACTIVE', activated_at = timestamp with time zone '2026-08-13 00:00:00+00', updated_at = timestamp with time zone '2026-08-13 00:00:00+00' where id = ?", projectId);
+        jdbc.update("update project_leadership_terms set started_at = timestamp with time zone '2026-08-12 00:00:00+00', ended_at = timestamp with time zone '2026-08-13 00:00:00+00' where project_id = ? and ended_at is not null", projectId);
+        jdbc.update("update project_leadership_terms set started_at = timestamp with time zone '2026-08-13 00:00:00+00' where project_id = ? and ended_at is null", projectId);
+        entityManager.clear();
+        projects.complete(mentorId, projectId);
+        assertEquals(
+                Stream.of(addedMemberId, invitedInternId).sorted().toList(),
+                notificationRecipients("MEMBERSHIP_CHANGED", "/projects/" + projectId, "PROJECT_COMPLETED"));
+        assertEquals(
+                List.of(addedMemberId),
+                notificationRecipients("LEADERSHIP_CHANGED", "/projects/" + projectId, "LEADER_REMOVED"));
+
+        // 7. Verify the acting Mentor never receives MEMBERSHIP_CHANGED or LEADERSHIP_CHANGED
+        var allMembershipRecipients = notificationRecipients("MEMBERSHIP_CHANGED", "/projects/" + projectId);
+        assertTrue(!allMembershipRecipients.contains(mentorId));
+        var allLeadershipRecipients = notificationRecipients("LEADERSHIP_CHANGED", "/projects/" + projectId);
+        assertTrue(!allLeadershipRecipients.contains(mentorId));
+    }
+
+    /**
+     * Protects {@code AC-PRJ-017}, {@code NOT-013}, {@code NOT-002}, {@code D50}.
+     * Verifies that cancelling a project notifies all current members with
+     * MEMBERSHIP_CHANGED (PROJECT_CANCELLED) and the current leader with
+     * LEADERSHIP_CHANGED (LEADER_REMOVED), while excluding the acting Mentor.
+     */
+    @Test
+    void projectCancellationNotifiesCurrentMembersAndLeaderWhileExcludingMentor() {
+        long mentorId = user("mentor-cancel@example.test", "MENTOR");
+        long leaderId = intern("leader-cancel@example.test", "I204");
+        long memberId = intern("member-cancel@example.test", "I205");
+        long projectId = createProject(mentorId, leaderId, "Project Cancellation");
+        projects.addMember(mentorId, projectId, memberId);
+
+        projects.cancel(mentorId, projectId, "Cancelling project for testing");
+
+        assertEquals(
+                Stream.of(leaderId, memberId).sorted().toList(),
+                notificationRecipients("MEMBERSHIP_CHANGED", "/projects/" + projectId, "PROJECT_CANCELLED"));
+        assertEquals(
+                List.of(leaderId),
+                notificationRecipients("LEADERSHIP_CHANGED", "/projects/" + projectId, "LEADER_REMOVED"));
+
+        var allMembershipRecipients = notificationRecipients("MEMBERSHIP_CHANGED", "/projects/" + projectId);
+        assertTrue(!allMembershipRecipients.contains(mentorId));
+        var allLeadershipRecipients = notificationRecipients("LEADERSHIP_CHANGED", "/projects/" + projectId);
+        assertTrue(!allLeadershipRecipients.contains(mentorId));
     }
 
     @TestConfiguration(proxyBeanMethods = false)

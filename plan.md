@@ -889,3 +889,32 @@ Task ED-04 final gates are ready for review.
 
 Task ED-05 is ready for review.
 Task ED-05 final gates are ready for review.
+
+## Evidence for Task ED-07 (30 September 2026)
+
+The 2 October 2026 demo was cancelled on 30 September 2026, so ED-07 code started the same day.
+
+- **GitNexus impact analysis.**
+  - `publishMembershipChanged`: 2 direct callers (`ProjectService.notifyMembershipChanged(ProjectEntity, ProjectMembershipTransition, Long)` and overloaded `notifyMembershipChanged(ProjectEntity, ProjectMembershipTransition)`), 18 impacted symbols, 7 processes, risk `CRITICAL`.
+  - `publishLeadershipChanged`: 2 direct callers (`ProjectService.notifyLeadershipChanged(ProjectEntity, ProjectLeadershipTransition, Long)` and overloaded `notifyLeadershipChanged(ProjectEntity, ProjectLeadershipTransition)`), 12 impacted symbols, 5 processes, risk `CRITICAL`.
+  - `notifyMembershipChanged`: index reported `risk: UNKNOWN` with 2 ambiguous overload candidates; disambiguation showed each overload has 9 impacted symbols, 4 processes, risk `LOW`.
+  - `notifyLeadershipChanged`: index reported `risk: UNKNOWN` with 2 ambiguous overload candidates; disambiguation showed each overload has 6 impacted symbols, 3 processes, risk `LOW`.
+- **RED evidence.**
+  - Test name: `membershipAndLeadershipNotificationsExcludeInitiatorAcrossProjectLifecycle`
+  - Location: `src/test/java/com/lab/labtimesheet/feature/project/service/ProjectInvitationExitIntegrationTest.java:1895`
+  - Failure reason: `respondToInvitation` published `MEMBERSHIP_CHANGED` (transition `INVITATION_ACCEPTED`) to the accepting intern because actor exclusion was not yet implemented.
+  - Verbatim error:
+    ```text
+    org.opentest4j.AssertionFailedError: expected: <[]> but was: <[4]>
+    ```
+- **Modified existing assertion.**
+  - Location: `src/test/java/com/lab/labtimesheet/feature/project/service/ProjectInvitationExitIntegrationTest.java:192`
+  - Change: `List.of(acceptedInviteeId)` replaced with `List.of()`
+  - Reason: Per D50, the accepting intern is the initiator of the invitation acceptance action and is excluded from receiving their own `MEMBERSHIP_CHANGED` notification (`INVITATION_ACCEPTED` produces an empty recipient set).
+- **Focused test execution.**
+  - Command: `.\mvnw test "-Dtest=ProjectInvitationExitIntegrationTest,ProjectServiceIntegrationTest,NotificationServiceIntegrationTest"`
+  - Results: Tests run: 79, Failures: 0, Errors: 0, Skipped: 0 across 3 test classes (`ProjectInvitationExitIntegrationTest`: 42 tests, `ProjectServiceIntegrationTest`: 26 tests, `NotificationServiceIntegrationTest`: 11 tests). `BUILD SUCCESS`.
+
+- Full gates: `docker version` (Server Engine 29.7.2); `.\mvnw test` passed 943 tests, 0 failures, 0 errors, 0 skipped across 148 `TEST-*.xml` report files (`BUILD SUCCESS`, total time 16:25 min, Finished at 2026-09-30T16:58:45+07:00); `npm run test:ui` passed 38/38; `git diff --check` clean.
+- E2E A (empty database on `labtimesheet-ed07-gate-a`, port 55437/8083, `E2E_BUSINESS_DATE=2026-09-22`, `LAB_E2E_START_INSTANT=2026-09-22T01:00:00Z`): `critical-journeys.spec.mjs` 2 passed, 0 failed, 0 skipped; `smoke.spec.mjs` 2 passed, 0 failed, 0 skipped; `failed-email.spec.mjs` 1 passed, 0 failed, 0 skipped (5 passed, 0 failed, 0 skipped in total).
+- E2E B (freshly seeded databases on `labtimesheet-ed07-gate-b`, port 55437/8083, `E2E_BUSINESS_DATE=2026-09-22`, `LAB_E2E_START_INSTANT=2026-09-22T01:00:00Z`): `report-journeys.spec.mjs` 2 passed, 0 failed, 0 skipped (authenticated as seeded `intern2@example.com` / `DemoPassword123!`); `smtp-absent-project-workflow.spec.mjs` 1 passed, 0 failed, 0 skipped on a different seed (3 passed, 0 failed, 0 skipped in total). Both disposable containers and temporary applications stopped and removed; ports 55437 and 8083 verified clear.
