@@ -134,6 +134,7 @@ class AttendanceLombokBoilerplateTest {
                         Clock.class,
                         LeaveRequestRepository.class,
                         LeaveRequestDayRepository.class,
+                        com.lab.labtimesheet.feature.attendance.repository.LeaveRequestDecisionRepository.class,
                         AccountService.class,
                         InternshipService.class,
                         CalendarApplicationService.class,
@@ -363,7 +364,9 @@ class AttendanceLombokBoilerplateTest {
                 method(Modifier.PUBLIC, "leaveDate", LocalDate.class),
                 method(Modifier.PUBLIC, "quotaMonth", LocalDate.class),
                 method(Modifier.PUBLIC, "monthlyQuotaSnapshot", int.class),
-                method(Modifier.PUBLIC, "policyVersionId", long.class));
+                method(Modifier.PUBLIC, "policyVersionId", long.class),
+                method(Modifier.PUBLIC, "approvalWithdrawnAt", Instant.class),
+                method(Modifier.PUBLIC, "withdrawApproval", void.class, Instant.class));
         assertMethodSurface(
                 LeaveRequestDayId.class,
                 method(Modifier.PUBLIC, "equals", boolean.class, Object.class),
@@ -581,6 +584,8 @@ class AttendanceLombokBoilerplateTest {
                         AttendanceActor.class, long.class),
                 method(Modifier.PUBLIC, "reject", com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestView.class,
                         AttendanceActor.class, long.class),
+                method(Modifier.PUBLIC, "amend", com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestView.class,
+                        AttendanceActor.class, long.class, List.class, String.class),
                 method(Modifier.PUBLIC, "view", com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestView.class,
                         AttendanceActor.class, long.class),
                 method(Modifier.PUBLIC, "list", List.class, AttendanceActor.class),

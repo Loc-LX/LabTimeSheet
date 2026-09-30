@@ -596,7 +596,11 @@ class AuthorizationMatrixIntegrationTest {
                     corrections.decide(new AttendanceActor(actor, fixture.roleFor(actor)),
                             fixture.decidableCorrectionId(), CorrectionDecision.APPROVE,
                             "Matrix approved", null);
-                }, this::prepareDecidableCorrection)));
+                }, this::prepareDecidableCorrection),
+                probeCommitted("decide leave request (ATT-024)", (fixture, actor) -> {
+                    leaves.approve(new AttendanceActor(actor, fixture.roleFor(actor)),
+                            fixture.decidableLeaveId());
+                }, this::prepareDecidableLeave)));
         result.put(REGISTERED_CAPABILITIES.get(34), List.of());
         result.put(REGISTERED_CAPABILITIES.get(35), List.of());
         return result;
@@ -612,6 +616,14 @@ class AuthorizationMatrixIntegrationTest {
                 new CorrectionRequestCommand(
                         java.time.LocalDateTime.of(2026, 8, 13, 17, 0), "Matrix decide correction"));
         fixture.decidableCorrectionId(view.id());
+    }
+
+    private void prepareDecidableLeave(Fixture fixture) {
+        jdbc.sql("update intern_profiles set responsible_mentor_user_id = :mentor where user_id = :intern")
+                .param("mentor", fixture.mentorId()).param("intern", fixture.memberId()).update();
+        var view = leaves.submit(new AttendanceActor(fixture.memberId(), GlobalRole.INTERN),
+                new LeaveRequestCommand(LocalDate.of(2026, 8, 17), LocalDate.of(2026, 8, 17), "Matrix decide leave"));
+        fixture.decidableLeaveId(view.id());
     }
 
     private void prepareMissingCheckoutRows(Fixture fixture) {
@@ -1019,6 +1031,9 @@ class AuthorizationMatrixIntegrationTest {
         private long decidableCorrectionId;
         long decidableCorrectionId() { return decidableCorrectionId; }
         void decidableCorrectionId(long value) { decidableCorrectionId = value; }
+        private long decidableLeaveId;
+        long decidableLeaveId() { return decidableLeaveId; }
+        void decidableLeaveId(long value) { decidableLeaveId = value; }
         long leaderLeaveId() { return leaderLeaveId; }
         long memberLeaveId() { return memberLeaveId; }
         void leaveRequestIds(long leaderRequest, long memberRequest) {

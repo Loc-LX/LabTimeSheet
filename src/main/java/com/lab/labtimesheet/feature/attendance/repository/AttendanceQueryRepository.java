@@ -28,6 +28,7 @@ public interface AttendanceQueryRepository extends Repository<LeaveRequestDayEnt
             join day.request request
             where request.internUserId = :internId and request.status = 'APPROVED'
               and day.id.leaveDate = :workDate
+              and day.approvalWithdrawnAt is null
             """)
     boolean hasApprovedLeave(
             @Param("internId") long internId, @Param("workDate") LocalDate workDate);
@@ -49,6 +50,7 @@ public interface AttendanceQueryRepository extends Repository<LeaveRequestDayEnt
             where request.internUserId = :internId
               and request.status = 'APPROVED'
               and day.id.leaveDate between :from and :to
+              and day.approvalWithdrawnAt is null
             order by day.id.leaveDate asc
             """)
     List<LocalDate> findApprovedLeaveDates(

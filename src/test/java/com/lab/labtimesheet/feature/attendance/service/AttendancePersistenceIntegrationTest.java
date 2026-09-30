@@ -228,7 +228,10 @@ class AttendancePersistenceIntegrationTest {
                 adminId);
         assertThat(creation.deliverySucceeded()).isTrue();
         assertThat(accounts.activate(mail.onlyActivationToken(), "new secure mentor password")).isTrue();
-        return creation.userId();
+        long mentorUserId = creation.userId();
+        jdbc.update("update intern_profiles set responsible_mentor_user_id = ? where user_id = ?",
+                mentorUserId, internId);
+        return mentorUserId;
     }
 
     private long createActiveIntern(
@@ -1534,6 +1537,7 @@ class AttendancePersistenceIntegrationTest {
         assertThat(notificationRows.findAll()).filteredOn(row -> row.getNotificationType() == NotificationType.LEAVE_SUBMITTED)
                 .extracting(NotificationEntity::getRecipientUserId)
                 .containsExactly(mentor, adminId);
+        jdbc.update("update intern_profiles set responsible_mentor_user_id = ? where user_id = ?", mentor, internId);
         leaves.reject(new AttendanceActor(mentor, GlobalRole.MENTOR), rejected.id());
         assertThat(notificationRows.findAll())
                 .filteredOn(row -> row.getNotificationType() == NotificationType.LEAVE_DECIDED)

@@ -1,14 +1,16 @@
 package com.lab.labtimesheet.feature.attendance.controller;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -422,6 +424,42 @@ class AttendanceRequestControllerWebTest {
                 .andExpect(redirectedUrl("/attendance/corrections/11"))
                 .andExpect(flash().attribute("message", "Correction decision saved"));
         verify(corrections).decide(actor, 11L, CorrectionDecision.REVERSE, null, "reverse reason");
+    }
+
+    /**
+     * Protects {@code LEV-011}, {@code ATT-024}, and {@code AC-LEV-008}: POST /attendance/leave/{id}/amend
+     * dispatches valid amendment with withdrawn dates and reason to the service, and rejects missing reason.
+     * Observable break: amendment accepted without a reason or service not called with parsed dates;
+     * hand-derived result: 3xx redirect to detail page, flash message on success, flash requestError when reason missing.
+     */
+    @Test
+    void amendLeaveRequestDispatchesValidAmendmentAndRejectsMissingReason() throws Exception {
+        AttendanceActor actor = new AttendanceActor(2L, GlobalRole.MENTOR);
+        when(currentUsers.actor(org.mockito.ArgumentMatchers.any())).thenReturn(actor);
+
+        // 1. Valid amendment with withdrawnDates and reason succeeds
+        mvc.perform(post("/attendance/leave/15/amend")
+                        .with(user("mentor@example.test").roles("MENTOR")).with(csrf())
+                        .param("withdrawnDates", "2026-08-17", "2026-08-18")
+                        .param("reason", "Intern worked remotely"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/attendance/leave/15"))
+                .andExpect(flash().attribute("message", "Leave request amended"));
+        verify(leave).amend(actor, 15L, List.of(LocalDate.of(2026, 8, 17), LocalDate.of(2026, 8, 18)), "Intern worked remotely");
+
+        // 2. Missing reason is rejected
+        doThrow(new LeaveException("A reason is required to amend a leave decision"))
+                .when(leave).amend(eq(actor), eq(15L), any(), isNull());
+        doThrow(new LeaveException("A reason is required to amend a leave decision"))
+                .when(leave).amend(eq(actor), eq(15L), any(), eq(""));
+
+        mvc.perform(post("/attendance/leave/15/amend")
+                        .with(user("mentor@example.test").roles("MENTOR")).with(csrf())
+                        .param("withdrawnDates", "2026-08-17")
+                        .param("reason", ""))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/attendance/leave/15"))
+                .andExpect(flash().attribute("requestError", "A reason is required to amend a leave decision"));
     }
 
     /**

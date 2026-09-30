@@ -129,7 +129,7 @@ class RecordDisclosureWebIntegrationTest {
                 .doesNotContain(privateProjectName, "Unauthenticated record disclosure sentinel");
     }
 
-    /** Protects AUTH-002 and B-06 across Leave GET, edit and cancel routes, plus server-side denial of a hidden decision action. */
+    /** Protects AUTH-002 and B-06 across Leave GET, edit and cancel routes. */
     @Test
     @Transactional
     void foreignLeaveAndMissingLeaveHaveTheSameNotFoundResponse() throws Exception {
@@ -168,6 +168,21 @@ class RecordDisclosureWebIntegrationTest {
                         .with(user("reader@example.test").roles("INTERN"))
                         .with(csrf()))
                         .andReturn());
+    }
+
+    /**
+     * Protects AUTH-002 and AUTH-012: the owning Intern's leave page shows no Mentor decision action, and a forged approve POST is refused with 403 by the policy while the leave stays PENDING. It runs committed because decisions use an independent transaction.
+     */
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
+    void owningInternCannotSeeOrUseTheLeaveDecisionAction() throws Exception {
+        long adminId = initializeAdminAndSmtp();
+        long ownerId = createActiveIntern(adminId, "owner@example.test", "INT-OWNER");
+        long leaveId = leaves.submit(
+                new AttendanceActor(ownerId, GlobalRole.INTERN),
+                new LeaveRequestCommand(LocalDate.of(2026, 10, 5), LocalDate.of(2026, 10, 6), "Leave"))
+                .id();
 
         String ownerPage = mvc.perform(get("/attendance/leave/{requestId}", leaveId)
                         .with(user("owner@example.test").roles("INTERN")))

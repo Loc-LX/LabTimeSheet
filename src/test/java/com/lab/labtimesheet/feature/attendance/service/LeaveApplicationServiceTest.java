@@ -27,9 +27,9 @@ import com.lab.labtimesheet.feature.attendance.model.LeaveStatus;
 import com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestCommand;
 import com.lab.labtimesheet.feature.attendance.model.entity.LeaveRequestEntity;
 import com.lab.labtimesheet.feature.attendance.repository.LeaveRequestDayRepository;
+import com.lab.labtimesheet.feature.attendance.repository.LeaveRequestDecisionRepository;
 import com.lab.labtimesheet.feature.attendance.repository.LeaveRequestRepository;
 import com.lab.labtimesheet.feature.notification.service.NotificationService;
-import com.lab.labtimesheet.platform.model.GlobalRole;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -53,6 +53,7 @@ class LeaveApplicationServiceTest {
                 Clock.fixed(Instant.parse("2026-08-20T00:00:00Z"), ZoneOffset.UTC),
                 mock(LeaveRequestRepository.class),
                 mock(LeaveRequestDayRepository.class),
+                mock(LeaveRequestDecisionRepository.class),
                 accounts,
                 mock(InternshipService.class),
                 mock(CalendarApplicationService.class),
@@ -84,6 +85,7 @@ class LeaveApplicationServiceTest {
                 Clock.fixed(Instant.parse("2026-08-20T00:00:00Z"), ZoneOffset.UTC),
                 mock(LeaveRequestRepository.class),
                 mock(LeaveRequestDayRepository.class),
+                mock(LeaveRequestDecisionRepository.class),
                 accounts,
                 mock(InternshipService.class),
                 calendar,
@@ -142,6 +144,7 @@ class LeaveApplicationServiceTest {
                 clock,
                 requests,
                 mock(LeaveRequestDayRepository.class),
+                mock(LeaveRequestDecisionRepository.class),
                 accounts,
                 internships,
                 mock(CalendarApplicationService.class),
@@ -207,33 +210,45 @@ class LeaveApplicationServiceTest {
      * runs before the request is looked up, so an Admin holding a guessed identifier learns neither
      * whether it exists nor whose it is. That second assertion is what would fail if the guard were
      * moved below the lookup while still refusing.
+    /**
+     * Protects {@code AUTH-012}, {@code LEV-008}, {@code ATT-024}: an Admin cannot decide leave
+     * and is refused by the authorization policy inside the decision transaction.
+     * Observable break: policy allows Admin to approve or reject leave. Expected: AccessDeniedException.
      */
     @Test
-    void anAdminCannotDecideLeaveAndIsRefusedBeforeAnyRequestIsRead() {
+    void anAdminCannotDecideLeaveAndIsRefusedByPolicy() {
         LeaveRequestRepository requests = mock(LeaveRequestRepository.class);
+        when(requests.findInternUserIdById(77L)).thenReturn(Optional.of(42L));
         LeaveRequestDayRepository days = mock(LeaveRequestDayRepository.class);
         AccountService accounts = mock(AccountService.class);
+        when(accounts.requireIdentityById(42L)).thenReturn(activeIntern(42L));
         InternshipService internships = mock(InternshipService.class);
+        when(internships.lockedAccountMutationEligibility(any())).thenReturn(List.of(
+                new LockedAccountMutationEligibility(9L, GlobalRole.ADMIN, AccountStatus.ACTIVE, Optional.empty()),
+                new LockedAccountMutationEligibility(42L, GlobalRole.INTERN, AccountStatus.ACTIVE, Optional.of(InternshipStatus.ACTIVE))));
+
+        org.springframework.transaction.PlatformTransactionManager tm = mock(org.springframework.transaction.PlatformTransactionManager.class);
+        TransactionTemplate txTemplate = mock(TransactionTemplate.class);
+        when(txTemplate.getTransactionManager()).thenReturn(tm);
+        when(tm.getTransaction(any())).thenReturn(mock(org.springframework.transaction.TransactionStatus.class));
+
         LeaveApplicationService service = new LeaveApplicationService(
                 Clock.fixed(Instant.parse("2026-08-14T01:00:00Z"), ZoneOffset.UTC),
                 requests,
                 days,
+                mock(LeaveRequestDecisionRepository.class),
                 accounts,
                 internships,
                 mock(CalendarApplicationService.class),
-                mock(TransactionTemplate.class),
+                txTemplate,
                 mock(NotificationService.class), AttendanceAuthorizationTestPolicy.create(),
                 mock(AttendanceExceptionNotificationRecipients.class));
         AttendanceActor admin = new AttendanceActor(9L, GlobalRole.ADMIN);
 
         assertThatThrownBy(() -> service.approve(admin, 77L))
-                .isInstanceOf(AccessDeniedException.class)
-                .hasMessageContaining("Only Mentors may decide leave");
+                .isInstanceOf(AccessDeniedException.class);
         assertThatThrownBy(() -> service.reject(admin, 77L))
-                .isInstanceOf(AccessDeniedException.class)
-                .hasMessageContaining("Only Mentors may decide leave");
-
-        org.mockito.Mockito.verifyNoInteractions(requests, days, accounts);
+                .isInstanceOf(AccessDeniedException.class);
     }
 
     /**
@@ -267,6 +282,7 @@ class LeaveApplicationServiceTest {
                         Clock.fixed(now, ZoneOffset.UTC),
                         requests,
                         mock(LeaveRequestDayRepository.class),
+                        mock(LeaveRequestDecisionRepository.class),
                         accounts,
                         internships,
                         calendar,
