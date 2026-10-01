@@ -11,10 +11,12 @@ class AttendanceDeadlineSchedulerTest {
     void sweepsBothDeadlineBoundariesWithTheSameBoundedBatch() {
         LeaveApplicationService leave = mock(LeaveApplicationService.class);
         AttendanceCorrectionApplicationService corrections = mock(AttendanceCorrectionApplicationService.class);
+        AttendanceExceptionService exceptions = mock(AttendanceExceptionService.class);
 
-        new AttendanceDeadlineScheduler(leave, corrections).sweep();
+        new AttendanceDeadlineScheduler(leave, corrections, exceptions).sweep();
 
         verify(leave).expirePending(100);
         verify(corrections).expire(100);
+        verify(exceptions).expireOverdue(100);
     }
 }

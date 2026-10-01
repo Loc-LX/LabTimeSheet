@@ -1,9 +1,16 @@
 package com.lab.labtimesheet.feature.attendance.controller;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -15,9 +22,17 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.lab.labtimesheet.feature.attendance.exception.LeaveException;
+import com.lab.labtimesheet.feature.attendance.exception.AttendanceExceptionRequestException;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
+import com.lab.labtimesheet.feature.identity.model.AccountStatus;
+import com.lab.labtimesheet.feature.identity.model.dto.AccountIdentity;
+import com.lab.labtimesheet.feature.identity.service.AccountService;
+import com.lab.labtimesheet.feature.attendance.model.AttendanceExceptionKind;
 import com.lab.labtimesheet.feature.calendar.model.AttendancePolicy;
 import com.lab.labtimesheet.platform.model.GlobalRole;
+import com.lab.labtimesheet.platform.authorization.AuthorizationCapability;
+import com.lab.labtimesheet.platform.authorization.AuthorizationPolicy;
+import com.lab.labtimesheet.platform.authorization.AuthorizationRequest;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceViolations;
 import com.lab.labtimesheet.feature.attendance.model.CorrectionEventType;
 import com.lab.labtimesheet.feature.attendance.model.CorrectionStatus;
@@ -27,11 +42,13 @@ import com.lab.labtimesheet.feature.attendance.model.dto.CorrectionEventView;
 import com.lab.labtimesheet.feature.attendance.model.dto.CorrectionRequestCommand;
 import com.lab.labtimesheet.feature.attendance.model.dto.CorrectionSummary;
 import com.lab.labtimesheet.feature.attendance.model.dto.CorrectionView;
+import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceHistoryItem;
 import com.lab.labtimesheet.feature.attendance.model.dto.LeaveAllocation;
 import com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestCommand;
 import com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestSummary;
 import com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestView;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceApplicationService;
+import com.lab.labtimesheet.feature.attendance.service.AttendanceExceptionRequestService;
 import com.lab.labtimesheet.feature.calendar.service.CalendarApplicationService;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceCorrectionApplicationService;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceCurrentUserService;
@@ -50,13 +67,14 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TimeZone;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 /** Production web contract for discoverable leave and missed-checkout correction workflows. */
-@WebMvcTest(AttendanceRequestController.class)
+@WebMvcTest({AttendanceRequestController.class, AttendanceController.class})
 class AttendanceRequestControllerWebTest {
 
     @Autowired
@@ -78,7 +96,220 @@ class AttendanceRequestControllerWebTest {
     private AttendanceCorrectionApplicationService corrections;
 
     @MockitoBean
+    private AuthorizationPolicy authorizationPolicy;
+
+    @MockitoBean
+    private AccountService accounts;
+
+    @MockitoBean
+    private AttendanceExceptionRequestService exceptionRequests;
+
+    @MockitoBean
     private SmtpConfigurationService smtpConfiguration;
+
+    @BeforeEach
+    void allowPolicyDecisionsInPageRenderingTests() {
+        when(authorizationPolicy.allows(any(AuthorizationCapability.class), any(AuthorizationRequest.class)))
+                .thenReturn(true);
+        lenient().when(accounts.requireIdentityById(anyLong())).thenAnswer(invocation -> {
+            long id = invocation.getArgument(0);
+            GlobalRole role = id == 2L ? GlobalRole.MENTOR : GlobalRole.INTERN;
+            return new AccountIdentity(id, "actor@example.test", "Actor", role, AccountStatus.ACTIVE);
+        });
+    }
+
+    @Test
+    void inactiveInternDoesNotSeeRequestForms() throws Exception {
+        AttendanceActor actor = new AttendanceActor(7L, GlobalRole.INTERN);
+        when(currentUsers.actor(org.mockito.ArgumentMatchers.any())).thenReturn(actor);
+        when(accounts.requireIdentityById(7L)).thenReturn(new AccountIdentity(
+                7L, "intern@example.test", "Intern", GlobalRole.INTERN, AccountStatus.DEACTIVATED));
+        when(authorizationPolicy.allows(eq(AuthorizationCapability.SUBMIT_ATTENDANCE_REQUEST),
+                any(AuthorizationRequest.class)))
+                .thenAnswer(invocation -> ((AuthorizationRequest) invocation.getArgument(1))
+                        .scopeState().equals(AccountStatus.ACTIVE.name()));
+        when(calendar.currentBusinessDate()).thenReturn(LocalDate.of(2026, 8, 21));
+
+        mvc.perform(get("/attendance/leave").with(user("intern@example.test").roles("INTERN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("Request leave"))));
+
+        org.mockito.Mockito.verify(authorizationPolicy).allows(
+                eq(AuthorizationCapability.SUBMIT_ATTENDANCE_REQUEST),
+                org.mockito.ArgumentMatchers.argThat(request ->
+                        AccountStatus.DEACTIVATED.name().equals(request.scopeState())));
+    }
+
+    /**
+     * EXC-002 and AC-EXC-001: the excuse form must expose the selected row and violation to the Intern.
+     * Observable failure: the route or labelled reason field is missing; expected is HTTP 200 with hidden
+     * attendanceRecordId 55, kind LATE_ARRIVAL, and a labelled reason textarea.
+     */
+    @Test
+    void internCanOpenAnExcuseRequestFormForALateArrival() throws Exception {
+        AttendanceActor actor = new AttendanceActor(7L, GlobalRole.INTERN);
+        when(currentUsers.actor(org.mockito.ArgumentMatchers.any())).thenReturn(actor);
+        when(exceptionRequests.requestableRow(actor, 55L))
+                .thenReturn(historyItem(55L, LocalDate.of(2026, 8, 20), true, false));
+
+        mvc.perform(get("/attendance/exceptions/new")
+                        .param("attendanceRecordId", "55")
+                        .param("kind", "LATE_ARRIVAL")
+                        .with(user("intern@example.test").roles("INTERN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("name=\"attendanceRecordId\" value=\"55\"")))
+                .andExpect(content().string(containsString("name=\"kind\" value=\"LATE_ARRIVAL\"")))
+                .andExpect(content().string(containsString("<textarea")))
+                .andExpect(content().string(containsString("for=\"reason\"")))
+                .andExpect(content().string(containsString("20/08/2026")));
+    }
+
+    /**
+     * EXC-002 and AC-EXC-001: a valid Intern submission delegates the exact request and confirms success.
+     * Observable failure: the service is skipped or feedback is lost; expected is row 55/LATE_ARRIVAL/reason
+     * "Bus delay", a redirect to own history, and requestNotice "Your excuse request was submitted.".
+     */
+    @Test
+    void successfulExcuseRequestRedirectsToHistoryWithNotice() throws Exception {
+        AttendanceActor actor = new AttendanceActor(7L, GlobalRole.INTERN);
+        when(currentUsers.actor(org.mockito.ArgumentMatchers.any())).thenReturn(actor);
+        when(calendar.currentBusinessDate()).thenReturn(LocalDate.of(2026, 8, 21));
+        when(attendance.history(actor, 7L, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 21)))
+                .thenReturn(List.of());
+        when(exceptionRequests.requestExcuse(actor, 55L, AttendanceExceptionKind.LATE_ARRIVAL, "Bus delay"))
+                .thenReturn(91L);
+
+        mvc.perform(post("/attendance/exceptions")
+                        .with(user("intern@example.test").roles("INTERN")).with(csrf())
+                        .param("attendanceRecordId", "55")
+                        .param("kind", "LATE_ARRIVAL")
+                        .param("reason", "Bus delay"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/attendance"))
+                .andExpect(flash().attribute("requestNotice", "Your excuse request was submitted."));
+        verify(exceptionRequests).requestExcuse(actor, 55L, AttendanceExceptionKind.LATE_ARRIVAL, "Bus delay");
+
+        mvc.perform(get("/attendance")
+                        .with(user("intern@example.test").roles("INTERN"))
+                        .flashAttr("requestNotice", "Your excuse request was submitted."))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Your excuse request was submitted.")));
+    }
+
+    /**
+     * EXC-002 and AC-EXC-001: a business refusal returns the Intern to the same request without losing input.
+     * Observable failure: the error, row/kind query or reason disappears; expected is row 55, LATE_ARRIVAL,
+     * reason "Bus delay", and the service's exact refusal message in requestError.
+     */
+    @Test
+    void rejectedExcuseRequestRetainsSelectionAndReason() throws Exception {
+        AttendanceActor actor = new AttendanceActor(7L, GlobalRole.INTERN);
+        when(currentUsers.actor(org.mockito.ArgumentMatchers.any())).thenReturn(actor);
+        when(exceptionRequests.requestableRow(actor, 55L))
+                .thenReturn(historyItem(55L, LocalDate.of(2026, 8, 20), true, false));
+        when(exceptionRequests.requestExcuse(actor, 55L, AttendanceExceptionKind.LATE_ARRIVAL, "Bus delay"))
+                .thenThrow(new AttendanceExceptionRequestException("The attendance period is finalized"));
+
+        var result = mvc.perform(post("/attendance/exceptions")
+                        .with(user("intern@example.test").roles("INTERN")).with(csrf())
+                        .param("attendanceRecordId", "55")
+                        .param("kind", "LATE_ARRIVAL")
+                        .param("reason", "Bus delay"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/attendance/exceptions/new?attendanceRecordId=55&kind=LATE_ARRIVAL"))
+                .andExpect(flash().attribute("requestError", "The attendance period is finalized"))
+                .andExpect(flash().attribute("reason", "Bus delay"))
+                .andReturn();
+        verify(exceptionRequests).requestExcuse(actor, 55L, AttendanceExceptionKind.LATE_ARRIVAL, "Bus delay");
+
+        mvc.perform(get("/attendance/exceptions/new")
+                        .with(user("intern@example.test").roles("INTERN"))
+                        .param("attendanceRecordId", "55")
+                        .param("kind", "LATE_ARRIVAL")
+                        .flashAttrs(result.getFlashMap()))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("name=\"attendanceRecordId\" value=\"55\"")))
+                .andExpect(content().string(containsString("name=\"kind\" value=\"LATE_ARRIVAL\"")))
+                .andExpect(content().string(containsString("The attendance period is finalized")))
+                .andExpect(content().string(containsString("Bus delay")));
+    }
+
+    /**
+     * EXC-002 and AC-EXC-001: malformed request fields must be handled before calling the domain service.
+     * Observable failure: BOGUS reaches the service or produces a bad-request page; expected is a form redirect
+     * with requestError and no service invocation.
+     */
+    @Test
+    void malformedExcuseKindRedirectsToFormWithoutCallingService() throws Exception {
+        when(currentUsers.actor(org.mockito.ArgumentMatchers.any()))
+                .thenReturn(new AttendanceActor(7L, GlobalRole.INTERN));
+
+        mvc.perform(post("/attendance/exceptions")
+                        .with(user("intern@example.test").roles("INTERN")).with(csrf())
+                        .param("attendanceRecordId", "55")
+                        .param("kind", "BOGUS")
+                        .param("reason", "Retained reason"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/attendance/exceptions/new?attendanceRecordId=55&kind=BOGUS"))
+                .andExpect(flash().attributeExists("requestError"))
+                .andExpect(flash().attribute("reason", "Retained reason"));
+        org.mockito.Mockito.verifyNoInteractions(exceptionRequests);
+    }
+
+    /**
+     * EXC-002 and AC-EXC-001: the state-changing request endpoint must enforce CSRF.
+     * Observable failure: a session-authenticated POST without a token reaches the request flow; expected is
+     * HTTP 403 and no call to AttendanceExceptionRequestService.
+     */
+    @Test
+    void excuseRequestPostRequiresCsrf() throws Exception {
+        mvc.perform(post("/attendance/exceptions")
+                        .with(user("intern@example.test").roles("INTERN"))
+                        .param("attendanceRecordId", "55")
+                        .param("kind", "LATE_ARRIVAL")
+                        .param("reason", "Bus delay"))
+                .andExpect(status().isForbidden());
+        org.mockito.Mockito.verifyNoInteractions(exceptionRequests);
+    }
+
+    /**
+     * EXC-002 and AC-EXC-001: only a violation matching each Intern-owned row gets an excuse-request link.
+     * Observable failure: a late/early link is absent, mislabeled, or appears for an on-time row; expected are
+     * the matching two links for rows 55 and 56 and no excuse link for row 57.
+     */
+    @Test
+    void ownHistoryLinksEachExcuseToItsRecordedViolationOnly() throws Exception {
+        AttendanceActor actor = new AttendanceActor(7L, GlobalRole.INTERN);
+        when(currentUsers.actor(org.mockito.ArgumentMatchers.any())).thenReturn(actor);
+        when(calendar.currentBusinessDate()).thenReturn(LocalDate.of(2026, 8, 21));
+        when(attendance.history(actor, 7L, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 21)))
+                .thenReturn(List.of(
+                        historyItem(55L, LocalDate.of(2026, 8, 20), true, false),
+                        historyItem(56L, LocalDate.of(2026, 8, 19), false, true),
+                        historyItem(57L, LocalDate.of(2026, 8, 18), false, false)));
+
+        mvc.perform(get("/attendance").with(user("intern@example.test").roles("INTERN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString(
+                        "href=\"/attendance/exceptions/new?attendanceRecordId=55&amp;kind=LATE_ARRIVAL\"")))
+                .andExpect(content().string(containsString("Request excuse for late arrival")))
+                .andExpect(content().string(containsString(
+                        "href=\"/attendance/exceptions/new?attendanceRecordId=56&amp;kind=EARLY_DEPARTURE\"")))
+                .andExpect(content().string(containsString("Request excuse for early departure")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString(
+                        "attendanceRecordId=57&amp;kind="))));
+    }
+
+    private static AttendanceHistoryItem historyItem(
+            long recordId, LocalDate workDate, boolean late, boolean earlyDeparture) {
+        AttendancePolicy policy = new AttendancePolicy(
+                1L, LocalDate.of(2026, 1, 1), ZoneId.of("Asia/Ho_Chi_Minh"),
+                LocalTime.of(8, 0), LocalTime.of(17, 0), 15, 15, 3,
+                BigDecimal.valueOf(0.1), Set.of(DayOfWeek.MONDAY));
+        return new AttendanceHistoryItem(
+                workDate, Instant.parse("2026-08-20T02:00:00Z"), Instant.parse("2026-08-20T09:00:00Z"),
+                policy, new AttendanceViolations(late, earlyDeparture, false), recordId);
+    }
 
     @Test
     void legacyRequestRouteRedirectsToLeaveWorkflow() throws Exception {
@@ -146,11 +377,178 @@ class AttendanceRequestControllerWebTest {
                 .andExpect(status().is3xxRedirection());
         mvc.perform(post("/attendance/corrections/11/decide")
                         .with(user("mentor@example.test").roles("MENTOR")).with(csrf())
-                        .param("decision", "REOPEN").param("note", "Recheck"))
+                        .param("decision", "AMEND").param("note", "Recheck").param("reason", "new info"))
                 .andExpect(status().is3xxRedirection());
 
         verify(leave).approve(actor, 10L);
-        verify(corrections).decide(actor, 11L, CorrectionDecision.REOPEN, "Recheck");
+        verify(corrections).decide(actor, 11L, CorrectionDecision.AMEND, "Recheck", "new info");
+    }
+
+    /**
+     * Protects COR-005, COR-007, COR-009: web routing rejects proposedCheckout tampering without calling the service,
+     * rejects invalid decision REOPEN, and dispatches valid AMEND and REVERSE transitions with reasons.
+     */
+    @Test
+    void correctionDecisionWebRejectsProposedCheckoutAndDispatchesAmendAndReverse() throws Exception {
+        AttendanceActor actor = new AttendanceActor(2L, GlobalRole.MENTOR);
+        when(currentUsers.actor(org.mockito.ArgumentMatchers.any())).thenReturn(actor);
+
+        // 1. proposedCheckout parameter is rejected without calling service
+        mvc.perform(post("/attendance/corrections/11/decide")
+                        .with(user("mentor@example.test").roles("MENTOR")).with(csrf())
+                        .param("decision", "AMEND")
+                        .param("note", "new note")
+                        .param("reason", "new reason")
+                        .param("proposedCheckout", "2026-08-20T17:00"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/attendance/corrections/11"))
+                .andExpect(flash().attribute("requestError", "The proposed checkout cannot be changed"));
+        verify(corrections, never()).decide(any(), eq(11L), any(), any(), any());
+
+        // 2. REOPEN decision is rejected as invalid
+        mvc.perform(post("/attendance/corrections/11/decide")
+                        .with(user("mentor@example.test").roles("MENTOR")).with(csrf())
+                        .param("decision", "REOPEN")
+                        .param("note", "reopen note"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/attendance/corrections/11"))
+                .andExpect(flash().attribute("requestError", "Choose a valid correction decision."));
+        verify(corrections, never()).decide(any(), eq(11L), any(), any(), any());
+
+        // 3. REVERSE route succeeds with reason
+        mvc.perform(post("/attendance/corrections/11/decide")
+                        .with(user("mentor@example.test").roles("MENTOR")).with(csrf())
+                        .param("decision", "REVERSE")
+                        .param("reason", "reverse reason"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/attendance/corrections/11"))
+                .andExpect(flash().attribute("message", "Correction decision saved"));
+        verify(corrections).decide(actor, 11L, CorrectionDecision.REVERSE, null, "reverse reason");
+    }
+
+    /**
+     * Protects {@code LEV-011}, {@code ATT-024}, and {@code AC-LEV-008}: POST /attendance/leave/{id}/amend
+     * dispatches valid amendment with withdrawn dates and reason to the service, and rejects missing reason.
+     * Observable break: amendment accepted without a reason or service not called with parsed dates;
+     * hand-derived result: 3xx redirect to detail page, flash message on success, flash requestError when reason missing.
+     */
+    @Test
+    void amendLeaveRequestDispatchesValidAmendmentAndRejectsMissingReason() throws Exception {
+        AttendanceActor actor = new AttendanceActor(2L, GlobalRole.MENTOR);
+        when(currentUsers.actor(org.mockito.ArgumentMatchers.any())).thenReturn(actor);
+
+        // 1. Valid amendment with withdrawnDates and reason succeeds
+        mvc.perform(post("/attendance/leave/15/amend")
+                        .with(user("mentor@example.test").roles("MENTOR")).with(csrf())
+                        .param("withdrawnDates", "2026-08-17", "2026-08-18")
+                        .param("reason", "Intern worked remotely"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/attendance/leave/15"))
+                .andExpect(flash().attribute("message", "Leave request amended"));
+        verify(leave).amend(actor, 15L, List.of(LocalDate.of(2026, 8, 17), LocalDate.of(2026, 8, 18)), "Intern worked remotely");
+
+        // 2. Missing reason is rejected
+        doThrow(new LeaveException("A reason is required to amend a leave decision"))
+                .when(leave).amend(eq(actor), eq(15L), any(), isNull());
+        doThrow(new LeaveException("A reason is required to amend a leave decision"))
+                .when(leave).amend(eq(actor), eq(15L), any(), eq(""));
+
+        mvc.perform(post("/attendance/leave/15/amend")
+                        .with(user("mentor@example.test").roles("MENTOR")).with(csrf())
+                        .param("withdrawnDates", "2026-08-17")
+                        .param("reason", ""))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/attendance/leave/15"))
+                .andExpect(flash().attribute("requestError", "A reason is required to amend a leave decision"));
+    }
+
+    /**
+     * Protects {@code LEV-011}, {@code LEV-013}, and {@code AC-LEV-005}: the existing POST route
+     * dispatches its state-specific owner action and reports withdrawal for pending leave and
+     * cancellation for approved leave.
+     */
+    @Test
+    void leaveWithdrawalAndCancellationRoutesCallOnlyTheirMatchingServiceOperation() throws Exception {
+        AttendanceActor actor = new AttendanceActor(7L, GlobalRole.INTERN);
+        when(currentUsers.actor(org.mockito.ArgumentMatchers.any())).thenReturn(actor);
+        when(leave.withdraw(actor, 10L)).thenReturn(leaveView(10L, LeaveStatus.WITHDRAWN));
+        when(leave.cancel(actor, 11L)).thenReturn(leaveView(11L, LeaveStatus.CANCELLED));
+
+        mvc.perform(post("/attendance/leave/10/withdraw")
+                        .with(user("intern@example.test").roles("INTERN")).with(csrf()))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/attendance/leave/10"))
+                .andExpect(flash().attribute("message", "Leave request withdrawn"));
+        mvc.perform(post("/attendance/leave/11/cancel")
+                        .with(user("intern@example.test").roles("INTERN")).with(csrf()))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/attendance/leave/11"))
+                .andExpect(flash().attribute("message", "Approved leave cancelled"));
+
+        verify(leave).withdraw(actor, 10L);
+        verify(leave).cancel(actor, 11L);
+        verify(leave, never()).cancel(actor, 10L);
+        verify(leave, never()).withdraw(actor, 11L);
+    }
+
+    /**
+     * Protects {@code LEV-010}, {@code LEV-011}, {@code LEV-013}, and {@code AC-LEV-007}: pending and overdue leave
+     * expose "Withdraw request", overdue displays "Overdue", and approved leave exposes only its cancellation.
+     */
+    @Test
+    void leavePageShowsTheActionMatchingEachRequestState() throws Exception {
+        AttendanceActor actor = new AttendanceActor(7L, GlobalRole.INTERN);
+        when(currentUsers.actor(org.mockito.ArgumentMatchers.any())).thenReturn(actor);
+        when(calendar.currentBusinessDate()).thenReturn(LocalDate.of(2026, 8, 21));
+        when(leave.list(actor)).thenReturn(List.of());
+        when(leave.balance(actor, YearMonth.of(2026, 8))).thenReturn(
+                new com.lab.labtimesheet.feature.attendance.model.dto.LeaveBalance(
+                        YearMonth.of(2026, 8), 0, 3));
+        when(leave.view(actor, 10L)).thenReturn(leaveView(10L, LeaveStatus.PENDING));
+        when(leave.view(actor, 11L)).thenReturn(leaveView(11L, LeaveStatus.APPROVED));
+        when(leave.view(actor, 12L)).thenReturn(leaveView(12L, LeaveStatus.OVERDUE));
+
+        mvc.perform(get("/attendance/leave/10").with(user("intern@example.test").roles("INTERN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Withdraw request")))
+                .andExpect(content().string(containsString("/attendance/leave/10/withdraw")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("Cancel approved leave"))))
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("/attendance/leave/10/cancel"))));
+        mvc.perform(get("/attendance/leave/11").with(user("intern@example.test").roles("INTERN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Cancel approved leave")))
+                .andExpect(content().string(containsString("/attendance/leave/11/cancel")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("Withdraw request"))))
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("/attendance/leave/11/withdraw"))));
+        mvc.perform(get("/attendance/leave/12").with(user("intern@example.test").roles("INTERN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Overdue")))
+                .andExpect(content().string(containsString("Withdraw request")))
+                .andExpect(content().string(containsString("/attendance/leave/12/withdraw")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("Cancel approved leave"))))
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("/attendance/leave/12/cancel"))));
+    }
+
+    /**
+     * Protects {@code LEV-003}, {@code LEV-004}, and {@code AC-LEV-006}: selecting a quota month recomputes that
+     * month's balance. Observable break: the route silently displays the current month or stale figures. For
+     * September the fixture supplies 2 reserved days, quota 4, and therefore 2 remaining days.
+     */
+    @Test
+    void selectedQuotaMonthLoadsAndDisplaysItsOwnBalance() throws Exception {
+        AttendanceActor actor = new AttendanceActor(7L, GlobalRole.INTERN);
+        when(currentUsers.actor(org.mockito.ArgumentMatchers.any())).thenReturn(actor);
+        when(leave.list(actor)).thenReturn(List.of());
+        when(leave.balance(actor, YearMonth.of(2026, 9))).thenReturn(
+                new com.lab.labtimesheet.feature.attendance.model.dto.LeaveBalance(
+                        YearMonth.of(2026, 9), 2, 4));
+
+        mvc.perform(get("/attendance/leave").param("month", "2026-09")
+                        .with(user("intern@example.test").roles("INTERN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("2 reserved / 4 quota / 2 remaining")));
+
+        verify(leave).balance(actor, YearMonth.of(2026, 9));
     }
 
     @Test
@@ -327,6 +725,11 @@ class AttendanceRequestControllerWebTest {
                 .andExpect(content().string(containsString("id=\"decision-form-error\"")));
     }
 
+    /**
+     * Protects {@code LEV-003} and {@code AC-LEV-006}: cross-month allocations are rendered under separate quota-month
+     * headings. Observable break: a date is shown under the request's overall range or another month's group.
+     * The fixture hand-calculates one August date and one September date, so each group must contain exactly one date.
+     */
     @Test
     void retainedLeaveAllocationsAndCorrectionEventsRenderWithoutExposingRawMutationState() throws Exception {
         AttendanceActor intern = new AttendanceActor(7L, GlobalRole.INTERN);
@@ -339,11 +742,26 @@ class AttendanceRequestControllerWebTest {
                 LeaveStatus.PENDING, Instant.parse("2026-08-20T00:00:00Z"),
                 Instant.parse("2026-08-28T01:00:00Z"), null, null, null,
                 List.of(new LeaveAllocation(LocalDate.of(2026, 8, 28),
-                        LocalDate.of(2026, 8, 1), 1L, 3))));
+                                LocalDate.of(2026, 8, 1), 1L, 3),
+                        new LeaveAllocation(LocalDate.of(2026, 9, 1),
+                                LocalDate.of(2026, 9, 1), 2L, 4))));
 
-        mvc.perform(get("/attendance/leave/10").with(user("intern@example.test").roles("INTERN")))
+        var response = mvc.perform(get("/attendance/leave/10").with(user("intern@example.test").roles("INTERN")))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("28/08/2026 · quota month 08/2026")));
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        int firstGroup = response.indexOf("Quota month 08/2026");
+        int secondGroup = response.indexOf("Quota month 09/2026");
+        int endOfSection = response.indexOf("</section>", secondGroup);
+        org.assertj.core.api.Assertions.assertThat(firstGroup).isGreaterThanOrEqualTo(0);
+        org.assertj.core.api.Assertions.assertThat(secondGroup).isGreaterThan(firstGroup);
+        org.assertj.core.api.Assertions.assertThat(endOfSection).isGreaterThan(secondGroup);
+
+        String augustBlock = response.substring(firstGroup, secondGroup);
+        String septemberBlock = response.substring(secondGroup, endOfSection);
+        org.assertj.core.api.Assertions.assertThat(augustBlock).contains("28/08/2026").doesNotContain("01/09/2026");
+        org.assertj.core.api.Assertions.assertThat(septemberBlock).contains("01/09/2026").doesNotContain("28/08/2026");
 
         AttendanceActor mentor = new AttendanceActor(2L, GlobalRole.MENTOR);
         when(currentUsers.actor(org.mockito.ArgumentMatchers.any())).thenReturn(mentor);
@@ -377,8 +795,43 @@ class AttendanceRequestControllerWebTest {
 
         mvc.perform(get("/attendance/corrections/11").with(user("mentor@example.test").roles("MENTOR")))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("Reopen")))
+                .andExpect(content().string(containsString("Amend decision")))
+                .andExpect(content().string(containsString("Reverse decision")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("Reopen"))))
                 .andExpect(content().string(org.hamcrest.Matchers.not(containsString("value=\"APPROVE\""))));
+    }
+
+    /**
+     * Protects {@code COR-006} and {@code COR-007}: an overdue correction renders an Overdue badge and exposes
+     * Approve and Reject actions to a Mentor without offering Reopen.
+     */
+    @Test
+    void overdueCorrectionRendersOverdueBadgeAndMentorDecisionActions() throws Exception {
+        AttendanceActor mentor = new AttendanceActor(2L, GlobalRole.MENTOR);
+        when(currentUsers.actor(org.mockito.ArgumentMatchers.any())).thenReturn(mentor);
+        when(leave.list(mentor)).thenReturn(List.of());
+        when(corrections.list(mentor)).thenReturn(List.of());
+        AttendancePolicy policy = new AttendancePolicy(
+                1L, LocalDate.of(2026, 1, 1), ZoneId.of("Asia/Ho_Chi_Minh"),
+                LocalTime.of(8, 0), LocalTime.of(17, 0), 15, 15, 3,
+                BigDecimal.valueOf(0.1), Set.of(DayOfWeek.MONDAY));
+        when(corrections.view(mentor, 11L)).thenReturn(new CorrectionView(
+                11L, 55L, 7L, null, LocalDateTime.of(2026, 8, 20, 16, 0), null,
+                "Missed", CorrectionStatus.OVERDUE, Instant.parse("2026-08-20T10:00:00Z"),
+                Instant.parse("2026-08-21T10:00:00Z"), Instant.parse("2026-08-21T10:00:00Z"),
+                null, policy, new AttendanceViolations(false, false, true),
+                List.of(new CorrectionEventView(1L, CorrectionEventType.SUBMITTED, null,
+                                CorrectionStatus.PENDING, 7L, "Missed", Instant.parse("2026-08-20T10:00:00Z")),
+                        new CorrectionEventView(2L, CorrectionEventType.OVERDUE, CorrectionStatus.PENDING,
+                                CorrectionStatus.OVERDUE, null, null, Instant.parse("2026-08-22T10:00:00Z")))));
+
+        mvc.perform(get("/attendance/corrections/11").with(user("mentor@example.test").roles("MENTOR")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Overdue")))
+                .andExpect(content().string(containsString("Approve")))
+                .andExpect(content().string(containsString("Reject")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("Reopen"))))
+                .andExpect(content().string(containsString("Save decision")));
     }
 
     @Test
@@ -419,5 +872,22 @@ class AttendanceRequestControllerWebTest {
         } finally {
             TimeZone.setDefault(previousZone);
         }
+    }
+
+    private static LeaveRequestView leaveView(long id, LeaveStatus status) {
+        Instant submittedAt = Instant.parse("2026-08-20T00:00:00Z");
+        return new LeaveRequestView(
+                id,
+                7L,
+                LocalDate.of(2026, 8, 28),
+                LocalDate.of(2026, 8, 28),
+                "Family",
+                status,
+                submittedAt,
+                Instant.parse("2026-08-28T01:00:00Z"),
+                status == LeaveStatus.CANCELLED ? 2L : null,
+                status == LeaveStatus.CANCELLED ? submittedAt.plusSeconds(30) : null,
+                status == LeaveStatus.CANCELLED ? submittedAt.plusSeconds(60) : null,
+                List.of());
     }
 }

@@ -151,8 +151,27 @@ public class TaskQueryService {
      */
     @Transactional(readOnly = true)
     public List<TaskHistoryView> history(long projectId) {
-        return tasks.findAllByProjectIdOrderById(projectId).stream()
-                .map(task -> history(task, projectId))
+        List<Task> projectTasks = tasks.findAllByProjectIdOrderById(projectId);
+        if (projectTasks.isEmpty()) {
+            return List.of();
+        }
+        List<Long> taskIds = projectTasks.stream().map(Task::getId).toList();
+        Map<Long, List<TaskCommentView>> commentsByTask = comments
+                .findAllByTaskIdInOrderByTaskIdAscCreatedAtAscIdAsc(taskIds)
+                .stream()
+                .map(TaskQueryService::commentView)
+                .collect(Collectors.groupingBy(TaskCommentView::taskId,
+                        LinkedHashMap::new, Collectors.toList()));
+        Map<Long, List<TaskWorkLogView>> workLogsByTask = workLogs
+                .findAllByProjectIdAndTaskIdInOrderByTaskIdAscWorkDateAscIdAsc(projectId, taskIds)
+                .stream()
+                .map(TaskQueryService::workLogView)
+                .collect(Collectors.groupingBy(TaskWorkLogView::taskId,
+                        LinkedHashMap::new, Collectors.toList()));
+        return projectTasks.stream()
+                .map(task -> history(task,
+                        commentsByTask.getOrDefault(task.getId(), List.of()),
+                        workLogsByTask.getOrDefault(task.getId(), List.of())))
                 .toList();
     }
 
@@ -241,7 +260,8 @@ public class TaskQueryService {
                 .orElse(null);
     }
 
-    private TaskHistoryView history(Task task, long projectId) {
+    private TaskHistoryView history(
+            Task task, List<TaskCommentView> taskComments, List<TaskWorkLogView> taskWorkLogs) {
         return new TaskHistoryView(
                 task.getId(),
                 task.getProjectId(),
@@ -257,12 +277,8 @@ public class TaskQueryService {
                 task.getUpdatedAt(),
                 task.getDeletedAt(),
                 task.getDeletedByMembershipId(),
-                comments.findAllByTaskIdOrderByCreatedAtAscIdAsc(task.getId()).stream()
-                        .map(TaskQueryService::commentView)
-                        .toList(),
-                workLogs.findAllByTaskIdAndProjectIdOrderByWorkDateAscIdAsc(task.getId(), projectId).stream()
-                        .map(TaskQueryService::workLogView)
-                        .toList(),
+                taskComments,
+                taskWorkLogs,
                 task.getVersion());
     }
 

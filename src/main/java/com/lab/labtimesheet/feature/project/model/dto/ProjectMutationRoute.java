@@ -1,5 +1,7 @@
 package com.lab.labtimesheet.feature.project.model.dto;
 
+import com.lab.labtimesheet.feature.project.model.ProjectStatus;
+
 /**
  * Immutable routing facts used before a Project mutation acquires its aggregate lock.
  *
@@ -9,11 +11,13 @@ package com.lab.labtimesheet.feature.project.model.dto;
  * @param projectId Project identifier
  * @param mentorUserId owning Mentor account identifier
  * @param currentLeaderUserId current Leader account identifier, or null for completed history
+ * @param status stored Project status captured with the scalar route
  */
 // DTO nội bộ chứa các ID cần thiết trước khi ProjectService bắt đầu mutation.
 // Nó giúp Service khóa Account theo thứ tự ổn định rồi mới khóa Project, giảm nguy cơ deadlock.
 public record ProjectMutationRoute(
         long projectId,
         long mentorUserId,
-        Long currentLeaderUserId) {
+        Long currentLeaderUserId,
+        ProjectStatus status) {
 }

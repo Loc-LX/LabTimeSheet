@@ -90,6 +90,15 @@ came from, not whether the choice is settled.
 | D38 | The last open questions: one home per module, the account state machine, delivery states, reset eligibility | Remove the parallel `feature-*` tree after folding its history into each module; a never-activated account can be cancelled and a deactivated one reinstated, keeping any lock; only an `ACTIVE` account signs in; state the five delivery states; reset is for `ACTIVE` and `LOCKED`, clears the throttle and never changes account state. Corrected on review | `ACC-014`, `ACC-016`; new `ACC-028`, `ACC-029`, `ACC-030`, `NOT-012`, `SEC-015`, `DB-022`; new `AC-ACC-020`–`AC-ACC-022`, `AC-NOT-007`, `AC-SEC-009`–`AC-SEC-011`, `AC-DB-009` |
 | D40 | Where a feature's plan and tasks live | One `PLAN.md` and one `TASKS.md` per feature beside its `SPEC.md`, none per module and no exception; work on a rule a `MODULE.md` holds is planned in the feature whose code it changes; a schema change shared by several features is planned once in the Data model feature; platform gains the Architecture, Authorization, Security and Data model features, which take their `ARC`, `AUTH`, `SEC` and `DB` rows from `MODULE.md` unchanged; part A moves after `A-12` | One bullet of `D28` superseded; no rule text changed |
 | D41 | What the constitution records after Part A | Update the `ARC-005`, `ARC-006`, `ARC-007` and `ARC-008` enforcement/gap statements to match the implemented tests and current Flyway evidence; no rule, layer or obligation changes | constitution `2.0.3` |
+| D42 | When the native SQL of `ProjectService` leaves the service | Now, in D-01 of Architecture part D, as JPQL bulk deletes in the Project module's repositories with behavior unchanged, ahead of `PRJ-002`; supersedes the timing in `D18` | `ARC-006`, `D18`, `PRJ-002` |
+| D43 | What the constitution records after part D | Credit `BusinessSqlBoundaryTest` under `ARC-006` for the SQL entry points it lists, each by name, and narrow the known-gap row of `ARC-006` from business SQL to the clauses no test asserts; no rule, layer or obligation changes | constitution `2.0.4` |
+| D44 | What the constitution records after part E | Credit the exact production response assertions and the four independent readiness refusals, each by name, and keep the `SEC-011` and `SEC-013` known-gap rows for the clauses no test asserts; no rule, layer or obligation changes | constitution `2.0.5` |
+| D45 | How the V3 probes are written and judged | `AC-DB-001` replays the Flyway migrations; the V3 backfill applies `ATT-020` at the migration's server time; C-02 ends red on its work branch; the probes fix V3's column names | `AC-DB-001`, `D27`, `D32`, data-model tasks |
+| D46 | How a Task blocked before transition history existed is unblocked | Either `TODO` or `IN_PROGRESS`, chosen by the authorized actor; the unblock is recorded, and no block record is invented for the earlier block | `TSK-025`, `AC-TSK-022` |
+| D47 | Who is told about an attendance request when the Intern has no responsible Mentor available | The request is still accepted; the submission and overdue notices go to the users who may assign a responsible Mentor (the active Admins today), never to a missing, locked or deactivated Mentor; a newly assigned Mentor is notified of each request that moves to them | `NOT-011`, `ACC-026`, `AC-ACC-023` |
+| D48 | What the constitution records after part B | Credit the tests part B added under `AUTH-002` and `AUTH-012`, each by name and for what it asserts; narrow both known-gap rows to the clauses no test asserts; no rule, layer or obligation changes | constitution `2.0.6` |
+| D49 | Whether notification email may be sent inside the user's request | No: the first attempt runs after the commit, outside the request, and begins within one minute; no response waits for SMTP | `NOT-006`, `AC-NOT-008` |
+| D50 | Who receives `MEMBERSHIP_CHANGED` and `LEADERSHIP_CHANGED` | Each Intern whose membership interval or leadership term the action opens or closes, never the user who performed it | `NOT-013`, `NOT-002`, `AC-PRJ-017` |
 
 D1 through D5 came from reading the specification against its own history. D6
 through D9 came from the audit described at the end of this page, which read the
@@ -1074,7 +1083,8 @@ on the remote untouched.
 **Decided on 14 September 2026 by Loc-LX.** No. `ARC-006` stays as written. The native
 SQL in `ProjectService#deleteProjectRows` moves behind the data-access layer when the
 deletion is reimplemented for `PRJ-002`. No named exception is created to legitimize the
-current code.
+current code. **Superseded by `D42` on 24 September 2026 in when the SQL moves: in task D-01 of
+Architecture part D, ahead of `PRJ-002`, with behavior unchanged.**
 
 ## D19. Must the suite pass on Windows without extra flags?
 
@@ -2216,6 +2226,111 @@ must describe that current state rather than the layout before Part A.
 
 **Status:** decided.
 
+## D42. When does the native SQL of `ProjectService` leave the service?
+
+**Decided on 24 September 2026 by Loc-LX.** Now, in task D-01 of Architecture part D, not when
+the deletion is reimplemented for `PRJ-002` as `D18` said. The eight native `delete` statements of
+`ProjectService#deleteProjectRows` become JPQL bulk deletes in the Project module's repositories,
+in the same child-to-parent order and after the same `flush` and `clear`, so the deletion removes
+exactly what it removes today.
+
+- `ARC-006` stays as written. No native SQL moves into a repository, and the build check of
+  D-01 refuses, anywhere in the production sources, the direct-SQL entry points that D.2 of
+  the Architecture plan lists.
+- Why now: the check then refuses those entry points from part D onward instead of from the
+  Project work of step 8, and the business-SQL clause of `AC-ARC-001` can be shown green.
+- The price: once `D12` is built, a deletable Project is empty, so five of the eight statements,
+  those for comments, work logs, Tasks, exit requests and invitations, always delete nothing and
+  the plan of `PRJ-002` removes them.
+- Unchanged: the emptiness check and the notification deletion of `PRJ-002` stay with the Project
+  lifecycle plan. Closing the constitution's business-SQL gap is a decision of its own, taken with
+  the test that closes it.
+
+**Status:** decided.
+
+## D43. What does the constitution record after part D?
+
+**Decided on 24 September 2026 by Loc-LX.** Task D-01 removed the last native SQL from
+`ProjectService`, as `D42` decided, and `BusinessSqlBoundaryTest` now fails the build on the
+direct-SQL entry points that D.2 of the Architecture plan lists, anywhere in the production
+Java sources. The constitution's enforcement text must say so and claim nothing more.
+
+- The enforcement column of `ARC-006` credits `BusinessSqlBoundaryTest` for the entry points
+  of that list, named one by one, and states that it asserts nothing beyond them.
+- The known-gap row of `ARC-006` no longer names business SQL. It stays, because the credited
+  tests leave clauses of the rule unasserted, among them validated DTOs bound in controllers
+  and the ban on a one-implementation abstraction layer.
+- No rule, layer or obligation changes. The constitution becomes `2.0.4`.
+
+**Status:** decided.
+
+## D44. What does the constitution record after part E?
+
+**Decided on 25 September 2026 by Loc-LX.** Task E-01 adds
+`ProductionResponseSecurityIntegrationTest` and `ProductionReadinessProfileTest` without changing
+production code. The constitution credits only the assertions those tests make and claims nothing more.
+
+- The `SEC-011` enforcement column credits real `GET /bootstrap` responses under `prod`, with
+  HTTPS supplied by a proxy trusted only in the test configuration: `Strict-Transport-Security`
+  contains exactly `max-age=31536000`, `includeSubDomains` and `preload`;
+  `Content-Security-Policy` is exactly `default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'`;
+  `Referrer-Policy` is `no-referrer`; the real `JSESSIONID` cookie has `Secure`, `HttpOnly` and
+  `SameSite=Strict`. Frame denial is asserted through `frame-ancestors 'none'`; no
+  `X-Frame-Options` assertion or claim of every-route coverage is added.
+- The `SEC-013` enforcement column credits a safe readiness fixture that starts under `prod`
+  and four overrides refused one at a time, with every other value safe. `http://timesheet.example.test`
+  and `https://localhost` each fail with only `HTTPS public origin`; `SameSite=Lax` fails with only
+  `SameSite=Strict session cookie`; `secure=false` fails with only `Secure session cookie`.
+  Each asserted message starts with `Production readiness check failed: `. The response test
+  separately asserts the HSTS directives and the `Secure` and `SameSite=Strict` cookie attributes
+  on a secure production response. It does not assert a readiness refusal for HSTS.
+- Both known-gap rows stay. For `SEC-011`, the existing `OriginEnforcementFilterTest` proves
+  a directly constructed filter rejects a mismatched POST origin and passes matching or absent
+  origins to the chain, but does not prove its wiring through the real `prod` application;
+  the new response test also covers only the bootstrap route. `Referrer-Policy: no-referrer` is
+  asserted under `prod` and `test` only, while `AC-SEC-008` requires it in every profile. For
+  `SEC-013`, neither new test
+  proves that profile state is the only source of relaxations, including when `prod` is combined
+  with a relaxation-bearing development or test profile. These are evidence gaps, not findings
+  that the implementation violates the rules.
+- No rule, layer or obligation changes. This patch to the enforcement index and gap wording follows
+  `D41` and `D43`; no ADR is needed. The constitution becomes `2.0.5`.
+
+**Status:** decided.
+
+## D45. How are the V3 probes written and judged?
+
+**Decided on 25 September 2026 by Loc-LX.** Task C-02 writes the probes of V3 before V3 exists. Four points the plan leaves open are settled here.
+
+- `AC-DB-001` replays the Flyway migrations of this repository on one PostgreSQL database. The two review DDL files it named were never in this repository (`ARC-008`), and Flyway is the only schema source (`ARC-007`).
+- V3 applies `ATT-020` to the periods it creates at the server time of the migration's transaction, as `D27` requires. A period's deadline is 23:59 on the fifth day of the following month, in the timezone of the policy version in force on that fifth day. A period is `FINALIZED`, with that server time as its finalization time, when the deadline has passed and no leave request, correction or attendance exception of the Intern affecting that month is `PENDING` or `OVERDUE`: a leave request affects each month its range overlaps, and a correction or an exception affects the month of its attendance record. Every other period is `OPEN`, with no finalization time. V1 admits no `OVERDUE` status and V3 creates the exception table empty, so before V3 only `PENDING` leave requests and corrections can keep a period open.
+- C-02 ends with every probe failing for the reason it names, so the full-suite gate of the data-model tasks starts at C-03. C-02's commit stays on its work branch and is merged only together with C-03.
+- The column names the C-02 probes use are V3's column names (`D32`): `intern_profiles.responsible_mentor_user_id`; `projects.cancelled_by_mentor_user_id`, `cancelled_at`, `cancellation_reason`; `leave_requests.withdrawn_at`; `leave_request_days.approval_withdrawn_at`; `notifications.project_id`; `attendance_periods.finalized_at`.
+- **Corrected on 25 September 2026.** The first wording counted only `PENDING` leave requests and corrections; it now states the condition of `ATT-020` in full. V3 changes no request's status (plan section C.3), so at V3 only `PENDING` leave requests and corrections can match it. Found by Codex before any probe was written.
+
+**Status:** decided.
+
+## D46. How is a Task unblocked when it was blocked before transition history existed?
+
+**Decided on 27 September 2026 by Loc-LX.** LAB-POLICY. `TSK-025` takes the unblock target from the latest block record, and V3 created `task_status_transitions` empty, so a Task already `BLOCKED` before Task management T1-04 has no such record and could never be unblocked. The demo seed holds one.
+
+- The authorized actor chooses `TODO` or `IN_PROGRESS`, the two targets `TSK-007` allows from `BLOCKED`. The unblock is retained as a transition record.
+- No block record is created for the earlier block, by migration or by the application: its previous status and its actor are unknown, and writing them would invent history (`GOV-005`).
+- Once the Task is blocked again, `TSK-025` applies in full.
+
+**Status:** decided.
+
+## D48. What does the constitution record after part B?
+
+**Decided on 28 September 2026 by Loc-LX.** Authorization part B routed every built §5.2 cell through one policy (tasks B-01 to B-04 and B-06). Plan section B.10 closes a known-gap row only when the tests assert every clause of its rule, and otherwise narrows it to the clauses left unasserted. The constitution credits what the tests assert and claims nothing more.
+
+- `AUTH-002`: the enforcement column credits `RecordDisclosureWebIntegrationTest` for the sign-in redirect, the whole-route 403, the same not-found pairs on the record routes it lists, and the refused hidden decision controls. The known-gap row stays, narrowed to the record routes the test does not list and to notification IDs, which answer foreign and absent alike with the same redirect instead of the not-found response the rule names.
+- `AUTH-012`: the enforcement column credits `AuthorizationMatrixIntegrationTest` for 131 of the 144 cells, `AuthorizationWithdrawalIntegrationTest` for the one-cell withdrawal, and `AuthorizationPolicyTest` for the catalogue's predicates. The known-gap row stays, narrowed to the 13 cells of operations not yet built, the leave and correction decisions that wait for `ACC-026`, and the absence of a test that fails on a new role decision outside the policy.
+- Withdrawing the Admin Attendance report cell exposed an unscoped report page that listed Interns without asking the policy; B-04 fixed it in the attendance module. It is recorded here because it is the case `AC-AUTH-011` exists to catch.
+- No rule, layer or obligation changes. The constitution becomes `2.0.6`.
+
+**Status:** decided.
+
 ## What the audit checked and found sound
 
 Listing what passed matters as much as what failed, because a reader otherwise
@@ -2288,3 +2403,63 @@ September 2026 because it records a business decision rather than an architectur
 one. `D15` has since widened when a forecast may be recorded.
 
 > The original Task estimate remains the immutable whole-Task planning baseline after the first work log. When an unfinished Task with retained work is reassigned, the current Project Leader records an append-only Remaining effort forecast with the actual-effort snapshot and reassignment context; this preserves both original planning variance and the latest delivery forecast without overwriting history. We rejected replacing the baseline because it would compare lifetime multi-author effort with the latest assignee context, and rejected per-assignment estimates because the product does not retain assignment periods and does not use estimates to evaluate individual Interns.
+
+## D47. Who is told about an attendance request when the Intern has no responsible Mentor available?
+
+**Decided on 28 September 2026 by Loc-LX.** ADAPTED. `NOT-011` sends every leave, correction and attendance exception submission, and every overdue reminder, to the Intern's responsible Mentor. It did not say what happens when there is no such Mentor to reach.
+
+- An `ACTIVE` Intern without any responsible Mentor cannot arise through the application: `ACC-021` keeps an internship `NOT_STARTED` until one is assigned, and only an `ACTIVE` Intern may submit these requests. It still exists in stored data, because V3 added `intern_profiles.responsible_mentor_user_id` without filling it for Interns already `ACTIVE`, and neither demo seed assigns one.
+- `ACC-026` already covers a responsible Mentor who is `LOCKED` or `DEACTIVATED`: Admins see the Intern as needing a new responsible Mentor, and neither an Admin nor another Mentor may decide. It did not say who is told about a request submitted meanwhile, or whether a newly assigned Mentor learns of the requests that move to them.
+- The request is still accepted. Refusing it would cost the Intern the 48-hour submission window over a gap only an Admin can close.
+- The submission notice and the overdue reminder go to every active user whom the authorization policy of `AUTH-012` permits to assign a responsible Mentor under `ACC-026` (the active Admins under the §5.2 matrix today), naming the Intern as needing a responsible Mentor. They never go to a Mentor who is missing, `LOCKED` or `DEACTIVATED`. Receiving the notice does not make an Admin an approver.
+- When an Admin assigns or replaces the responsible Mentor, the new Mentor receives, for each pending or overdue request that moves to them, the submission notice of that request's kind.
+- The decision deadline keeps running, and an overdue request is still never rejected (`D14`).
+- Every regenerated demo seed assigns a responsible Mentor to each `ACTIVE` Intern (`ACC-021`).
+
+Benchmarks, read on 28 September 2026:
+
+| Source | What it does | Here |
+|---|---|---|
+| [Microsoft Entra entitlement management, approval settings](https://learn.microsoft.com/en-us/entra/id-governance/entitlement-management-access-package-approval-policy) | "Fallback approvers receive the request if entitlement management can't find the manager"; a pending request forwarded to alternate approvers reaches them by email. | Adapted: the fallback recipient is whoever may assign a responsible Mentor, and only as the person who fixes the assignment, because `ACC-026` forbids an Admin approver; forwarding becomes the notice to a newly assigned Mentor. |
+| [Dynamics 365, approval steps](https://learn.microsoft.com/en-us/dynamics365/fin-ops-core/fin-ops/organization-administration/configure-approval-step-workflow) | An overdue document is escalated to the users on an escalation path. | Followed: the overdue reminder goes to the same fallback recipients while no responsible Mentor is available. |
+| [Atlassian knowledge base, empty approver field](https://support.atlassian.com/jira/kb/error-everyone-from-all-groups-in-group-picker-multiple-groups-field-must-approve-but-there-are-no-groups-while-transitioning-the-issue/) | A request whose approver field is empty cannot proceed: "…must approve, but there are no groups." | Not followed, for the Intern's deadline reason above. |
+| Microsoft Entra, same page | A request no one decides in time is denied automatically. | Not followed: `D14` keeps an overdue request undecided. |
+
+## D49. May notification email be sent inside the user's request?
+
+**Decided on 30 September 2026 by Loc-LX.** ENTERPRISE-BACKED. `NOT-006` required an immediate attempt and set no bound on the user's response. The code makes the first attempt after the commit but on the request thread, so on 29 September 2026 Complete Project took 10.9 s: nine emails were sent one after another, about 1.1 s each (Evidence for Task ED-05).
+
+- No user response waits for an SMTP attempt. The first attempt runs after the domain action commits, outside the request that raised it.
+- The first attempt begins no later than one minute after the commit. The retry schedule after a failure is unchanged.
+- An attempt not made because the application stopped is made after restart from the retained `PENDING` state; the one-minute bound does not apply to it.
+- A response-time figure such as "within 1 s" is not adopted. The 29 September measurement leaves about 1 s to Complete Project's own work, so such a bound would measure the action rather than SMTP. The requirement is instead that SMTP time is never part of the response, which a test proves with an SMTP server that holds every message.
+- Recorded in `NOT-006` and `AC-NOT-008` (Email delivery 1.2.0). The code does not follow yet; it is planned and built as Task ED-06.
+
+Benchmarks, read on 30 September 2026:
+
+| Source | What it does | Here |
+|---|---|---|
+| [Atlassian, Troubleshooting slow/stuck notification issues in Jira](https://confluence.atlassian.com/jirakb/troubleshooting-slow-stuck-notification-issues-in-jira-service-management-server-1041076874.html) | "Regardless of the type of notification that is triggered, each notification ends up in the same Mail Queue"; the queue "is automatically flushed by the Mail Queue Service every 1 minute by default". | Followed: email leaves the request, and the first attempt begins within one minute. |
+| [Azure DevOps, Troubleshoot notification emails](https://learn.microsoft.com/en-us/azure/devops/organizations/notifications/troubleshoot-not-getting-email?view=azure-devops) | Names causes of delayed email but does not describe the delivery mechanism. | Not used as evidence. |
+
+**Status:** decided.
+
+## D50. Who receives `MEMBERSHIP_CHANGED` and `LEADERSHIP_CHANGED`?
+
+**Decided on 30 September 2026 by Loc-LX.** LAB-POLICY. `NOT-002` requires in-app and email delivery when membership or leadership changes, but no rule named the recipients (Evidence for Task ED-02). The code notifies each Intern whose membership or leadership term the action opens or closes, including an Intern who accepts an invitation.
+
+- `MEMBERSHIP_CHANGED` goes to each Intern whose Project membership interval the action opens or closes: the initial member when a Project is created, an added member, an Intern who joins by accepting an invitation, a removed member, and every current member when the Project is completed or cancelled.
+- `LEADERSHIP_CHANGED` goes to each Intern whose leadership term the action opens or closes: the initial Leader, the outgoing and the incoming Leader on a replacement, and the current Leader when the Project is completed or cancelled.
+- The user who performed the action is not notified of it. Today this removes one notice: the Intern who accepts an invitation. The issuing Leader and the owning Mentor still receive `PROJECT_INVITATION_RESOLVED` under `NOT-010`.
+- Duplicate recipients collapse, as for every notification.
+- Recorded as `NOT-013` in the project module, with `AC-PRJ-017`. The code change and the recipient assertions are Task ED-07.
+
+Benchmarks, read on 30 September 2026:
+
+| Source | What it does | Here |
+|---|---|---|
+| [Azure DevOps, Add users or groups to a team or project](https://learn.microsoft.com/en-us/azure/devops/organizations/security/add-users-team-project?view=azure-devops) | "When the operation succeeds, new users receive an email invitation to sign in to the project. Existing users don't receive a formal notification." | Not followed: `NOT-002` already requires the notice; this decision only names who receives it. |
+| [Azure DevOps, Prevent notification emails to yourself](https://learn.microsoft.com/en-us/azure/devops/organizations/notifications/exclude-self-from-email?view=azure-devops) | A team subscription can "select the **Skip initiator** option to prevent the user who triggered the event from receiving the notification." | Adapted: the initiator is always skipped here, as `NOT-003` already does for an assignee's own Task changes. |
+| Jira | No Atlassian page read states whether a user added to a project role is notified. | No benchmark. |
+
+**Status:** decided.

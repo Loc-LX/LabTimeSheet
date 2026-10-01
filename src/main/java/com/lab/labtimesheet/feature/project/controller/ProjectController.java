@@ -17,6 +17,10 @@ import com.lab.labtimesheet.feature.project.service.ProjectQueryService;
 import com.lab.labtimesheet.feature.project.service.ProjectService;
 import com.lab.labtimesheet.feature.project.exception.TaskValidationException;
 import com.lab.labtimesheet.feature.project.model.TaskStatus;
+import com.lab.labtimesheet.platform.authorization.AuthorizationCapability;
+import com.lab.labtimesheet.platform.authorization.AuthorizationColumn;
+import com.lab.labtimesheet.platform.authorization.AuthorizationPolicy;
+import com.lab.labtimesheet.platform.authorization.AuthorizationRequest;
 import com.lab.labtimesheet.feature.project.model.dto.RemainingEffortForecastInput;
 import jakarta.validation.Valid;
 import java.security.Principal;
@@ -67,6 +71,7 @@ public class ProjectController {
     private final AccountService accounts;     // lấy danh sách intern hợp lệ
     private final InternshipService internships;
     private final Clock clock;                 // ngày hiện tại (validate ngày bắt đầu)
+    private final AuthorizationPolicy authorizationPolicy;
 
     /**
      * Lists only Projects visible to the authenticated actor and exposes Project creation only
@@ -90,7 +95,7 @@ public class ProjectController {
                 actor.userId(), PageRequest.of(requestedPage - 1, 50));
         model.addAttribute("projects", projectPage.projects());       // → list.html: bảng
         model.addAttribute("projectPage", projectPage);             // → list.html: Previous/Next
-        model.addAttribute("canCreateProject", "MENTOR".equals(actor.role()));
+        model.addAttribute("canCreateProject", canCreateProject(actor.role()));
         return "projects/list";
     }
 
@@ -106,7 +111,7 @@ public class ProjectController {
     // Chức năng (Controller): Mentor mở form — nạp form rỗng + dropdown Intern; không ghi DB.
     @GetMapping("/new")
     public String createForm(Principal principal, Model model) {
-        if (!"MENTOR".equals(pages.authenticatedActor(principal.getName()).role())) { // → Query: ProjectQueryService.authenticatedActor
+        if (!canCreateProject(pages.authenticatedActor(principal.getName()).role())) { // → Query: ProjectQueryService.authenticatedActor
             throw new ProjectAccessDeniedException();
         }
         model.addAttribute("projectForm", new ProjectCreateForm());
@@ -132,7 +137,7 @@ public class ProjectController {
             BindingResult bindingResult,
             Model model) {
         var actor = pages.authenticatedActor(principal.getName()); // → Query: ProjectQueryService.authenticatedActor
-        if (!"MENTOR".equals(actor.role())) {
+        if (!canCreateProject(actor.role())) {
             throw new ProjectAccessDeniedException();
         }
         if (bindingResult.hasErrors()) {
@@ -454,6 +459,21 @@ public class ProjectController {
     }
 
     // === WORKFLOWS | POST hoàn thành project ===
+    /**
+     * Cancels an owned Project and redirects to its retained detail page.
+     *
+     * @param principal authenticated Mentor
+     * @param projectId Project to cancel
+     * @param reason nonblank cancellation reason
+     * @return redirect to Project detail
+     */
+    @PostMapping("/{projectId}/cancel")
+    String cancel(Principal principal, @PathVariable long projectId,
+                  @RequestParam(defaultValue = "") String reason) {
+        projects.cancel(actorId(principal), projectId, reason);
+        return "redirect:/projects/" + projectId;
+    }
+
     @PostMapping("/{projectId}/complete")
     String complete(
             Principal principal,
@@ -636,7 +656,7 @@ public class ProjectController {
         var members = pages.members(actorId, projectId); // → Query: toàn bộ lịch sử membership (current + đã rời)
         model.addAttribute("project", project);
         model.addAttribute("members", members);
-        if (project.canManage()) { // chỉ Mentor owner mới thấy form thêm member
+        if (ownerCan(AuthorizationCapability.MANAGE_PROJECT_MEMBERS, project)) { // chỉ owner được policy cho phép
             // Lọc Intern đủ điều kiện nhưng chưa là thành viên hiện tại → dropdown thêm người
             Set<Long> currentMemberIds = members.stream()
                     .filter(member -> member.leftAt() == null) // chỉ member đang còn trong project (chưa leftAt)
@@ -657,7 +677,7 @@ public class ProjectController {
         var project = pages.detail(actorId, projectId); // → Query
         model.addAttribute("project", project);
         model.addAttribute("leadership", pages.leadership(actorId, projectId)); // → Query
-        if (project.canManage()) {
+        if (ownerCan(AuthorizationCapability.PROJECT_LEADERSHIP, project)) {
             // Dropdown: thành viên đang ở lại nhưng không phải Leader hiện tại
             Set<Long> replacementIds = pages.members(actorId, projectId).stream()
                     .filter(member -> member.leftAt() == null && !member.currentLeader())
@@ -747,7 +767,7 @@ public class ProjectController {
         var currentMemberIds = currentMembers.stream()
                 .map(member -> member.internUserId())
                 .collect(Collectors.toUnmodifiableSet());
-        var invitationOptions = currentLeader
+        var invitationOptions = leaderCan(AuthorizationCapability.PROJECT_INVITATIONS, project, currentLeader)
                 ? eligibleInternOptions().stream()
                         .filter(option -> !currentMemberIds.contains(option.userId()))
                         .toList()
@@ -763,9 +783,19 @@ public class ProjectController {
                 .orElse(null);
         var revocableInvitations = history.invitations().stream()
                 .filter(invitation -> invitation.status().name().equals("PENDING"))
-                .filter(invitation -> project.canManage()
-                        || currentLeader && currentLeadershipTermId != null
-                                && invitation.issuingLeadershipTermId() == currentLeadershipTermId)
+                .filter(invitation -> {
+                    boolean ownInvitation = currentLeader && currentLeadershipTermId != null
+                            && invitation.issuingLeadershipTermId() == currentLeadershipTermId;
+                    Set<AuthorizationColumn> columns = new java.util.HashSet<>();
+                    if (project.canManage()) {
+                        columns.add(AuthorizationColumn.OWNING_MENTOR);
+                    }
+                    if (ownInvitation) {
+                        columns.add(AuthorizationColumn.CURRENT_LEADER);
+                    }
+                    return authorizationPolicy.allows(AuthorizationCapability.PROJECT_INVITATIONS,
+                            new AuthorizationRequest(columns, project.status(), null, null));
+                })
                 .toList(); // → workflows.html: nút Revoke lời mời
         Set<Long> cancellableExitIds = actorMembership == null
                 ? Set.of()
@@ -951,5 +981,28 @@ public class ProjectController {
     // Lấy ID người đăng nhập từ tài khoản đã xác thực.
     private long actorId(Principal principal) {
         return pages.authenticatedUserId(principal.getName());
+    }
+
+    private boolean canCreateProject(String role) {
+        Set<AuthorizationColumn> columns = "MENTOR".equals(role)
+                ? Set.of(AuthorizationColumn.OWNING_MENTOR) : Set.of();
+        return authorizationPolicy.allows(AuthorizationCapability.CREATE_PROJECT,
+                new AuthorizationRequest(columns, null, null, null));
+    }
+
+    private boolean ownerCan(AuthorizationCapability capability,
+            com.lab.labtimesheet.feature.project.model.dto.ProjectDetail project) {
+        Set<AuthorizationColumn> columns = project.canManage()
+                ? Set.of(AuthorizationColumn.OWNING_MENTOR) : Set.of();
+        return authorizationPolicy.allows(capability,
+                new AuthorizationRequest(columns, project.status(), null, null));
+    }
+
+    private boolean leaderCan(AuthorizationCapability capability,
+            com.lab.labtimesheet.feature.project.model.dto.ProjectDetail project, boolean currentLeader) {
+        Set<AuthorizationColumn> columns = currentLeader
+                ? Set.of(AuthorizationColumn.CURRENT_LEADER) : Set.of();
+        return authorizationPolicy.allows(capability,
+                new AuthorizationRequest(columns, project.status(), null, null));
     }
 }

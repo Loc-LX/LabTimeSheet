@@ -20,6 +20,9 @@ public interface AttendanceRecordRepository extends JpaRepository<AttendanceReco
      */
     Optional<AttendanceRecordEntity> findByInternUserIdAndWorkDate(long internUserId, LocalDate workDate);
 
+    /** Finds one attendance row only when it belongs to the supplied Intern. */
+    Optional<AttendanceRecordEntity> findByIdAndInternUserId(long id, long internUserId);
+
     /**
      * Loads an Intern's inclusive history newest-first; each entity carries its attached policy.
      *

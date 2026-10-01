@@ -2,7 +2,12 @@ package com.lab.labtimesheet.feature.project.repository;
 
 import com.lab.labtimesheet.feature.project.model.dto.ProjectMembershipIntervalView;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectMutationRoute;
+import com.lab.labtimesheet.feature.project.model.entity.ProjectExitRequestEntity;
 import com.lab.labtimesheet.feature.project.model.entity.ProjectEntity;
+import com.lab.labtimesheet.feature.project.model.entity.ProjectInvitationEntity;
+import com.lab.labtimesheet.feature.project.model.entity.ProjectLeadershipTermEntity;
+import com.lab.labtimesheet.feature.project.model.entity.ProjectMembershipEntity;
+import com.lab.labtimesheet.feature.project.model.entity.Task;
 import jakarta.persistence.LockModeType;
 import java.util.List;
 import java.util.Optional;
@@ -10,6 +15,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -22,6 +28,47 @@ import org.springframework.data.repository.query.Param;
 // === CREATE PROJECT | persist ===
 // Chức năng: saveAndFlush(project) kế thừa JpaRepository — cascade INSERT projects + memberships + leadership_terms.
 public interface ProjectRepository extends JpaRepository<ProjectEntity, Long> {
+
+    /**
+     * Checks the complete PRJ-002 disposable-draft predicate in one database snapshot.
+     * The caller that uses this for deletion must first hold the Project write lock; all
+     * application paths that add child rows also acquire that lock.
+     *
+     * @param projectId locked or visible Project identifier
+     * @return true only for a PLANNED Project with its original one membership and leadership
+     *         term and no Task (including soft-deleted), invitation, or exit request
+     */
+    @Query("""
+            select case when project.status = com.lab.labtimesheet.feature.project.model.ProjectStatus.PLANNED
+                and (select count(membership) from ProjectMembershipEntity membership
+                     where membership.project.id = project.id) = 1
+                and (select count(term) from ProjectLeadershipTermEntity term
+                     where term.project.id = project.id) = 1
+                and (select count(task) from Task task where task.projectId = project.id) = 0
+                and (select count(invitation) from ProjectInvitationEntity invitation
+                     where invitation.project.id = project.id) = 0
+                and (select count(request) from ProjectExitRequestEntity request
+                     where request.project.id = project.id) = 0
+                then true else false end
+            from ProjectEntity project
+            where project.id = :projectId
+            """)
+    boolean isEmptyDraft(@Param("projectId") long projectId);
+
+    /** Deletes leadership terms belonging to one Project before memberships. */
+    @Modifying
+    @Query("delete from ProjectLeadershipTermEntity term where term.project.id = :projectId")
+    int deleteLeadershipTermsByProjectId(@Param("projectId") long projectId);
+
+    /** Deletes membership intervals belonging to one Project after leadership terms. */
+    @Modifying
+    @Query("delete from ProjectMembershipEntity membership where membership.project.id = :projectId")
+    int deleteMembershipsByProjectId(@Param("projectId") long projectId);
+
+    /** Deletes the Project aggregate root after all child rows are removed. */
+    @Modifying
+    @Query("delete from ProjectEntity project where project.id = :projectId")
+    int deleteProjectById(@Param("projectId") long projectId);
 
     /**
      * Loads one Project under a pessimistic write lock for mutation-time authorization and
@@ -108,7 +155,7 @@ public interface ProjectRepository extends JpaRepository<ProjectEntity, Long> {
     // Lấy Mentor và Leader hiện tại trước khi Service khóa tài khoản liên quan.
     @Query("""
             select new com.lab.labtimesheet.feature.project.model.dto.ProjectMutationRoute(
-                    project.id, project.mentorUserId, term.membership.internUserId)
+                    project.id, project.mentorUserId, term.membership.internUserId, project.status)
             from ProjectEntity project
             left join project.leadershipTerms term on term.endedAt is null
             where project.id = :projectId
@@ -192,7 +239,8 @@ public interface ProjectRepository extends JpaRepository<ProjectEntity, Long> {
             select distinct project from ProjectEntity project
             join project.memberships membership
             where membership.internUserId = :internUserId
-            and (membership.leftAt is null or project.status = com.lab.labtimesheet.feature.project.model.ProjectStatus.COMPLETED)
+            and (membership.leftAt is null or project.status in (com.lab.labtimesheet.feature.project.model.ProjectStatus.COMPLETED,
+                com.lab.labtimesheet.feature.project.model.ProjectStatus.CANCELLED))
             order by project.updatedAt desc, project.id desc
             """)
     Slice<ProjectEntity> findVisibleToIntern(

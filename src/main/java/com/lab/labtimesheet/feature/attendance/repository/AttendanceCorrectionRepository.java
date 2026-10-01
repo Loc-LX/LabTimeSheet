@@ -5,6 +5,7 @@ import com.lab.labtimesheet.feature.attendance.model.entity.AttendanceCorrection
 import com.lab.labtimesheet.feature.attendance.model.entity.AttendanceRecordEntity;
 import jakarta.persistence.LockModeType;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -63,12 +64,34 @@ public interface AttendanceCorrectionRepository extends JpaRepository<Attendance
                    record.internUserId as internUserId
             from AttendanceCorrectionEntity correction, AttendanceRecordEntity record
             where correction.attendanceRecordId = record.id
+              and correction.status = 'PENDING'
               and correction.lockedAt is null
               and correction.decisionDeadline <= :now
             order by correction.id asc
             """)
     List<ExpiredRecipientRoute> findExpiredRecipientRoutes(
             @Param("now") Instant now, Pageable pageable);
+
+    /**
+     * Reports whether an unresolved (PENDING or OVERDUE) correction exists for an Intern in the work month.
+     *
+     * @param internUserId owning Intern
+     * @param monthStart inclusive start of the calendar month
+     * @param nextMonth exclusive start of the following month
+     * @return true when an undecided correction exists in the month
+     */
+    @Query("""
+            select (count(correction) > 0) from AttendanceCorrectionEntity correction, AttendanceRecordEntity record
+            where correction.attendanceRecordId = record.id
+              and record.internUserId = :internUserId
+              and record.workDate >= :monthStart
+              and record.workDate < :nextMonth
+              and correction.status in ('PENDING', 'OVERDUE')
+            """)
+    boolean existsUnresolvedCorrectionForInternAndWorkDate(
+            @Param("internUserId") long internUserId,
+            @Param("monthStart") LocalDate monthStart,
+            @Param("nextMonth") LocalDate nextMonth);
 
     /** Immutable scalar route for one bounded correction-expiry candidate. */
     interface ExpiredRecipientRoute {

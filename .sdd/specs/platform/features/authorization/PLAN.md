@@ -9,7 +9,7 @@ here under `D40`, which also moved two of its tasks to the rules they build; its
 
 | Part | Subject | Rules | State |
 |---|---|---|---|
-| B | One authorization policy, below | `AUTH-012`, `AC-AUTH-011`, [ADR-005](../../../../rfcs/ADR-005-one-authorization-policy.md), and the gap of `AUTH-002` | Draft of 22 September 2026, for approval on its own; replaces version 1.0 of 16 September |
+| B | One authorization policy, below | `AUTH-012`, `AC-AUTH-011`, [ADR-005](../../../../rfcs/ADR-005-one-authorization-policy.md), and the gap of `AUTH-002` | Draft of 22 September 2026, revised and approved on 25 September 2026; replaces version 1.0 of 16 September |
 
 ## Part B — One authorization policy
 
@@ -54,6 +54,22 @@ transition of `ACC-014`: lock, unlock, deactivation including that of a pending 
 (`ACC-028`), and reinstatement (`ACC-029`). `ACC-014` requires all of them to be explicit Admin
 actions; the row names lock and deactivation only, so this mapping is recorded here rather than
 left to the implementer.
+
+The row "View Intern attendance" covers reading an Intern's leave and correction requests, one
+at a time or as a list, and the Intern's leave balance: `AUTH-003` lets every active Mentor view
+any Intern's attendance, and these requests are part of it. An Intern reads only their own, as
+"Own history only" states. Editing one's own pending leave request (`LEV-007`) falls under the row
+"Submit own leave, correction, or exception request"; the leave module keeps the time condition
+of `LEV-007` itself. Deciding a request stays under the row
+"Decide leave, correction, or attendance exception", whose responsible-Mentor scope (`ACC-026`)
+is not yet built, so those decisions do not go through the policy until it is. This mapping is
+recorded here rather than left to the implementer.
+
+The row "Manage SMTP, HolidayAPI, attendance policy, global calendar" also covers reading the history of those settings and viewing and retrying failed ordinary email deliveries, which are the operation of the configured SMTP server. This mapping is recorded here rather than left to the implementer.
+
+The row "Manage accounts/global roles at creation" covers creating an account with its global role, resending its activation email and reading the account directory. This mapping is recorded here rather than left to the implementer.
+
+Reading a Project, the Project list, its members, its leadership and its invitations falls under the row "View all Projects/tasks/progress"; reading retained history falls under "View Project/Task retained history", and aggregate progress under "View aggregate Project progress". The project module checks the scope words of each row, such as "Issue/revoke own in Own" or the former-membership condition of `AUTH-006`, before it supplies a column. This mapping is recorded here rather than left to the implementer.
 
 ### B.3 Where the catalogue lives
 
@@ -136,7 +152,7 @@ changing the fixture.
 - No `LEADER` or `ROLE_LEADER` value appears as an authority or in `hasRole`, `hasAnyRole` or `sec:authorize`.
 - The test of B-06 passes, and the query-count test of `AC-ARC-002` passes.
 - The full Maven suite, the end-to-end suite and `npm run test:ui` pass.
-- The constitution's gap rows for `AUTH-002` and `AUTH-012` are closed in the same change as the test that closes each.
+- The constitution's gap rows for `AUTH-002` and `AUTH-012` are closed in the same change as the test that closes each. Because that edits the constitution's index and known-gap text, the closure first gets a new decision in [decisions.md](../../../../decisions.md), the maintainer agrees to the wording, and the constitution version is incremented under its Amendment table, as `D41`, `D43` and `D44` did. A gap row is removed only when the tests assert every clause of its rule; otherwise it is narrowed to the clauses left unasserted.
 
 ### B.11 Not in this part
 

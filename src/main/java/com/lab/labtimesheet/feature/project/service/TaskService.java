@@ -33,17 +33,24 @@ import com.lab.labtimesheet.feature.project.model.dto.TaskDetails;
 import com.lab.labtimesheet.feature.project.model.dto.TaskEffortPlanningView;
 import com.lab.labtimesheet.feature.project.model.dto.TaskListView;
 import com.lab.labtimesheet.feature.project.model.dto.TaskRemainingEffortForecastView;
+import com.lab.labtimesheet.feature.project.model.dto.TaskStatusChangeCommand;
 import com.lab.labtimesheet.feature.project.model.dto.TaskView;
 import com.lab.labtimesheet.feature.project.model.dto.TaskWorkLogCandidate;
 import com.lab.labtimesheet.feature.project.model.dto.TaskWorkLogView;
 import com.lab.labtimesheet.feature.project.model.entity.Task;
+import com.lab.labtimesheet.feature.project.model.entity.TaskStatusTransition;
 import com.lab.labtimesheet.feature.project.model.entity.TaskComment;
 import com.lab.labtimesheet.feature.project.model.entity.TaskRemainingEffortForecast;
 import com.lab.labtimesheet.feature.project.model.entity.TaskWorkLog;
 import com.lab.labtimesheet.feature.project.repository.TaskCommentRepository;
 import com.lab.labtimesheet.feature.project.repository.TaskRemainingEffortForecastRepository;
 import com.lab.labtimesheet.feature.project.repository.TaskRepository;
+import com.lab.labtimesheet.feature.project.repository.TaskStatusTransitionRepository;
 import com.lab.labtimesheet.feature.project.repository.TaskWorkLogRepository;
+import com.lab.labtimesheet.platform.authorization.AuthorizationCapability;
+import com.lab.labtimesheet.platform.authorization.AuthorizationColumn;
+import com.lab.labtimesheet.platform.authorization.AuthorizationPolicy;
+import com.lab.labtimesheet.platform.authorization.AuthorizationRequest;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -75,6 +82,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class TaskService {
 
     private final TaskRepository tasks;
+    private final TaskStatusTransitionRepository statusTransitions;
     private final TaskCommentRepository comments;
     private final TaskWorkLogRepository workLogs;
     private final ProjectQueryService projects;
@@ -86,6 +94,7 @@ public class TaskService {
     private final NotificationService notifications;
 
     private final TaskRemainingEffortForecastRepository forecasts;
+    private final AuthorizationPolicy authorizationPolicy;
 
     /**
      * Creates a TODO Task in a PLANNED or ACTIVE Project.
@@ -95,17 +104,22 @@ public class TaskService {
      * Creator, assigner, and assignment time are stored from authenticated current context. An
      * optional due date must be within Project dates and not a current global day off. A membership
      * with a pending exit remains visible for existing rights but cannot receive a new Task. A
-     * non-self assignment publishes a designated in-app and ordinary-email notification to the
+     * supplied initial status must be {@code TODO}; omitted status also creates a {@code TODO} Task.
+     * A non-self assignment publishes a designated in-app and ordinary-email notification to the
      * new assignee; a validated self-Task invokes the notification boundary with its silence marker.
      *
      * @param actorEmail authenticated account email
      * @param command requested Project, membership, and Task fields
      * @return created Task projection
      * @throws TaskNotFoundException when current authorization/context is absent
-     * @throws TaskValidationException when title or due date violates a business rule
+     * @throws TaskValidationException when the initial status is not TODO, or the title or due date violates
+     *         a business rule
      */
     @Transactional
     public TaskView create(String actorEmail, CreateTaskCommand command) {
+        if (command.initialStatus() != null && command.initialStatus() != TaskStatus.TODO) {
+            throw new TaskValidationException("New Tasks must start at TODO.");
+        }
         String title = requireTitle(command.title());
         TaskAccess access = requireMutationAccess(actorEmail, command.projectId());
         requireOpenProject(access.project());
@@ -113,12 +127,13 @@ public class TaskService {
                 access.project(), access.actor().userId());
         ProjectTaskMemberView assignee = requireAssigneeMembership(
                 access.project(), command.assigneeMembershipId());
-        if (actorMembership.membershipId() != assignee.membershipId()
-                && !Objects.equals(access.project().currentLeaderMembershipId(), actorMembership.membershipId())) {
+        if (!authorizationPolicy.allows(AuthorizationCapability.CREATE_TASK,
+                TaskAuthorizationRequests.forCreate(access.identity(), access.project(), assignee.membershipId()))) {
             throw new TaskNotFoundException();
         }
-        if (command.estimatedMinutes() != null
-                && !Objects.equals(access.project().currentLeaderMembershipId(), actorMembership.membershipId())) {
+        if (command.estimatedMinutes() != null && !authorizationPolicy.allows(
+                AuthorizationCapability.TASK_ESTIMATE,
+                TaskAuthorizationRequests.forProject(access.identity(), access.project()))) {
             throw new TaskNotFoundException();
         }
         validateEstimate(command.estimatedMinutes());
@@ -140,19 +155,22 @@ public class TaskService {
                         "Task assigned",
                         "A Task was assigned to you."),
                 new NotificationAction(taskAction(command.projectId(), result.id()),
-                        actorMembership.membershipId() == assignee.membershipId()),
+                        actorMembership.membershipId() == assignee.membershipId(), command.projectId()),
                 notificationRecipients(access.project(), actorMembership.userId(),
                         List.of(assignee.membershipId())));
         return result;
     }
 
     /**
-     * Changes an ACTIVE Project Task through one fixed workflow edge.
+     * Changes an ACTIVE Project Task through one fixed workflow edge and records block, unblock,
+     * and reopen history with any required reopen reason.
      *
      * <p>The transaction locks the Project before the Task row and permits the owning Mentor or
-     * the current assignee membership to mutate status. Leadership alone does not substitute for
-     * either authority. A successful change publishes an in-app-only event to the current Leader,
-     * excluding the actor.
+     * the current assignee membership to mutate status. The shared §5.2 policy limits the owning
+     * Mentor to block, unblock, and reopen transitions on an ACTIVE Project. Leadership alone
+     * does not substitute for either authority. A successful change publishes an in-app-only event
+     * to the current Leader, excluding the actor; an owning Mentor's block, unblock, or reopen also
+     * notifies the assignee.
      *
      * @param actorEmail authenticated account email
      * @param projectId owning Project identifier
@@ -166,11 +184,47 @@ public class TaskService {
     @Transactional
     public TaskView changeStatus(
             String actorEmail, long projectId, long taskId, Long expectedVersion, TaskStatus target) {
+        return changeStatus(actorEmail, projectId, taskId, expectedVersion,
+                new TaskStatusChangeCommand(target, null));
+    }
+
+    /**
+     * Changes one permitted status edge and atomically records block, unblock, and reopen history.
+     *
+     * @param actorEmail authenticated account email
+     * @param projectId owning Project identifier
+     * @param taskId Task identifier within that Project
+     * @param expectedVersion client-observed Task version from the rendered form
+     * @param command requested next state and optional reopen reason
+     * @return updated Task projection
+     * @throws TaskNotFoundException when scope, lifecycle, actor authority, or identifiers are invalid
+     * @throws TaskValidationException when the requested edge, unblock target, or reopen reason is invalid
+     */
+    @Transactional
+    public TaskView changeStatus(
+            String actorEmail,
+            long projectId,
+            long taskId,
+            Long expectedVersion,
+            TaskStatusChangeCommand command) {
         TaskAccess access = requireMutationAccess(actorEmail, projectId);
         if (!"ACTIVE".equals(access.project().status())) {
             throw new TaskNotFoundException();
         }
-        boolean owningMentor = access.actor().userId() == access.project().mentorUserId();
+        Task task = requireLockedTask(projectId, taskId);
+        AuthorizationRequest blockUnblockRequest = TaskAuthorizationRequests.forOwningMentorTask(
+                access.identity(), access.project(), task, command.target());
+        boolean blockUnblockAllowed = authorizationPolicy.allows(
+                AuthorizationCapability.BLOCK_UNBLOCK_REOPEN_TASK, blockUnblockRequest);
+        boolean ownAssignedAllowed = authorizationPolicy.allows(
+                AuthorizationCapability.OWN_ASSIGNED_TASK_STATUS,
+                TaskAuthorizationRequests.forAssignedTask(
+                        access.identity(), access.project(), task, command.target()));
+        if (!blockUnblockAllowed && !ownAssignedAllowed) {
+            throw new TaskNotFoundException();
+        }
+        boolean owningMentor = blockUnblockAllowed
+                && blockUnblockRequest.actorColumns().contains(AuthorizationColumn.OWNING_MENTOR);
         ProjectTaskMemberView actorMembership = owningMentor
                 ? null
                 : requireActorMembership(access.project(), access.actor().userId());
@@ -179,26 +233,50 @@ public class TaskService {
                 access.project().currentLeaderMembershipId() == null
                         ? List.of()
                         : List.of(access.project().currentLeaderMembershipId()));
-        Task task = requireLockedTask(projectId, taskId);
-        if (!owningMentor
-                && (actorMembership == null
-                        || task.getAssigneeMembershipId() != actorMembership.membershipId())) {
-            throw new TaskNotFoundException();
-        }
         requireTaskVersion(task, expectedVersion);
+        TaskStatus previous = task.getStatus();
+        TaskStatus target = command.target();
+        if (previous == TaskStatus.BLOCKED) {
+            statusTransitions
+                    .findFirstByTaskIdAndToStatusOrderByOccurredAtDescIdDesc(taskId, TaskStatus.BLOCKED)
+                    .map(TaskStatusTransition::getFromStatus)
+                    .ifPresent(restoreStatus -> {
+                        if (target != restoreStatus) {
+                            throw new TaskValidationException(
+                                    "Task must return to the status recorded by its latest block.");
+                        }
+                    });
+        }
         if (!task.getStatus().canTransitionTo(target)) {
             throw new TaskValidationException("Task status transition is not allowed");
         }
-        task.changeStatus(target, clock.instant());
+        String reason = command.reason() == null ? null : command.reason().trim();
+        boolean reopen = previous == TaskStatus.DONE && target == TaskStatus.IN_PROGRESS;
+        if (reopen && (reason == null || reason.isBlank())) {
+            throw new TaskValidationException("Enter a reason to reopen this Task.");
+        }
+        Instant changedAt = clock.instant();
+        task.changeStatus(target, changedAt);
+        if (previous == TaskStatus.BLOCKED || target == TaskStatus.BLOCKED || reopen) {
+            statusTransitions.save(new TaskStatusTransition(
+                    taskId, previous, target, access.actor().userId(), changedAt, reopen ? reason : null));
+        }
         TaskView result = view(saveTask(task), assigneeName(access, task.getAssigneeMembershipId()));
+        List<NotificationRecipient> recipients = new ArrayList<>(leaderRecipients);
+        boolean isBlockUnblockReopen = previous == TaskStatus.BLOCKED || target == TaskStatus.BLOCKED || reopen;
+        boolean isAssignee = actorMembership != null && actorMembership.membershipId() == task.getAssigneeMembershipId();
+        if (!isAssignee && isBlockUnblockReopen) {
+            recipients.addAll(notificationRecipients(
+                    access.project(), access.actor().userId(), List.of(task.getAssigneeMembershipId())));
+        }
         publish(
                 new NotificationEvent(
                         NotificationType.TASK_STATUS_CHANGED,
                         "STATUS_CHANGED",
                         "Task status changed",
                         "A Task status changed to " + target.name() + "."),
-                new NotificationAction(taskAction(projectId, task.getId()), false),
-                leaderRecipients);
+                new NotificationAction(taskAction(projectId, task.getId()), false, projectId),
+                recipients);
         return result;
     }
 
@@ -246,11 +324,13 @@ public class TaskService {
             LocalDate dueDate) {
         TaskAccess access = requireMutationAccess(actorEmail, projectId);
         requireOpenProject(access.project());
-        ProjectTaskMemberView actorMembership = requireActorMembership(
-                access.project(), access.actor().userId());
+        requireActorMembership(access.project(), access.actor().userId());
         Task task = requireLockedTask(projectId, taskId);
         requireUnfinished(task);
-        requireDefinitionMutationActor(access.project(), actorMembership, task);
+        if (!authorizationPolicy.allows(AuthorizationCapability.EDIT_OR_DELETE_TASK,
+                TaskAuthorizationRequests.forCreatorAssigneeTask(access.identity(), access.project(), task))) {
+            throw new TaskNotFoundException();
+        }
         requireTaskVersion(task, expectedVersion);
         validateDueDate(access.project(), dueDate);
         task.updateDefinition(requireTitle(title), trimToNull(description), dueDate, clock.instant());
@@ -290,10 +370,9 @@ public class TaskService {
      */
     @Transactional(readOnly = true)
     public boolean canSetEstimateOnCreate(String actorEmail, long projectId) {
-        TaskAccess access = requireProjectAccess(actorEmail, projectId);
-        ProjectTaskMemberView actor = requireActorMembership(access.project(), access.actor().userId());
-        return isOpen(access.project())
-                && Objects.equals(access.project().currentLeaderMembershipId(), actor.membershipId());
+        TaskAccess access = requireReadableProject(actorEmail, projectId);
+        return isOpen(access.project()) && authorizationPolicy.allows(AuthorizationCapability.TASK_ESTIMATE,
+                TaskAuthorizationRequests.forProject(access.identity(), access.project()));
     }
 
     /**
@@ -313,8 +392,9 @@ public class TaskService {
             Integer estimatedMinutes) {
         TaskAccess access = requireMutationAccess(actorEmail, projectId);
         requireOpenProject(access.project());
-        ProjectTaskMemberView actor = requireActorMembership(access.project(), access.actor().userId());
-        if (!Objects.equals(access.project().currentLeaderMembershipId(), actor.membershipId())) {
+        requireActorMembership(access.project(), access.actor().userId());
+        if (!authorizationPolicy.allows(AuthorizationCapability.TASK_ESTIMATE,
+                TaskAuthorizationRequests.forProject(access.identity(), access.project()))) {
             throw new TaskNotFoundException();
         }
         validateEstimate(estimatedMinutes);
@@ -345,7 +425,10 @@ public class TaskService {
                 access.project(), access.actor().userId());
         Task task = requireLockedTask(projectId, taskId);
         requireUnfinished(task);
-        requireDefinitionMutationActor(access.project(), actorMembership, task);
+        if (!authorizationPolicy.allows(AuthorizationCapability.EDIT_OR_DELETE_TASK,
+                TaskAuthorizationRequests.forCreatorAssigneeTask(access.identity(), access.project(), task))) {
+            throw new TaskNotFoundException();
+        }
         requireTaskVersion(task, expectedVersion);
         task.softDelete(actorMembership.membershipId(), clock.instant());
         saveTask(task);
@@ -400,11 +483,12 @@ public class TaskService {
         requireOpenProject(access.project());
         ProjectTaskMemberView actorMembership = requireActorMembership(
                 access.project(), access.actor().userId());
-        if (!Objects.equals(access.project().currentLeaderMembershipId(), actorMembership.membershipId())) {
-            throw new TaskNotFoundException();
-        }
         ProjectTaskMemberView recipient = requireAssigneeMembership(access.project(), assigneeMembershipId);
         Task task = requireLockedTask(projectId, taskId);
+        if (!authorizationPolicy.allows(AuthorizationCapability.ASSIGN_TASK,
+                TaskAuthorizationRequests.forProject(access.identity(), access.project()))) {
+            throw new TaskNotFoundException();
+        }
         requireUnfinished(task);
         long previousAssigneeMembershipId = task.getAssigneeMembershipId();
         // Validate the browser's optimistic snapshot before reporting state-dependent rules such
@@ -422,6 +506,10 @@ public class TaskService {
             throw new TaskValidationException("An unworked Task cannot receive a forecast");
         }
         if (worked) {
+            if (!authorizationPolicy.allows(AuthorizationCapability.REMAINING_EFFORT_FORECAST,
+                    TaskAuthorizationRequests.forProject(access.identity(), access.project()))) {
+                throw new TaskNotFoundException();
+            }
             forecastInput = validateForecastInput(forecastInput);
         }
         Instant assignmentStartedAt = clock.instant();
@@ -442,7 +530,7 @@ public class TaskService {
                         "REASSIGNED",
                         "Task reassigned",
                         "A Task assignment changed."),
-                new NotificationAction(taskAction(projectId, task.getId()), false),
+                new NotificationAction(taskAction(projectId, task.getId()), false, projectId),
                 assigneeRecipients);
         return result;
     }
@@ -471,11 +559,12 @@ public class TaskService {
             long expectedLatestForecastId, Integer remainingMinutes, String correctionReason) {
         TaskAccess access = requireMutationAccess(actorEmail, projectId);
         requireOpenProject(access.project());
-        ProjectTaskMemberView actor = requireActorMembership(access.project(), access.actor().userId());
-        if (!Objects.equals(access.project().currentLeaderMembershipId(), actor.membershipId())) {
+        Task task = requireLockedTask(projectId, taskId);
+        if (!authorizationPolicy.allows(AuthorizationCapability.REMAINING_EFFORT_FORECAST,
+                TaskAuthorizationRequests.forProject(access.identity(), access.project()))) {
             throw new TaskNotFoundException();
         }
-        Task task = requireLockedTask(projectId, taskId);
+        ProjectTaskMemberView actor = requireActorMembership(access.project(), access.actor().userId());
         requireUnfinished(task);
         TaskRemainingEffortForecast predecessor = forecasts
                 .findByIdAndProjectIdAndTaskId(expectedLatestForecastId, projectId, taskId)
@@ -556,16 +645,14 @@ public class TaskService {
     public TaskCommentView addComment(String actorEmail, long projectId, long taskId, String body) {
         String normalizedBody = requireCommentBody(body);
         TaskAccess access = requireMutationAccess(actorEmail, projectId);
-        if ("COMPLETED".equals(access.project().status())) {
-            throw new TaskNotFoundException();
-        }
-        boolean owningMentor = access.actor().userId() == access.project().mentorUserId();
-        boolean activeMember = access.project().activeMembers().stream()
-                .anyMatch(member -> member.userId() == access.actor().userId());
-        if (!owningMentor && !activeMember) {
+        if (!isOpen(access.project())) {
             throw new TaskNotFoundException();
         }
         Task task = requireLockedTask(projectId, taskId);
+        if (!authorizationPolicy.allows(AuthorizationCapability.COMMENT_ON_TASK,
+                TaskAuthorizationRequests.forComment(access.identity(), access.project()))) {
+            throw new TaskNotFoundException();
+        }
         List<Long> commentMembershipIds = new ArrayList<>(List.of(task.getAssigneeMembershipId()));
         if (access.project().currentLeaderMembershipId() != null) {
             commentMembershipIds.add(access.project().currentLeaderMembershipId());
@@ -582,7 +669,7 @@ public class TaskService {
                         "COMMENTED",
                         "Task commented",
                         "A Task received a new comment."),
-                new NotificationAction(taskAction(projectId, taskId), false),
+                new NotificationAction(taskAction(projectId, taskId), false, projectId),
                 commentRecipients);
         return result;
     }
@@ -628,7 +715,8 @@ public class TaskService {
         Set<Long> membershipIds = membershipIdsForWorkDate(actorUserId, workDate);
         requireMembershipIncluded(membershipIds, actorMembership.membershipId());
         Task task = requireLockedTask(projectId, taskId);
-        if (task.getAssigneeMembershipId() != actorMembership.membershipId()) {
+        if (!authorizationPolicy.allows(AuthorizationCapability.OWN_TASK_WORK_LOG,
+                TaskAuthorizationRequests.forAssignedTask(access.identity(), access.project(), task, null))) {
             throw new TaskNotFoundException();
         }
         requireTaskVersion(task, expectedTaskVersion);
@@ -718,6 +806,11 @@ public class TaskService {
         }
         requireWorkLogVersion(log, expectedWorkLogVersion);
         Task task = requireLockedTask(projectId, log.getTaskId());
+        if (!authorizationPolicy.allows(AuthorizationCapability.OWN_TASK_WORK_LOG,
+                TaskAuthorizationRequests.forOwnWorkLog(
+                        access.identity(), access.project(), task, log.getMembershipId()))) {
+            throw new TaskNotFoundException();
+        }
         requireTaskVersion(task, expectedTaskVersion);
         validateWorkLogInput(log.getWorkDate(), minutes, note);
         long currentMinutes = workLogs.sumMinutesByMembershipIdsAndWorkDate(membershipIds, log.getWorkDate());
@@ -770,7 +863,10 @@ public class TaskService {
         return new TaskListView(
                 projectTasks,
                 TaskProgress.from(projectTasks.stream().map(TaskView::status).toList()),
-                isOpen(access.project()) && activeMembership(access) != null);
+                authorizationPolicy.allows(AuthorizationCapability.CREATE_TASK,
+                        TaskAuthorizationRequests.forCreate(
+                                access.identity(), access.project(),
+                                activeMembership(access) == null ? null : activeMembership(access).membershipId())));
     }
 
     /**
@@ -804,27 +900,25 @@ public class TaskService {
                 .stream()
                 .map(TaskService::view)
                 .toList();
-        boolean owningMentor = access.actor().userId() == access.project().mentorUserId();
         boolean canChangeStatus = "ACTIVE".equals(access.project().status())
-                && (owningMentor
-                        || actorMembership != null
-                                && persistedTask.getAssigneeMembershipId() == actorMembership.membershipId());
-        boolean canComment = !"COMPLETED".equals(access.project().status())
-                && (access.actor().userId() == access.project().mentorUserId() || actorMembership != null);
-        boolean unfinished = persistedTask.getStatus() != TaskStatus.DONE;
-        boolean currentLeader = actorMembership != null
-                && Objects.equals(access.project().currentLeaderMembershipId(), actorMembership.membershipId());
-        boolean creatorOwnsCurrentAssignment = actorMembership != null
-                && persistedTask.getCreatorMembershipId() == actorMembership.membershipId()
-                && persistedTask.getAssigneeMembershipId() == actorMembership.membershipId();
-        boolean canEdit = isOpen(access.project()) && unfinished && (currentLeader || creatorOwnsCurrentAssignment);
+                && canChangeStatus(access, persistedTask);
+        boolean canComment = isOpen(access.project()) && authorizationPolicy.allows(AuthorizationCapability.COMMENT_ON_TASK,
+                TaskAuthorizationRequests.forComment(access.identity(), access.project()));
+        boolean canEdit = isOpen(access.project()) && authorizationPolicy.allows(AuthorizationCapability.EDIT_OR_DELETE_TASK,
+                TaskAuthorizationRequests.forCreatorAssigneeTask(access.identity(), access.project(), persistedTask));
         boolean canDelete = canEdit;
-        boolean canReassign = isOpen(access.project()) && unfinished && currentLeader;
+        boolean canReassign = isOpen(access.project()) && persistedTask.getStatus() != TaskStatus.DONE
+                && authorizationPolicy.allows(AuthorizationCapability.ASSIGN_TASK,
+                TaskAuthorizationRequests.forProject(access.identity(), access.project()));
         boolean canLogWork = "ACTIVE".equals(access.project().status())
-                && actorMembership != null
-                && persistedTask.getAssigneeMembershipId() == actorMembership.membershipId();
-        TaskEffortPlanningView effortPlanning = effortPlanning(persistedTask, currentLeader,
-                isOpen(access.project()),
+                && authorizationPolicy.allows(AuthorizationCapability.OWN_TASK_WORK_LOG,
+                TaskAuthorizationRequests.forAssignedTask(access.identity(), access.project(), persistedTask, null));
+        boolean canEditEstimate = isOpen(access.project())
+                && authorizationPolicy.allows(AuthorizationCapability.TASK_ESTIMATE,
+                TaskAuthorizationRequests.forProject(access.identity(), access.project()))
+                && isOpenTaskStatus(persistedTask)
+                && !workLogs.existsByTaskIdAndProjectId(taskId, projectId);
+        TaskEffortPlanningView effortPlanning = effortPlanning(persistedTask, canEditEstimate,
                 projectId, taskId);
         List<TaskRemainingEffortForecast> forecastRows = forecasts
                 .findAllByProjectIdAndTaskIdOrderByAssignmentStartedAtAscCreatedAtAscIdAsc(projectId, taskId);
@@ -861,7 +955,12 @@ public class TaskService {
      */
     @Transactional(readOnly = true)
     public List<TaskAssigneeChoice> assignmentChoices(String actorEmail, long projectId) {
-        TaskAccess access = requireProjectAccess(actorEmail, projectId);
+        TaskAccess access = requireReadableProject(actorEmail, projectId);
+        if (!authorizationPolicy.allows(AuthorizationCapability.CREATE_TASK,
+                TaskAuthorizationRequests.forCreate(access.identity(), access.project(),
+                        activeMembership(access) == null ? null : activeMembership(access).membershipId()))) {
+            throw new TaskNotFoundException();
+        }
         requireOpenProject(access.project());
         ProjectTaskMemberView actorMembership = requireActorMembership(
                 access.project(), access.actor().userId());
@@ -881,10 +980,27 @@ public class TaskService {
     private TaskAccess requireProjectAccess(String actorEmail, long projectId) {
         try {
             ProjectActorView actor = projects.authenticatedActor(actorEmail);
-            return new TaskAccess(actor, projects.taskContext(actor.userId(), projectId));
+            ProjectTaskContext context = projects.taskContext(actor.userId(), projectId);
+            return new TaskAccess(actor, context, accounts.requireIdentityById(actor.userId()));
         } catch (ProjectAccessDeniedException | ProjectRuleViolationException exception) {
             throw new TaskNotFoundException();
         }
+    }
+
+    private boolean canChangeStatus(TaskAccess access, Task task) {
+        for (TaskStatus target : TaskStatus.values()) {
+            if (!task.getStatus().canTransitionTo(target)) {
+                continue;
+            }
+            if (authorizationPolicy.allows(AuthorizationCapability.OWN_ASSIGNED_TASK_STATUS,
+                    TaskAuthorizationRequests.forAssignedTask(access.identity(), access.project(), task, target))
+                    || authorizationPolicy.allows(AuthorizationCapability.BLOCK_UNBLOCK_REOPEN_TASK,
+                            TaskAuthorizationRequests.forOwningMentorTask(
+                                    access.identity(), access.project(), task, target))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private TaskAccess requireMutationAccess(String actorEmail, long projectId) {
@@ -894,8 +1010,8 @@ public class TaskService {
     private TaskAccess requireMutationAccess(long actorUserId, long projectId) {
         try {
             ProjectTaskContext project = projectMutations.taskMutationContext(actorUserId, projectId);
-            String role = project.mentorUserId() == actorUserId ? "MENTOR" : "INTERN";
-            return new TaskAccess(new ProjectActorView(actorUserId, role), project);
+            AccountIdentity identity = accounts.requireIdentityById(actorUserId);
+            return new TaskAccess(new ProjectActorView(actorUserId, identity.role().name()), project, identity);
         } catch (ProjectAccessDeniedException | ProjectRuleViolationException exception) {
             throw new TaskNotFoundException();
         }
@@ -911,10 +1027,15 @@ public class TaskService {
 
     private TaskAccess requireReadableProject(String actorEmail, long projectId) {
         TaskAccess access = requireProjectAccess(actorEmail, projectId);
-        boolean historicalIntern = "INTERN".equals(access.actor().role())
+        boolean historicalIntern = access.identity().role() == com.lab.labtimesheet.platform.model.GlobalRole.INTERN
                 && access.project().activeMembers().stream()
                         .noneMatch(member -> member.userId() == access.actor().userId());
-        if (historicalIntern && !"COMPLETED".equals(access.project().status())) {
+        if (historicalIntern && !isOpen(access.project())) {
+            // The former-member read of a closed Project was decided by ProjectQueryService.taskContext from stored membership history (AUTH-006).
+            return access;
+        }
+        if (!authorizationPolicy.allows(AuthorizationCapability.VIEW_ALL_PROJECTS,
+                TaskAuthorizationRequests.forReader(access.identity(), access.project()))) {
             throw new TaskNotFoundException();
         }
         return access;
@@ -1078,16 +1199,6 @@ public class TaskService {
         }
     }
 
-    private static void requireDefinitionMutationActor(
-            ProjectTaskContext project, ProjectTaskMemberView actor, Task task) {
-        boolean currentLeader = Objects.equals(project.currentLeaderMembershipId(), actor.membershipId());
-        boolean creatorOwnsCurrentAssignment = task.getCreatorMembershipId() == actor.membershipId()
-                && task.getAssigneeMembershipId() == actor.membershipId();
-        if (!currentLeader && !creatorOwnsCurrentAssignment) {
-            throw new TaskNotFoundException();
-        }
-    }
-
     private static boolean isOpen(ProjectTaskContext project) {
         return "PLANNED".equals(project.status()) || "ACTIVE".equals(project.status());
     }
@@ -1139,16 +1250,13 @@ public class TaskService {
         return new RemainingEffortForecastInput(input.remainingMinutes(), note);
     }
 
-    private TaskEffortPlanningView effortPlanning(Task task, boolean currentLeader, boolean projectOpen,
-            long projectId, long taskId) {
+    private TaskEffortPlanningView effortPlanning(Task task, boolean canEditEstimate, long projectId, long taskId) {
         Integer estimate = task.getEstimatedMinutes();
         long actual = workLogs.sumMinutesByTaskIdAndProjectId(taskId, projectId);
         TaskVarianceState state = estimate == null ? TaskVarianceState.NOT_ESTIMATED
                 : task.getStatus() == TaskStatus.DONE ? TaskVarianceState.VALUE : TaskVarianceState.PENDING;
         Long variance = state == TaskVarianceState.VALUE ? actual - estimate : null;
-        return new TaskEffortPlanningView(estimate, actual, state, variance,
-                projectOpen && currentLeader && isOpenTaskStatus(task)
-                        && !workLogs.existsByTaskIdAndProjectId(taskId, projectId));
+        return new TaskEffortPlanningView(estimate, actual, state, variance, canEditEstimate);
     }
 
     private static boolean isOpenTaskStatus(Task task) {
@@ -1384,5 +1492,5 @@ public class TaskService {
         }
     }
 
-    private record TaskAccess(ProjectActorView actor, ProjectTaskContext project) {}
+    private record TaskAccess(ProjectActorView actor, ProjectTaskContext project, AccountIdentity identity) {}
 }

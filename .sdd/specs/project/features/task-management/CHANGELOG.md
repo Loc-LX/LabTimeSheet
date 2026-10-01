@@ -1,5 +1,9 @@
 # Changelog — Task management
 
+## 1.3.0 — 2026-09-27
+
+D46 lets an authorized actor unblock a Task blocked before transition history existed to TODO or IN_PROGRESS, records that unblock, and adds AC-TSK-022. No block record is invented; TSK-025 applies in full from the next block.
+
 ## 1.2.0 — 2026-09-21
 
 D37 aligns TSK-007 to explicitly require a non-deleted Task for assignee transitions, matching TSK-023 and the Task state transition table, and adds AC-TSK-021 to cover the rejection of status transitions on soft-deleted Tasks.

@@ -20,6 +20,8 @@ import com.lab.labtimesheet.feature.project.model.TaskVarianceState;
 import com.lab.labtimesheet.feature.project.model.dto.TaskDailyReportView;
 import com.lab.labtimesheet.feature.project.model.dto.TaskWorkLogView;
 import com.lab.labtimesheet.feature.project.service.TaskQueryService;
+import com.lab.labtimesheet.platform.authorization.AuthorizationCatalogue;
+import com.lab.labtimesheet.platform.authorization.AuthorizationPolicy;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -40,7 +42,8 @@ class Q31RDailyProjectWorkReportServiceTest {
 
     @BeforeEach
     void setUp() {
-        reports = new DailyProjectWorkReportService(projects, taskQueries, attendance, calendar);
+        reports = new DailyProjectWorkReportService(projects, taskQueries, attendance, calendar,
+                new AuthorizationPolicy(new AuthorizationCatalogue()));
     }
 
     @Test
@@ -131,15 +134,18 @@ class Q31RDailyProjectWorkReportServiceTest {
     }
 
     @Test
-    void adminIsDeniedBeforeProjectReportReadsOrAttendanceContext() {
+    void activeAdminGetsAnEmptyAllProjectDailyReportWithoutAttendanceReads() {
         given(projects.authenticatedActor("admin@example.test"))
                 .willReturn(new ProjectActorView(1L, "ADMIN"));
+        given(projects.listAllVisibleForReport(1L)).willReturn(List.of());
+        given(calendar.currentBusinessDate()).willReturn(REPORT_DATE);
 
-        assertThatThrownBy(() -> reports.build("admin@example.test", null, REPORT_DATE))
-                .isInstanceOf(ProjectAccessDeniedException.class);
+        var report = reports.build("admin@example.test", null, REPORT_DATE);
 
-        verify(projects, never()).listAllVisibleForReport(1L);
-        verifyNoDownstreamReads();
+        assertThat(report.projectOptions()).isEmpty();
+        verify(projects).listAllVisibleForReport(1L);
+        verify(attendance).reportDateContext(REPORT_DATE);
+        verify(taskQueries, never()).dailyReport(42L, REPORT_DATE);
     }
 
     @Test

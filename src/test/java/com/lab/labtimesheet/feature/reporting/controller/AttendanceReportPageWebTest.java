@@ -15,6 +15,7 @@ import com.lab.labtimesheet.feature.identity.model.AccountStatus;
 import com.lab.labtimesheet.feature.identity.model.dto.AccountIdentity;
 import com.lab.labtimesheet.feature.identity.service.AccountService;
 import com.lab.labtimesheet.feature.internship.service.InternshipService;
+import com.lab.labtimesheet.feature.internship.model.dto.EligibleInternOption;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
 import com.lab.labtimesheet.platform.model.GlobalRole;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceReport;
@@ -25,6 +26,8 @@ import com.lab.labtimesheet.feature.calendar.service.CalendarApplicationService;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceCurrentUserService;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceReportQueryService;
 import com.lab.labtimesheet.feature.reporting.service.AttendanceReportService;
+import com.lab.labtimesheet.platform.authorization.AuthorizationCatalogue;
+import com.lab.labtimesheet.platform.authorization.AuthorizationPolicy;
 import com.lab.labtimesheet.platform.service.SmtpConfigurationService;
 import java.math.BigDecimal;
 import java.security.Principal;
@@ -36,14 +39,25 @@ import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Bean;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(AttendanceReportController.class)
-@Import(AttendanceReportService.class)
+@Import({AttendanceReportService.class, AttendanceReportPageWebTest.AuthorizationTestConfig.class})
 class AttendanceReportPageWebTest {
+
+    @TestConfiguration(proxyBeanMethods = false)
+    static class AuthorizationTestConfig {
+
+        @Bean
+        AuthorizationPolicy authorizationPolicy() {
+            return new AuthorizationPolicy(new AuthorizationCatalogue());
+        }
+    }
 
     private static final LocalDate FROM = LocalDate.of(2026, 8, 3);
     private static final LocalDate TO = LocalDate.of(2026, 8, 7);
@@ -76,6 +90,8 @@ class AttendanceReportPageWebTest {
     void internRendersOwnClassifiedDaysSummaryAndComplianceChart() throws Exception {
         given(currentUsers.actor(any(Principal.class)))
                 .willReturn(new AttendanceActor(5, GlobalRole.INTERN));
+        given(accounts.requireIdentityByEmail("intern@example.test"))
+                .willReturn(intern(5L, "Mai Intern"));
         given(calendar.currentBusinessDate()).willReturn(TO);
         given(accounts.requireIdentityById(5L)).willReturn(intern(5L, "Mai Intern"));
         given(reportQueries.query(new AttendanceActor(5, GlobalRole.INTERN), 5, FROM, TO))
@@ -118,6 +134,9 @@ class AttendanceReportPageWebTest {
     void mentorInspectsTargetInternAndSeesPerDayScores() throws Exception {
         given(currentUsers.actor(any(Principal.class)))
                 .willReturn(new AttendanceActor(2, GlobalRole.MENTOR));
+        given(accounts.requireIdentityByEmail("mentor@example.test"))
+                .willReturn(new AccountIdentity(
+                        2L, "mentor@example.test", "Mentor", GlobalRole.MENTOR, AccountStatus.ACTIVE));
         given(calendar.currentBusinessDate()).willReturn(TO);
         given(accounts.requireIdentityById(7L)).willReturn(intern(7L, "Target Intern"));
         given(reportQueries.query(new AttendanceActor(2, GlobalRole.MENTOR), 7, FROM, TO))
@@ -153,6 +172,8 @@ class AttendanceReportPageWebTest {
     void emptyDenominatorRendersNaForRateAndCompliance() throws Exception {
         given(currentUsers.actor(any(Principal.class)))
                 .willReturn(new AttendanceActor(5, GlobalRole.INTERN));
+        given(accounts.requireIdentityByEmail("intern@example.test"))
+                .willReturn(intern(5L, "Mai Intern"));
         given(calendar.currentBusinessDate()).willReturn(TO);
         given(accounts.requireIdentityById(5L)).willReturn(intern(5L, "Mai Intern"));
         given(reportQueries.query(new AttendanceActor(5, GlobalRole.INTERN), 5, FROM, TO))
@@ -178,6 +199,8 @@ class AttendanceReportPageWebTest {
     void internCannotInspectAnotherIntern() throws Exception {
         given(currentUsers.actor(any(Principal.class)))
                 .willReturn(new AttendanceActor(5, GlobalRole.INTERN));
+        given(accounts.requireIdentityByEmail("intern@example.test"))
+                .willReturn(intern(5L, "Mai Intern"));
         given(calendar.currentBusinessDate()).willReturn(TO);
 
         mvc.perform(get("/reports/attendance").with(user("intern@example.test").roles("INTERN"))
@@ -191,6 +214,8 @@ class AttendanceReportPageWebTest {
     void missingFiltersDefaultToCurrentBusinessDateMonth() throws Exception {
         given(currentUsers.actor(any(Principal.class)))
                 .willReturn(new AttendanceActor(5, GlobalRole.INTERN));
+        given(accounts.requireIdentityByEmail("intern@example.test"))
+                .willReturn(intern(5L, "Mai Intern"));
         given(calendar.currentBusinessDate()).willReturn(LocalDate.of(2026, 8, 15));
         given(accounts.requireIdentityById(5L)).willReturn(intern(5L, "Mai Intern"));
         given(reportQueries.query(
@@ -213,6 +238,27 @@ class AttendanceReportPageWebTest {
         verify(reportQueries).query(
                 new AttendanceActor(5, GlobalRole.INTERN), 5,
                 LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 15));
+    }
+
+    /**
+     * Protects {@code RPT-004} rendering of the no-target selector for Admin. {@code AttendanceReportQueryService}
+     * is mocked here, so this test does not exercise the policy; {@code AdminDashboardWebTest} is the full-context
+     * control that the default catalogue lets Admin open the Attendance report without an Intern.
+     */
+    @Test
+    void defaultCatalogueAllowsAdminAttendanceTargetSelectionWithoutInternId() throws Exception {
+        given(currentUsers.actor(any(Principal.class)))
+                .willReturn(new AttendanceActor(1, GlobalRole.ADMIN));
+        given(accounts.requireIdentityByEmail("admin@example.test"))
+                .willReturn(new AccountIdentity(
+                        1L, "admin@example.test", "Admin", GlobalRole.ADMIN, AccountStatus.ACTIVE));
+        given(calendar.currentBusinessDate()).willReturn(TO);
+        given(internships.eligibleInternOptions(TO)).willReturn(List.of(
+                new EligibleInternOption(7L, "Target Intern", "S7", FROM, TO)));
+
+        mvc.perform(get("/reports/attendance").with(user("admin@example.test").roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Target Intern (S7)")));
     }
 
     private static AccountIdentity intern(long id, String name) {

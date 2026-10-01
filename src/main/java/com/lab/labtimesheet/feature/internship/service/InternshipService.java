@@ -32,6 +32,9 @@ import com.lab.labtimesheet.feature.internship.model.dto.LockedAccountMutationEl
 import com.lab.labtimesheet.feature.internship.model.entity.InternProfile;
 import com.lab.labtimesheet.feature.internship.repository.InternProfileRepository;
 import com.lab.labtimesheet.platform.model.GlobalRole;
+import com.lab.labtimesheet.platform.authorization.AuthorizationCapability;
+import com.lab.labtimesheet.platform.authorization.AuthorizationPolicy;
+import com.lab.labtimesheet.platform.authorization.AuthorizationRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -45,21 +48,34 @@ public class InternshipService {
     private final InternProfileRepository internProfiles;
     private final InternshipLifecycleReadiness lifecycleReadiness;
     private final Clock clock;
+    private final AuthorizationPolicy authorizationPolicy;
 
     InternshipService(
             AccountService accounts,
             InternProfileRepository internProfiles,
             InternshipLifecycleReadiness lifecycleReadiness,
             Clock clock) {
+        this(accounts, internProfiles, lifecycleReadiness, clock, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    InternshipService(
+            AccountService accounts,
+            InternProfileRepository internProfiles,
+            InternshipLifecycleReadiness lifecycleReadiness,
+            Clock clock,
+            AuthorizationPolicy authorizationPolicy) {
         this.accounts = accounts;
         this.internProfiles = internProfiles;
         this.lifecycleReadiness = lifecycleReadiness;
         this.clock = clock;
+        this.authorizationPolicy = authorizationPolicy;
     }
 
-    /** Creates an account and its required Intern profile atomically before activation delivery. */
+    /** Creates an account under the §5.2 Manage accounts capability and provisions its Intern profile atomically. */
     public AccountCreation create(CreateAccountCommand command, long adminId) {
         ValidatedAccount account = validate(command);
+        requireAdminCapability(adminId, AuthorizationCapability.MANAGE_ACCOUNTS);
         Instant now = clock.instant();
         return accounts.createIdentity(
                 account.email(), account.displayName(), account.role(), adminId,
@@ -77,6 +93,7 @@ public class InternshipService {
         if (correction == null) {
             throw new IllegalArgumentException("Account correction is required");
         }
+        requireActiveAdminId(adminId);
         boolean profileChange = correction.studentCode() != null
                 || correction.internshipStart() != null
                 || correction.internshipEnd() != null;
@@ -100,6 +117,7 @@ public class InternshipService {
     /** Returns every Admin account view with its optional profile in account-ID order. */
     @Transactional(readOnly = true)
     public List<InternshipAccountAdministrationView> administrationViews(long adminId) {
+        requireActiveAdminId(adminId);
         List<AccountAdministrationView> identities = accounts.administrationViews(adminId);
         return composeDirectory(identities, profilesByIds(identities.stream().map(AccountAdministrationView::id).toList()));
     }
@@ -114,6 +132,7 @@ public class InternshipService {
         if (filter.search().isEmpty() && filter.role() == null) {
             return administrationViews(adminId);
         }
+        requireActiveAdminId(adminId);
         List<AccountAdministrationView> identityMatches = accounts.administrationViews(adminId, filter);
         List<InternProfile> studentCodeMatches = internProfiles.findByStudentCodeFilter(filter.search());
         List<Long> studentMatchIds = filter.role() == null || filter.role() == GlobalRole.INTERN
@@ -140,7 +159,7 @@ public class InternshipService {
     /** Moves an active Intern's profile from NOT_STARTED to ACTIVE after its configured start date. */
     @Transactional
     public void activateInternship(long internUserId, long adminId) {
-        accounts.requireActiveAdminId(adminId);
+        requireActiveAdminId(adminId);
         AccountIdentity intern = lockedIdentity(internUserId);
         if (intern.role() != GlobalRole.INTERN || intern.status() != AccountStatus.ACTIVE) {
             throw new IllegalArgumentException("An active Intern account is required");
@@ -191,7 +210,7 @@ public class InternshipService {
     /** Returns producer-owned readiness facts for an Admin-managed Intern account page. */
     @Transactional(readOnly = true)
     public InternshipLifecycleGuard internshipLifecycleReadiness(long internUserId, long adminId) {
-        accounts.requireActiveAdminId(adminId);
+        requireActiveAdminId(adminId);
         AccountIdentity intern = accounts.requireIdentityById(internUserId);
         if (intern.role() != GlobalRole.INTERN) {
             throw new IllegalArgumentException("An Intern account is required");
@@ -405,6 +424,18 @@ public class InternshipService {
         return internProfiles.findById(userId).map(InternProfile::getStudentCode);
     }
 
+    /**
+     * Resolves the optional responsible Mentor identifier without exposing the Internship entity across modules.
+     * Reads the stored value with a scalar query so an assignment made earlier in the same transaction is seen.
+     *
+     * @param internUserId owning Intern account
+     * @return responsible Mentor account identifier when one is assigned
+     */
+    @Transactional(readOnly = true)
+    public Optional<Long> responsibleMentorUserId(long internUserId) {
+        return internProfiles.findResponsibleMentorUserId(internUserId);
+    }
+
     private void correctProfile(long userId, AccountIdentityCorrection correction) {
         InternProfile profile = lockInternProfile(userId);
         if (correction.studentCode() != null) {
@@ -479,12 +510,40 @@ public class InternshipService {
         }
     }
 
-    private static LockedAccountMutationEligibility terminalIntern(
+    private long requireActiveAdminId(long adminId) {
+        AccountIdentity identity = accounts.identityById(adminId).orElse(null);
+        boolean allowed = authorizationPolicy.allows(
+                AuthorizationCapability.ACCOUNT_LIFECYCLE,
+                InternshipAuthorizationRequests.activeAdmin(identity));
+        if (identity == null) {
+            throw new IllegalArgumentException("Admin not found");
+        }
+        if (!allowed) {
+            throw new IllegalArgumentException("An active Admin is required");
+        }
+        return adminId;
+    }
+
+    private long requireAdminCapability(long adminId, AuthorizationCapability capability) {
+        AccountIdentity identity = accounts.identityById(adminId).orElse(null);
+        boolean allowed = authorizationPolicy.allows(
+                capability, InternshipAuthorizationRequests.activeAdmin(identity));
+        if (identity == null) {
+            throw new IllegalArgumentException("Admin not found");
+        }
+        if (!allowed) {
+            throw new IllegalArgumentException("An active Admin is required");
+        }
+        return adminId;
+    }
+
+    private LockedAccountMutationEligibility terminalIntern(
             List<LockedAccountMutationEligibility> lockedAccounts,
             long adminId,
             long internUserId) {
         LockedAccountMutationEligibility admin = lockedEligibility(lockedAccounts, adminId);
-        if (admin.role() != GlobalRole.ADMIN || admin.accountStatus() != AccountStatus.ACTIVE) {
+        AuthorizationRequest request = InternshipAuthorizationRequests.activeAdmin(admin);
+        if (!authorizationPolicy.allows(AuthorizationCapability.ACCOUNT_LIFECYCLE, request)) {
             throw new IllegalArgumentException("An active Admin is required");
         }
         LockedAccountMutationEligibility intern = lockedEligibility(lockedAccounts, internUserId);

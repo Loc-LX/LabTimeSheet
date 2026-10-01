@@ -201,7 +201,7 @@ public class TaskTransferService {
                         "REASSIGNED",
                         "Task reassigned",
                         "A Task assignment changed."),
-                new NotificationAction(taskAction(project.projectId(), task.getId()), false),
+                new NotificationAction(taskAction(project.projectId(), task.getId()), false, project.projectId()),
                 notificationRecipients));
         return new TaskTransferResult(selected.size(), recipient.membershipId());
     }

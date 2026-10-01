@@ -19,6 +19,10 @@ import com.lab.labtimesheet.feature.calendar.model.dto.HolidayApiPreview;
 import com.lab.labtimesheet.feature.calendar.model.dto.HolidayApiPreviewStatus;
 import com.lab.labtimesheet.feature.calendar.service.HolidayApiConfigurationService;
 import com.lab.labtimesheet.feature.identity.service.AccountService;
+import com.lab.labtimesheet.feature.identity.model.AccountStatus;
+import com.lab.labtimesheet.feature.identity.model.dto.AccountIdentity;
+import com.lab.labtimesheet.platform.authorization.AuthorizationCatalogue;
+import com.lab.labtimesheet.platform.authorization.AuthorizationPolicy;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -182,9 +186,12 @@ class CalendarImportServiceTest {
     private static CalendarApplicationService service(
             GlobalCalendarEventRepository events, HolidayApiConfigurationService holidayApi) {
         AccountService accounts = mock(AccountService.class);
-        when(accounts.requireActiveAdminId(org.mockito.ArgumentMatchers.anyLong()))
-                .thenAnswer(invocation -> invocation.getArgument(0));
-        when(accounts.requireActiveAdminId(2L)).thenThrow(new IllegalArgumentException("An active Admin is required"));
+        when(accounts.identityById(org.mockito.ArgumentMatchers.anyLong())).thenAnswer(invocation -> {
+            long userId = invocation.getArgument(0);
+            GlobalRole role = userId == 2L ? GlobalRole.MENTOR : GlobalRole.ADMIN;
+            return Optional.of(new AccountIdentity(
+                    userId, "actor@example.com", "Actor", role, AccountStatus.ACTIVE));
+        });
         TransactionTemplate transactions = mock(TransactionTemplate.class);
         PlatformTransactionManager transactionManager = mock(PlatformTransactionManager.class);
         when(transactions.getTransactionManager()).thenReturn(transactionManager);
@@ -192,6 +199,7 @@ class CalendarImportServiceTest {
         return new CalendarApplicationService(
                 Clock.fixed(Instant.parse("2026-08-20T00:00:00Z"), ZoneOffset.UTC),
                 accounts,
+                new AuthorizationPolicy(AuthorizationCatalogue.loadDefault()),
                 policyRepository(),
                 events,
                 holidayApi,

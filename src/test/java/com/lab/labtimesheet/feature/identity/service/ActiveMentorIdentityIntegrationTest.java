@@ -80,7 +80,7 @@ class ActiveMentorIdentityIntegrationTest {
         LookupGuard guard = new LookupGuard();
         AccountService query = new AccountService(
                 guarded(users, guard), tokens, mailDelivery, passwords, clock, transactions,
-                sessions, "http://localhost");
+                sessions, "http://localhost", IdentityAuthorizationTestPolicy.create());
 
         List<AccountIdentity> identities = query.activeGlobalMentorIdentities();
 

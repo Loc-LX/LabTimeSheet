@@ -10,9 +10,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.lab.labtimesheet.feature.reporting.model.dto.ProjectTaskReportFilter;
 import com.lab.labtimesheet.feature.reporting.model.dto.ProjectTaskReportView;
 import com.lab.labtimesheet.feature.reporting.service.ProjectTaskReportService;
+import com.lab.labtimesheet.feature.project.model.dto.ProjectActorView;
+import com.lab.labtimesheet.feature.project.service.ProjectQueryService;
+import com.lab.labtimesheet.platform.authorization.AuthorizationPolicy;
 import com.lab.labtimesheet.platform.service.SmtpConfigurationService;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -30,6 +34,31 @@ class ProjectTaskReportControllerWebTest {
 
     @MockitoBean
     private SmtpConfigurationService smtpConfiguration;
+
+    @MockitoBean
+    private ProjectQueryService projectQueries;
+
+    @MockitoBean
+    private AuthorizationPolicy authorizationPolicy;
+
+    @BeforeEach
+    void allowReportPolicyForRouteSlice() {
+        given(projectQueries.authenticatedActor(org.mockito.ArgumentMatchers.anyString()))
+                .willReturn(new ProjectActorView(2L, "MENTOR"));
+        given(authorizationPolicy.allows(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+                .willReturn(true);
+        given(reports.build(
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.nullable(Long.class),
+                org.mockito.ArgumentMatchers.nullable(Long.class),
+                org.mockito.ArgumentMatchers.nullable(com.lab.labtimesheet.feature.project.model.TaskStatus.class),
+                org.mockito.ArgumentMatchers.nullable(java.time.LocalDate.class),
+                org.mockito.ArgumentMatchers.nullable(java.time.LocalDate.class),
+                org.mockito.ArgumentMatchers.nullable(java.time.LocalDate.class),
+                org.mockito.ArgumentMatchers.nullable(java.time.LocalDate.class)))
+                .willReturn(new ProjectTaskReportView(
+                        new ProjectTaskReportFilter(null, null, null, null, null), List.of(), List.of(), List.of(),
+                        0, 0, "N/A"));
+    }
 
     @Test
     void rendersProjectTaskReportForAnAuthenticatedMentor() throws Exception {
@@ -58,21 +87,21 @@ class ProjectTaskReportControllerWebTest {
     }
 
     @Test
-    void deniesAdminBeforeCallingProjectTaskReportService() throws Exception {
+    void servesAdminProjectTaskReportRoute() throws Exception {
+        given(projectQueries.authenticatedActor("admin@example.test"))
+                .willReturn(new ProjectActorView(1L, "ADMIN"));
         mvc.perform(get("/reports/project-tasks")
                         .with(user("admin@example.test").roles("ADMIN")))
-                .andExpect(status().isForbidden());
-
-        verifyNoInteractions(reports);
+                .andExpect(status().isOk());
     }
 
     @Test
     void adminAuthorityTakesPrecedenceOverAnAdditionalInternAuthority() throws Exception {
+        given(projectQueries.authenticatedActor("admin@example.test"))
+                .willReturn(new ProjectActorView(1L, "ADMIN"));
         mvc.perform(get("/reports/project-tasks")
                         .with(user("admin@example.test").roles("ADMIN", "INTERN")))
-                .andExpect(status().isForbidden());
-
-        verifyNoInteractions(reports);
+                .andExpect(status().isOk());
     }
 
     @Test

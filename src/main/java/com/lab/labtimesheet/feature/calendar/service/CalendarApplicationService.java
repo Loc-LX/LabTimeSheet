@@ -2,6 +2,7 @@ package com.lab.labtimesheet.feature.calendar.service;
 
 import com.lab.labtimesheet.feature.calendar.exception.CalendarException;
 import com.lab.labtimesheet.feature.calendar.model.AttendancePolicy;
+import com.lab.labtimesheet.feature.identity.model.dto.AccountIdentity;
 import com.lab.labtimesheet.feature.identity.service.AccountService;
 import com.lab.labtimesheet.feature.calendar.model.dto.CalendarHistoryItem;
 import com.lab.labtimesheet.feature.calendar.model.dto.CalendarImportSelection;
@@ -11,6 +12,8 @@ import com.lab.labtimesheet.feature.calendar.model.entity.AttendancePolicyEntity
 import com.lab.labtimesheet.feature.calendar.model.entity.GlobalCalendarEventEntity;
 import com.lab.labtimesheet.feature.calendar.repository.AttendancePolicyRepository;
 import com.lab.labtimesheet.feature.calendar.repository.GlobalCalendarEventRepository;
+import com.lab.labtimesheet.platform.authorization.AuthorizationCapability;
+import com.lab.labtimesheet.platform.authorization.AuthorizationPolicy;
 import com.lab.labtimesheet.feature.calendar.model.dto.HolidayApiCandidate;
 import com.lab.labtimesheet.feature.calendar.model.dto.HolidayApiPreview;
 import com.lab.labtimesheet.feature.calendar.model.dto.HolidayApiPreviewStatus;
@@ -41,6 +44,7 @@ public class CalendarApplicationService {
 
     private final Clock clock;
     private final AccountService accounts;
+    private final AuthorizationPolicy authorizationPolicy;
     private final AttendancePolicyRepository policies;
     private final GlobalCalendarEventRepository events;
     private final HolidayApiConfigurationService holidayApi;
@@ -333,7 +337,17 @@ public class CalendarApplicationService {
 
     private long requireActiveAdminId(long adminId) {
         try {
-            return accounts.requireActiveAdminId(adminId);
+            AccountIdentity identity = accounts.identityById(adminId).orElse(null);
+            boolean allowed = authorizationPolicy.allows(
+                    AuthorizationCapability.GLOBAL_CONFIGURATION,
+                    CalendarAuthorizationRequests.activeAdmin(identity));
+            if (identity == null) {
+                throw new IllegalArgumentException("Admin not found");
+            }
+            if (!allowed) {
+                throw new IllegalArgumentException("An active Admin is required");
+            }
+            return adminId;
         } catch (IllegalArgumentException exception) {
             throw new AccessDeniedException("Only Admin may manage the global calendar", exception);
         }

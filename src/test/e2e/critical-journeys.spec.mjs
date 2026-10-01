@@ -38,6 +38,15 @@ test('Iteration 3 setup and critical Admin/Intern/Mentor journeys', async ({ pag
     end: dates.internshipEnd,
   });
 
+  // Temporary: replace with the Admin responsible-Mentor assignment once internship/responsible-mentor is built (ACC-026).
+  const container = process.env.E2E_DB_CONTAINER;
+  test.skip(!container, 'Set E2E_DB_CONTAINER to the disposable end-to-end PostgreSQL container; this journey seeds its precondition there.');
+  execFileSync('docker', [
+    'exec', '-i', container,
+    'psql', '-U', process.env.E2E_DB_USER || 'labtimesheet', '-d', process.env.E2E_DB_NAME || 'labtimesheet',
+    '-c', `update intern_profiles set responsible_mentor_user_id = (select id from app_users where email = '${mentor.email}') where user_id = (select id from app_users where email = '${intern.email}');`,
+  ], { stdio: ['pipe', 'ignore', 'pipe'] });
+
   await signIn(page, admin);
   await page.goto('/admin/accounts');
   await expect(page.getByRole('heading', { name: 'Accounts' })).toBeVisible();
@@ -124,6 +133,16 @@ test('Iteration 3 setup and critical Admin/Intern/Mentor journeys', async ({ pag
   await page.getByLabel('Note').fill('Browser-created work log');
   await page.getByRole('button', { name: 'Log work' }).click();
   await expect(page.getByText('Browser-created work log')).toBeVisible();
+  await page.getByLabel('New status').selectOption('DONE');
+  await page.getByRole('button', { name: 'Change status' }).click();
+  await expect(page.getByText('DONE', { exact: true })).toBeVisible();
+  await page.getByLabel('New status').selectOption('IN_PROGRESS');
+  await page.getByRole('button', { name: 'Change status' }).click();
+  await expect(page.locator('#task-status-error')).toContainText('Enter a reason to reopen this Task.');
+  await expect(page.getByText('DONE', { exact: true })).toBeVisible();
+  await page.getByLabel('Reopen reason').fill('Correct the result recorded in the work log.');
+  await page.getByRole('button', { name: 'Change status' }).click();
+  await expect(page.getByText('IN_PROGRESS', { exact: true })).toBeVisible();
   await page.goto(`/projects/${projectId}/history`);
   await expect(page.getByRole('heading', { name: 'Project History' })).toBeVisible();
   await page.getByRole('tab', { name: 'Task activity' }).click();
@@ -154,7 +173,18 @@ test('Iteration 3 setup and critical Admin/Intern/Mentor journeys', async ({ pag
     new RegExp(`^project-task-report-${dates.reportWorkFrom}-to-${dates.reportDueTo}\\.pdf$`),
     (bytes) => expect(bytes.subarray(0, 4).toString()).toBe('%PDF'));
 
+  await page.goto(`/projects/${projectId}`);
+  await page.getByLabel('Cancellation reason').fill('E2E scope cancellation');
+  page.once('dialog', (dialog) => dialog.accept());
+  await page.getByRole('button', { name: 'Cancel Project' }).click();
+  await expect(page).toHaveURL(new RegExp(`/projects/${projectId}$`));
+  await expect(page.getByText('CANCELLED', { exact: true })).toBeVisible();
+  await expect(page.getByText('E2E scope cancellation', { exact: true })).toBeVisible();
+
   await signIn(page, intern);
+  await page.goto(`/projects/${projectId}/tasks/${taskId}`);
+  await expect(page.getByRole('button', { name: 'Change status' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Log work' })).toHaveCount(0);
   for (const [route, heading] of [
     ['/projects', 'Projects'],
     ['/attendance', 'My attendance'],
@@ -405,8 +435,11 @@ async function ensureSmtp(page) {
   await page.goto('/admin/smtp');
   await expect(page).toHaveURL(/\/admin\/smtp/);
   const active = page.getByRole('status').filter({ hasText: 'SMTP is active' });
-  if (await active.count() === 0) await activateMailpitSmtp(page);
-  await expect(page.getByRole('status')).toContainText('SMTP is active');
+  if (await active.count() === 0) {
+    await activateMailpitSmtp(page);
+    await page.goto('/admin/smtp');
+  }
+  await expect(page.getByRole('status').filter({ hasText: 'SMTP is active' })).toBeVisible();
 }
 
 let globalAdmin;

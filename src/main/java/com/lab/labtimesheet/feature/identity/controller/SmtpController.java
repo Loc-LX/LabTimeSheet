@@ -4,6 +4,9 @@ import java.security.Principal;
 import java.util.List;
 
 import com.lab.labtimesheet.feature.identity.service.AccountService;
+import com.lab.labtimesheet.feature.identity.service.IdentityAuthorizationRequests;
+import com.lab.labtimesheet.platform.authorization.AuthorizationCapability;
+import com.lab.labtimesheet.platform.authorization.AuthorizationPolicy;
 import com.lab.labtimesheet.platform.model.dto.SmtpActionForm;
 import com.lab.labtimesheet.platform.model.dto.SmtpForm;
 import com.lab.labtimesheet.platform.service.SmtpConfigurationService;
@@ -46,6 +49,7 @@ class SmtpController {
 
     private final SmtpConfigurationService smtp;
     private final AccountService accounts;
+    private final AuthorizationPolicy authorizationPolicy;
 
     @GetMapping
     String form(Principal principal, Model model) {
@@ -102,7 +106,8 @@ class SmtpController {
     }
 
     @GetMapping("/defer")
-    String deferral(HttpSession session, Model model) {
+    String deferral(Principal principal, HttpSession session, Model model) {
+        adminId(principal);
         if (smtp.hasActiveConfiguration()) {
             return "redirect:/admin/smtp";
         }
@@ -113,19 +118,22 @@ class SmtpController {
     }
 
     @PostMapping("/defer/next")
-    String nextDeferral(HttpSession session) {
+    String nextDeferral(Principal principal, HttpSession session) {
+        adminId(principal);
         session.setAttribute(DEFERRAL_STEP, Math.min(5, deferralStep(session) + 1));
         return "redirect:/admin/smtp/defer";
     }
 
     @PostMapping("/defer/back")
-    String previousDeferral(HttpSession session) {
+    String previousDeferral(Principal principal, HttpSession session) {
+        adminId(principal);
         session.setAttribute(DEFERRAL_STEP, Math.max(1, deferralStep(session) - 1));
         return "redirect:/admin/smtp/defer";
     }
 
     @PostMapping("/defer/finish")
-    String finishDeferral(HttpSession session) {
+    String finishDeferral(Principal principal, HttpSession session) {
+        adminId(principal);
         if (deferralStep(session) != 5) {
             return "redirect:/admin/smtp/defer";
         }
@@ -154,6 +162,12 @@ class SmtpController {
     }
 
     private long adminId(Principal principal) {
-        return accounts.requireActiveAdminId(principal.getName());
+        long id = accounts.requireActiveAdminId(principal.getName());
+        var identity = accounts.requireIdentityById(id);
+        if (!authorizationPolicy.allows(AuthorizationCapability.GLOBAL_CONFIGURATION,
+                IdentityAuthorizationRequests.activeAdmin(identity))) {
+            throw new IllegalArgumentException("An active Admin is required");
+        }
+        return id;
     }
 }

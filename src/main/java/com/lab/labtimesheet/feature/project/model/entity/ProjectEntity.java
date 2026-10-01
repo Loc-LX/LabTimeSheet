@@ -28,8 +28,8 @@ import lombok.NoArgsConstructor;
 /**
  * JPA aggregate root for Project lifecycle, membership intervals, and leadership intervals.
  *
- * <p>A planned or active Project owns exactly one current Leader membership. Completion is
- * terminal and closes current intervals; history is retained rather than reassigned or deleted.
+ * <p>A planned or active Project owns exactly one current Leader membership. Completion and
+ * cancellation are terminal and close current intervals; history is retained rather than deleted.
  * Mutation methods enforce aggregate rules independently of browser control visibility.
  */
 // Aggregate root: Project + Membership + LeadershipTerm. save root → JPA cascade INSERT các bảng con.
@@ -74,6 +74,15 @@ public class ProjectEntity {
 
     @Column(name = "completed_at")
     private Instant completedAt;
+
+    @Column(name = "cancelled_by_mentor_user_id")
+    private Long cancelledByMentorUserId;
+
+    @Column(name = "cancelled_at")
+    private Instant cancelledAt;
+
+    @Column(name = "cancellation_reason")
+    private String cancellationReason;
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
@@ -333,6 +342,21 @@ public class ProjectEntity {
         return completedAt;
     }
 
+    /** @return Mentor who cancelled this Project, or {@code null} before cancellation */
+    public Long cancelledByMentorUserId() {
+        return cancelledByMentorUserId;
+    }
+
+    /** @return server cancellation time, or {@code null} before cancellation */
+    public Instant cancelledAt() {
+        return cancelledAt;
+    }
+
+    /** @return retained cancellation reason, or {@code null} before cancellation */
+    public String cancellationReason() {
+        return cancellationReason;
+    }
+
     /**
      * Completes an active Project after its caller has verified every current Task is DONE.
      *
@@ -357,6 +381,36 @@ public class ProjectEntity {
                 .forEach(membership -> membership.close(endedAt, actorMentorUserId));
         status = ProjectStatus.COMPLETED;
         completedAt = endedAt;
+        updatedAt = endedAt;
+    }
+
+    /**
+     * Cancels an owner-authorized planned or active Project, retaining and closing all open
+     * membership and leadership intervals.
+     *
+     * @param actorMentorUserId authenticated owning Mentor
+     * @param at server time of cancellation
+     * @param reason nonblank cancellation reason
+     * @throws ProjectRuleViolationException when the state or reason is invalid
+     */
+    public void cancel(long actorMentorUserId, Instant at, String reason) {
+        requireOwner(actorMentorUserId);
+        Objects.requireNonNull(at, "at");
+        if (status != ProjectStatus.PLANNED && status != ProjectStatus.ACTIVE) {
+            throw new ProjectRuleViolationException("Only a planned or active Project can be cancelled");
+        }
+        String normalizedReason = reason == null ? "" : reason.trim();
+        if (normalizedReason.isEmpty()) {
+            throw new ProjectRuleViolationException("A cancellation reason is required");
+        }
+        var endedAt = currentLeadershipTerm().end(at, actorMentorUserId);
+        memberships.stream()
+                .filter(ProjectMembershipEntity::isCurrent)
+                .forEach(membership -> membership.close(endedAt, actorMentorUserId));
+        status = ProjectStatus.CANCELLED;
+        cancelledByMentorUserId = actorMentorUserId;
+        cancelledAt = endedAt;
+        cancellationReason = normalizedReason;
         updatedAt = endedAt;
     }
 
@@ -397,12 +451,17 @@ public class ProjectEntity {
      *
      * @param actorMentorUserId authenticated owning Mentor
      * @throws ProjectAccessDeniedException when the actor does not own this Project
-     * @throws ProjectRuleViolationException when the Project is no longer planned
+     * @param emptyDraft whether the locked Project has exactly its initial membership and
+     *                   leadership term and no Task, invitation, or exit request
+     * @throws ProjectRuleViolationException when the Project is not an empty planned draft
      */
-    public void requireDeletable(long actorMentorUserId) {
+    public void requireDeletable(long actorMentorUserId, boolean emptyDraft) {
         requireOwner(actorMentorUserId);
         if (status != ProjectStatus.PLANNED) {
             throw new ProjectRuleViolationException("Only a planned Project can be deleted");
+        }
+        if (!emptyDraft) {
+            throw new ProjectRuleViolationException("Only an empty planned Project can be deleted");
         }
     }
 
@@ -522,8 +581,8 @@ public class ProjectEntity {
     }
 
     private void requireMutable() {
-        if (status == ProjectStatus.COMPLETED) {
-            throw new ProjectRuleViolationException("Completed Projects are read-only");
+        if (status == ProjectStatus.COMPLETED || status == ProjectStatus.CANCELLED) {
+            throw new ProjectRuleViolationException("Terminal Projects are read-only");
         }
     }
 

@@ -19,6 +19,7 @@ import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
 import com.lab.labtimesheet.platform.model.GlobalRole;
 import com.lab.labtimesheet.feature.attendance.model.CorrectionEventType;
 import com.lab.labtimesheet.feature.attendance.model.CorrectionStatus;
+import com.lab.labtimesheet.feature.attendance.model.LeaveStatus;
 import com.lab.labtimesheet.feature.calendar.model.dto.CalendarHistoryItem;
 import com.lab.labtimesheet.feature.calendar.model.dto.CalendarImportSelection;
 import com.lab.labtimesheet.feature.attendance.model.dto.CorrectionDecision;
@@ -31,6 +32,8 @@ import com.lab.labtimesheet.feature.attendance.repository.AttendanceCorrectionEv
 import com.lab.labtimesheet.feature.attendance.repository.AttendanceCorrectionRepository;
 import com.lab.labtimesheet.feature.calendar.repository.AttendancePolicyRepository;
 import com.lab.labtimesheet.feature.attendance.repository.AttendanceRecordRepository;
+import com.lab.labtimesheet.feature.attendance.repository.LeaveRequestDayRepository;
+import com.lab.labtimesheet.feature.attendance.repository.LeaveRequestRepository;
 import com.lab.labtimesheet.feature.calendar.model.dto.HolidayApiCandidate;
 import com.lab.labtimesheet.feature.calendar.model.dto.HolidayApiPreview;
 import com.lab.labtimesheet.feature.calendar.model.dto.HolidayApiPreviewStatus;
@@ -54,6 +57,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
@@ -80,6 +84,12 @@ class AttendanceConcurrencyIntegrationTest {
     private LeaveApplicationService leaves;
 
     @Autowired
+    private LeaveRequestDayRepository leaveDays;
+
+    @Autowired
+    private LeaveRequestRepository leaveRequests;
+
+    @Autowired
     private AttendanceCorrectionApplicationService corrections;
 
     @Autowired
@@ -96,6 +106,9 @@ class AttendanceConcurrencyIntegrationTest {
 
     @Autowired
     private TransactionTemplate transactions;
+
+    @Autowired
+    private JdbcTemplate jdbc;
 
     @Autowired
     private BootstrapService bootstrap;
@@ -134,6 +147,12 @@ class AttendanceConcurrencyIntegrationTest {
                 .containsExactlyInAnyOrder("SUCCESS", AttendanceRejection.ALREADY_CHECKED_OUT.name());
     }
 
+    /**
+     * Protects {@code LEV-005} and {@code AC-LEV-002}: quota reservations on a shared policy row serialize distinct
+     * requests. Observable break: a loser receives a generic quota-or-overlap outcome or both requests overbook the
+     * month. Two two-day requests race for quota three, so exactly two August allocation rows and the explicit quota
+     * error must remain.
+     */
     @Test
     void concurrentLeaveReservationsSerializeOnThePolicyQuotaRow() throws Exception {
         long internId = createActiveIntern();
@@ -151,11 +170,47 @@ class AttendanceConcurrencyIntegrationTest {
                 leaves.submit(actor, command);
                 return "SUCCESS";
             } catch (LeaveException rejection) {
-                return "QUOTA_OR_OVERLAP_REJECTED";
+                return rejection.getMessage();
             }
         });
 
-        assertThat(outcomes).containsExactlyInAnyOrder("SUCCESS", "QUOTA_OR_OVERLAP_REJECTED");
+        assertThat(outcomes).containsExactlyInAnyOrder(
+                "SUCCESS", "Monthly leave quota exceeded for 2026-08-01");
+        assertThat(leaveDays.countReserved(internId, LocalDate.of(2026, 8, 1),
+                List.of(LeaveStatus.PENDING.name(), LeaveStatus.OVERDUE.name(), LeaveStatus.APPROVED.name())))
+                .isEqualTo(2);
+    }
+
+    /**
+     * Protects {@code LEV-005}, {@code LEV-006}, and {@code AC-LEV-002}: concurrent overlapping ranges serialize
+     * into one active request and one application-level overlap rejection. Observable break: both reserve the shared
+     * dates or the loser reports a database constraint error. With two possible two-day winners, exactly one active
+     * request is committed after the competing Intern-row locks are released.
+     */
+    @Test
+    void concurrentOverlappingRangesReturnTheApplicationOverlapFailure() throws Exception {
+        long internId = createActiveIntern();
+        clock.set(Instant.parse("2026-08-14T00:00:00Z"));
+        AttendanceActor actor = new AttendanceActor(internId, GlobalRole.INTERN);
+
+        List<String> outcomes = runConcurrently(() -> {
+            try {
+                leaves.submit(actor, new LeaveRequestCommand(
+                        LocalDate.of(2026, 9, 8), LocalDate.of(2026, 9, 9), "overlap"));
+                return "SUCCESS";
+            } catch (LeaveException rejection) {
+                return rejection.getMessage();
+            }
+        });
+
+        assertThat(outcomes).containsExactlyInAnyOrder(
+                "SUCCESS", "Leave overlaps an existing active request");
+        assertThat(leaveRequests.findByInternUserIdOrderBySubmittedAtDescIdDesc(internId))
+                .filteredOn(request -> request.startDate().equals(LocalDate.of(2026, 9, 8)))
+                .filteredOn(request -> request.status() == LeaveStatus.PENDING
+                        || request.status() == LeaveStatus.OVERDUE
+                        || request.status() == LeaveStatus.APPROVED)
+                .hasSize(1);
     }
 
     @Test
@@ -221,7 +276,7 @@ class AttendanceConcurrencyIntegrationTest {
         assertThat(correctionRequests.findAll())
                 .filteredOn(row -> row.attendanceRecordId() == firstRecordId
                         || row.attendanceRecordId() == secondRecordId)
-                .allSatisfy(row -> assertThat(row.status()).isEqualTo(CorrectionStatus.REJECTED));
+                .allSatisfy(row -> assertThat(row.status()).isEqualTo(CorrectionStatus.OVERDUE));
     }
 
     @Test
@@ -261,7 +316,8 @@ class AttendanceConcurrencyIntegrationTest {
                         new AttendanceActor(mentorId, GlobalRole.MENTOR),
                         submittedCorrection.id(),
                         CorrectionDecision.APPROVE,
-                        "pool-sized approval");
+                        "pool-sized approval",
+                        null);
                 return "CORRECTION_APPROVED";
             } catch (RuntimeException failure) {
                 return "FAILURE:" + failure.getClass().getSimpleName();
@@ -286,7 +342,7 @@ class AttendanceConcurrencyIntegrationTest {
         List<String> outcomes = runConcurrently(() -> {
             try {
                 corrections.decide(new AttendanceActor(mentorId, GlobalRole.MENTOR), submitted.id(),
-                        CorrectionDecision.APPROVE, "race");
+                        CorrectionDecision.APPROVE, "race", null);
                 return "SUCCESS";
             } catch (CorrectionException failure) {
                 return "CONFLICT";
@@ -301,6 +357,54 @@ class AttendanceConcurrencyIntegrationTest {
                 .containsExactly(CorrectionEventType.SUBMITTED, CorrectionEventType.APPROVED);
     }
 
+    /**
+     * Protects {@code COR-001} and {@code AC-COR-001}: two concurrent submissions on the same attendance row
+     * serialize so exactly one request and one SUBMITTED event commit, while the other receives the duplicate conflict refusal.
+     * Hand-derived expected values: one outcome "SUCCESS", one outcome "One correction request already exists for this attendance row",
+     * exactly 1 correction row in database, exactly 1 SUBMITTED event for that correction.
+     */
+    @Test
+    void concurrentSubmissionsOnSameAttendanceRowCommitOneCorrectionAndOneFailure() throws Exception {
+        long internId = createActiveIntern();
+        LocalDate workDate = LocalDate.of(2026, 11, 13);
+        long recordId = records.saveAndFlush(new AttendanceRecordEntity(
+                internId,
+                workDate,
+                1L,
+                Instant.parse("2026-11-13T02:00:00Z"),
+                null)).id();
+        clock.set(Instant.parse("2026-11-13T09:01:00Z"));
+
+        List<String> outcomes = runConcurrently(() -> {
+            try {
+                corrections.submit(
+                        new AttendanceActor(internId, GlobalRole.INTERN),
+                        recordId,
+                        new CorrectionRequestCommand(
+                                LocalDateTime.of(2026, 11, 13, 14, 0),
+                                "concurrent submission"));
+                return "SUCCESS";
+            } catch (CorrectionException failure) {
+                return failure.getMessage();
+            }
+        });
+
+        assertThat(outcomes).containsExactlyInAnyOrder(
+                "SUCCESS",
+                "One correction request already exists for this attendance row");
+        AttendanceCorrectionEntity persisted = correctionRequests.findByAttendanceRecordId(recordId).orElseThrow();
+        assertThat(correctionRequests.findAll().stream()
+                .filter(correction -> correction.attendanceRecordId() == recordId)
+                .count()).isEqualTo(1L);
+        assertThat(correctionEvents.findByCorrectionIdOrderByOccurredAtAscIdAsc(persisted.id()))
+                .extracting(event -> event.toView().type())
+                .containsExactly(CorrectionEventType.SUBMITTED);
+    }
+
+    /**
+     * Protects {@code LEV-013} and {@code LEV-007}: an edit racing a pending withdrawal finishes
+     * with one retained request state and records the owner transition as {@code WITHDRAWN}.
+     */
     @Test
     void poolSizedInternLeaveMutationBurstCompletesWithoutNestedExpiryConnection() throws Exception {
         long internId = createActiveIntern();
@@ -320,12 +424,12 @@ class AttendanceConcurrencyIntegrationTest {
                             LocalDate.of(2026, 11, 18), LocalDate.of(2026, 11, 18), "edited"));
                     return "EDITED";
                 }
-                leaves.cancel(actor, second.id());
-                return "CANCELLED";
+                leaves.withdraw(actor, second.id());
+                return "WITHDRAWN";
             } catch (RuntimeException failure) {
                 return "FAILURE:" + failure.getClass().getSimpleName();
             }
-        })).containsExactlyInAnyOrder("EDITED", "CANCELLED");
+        })).containsExactlyInAnyOrder("EDITED", "WITHDRAWN");
     }
 
     @Test
@@ -414,9 +518,10 @@ class AttendanceConcurrencyIntegrationTest {
                 LocalDate.of(2026, 8, 1),
                 LocalDate.of(2026, 12, 31)), adminId);
         assertThat(creation.deliverySucceeded()).isTrue();
-        assertThat(accounts.activate(mail.onlyActivationToken(), "new secure intern password")).isTrue();
+        assertThat(accounts.activate(mail.activationTokenFor("concurrency-intern@example.test"), "new secure intern password")).isTrue();
         internships.activateInternship(creation.userId(), adminId);
         concurrencyInternId = creation.userId();
+        linkResponsibleMentor();
         return concurrencyInternId;
     }
 
@@ -434,9 +539,17 @@ class AttendanceConcurrencyIntegrationTest {
                 null,
                 null), adminId);
         assertThat(creation.deliverySucceeded()).isTrue();
-        assertThat(accounts.activate(mail.onlyActivationToken(), "new secure mentor password")).isTrue();
+        assertThat(accounts.activate(mail.activationTokenFor("concurrency-mentor@example.test"), "new secure mentor password")).isTrue();
         concurrencyMentorId = creation.userId();
+        linkResponsibleMentor();
         return concurrencyMentorId;
+    }
+
+    private void linkResponsibleMentor() {
+        if (concurrencyMentorId != 0L && concurrencyInternId != 0L) {
+            jdbc.update("update intern_profiles set responsible_mentor_user_id = ? where user_id = ?",
+                    concurrencyMentorId, concurrencyInternId);
+        }
     }
 
     private static String punchOutcome(Runnable punch) {

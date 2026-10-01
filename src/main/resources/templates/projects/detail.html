@@ -25,9 +25,25 @@
         <div class="project-overview-status-block">
             <span class="project-overview-label">Current status</span>
             <span class="badge project-overview-status"
-                  th:classappend="${project.status == 'ACTIVE' ? ' badge-success' : project.status == 'COMPLETED' ? ' badge-info' : ' badge-warning'}"
+                  th:classappend="${project.status == 'ACTIVE' ? ' badge-success' : (project.status == 'COMPLETED' or project.status == 'CANCELLED') ? ' badge-info' : ' badge-warning'}"
                   th:text="${project.status}">PLANNED</span>
+            <div th:if="${project.status == 'CANCELLED'}">
+                <p>Cancelled by <span th:text="${project.cancelledByMentorName}">Mentor</span></p>
+                <p th:text="${#temporals.format(project.cancelledAt.atZone(T(java.time.ZoneId).of('Asia/Ho_Chi_Minh')), 'dd/MM/yyyy HH:mm')}">27/09/2026 10:00</p>
+                <p class="alert" th:text="${project.cancellationReason}">Cancellation reason</p>
+            </div>
         </div>
+    </section>
+
+    <section class="project-overview-actions" aria-labelledby="cancel-project-title"
+             th:if="${project.canManage and (project.status == 'PLANNED' or project.status == 'ACTIVE')}">
+        <h2 id="cancel-project-title">Cancel Project</h2>
+        <form method="post" th:action="@{/projects/{id}/cancel(id=${project.id})}"
+              data-confirm="Cancel this Project? Its history will be retained and the Project will become read-only.">
+            <label class="field-label" for="cancellationReason">Cancellation reason</label>
+            <textarea class="control" id="cancellationReason" name="reason" required maxlength="2000"></textarea>
+            <button class="button button-danger" type="submit">Cancel Project</button>
+        </form>
     </section>
 
     <p class="alert alert-error project-overview-alert" role="alert" th:if="${projectError}" th:text="${projectError}"></p>
@@ -82,8 +98,9 @@
             <form th:action="@{/projects/{id}/activate(id=${project.id})}" method="post">
                 <button class="button button-primary" type="submit">Activate</button>
             </form>
-            <form th:action="@{/projects/{id}/delete(id=${project.id})}" method="post"
-                  data-confirm="Delete this planned Project? Its memberships, invitations, Tasks, and history will be removed.">
+            <form th:if="${project.canDelete}"
+                  th:action="@{/projects/{id}/delete(id=${project.id})}" method="post"
+                  data-confirm="Delete this empty planned Project and its initial membership and leadership term?">
                 <button class="button button-danger" type="submit">Delete Project</button>
             </form>
         </div>

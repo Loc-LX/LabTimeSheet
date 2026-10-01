@@ -139,7 +139,8 @@ class InternWorkWindowIntegrationTest {
         SchedulerLockBarrier barrier = new SchedulerLockBarrier();
         AccountService schedulerAccounts = AccountServiceTestFactory.create(
                 gated(users, AppUserRepository.class, barrier),
-                tokens, mailDelivery, passwords, clock, transactions, sessions, publicOrigin);
+                tokens, mailDelivery, passwords, clock, transactions, sessions, publicOrigin,
+                InternWorkAuthorizationTestPolicy.create());
         InternshipService scheduler = new InternshipService(
                 schedulerAccounts,
                 gated(internProfiles, InternProfileRepository.class, barrier),

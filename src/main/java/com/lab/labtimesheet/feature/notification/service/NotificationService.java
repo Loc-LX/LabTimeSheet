@@ -12,6 +12,7 @@ import java.util.Objects;
 import java.util.Set;
 
 import com.lab.labtimesheet.feature.identity.service.AccountService;
+import com.lab.labtimesheet.feature.identity.model.dto.AccountIdentity;
 import com.lab.labtimesheet.feature.notification.model.NotificationEmailStatus;
 import com.lab.labtimesheet.feature.notification.model.NotificationType;
 import com.lab.labtimesheet.feature.notification.model.dto.NotificationAction;
@@ -23,6 +24,8 @@ import com.lab.labtimesheet.feature.notification.model.dto.NotificationRecipient
 import com.lab.labtimesheet.feature.notification.model.entity.NotificationEntity;
 import com.lab.labtimesheet.feature.notification.repository.NotificationRepository;
 import com.lab.labtimesheet.platform.service.MailDeliveryService;
+import com.lab.labtimesheet.platform.authorization.AuthorizationCapability;
+import com.lab.labtimesheet.platform.authorization.AuthorizationPolicy;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -58,13 +61,15 @@ public class NotificationService {
     private final Clock clock;
     private final PlatformTransactionManager transactionManager;
     private final AccountService accounts;
+    private final AuthorizationPolicy authorizationPolicy;
+    private final NotificationDeliveryDispatcher dispatcher;
 
     NotificationService(
             NotificationRepository notifications,
             MailDeliveryService mailDelivery,
             Clock clock,
             PlatformTransactionManager transactionManager) {
-        this(notifications, mailDelivery, clock, transactionManager, null);
+        this(notifications, mailDelivery, clock, transactionManager, null, null, new NotificationDeliveryDispatcher());
     }
 
     @Autowired
@@ -73,12 +78,16 @@ public class NotificationService {
             MailDeliveryService mailDelivery,
             Clock clock,
             PlatformTransactionManager transactionManager,
-            AccountService accounts) {
+            AccountService accounts,
+            AuthorizationPolicy authorizationPolicy,
+            NotificationDeliveryDispatcher dispatcher) {
         this.notifications = notifications;
         this.mailDelivery = mailDelivery;
         this.clock = clock;
         this.transactionManager = transactionManager;
         this.accounts = accounts;
+        this.authorizationPolicy = authorizationPolicy;
+        this.dispatcher = dispatcher;
     }
 
     /**
@@ -129,7 +138,8 @@ public class NotificationService {
         List<NotificationEntity> saved = distinctRecipients.values().stream()
                 // Mỗi recipient -> một NotificationEntity chưa persist, giữ action URL /projects/{id}.
                 .map(recipient -> NotificationEntity.create(
-                        recipient.userId(), event.type(), event.title(), body, action.actionUrl(), emailStatus,
+                        recipient.userId(), event.type(), event.title(), body, action.actionUrl(), action.projectId(),
+                        emailStatus,
                         smtpAvailable ? recipient.email() : null,
                         smtpAvailable ? event.title() : null,
                         smtpAvailable ? emailBody : null,
@@ -144,6 +154,20 @@ public class NotificationService {
             scheduleDelivery(saved.stream().map(NotificationEntity::getId).toList());
         }
         return saved.size();
+    }
+
+    /**
+     * Deletes notification rows explicitly linked to a Project before that Project is removed.
+     *
+     * @param projectId Project whose notifications are being removed
+     * @return number of linked notification rows deleted
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public int deleteByProjectId(long projectId) {
+        if (projectId <= 0) {
+            throw new IllegalArgumentException("Project identifier must be positive");
+        }
+        return notifications.deleteByProjectId(projectId);
     }
 
     /**
@@ -188,18 +212,23 @@ public class NotificationService {
     }
 
     /**
-     * Processes one bounded due ordinary-email retry batch while holding each row lock through its external send.
-     * A failed attempt retains the exact next delay; the sixth total attempt becomes terminal {@code FAILED}.
+     * Processes one bounded due ordinary-email retry batch.
+     * Each notification acquires a 5-minute lease in a short transaction before external send,
+     * releasing database locks during the network call and preventing duplicate delivery.
      *
      * @return number of due rows attempted
      */
-    @Transactional
     public int retryDueEmails() {
         Instant now = clock.instant();
-        List<NotificationEntity> due = notifications.findDueEmailRetries(
-                NotificationEmailStatus.PENDING, now, PageRequest.of(0, RETRY_BATCH_SIZE));
-        due.forEach(this::retryLocked);
-        return due.size();
+        List<Long> dueIds = notifications.findDueEmailRetries(
+                NotificationEmailStatus.PENDING, now, PageRequest.of(0, RETRY_BATCH_SIZE))
+                .stream()
+                .map(NotificationEntity::getId)
+                .toList();
+        for (Long id : dueIds) {
+            deliver(id);
+        }
+        return dueIds.size();
     }
 
     /**
@@ -210,14 +239,15 @@ public class NotificationService {
      */
     @Transactional(readOnly = true)
     public List<NotificationDeliveryView> failedEmailViews(long adminId) {
-        requireAccountService().requireActiveAdminId(adminId);
+        requireActiveAdminId(adminId);
         return notifications.findByEmailStatusOrderByUpdatedAtDescIdDesc(NotificationEmailStatus.FAILED).stream()
                 .map(NotificationService::deliveryView)
                 .toList();
     }
 
     /**
-     * Re-enters one terminal failed ordinary email into a fresh bounded retry cycle and attempts it immediately.
+     * Re-enters one terminal failed ordinary email into a fresh bounded retry cycle and
+     * dispatches delivery asynchronously after commit.
      * The existing in-app notification row is reused.
      *
      * @param notificationId failed notification identifier
@@ -226,13 +256,22 @@ public class NotificationService {
      */
     @Transactional
     public boolean retryFailedEmail(long notificationId, long adminId) {
-        requireAccountService().requireActiveAdminId(adminId);
+        requireActiveAdminId(adminId);
         NotificationEntity notification = notifications.findForUpdateById(notificationId).orElse(null);
         if (notification == null || notification.getEmailStatus() != NotificationEmailStatus.FAILED) {
             return false;
         }
         notification.requeueFailedEmail(clock.instant());
-        retryLocked(notification);
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    dispatcher.dispatch(notificationId, NotificationService.this::deliver);
+                }
+            });
+        } else {
+            dispatcher.dispatch(notificationId, this::deliver);
+        }
         return true;
     }
 
@@ -247,7 +286,7 @@ public class NotificationService {
         return new NotificationDeliveryView(
                 notification.getId(), notification.getRecipientUserId(), notification.getTitle(),
                 notification.getEmailStatus(), notification.getEmailAttempts(), notification.getEmailNextAttemptAt(),
-                notification.getUpdatedAt());
+                notification.getUpdatedAt(), notification.getEmailTo(), notification.getEmailLastError());
     }
 
     private AccountService requireAccountService() {
@@ -255,6 +294,20 @@ public class NotificationService {
             throw new IllegalStateException("Account authorization is unavailable");
         }
         return accounts;
+    }
+
+    private long requireActiveAdminId(long adminId) {
+        AccountIdentity identity = requireAccountService().identityById(adminId).orElse(null);
+        boolean allowed = authorizationPolicy.allows(
+                AuthorizationCapability.GLOBAL_CONFIGURATION,
+                NotificationAuthorizationRequests.activeAdmin(identity));
+        if (identity == null) {
+            throw new IllegalArgumentException("Admin not found");
+        }
+        if (!allowed) {
+            throw new IllegalArgumentException("An active Admin is required");
+        }
+        return adminId;
     }
 
     private void validateSelfTaskShape(NotificationEvent event, NotificationAction action) {
@@ -286,40 +339,66 @@ public class NotificationService {
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
-                ids.forEach(NotificationService.this::deliver);
+                dispatcher.dispatch(ids, NotificationService.this::deliver);
             }
         });
     }
 
-    private void deliver(long notificationId) {
+    void deliver(long notificationId) {
+        Delivery delivery;
         try {
-            // Keep this transaction open through the SMTP attempt. sendOutsideTransaction suspends only its
-            // resources, leaving this row lock held until the SENT/PENDING transition is committed.
-            executeInNewTransaction(status -> {
-                notifications.findForUpdateById(notificationId)
-                        .filter(notification -> notification.getEmailStatus() == NotificationEmailStatus.PENDING)
-                        .ifPresent(this::retryLocked);
-                return null;
+            delivery = executeInNewTransaction(status -> {
+                Instant now = clock.instant();
+                Instant leaseExpiresAt = now.plus(Duration.ofMinutes(5));
+                int acquired = notifications.acquireEmailDeliveryLease(notificationId, now, leaseExpiresAt);
+                if (acquired != 1) {
+                    return null;
+                }
+                return notifications.findById(notificationId)
+                        .map(n -> new Delivery(n.getEmailTo(), n.getEmailSubject(), n.getEmailBody()))
+                        .orElse(null);
             });
         } catch (RuntimeException failure) {
-            // A post-commit state/adapter failure must not starve later recipients in this callback.
-            log.warn("Notification delivery attempt could not complete for id {} ({})",
-                    notificationId, failure.getClass().getSimpleName());
+            log.warn("Failed to acquire delivery lease for notification id {}", notificationId, failure);
+            return;
         }
-    }
 
-    private void retryLocked(NotificationEntity notification) {
-        Delivery delivery = new Delivery(
-                notification.getEmailTo(), notification.getEmailSubject(), notification.getEmailBody());
+        if (delivery == null) {
+            return;
+        }
+
+        boolean sent = false;
+        RuntimeException sendFailure = null;
         try {
-            sendOutsideTransaction(delivery);
-            notification.markSent(clock.instant());
+            mailDelivery.send(delivery.recipient(), delivery.subject(), delivery.body());
+            sent = true;
         } catch (RuntimeException failure) {
-            Instant failedAt = clock.instant();
-            notification.retainPendingRetry(
-                    failedAt,
-                    failedAt.plus(retryDelay(notification.getEmailAttempts())),
-                    failure.getClass().getSimpleName());
+            sendFailure = failure;
+        }
+
+        try {
+            if (sent) {
+                executeInNewTransaction(status -> {
+                    notifications.findForUpdateById(notificationId)
+                            .ifPresent(n -> n.markSent(clock.instant()));
+                    return null;
+                });
+            } else {
+                final RuntimeException failure = sendFailure;
+                executeInNewTransaction(status -> {
+                    notifications.findForUpdateById(notificationId)
+                            .ifPresent(n -> {
+                                Instant failedAt = clock.instant();
+                                n.retainPendingRetry(
+                                        failedAt,
+                                        failedAt.plus(retryDelay(n.getEmailAttempts())),
+                                        failure.getClass().getSimpleName());
+                            });
+                    return null;
+                });
+            }
+        } catch (RuntimeException failure) {
+            log.warn("Failed to update notification delivery status for id {}", notificationId, failure);
         }
     }
 
@@ -337,14 +416,6 @@ public class NotificationService {
         DefaultTransactionDefinition definition = new DefaultTransactionDefinition();
         definition.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
         return new TransactionTemplate(transactionManager, definition).execute(callback);
-    }
-
-    private void sendOutsideTransaction(Delivery delivery) {
-        DefaultTransactionDefinition definition = new DefaultTransactionDefinition();
-        definition.setPropagationBehavior(TransactionDefinition.PROPAGATION_NOT_SUPPORTED);
-        new TransactionTemplate(transactionManager, definition)
-                .executeWithoutResult(status -> mailDelivery.send(
-                        delivery.recipient(), delivery.subject(), delivery.body()));
     }
 
     private record Delivery(String recipient, String subject, String body) {

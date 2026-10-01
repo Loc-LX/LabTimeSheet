@@ -14,6 +14,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.spy;
 
 import com.lab.labtimesheet.feature.identity.model.AccountStatus;
 import com.lab.labtimesheet.feature.internship.model.InternshipStatus;
@@ -30,6 +31,7 @@ import com.lab.labtimesheet.feature.project.model.dto.ProjectTaskMemberView;
 import com.lab.labtimesheet.feature.project.service.ProjectQueryService;
 import com.lab.labtimesheet.feature.project.service.ProjectService;
 import com.lab.labtimesheet.feature.project.exception.TaskConflictException;
+import com.lab.labtimesheet.feature.project.exception.TaskNotFoundException;
 import com.lab.labtimesheet.feature.project.exception.TaskValidationException;
 import com.lab.labtimesheet.feature.project.model.TaskStatus;
 import com.lab.labtimesheet.feature.project.model.dto.CreateTaskCommand;
@@ -41,8 +43,11 @@ import com.lab.labtimesheet.feature.project.model.entity.TaskWorkLog;
 import com.lab.labtimesheet.feature.project.repository.TaskCommentRepository;
 import com.lab.labtimesheet.feature.project.repository.TaskRemainingEffortForecastRepository;
 import com.lab.labtimesheet.feature.project.repository.TaskRepository;
+import com.lab.labtimesheet.feature.project.repository.TaskStatusTransitionRepository;
 import com.lab.labtimesheet.feature.project.repository.TaskWorkLogRepository;
 import com.lab.labtimesheet.platform.model.GlobalRole;
+import com.lab.labtimesheet.platform.authorization.AuthorizationCatalogue;
+import com.lab.labtimesheet.platform.authorization.AuthorizationPolicy;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -67,6 +72,7 @@ class TaskMutationBoundaryTest {
     private static final Instant JOINED = Instant.parse("2026-08-01T00:00:00Z");
 
     @Mock private TaskRepository tasks;
+    @Mock private TaskStatusTransitionRepository statusTransitions;
     @Mock private TaskCommentRepository comments;
     @Mock private TaskWorkLogRepository workLogs;
     @Mock private ProjectQueryService projectQueries;
@@ -76,6 +82,8 @@ class TaskMutationBoundaryTest {
     @Mock private InternshipService internships;
     @Mock private NotificationService notifications;
     @Mock private TaskRemainingEffortForecastRepository forecasts;
+    private final AuthorizationPolicy authorizationPolicy =
+            spy(new AuthorizationPolicy(AuthorizationCatalogue.loadDefault()));
 
     private TaskService service;
     private ProjectTaskContext context;
@@ -84,6 +92,7 @@ class TaskMutationBoundaryTest {
     void setUp() {
         service = new TaskService(
                 tasks,
+                statusTransitions,
                 comments,
                 workLogs,
                 projectQueries,
@@ -93,7 +102,8 @@ class TaskMutationBoundaryTest {
                 accounts,
                 internships,
                 notifications,
-                forecasts);
+                forecasts,
+                authorizationPolicy);
         context = new ProjectTaskContext(
                 10L,
                 3L,
@@ -106,6 +116,10 @@ class TaskMutationBoundaryTest {
         lenient().when(accounts.requireAccountIdByEmail("member@example.test")).thenReturn(5L);
         lenient().when(accounts.requireIdentityById(5L)).thenReturn(new AccountIdentity(
                 5L, "member@example.test", "Member", GlobalRole.INTERN, AccountStatus.ACTIVE));
+        lenient().when(accounts.requireIdentityById(6L)).thenReturn(new AccountIdentity(
+                6L, "leader@example.test", "Leader", GlobalRole.INTERN, AccountStatus.ACTIVE));
+        lenient().when(accounts.requireIdentityById(3L)).thenReturn(new AccountIdentity(
+                3L, "mentor@example.test", "Mentor", GlobalRole.MENTOR, AccountStatus.ACTIVE));
         lenient().when(projectMutations.taskMutationContext(5L, 10L)).thenReturn(context);
     }
 
@@ -175,6 +189,7 @@ class TaskMutationBoundaryTest {
     }
 
     @Test
+    /** Protects AUTH-012 and the "Create/edit own Task work log" row: an allowed log write must be checked by that policy capability. */
     void pendingExitCurrentAssigneeRetainsExistingWorkLogRight() {
         LocalDate workDate = LocalDate.of(2026, 8, 14);
         ProjectTaskContext pending = new ProjectTaskContext(
@@ -188,7 +203,8 @@ class TaskMutationBoundaryTest {
                 Set.of(70L));
         when(projectMutations.taskMutationContext(5L, 10L)).thenReturn(pending);
         Task task = mock(Task.class);
-        when(task.getAssigneeMembershipId()).thenReturn(70L);
+        lenient().when(task.getAssigneeMembershipId()).thenReturn(70L);
+        lenient().when(task.getStatus()).thenReturn(TaskStatus.TODO);
         TaskWorkLog saved = mock(TaskWorkLog.class);
         when(tasks.findLockedByIdAndProjectIdAndDeletedAtIsNull(25L, 10L))
                 .thenReturn(Optional.of(task));
@@ -214,6 +230,9 @@ class TaskMutationBoundaryTest {
 
         service.addWorkLog("member@example.test", 10L, 25L, workDate, 60, "Existing right");
 
+        verify(authorizationPolicy).allows(
+                eq(com.lab.labtimesheet.platform.authorization.AuthorizationCapability.OWN_TASK_WORK_LOG),
+                any(com.lab.labtimesheet.platform.authorization.AuthorizationRequest.class));
         verify(workLogs).saveAndFlush(any(TaskWorkLog.class));
     }
 
@@ -480,19 +499,25 @@ class TaskMutationBoundaryTest {
         return task;
     }
 
+    /**
+     * Protects {@code AUTH-012} and {@code TSK-023}. Observable break: without policy enforcement the owning Mentor
+     * can move an ACTIVE Project Task from TODO to IN_PROGRESS; §5.2 grants only the five encoded edges.
+     */
     @Test
-    void owningMentorCanChangeStatusForAnyProjectTask() {
+    void owningMentorCannotSetAnUnlistedTaskStatus() {
         when(accounts.requireAccountIdByEmail("mentor@example.test")).thenReturn(3L);
         when(projectMutations.taskMutationContext(3L, 10L)).thenReturn(context);
-        Task task = taskForView(TaskStatus.TODO);
+        Task task = mock(Task.class);
+        when(task.getStatus()).thenReturn(TaskStatus.TODO);
         when(tasks.findLockedByIdAndProjectIdAndDeletedAtIsNull(25L, 10L))
                 .thenReturn(Optional.of(task));
-        when(tasks.saveAndFlush(task)).thenReturn(task);
 
-        service.changeStatus("mentor@example.test", 10L, 25L, TaskStatus.IN_PROGRESS);
+        assertThatThrownBy(() -> service.changeStatus(
+                        "mentor@example.test", 10L, 25L, TaskStatus.IN_PROGRESS))
+                .isInstanceOf(TaskNotFoundException.class);
 
-        verify(task).changeStatus(TaskStatus.IN_PROGRESS, NOW);
-        verify(tasks).saveAndFlush(task);
+        verify(task, never()).changeStatus(TaskStatus.IN_PROGRESS, NOW);
+        verify(tasks, never()).saveAndFlush(task);
     }
 
     @Test
@@ -542,6 +567,7 @@ class TaskMutationBoundaryTest {
         LocalDate workDate = LocalDate.of(2026, 8, 14);
         Task task = org.mockito.Mockito.mock(Task.class);
         when(task.getAssigneeMembershipId()).thenReturn(70L);
+        when(task.getStatus()).thenReturn(TaskStatus.TODO);
         TaskWorkLog saved = org.mockito.Mockito.mock(TaskWorkLog.class);
         when(tasks.findLockedByIdAndProjectIdAndDeletedAtIsNull(25L, 10L))
                 .thenReturn(Optional.of(task));
@@ -606,6 +632,7 @@ class TaskMutationBoundaryTest {
         TaskWorkLogCandidate candidate = new TaskWorkLogCandidate(90L, 10L, 25L, 70L, workDate);
         TaskWorkLog locked = org.mockito.Mockito.mock(TaskWorkLog.class);
         Task task = org.mockito.Mockito.mock(Task.class);
+        when(task.getStatus()).thenReturn(TaskStatus.TODO);
         when(locked.getProjectId()).thenReturn(10L);
         when(locked.getTaskId()).thenReturn(25L);
         when(locked.getMembershipId()).thenReturn(70L);

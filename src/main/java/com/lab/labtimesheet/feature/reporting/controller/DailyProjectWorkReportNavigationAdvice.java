@@ -3,15 +3,18 @@ package com.lab.labtimesheet.feature.reporting.controller;
 import com.lab.labtimesheet.feature.project.exception.ProjectAccessDeniedException;
 import com.lab.labtimesheet.feature.project.model.dto.ProjectActorView;
 import com.lab.labtimesheet.feature.project.service.ProjectQueryService;
-import com.lab.labtimesheet.feature.reporting.model.dto.DailyProjectWorkReportNavigation;
+import com.lab.labtimesheet.platform.authorization.AuthorizationCapability;
+import com.lab.labtimesheet.platform.authorization.AuthorizationColumn;
+import com.lab.labtimesheet.platform.authorization.AuthorizationPolicy;
+import com.lab.labtimesheet.platform.authorization.AuthorizationRequest;
 import jakarta.servlet.DispatcherType;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.GrantedAuthority;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ModelAttribute;
+import java.util.Set;
 
 /**
  * Adds the server-derived current-Leader Daily-report capability to every server-rendered page.
@@ -25,6 +28,7 @@ import org.springframework.web.bind.annotation.ModelAttribute;
 public class DailyProjectWorkReportNavigationAdvice {
 
     private final ObjectProvider<ProjectQueryService> projectQueries;
+    private final ObjectProvider<AuthorizationPolicy> authorizationPolicies;
 
     /**
      * Supplies a Boolean capability for the shared shell. The full ordered Project list is
@@ -32,34 +36,52 @@ public class DailyProjectWorkReportNavigationAdvice {
      *
      * @param authentication authenticated caller, or null for a public page
      * @param request current MVC request, used to avoid capability queries for mutations/exports
-     * @return immutable navigation capability state
+     * @return policy input for a visible Admin, Mentor, or current-Leader Daily entry
      */
-    @ModelAttribute("dailyReportNavigation")
-    public DailyProjectWorkReportNavigation navigation(
+    @ModelAttribute("dailyReportAllowed")
+    public boolean authorizationRequest(
             Authentication authentication, HttpServletRequest request) {
-        if (authentication == null || !hasInternAuthority(authentication)
+        if (authentication == null || !authentication.isAuthenticated()
                 || request == null || isErrorRequest(request) || !isCapabilityRequest(request)) {
-            return emptyNavigation();
+            return false;
+        }
+        AuthorizationPolicy authorizationPolicy = authorizationPolicies.getIfAvailable();
+        if (authorizationPolicy == null) {
+            return false;
         }
         ProjectQueryService queries = projectQueries.getIfAvailable();
         if (queries == null) {
-            return emptyNavigation();
+            return false;
         }
         try {
             ProjectActorView actor = queries.authenticatedActor(authentication.getName());
-            if (actor == null || !"INTERN".equals(actor.role())) {
-                return emptyNavigation();
+            if (actor == null) {
+                return false;
             }
-            return new DailyProjectWorkReportNavigation(
-                    queries.hasCurrentLeaderProjectForDailyReport(actor.userId()));
+            if ("ADMIN".equals(actor.role())) {
+                return authorizationPolicy.allows(AuthorizationCapability.DAILY_PROJECT_REPORT,
+                        request(AuthorizationColumn.ADMIN, null));
+            }
+            if ("MENTOR".equals(actor.role())) {
+                return authorizationPolicy.allows(AuthorizationCapability.DAILY_PROJECT_REPORT,
+                        request(AuthorizationColumn.OWNING_MENTOR, null));
+            }
+            if (!"INTERN".equals(actor.role())) {
+                return false;
+            }
+            return queries.listCurrentLeaderProjectsForDailyReport(actor.userId()).stream()
+                    .filter(project -> authorizationPolicy.allows(
+                            AuthorizationCapability.DAILY_PROJECT_REPORT,
+                            request(AuthorizationColumn.CURRENT_LEADER, project.status())))
+                    .findFirst().isPresent();
         } catch (ProjectAccessDeniedException | IllegalArgumentException denied) {
             // Navigation must fail closed when the active account or Project snapshot is unavailable.
-            return emptyNavigation();
+            return false;
         }
     }
 
-    private static DailyProjectWorkReportNavigation emptyNavigation() {
-        return new DailyProjectWorkReportNavigation(false);
+    private static AuthorizationRequest request(AuthorizationColumn column, String scopeState) {
+        return new AuthorizationRequest(Set.of(column), scopeState, null, null);
     }
 
     private static boolean isCapabilityRequest(HttpServletRequest request) {
@@ -77,14 +99,4 @@ public class DailyProjectWorkReportNavigationAdvice {
                 || errorPath.equals(request.getRequestURI());
     }
 
-    private static boolean hasInternAuthority(Authentication authentication) {
-        if (authentication.getAuthorities().stream()
-                .map(GrantedAuthority::getAuthority)
-                .anyMatch("ROLE_ADMIN"::equals)) {
-            return false;
-        }
-        return authentication.getAuthorities().stream()
-                .map(GrantedAuthority::getAuthority)
-                .anyMatch("ROLE_INTERN"::equals);
-    }
 }

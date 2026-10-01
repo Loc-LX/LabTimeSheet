@@ -12,7 +12,7 @@ import org.springframework.data.repository.query.Param;
 public interface LeaveRequestDayRepository extends JpaRepository<LeaveRequestDayEntity, LeaveRequestDayId> {
 
     /**
-     * Counts reserved days in one quota month for pending/approved requests.
+     * Counts reserved days in one quota month for pending/overdue/approved requests.
      *
      * @param internId owning Intern
      * @param quotaMonth first date of the month
@@ -25,6 +25,7 @@ public interface LeaveRequestDayRepository extends JpaRepository<LeaveRequestDay
             where request.internUserId = :internId
               and day.quotaMonth = :quotaMonth
               and request.status in :statuses
+              and day.approvalWithdrawnAt is null
             """)
     long countReserved(
             @Param("internId") long internId,
@@ -47,6 +48,7 @@ public interface LeaveRequestDayRepository extends JpaRepository<LeaveRequestDay
               and day.quotaMonth = :quotaMonth
               and request.status in :statuses
               and (:excludeId is null or request.id <> :excludeId)
+              and day.approvalWithdrawnAt is null
             """)
     long countReservedExcluding(
             @Param("internId") long internId,
@@ -70,6 +72,7 @@ public interface LeaveRequestDayRepository extends JpaRepository<LeaveRequestDay
               and day.quotaMonth = :quotaMonth
               and request.status in :statuses
               and (request.startDate < :quotaMonth or request.endDate >= :nextMonth)
+              and day.approvalWithdrawnAt is null
             """)
     long countReservedCrossMonth(
             @Param("internId") long internId,

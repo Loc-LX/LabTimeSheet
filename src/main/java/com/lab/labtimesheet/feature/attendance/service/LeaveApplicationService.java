@@ -11,9 +11,13 @@ import com.lab.labtimesheet.feature.internship.model.dto.LockedAccountMutationEl
 import com.lab.labtimesheet.feature.identity.service.AccountService;
 import com.lab.labtimesheet.feature.internship.service.InternshipService;
 import com.lab.labtimesheet.feature.attendance.exception.LeaveException;
+import com.lab.labtimesheet.feature.attendance.exception.AttendanceRecordNotFoundException;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
 import com.lab.labtimesheet.feature.calendar.model.AttendancePolicy;
 import com.lab.labtimesheet.platform.model.GlobalRole;
+import com.lab.labtimesheet.platform.authorization.AuthorizationCapability;
+import com.lab.labtimesheet.platform.authorization.AuthorizationPolicy;
+import com.lab.labtimesheet.platform.authorization.AuthorizationRequest;
 import com.lab.labtimesheet.feature.attendance.model.LeaveStatus;
 import com.lab.labtimesheet.feature.attendance.model.dto.LeaveAllocation;
 import com.lab.labtimesheet.feature.attendance.model.dto.LeaveBalance;
@@ -21,8 +25,10 @@ import com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestCommand;
 import com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestSummary;
 import com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestView;
 import com.lab.labtimesheet.feature.attendance.model.entity.LeaveRequestDayEntity;
+import com.lab.labtimesheet.feature.attendance.model.entity.LeaveRequestDecisionEntity;
 import com.lab.labtimesheet.feature.attendance.model.entity.LeaveRequestEntity;
 import com.lab.labtimesheet.feature.attendance.repository.LeaveRequestDayRepository;
+import com.lab.labtimesheet.feature.attendance.repository.LeaveRequestDecisionRepository;
 import com.lab.labtimesheet.feature.attendance.repository.LeaveRequestRepository;
 import com.lab.labtimesheet.feature.notification.model.NotificationType;
 import com.lab.labtimesheet.feature.notification.model.dto.NotificationAction;
@@ -56,7 +62,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * Transactional boundary for full-day leave requests and their frozen policy/quota allocations.
- * Pending and approved rows reserve quota; rejected and cancelled rows retain history but release it logically.
+ * Pending, overdue, and approved rows reserve quota; rejected, withdrawn, and cancelled rows retain history but release it logically.
  * Submission and decision notifications are published in the same transaction; cancellation deliberately remains
  * silent under the notification requirements.
  */
@@ -64,34 +70,39 @@ import org.springframework.transaction.support.TransactionTemplate;
 @RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 public class LeaveApplicationService {
 
-    private static final List<String> RESERVED = List.of(LeaveStatus.PENDING.name(), LeaveStatus.APPROVED.name());
+    private static final List<String> RESERVED = List.of(
+            LeaveStatus.PENDING.name(), LeaveStatus.OVERDUE.name(), LeaveStatus.APPROVED.name());
 
     private final Clock clock;
     private final LeaveRequestRepository requests;
     private final LeaveRequestDayRepository days;
+    private final LeaveRequestDecisionRepository decisions;
     private final AccountService accounts;
     private final InternshipService internships;
     private final CalendarApplicationService calendar;
     private final TransactionTemplate transactions;
     private final NotificationService notifications;
+    private final AuthorizationPolicy authorizationPolicy;
+    private final AttendanceExceptionNotificationRecipients recipients;
 
     /**
      * Lists retained leave requests visible to the authenticated Attendance actor.
      *
      * <p>Interns receive only their own rows. Active global Mentors and Admins receive the
      * decision/read-only queue respectively. Pending rows whose first counted start has
-     * arrived are locked and auto-rejected before the actionable queue is built, so a late
+     * arrived are locked and marked overdue before the actionable queue is built, so a late
      * scheduler cannot leave stale decision affordances on this first-access read path.</p>
      *
      * @param actor authenticated Attendance actor
-     * @return actionable pending summaries first, followed by retained history in newest-first order
+     * @return actionable pending/overdue summaries first, followed by retained history in newest-first order
      */
     @Transactional
     public List<LeaveRequestSummary> list(AttendanceActor actor) {
         AccountIdentity identity = requireListActor(actor);
-        if (identity.status() != AccountStatus.ACTIVE) {
-            throw new AccessDeniedException("An active account is required");
-        }
+        AuthorizationRequest policyRequest = AttendanceAuthorizationRequests.request(
+                actor, identity.status() == AccountStatus.ACTIVE, actor.userId(), identity.status().name());
+        AttendanceAuthorizationRequests.requireAllowed(
+                authorizationPolicy, AuthorizationCapability.VIEW_INTERN_ATTENDANCE, policyRequest);
         List<LeaveRequestEntity> visible = actor.role() == GlobalRole.INTERN
                 ? requests.findByInternUserIdOrderBySubmittedAtDescIdDesc(actor.userId())
                 : requests.findAllByOrderBySubmittedAtDescIdDesc();
@@ -101,7 +112,8 @@ public class LeaveApplicationService {
                         request.id(), request.internUserId(), request.startDate(), request.endDate(),
                         request.reason(), request.status(), request.submittedAt()))
                 .sorted(Comparator.comparing(
-                                (LeaveRequestSummary row) -> row.status() != LeaveStatus.PENDING)
+                                (LeaveRequestSummary row) -> row.status() != LeaveStatus.PENDING
+                                        && row.status() != LeaveStatus.OVERDUE)
                         .thenComparing(LeaveRequestSummary::submittedAt,
                                 Comparator.nullsLast(Comparator.reverseOrder()))
                         .thenComparing(LeaveRequestSummary::id, Comparator.reverseOrder()))
@@ -130,11 +142,10 @@ public class LeaveApplicationService {
                         .sorted()
                         .toList());
         requireActiveExpiryActor(actor, lockedAccounts);
-        Map<Long, AccountIdentity> ownerIdentities = identities(ownerIds);
         for (LeaveRequestEntity candidate : due) {
             LeaveRequestEntity request = lockedRequest(candidate.id());
             requireReader(actor, request, lockedAccounts);
-            expireIfNeeded(request, clock.instant(), ownerIdentities.get(request.internUserId()));
+            expireIfNeeded(request, clock.instant());
         }
     }
 
@@ -152,14 +163,19 @@ public class LeaveApplicationService {
      */
     @Transactional(readOnly = true)
     public LeaveBalance balance(AttendanceActor actor, YearMonth month) {
-        requireIntern(actor);
-        if (month == null) {
-            throw new IllegalArgumentException("Leave balance month is required");
+        if (actor == null) {
+            throw new AccessDeniedException("An attendance actor is required");
         }
         AccountIdentity identity = accounts.requireIdentityById(actor.userId());
-        if (identity.status() != AccountStatus.ACTIVE
-                || identity.role() != GlobalRole.INTERN) {
-            throw new AccessDeniedException("An active Intern is required");
+        if (identity.role() != GlobalRole.INTERN || identity.role() != actor.role()) {
+            throw new AccessDeniedException("Leave balance target must be the authenticated Intern");
+        }
+        AuthorizationRequest policyRequest = AttendanceAuthorizationRequests.request(
+                actor, identity.status() == AccountStatus.ACTIVE, actor.userId(), identity.status().name());
+        AttendanceAuthorizationRequests.requireAllowed(
+                authorizationPolicy, AuthorizationCapability.VIEW_INTERN_ATTENDANCE, policyRequest);
+        if (month == null) {
+            throw new IllegalArgumentException("Leave balance month is required");
         }
         LocalDate quotaMonth = month.atDay(1);
         int quota = timeline().resolve(quotaMonth).monthlyLeaveQuota();
@@ -176,11 +192,31 @@ public class LeaveApplicationService {
     }
 
     /**
+     * Reports whether an Intern has a pending or overdue request touching a business month.
+     *
+     * <p>ATT-019 through ATT-021 must consult this property before finalizing a period; AC-ATT-009 for Leave is
+     * proven when period finalization is implemented.</p>
+     *
+     * @param internUserId Intern account identifier
+     * @param month business month to check
+     * @return {@code true} when at least one unresolved request overlaps the month
+     */
+    @Transactional(readOnly = true)
+    public boolean hasUnresolvedLeaveRequest(long internUserId, YearMonth month) {
+        if (internUserId <= 0 || month == null) {
+            throw new IllegalArgumentException("Intern and business month are required");
+        }
+        List<String> unresolved = List.of(LeaveStatus.PENDING.name(), LeaveStatus.OVERDUE.name());
+        return requests.existsUnresolvedRequestForInternAndMonth(
+                internUserId, unresolved, month.atDay(1), month.atEndOfMonth());
+    }
+
+    /**
      * Submits one full-day inclusive request and materializes eligible workdays with policy/quota snapshots.
      * The account and Intern profile are pessimistically locked through the allocation and quota writes, while the
      * requested dates are checked against the account service's inclusive lifecycle window.
      *
-     * <p>The submission notification is written in this transaction for every active global Mentor. SMTP absence is
+     * <p>The submission notification is written in this transaction for the responsible Mentor or fallback Admins. SMTP absence is
      * represented by the notification boundary and does not roll back the leave request.</p>
      *
      * @param actor authenticated Intern owner
@@ -189,18 +225,27 @@ public class LeaveApplicationService {
      */
     @Transactional
     public LeaveRequestView submit(AttendanceActor actor, LeaveRequestCommand command) {
-        requireIntern(actor);
+        if (actor == null) {
+            throw new AccessDeniedException("An attendance actor is required");
+        }
         Objects.requireNonNull(command, "command");
-        List<Long> mentorIds = accounts.activeGlobalMentorIdentities().stream()
-                .map(AccountIdentity::id)
-                .toList();
-        Map<Long, LockedAccountMutationEligibility> lockedAccounts = lockAccounts(
-                accountIds(actor.userId(), mentorIds));
-        List<AccountIdentity> mentorIdentities = mentorIds.stream()
-                .map(accounts::requireIdentityById)
-                .toList();
+        AccountIdentity actorIdentity = accounts.requireIdentityById(actor.userId());
+        AuthorizationRequest policyRequest = AttendanceAuthorizationRequests.request(
+                actor,
+                actorIdentity.status() == AccountStatus.ACTIVE && actorIdentity.role() == actor.role(),
+                actor.userId(),
+                actorIdentity.status().name());
+        if (actor.role() != GlobalRole.INTERN) {
+            AttendanceAuthorizationRequests.requireAllowed(
+                    authorizationPolicy, AuthorizationCapability.SUBMIT_ATTENDANCE_REQUEST, policyRequest);
+        }
+        lockAccounts(List.of(actor.userId()));
         InternWorkWindow window = lockEligibleIntern(
                 actor.userId(), command.startDate(), command.endDate());
+        if (actor.role() == GlobalRole.INTERN) {
+            AttendanceAuthorizationRequests.requireAllowed(
+                    authorizationPolicy, AuthorizationCapability.SUBMIT_ATTENDANCE_REQUEST, policyRequest);
+        }
         Instant now = clock.instant();
         List<AllocatedDate> allocations = allocations(window, command.startDate(), command.endDate());
         if (allocations.isEmpty()) {
@@ -225,7 +270,7 @@ public class LeaveApplicationService {
         try {
             request = requests.saveAndFlush(request);
             persistAllocations(request, allocations);
-            publishSubmissionNotification(activeMentorRecipients(mentorIdentities, lockedAccounts));
+            publishSubmissionNotification(recipients.forIntern(actor.userId()));
             return view(request);
         } catch (DataIntegrityViolationException conflict) {
             throw new LeaveException("Leave overlaps an existing active request", conflict);
@@ -261,9 +306,11 @@ public class LeaveApplicationService {
      * @param requestId request identifier
      * @param command replacement inclusive range and reason
      * @return updated request with freshly frozen allocations
-     */
+    */
     public LeaveRequestView edit(AttendanceActor actor, long requestId, LeaveRequestCommand command) {
-        requireIntern(actor);
+        if (actor == null) {
+            throw new AccessDeniedException("An attendance actor is required");
+        }
         Objects.requireNonNull(command, "command");
         MutationOutcome outcome = independentTransactions().execute(status -> editInTransaction(actor, requestId, command));
         if (outcome.expired()) {
@@ -275,25 +322,36 @@ public class LeaveApplicationService {
     private MutationOutcome editInTransaction(
             AttendanceActor actor, long requestId, LeaveRequestCommand command) {
         long ownerId = requests.findInternUserIdById(requestId)
-                .orElseThrow(() -> new LeaveException("Leave request not found"));
-        lockAccounts(List.of(actor.userId(), ownerId));
+                .orElseThrow(AttendanceRecordNotFoundException::new);
+        Map<Long, LockedAccountMutationEligibility> lockedAccounts = lockAccounts(List.of(actor.userId(), ownerId));
         AccountIdentity ownerIdentity = accounts.requireIdentityById(ownerId);
+        if (ownerIdentity.role() != GlobalRole.INTERN) {
+            throw new AttendanceRecordNotFoundException();
+        }
+        LockedAccountMutationEligibility lockedActor = lockedAccounts.get(actor.userId());
+        boolean activeActor = lockedActor != null
+                && lockedActor.accountStatus() == AccountStatus.ACTIVE
+                && lockedActor.role() == actor.role();
         LeaveRequestEntity request = lockedRequest(requestId);
         requireOwner(request, actor.userId());
+        AuthorizationRequest policyRequest = AttendanceAuthorizationRequests.request(
+                actor, activeActor, ownerId, lockedActor == null ? null : lockedActor.accountStatus().name());
+        AttendanceAuthorizationRequests.requireAllowed(
+                authorizationPolicy, AuthorizationCapability.SUBMIT_ATTENDANCE_REQUEST, policyRequest);
         if (request.status() != LeaveStatus.PENDING) {
             throw new LeaveException("Only pending leave before its first counted start can be edited");
         }
-        InternWorkWindow window = lockIntern(actor.userId(), command.startDate());
         Instant now = clock.instant();
         if (request.status() == LeaveStatus.PENDING && !now.isBefore(request.firstCountedStartAt())) {
             request.autoReject(now);
             requests.saveAndFlush(request);
-            publishDecisionNotification(ownerIdentity, "AUTO_REJECTED");
+            publishOverdueReminder(request);
             return new MutationOutcome(null, true);
         }
         if (!now.isBefore(request.firstCountedStartAt())) {
             throw new LeaveException("Only pending leave before its first counted start can be edited");
         }
+        InternWorkWindow window = lockIntern(actor.userId(), command.startDate());
         requireEligibleIntern(window, command.startDate(), command.endDate());
         List<AllocatedDate> allocations = allocations(window, command.startDate(), command.endDate());
         if (allocations.isEmpty()) {
@@ -316,86 +374,191 @@ public class LeaveApplicationService {
     }
 
     /**
-     * Cancels a pending or approved request before its first counted start.
+     * Cancels approved leave before its first counted start while retaining its approval history and allocations.
      *
      * <p>Authorization, expiry, and cancellation share one independent {@code REQUIRES_NEW} transaction and row
-     * lock. The independent boundary does not join an ambient caller transaction, so a late pending request returns
-     * an internal sentinel only after automatic rejection commits; guessed IDs are authorized before expiry.</p>
+     * lock. The independent boundary does not join an ambient caller transaction, so a pending request first marked
+     * overdue during access commits before the owner action returns; guessed IDs are authorized before expiry.</p>
      *
      * @param actor authenticated Intern owner
      * @param requestId request identifier
-     * @return cancelled request projection retaining its allocations
+     * @return changed request projection retaining its allocations and decision history
      */
     public LeaveRequestView cancel(AttendanceActor actor, long requestId) {
-        requireIntern(actor);
-        MutationOutcome outcome = independentTransactions().execute(status -> cancelInTransaction(actor, requestId));
+        if (actor == null) {
+            throw new AccessDeniedException("An attendance actor is required");
+        }
+        MutationOutcome outcome = independentTransactions().execute(
+                status -> mutateOwnedRequest(actor, requestId, true));
         if (outcome.expired()) {
-            throw new LeaveException("Leave cannot be cancelled after its first counted start");
+            throw new LeaveException("Only approved leave can be cancelled");
         }
         return outcome.view();
     }
 
-    private MutationOutcome cancelInTransaction(AttendanceActor actor, long requestId) {
+    /**
+     * Withdraws pending or overdue leave while retaining its date allocations.
+     *
+     * <p>The same owner authorization, independent transaction, and row lock used by the existing cancellation route
+     * apply. An approved request has a different owner action and is refused here.</p>
+     *
+     * @param actor authenticated Intern owner
+     * @param requestId request identifier
+     * @return withdrawn request projection retaining its allocations; overdue requests remain withdrawable after their start
+     */
+    public LeaveRequestView withdraw(AttendanceActor actor, long requestId) {
+        if (actor == null) {
+            throw new AccessDeniedException("An attendance actor is required");
+        }
+        MutationOutcome outcome = independentTransactions().execute(
+                status -> mutateOwnedRequest(actor, requestId, false));
+        if (outcome.expired()) {
+            throw new LeaveException("Leave cannot be withdrawn after its first counted start");
+        }
+        return outcome.view();
+    }
+
+    private MutationOutcome mutateOwnedRequest(
+            AttendanceActor actor, long requestId, boolean cancelApprovedRequests) {
         long ownerId = requests.findInternUserIdById(requestId)
-                .orElseThrow(() -> new LeaveException("Leave request not found"));
-        lockAccounts(List.of(actor.userId(), ownerId));
+                .orElseThrow(AttendanceRecordNotFoundException::new);
+        Map<Long, LockedAccountMutationEligibility> lockedAccounts = lockAccounts(List.of(actor.userId(), ownerId));
         AccountIdentity ownerIdentity = accounts.requireIdentityById(ownerId);
+        if (ownerIdentity.role() != GlobalRole.INTERN) {
+            throw new AttendanceRecordNotFoundException();
+        }
+        LockedAccountMutationEligibility lockedActor = lockedAccounts.get(actor.userId());
+        boolean activeActor = lockedActor != null
+                && lockedActor.accountStatus() == AccountStatus.ACTIVE
+                && lockedActor.role() == actor.role();
+        AuthorizationRequest policyRequest = AttendanceAuthorizationRequests.request(
+                actor, activeActor, ownerId, lockedActor == null ? null : lockedActor.accountStatus().name());
+        AttendanceAuthorizationRequests.requireAllowed(
+                authorizationPolicy, AuthorizationCapability.WITHDRAW_LEAVE_REQUEST, policyRequest);
         LeaveRequestEntity request = lockedRequest(requestId);
-        requireOwner(request, actor.userId());
         Instant now = clock.instant();
         if (request.status() == LeaveStatus.PENDING && !now.isBefore(request.firstCountedStartAt())) {
             request.autoReject(now);
             requests.saveAndFlush(request);
-            publishDecisionNotification(ownerIdentity, "AUTO_REJECTED");
-            return new MutationOutcome(null, true);
+            publishOverdueReminder(request);
+            if (cancelApprovedRequests) {
+                return new MutationOutcome(view(request), true);
+            }
         }
-        if (!now.isBefore(request.firstCountedStartAt())) {
-            throw new LeaveException("Leave cannot be cancelled after its first counted start");
+        if (cancelApprovedRequests) {
+            if (request.status() == LeaveStatus.APPROVED && !now.isBefore(request.firstCountedStartAt())) {
+                throw new LeaveException("Leave cannot be cancelled after its first counted start");
+            }
+            if (request.status() == LeaveStatus.APPROVED) {
+                request.cancel(now);
+            } else {
+                throw new LeaveException("Only approved leave can be cancelled");
+            }
+        } else {
+            if (request.status() == LeaveStatus.PENDING || request.status() == LeaveStatus.OVERDUE) {
+                request.withdraw(now);
+            } else {
+                throw new LeaveException("Only pending or overdue leave can be withdrawn");
+            }
         }
-        request.cancel(now);
         return new MutationOutcome(view(requests.saveAndFlush(request)), false);
     }
 
     /**
-     * Approves a pending request for any active Mentor before the same immutable boundary.
+     * Approves a pending request before, or an overdue request after, its immutable first-counted-start boundary.
      *
-     * <p>Active-Mentor authorization, request-time expiry, and approval share one independent {@code REQUIRES_NEW}
-     * transaction and one target-row lock. The independent boundary does not join an ambient caller transaction; an
-     * expired request returns an internal sentinel only after automatic rejection commits, then the public method
-     * reports the closed decision window.</p>
+     * <p>Responsible-Mentor authorization, request-time overdue transition, and approval share one independent
+     * {@code REQUIRES_NEW} transaction and one target-row lock. A request that becomes overdue during this access
+     * receives its one overdue reminder before the decision is applied.</p>
      *
-     * @param actor authenticated active Mentor
+     * @param actor authenticated responsible Mentor
      * @param requestId request identifier
      * @return approved request projection
      */
     public LeaveRequestView approve(AttendanceActor actor, long requestId) {
-        requireMentor(actor);
-        DecisionOutcome outcome = independentTransactions().execute(status -> approveInTransaction(actor, requestId));
-        if (outcome.expired()) {
-            throw new LeaveException("Leave is no longer pending before its first counted start");
+        if (actor == null) {
+            throw new AccessDeniedException("An attendance actor is required");
         }
-        return outcome.view();
+        return independentTransactions().execute(status -> approveInTransaction(actor, requestId));
     }
 
     /**
-     * Rejects a pending request for any active Mentor before its first counted start.
+     * Rejects a pending request before, or an overdue request after, its first counted start.
      *
-     * <p>Active-Mentor authorization, request-time expiry, and rejection share one independent {@code REQUIRES_NEW}
-     * transaction and one target-row lock. The independent boundary does not join an ambient caller transaction; an
-     * expired request returns an internal sentinel only after automatic rejection commits, then the public method
-     * reports the closed decision window.</p>
+     * <p>Responsible-Mentor authorization, request-time overdue transition, and rejection share one independent
+     * {@code REQUIRES_NEW} transaction and one target-row lock. A request that becomes overdue during this access
+     * receives its one overdue reminder before the decision is applied.</p>
      *
-     * @param actor authenticated active Mentor
+     * @param actor authenticated responsible Mentor
      * @param requestId request identifier
      * @return rejected request projection
      */
     public LeaveRequestView reject(AttendanceActor actor, long requestId) {
-        requireMentor(actor);
-        DecisionOutcome outcome = independentTransactions().execute(status -> rejectInTransaction(actor, requestId));
-        if (outcome.expired()) {
-            throw new LeaveException("Leave is no longer pending before its first counted start");
+        if (actor == null) {
+            throw new AccessDeniedException("An attendance actor is required");
         }
-        return outcome.view();
+        return independentTransactions().execute(status -> rejectInTransaction(actor, requestId));
+    }
+
+    /**
+     * Amends an approved leave request by withdrawing approval from one or more of its dates.
+     *
+     * <p>Only the intern's responsible Mentor may amend, only after leave has begun (the first counted
+     * start has passed), and only before any period the request touches is finalized. The amendment
+     * must not add dates, must not change frozen allocations, and must include a reason. Each
+     * withdrawn day's quota is released; the request stays {@code APPROVED}. The amendment is
+     * appended to the leave decision history.</p>
+     *
+     * @param actor authenticated responsible Mentor
+     * @param requestId leave request identifier
+     * @param datesToWithdraw dates whose approval the Mentor is withdrawing
+     * @param reason mandatory amendment reason
+     * @return updated request projection
+     */
+    public LeaveRequestView amend(AttendanceActor actor, long requestId, List<LocalDate> datesToWithdraw, String reason) {
+        if (actor == null) {
+            throw new AccessDeniedException("An attendance actor is required");
+        }
+        if (datesToWithdraw == null || datesToWithdraw.isEmpty()) {
+            throw new LeaveException("Amendment must withdraw approval from at least one date");
+        }
+        if (datesToWithdraw.stream().distinct().count() != datesToWithdraw.size()) {
+            throw new LeaveException("Withdrawn dates must not contain duplicates");
+        }
+        if (reason == null || reason.isBlank()) {
+            throw new LeaveException("A reason is required to amend a leave decision");
+        }
+        return independentTransactions().execute(status -> amendInTransaction(actor, requestId, datesToWithdraw, reason.strip()));
+    }
+
+    private LeaveRequestView amendInTransaction(
+            AttendanceActor actor, long requestId, List<LocalDate> datesToWithdraw, String reason) {
+        DecisionContext context = authorizeDecision(actor, requestId);
+        AccountIdentity ownerIdentity = context.owner();
+        LeaveRequestEntity request = context.request();
+        if (request.status() != LeaveStatus.APPROVED) {
+            throw new LeaveException("Only approved leave can be amended");
+        }
+        Instant now = clock.instant();
+        if (now.isBefore(request.firstCountedStartAt())) {
+            throw new LeaveException("Leave can be amended only after it has begun");
+        }
+        List<LeaveRequestDayEntity> allDays = days.findByRequestIdOrderByLeaveDate(requestId);
+        for (LocalDate dateToWithdraw : datesToWithdraw) {
+            LeaveRequestDayEntity day = allDays.stream()
+                    .filter(d -> d.leaveDate().equals(dateToWithdraw))
+                    .findFirst()
+                    .orElseThrow(() -> new LeaveException("An amendment can only withdraw dates of this leave"));
+            if (day.approvalWithdrawnAt() != null) {
+                throw new LeaveException("An amendment can only withdraw dates of this leave");
+            }
+            day.withdrawApproval(now);
+        }
+        days.saveAllAndFlush(allDays);
+        decisions.saveAndFlush(new LeaveRequestDecisionEntity(
+                requestId, "AMENDMENT", "APPROVED", null, actor.userId(), now, reason.strip()));
+        publishDecisionNotification(ownerIdentity, "AMENDED");
+        return view(request);
     }
 
     /**
@@ -411,21 +574,38 @@ public class LeaveApplicationService {
             throw new AccessDeniedException("An attendance actor is required");
         }
         long ownerId = requests.findInternUserIdById(requestId)
-                .orElseThrow(() -> new LeaveException("Leave request not found"));
+                .orElseThrow(AttendanceRecordNotFoundException::new);
         Map<Long, LockedAccountMutationEligibility> lockedAccounts = lockAccounts(
                 accountIds(actor.userId(), ownerId));
         AccountIdentity ownerIdentity = accounts.requireIdentityById(ownerId);
+        if (ownerIdentity.role() != GlobalRole.INTERN) {
+            throw new AttendanceRecordNotFoundException();
+        }
+        LockedAccountMutationEligibility lockedActor = lockedAccounts.get(actor.userId());
+        boolean activeActor = lockedActor != null
+                && lockedActor.accountStatus() == AccountStatus.ACTIVE
+                && lockedActor.role() == actor.role();
+        AuthorizationRequest policyRequest = AttendanceAuthorizationRequests.request(
+                actor, activeActor, ownerId, null);
+        boolean viewAllowed = authorizationPolicy.allows(
+                AuthorizationCapability.VIEW_INTERN_ATTENDANCE, policyRequest);
+        if (!viewAllowed && activeActor && actor.role() == GlobalRole.INTERN) {
+            throw new AttendanceRecordNotFoundException();
+        }
+        if (!viewAllowed) {
+            throw new AccessDeniedException("Leave is outside the requested scope");
+        }
         LeaveRequestEntity request = lockedRequest(requestId);
-        requireReader(actor, request, lockedAccounts);
-        expireIfNeeded(request, clock.instant(), ownerIdentity);
+        expireIfNeeded(request, clock.instant());
         return view(request);
     }
 
     /**
-     * Processes a bounded set of pending requests at their first counted start.
+     * Moves a bounded batch of undecided {@code PENDING} requests whose first counted start has passed to
+     * {@code OVERDUE}, keeping their quota and sending one reminder each.
      *
      * @param batchSize maximum requests transitioned in this transaction
-     * @return count of newly auto-rejected requests
+     * @return count of newly overdue requests
      */
     @Transactional
     public int expirePending(int batchSize) {
@@ -441,7 +621,6 @@ public class LeaveApplicationService {
                 .sorted()
                 .toList();
         lockAccounts(ownerIds);
-        Map<Long, AccountIdentity> ownerIdentities = identities(ownerIds);
         int changed = 0;
         for (LeaveRequestRepository.ExpiredRecipientRoute candidate : expired) {
             LeaveRequestEntity request = lockedRequest(candidate.getRequestId());
@@ -449,7 +628,7 @@ public class LeaveApplicationService {
             if (request.status() == LeaveStatus.PENDING && !now.isBefore(request.firstCountedStartAt())) {
                 request.autoReject(now);
                 requests.saveAndFlush(request);
-                publishDecisionNotification(ownerIdentities.get(request.internUserId()), "AUTO_REJECTED");
+                publishOverdueReminder(request);
                 changed++;
             }
         }
@@ -530,7 +709,11 @@ public class LeaveApplicationService {
     private LeaveRequestView view(LeaveRequestEntity request) {
         List<LeaveAllocation> allocations = days.findByRequestIdOrderByLeaveDate(request.id()).stream()
                 .map(day -> new LeaveAllocation(
-                        day.leaveDate(), day.quotaMonth(), day.policyVersionId(), day.monthlyQuotaSnapshot()))
+                        day.leaveDate(),
+                        day.quotaMonth(),
+                        day.policyVersionId(),
+                        day.monthlyQuotaSnapshot(),
+                        day.approvalWithdrawnAt()))
                 .toList();
         return new LeaveRequestView(
                 request.id(),
@@ -549,12 +732,12 @@ public class LeaveApplicationService {
 
     private LeaveRequestEntity lockedRequest(long requestId) {
         return requests.findForUpdateById(requestId)
-                .orElseThrow(() -> new LeaveException("Leave request not found"));
+                .orElseThrow(AttendanceRecordNotFoundException::new);
     }
 
     private static void requireOwner(LeaveRequestEntity request, long actorId) {
         if (request.internUserId() != actorId) {
-            throw new AccessDeniedException("Only the owning Intern may change leave");
+            throw new AttendanceRecordNotFoundException();
         }
     }
 
@@ -616,24 +799,24 @@ public class LeaveApplicationService {
         }
     }
 
-    private static void requireIntern(AttendanceActor actor) {
-        if (actor == null || actor.role() != GlobalRole.INTERN) {
-            throw new AccessDeniedException("Only Interns may submit or cancel leave");
-        }
-    }
 
-    private static void requireMentor(AttendanceActor actor) {
-        if (actor == null || actor.role() != GlobalRole.MENTOR) {
-            throw new AccessDeniedException("Only Mentors may decide leave");
-        }
-    }
-
-    private void expireIfNeeded(LeaveRequestEntity request, Instant now, AccountIdentity ownerIdentity) {
+    private void expireIfNeeded(LeaveRequestEntity request, Instant now) {
         if (request.status() == LeaveStatus.PENDING && !now.isBefore(request.firstCountedStartAt())) {
             request.autoReject(now);
             requests.saveAndFlush(request);
-            publishDecisionNotification(ownerIdentity, "AUTO_REJECTED");
+            publishOverdueReminder(request);
         }
+    }
+
+    private void publishOverdueReminder(LeaveRequestEntity request) {
+        notifications.publish(
+                new NotificationEvent(
+                        NotificationType.SYSTEM,
+                        "OVERDUE",
+                        "Leave request overdue",
+                        "An undecided Leave request is overdue."),
+                new NotificationAction("/attendance/leave/" + request.id(), false),
+                recipients.forIntern(request.internUserId()));
     }
 
     private void publishSubmissionNotification(List<NotificationRecipient> recipients) {
@@ -686,70 +869,76 @@ public class LeaveApplicationService {
         return java.util.stream.Stream.of(firstId, secondId).distinct().sorted().toList();
     }
 
-    private static List<NotificationRecipient> activeMentorRecipients(
-            List<AccountIdentity> candidates,
-            Map<Long, LockedAccountMutationEligibility> lockedAccounts) {
-        return candidates.stream()
-                .filter(identity -> {
-                    LockedAccountMutationEligibility locked = lockedAccounts.get(identity.id());
-                    return locked != null
-                            && locked.role() == GlobalRole.MENTOR
-                            && locked.accountStatus() == AccountStatus.ACTIVE;
-                })
-                .map(identity -> new NotificationRecipient(identity.id(), identity.email()))
-                .toList();
+    private record DecisionContext(AccountIdentity owner, LeaveRequestEntity request) {}
+
+    private DecisionContext authorizeDecision(AttendanceActor actor, long requestId) {
+        long ownerId = requests.findInternUserIdById(requestId)
+                .orElseThrow(AttendanceRecordNotFoundException::new);
+        Map<Long, LockedAccountMutationEligibility> lockedAccounts = lockAccounts(
+                accountIds(actor.userId(), ownerId));
+        AccountIdentity ownerIdentity = accounts.requireIdentityById(ownerId);
+        if (ownerIdentity.role() != GlobalRole.INTERN) {
+            throw new AttendanceRecordNotFoundException();
+        }
+        LockedAccountMutationEligibility lockedActor = lockedAccounts.get(actor.userId());
+        boolean activeActor = lockedActor != null
+                && lockedActor.accountStatus() == AccountStatus.ACTIVE
+                && lockedActor.role() == actor.role();
+        boolean responsible = activeActor && actor.role() == GlobalRole.MENTOR
+                && internships.responsibleMentorUserId(ownerId)
+                        .map(mentorId -> mentorId == actor.userId()).orElse(false);
+        AuthorizationRequest policyRequest = AttendanceAuthorizationRequests.decisionRequest(
+                actor, activeActor, responsible);
+        AttendanceAuthorizationRequests.requireAllowed(
+                authorizationPolicy, AuthorizationCapability.DECIDE_ATTENDANCE_REQUEST, policyRequest);
+        LeaveRequestEntity request = lockedRequest(requestId);
+        return new DecisionContext(ownerIdentity, request);
     }
 
-    private DecisionOutcome approveInTransaction(AttendanceActor actor, long requestId) {
-        long ownerId = requests.findInternUserIdById(requestId)
-                .orElseThrow(() -> new LeaveException("Leave request not found"));
-        Map<Long, LockedAccountMutationEligibility> lockedAccounts = lockAccounts(
-                List.of(actor.userId(), ownerId));
-        AccountIdentity ownerIdentity = accounts.requireIdentityById(ownerId);
-        requireActiveMentor(actor.userId(), lockedAccounts);
-        LeaveRequestEntity request = lockedRequest(requestId);
+    private LeaveRequestView approveInTransaction(AttendanceActor actor, long requestId) {
+        DecisionContext context = authorizeDecision(actor, requestId);
+        LeaveRequestEntity request = context.request();
+        AccountIdentity ownerIdentity = context.owner();
         Instant now = clock.instant();
         if (request.status() == LeaveStatus.PENDING && !now.isBefore(request.firstCountedStartAt())) {
             request.autoReject(now);
             requests.saveAndFlush(request);
-            publishDecisionNotification(ownerIdentity, "AUTO_REJECTED");
-            return new DecisionOutcome(null, true);
+            publishOverdueReminder(request);
         }
-        if (request.status() != LeaveStatus.PENDING || !now.isBefore(request.firstCountedStartAt())) {
+        if (request.status() != LeaveStatus.PENDING && request.status() != LeaveStatus.OVERDUE) {
             throw new LeaveException("Leave is no longer pending before its first counted start");
         }
         try {
             request.approve(actor.userId(), now);
             requests.saveAndFlush(request);
+            decisions.saveAndFlush(new LeaveRequestDecisionEntity(
+                    requestId, "DECISION", "APPROVED", null, actor.userId(), now, null));
             publishDecisionNotification(ownerIdentity, "APPROVED");
-            return new DecisionOutcome(view(request), false);
+            return view(request);
         } catch (ObjectOptimisticLockingFailureException conflict) {
             throw new LeaveException("Leave changed concurrently; reload before deciding", conflict);
         }
     }
 
-    private DecisionOutcome rejectInTransaction(AttendanceActor actor, long requestId) {
-        long ownerId = requests.findInternUserIdById(requestId)
-                .orElseThrow(() -> new LeaveException("Leave request not found"));
-        Map<Long, LockedAccountMutationEligibility> lockedAccounts = lockAccounts(
-                List.of(actor.userId(), ownerId));
-        AccountIdentity ownerIdentity = accounts.requireIdentityById(ownerId);
-        requireActiveMentor(actor.userId(), lockedAccounts);
-        LeaveRequestEntity request = lockedRequest(requestId);
+    private LeaveRequestView rejectInTransaction(AttendanceActor actor, long requestId) {
+        DecisionContext context = authorizeDecision(actor, requestId);
+        LeaveRequestEntity request = context.request();
+        AccountIdentity ownerIdentity = context.owner();
         Instant now = clock.instant();
         if (request.status() == LeaveStatus.PENDING && !now.isBefore(request.firstCountedStartAt())) {
             request.autoReject(now);
             requests.saveAndFlush(request);
-            publishDecisionNotification(ownerIdentity, "AUTO_REJECTED");
-            return new DecisionOutcome(null, true);
+            publishOverdueReminder(request);
         }
-        if (request.status() != LeaveStatus.PENDING || !now.isBefore(request.firstCountedStartAt())) {
+        if (request.status() != LeaveStatus.PENDING && request.status() != LeaveStatus.OVERDUE) {
             throw new LeaveException("Leave is no longer pending before its first counted start");
         }
         request.reject(actor.userId(), now);
         requests.saveAndFlush(request);
+        decisions.saveAndFlush(new LeaveRequestDecisionEntity(
+                requestId, "DECISION", "REJECTED", null, actor.userId(), now, null));
         publishDecisionNotification(ownerIdentity, "REJECTED");
-        return new DecisionOutcome(view(request), false);
+        return view(request);
     }
 
     private TransactionTemplate independentTransactions() {
@@ -766,6 +955,4 @@ public class LeaveApplicationService {
             LocalDate date, LocalDate quotaMonth, AttendancePolicy policy, Instant startAt) {}
 
     private record MutationOutcome(LeaveRequestView view, boolean expired) {}
-
-    private record DecisionOutcome(LeaveRequestView view, boolean expired) {}
 }

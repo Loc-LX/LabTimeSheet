@@ -3,6 +3,7 @@ package com.lab.labtimesheet.feature.project.controller;
 import com.lab.labtimesheet.feature.internship.service.InternshipService;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
@@ -38,6 +39,8 @@ import com.lab.labtimesheet.feature.project.exception.TaskConflictException;
 import com.lab.labtimesheet.feature.project.exception.TaskValidationException;
 import com.lab.labtimesheet.feature.project.model.dto.RemainingEffortForecastInput;
 import com.lab.labtimesheet.platform.service.SmtpConfigurationService;
+import com.lab.labtimesheet.platform.authorization.AuthorizationCatalogue;
+import com.lab.labtimesheet.platform.authorization.AuthorizationPolicy;
 import java.time.Instant;
 import java.time.Clock;
 import java.time.LocalDate;
@@ -55,9 +58,11 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(ProjectController.class)
+@Import({AuthorizationCatalogue.class, AuthorizationPolicy.class})
 class ProjectControllerTest {
 
     @Autowired
@@ -85,6 +90,11 @@ class ProjectControllerTest {
     void serverBusinessDate() {
         when(clock.instant()).thenReturn(Instant.parse("2026-08-15T01:00:00Z"));
         when(clock.getZone()).thenReturn(ZoneId.of("Asia/Ho_Chi_Minh"));
+        when(pages.authenticatedActor(org.mockito.ArgumentMatchers.anyString())).thenAnswer(invocation -> {
+            String username = invocation.getArgument(0);
+            String role = username.contains("admin") ? "ADMIN" : username.contains("mentor") ? "MENTOR" : "INTERN";
+            return new ProjectActorView(20L, role);
+        });
     }
 
     @Test
@@ -634,6 +644,10 @@ class ProjectControllerTest {
         verify(projects).activate(10L, 30L);
     }
 
+    /**
+     * PRJ-002 and AC-PRJ-014 keep Activate available to an owning Mentor while withholding Delete
+     * for a Project whose exit-readiness fixture proves retained unfinished Task data exists.
+     */
     @Test
     @WithMockUser(username = "mentor@example.test")
     void plannedProjectDetailShowsActivationOnlyToTheOwningMentor() throws Exception {
@@ -656,7 +670,7 @@ class ProjectControllerTest {
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
                         .string(containsString(">Activate<")))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
-                        .string(containsString(">Delete Project<")))
+                        .string(not(containsString(">Delete Project<"))))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
                         .string(containsString("2 unfinished Tasks remain")));
 
@@ -686,6 +700,133 @@ class ProjectControllerTest {
                 .andExpect(redirectedUrl("/projects"));
 
         verify(projects).delete(10L, 30L);
+    }
+
+    /**
+     * Protects {@code PRJ-023} and {@code AC-PRJ-015}. Observable break: a terminal Project page
+     * hides its cancellation record or offers another lifecycle mutation. Expected: the CANCELLED
+     * badge and reason render, while Activate, Delete, and workflow actions are absent.
+     */
+    @Test
+    @WithMockUser(username = "mentor@example.test")
+    void cancelledProjectDetailShowsReasonAndHidesLifecycleActions() throws Exception {
+        when(pages.authenticatedUserId("mentor@example.test")).thenReturn(10L);
+        when(pages.detail(10L, 30L)).thenReturn(new ProjectDetail(
+                30L, "Cancelled Project", null, "CANCELLED", LocalDate.of(2026, 8, 15),
+                LocalDate.of(2026, 9, 30), "Mentor", null, false, false, false,
+                "Scope changed", "Owning Mentor", Instant.parse("2026-09-27T00:00:00Z")));
+        when(pages.exitReadiness(10L, 30L)).thenReturn(List.of());
+
+        mvc.perform(get("/projects/30"))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(containsString("CANCELLED")))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(containsString("Scope changed")))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(containsString("Owning Mentor")))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(containsString("07:00")))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(not(containsString("action=\"/projects/30/activate\""))))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(not(containsString("Delete Project"))));
+    }
+
+    /** Protects {@code PRJ-023} and {@code AC-PRJ-015}: the reason reaches the transactional service. */
+    @Test
+    @WithMockUser(username = "mentor@example.test")
+    void owningMentorCanCancelProjectWithSubmittedReason() throws Exception {
+        when(pages.authenticatedUserId("mentor@example.test")).thenReturn(10L);
+        mvc.perform(post("/projects/30/cancel").with(csrf()).param("reason", "Scope changed"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/projects/30"));
+
+        verify(projects).cancel(10L, 30L, "Scope changed");
+    }
+
+    /**
+     * Protects {@code PRJ-002} and {@code AC-PRJ-014}. Observable break: owner management
+     * permission alone renders a delete form for a draft whose emptiness has not been established.
+     * Expected: a manageable but non-deletable PLANNED Project has no Delete Project control.
+     */
+    @Test
+    @WithMockUser(username = "mentor@example.test")
+    void manageablePlannedProjectWithoutEmptyDraftCapabilityDoesNotExposeDelete() throws Exception {
+        when(pages.authenticatedUserId("mentor@example.test")).thenReturn(10L);
+        when(pages.detail(10L, 30L)).thenReturn(new ProjectDetail(
+                30L,
+                "Non-empty planned Project",
+                null,
+                "PLANNED",
+                LocalDate.of(2026, 8, 15),
+                LocalDate.of(2026, 9, 30),
+                "Mentor",
+                "Leader",
+                true));
+
+        mvc.perform(get("/projects/30"))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(not(containsString(">Delete Project<"))));
+    }
+
+    /**
+     * PRJ-002 and AC-PRJ-014 require the owning Mentor to see Delete for a proven empty PLANNED
+     * draft while retaining the normal Activate action.
+     */
+    @Test
+    @WithMockUser(username = "mentor@example.test")
+    void emptyPlannedDraftShowsDeleteProjectToTheOwningMentor() throws Exception {
+        when(pages.authenticatedUserId("mentor@example.test")).thenReturn(10L);
+        when(pages.detail(10L, 30L)).thenReturn(new ProjectDetail(
+                30L,
+                "Empty planned Project",
+                null,
+                "PLANNED",
+                LocalDate.of(2026, 8, 15),
+                LocalDate.of(2026, 9, 30),
+                "Mentor",
+                "Leader",
+                true,
+                true,
+                false));
+        when(pages.exitReadiness(10L, 30L)).thenReturn(List.of());
+
+        mvc.perform(get("/projects/30"))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(containsString(">Delete Project<")))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(containsString("action=\"/projects/30/delete\"")))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(containsString(">Activate<")));
+    }
+
+    /**
+     * Protects {@code PRJ-002} and {@code AUTH-002}. Observable break: a foreign Mentor's guessed
+     * Project delete request returns a different page or reveals a Project-specific error.
+     * Expected: foreign and missing identifiers both render the same generic 404 response.
+     */
+    @Test
+    @WithMockUser(username = "mentor@example.test")
+    void foreignDeleteAndMissingProjectHaveTheSameNotFoundResponse() throws Exception {
+        when(pages.authenticatedUserId("mentor@example.test")).thenReturn(10L);
+        doThrow(new ProjectAccessDeniedException()).when(projects).delete(10L, 30L);
+        doThrow(new ProjectAccessDeniedException()).when(projects).delete(10L, 999L);
+
+        var existingId = mvc.perform(post("/projects/30/delete").with(csrf())).andReturn().getResponse();
+        var missingId = mvc.perform(post("/projects/999/delete").with(csrf())).andReturn().getResponse();
+
+        assertEquals(404, existingId.getStatus());
+        assertEquals(404, missingId.getStatus());
+        String existingBody = existingId.getContentAsString()
+                .replaceAll("name=\"_csrf\" value=\"[^\"]+\"", "name=\"_csrf\" value=\"[csrf]\"");
+        String missingBody = missingId.getContentAsString()
+                .replaceAll("name=\"_csrf\" value=\"[^\"]+\"", "name=\"_csrf\" value=\"[csrf]\"");
+        assertEquals(existingBody, missingBody);
+        assertFalse(existingBody.contains("30"));
+        assertFalse(existingBody.contains("999"));
     }
 
     @Test
@@ -885,6 +1026,52 @@ class ProjectControllerTest {
                         .string(containsString("Former Leader")))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
                         .string(not(containsString("Change Leader"))));
+    }
+
+    /**
+     * Protects {@code PRJ-002} and the direct-request half of {@code AC-PRJ-014}. Observable
+     * break: a direct activation POST reopens a completed Project; expected: the lifecycle guard
+     * is rendered as a safe refusal and the completed detail remains displayed.
+     */
+    @Test
+    @WithMockUser(username = "mentor@example.test")
+    void directActivationRequestForCompletedProjectIsRefused() throws Exception {
+        when(pages.authenticatedUserId("mentor@example.test")).thenReturn(10L);
+        when(pages.detail(10L, 30L)).thenReturn(new ProjectDetail(
+                30L,
+                "Completed Project",
+                null,
+                "COMPLETED",
+                LocalDate.of(2026, 8, 15),
+                LocalDate.of(2026, 9, 30),
+                "Mentor",
+                null,
+                false));
+        doThrow(new com.lab.labtimesheet.feature.project.exception.ProjectAccessDeniedException())
+                .when(projects).activate(10L, 30L);
+
+        mvc.perform(post("/projects/30/activate").with(csrf()))
+                .andExpect(status().isNotFound())
+                .andExpect(view().name("error/generic"))
+                .andExpect(model().attribute("errorTitle", "Project unavailable"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(not(containsString("COMPLETED Project"))));
+
+        verify(projects).activate(10L, 30L);
+    }
+
+    /**
+     * Protects {@code PRJ-002} and {@code AC-PRJ-014}. Observable break: a direct route moves a
+     * {@code COMPLETED} Project back to {@code PLANNED}; expected: the request receives the generic
+     * 404 refusal and never reaches {@code ProjectService}.
+     */
+    @Test
+    @WithMockUser(username = "mentor@example.test")
+    void directRequestToMoveACompletedProjectBackToPlannedIsRefused() throws Exception {
+        mvc.perform(post("/projects/30/plan").with(csrf()))
+                .andExpect(status().isNotFound());
+
+        org.mockito.Mockito.verifyNoInteractions(projects);
     }
 
     @Test

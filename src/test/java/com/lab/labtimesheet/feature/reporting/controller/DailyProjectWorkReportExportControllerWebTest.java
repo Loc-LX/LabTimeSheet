@@ -21,8 +21,12 @@ import com.lab.labtimesheet.feature.reporting.service.DailyProjectWorkReportServ
 import com.lab.labtimesheet.feature.reporting.service.ProjectTaskReportService;
 import com.lab.labtimesheet.feature.reporting.service.ReportExportService;
 import com.lab.labtimesheet.platform.service.SmtpConfigurationService;
+import com.lab.labtimesheet.feature.project.model.dto.ProjectActorView;
+import com.lab.labtimesheet.feature.project.service.ProjectQueryService;
+import com.lab.labtimesheet.platform.authorization.AuthorizationPolicy;
 import java.time.LocalDate;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -51,6 +55,21 @@ class DailyProjectWorkReportExportControllerWebTest {
 
     @MockitoBean
     private SmtpConfigurationService smtpConfiguration;
+
+    @MockitoBean
+    private ProjectQueryService projectQueries;
+
+    @MockitoBean
+    private AuthorizationPolicy authorizationPolicy;
+
+    @BeforeEach
+    void allowReportPolicyForRouteSlice() {
+        given(projectQueries.authenticatedActor(anyString())).willAnswer(invocation -> {
+            String email = invocation.getArgument(0);
+            return new ProjectActorView(2L, email.startsWith("admin") ? "ADMIN" : "MENTOR");
+        });
+        given(authorizationPolicy.allows(any(), any())).willReturn(true);
+    }
 
     @Test
     void dailyXlsxBuildsExactlyOneAuthorizedViewAndReturnsSafeDateFilename() throws Exception {
@@ -184,18 +203,18 @@ class DailyProjectWorkReportExportControllerWebTest {
     }
 
     @Test
-    void adminIsDeniedBeforeDailyAliasAndTypedValueValidationOrExportPreparation()
+    void activeAdminPassesPolicyBeforeDailyAliasAndTypedValueValidation()
             throws Exception {
         mvc.perform(get("/reports/daily.xlsx")
                         .with(user("admin@example.test").roles("ADMIN"))
                         .param("date", REPORT_DATE.toString())
                         .param("reportDate", REPORT_DATE.plusDays(1).toString()))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isBadRequest());
         mvc.perform(get("/reports/daily.pdf")
                         .with(user("admin@example.test").roles("ADMIN"))
                         .param("date", "not-a-date")
                         .param("projectId", "not-a-number"))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isBadRequest());
 
         verifyNoInteractions(dailyReports, exports);
     }

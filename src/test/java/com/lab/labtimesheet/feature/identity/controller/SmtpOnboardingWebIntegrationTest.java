@@ -15,8 +15,13 @@ import java.util.List;
 
 import com.lab.labtimesheet.config.TestcontainersConfiguration;
 import com.lab.labtimesheet.feature.identity.service.BootstrapService;
+import com.lab.labtimesheet.platform.authorization.AuthorizationCapability;
+import com.lab.labtimesheet.platform.authorization.AuthorizationColumn;
+import com.lab.labtimesheet.platform.authorization.AuthorizationPolicy;
+import com.lab.labtimesheet.platform.authorization.AuthorizationRequest;
 import com.lab.labtimesheet.platform.model.dto.SmtpConnection;
 import com.lab.labtimesheet.platform.service.SmtpProbe;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,6 +34,7 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.mail.MailSendException;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @Import({TestcontainersConfiguration.class, SmtpOnboardingWebIntegrationTest.ProbeConfiguration.class})
@@ -46,9 +52,32 @@ class SmtpOnboardingWebIntegrationTest {
     @Autowired
     private RecordingProbe probe;
 
+    @MockitoSpyBean
+    private AuthorizationPolicy authorizationPolicy;
+
     @BeforeEach
     void initializeAdmin() {
         bootstrap.bootstrap("admin@example.com", "Admin", "correct horse battery staple");
+    }
+
+    /**
+     * Protects AUTH-012 and the §5.2 Global configuration row: both the SMTP form and deferral workflow ask policy.
+     * An observable break is either Admin page rendering without authorization; the hand-derived request is the
+     * stored active Admin column and null scope and state because global SMTP configuration has no record scope.
+     */
+    @Test
+    void smtpFormAndDeferralUseGlobalConfigurationPolicy() throws Exception {
+        org.mockito.Mockito.clearInvocations(authorizationPolicy);
+        var request = new AuthorizationRequest(Set.of(AuthorizationColumn.ADMIN), null, null, null);
+
+        mockMvc.perform(get("/admin/smtp").with(user("admin@example.com").roles("ADMIN")))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/admin/smtp/defer").with(user("admin@example.com").roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(view().name("smtp/defer"));
+
+        org.mockito.Mockito.verify(authorizationPolicy, org.mockito.Mockito.times(2))
+                .allows(AuthorizationCapability.GLOBAL_CONFIGURATION, request);
     }
 
     @Test

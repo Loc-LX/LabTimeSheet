@@ -1,6 +1,6 @@
 # Membership and leadership Spec
 
-**Version:** 1.1.0 · **Owner:** Loc-LX · **Status:** APPROVED BUSINESS BASELINE · **Date:** 2026-09-21
+**Version:** 1.2.0 · **Owner:** Loc-LX · **Status:** APPROVED BUSINESS BASELINE · **Date:** 2026-09-30
 
 **Module:** `project` · **Shared contract:** [MODULE.md](../../MODULE.md)
 
@@ -94,8 +94,8 @@ claim full test coverage. Actors and outcomes are summaries of the canonical rul
 
 | Operation | Actor and observable outcome | Canonical rules | Existing acceptance scenarios | Acceptance boundary or open decision |
 |---|---|---|---|---|
-| [Add eligible members](#add-eligible-members) | Owning Mentor adds only an eligible Intern membership in the intended Project | [PRJ-003](SPEC.md), [PRJ-004](SPEC.md), [PRJ-005](SPEC.md), [PRJ-017](SPEC.md) | [AC-PRJ-001](SPEC.md), [AC-PRJ-010](../invitations/SPEC.md) | Include inactive/terminal internship eligibility and direct-add racing invitation acceptance. |
-| [Assign or replace Leader](#assign-or-replace-leader) | Owning Mentor replaces the one current Leader atomically without changing assignees | [PRJ-005](SPEC.md), [PRJ-006](SPEC.md), [PRJ-007](SPEC.md), [PRJ-011](SPEC.md) | [AC-PRJ-002](SPEC.md), [AC-PRJ-003](SPEC.md) | PRJ-011 protects attribution when membership closes; replacement behavior is PRJ-005 through PRJ-007. |
+| [Add eligible members](#add-eligible-members) | Owning Mentor adds only an eligible Intern membership in the intended Project | [PRJ-003](SPEC.md), [PRJ-004](SPEC.md), [PRJ-005](SPEC.md), [PRJ-017](SPEC.md), [NOT-013](../../MODULE.md) | [AC-PRJ-001](SPEC.md), [AC-PRJ-010](../invitations/SPEC.md), [AC-PRJ-017](SPEC.md) | Include inactive/terminal internship eligibility and direct-add racing invitation acceptance. |
+| [Assign or replace Leader](#assign-or-replace-leader) | Owning Mentor replaces the one current Leader atomically without changing assignees | [PRJ-005](SPEC.md), [PRJ-006](SPEC.md), [PRJ-007](SPEC.md), [PRJ-011](SPEC.md), [NOT-013](../../MODULE.md) | [AC-PRJ-002](SPEC.md), [AC-PRJ-003](SPEC.md), [AC-PRJ-017](SPEC.md) | PRJ-011 protects attribution when membership closes; replacement behavior is PRJ-005 through PRJ-007. |
 
 ### Canonical acceptance scenarios
 
@@ -104,6 +104,7 @@ claim full test coverage. Actors and outcomes are summaries of the canonical rul
 | AC-PRJ-001 | PRJ-003–PRJ-005 | Same Intern is added to two Projects and appointed Leader of one | Both active memberships coexist; leadership affects only the selected Project. |
 | AC-PRJ-002 | PRJ-005, DB-003 | Two transactions appoint different current Leaders | Database/transaction rules allow exactly one current term; no double-Leader state commits. |
 | AC-PRJ-003 | PRJ-006–PRJ-007 | Mentor changes Leader while former Leader remains a member | Old term closes, new term opens, every Task assignee remains unchanged, and former Leader loses Task-management controls. |
+| AC-PRJ-017 | NOT-013, NOT-002 | A Mentor creates a Project with an initial Leader, adds a member and replaces the Leader; an Intern accepts an invitation to the Project; a member's removal is approved; the Mentor completes the Project | `MEMBERSHIP_CHANGED` reaches exactly the initial Leader at creation, the added member, the removed member and every current member at completion, and never the Intern who accepted the invitation. `LEADERSHIP_CHANGED` reaches exactly the initial Leader at creation, the outgoing and the incoming Leader at the replacement, and the current Leader at completion. The Mentor who acted receives neither. |
 
 Shared and cross-feature scenarios in [MODULE.md](../../MODULE.md#7-acceptance-criteria)
 also apply. Scenario ownership follows the behavior exercised, not every prerequisite

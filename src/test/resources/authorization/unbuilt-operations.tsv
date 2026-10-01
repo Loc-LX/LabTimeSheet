@@ -1,0 +1,7 @@
+# operation / rule / plan that builds the operation
+Edit Project details	AUTH-012	Project lifecycle plan (to be written)
+Leader block, unblock or reopen of another member's Task	TSK-023, TSK-025	Task management plan, after part C creates task_status_transitions (Authorization plan B.7)
+Submit an attendance exception request	ATT-024	Attendance plan C-04, after part C creates the exception request model
+Decide leave, correction, or attendance exception; amend or reverse that decision	ATT-024	Attendance exception plan, after part C adds the responsible Mentor (intern_profiles.responsible_mentor_user_id, V3)
+Ask to reopen a finalized attendance period	ATT-022	Period finalization plan, after part C creates the reopen request data
+Approve or reject a request to reopen a finalized attendance period	ATT-022	Period finalization plan, after part C creates the reopen request data

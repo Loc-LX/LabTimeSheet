@@ -62,7 +62,7 @@ class AccountScalarLookupIntegrationTest {
         LookupGuard guard = new LookupGuard();
         AccountService routing = new AccountService(
                 guarded(users, guard), tokens, mailDelivery, passwords, clock, transactions,
-                sessions, "http://localhost");
+                sessions, "http://localhost", IdentityAuthorizationTestPolicy.create());
 
         long accountId = routing.requireAccountIdByEmail("  SCALAR-ROUTING@EXAMPLE.COM ");
 

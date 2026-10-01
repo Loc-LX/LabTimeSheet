@@ -48,6 +48,9 @@ public class NotificationEntity {
     @Column(name = "action_url", length = 500)
     private String actionUrl;
 
+    @Column(name = "project_id")
+    private Long projectId;
+
     @Column(name = "read_at")
     private Instant readAt;
 
@@ -91,6 +94,7 @@ public class NotificationEntity {
             String title,
             String body,
             String actionUrl,
+            Long projectId,
             NotificationEmailStatus emailStatus,
             String emailTo,
             String emailSubject,
@@ -102,6 +106,7 @@ public class NotificationEntity {
         this.title = title;
         this.body = body;
         this.actionUrl = actionUrl;
+        this.projectId = projectId;
         this.emailStatus = emailStatus;
         this.emailTo = emailTo;
         this.emailSubject = emailSubject;
@@ -119,6 +124,7 @@ public class NotificationEntity {
      * @param title nonblank in-app and email subject
      * @param body nonblank in-app and email body
      * @param actionUrl safe relative action route, or null
+     * @param projectId linked Project identifier, or null when the action is not Project-scoped
      * @param emailStatus initial delivery state
      * @param emailTo recipient email when delivery is available, or null
      * @param emailSubject ordinary-email subject, or null
@@ -133,6 +139,7 @@ public class NotificationEntity {
             String title,
             String body,
             String actionUrl,
+            Long projectId,
             NotificationEmailStatus emailStatus,
             String emailTo,
             String emailSubject,
@@ -140,7 +147,7 @@ public class NotificationEntity {
             Instant emailNextAttemptAt,
             Instant now) {
         return new NotificationEntity(
-                recipientUserId, notificationType, title, body, actionUrl, emailStatus,
+                recipientUserId, notificationType, title, body, actionUrl, projectId, emailStatus,
                 emailTo, emailSubject, emailBody, emailNextAttemptAt, now);
     }
 

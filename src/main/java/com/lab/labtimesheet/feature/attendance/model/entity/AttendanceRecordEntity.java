@@ -91,6 +91,11 @@ public class AttendanceRecordEntity {
         return id;
     }
 
+    /** @return owning Intern account identifier */
+    public long internUserId() {
+        return internUserId;
+    }
+
     /**
      * Stores the first accepted raw checkout; callers must enforce cutoff and single-write rules transactionally.
      *

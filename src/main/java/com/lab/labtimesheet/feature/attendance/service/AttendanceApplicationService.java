@@ -3,14 +3,20 @@ package com.lab.labtimesheet.feature.attendance.service;
 import com.lab.labtimesheet.feature.calendar.service.CalendarApplicationService;
 
 import com.lab.labtimesheet.feature.identity.service.AccountService;
+import com.lab.labtimesheet.feature.identity.model.dto.AccountIdentity;
 import com.lab.labtimesheet.feature.internship.service.InternshipService;
 import com.lab.labtimesheet.feature.attendance.exception.AttendanceException;
+import com.lab.labtimesheet.feature.attendance.exception.AttendanceRecordNotFoundException;
 import com.lab.labtimesheet.feature.attendance.exception.AttendanceRejection;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceDayContext;
 import com.lab.labtimesheet.feature.calendar.model.AttendancePolicy;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceRecord;
 import com.lab.labtimesheet.platform.model.GlobalRole;
+import com.lab.labtimesheet.platform.authorization.AuthorizationCapability;
+import com.lab.labtimesheet.platform.authorization.AuthorizationPolicy;
+import com.lab.labtimesheet.platform.authorization.AuthorizationRequest;
+import com.lab.labtimesheet.feature.identity.model.AccountStatus;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceCurrentState;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceHistoryItem;
 import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceReportDateContext;
@@ -48,6 +54,7 @@ public class AttendanceApplicationService {
     private final CalendarApplicationService calendar;
     private final AttendanceService attendance;
     private final AttendanceCorrectionApplicationService corrections;
+    private final AuthorizationPolicy authorizationPolicy;
 
     /**
      * Records the sole server-time check-in for the effective policy-local date.
@@ -143,8 +150,48 @@ public class AttendanceApplicationService {
     @Transactional
     public List<AttendanceHistoryItem> history(
             AttendanceActor actor, long internId, LocalDate from, LocalDate to) {
-        if (actor.role() == GlobalRole.INTERN && actor.userId() != internId) {
-            throw new AccessDeniedException("Interns may view only their own attendance");
+        if (actor == null) {
+            throw new AccessDeniedException("An attendance actor is required");
+        }
+        final AccountIdentity actorIdentity;
+        try {
+            actorIdentity = accounts.requireIdentityById(actor.userId());
+        } catch (IllegalArgumentException missingActor) {
+            throw new AccessDeniedException("An attendance actor is required", missingActor);
+        }
+        boolean actorIdentityMatches = actorIdentity.status() == AccountStatus.ACTIVE
+                && actorIdentity.role() == actor.role();
+        AuthorizationCapability capability;
+        String scopeState = null;
+        if (actor.userId() == internId) {
+            capability = AuthorizationCapability.OWN_ATTENDANCE_DATE;
+            scopeState = actorIdentity.status().name();
+        } else if (actor.role() == GlobalRole.INTERN) {
+            capability = AuthorizationCapability.VIEW_INTERN_ATTENDANCE;
+            if (actor.userId() != internId) {
+                throw new AttendanceRecordNotFoundException();
+            }
+        } else {
+            final AccountIdentity targetIdentity;
+            try {
+                targetIdentity = accounts.requireIdentityById(internId);
+            } catch (IllegalArgumentException missingTarget) {
+                throw new AttendanceRecordNotFoundException();
+            }
+            if (targetIdentity.role() != GlobalRole.INTERN) {
+                throw new AttendanceRecordNotFoundException();
+            }
+            capability = AuthorizationCapability.VIEW_INTERN_ATTENDANCE;
+        }
+        AuthorizationRequest request = AttendanceAuthorizationRequests.request(
+                actor, actorIdentityMatches, internId, scopeState);
+        boolean allowed = authorizationPolicy.allows(capability, request);
+        if (!allowed && capability == AuthorizationCapability.VIEW_INTERN_ATTENDANCE
+                && actorIdentityMatches) {
+            throw new AttendanceRecordNotFoundException();
+        }
+        if (!allowed) {
+            throw new AccessDeniedException("Attendance history is outside the requested scope");
         }
         if (from.isAfter(to)) {
             throw new IllegalArgumentException("from must not be after to");

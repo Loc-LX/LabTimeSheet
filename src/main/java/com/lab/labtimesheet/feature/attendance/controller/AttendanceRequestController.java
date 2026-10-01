@@ -1,27 +1,41 @@
 package com.lab.labtimesheet.feature.attendance.controller;
 
 import com.lab.labtimesheet.feature.attendance.exception.CorrectionException;
+import com.lab.labtimesheet.feature.attendance.exception.AttendanceExceptionRequestException;
 import com.lab.labtimesheet.feature.attendance.exception.LeaveException;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
+import com.lab.labtimesheet.feature.attendance.model.AttendanceExceptionKind;
+import com.lab.labtimesheet.feature.attendance.model.dto.AttendanceHistoryItem;
 import com.lab.labtimesheet.platform.model.GlobalRole;
 import com.lab.labtimesheet.feature.attendance.model.dto.CorrectionDecision;
 import com.lab.labtimesheet.feature.attendance.model.dto.CorrectionRequestCommand;
 import com.lab.labtimesheet.feature.attendance.model.dto.LeaveBalance;
 import com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestCommand;
+import com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestView;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceApplicationService;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceCorrectionApplicationService;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceCurrentUserService;
+import com.lab.labtimesheet.feature.attendance.service.AttendanceExceptionRequestService;
 import com.lab.labtimesheet.feature.calendar.service.CalendarApplicationService;
 import com.lab.labtimesheet.feature.attendance.service.LeaveApplicationService;
+import com.lab.labtimesheet.feature.attendance.service.AttendanceAuthorizationRequests;
+import com.lab.labtimesheet.feature.identity.model.AccountStatus;
+import com.lab.labtimesheet.feature.identity.model.dto.AccountIdentity;
+import com.lab.labtimesheet.feature.identity.service.AccountService;
+import com.lab.labtimesheet.platform.authorization.AuthorizationCapability;
+import com.lab.labtimesheet.platform.authorization.AuthorizationPolicy;
 import java.security.Principal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.time.format.DateTimeParseException;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Controller;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -34,7 +48,7 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
  * Exposes discoverable leave and missed-checkout correction pages without duplicating either
  * service state machine. Every read and mutation delegates the authenticated Attendance actor to
  * the owning application service, which remains authoritative for role, ownership, deadlines,
- * locking, and retained history.
+ * locking, and retained history; excuse requests use the same application boundary pattern.
  */
 @Controller
 @RequestMapping("/attendance")
@@ -46,6 +60,92 @@ public class AttendanceRequestController {
     private final CalendarApplicationService calendar;
     private final LeaveApplicationService leave;
     private final AttendanceCorrectionApplicationService corrections;
+    private final AuthorizationPolicy authorizationPolicy;
+    private final AccountService accounts;
+    private final AttendanceExceptionRequestService exceptionRequests;
+
+    /**
+     * Renders an Intern's form for one retained late-arrival or early-departure violation.
+     *
+     * @param principal authenticated Intern
+     * @param attendanceRecordId raw attendance row identifier retained from history
+     * @param kind raw violation kind retained from history
+     * @param model Thymeleaf model
+     * @return focused exception request form
+     */
+    @GetMapping("/exceptions/new")
+    public String newExceptionRequest(
+            Principal principal,
+            @RequestParam(required = false) String attendanceRecordId,
+            @RequestParam(required = false) String kind,
+            Model model) {
+        AttendanceActor actor = currentUsers.actor(principal);
+        if (actor.role() != GlobalRole.INTERN) {
+            throw new AccessDeniedException("Only Interns may request an attendance exception");
+        }
+        if (attendanceRecordId == null || kind == null) {
+            throw new AccessDeniedException("Attendance record not found");
+        }
+        AttendanceExceptionKind parsedKind = optionalExceptionKind(kind);
+        AttendanceHistoryItem selected = null;
+        long recordId = 0L;
+        try {
+            recordId = requiredLong(attendanceRecordId, "Enter a valid attendance record.");
+        } catch (IllegalArgumentException malformedId) {
+            // Keep malformed POST input visible on the form without querying another row.
+        }
+        if (recordId > 0L) {
+            selected = exceptionRequests.requestableRow(actor, recordId);
+        }
+        if (selected == null && !model.containsAttribute("requestError")) {
+            throw new AccessDeniedException("Attendance record not found");
+        }
+        model.addAttribute("attendanceRecordId", attendanceRecordId);
+        model.addAttribute("kind", kind);
+        if (!model.containsAttribute("reason")) {
+            model.addAttribute("reason", "");
+        }
+        model.addAttribute("workDate", selected == null ? null : selected.workDateDisplay());
+        model.addAttribute("violationLabel", parsedKind == AttendanceExceptionKind.EARLY_DEPARTURE
+                ? "Early departure" : parsedKind == AttendanceExceptionKind.LATE_ARRIVAL
+                        ? "Late arrival" : "Attendance exception");
+        return "attendance/exception-request";
+    }
+
+    /**
+     * Submits an Intern's reasoned request for one recorded attendance violation.
+     *
+     * @param principal authenticated Intern
+     * @param attendanceRecordId raw attached attendance identifier
+     * @param kind raw exception kind, validated before delegation
+     * @param reason user-supplied explanation
+     * @param redirectAttributes feedback destination
+     * @return history redirect on success or a form redirect with retained input on refusal
+     */
+    @PostMapping("/exceptions")
+    public String submitExceptionRequest(
+            Principal principal,
+            @RequestParam String attendanceRecordId,
+            @RequestParam String kind,
+            @RequestParam String reason,
+            RedirectAttributes redirectAttributes) {
+        AttendanceActor actor = currentUsers.actor(principal);
+        try {
+            exceptionRequests.requestExcuse(
+                    actor,
+                    requiredLong(attendanceRecordId, "Enter a valid attendance record."),
+                    requiredExceptionKind(kind),
+                    reason);
+            redirectAttributes.addFlashAttribute("requestNotice", "Your excuse request was submitted.");
+            return "redirect:/attendance";
+        } catch (AttendanceExceptionRequestException | IllegalArgumentException failure) {
+            redirectAttributes.addAttribute("attendanceRecordId", attendanceRecordId);
+            redirectAttributes.addAttribute("kind", kind);
+            redirectAttributes.addFlashAttribute("requestError", failure.getMessage());
+            redirectAttributes.addFlashAttribute("reason", reason);
+            return "redirect:/attendance/exceptions/new";
+        }
+    }
 
     /**
      * Redirects the superseded combined queue to the focused Leave workflow.
@@ -84,7 +184,7 @@ public class AttendanceRequestController {
                     ? YearMonth.from(calendar.currentBusinessDate())
                     : YearMonth.parse(month.strip());
             model.addAttribute("actor", actor);
-            model.addAttribute("intern", actor.role() == GlobalRole.INTERN);
+            model.addAttribute("intern", canSubmitAttendanceRequest(actor));
             model.addAttribute("mentor", actor.role() == GlobalRole.MENTOR);
             model.addAttribute("leaveRequests", leave.list(actor));
             model.addAttribute("selectedMonth", selectedMonth);
@@ -114,7 +214,7 @@ public class AttendanceRequestController {
             Model model) {
         AttendanceActor actor = currentUsers.actor(principal);
         model.addAttribute("actor", actor);
-        model.addAttribute("intern", actor.role() == GlobalRole.INTERN);
+        model.addAttribute("intern", canSubmitAttendanceRequest(actor));
         model.addAttribute("mentor", actor.role() == GlobalRole.MENTOR);
         model.addAttribute("attendanceRecordId", attendanceRecordId);
         model.addAttribute("correctionRequests", corrections.list(actor));
@@ -133,12 +233,19 @@ public class AttendanceRequestController {
     public String leaveRequest(Principal principal, @PathVariable long requestId, Model model) {
         AttendanceActor actor = currentUsers.actor(principal);
         model.addAttribute("actor", actor);
-        model.addAttribute("intern", actor.role() == GlobalRole.INTERN);
+        model.addAttribute("intern", canSubmitAttendanceRequest(actor));
         model.addAttribute("mentor", actor.role() == GlobalRole.MENTOR);
         model.addAttribute("leaveRequests", leave.list(actor));
-        model.addAttribute("selectedLeave", leave.view(actor, requestId));
-        if (actor.role() == GlobalRole.INTERN) {
-            YearMonth selectedMonth = YearMonth.from(calendar.currentBusinessDate());
+        LeaveRequestView selectedLeave = leave.view(actor, requestId);
+        model.addAttribute("selectedLeave", selectedLeave);
+        LocalDate today = calendar.currentBusinessDate();
+        boolean leaveStarted = today != null
+                && selectedLeave != null
+                && selectedLeave.firstCountedStartAt() != null
+                && !today.isBefore(selectedLeave.startDate());
+        model.addAttribute("leaveStarted", leaveStarted);
+        if (actor.role() == GlobalRole.INTERN && today != null) {
+            YearMonth selectedMonth = YearMonth.from(today);
             model.addAttribute("selectedMonth", selectedMonth);
             model.addAttribute("balance", leave.balance(actor, selectedMonth));
         }
@@ -157,7 +264,7 @@ public class AttendanceRequestController {
     public String correction(Principal principal, @PathVariable long correctionId, Model model) {
         AttendanceActor actor = currentUsers.actor(principal);
         model.addAttribute("actor", actor);
-        model.addAttribute("intern", actor.role() == GlobalRole.INTERN);
+        model.addAttribute("intern", canSubmitAttendanceRequest(actor));
         model.addAttribute("mentor", actor.role() == GlobalRole.MENTOR);
         model.addAttribute("correctionRequests", corrections.list(actor));
         model.addAttribute("selectedCorrection", corrections.view(actor, correctionId));
@@ -235,7 +342,7 @@ public class AttendanceRequestController {
     }
 
     /**
-     * Cancels an authorized leave request while its service deadline remains open.
+     * Cancels approved leave before its first counted start.
      *
      * @param principal authenticated actor
      * @param requestId leave request identifier
@@ -247,7 +354,27 @@ public class AttendanceRequestController {
             Principal principal, @PathVariable long requestId, RedirectAttributes redirectAttributes) {
         try {
             leave.cancel(currentUsers.actor(principal), requestId);
-            redirectAttributes.addFlashAttribute("message", "Leave request cancelled");
+            redirectAttributes.addFlashAttribute("message", "Approved leave cancelled");
+        } catch (LeaveException failure) {
+            redirectAttributes.addFlashAttribute("requestError", failure.getMessage());
+        }
+        return "redirect:/attendance/leave/" + requestId;
+    }
+
+    /**
+     * Withdraws pending or overdue leave while retaining its date allocations.
+     *
+     * @param principal authenticated Intern
+     * @param requestId leave request identifier
+     * @param redirectAttributes transition feedback destination
+     * @return selected Leave detail redirect
+     */
+    @PostMapping("/leave/{requestId}/withdraw")
+    public String withdrawLeave(
+            Principal principal, @PathVariable long requestId, RedirectAttributes redirectAttributes) {
+        try {
+            leave.withdraw(currentUsers.actor(principal), requestId);
+            redirectAttributes.addFlashAttribute("message", "Leave request withdrawn");
         } catch (LeaveException failure) {
             redirectAttributes.addFlashAttribute("requestError", failure.getMessage());
         }
@@ -289,6 +416,35 @@ public class AttendanceRequestController {
             leave.reject(currentUsers.actor(principal), requestId);
             redirectAttributes.addFlashAttribute("message", "Leave request rejected");
         } catch (LeaveException failure) {
+            redirectAttributes.addFlashAttribute("requestError", failure.getMessage());
+        }
+        return "redirect:/attendance/leave/" + requestId;
+    }
+
+    /**
+     * Amends an approved leave request by withdrawing approval from specific dates.
+     *
+     * @param principal authenticated Mentor
+     * @param requestId leave request identifier
+     * @param withdrawnDates list of date strings to withdraw
+     * @param reason amendment reason
+     * @param redirectAttributes transition feedback destination
+     * @return selected Leave detail redirect
+     */
+    @PostMapping("/leave/{requestId}/amend")
+    public String amendLeave(
+            Principal principal,
+            @PathVariable long requestId,
+            @RequestParam(name = "withdrawnDates", required = false) List<String> withdrawnDates,
+            @RequestParam(name = "reason", required = false) String reason,
+            RedirectAttributes redirectAttributes) {
+        try {
+            List<LocalDate> dates = withdrawnDates == null ? List.of() : withdrawnDates.stream()
+                    .map(dateStr -> requiredDate(dateStr, "Enter valid leave dates."))
+                    .toList();
+            leave.amend(currentUsers.actor(principal), requestId, dates, reason);
+            redirectAttributes.addFlashAttribute("message", "Leave request amended");
+        } catch (LeaveException | IllegalArgumentException failure) {
             redirectAttributes.addFlashAttribute("requestError", failure.getMessage());
         }
         return "redirect:/attendance/leave/" + requestId;
@@ -343,6 +499,8 @@ public class AttendanceRequestController {
      * @param correctionId correction identifier
      * @param decision requested state transition
      * @param note optional decision note
+     * @param reason optional justification for amend and reverse transitions
+     * @param proposedCheckout immutable field rejection guard
      * @param redirectAttributes transition feedback destination
      * @return selected Correction detail redirect
      */
@@ -352,19 +510,29 @@ public class AttendanceRequestController {
             @PathVariable long correctionId,
             @RequestParam String decision,
             @RequestParam(required = false) String note,
+            @RequestParam(required = false) String reason,
+            @RequestParam(required = false) String proposedCheckout,
             RedirectAttributes redirectAttributes) {
         try {
+            if (proposedCheckout != null) {
+                throw new CorrectionException("The proposed checkout cannot be changed");
+            }
             corrections.decide(
                     currentUsers.actor(principal),
                     correctionId,
                     requiredDecision(decision),
-                    note);
+                    note,
+                    reason);
             redirectAttributes.addFlashAttribute("message", "Correction decision saved");
         } catch (CorrectionException | IllegalArgumentException failure) {
             redirectAttributes.addFlashAttribute("requestError", failure.getMessage());
-            redirectAttributes.addFlashAttribute("correctionDecisionInput", Map.of(
-                    "decision", decision,
-                    "note", note == null ? "" : note));
+            Map<String, Object> input = new HashMap<>();
+            input.put("decision", decision);
+            input.put("note", note == null ? "" : note);
+            if (reason != null) {
+                input.put("reason", reason);
+            }
+            redirectAttributes.addFlashAttribute("correctionDecisionInput", input);
         }
         return "redirect:/attendance/corrections/" + correctionId;
     }
@@ -375,6 +543,15 @@ public class AttendanceRequestController {
         } catch (DateTimeParseException failure) {
             throw new IllegalArgumentException(errorMessage, failure);
         }
+    }
+
+    private boolean canSubmitAttendanceRequest(AttendanceActor actor) {
+        AccountIdentity identity = accounts.requireIdentityById(actor.userId());
+        boolean activeAccount = identity.status() == AccountStatus.ACTIVE && identity.role() == actor.role();
+        return authorizationPolicy.allows(
+                AuthorizationCapability.SUBMIT_ATTENDANCE_REQUEST,
+                AttendanceAuthorizationRequests.request(
+                        actor, activeAccount, actor.userId(), identity.status().name()));
     }
 
     private static LocalDateTime requiredDateTime(String value, String errorMessage) {
@@ -390,6 +567,22 @@ public class AttendanceRequestController {
             return Long.parseLong(value.strip());
         } catch (NumberFormatException failure) {
             throw new IllegalArgumentException(errorMessage, failure);
+        }
+    }
+
+    private static AttendanceExceptionKind requiredExceptionKind(String value) {
+        AttendanceExceptionKind kind = optionalExceptionKind(value);
+        if (kind == null) {
+            throw new IllegalArgumentException("Choose a valid attendance violation.");
+        }
+        return kind;
+    }
+
+    private static AttendanceExceptionKind optionalExceptionKind(String value) {
+        try {
+            return AttendanceExceptionKind.valueOf(value.strip());
+        } catch (IllegalArgumentException failure) {
+            return null;
         }
     }
 

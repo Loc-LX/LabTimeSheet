@@ -9,10 +9,14 @@ import com.lab.labtimesheet.feature.internship.model.dto.LockedAccountMutationEl
 import com.lab.labtimesheet.feature.identity.service.AccountService;
 import com.lab.labtimesheet.feature.internship.service.InternshipService;
 import com.lab.labtimesheet.feature.attendance.exception.CorrectionException;
+import com.lab.labtimesheet.feature.attendance.exception.AttendanceRecordNotFoundException;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceActor;
 import com.lab.labtimesheet.feature.calendar.model.AttendancePolicy;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceRecord;
 import com.lab.labtimesheet.platform.model.GlobalRole;
+import com.lab.labtimesheet.platform.authorization.AuthorizationCapability;
+import com.lab.labtimesheet.platform.authorization.AuthorizationPolicy;
+import com.lab.labtimesheet.platform.authorization.AuthorizationRequest;
 import com.lab.labtimesheet.feature.attendance.model.AttendanceViolations;
 import com.lab.labtimesheet.feature.attendance.model.CorrectionEventType;
 import com.lab.labtimesheet.feature.attendance.model.CorrectionStatus;
@@ -35,7 +39,9 @@ import com.lab.labtimesheet.feature.notification.service.NotificationService;
 import com.lab.labtimesheet.platform.model.GlobalRole;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.YearMonth;
 import java.time.ZonedDateTime;
 import java.util.Collection;
 import java.util.Comparator;
@@ -55,9 +61,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * Transactional boundary for missed-checkout correction submission, Mentor decisions, and expiry locking.
+ * Transactional boundary for missed-checkout correction submission, Mentor decisions, and overdue transitions.
  * Raw attendance punches remain unchanged; an approved proposal is used only as effective checkout. Submission,
- * decisions, and automatic rejection publish notifications in the same transaction.
+ * decisions, and overdue reminders publish notifications in the same transaction.
  */
 @Service
 @RequiredArgsConstructor(access = AccessLevel.PACKAGE)
@@ -72,16 +78,18 @@ public class AttendanceCorrectionApplicationService {
     private final CalendarApplicationService calendar;
     private final TransactionTemplate transactions;
     private final NotificationService notifications;
+    private final AuthorizationPolicy authorizationPolicy;
+    private final AttendanceExceptionNotificationRecipients recipients;
 
     /**
      * Lists retained correction requests visible to an owning Intern or active global Mentor.
      *
-     * <p>Pending rows at or beyond their decision deadline are locked and auto-rejected before
+     * <p>Pending rows at or beyond their decision deadline are transitioned to overdue before
      * the actionable queue is built. Detail and decision methods still repeat ownership,
-     * active-role, deadline, and lock checks before returning or mutating state.</p>
+     * active-role, and deadline checks before returning or mutating state.</p>
      *
      * @param actor authenticated Attendance actor
-     * @return actionable pending summaries first, followed by retained decision history in newest-first order
+     * @return actionable pending and overdue summaries first, followed by retained decision history in newest-first order
      */
     @Transactional
     public List<CorrectionSummary> list(AttendanceActor actor) {
@@ -89,23 +97,30 @@ public class AttendanceCorrectionApplicationService {
             throw new AccessDeniedException("An attendance actor is required");
         }
         AccountIdentity identity = accounts.requireIdentityById(actor.userId());
-        if (identity.status() != AccountStatus.ACTIVE || !identity.role().name().equals(actor.role().name())) {
+        if (!identity.role().name().equals(actor.role().name())) {
             throw new AccessDeniedException("An active matching account is required");
         }
+        AuthorizationRequest policyRequest = AttendanceAuthorizationRequests.request(
+                actor, identity.status() == AccountStatus.ACTIVE, actor.userId(), null);
+        AttendanceAuthorizationRequests.requireAllowed(
+                authorizationPolicy, AuthorizationCapability.VIEW_INTERN_ATTENDANCE, policyRequest);
         List<CorrectionSummary> visible = switch (actor.role()) {
             case INTERN -> corrections.findSummariesByInternUserId(actor.userId());
             case MENTOR -> corrections.findAllSummaries();
-            default -> throw new AccessDeniedException("Correction list is outside the requested scope");
+            case ADMIN -> corrections.findAllSummaries();
         };
-        expireVisiblePending(actor, visible);
-        visible = switch (actor.role()) {
-            case INTERN -> corrections.findSummariesByInternUserId(actor.userId());
-            case MENTOR -> corrections.findAllSummaries();
-            default -> throw new AccessDeniedException("Correction list is outside the requested scope");
-        };
+        if (actor.role() != GlobalRole.ADMIN) {
+            expireVisiblePending(actor, visible);
+            visible = switch (actor.role()) {
+                case INTERN -> corrections.findSummariesByInternUserId(actor.userId());
+                case MENTOR -> corrections.findAllSummaries();
+                case ADMIN -> corrections.findAllSummaries();
+            };
+        }
         return visible.stream()
                 .sorted(Comparator.comparing(
-                                (CorrectionSummary row) -> !CorrectionStatus.PENDING.name().equals(row.status()))
+                                (CorrectionSummary row) -> !CorrectionStatus.PENDING.name().equals(row.status())
+                                        && !CorrectionStatus.OVERDUE.name().equals(row.status()))
                         .thenComparing(CorrectionSummary::submittedAt,
                                 Comparator.nullsLast(Comparator.reverseOrder()))
                         .thenComparing(CorrectionSummary::id, Comparator.reverseOrder()))
@@ -164,11 +179,11 @@ public class AttendanceCorrectionApplicationService {
     }
 
     /**
-     * Submits one correction through the inclusive scheduled-end-plus-24-hour deadline.
+     * Submits one correction through the inclusive scheduled-end-plus-48-hour deadline.
      *
-     * <p>Submission publishes to every active global Mentor after the correction row and immutable submitted event
-     * are flushed. SMTP absence is retained as {@code UNAVAILABLE} by the notification boundary without rolling back
-     * the correction.</p>
+     * <p>Submission publishes to the active responsible Mentor or fallback Admins under D47 after the correction
+     * row and immutable submitted event are flushed. SMTP absence is retained as {@code UNAVAILABLE} by the
+     * notification boundary without rolling back the correction.</p>
      *
      * @param actor owning Intern
      * @param attendanceRecordId missing-checkout attendance row
@@ -178,23 +193,36 @@ public class AttendanceCorrectionApplicationService {
     @Transactional
     public CorrectionView submit(
             AttendanceActor actor, long attendanceRecordId, CorrectionRequestCommand command) {
-        requireIntern(actor);
+        if (actor == null) {
+            throw new AccessDeniedException("An attendance actor is required");
+        }
         if (command == null) {
             throw new IllegalArgumentException("Correction command is required");
         }
-        List<Long> mentorIds = accounts.activeGlobalMentorIdentities().stream()
-                .map(AccountIdentity::id)
-                .toList();
-        Map<Long, LockedAccountMutationEligibility> lockedAccounts = lockAccounts(
-                accountIds(actor.userId(), mentorIds));
-        List<AccountIdentity> mentorIdentities = mentorIds.stream()
-                .map(accounts::requireIdentityById)
-                .toList();
+        lockAccounts(List.of(actor.userId()));
         AttendanceRecordEntity entity = records.findById(attendanceRecordId)
-                .orElseThrow(() -> new CorrectionException("Attendance record not found"));
+                .orElseThrow(AttendanceRecordNotFoundException::new);
         AttendanceRecord record = recordFrom(entity);
-        if (record.internId() != actor.userId()) {
-            throw new AccessDeniedException("Only the owning Intern may request a correction");
+        AccountIdentity actorIdentity = accounts.requireIdentityById(actor.userId());
+        AccountIdentity targetIdentity = accounts.requireIdentityById(record.internId());
+        if (targetIdentity.role() != GlobalRole.INTERN || actor.role() != GlobalRole.INTERN
+                || record.internId() != actor.userId()) {
+            if (actor.role() == GlobalRole.INTERN) {
+                throw new AttendanceRecordNotFoundException();
+            }
+            throw new AccessDeniedException("Only an Intern may submit a correction");
+        }
+        boolean activeActor = actorIdentity.status() == AccountStatus.ACTIVE
+                && actorIdentity.role() == actor.role();
+        AuthorizationRequest policyRequest = AttendanceAuthorizationRequests.request(
+                actor, activeActor, record.internId(), actorIdentity.status().name());
+        boolean submissionAllowed = authorizationPolicy.allows(
+                AuthorizationCapability.SUBMIT_ATTENDANCE_REQUEST, policyRequest);
+        if (!submissionAllowed && activeActor && actor.role() == GlobalRole.INTERN) {
+            throw new AttendanceRecordNotFoundException();
+        }
+        if (!submissionAllowed) {
+            throw new AccessDeniedException("Attendance request submission is not permitted");
         }
         if (record.checkOutAt() != null) {
             throw new CorrectionException("Corrections require a missing raw checkout");
@@ -202,7 +230,7 @@ public class AttendanceCorrectionApplicationService {
         Instant now = clock.instant();
         Instant scheduledEnd = scheduledEnd(record);
         Instant checkoutCutoff = scheduledEnd.plusSeconds(record.policy().checkoutGraceMinutes() * 60L);
-        Instant submissionDeadline = scheduledEnd.plusSeconds(24 * 60 * 60L);
+        Instant submissionDeadline = AttendanceRequestWindows.submissionDeadline(scheduledEnd);
         if (!now.isAfter(checkoutCutoff)) {
             throw new CorrectionException("Correction opens after the attached checkout cutoff");
         }
@@ -224,11 +252,11 @@ public class AttendanceCorrectionApplicationService {
                 command.reason(),
                 now,
                 submissionDeadline,
-                now.plusSeconds(24 * 60 * 60L));
+                AttendanceRequestWindows.decisionDeadline(now));
         try {
             correction = corrections.saveAndFlush(correction);
             append(correction, CorrectionEventType.SUBMITTED, null, CorrectionStatus.PENDING, actor.userId(), null, now);
-            publishSubmissionNotification(activeMentorRecipients(mentorIdentities, lockedAccounts));
+            publishSubmissionNotification(recipients.forIntern(actor.userId()));
             return view(actor, correction, record);
         } catch (DataIntegrityViolationException conflict) {
             throw new CorrectionException("One correction request already exists for this attendance row", conflict);
@@ -236,31 +264,46 @@ public class AttendanceCorrectionApplicationService {
     }
 
     /**
-     * Applies an approve, reject, or reopen transition for an active Mentor.
+     * Applies an approve, reject, amend, or reverse transition for the active responsible Mentor.
      *
-     * <p>Active-Mentor authorization, request-time expiry, and the state transition share one independent
-     * {@code REQUIRES_NEW} transaction and one target-row lock. The independent boundary does not join an ambient
-     * caller transaction; an expired request returns an internal sentinel only after its persisted rejection/lock
-     * and event history commit, then the public method reports the closed decision window.</p>
+     * <p>Authorization, request-time expiry for pending rows, and the state transition share one independent
+     * {@code REQUIRES_NEW} transaction and one target-row lock.</p>
      *
-     * @param actor authenticated active Mentor
+     * @param actor authenticated responsible Mentor
      * @param correctionId correction identifier to lock and transition
      * @param decision requested state transition
      * @param note optional decision note retained in the event history
+     * @param reason mandatory justification for amend and reverse transitions
      * @return corrected attendance view with the raw/effective distinction
      */
     public CorrectionView decide(
-            AttendanceActor actor, long correctionId, CorrectionDecision decision, String note) {
-        requireMentor(actor);
+            AttendanceActor actor, long correctionId, CorrectionDecision decision, String note, String reason) {
+        if (actor == null) {
+            throw new AccessDeniedException("An attendance actor is required");
+        }
         if (decision == null) {
             throw new IllegalArgumentException("Correction decision is required");
         }
-        DecisionOutcome outcome = independentTransactions()
-                .execute(status -> decideInTransaction(actor, correctionId, decision, note));
-        if (outcome.expired()) {
-            throw new CorrectionException("Correction decision window is closed");
+        return independentTransactions()
+                .execute(status -> decideInTransaction(actor, correctionId, decision, note, reason));
+    }
+
+    /**
+     * Reports whether the Intern's work month contains a pending or overdue correction request.
+     * Period finalization must consult this property before concluding monthly attendance.
+     *
+     * @param internUserId Intern whose period is being checked
+     * @param month calendar work month
+     * @return {@code true} when an unresolved correction is attached to an attendance row in the month
+     */
+    @Transactional(readOnly = true)
+    public boolean hasUnresolvedCorrection(long internUserId, YearMonth month) {
+        if (internUserId <= 0 || month == null) {
+            throw new IllegalArgumentException("Intern and business month are required");
         }
-        return outcome.view();
+        LocalDate monthStart = month.atDay(1);
+        return corrections.existsUnresolvedCorrectionForInternAndWorkDate(
+                internUserId, monthStart, monthStart.plusMonths(1));
     }
 
     /**
@@ -276,19 +319,29 @@ public class AttendanceCorrectionApplicationService {
             throw new AccessDeniedException("An attendance actor is required");
         }
         long ownerId = corrections.findInternUserIdById(correctionId)
-                .orElseThrow(() -> new CorrectionException("Correction not found"));
+                .orElseThrow(AttendanceRecordNotFoundException::new);
         Map<Long, LockedAccountMutationEligibility> lockedAccounts = lockAccounts(
                 accountIds(actor.userId(), ownerId));
         AccountIdentity ownerIdentity = accounts.requireIdentityById(ownerId);
         AttendanceCorrectionEntity correction = lockedCorrection(correctionId);
         AttendanceRecord record = recordFor(correction);
-        if (actor.role() == GlobalRole.INTERN && actor.userId() != record.internId()) {
-            throw new AccessDeniedException("Correction is outside the requested scope");
+        if (ownerIdentity.role() != GlobalRole.INTERN
+                || actor.role() == GlobalRole.INTERN && ownerId != actor.userId()) {
+            throw new AttendanceRecordNotFoundException();
         }
-        if (actor.role() == GlobalRole.MENTOR) {
-            requireActiveMentor(actor.userId(), lockedAccounts);
-        } else if (actor.role() != GlobalRole.INTERN) {
-            throw new AccessDeniedException("Only the owning Intern or an active Mentor may inspect corrections");
+        LockedAccountMutationEligibility lockedActor = lockedAccounts.get(actor.userId());
+        boolean activeActor = lockedActor != null
+                && lockedActor.accountStatus() == AccountStatus.ACTIVE
+                && lockedActor.role() == actor.role();
+        AuthorizationRequest policyRequest = AttendanceAuthorizationRequests.request(
+                actor, activeActor, record.internId(), null);
+        boolean viewAllowed = authorizationPolicy.allows(
+                AuthorizationCapability.VIEW_INTERN_ATTENDANCE, policyRequest);
+        if (!viewAllowed && activeActor && actor.role() == GlobalRole.INTERN) {
+            throw new AttendanceRecordNotFoundException();
+        }
+        if (!viewAllowed) {
+            throw new AccessDeniedException("Attendance request is outside the requested scope");
         }
         expireIfNeeded(correction, clock.instant(), ownerIdentity);
         return view(actor, correction, record);
@@ -352,7 +405,7 @@ public class AttendanceCorrectionApplicationService {
      * Processes a bounded batch of expired corrections idempotently.
      *
      * @param batchSize maximum number of rows to lock in this transaction
-     * @return number of newly locked correction requests
+     * @return number of newly overdue correction requests
      */
     @Transactional
     public int expire(int batchSize) {
@@ -368,26 +421,18 @@ public class AttendanceCorrectionApplicationService {
                 .sorted()
                 .toList();
         lockAccounts(internIds);
-        Map<Long, AccountIdentity> ownerIdentities = identities(internIds);
         int changed = 0;
         for (AttendanceCorrectionRepository.ExpiredRecipientRoute candidate : candidates) {
             AttendanceCorrectionEntity correction = lockedCorrection(candidate.getCorrectionId());
             Instant now = clock.instant();
-            if (correction.lockedAt() != null || now.isBefore(correction.decisionDeadline())) {
+            if (correction.status() != CorrectionStatus.PENDING || now.isBefore(correction.decisionDeadline())) {
                 continue;
             }
             CorrectionStatus from = correction.status();
-            if (from == CorrectionStatus.PENDING) {
-                correction.autoReject(now);
-                corrections.saveAndFlush(correction);
-                append(correction, CorrectionEventType.AUTO_REJECTED, from, CorrectionStatus.REJECTED, null,
-                        "Decision window expired", now);
-                publishDecisionNotification(
-                        ownerIdentities.get(candidate.getInternUserId()), "AUTO_REJECTED");
-            }
-            correction.lock(now);
+            correction.markOverdue(now);
             corrections.saveAndFlush(correction);
-            append(correction, CorrectionEventType.LOCKED, correction.status(), correction.status(), null, null, now);
+            append(correction, CorrectionEventType.OVERDUE, from, CorrectionStatus.OVERDUE, null, null, now);
+            publishOverdueReminder(correction, candidate.getInternUserId());
             changed++;
         }
         return changed;
@@ -432,13 +477,13 @@ public class AttendanceCorrectionApplicationService {
 
     private AttendanceCorrectionEntity lockedCorrection(long correctionId) {
         return corrections.findForUpdateById(correctionId)
-                .orElseThrow(() -> new CorrectionException("Correction not found"));
+                .orElseThrow(AttendanceRecordNotFoundException::new);
     }
 
     private AttendanceRecord recordFor(AttendanceCorrectionEntity correction) {
         return records.findById(correction.attendanceRecordId())
                 .map(this::recordFrom)
-                .orElseThrow(() -> new CorrectionException("Attendance record not found"));
+                .orElseThrow(AttendanceRecordNotFoundException::new);
     }
 
     private AttendanceRecord recordFrom(AttendanceRecordEntity entity) {
@@ -456,19 +501,24 @@ public class AttendanceCorrectionApplicationService {
 
     private void expireIfNeeded(
             AttendanceCorrectionEntity correction, Instant now, AccountIdentity ownerIdentity) {
-        if (correction.lockedAt() == null && !now.isBefore(correction.decisionDeadline())) {
+        if (correction.status() == CorrectionStatus.PENDING && !now.isBefore(correction.decisionDeadline())) {
             CorrectionStatus from = correction.status();
-            if (from == CorrectionStatus.PENDING) {
-                correction.autoReject(now);
-                corrections.saveAndFlush(correction);
-                append(correction, CorrectionEventType.AUTO_REJECTED, from, CorrectionStatus.REJECTED, null,
-                        "Decision window expired", now);
-                publishDecisionNotification(ownerIdentity, "AUTO_REJECTED");
-            }
-            correction.lock(now);
+            correction.markOverdue(now);
             corrections.saveAndFlush(correction);
-            append(correction, CorrectionEventType.LOCKED, correction.status(), correction.status(), null, null, now);
+            append(correction, CorrectionEventType.OVERDUE, from, CorrectionStatus.OVERDUE, null, null, now);
+            publishOverdueReminder(correction, ownerIdentity.id());
         }
+    }
+
+    private void publishOverdueReminder(AttendanceCorrectionEntity correction, long internId) {
+        notifications.publish(
+                new NotificationEvent(
+                        NotificationType.SYSTEM,
+                        "OVERDUE",
+                        "Correction request overdue",
+                        "An undecided missed-checkout correction is overdue."),
+                new NotificationAction("/attendance/corrections", false, null),
+                recipients.forIntern(internId));
     }
 
     private void publishSubmissionNotification(List<NotificationRecipient> recipients) {
@@ -522,51 +572,67 @@ public class AttendanceCorrectionApplicationService {
         return java.util.stream.Stream.of(firstId, secondId).distinct().sorted().toList();
     }
 
-    private static List<NotificationRecipient> activeMentorRecipients(
-            List<AccountIdentity> candidates,
-            Map<Long, LockedAccountMutationEligibility> lockedAccounts) {
-        return candidates.stream()
-                .filter(identity -> {
-                    LockedAccountMutationEligibility locked = lockedAccounts.get(identity.id());
-                    return locked != null
-                            && locked.role() == GlobalRole.MENTOR
-                            && locked.accountStatus() == AccountStatus.ACTIVE;
-                })
-                .map(identity -> new NotificationRecipient(identity.id(), identity.email()))
-                .toList();
-    }
-
-    private DecisionOutcome decideInTransaction(
-            AttendanceActor actor, long correctionId, CorrectionDecision decision, String note) {
+    private CorrectionView decideInTransaction(
+            AttendanceActor actor, long correctionId, CorrectionDecision decision, String note, String reason) {
         long ownerId = corrections.findInternUserIdById(correctionId)
-                .orElseThrow(() -> new CorrectionException("Correction not found"));
+                .orElseThrow(AttendanceRecordNotFoundException::new);
         Map<Long, LockedAccountMutationEligibility> lockedAccounts = lockAccounts(
                 accountIds(actor.userId(), ownerId));
         AccountIdentity ownerIdentity = accounts.requireIdentityById(ownerId);
-        requireActiveMentor(actor.userId(), lockedAccounts);
+        LockedAccountMutationEligibility lockedActor = lockedAccounts.get(actor.userId());
+        boolean activeAccount = lockedActor != null
+                && lockedActor.accountStatus() == AccountStatus.ACTIVE
+                && lockedActor.role() == actor.role();
+        boolean responsible = internships.responsibleMentorUserId(ownerId)
+                .map(id -> id.equals(actor.userId()))
+                .orElse(false);
+        AttendanceAuthorizationRequests.requireAllowed(
+                authorizationPolicy,
+                AuthorizationCapability.DECIDE_ATTENDANCE_REQUEST,
+                AttendanceAuthorizationRequests.decisionRequest(actor, activeAccount, responsible));
+
         AttendanceCorrectionEntity correction = lockedCorrection(correctionId);
         Instant now = clock.instant();
-        if (correction.lockedAt() != null || !now.isBefore(correction.decisionDeadline())) {
-            expireIfNeeded(correction, now, ownerIdentity);
-            return new DecisionOutcome(null, true);
+
+        if (decision == CorrectionDecision.APPROVE || decision == CorrectionDecision.REJECT) {
+            if (correction.status() != CorrectionStatus.PENDING && correction.status() != CorrectionStatus.OVERDUE) {
+                throw new CorrectionException("Only pending or overdue correction can be approved or rejected");
+            }
+            if (correction.status() == CorrectionStatus.PENDING && !now.isBefore(correction.decisionDeadline())) {
+                expireIfNeeded(correction, now, ownerIdentity);
+            }
+        } else if (decision == CorrectionDecision.AMEND || decision == CorrectionDecision.REVERSE) {
+            if (correction.status() != CorrectionStatus.APPROVED && correction.status() != CorrectionStatus.REJECTED) {
+                throw new CorrectionException("Only approved or rejected correction can be amended or reversed");
+            }
+            if (reason == null || reason.isBlank()) {
+                throw new CorrectionException("A reason is required to amend or reverse a correction decision");
+            }
         }
+
         AttendanceRecord record = recordFor(correction);
         CorrectionStatus from = correction.status();
         String normalizedNote = normalizeNote(note);
+        String normalizedReason = normalizeNote(reason);
         try {
             switch (decision) {
                 case APPROVE -> correction.approve(actor.userId(), now, normalizedNote);
                 case REJECT -> correction.reject(actor.userId(), now, normalizedNote);
-                case REOPEN -> correction.reopen(now);
+                case AMEND -> correction.amend(actor.userId(), now, normalizedNote);
+                case REVERSE -> correction.reverse(actor.userId(), now);
             }
             corrections.saveAndFlush(correction);
             CorrectionStatus to = correction.status();
-            append(correction, eventType(decision), from, to, actor.userId(), normalizedNote, now);
+            String eventNote = switch (decision) {
+                case APPROVE, REJECT -> normalizedNote;
+                case AMEND, REVERSE -> normalizedReason;
+            };
+            append(correction, eventType(decision), from, to, actor.userId(), eventNote, now);
             publishDecisionNotification(ownerIdentity, transition(decision));
-            return new DecisionOutcome(view(actor, correction, record), false);
+            return view(actor, correction, record);
         } catch (ObjectOptimisticLockingFailureException conflict) {
             throw new CorrectionException("Correction changed concurrently; reload before deciding", conflict);
-        } catch (IllegalStateException invalid) {
+        } catch (IllegalStateException | IllegalArgumentException invalid) {
             throw new CorrectionException(invalid.getMessage(), invalid);
         }
     }
@@ -587,12 +653,6 @@ public class AttendanceCorrectionApplicationService {
         }
     }
 
-    private static void requireMentor(AttendanceActor actor) {
-        if (actor == null || actor.role() != GlobalRole.MENTOR) {
-            throw new AccessDeniedException("Only a Mentor may decide corrections");
-        }
-    }
-
     private static Instant scheduledEnd(AttendanceRecord record) {
         return ZonedDateTime.of(record.workDate(), record.policy().scheduledEnd(), record.policy().zoneId()).toInstant();
     }
@@ -601,7 +661,8 @@ public class AttendanceCorrectionApplicationService {
         return switch (decision) {
             case APPROVE -> CorrectionEventType.APPROVED;
             case REJECT -> CorrectionEventType.REJECTED;
-            case REOPEN -> CorrectionEventType.REOPENED;
+            case AMEND -> CorrectionEventType.AMENDED;
+            case REVERSE -> CorrectionEventType.REVERSED;
         };
     }
 
@@ -609,7 +670,8 @@ public class AttendanceCorrectionApplicationService {
         return switch (decision) {
             case APPROVE -> "APPROVED";
             case REJECT -> "REJECTED";
-            case REOPEN -> "REVERTED";
+            case AMEND -> "AMENDED";
+            case REVERSE -> "REVERSED";
         };
     }
 
@@ -622,6 +684,4 @@ public class AttendanceCorrectionApplicationService {
         independent.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
         return independent;
     }
-
-    private record DecisionOutcome(CorrectionView view, boolean expired) {}
 }

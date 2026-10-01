@@ -9,7 +9,7 @@ here under `D40`, which also replaced its references to module plans with featur
 
 | Part | Subject | Rules | State |
 |---|---|---|---|
-| C | The schema change the decisions require, below | `DB-011`, `DB-014`–`DB-022`, the audit of `D39` | Draft of 22 September 2026, for approval on its own; replaces version 1.0 of 16 September |
+| C | The schema change the decisions require, below | `DB-011`, `DB-014`–`DB-022`, the audit of `D39` | Draft of 22 September 2026, revised and approved on 25 September 2026; replaces version 1.0 of 16 September |
 
 ## Part C — The schema change the decisions require
 
@@ -38,9 +38,11 @@ point. Migrations are numbered in the order they ship, and each file name names 
 ### C.2 Before any migration: which database, and what it holds
 
 Each database a migration will run on is identified first by its Flyway history. A database created
-while `V2__account_admin_edit_events.sql` existed, from `4c1fa67` until the merge `787d143` removed
-it, holds a different `V2`; this plan does not guess how to reconcile it, and work on that database
-stops until the maintainer decides. The same step reads the stored rows that the contract steps
+from a commit that contains `V2__account_admin_edit_events.sql` holds a different `V2`. The file was
+added in `4c1fa67`; on the first-parent line of `main` it arrived with the merge `4e5440c` and was
+dropped by the merge `eb6bb58`, and other branches carried it until their own merges dropped it. This
+plan does not guess how to reconcile such a database, and work on it stops until the maintainer
+decides. The same step reads the stored rows that the contract steps
 depend on (C.5) and records the counts in `plan.md`.
 
 ### C.3 V3, the expansion
@@ -85,7 +87,7 @@ to each, as `D27` decided.
 |---|---|---|
 | `identity`: [Account lifecycle](../../../identity/features/account-lifecycle/SPEC.md), [Authentication](../../../identity/features/authentication/SPEC.md) | The exact `DB-022` shapes: a non-blank hash and an activation timestamp together or not at all per status; an activation timestamp set only by `PENDING_ACTIVATION → ACTIVE` and never changed or cleared; a lock timestamp set only by `ACTIVE → LOCKED`, cleared only by `LOCKED → ACTIVE`, and otherwise unchanged. Both timestamp rules by trigger, comparing old and new values with `IS DISTINCT FROM` | Deactivation keeps the lock; `ACC-028`, `ACC-029`, `ACC-030` |
 | `attendance`: [Leave](../../../attendance/features/leave/SPEC.md), [Missed-checkout correction](../../../attendance/features/missed-checkout-correction/SPEC.md), [Attendance exception](../../../attendance/features/attendance-exception/SPEC.md) | `DB-018`: an undecided leave request carries no deciding actor (new predicate); `ck_attendance_corrections_pending_decision` counts `OVERDUE` as undecided; a `CANCELLED` leave request carries its approval time and approving Mentor (`ck_leave_requests_decision`, `ck_leave_requests_approval_actor`); a `WITHDRAWN` one carries its withdrawal time. `DB-017`: correction entries carry a reason for an amendment or reversal and refuse update and delete. Before these checks, the reclassification of C.5 | Withdrawal and cancellation under `LEV-011` and `LEV-013`; overdue marking; decision history; corrections stop writing their lock |
-| `project`: [Project lifecycle](../../../project/features/lifecycle/SPEC.md), [Task management](../../../project/features/task-management/SPEC.md) | `DB-019`: a `CANCELLED` Project carries the cancelling Mentor, the time and a non-blank reason | `PRJ-023`; `PRJ-002` deleting a draft's notifications by their Project link; the grant half of `TSK-023` |
+| `project`: [Project lifecycle](../../../project/features/lifecycle/SPEC.md) | `DB-019`: a `CANCELLED` Project carries the cancelling Mentor, the time and a non-blank reason | `PRJ-023`; `PRJ-002` deleting a draft's notifications by their Project link. The grant half of `TSK-023` writes `task_status_transitions`, whose contract `DB-020` V3 already enforces, so it ships with the Task management plan after the authorization policy of part B, not with this contract |
 | `notification`: [Email delivery](../../../notification/features/email-delivery/SPEC.md) | `ck_notifications_email_payload`: `NOT_REQUIRED` and `UNAVAILABLE` carry no payload (`NOT-012`) | None, if C.2 finds no stored row that breaks it; otherwise the rows found are reported before this step |
 
 ### C.5 Stored rows

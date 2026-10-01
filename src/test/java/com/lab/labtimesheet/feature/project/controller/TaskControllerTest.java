@@ -29,6 +29,7 @@ import com.lab.labtimesheet.feature.project.model.dto.TaskCommentView;
 import com.lab.labtimesheet.feature.project.model.dto.TaskDetails;
 import com.lab.labtimesheet.feature.project.model.dto.TaskEffortPlanningView;
 import com.lab.labtimesheet.feature.project.model.dto.TaskListView;
+import com.lab.labtimesheet.feature.project.model.dto.TaskStatusChangeCommand;
 import com.lab.labtimesheet.feature.project.model.dto.TaskRemainingEffortForecastView;
 import com.lab.labtimesheet.feature.project.model.dto.TaskView;
 import com.lab.labtimesheet.feature.project.service.TaskService;
@@ -245,7 +246,9 @@ class TaskControllerTest {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Update estimate")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Remaining effort forecast")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("next phase")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Incoming")));
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Incoming")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("name=\"reason\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Required when reopening")));
         given(taskService.details(ACTOR_EMAIL, 10L, 25L)).willReturn(new TaskDetails(
                 task(25L, TaskStatus.DONE), List.of(), List.of(), 7L, false, true, false, false, false, false,
                 new TaskEffortPlanningView(120, 150, TaskVarianceState.VALUE, 30L, false)));
@@ -391,7 +394,8 @@ class TaskControllerTest {
 
     @Test
     void statusAndCommentPostsUseAuthenticatedIdentityAndCsrf() throws Exception {
-        given(taskService.changeStatus(ACTOR_EMAIL, 10L, 25L, 0L, TaskStatus.IN_PROGRESS))
+        given(taskService.changeStatus(ACTOR_EMAIL, 10L, 25L, 0L,
+                new TaskStatusChangeCommand(TaskStatus.IN_PROGRESS, null)))
                 .willReturn(task(25L));
         given(taskService.addComment(ACTOR_EMAIL, 10L, 25L, "Update"))
                 .willReturn(new TaskCommentView(3L, 25L, 5L, "Update", Instant.parse("2026-08-14T10:00:00Z")));
@@ -413,7 +417,8 @@ class TaskControllerTest {
 
     @Test
     void taskConflictReturnsExplicitReloadResponse() throws Exception {
-        given(taskService.changeStatus(ACTOR_EMAIL, 10L, 25L, 3L, TaskStatus.IN_PROGRESS))
+        given(taskService.changeStatus(ACTOR_EMAIL, 10L, 25L, 3L,
+                new TaskStatusChangeCommand(TaskStatus.IN_PROGRESS, null)))
                 .willThrow(new TaskConflictException(
                         "Task changed concurrently; reload before trying again", null));
 
@@ -427,6 +432,9 @@ class TaskControllerTest {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Reload")));
     }
 
+    /**
+     * AC-AUTH-006 (Member sees and comments on all Tasks; status/log controls exist only on their assigned Task).
+     */
     @Test
     void taskDetailsHideUnavailableActionsAndShowAssignee() throws Exception {
         given(taskService.details(ACTOR_EMAIL, 10L, 25L))
@@ -441,6 +449,25 @@ class TaskControllerTest {
                         org.hamcrest.Matchers.containsString("Add comment"))));
     }
 
+    /**
+     * AC-AUTH-006 (Member sees and comments on all Tasks; status/log controls exist only on their assigned Task).
+     */
+    @Test
+    void unassignedMemberTaskDetailShowsCommentsAndHidesStatusAndLogControls() throws Exception {
+        given(taskService.details(ACTOR_EMAIL, 10L, 25L))
+                .willReturn(new TaskDetails(task(25L), List.of(), false, true));
+
+        mockMvc.perform(get("/projects/10/tasks/25").with(user(ACTOR_EMAIL)))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Member Name")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Add comment")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("Change status"))));
+    }
+
+    /**
+     * AUTH-009 (WHILE a Project is open, THE system SHALL permit its active members to view every non-deleted Task, assignee, status, aggregate progress, comment thread, and authorized history entry in that Project, and to comment on any non-deleted Task).
+     */
     @Test
     void taskDetailsRenderAvailableActions() throws Exception {
         given(taskService.details(ACTOR_EMAIL, 10L, 25L))
@@ -452,6 +479,9 @@ class TaskControllerTest {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Add comment")));
     }
 
+    /**
+     * TSK-008 (WHERE any other status transition is requested, THE system SHALL reject it; THE system SHALL NOT provide a configurable workflow engine in v1).
+     */
     @ParameterizedTest(name = "{0} exposes only {1}")
     @MethodSource("allowedStatusChoices")
     void taskDetailsExposeOnlyAllowedStatusTransitions(TaskStatus current, List<TaskStatus> expected) throws Exception {

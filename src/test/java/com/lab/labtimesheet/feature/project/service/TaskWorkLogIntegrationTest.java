@@ -173,6 +173,27 @@ class TaskWorkLogIntegrationTest {
                 .isInstanceOf(TaskValidationException.class);
     }
 
+    /**
+     * Protects {@code PRJ-013}. Observable break: a work log is accepted while its Project is
+     * still PLANNED. Expected: the Task boundary reports the unavailable Project and persists no
+     * work-log row for the request.
+     */
+    @Test
+    void plannedProjectRejectsWorkLoggingWithoutWritingHistory() {
+        jdbc.sql("update projects set status = 'PLANNED', activated_at = null where id = :projectId")
+                .param("projectId", fixture.firstProjectId())
+                .update();
+
+        assertThatThrownBy(() -> taskService.addWorkLog(
+                        fixture.email(), fixture.firstProjectId(), fixture.firstTaskId(),
+                        WORK_DATE, 60, "Not active yet"))
+                .isInstanceOf(TaskNotFoundException.class);
+        assertThat(jdbc.sql("select count(*) from task_work_logs where project_id = :projectId")
+                .param("projectId", fixture.firstProjectId())
+                .query(Long.class)
+                .single()).isZero();
+    }
+
     @Test
     void workLogRejectsDateAfterRetainedMembershipClosure() {
         jdbc.sql("""
@@ -223,6 +244,10 @@ class TaskWorkLogIntegrationTest {
                 .isInstanceOf(TaskValidationException.class);
     }
 
+    /**
+     * AC-TSK-007 (assignee logs work, Task is reassigned, former assignee corrects own prior log),
+     * TSK-013, TSK-014, TSK-015, TSK-016.
+     */
     @Test
     void authorCorrectionRetainsStoredIdentityAndRejectsAnotherMember() {
         TaskWorkLogView original = taskService.addWorkLog(
@@ -250,6 +275,9 @@ class TaskWorkLogIntegrationTest {
                 .isInstanceOf(TaskNotFoundException.class);
     }
 
+    /**
+     * AC-TSK-013 (forecast correction appends successor before incoming work begins), TSK-022.
+     */
     @Test
     void forecastCorrectionAppendsSuccessorWithCurrentHistoryAndDetailMetadata() {
         long predecessorId = createForecastedTransfer();
@@ -281,6 +309,9 @@ class TaskWorkLogIntegrationTest {
                 .isEqualTo(140L);
     }
 
+    /**
+     * AC-TSK-013 (rejects stale forecast correction based on superseded predecessor), TSK-022.
+     */
     @Test
     void forecastCorrectionRejectsSupersededPredecessorWithoutAppendingAnotherSuccessor() {
         long predecessorId = createForecastedTransfer();
@@ -353,6 +384,9 @@ class TaskWorkLogIntegrationTest {
                 fixture.firstProjectId(), fixture.firstTaskId())).hasSize(1);
     }
 
+    /**
+     * AC-TSK-013 (rejects late forecast correction after incoming member's first new log), TSK-022.
+     */
     @Test
     void forecastCorrectionRejectsAfterIncomingWorkBeginsWithoutAppending() {
         long predecessorId = createForecastedTransfer();
@@ -449,6 +483,9 @@ class TaskWorkLogIntegrationTest {
         assertThat(history.getFirst().getActualMinutesSnapshot()).isEqualTo(60L);
     }
 
+    /**
+     * AC-TSK-013 (rejects unauthorized forecast correction by non-leader), TSK-022.
+     */
     @Test
     void forecastCorrectionRejectsIncomingNonLeaderWithoutAppending() {
         long predecessorId = createForecastedTransfer();
@@ -745,6 +782,53 @@ class TaskWorkLogIntegrationTest {
             executor.shutdownNow();
             assertThat(executor.awaitTermination(10, TimeUnit.SECONDS)).isTrue();
         }
+    }
+
+    /**
+     * AUTH-005 (a Leader, like an ordinary member, may log work on a Task only while assigned to it).
+     */
+    @Test
+    void leaderLikeOrdinaryMemberMayLogWorkOnTaskOnlyWhileAssignedToIt() {
+        long taskAId = insertTask(
+                fixture.firstProjectId(), fixture.otherMembershipId(), fixture.firstMembershipId(), "Task A");
+        long taskBId = insertTask(
+                fixture.firstProjectId(), fixture.firstMembershipId(), fixture.firstMembershipId(), "Task B");
+
+        long mentorId = jdbc.sql("select mentor_user_id from projects where id = :id")
+                .param("id", fixture.firstProjectId())
+                .query(Long.class)
+                .single();
+        String memberNEmail = "worklog-member-n-" + SEQUENCE.incrementAndGet() + "@example.test";
+        long memberNId = insertIntern(memberNEmail);
+        insertMembership(fixture.firstProjectId(), memberNId, mentorId);
+
+        assertThatThrownBy(() -> taskService.addWorkLog(
+                        fixture.email(), fixture.firstProjectId(), taskAId, WORK_DATE, 60, "Leader on member task"))
+                .isInstanceOf(TaskNotFoundException.class);
+        assertThat(jdbc.sql("select count(*) from task_work_logs where task_id = :taskId")
+                .param("taskId", taskAId).query(Long.class).single()).isZero();
+
+        assertThatThrownBy(() -> taskService.addWorkLog(
+                        memberNEmail, fixture.firstProjectId(), taskAId, WORK_DATE, 60, "Other member on task A"))
+                .isInstanceOf(TaskNotFoundException.class);
+        assertThat(jdbc.sql("select count(*) from task_work_logs where task_id = :taskId")
+                .param("taskId", taskAId).query(Long.class).single()).isZero();
+
+        TaskWorkLogView logB = taskService.addWorkLog(
+                fixture.email(), fixture.firstProjectId(), taskBId, WORK_DATE, 60, "Leader on own task");
+        assertThat(logB.minutes()).isEqualTo(60);
+        assertThat(logB.membershipId()).isEqualTo(fixture.firstMembershipId());
+
+        boolean worked = workLogs.existsByTaskIdAndProjectId(taskAId, fixture.firstProjectId());
+        RemainingEffortForecastInput forecast = worked ? new RemainingEffortForecastInput(60, "Handover") : null;
+        TaskView reassigned = taskService.reassign(
+                fixture.email(), fixture.firstProjectId(), taskAId, null, fixture.firstMembershipId(), forecast);
+        assertThat(reassigned.assigneeMembershipId()).isEqualTo(fixture.firstMembershipId());
+
+        TaskWorkLogView logA = taskService.addWorkLog(
+                fixture.email(), fixture.firstProjectId(), taskAId, WORK_DATE, 90, "Leader on assigned Task A");
+        assertThat(logA.minutes()).isEqualTo(90);
+        assertThat(logA.membershipId()).isEqualTo(fixture.firstMembershipId());
     }
 
     private Future<Throwable> submitStatus(

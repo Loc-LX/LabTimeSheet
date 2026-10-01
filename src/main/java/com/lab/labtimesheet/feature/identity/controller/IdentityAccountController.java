@@ -77,6 +77,20 @@ class IdentityAccountController {
                 "Account deactivated");
     }
 
+    /** Reinstates one deactivated account through the identity boundary. */
+    @PostMapping("/admin/accounts/{targetUserId}/reinstate")
+    String reinstateAccount(
+            @PathVariable long targetUserId,
+            Principal principal,
+            RedirectAttributes redirectAttributes) {
+        long adminId = accounts.requireActiveAdminId(principal.getName());
+        return mutateAccount(
+                targetUserId,
+                redirectAttributes,
+                () -> accounts.reinstateAccount(targetUserId, adminId),
+                "Account reinstated");
+    }
+
     /** Opens the single-use activation form. */
     @GetMapping("/activate")
     String activationForm(@ModelAttribute("activationForm") ActivationForm form, Model model) {

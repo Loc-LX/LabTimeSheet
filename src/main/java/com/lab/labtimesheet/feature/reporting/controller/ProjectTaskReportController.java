@@ -2,9 +2,11 @@ package com.lab.labtimesheet.feature.reporting.controller;
 
 import com.lab.labtimesheet.feature.reporting.service.ProjectTaskReportService;
 import com.lab.labtimesheet.feature.project.model.TaskStatus;
+import com.lab.labtimesheet.feature.project.service.ProjectQueryService;
 import java.time.LocalDate;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import com.lab.labtimesheet.platform.authorization.AuthorizationPolicy;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
@@ -20,6 +22,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 public class ProjectTaskReportController {
 
     private final ProjectTaskReportService reports;
+    private final ProjectQueryService projects;
+    private final AuthorizationPolicy authorizationPolicy;
 
     /**
      * Renders the report for all visible Project options or one selected Project.
@@ -46,7 +50,8 @@ public class ProjectTaskReportController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate workFrom,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate workTo,
             Model model) {
-        OperationalReportAuthorization.requireOperationalReportAccess(authentication);
+        OperationalReportAuthorization.requireOperationalReportAccess(
+                authentication, projects, authorizationPolicy);
         model.addAttribute("report", reports.build(
                 authentication.getName(), projectId, memberMembershipId, status, dueFrom, dueTo, workFrom, workTo));
         model.addAttribute("statuses", List.of(TaskStatus.values()));

@@ -22,6 +22,14 @@
         <div class="metric"><div class="metric-label">Assigned Tasks</div><div class="metric-value" th:text="${dashboard.assignedTasks}">0</div><div class="metric-detail">Current assignment scope</div></div>
     </section>
     <section class="panel">
+        <header class="panel-header">
+            <h2 class="panel-title">Leave balance</h2>
+            <span th:text="${#temporals.format(dashboard.leaveBalance.quotaMonth.atDay(1), 'MM/yyyy')}">MM/yyyy</span>
+        </header>
+        <p th:text="|${dashboard.leaveBalance.reservedDays} reserved / ${dashboard.leaveBalance.quotaDays} quota / ${dashboard.leaveBalance.remainingDays} remaining|">Balance</p>
+        <a class="button" th:href="@{/attendance/leave}">My Leave</a>
+    </section>
+    <section class="panel">
         <header class="panel-header"><h2 class="panel-title">Priority Tasks</h2></header>
         <th:block th:if="${#lists.isEmpty(dashboard.priorityTasks)}"><th:block th:replace="~{fragments/components :: empty('No assigned Tasks', 'Assigned active-Project Tasks will appear here.')} "></th:block></th:block>
         <div class="table-scroll" th:unless="${#lists.isEmpty(dashboard.priorityTasks)}">

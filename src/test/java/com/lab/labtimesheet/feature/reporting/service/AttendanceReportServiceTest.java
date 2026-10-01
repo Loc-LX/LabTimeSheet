@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 import com.lab.labtimesheet.feature.identity.model.AccountStatus;
 import com.lab.labtimesheet.feature.identity.model.dto.AccountIdentity;
@@ -189,9 +190,14 @@ class AttendanceReportServiceTest {
         assertThat(view.ownScope()).isFalse();
     }
 
+    /**
+     * Protects {@code AUTH-012} and {@code D1}. Observable break: the broad Mentor/Admin report page could load
+     * eligible Intern options before Attendance has asked the shared policy for detail-selection permission.
+     */
     @Test
     void rendersMentorTargetPickerBeforeReadingAttendanceRows() {
-        given(currentUsers.actor(principal)).willReturn(new AttendanceActor(2L, GlobalRole.MENTOR));
+        AttendanceActor actor = new AttendanceActor(2L, GlobalRole.MENTOR);
+        given(currentUsers.actor(principal)).willReturn(actor);
         given(calendar.currentBusinessDate()).willReturn(LocalDate.of(2026, 8, 31));
         given(internships.eligibleInternOptions(LocalDate.of(2026, 8, 31)))
                 .willReturn(List.of(new EligibleInternOption(
@@ -207,6 +213,7 @@ class AttendanceReportServiceTest {
         assertThat(view.targetName()).isEqualTo("Select an Intern");
         assertThat(view.rows()).isEmpty();
         assertThat(view.targetOptions()).hasSize(1);
+        verify(reportQueries).requireDetailSelectionAccess(actor);
     }
 
     private static AccountIdentity identity(long id, String name, GlobalRole role) {

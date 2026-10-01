@@ -13,6 +13,10 @@ import com.lab.labtimesheet.feature.calendar.model.dto.AttendancePolicyCommand;
 import com.lab.labtimesheet.feature.calendar.model.entity.AttendancePolicyEntity;
 import com.lab.labtimesheet.feature.calendar.repository.AttendancePolicyRepository;
 import com.lab.labtimesheet.feature.identity.service.AccountService;
+import com.lab.labtimesheet.feature.identity.model.AccountStatus;
+import com.lab.labtimesheet.feature.identity.model.dto.AccountIdentity;
+import com.lab.labtimesheet.platform.authorization.AuthorizationCatalogue;
+import com.lab.labtimesheet.platform.authorization.AuthorizationPolicy;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.DayOfWeek;
@@ -34,10 +38,12 @@ class AttendancePolicyApplicationServiceTest {
         AttendancePolicyRepository policies = mock(AttendancePolicyRepository.class);
         when(policies.findAllByOrderByEffectiveFromAsc()).thenReturn(List.of(seed));
         AccountService accounts = mock(AccountService.class);
-        when(accounts.requireActiveAdminId(9L)).thenReturn(9L);
+        when(accounts.identityById(9L)).thenReturn(java.util.Optional.of(
+                new AccountIdentity(9L, "admin@example.com", "Admin", GlobalRole.ADMIN, AccountStatus.ACTIVE)));
 
         AttendancePolicyApplicationService service = new AttendancePolicyApplicationService(
-                Clock.fixed(Instant.parse("2026-08-20T03:00:00Z"), ZoneOffset.UTC), accounts, policies);
+                Clock.fixed(Instant.parse("2026-08-20T03:00:00Z"), ZoneOffset.UTC), accounts,
+                new AuthorizationPolicy(AuthorizationCatalogue.loadDefault()), policies);
 
         assertThatThrownBy(() -> service.schedule(
                         9L,

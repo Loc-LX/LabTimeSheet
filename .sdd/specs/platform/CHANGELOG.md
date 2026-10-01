@@ -1,5 +1,14 @@
 # Changelog — Platform module
 
+## 1.13.0 — 2026-09-30
+
+Counts only, following `D49` and `D50`: `NOT-013` brings the normative rules to 312, of which 293 have an acceptance scenario, and `AC-NOT-008` and `AC-PRJ-017` bring the acceptance scenarios to 171. No platform rule changed.
+
+## 1.12.0 — 2026-09-28
+
+Counts only, following `D46` and `D47`: `AC-TSK-022` and `AC-ACC-023` bring the acceptance
+scenarios to 169. No platform rule changed.
+
 ## 1.11.0 — 2026-09-23
 
 Structure only (`D40`). Four features take shared work that had no feature:

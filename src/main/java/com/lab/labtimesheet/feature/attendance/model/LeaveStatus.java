@@ -4,10 +4,14 @@ package com.lab.labtimesheet.feature.attendance.model;
 public enum LeaveStatus {
     /** Intern submitted the request and a Mentor has not decided before its first counted start. */
     PENDING,
+    /** The first counted start passed without a decision; the request remains reserved and decidable. */
+    OVERDUE,
     /** Mentor approved the frozen eligible-day allocations. */
     APPROVED,
-    /** Mentor rejected the request or an unresolved request crossed its first counted start. */
+    /** Mentor rejected the request. */
     REJECTED,
-    /** Intern cancelled the request before its first counted start. */
+    /** Intern withdrew an undecided request before or after its first counted start. */
+    WITHDRAWN,
+    /** Intern cancelled an approved request before its first counted start. */
     CANCELLED
 }

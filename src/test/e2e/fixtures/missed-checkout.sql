@@ -1,6 +1,6 @@
 -- Precondition for the correction journey in critical-journeys.spec.mjs.
 --
--- Creates one active Mentor, one active Intern, and one attendance row for the given
+-- Creates one active Mentor, one active Intern whose responsible Mentor (ACC-026) is that Mentor, and one attendance row for the given
 -- previous workday that has a check-in and no checkout. It seeds the starting state
 -- only: no correction, decision, or notification is created, because those are what
 -- the journey asserts.
@@ -38,11 +38,12 @@ WITH intern AS (
 ), profile AS (
     INSERT INTO intern_profiles (
         user_id, student_code, internship_start_date, internship_end_date,
-        internship_status, activated_at
+        internship_status, activated_at, responsible_mentor_user_id
     )
     SELECT id, 'COR-' || :'stamp',
            DATE :'work_date' - 30, DATE :'work_date' + 60,
-           'ACTIVE', current_timestamp
+           'ACTIVE', current_timestamp,
+           (SELECT id FROM app_users WHERE email = 'correction-mentor-' || :'stamp' || '@e2e.test')
     FROM intern
     RETURNING user_id
 )

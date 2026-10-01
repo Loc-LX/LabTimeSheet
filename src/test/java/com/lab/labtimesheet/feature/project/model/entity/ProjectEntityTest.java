@@ -59,15 +59,21 @@ class ProjectEntityTest {
                 CREATED_AT));
     }
 
+    /**
+     * Protects {@code PRJ-002} and {@code AC-PRJ-014}. Observable break: Project status alone
+     * authorizes deletion even when the service reports child rows. Expected: only an owner with
+     * the locked empty-draft proof passes; a non-owner and a false emptiness proof are refused.
+     */
     @Test
     void onlyPlannedProjectsCanBeDeletedByTheirOwner() {
         var project = plannedProject();
 
-        project.requireDeletable(10L);
-        assertThrows(ProjectAccessDeniedException.class, () -> project.requireDeletable(11L));
+        project.requireDeletable(10L, true);
+        assertThrows(ProjectAccessDeniedException.class, () -> project.requireDeletable(11L, true));
+        assertThrows(ProjectRuleViolationException.class, () -> project.requireDeletable(10L, false));
 
         project.activate(10L, Set.of(20L), true, CREATED_AT.plusSeconds(60));
-        assertThrows(ProjectRuleViolationException.class, () -> project.requireDeletable(10L));
+        assertThrows(ProjectRuleViolationException.class, () -> project.requireDeletable(10L, false));
     }
 
     @Test

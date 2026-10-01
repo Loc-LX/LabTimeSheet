@@ -74,6 +74,7 @@ const RULE_ASSIGNMENT = [
     ['PRJ', 'TSK'].includes(pre(id)) || inRange(id, 'AUTH', 5, 8) || inRange(id, 'DB', 11, 13) || inRange(id, 'DB', 19, 20)],
   ['project', 'relocated unchanged: authorization wholly about projects', id => ['AUTH-004', 'AUTH-009', 'AUTH-011'].includes(id)],
   ['project', 'relocated unchanged: recipients chosen from Project data', id => ['NOT-003', 'NOT-010'].includes(id)],
+  ['project', 'new in D50: recipients chosen from Project data', id => id === 'NOT-013'],
   ['reporting', 'reports and exports', id => pre(id) === 'RPT' || id === 'ERR-006'],
   ['notification', 'inbox, outbox, redelivery', id => (inRange(id, 'NOT', 1, 10) || id === 'NOT-012') && !['NOT-003', 'NOT-010'].includes(id)],
   ['platform', 'cross-cutting rules, raw mail and SMTP configuration, secrets', id =>

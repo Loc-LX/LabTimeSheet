@@ -24,8 +24,12 @@ import com.lab.labtimesheet.feature.identity.model.entity.UserActionToken;
 import com.lab.labtimesheet.feature.identity.repository.AppUserRepository;
 import com.lab.labtimesheet.feature.identity.repository.UserActionTokenRepository;
 import com.lab.labtimesheet.platform.model.GlobalRole;
+import com.lab.labtimesheet.platform.authorization.AuthorizationCapability;
+import com.lab.labtimesheet.platform.authorization.AuthorizationPolicy;
+import com.lab.labtimesheet.platform.authorization.AuthorizationRequest;
 import com.lab.labtimesheet.platform.service.MailDeliveryService;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.core.session.SessionInformation;
 import org.springframework.security.core.session.SessionRegistry;
@@ -51,7 +55,9 @@ public class AccountService {
     private final TransactionTemplate transactions;
     private final SessionRegistry sessions;
     private final String publicOrigin;
+    private final AuthorizationPolicy authorizationPolicy;
 
+    @Autowired
     AccountService(
             AppUserRepository users,
             UserActionTokenRepository tokens,
@@ -60,7 +66,8 @@ public class AccountService {
             Clock clock,
             TransactionTemplate transactions,
             SessionRegistry sessions,
-            @Value("${lab.public-origin}") String publicOrigin) {
+            @Value("${lab.public-origin}") String publicOrigin,
+            AuthorizationPolicy authorizationPolicy) {
         this.users = users;
         this.tokens = tokens;
         this.mailDelivery = mailDelivery;
@@ -69,6 +76,7 @@ public class AccountService {
         this.transactions = transactions;
         this.sessions = sessions;
         this.publicOrigin = normalizeOrigin(publicOrigin);
+        this.authorizationPolicy = authorizationPolicy;
     }
 
     /**
@@ -267,7 +275,7 @@ public class AccountService {
      */
     @Transactional
     public void lockAccount(long targetUserId, long adminId) {
-        requireActiveAdminId(adminId);
+        requireAdminCapability(adminId, AuthorizationCapability.ACCOUNT_LIFECYCLE);
         AppUser target = users.findForUpdateById(targetUserId)
                 .orElseThrow(() -> new IllegalArgumentException("Account not found"));
         target.lock(clock.instant());
@@ -284,7 +292,7 @@ public class AccountService {
      */
     @Transactional
     public void unlockAccount(long targetUserId, long adminId) {
-        requireActiveAdminId(adminId);
+        requireAdminCapability(adminId, AuthorizationCapability.ACCOUNT_LIFECYCLE);
         AppUser target = users.findForUpdateById(targetUserId)
                 .orElseThrow(() -> new IllegalArgumentException("Account not found"));
         target.unlock(clock.instant());
@@ -300,10 +308,33 @@ public class AccountService {
      */
     @Transactional
     public void deactivateAccount(long targetUserId, long adminId) {
-        requireActiveAdminId(adminId);
+        requireAdminCapability(adminId, AuthorizationCapability.ACCOUNT_LIFECYCLE);
         AppUser target = users.findForUpdateById(targetUserId)
                 .orElseThrow(() -> new IllegalArgumentException("Account not found"));
-        target.deactivate(clock.instant());
+        boolean pending = target.getAccountStatus() == AccountStatus.PENDING_ACTIVATION;
+        Instant now = clock.instant();
+        target.deactivate(now);
+        if (pending) {
+            invalidateLiveTokens(targetUserId, TokenPurpose.ACTIVATION, now);
+            invalidateLiveTokens(targetUserId, TokenPurpose.PASSWORD_RESET, now);
+        }
+        invalidateSessions(target);
+    }
+
+    /**
+     * Reinstates one account from its retained activation and lock history and expires any prior session.
+     *
+     * @param targetUserId account to reinstate
+     * @param adminId active Admin authorizing the mutation
+     * @throws IllegalArgumentException when the actor or target account is missing or the actor is not an active Admin
+     * @throws IllegalStateException when the target account is not deactivated
+     */
+    @Transactional
+    public void reinstateAccount(long targetUserId, long adminId) {
+        requireAdminCapability(adminId, AuthorizationCapability.ACCOUNT_LIFECYCLE);
+        AppUser target = users.findForUpdateById(targetUserId)
+                .orElseThrow(() -> new IllegalArgumentException("Account not found"));
+        target.reinstate(clock.instant());
         invalidateSessions(target);
     }
 
@@ -329,7 +360,7 @@ public class AccountService {
      */
     @Transactional(readOnly = true)
     public List<AccountAdministrationView> administrationViews(long adminId, AccountDirectoryFilter filter) {
-        requireActiveAdminId(adminId);
+        requireAdminCapability(adminId, AuthorizationCapability.MANAGE_ACCOUNTS);
         if (filter == null) {
             throw new IllegalArgumentException("Account directory filter is required");
         }
@@ -362,7 +393,7 @@ public class AccountService {
     @Transactional(readOnly = true)
     public List<AccountAdministrationView> administrationViewsByIds(
             long adminId, Collection<Long> accountIds) {
-        requireActiveAdminId(adminId);
+        requireAdminCapability(adminId, AuthorizationCapability.MANAGE_ACCOUNTS);
         if (accountIds == null) {
             throw new IllegalArgumentException("Account IDs are required");
         }
@@ -511,6 +542,16 @@ public class AccountService {
         return users.findActiveMentorIdentities();
     }
 
+    /**
+     * Returns all active Admin identities as scalar cross-feature notification recipients.
+     *
+     * @return active Admin identities in database display-name order
+     */
+    @Transactional(readOnly = true)
+    public List<AccountIdentity> activeAdminIdentities() {
+        return users.findIdentitiesByRoleAndStatusOrderByDisplayName(GlobalRole.ADMIN, AccountStatus.ACTIVE);
+    }
+
     /** Returns account identities filtered by role and status in database display-name order. */
     @Transactional(readOnly = true)
     public List<AccountIdentity> identitiesByRoleAndStatusOrderedByDisplayName(
@@ -616,6 +657,27 @@ public class AccountService {
         return user.getId();
     }
 
+    private long requireAdminCapability(long adminId, AuthorizationCapability capability) {
+        AccountIdentity storedIdentity = users.findById(adminId).map(AccountService::identity).orElse(null);
+        AuthorizationRequest request = IdentityAuthorizationRequests.activeAdmin(storedIdentity);
+        boolean allowed = authorizationPolicy.allows(capability, request);
+        if (storedIdentity == null) {
+            throw new IllegalArgumentException("Admin not found");
+        }
+        if (!allowed) {
+            throw new IllegalArgumentException("An active Admin is required");
+        }
+        return adminId;
+    }
+
+    private void requireAdminIdentityCapability(AppUser admin, AuthorizationCapability capability) {
+        AccountIdentity storedIdentity = identity(admin);
+        AuthorizationRequest request = IdentityAuthorizationRequests.activeAdmin(storedIdentity);
+        if (!authorizationPolicy.allows(capability, request)) {
+            throw new IllegalArgumentException("An active Admin is required");
+        }
+    }
+
     private PendingReset issuePasswordReset(long userId, byte[] tokenHash) {
         AppUser user = users.findForUpdateById(userId).orElse(null);
         if (user == null || user.getAccountStatus() == AccountStatus.PENDING_ACTIVATION
@@ -643,7 +705,7 @@ public class AccountService {
         }
         AppUser admin = users.findForUpdateById(adminId)
                 .orElseThrow(() -> new IllegalArgumentException("Admin not found"));
-        requireActiveAdmin(admin);
+        requireAdminIdentityCapability(admin, AuthorizationCapability.MANAGE_ACCOUNTS);
         Instant now = clock.instant();
         for (UserActionToken previous : tokens.findByUserIdAndPurposeOrderByCreatedAtDesc(
                 userId, TokenPurpose.ACTIVATION)) {
@@ -708,7 +770,7 @@ public class AccountService {
             LongConsumer dependentProvisioner) {
         AppUser admin = users.findForUpdateById(adminId)
                 .orElseThrow(() -> new IllegalArgumentException("Admin not found"));
-        requireActiveAdmin(admin);
+        requireAdminIdentityCapability(admin, AuthorizationCapability.MANAGE_ACCOUNTS);
 
         var now = clock.instant();
         AppUser user = users.save(AppUser.pending(

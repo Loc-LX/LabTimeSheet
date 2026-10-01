@@ -171,7 +171,7 @@
         <div class="table-scroll"><table class="data-table"><caption class="sr-only">Pending invitations</caption><thead><tr><th scope="col">Invitee username (Student Code)</th><th scope="col">Issued</th><th scope="col">Action</th></tr></thead><tbody><tr th:each="invitation : ${revocableInvitations}"><td th:text="${projectHistory.usernamesByUserId[invitation.invitedInternUserId] ?: 'Unknown username'}">Invitee</td><td th:text="${#temporals.format(invitation.createdAt.atZone(T(java.time.ZoneId).of('Asia/Ho_Chi_Minh')), 'dd/MM/yyyy HH:mm')}">Created</td><td><form method="post" th:action="@{/projects/{projectId}/invitations/{id}/revoke(projectId=${project.id},id=${invitation.id})}"><button class="button button-danger" type="submit">Revoke</button></form></td></tr></tbody></table></div>
     </section>
 
-    <section class="workflow-section workflow-admin-section" aria-labelledby="project-admin-title" th:if="${project.canManage and project.status != 'COMPLETED'}">
+    <section class="workflow-section workflow-admin-section" aria-labelledby="project-admin-title" th:if="${project.canManage and (project.status == 'PLANNED' or project.status == 'ACTIVE')}">
         <header class="workflow-section-heading"><div><p class="project-section-kicker">Mentor only</p><h2 id="project-admin-title">Project administration</h2><p>Use direct removal only when a normal request flow is not appropriate. Unfinished Tasks transfer atomically.</p></div><span class="badge badge-danger">Restricted actions</span></header>
         <div class="workflow-member-list">
             <form class="workflow-member-row" method="post" data-confirm="Directly remove this member? Every unfinished Task will transfer atomically to the current or selected replacement Leader." th:each="member : ${currentMembers}" th:action="@{/projects/{projectId}/members/{id}/remove(projectId=${project.id},id=${member.membershipId})}" th:attr="aria-describedby=${projectInput != null and projectInput.kind == 'direct-removal' and projectInput.membershipId == member.membershipId and projectError != null ? 'direct-removal-' + member.membershipId + '-error' : null}">
@@ -183,7 +183,7 @@
         </div>
         <div class="workflow-completion-action">
             <div><h3>Complete Project</h3><p>Close active memberships and workflows, then make the Project read-only.</p></div>
-            <form method="post" data-confirm="Complete this Project? Membership and leadership intervals will close, pending workflow records resolve, and the Project becomes read-only." th:action="@{/projects/{id}/complete(id=${project.id})}"><button class="button button-primary" type="submit">Complete Project</button></form>
+        <form method="post" data-confirm="Complete this Project? Membership and leadership intervals will close, pending workflow records resolve, and the Project becomes read-only." th:if="${project.status == 'ACTIVE'}" th:action="@{/projects/{id}/complete(id=${project.id})}"><button class="button button-primary" type="submit">Complete Project</button></form>
         </div>
     </section>
 </main>

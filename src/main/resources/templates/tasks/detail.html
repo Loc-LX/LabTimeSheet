@@ -107,6 +107,7 @@
     <form class="panel form-panel filter-form" th:if="${details.canChangeStatus}" method="post" th:action="@{/projects/{projectId}/tasks/{taskId}/status(projectId=${projectId},taskId=${details.task.id})}" th:attr="aria-describedby=${taskStatusInput != null and taskError != null ? 'task-status-error' : null}">
         <input type="hidden" name="expectedVersion" th:value="${details.task.version}">
         <div class="field"><label class="field-label" for="status">New status</label><select class="control" id="status" name="status" required><option th:each="status : ${statuses}" th:value="${status}" th:text="${status}" th:selected="${taskStatusInput != null ? taskStatusInput.status == status.name() : status == details.task.status}">TODO</option></select></div>
+        <div class="field"><label class="field-label" for="reason">Reopen reason</label><textarea class="control" id="reason" name="reason" rows="3" aria-describedby="reopen-reason-help" th:text="${taskStatusInput != null ? taskStatusInput.reason : ''}"></textarea><small class="field-help" id="reopen-reason-help">Required when reopening a completed Task.</small></div>
         <p class="field-error" id="task-status-error" role="alert" th:if="${taskStatusInput != null and taskError != null}" th:text="${taskError}">Status error</p><button class="button button-primary" type="submit">Change status</button>
     </form>
     <section class="panel form-panel" aria-labelledby="comments-heading">

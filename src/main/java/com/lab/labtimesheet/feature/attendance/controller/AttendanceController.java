@@ -47,7 +47,7 @@ public class AttendanceController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             Model model) {
-        AttendanceActor actor = requireIntern(currentUsers.actor(principal));
+        AttendanceActor actor = currentUsers.actor(principal);
         return history(actor, actor.userId(), from, to, model);
     }
 
@@ -69,9 +69,6 @@ public class AttendanceController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             Model model) {
         AttendanceActor actor = currentUsers.actor(principal);
-        if (actor.role() == GlobalRole.INTERN) {
-            throw new AccessDeniedException("Intern inspection is not allowed");
-        }
         return history(actor, internId, from, to, model);
     }
 

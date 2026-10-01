@@ -3,7 +3,12 @@ package com.lab.labtimesheet.feature.reporting.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.never;
 
@@ -22,10 +27,16 @@ import com.lab.labtimesheet.feature.project.model.dto.TaskDailyReportView;
 import com.lab.labtimesheet.feature.project.model.dto.TaskRemainingEffortForecastSummary;
 import com.lab.labtimesheet.feature.project.model.dto.TaskWorkLogView;
 import com.lab.labtimesheet.feature.project.service.TaskQueryService;
+import com.lab.labtimesheet.platform.authorization.AuthorizationCatalogue;
+import com.lab.labtimesheet.platform.authorization.AuthorizationCapability;
+import com.lab.labtimesheet.platform.authorization.AuthorizationColumn;
+import com.lab.labtimesheet.platform.authorization.AuthorizationPolicy;
+import com.lab.labtimesheet.platform.authorization.AuthorizationRequest;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -43,7 +54,8 @@ class DailyProjectWorkReportServiceTest {
 
     @BeforeEach
     void setUp() {
-        reports = new DailyProjectWorkReportService(projects, taskQueries, attendance, calendar);
+        reports = new DailyProjectWorkReportService(projects, taskQueries, attendance, calendar,
+                new AuthorizationPolicy(new AuthorizationCatalogue()));
     }
 
     @Test
@@ -145,6 +157,41 @@ class DailyProjectWorkReportServiceTest {
         verify(taskQueries).dailyReport(42L, REPORT_DATE);
         verify(taskQueries).dailyReport(43L, REPORT_DATE);
         verify(projects, never()).members(1L, 43L);
+    }
+
+    /**
+     * Protects B.9 and AC-ARC-002: one Project and fifty Projects sharing the same resolved
+     * authorization scope each require exactly one call to the real policy.
+     */
+    @Test
+    void policyCallsForProjectOptionsDependOnDistinctScopesNotRowCount() {
+        AuthorizationPolicy policy = spy(new AuthorizationPolicy(new AuthorizationCatalogue()));
+        reports = new DailyProjectWorkReportService(projects, taskQueries, attendance, calendar, policy);
+        ProjectActorView admin = new ProjectActorView(9L, "ADMIN");
+        List<ProjectSummary> oneProject = List.of(project(1L, "Project 1"));
+        List<ProjectSummary> fiftyProjects = java.util.stream.LongStream.rangeClosed(1L, 50L)
+                .mapToObj(id -> project(id, "Project " + id))
+                .toList();
+        given(projects.authenticatedActor("admin@example.test")).willReturn(admin);
+        given(projects.listAllVisibleForReport(9L)).willReturn(oneProject, fiftyProjects);
+        given(calendar.currentBusinessDate()).willReturn(REPORT_DATE);
+        given(attendance.reportDateContext(REPORT_DATE)).willReturn(
+                new AttendanceReportDateContext(
+                        REPORT_DATE, true, false, 1L, LocalDate.of(1970, 1, 1),
+                        ZoneId.of("Asia/Ho_Chi_Minh")));
+        given(taskQueries.dailyReport(anyLong(), eq(REPORT_DATE))).willReturn(List.of());
+
+        reports.build("admin@example.test", null, REPORT_DATE);
+        verify(policy, times(1)).allows(
+                AuthorizationCapability.DAILY_PROJECT_REPORT,
+                new AuthorizationRequest(Set.of(AuthorizationColumn.ADMIN), "ACTIVE", null, null));
+
+        clearInvocations(policy);
+        reports.build("admin@example.test", null, REPORT_DATE);
+
+        verify(policy, times(1)).allows(
+                AuthorizationCapability.DAILY_PROJECT_REPORT,
+                new AuthorizationRequest(Set.of(AuthorizationColumn.ADMIN), "ACTIVE", null, null));
     }
 
     @Test

@@ -3,14 +3,16 @@ package com.lab.labtimesheet.feature.reporting.controller;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.lab.labtimesheet.feature.project.model.dto.ProjectActorView;
+import com.lab.labtimesheet.feature.project.model.dto.ProjectSummary;
 import com.lab.labtimesheet.feature.project.service.ProjectQueryService;
-import com.lab.labtimesheet.feature.reporting.model.dto.DailyProjectWorkReportNavigation;
+import com.lab.labtimesheet.platform.authorization.AuthorizationCatalogue;
+import com.lab.labtimesheet.platform.authorization.AuthorizationColumn;
+import com.lab.labtimesheet.platform.authorization.AuthorizationPolicy;
 import jakarta.servlet.http.HttpServletRequest;
+import java.time.LocalDate;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -19,63 +21,55 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 
-/** Regression tests for efficient server-side Leader Daily navigation capability production. */
+/** Regression tests for policy-backed Daily-report navigation (RPT-011, B.8, TST-011). */
 @SuppressWarnings("unchecked")
 class DailyProjectWorkReportNavigationAdviceTest {
 
     private final ProjectQueryService projectQueries = mock(ProjectQueryService.class);
     private final ObjectProvider<ProjectQueryService> provider = mock(ObjectProvider.class);
+    private final ObjectProvider<AuthorizationPolicy> policies = mock(ObjectProvider.class);
     private DailyProjectWorkReportNavigationAdvice advice;
 
     @BeforeEach
     void setUp() {
         given(provider.getIfAvailable()).willReturn(projectQueries);
-        advice = new DailyProjectWorkReportNavigationAdvice(provider);
+        given(policies.getIfAvailable()).willReturn(new AuthorizationPolicy(new AuthorizationCatalogue()));
+        advice = new DailyProjectWorkReportNavigationAdvice(provider, policies);
     }
 
     @Test
-    void unrelatedInternGetUsesExistsCapabilityWithoutLoadingProjectList() {
+    void currentLeaderNavigationUsesActualProjectStateAndPolicyColumn() {
         given(projectQueries.authenticatedActor("intern@example.test"))
                 .willReturn(new ProjectActorView(7L, "INTERN"));
-        given(projectQueries.hasCurrentLeaderProjectForDailyReport(7L)).willReturn(true);
+        given(projectQueries.listCurrentLeaderProjectsForDailyReport(7L)).willReturn(List.of(
+                new ProjectSummary(42L, "Portal", "ACTIVE", LocalDate.now(), LocalDate.now())));
 
-        DailyProjectWorkReportNavigation navigation = advice.navigation(
-                internAuthentication(), request("GET", "/dashboard"));
+        boolean allowed = advice.authorizationRequest(internAuthentication(), request("GET", "/dashboard"));
 
-        assertThat(navigation.available()).isTrue();
-        verify(projectQueries).hasCurrentLeaderProjectForDailyReport(7L);
-        verify(projectQueries, never()).listCurrentLeaderProjectsForDailyReport(7L);
+        assertThat(allowed).isTrue();
     }
 
     @Test
-    void mutationsAndExportsDoNotPerformLeaderCapabilityQueries() {
-        DailyProjectWorkReportNavigation mutation = advice.navigation(
-                internAuthentication(), request("POST", "/projects/42/tasks"));
-        DailyProjectWorkReportNavigation xlsx = advice.navigation(
-                internAuthentication(), request("GET", "/reports/daily.xlsx"));
-        DailyProjectWorkReportNavigation pdf = advice.navigation(
-                internAuthentication(), request("GET", "/reports/daily.pdf"));
-
-        assertThat(mutation.available()).isFalse();
-        assertThat(xlsx.available()).isFalse();
-        assertThat(pdf.available()).isFalse();
+    void mutationsAndExportsDoNotPerformNavigationQueries() {
+        assertThat(advice.authorizationRequest(internAuthentication(), request("POST", "/projects/42/tasks")))
+                .isFalse();
+        assertThat(advice.authorizationRequest(internAuthentication(), request("GET", "/reports/daily.xlsx")))
+                .isFalse();
+        assertThat(advice.authorizationRequest(internAuthentication(), request("GET", "/reports/daily.pdf")))
+                .isFalse();
         verifyNoInteractions(projectQueries);
     }
 
     @Test
-    void adminAuthorityNeverQueriesLeaderCapabilityEvenIfAnotherRoleIsPresent() {
+    void activeAdminNavigationUsesAdminPolicyColumn() {
+        given(projectQueries.authenticatedActor("admin@example.test"))
+                .willReturn(new ProjectActorView(1L, "ADMIN"));
         Authentication authentication = new UsernamePasswordAuthenticationToken(
-                "admin@example.test",
-                "N/A",
-                List.of(
-                        new SimpleGrantedAuthority("ROLE_ADMIN"),
-                        new SimpleGrantedAuthority("ROLE_INTERN")));
+                "admin@example.test", "N/A", List.of(new SimpleGrantedAuthority("ROLE_ADMIN")));
 
-        DailyProjectWorkReportNavigation navigation = advice.navigation(
-                authentication, request("GET", "/dashboard"));
+        boolean allowed = advice.authorizationRequest(authentication, request("GET", "/dashboard"));
 
-        assertThat(navigation.available()).isFalse();
-        verifyNoInteractions(projectQueries);
+        assertThat(allowed).isTrue();
     }
 
     private static HttpServletRequest request(String method, String path) {
@@ -87,8 +81,6 @@ class DailyProjectWorkReportNavigationAdviceTest {
 
     private static Authentication internAuthentication() {
         return new UsernamePasswordAuthenticationToken(
-                "intern@example.test",
-                "N/A",
-                List.of(new SimpleGrantedAuthority("ROLE_INTERN")));
+                "intern@example.test", "N/A", List.of(new SimpleGrantedAuthority("ROLE_INTERN")));
     }
 }

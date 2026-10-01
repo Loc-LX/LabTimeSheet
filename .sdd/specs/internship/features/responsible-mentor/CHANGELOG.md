@@ -1,5 +1,9 @@
 # Changelog — Responsible Mentor
 
+## 1.2.0 — 2026-09-28
+
+`D47`. `ACC-026` also covers an `ACTIVE` Intern without a responsible Mentor and states that the Intern's requests are still accepted; `AC-ACC-023` covers who is notified before and after a new assignment.
+
 ## 1.1.0 — 2026-09-21
 
 Status only (`D38`). No question affecting this document is open, so its Status

@@ -6,6 +6,8 @@ public enum CorrectionDecision {
     APPROVE,
     /** Reject the proposed effective checkout. */
     REJECT,
-    /** Reopen an approved/rejected decision to pending. */
-    REOPEN
+    /** Amend the decision note of an already-decided correction. */
+    AMEND,
+    /** Reverse an approved or rejected decision to the opposite outcome. */
+    REVERSE
 }

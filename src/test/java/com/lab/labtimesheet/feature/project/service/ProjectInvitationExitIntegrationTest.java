@@ -1,12 +1,19 @@
 package com.lab.labtimesheet.feature.project.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import com.lab.labtimesheet.config.TestcontainersConfiguration;
+import com.lab.labtimesheet.feature.identity.service.BootstrapService;
 import com.lab.labtimesheet.feature.project.exception.ProjectAccessDeniedException;
 import com.lab.labtimesheet.feature.project.exception.ProjectRuleViolationException;
 import com.lab.labtimesheet.feature.project.model.InvitationResponse;
@@ -17,20 +24,44 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.sql.Timestamp;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.function.Executable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-@Import(TestcontainersConfiguration.class)
+import com.lab.labtimesheet.feature.notification.service.NotificationService;
+import com.lab.labtimesheet.platform.model.SecurityMode;
+import com.lab.labtimesheet.platform.model.dto.SmtpConnection;
+import com.lab.labtimesheet.platform.model.dto.SmtpDraft;
+import com.lab.labtimesheet.platform.service.SmtpConfigurationService;
+import com.lab.labtimesheet.platform.service.SmtpProbe;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
+import java.time.Duration;
+
+@Import({TestcontainersConfiguration.class, ProjectInvitationExitIntegrationTest.MailProbeConfiguration.class})
 @SpringBootTest
+@AutoConfigureMockMvc
 @ActiveProfiles("test")
 @Transactional
 class ProjectInvitationExitIntegrationTest {
@@ -44,10 +75,25 @@ class ProjectInvitationExitIntegrationTest {
     private ProjectQueryService projectPages;
 
     @Autowired
+    private NotificationService notifications;
+
+    @Autowired
+    private SmtpConfigurationService smtp;
+
+    @Autowired
+    private RecordingSmtpProbe mail;
+
+    @Autowired
     private JdbcTemplate jdbc;
 
     @PersistenceContext
     private EntityManager entityManager;
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Autowired
+    private BootstrapService bootstrap;
 
     @Test
     void leaderInvitationAcceptsOnlyTheIntendedInternAndMentorDirectAddSupersedesIt() {
@@ -166,7 +212,7 @@ class ProjectInvitationExitIntegrationTest {
                 notificationRecipients(
                         "PROJECT_INVITATION_RESOLVED", "/projects/" + projectId + "/invitations/" + acceptedInvitationId));
         assertEquals(
-                List.of(acceptedInviteeId),
+                List.of(),
                 notificationRecipients(
                         "MEMBERSHIP_CHANGED", "/projects/" + projectId, "INVITATION_ACCEPTED"));
     }
@@ -499,6 +545,15 @@ class ProjectInvitationExitIntegrationTest {
                 "select status from project_membership_exit_requests where id = ?", requestId));
     }
 
+    /**
+     * AC-PRJ-012 (repeated transfer batches before Mentor approval close membership and request),
+     * PRJ-020, PRJ-021, PRJ-022, DB-012.
+     * TSK-009, TSK-004 and AC-TSK-011 require an exit batch to reassign current Tasks while retaining
+     * their Task-owned history. The worked IN_PROGRESS Task's creator, comment, 45-minute work log,
+     * and final Leader assignment actor/time must be present after transfer and remain identical
+     * after approval closes the source membership; the TODO and DONE Tasks retain their specified
+     * transfer behavior.
+     */
     @Test
     void leaderMayRepeatExitTransferBatchesBeforeMentorApprovalWithoutUndoingCompletedTasks() {
         long mentorId = user("mentor-approve-exit@example.test", "MENTOR");
@@ -511,16 +566,54 @@ class ProjectInvitationExitIntegrationTest {
         long recipientMembershipId = membershipId(projectId, recipientId);
         long leaderMembershipId = membershipId(projectId, leaderId);
         long firstTaskId = insertTask(projectId, targetMembershipId, leaderMembershipId, "First transfer", "TODO");
-        long secondTaskId = insertTask(projectId, targetMembershipId, leaderMembershipId, "Second transfer", "IN_PROGRESS");
+        long secondTaskId = insertTask(projectId, targetMembershipId, targetMembershipId, "Second transfer", "IN_PROGRESS");
         long doneTaskId = insertTask(projectId, targetMembershipId, leaderMembershipId, "Completed history", "DONE");
+        jdbc.update("insert into task_comments (task_id, author_user_id, body) values (?, ?, ?)",
+                secondTaskId, targetId, "Retained exit-batch comment");
+        jdbc.update("""
+                insert into task_work_logs
+                    (project_id, task_id, membership_id, work_date, minutes, note, created_at, updated_at)
+                values (?, ?, ?, date '2026-08-20', 45, 'Retained exit-batch effort', ?, ?)
+                """, projectId, secondTaskId, targetMembershipId,
+                java.sql.Timestamp.from(NOW), java.sql.Timestamp.from(NOW));
         long requestId = projects.requestMemberRemoval(
                 leaderId, projectId, targetMembershipId, "Redistribute before approval");
 
         projects.transferTasks(
-                leaderId, projectId, targetMembershipId, java.util.Set.of(firstTaskId), recipientMembershipId);
+                leaderId,
+                projectId,
+                requestId,
+                targetMembershipId,
+                Set.of(firstTaskId),
+                Map.of(firstTaskId, number("select version from tasks where id = ?", firstTaskId)),
+                Map.of(),
+                recipientMembershipId);
         projects.transferTasks(
-                leaderId, projectId, targetMembershipId, java.util.Set.of(secondTaskId), recipientMembershipId);
+                leaderId,
+                projectId,
+                requestId,
+                targetMembershipId,
+                Set.of(secondTaskId),
+                Map.of(secondTaskId, number("select version from tasks where id = ?", secondTaskId)),
+                Map.of(secondTaskId, new RemainingEffortForecastInput(90, "Exit batch handover")),
+                recipientMembershipId);
+        var transferredHistory = projectPages.history(leaderId, projectId).tasks().stream()
+                .filter(task -> task.id() == secondTaskId).findFirst().orElseThrow();
+        assertEquals(recipientMembershipId, transferredHistory.assigneeMembershipId());
+        assertEquals(targetMembershipId, transferredHistory.creatorMembershipId());
+        assertEquals(leaderMembershipId, transferredHistory.assignerMembershipId());
+        assertNotNull(transferredHistory.assignedAt());
+        assertEquals("IN_PROGRESS", transferredHistory.status().name());
+        assertEquals(List.of("Retained exit-batch comment"), transferredHistory.comments().stream()
+                .map(comment -> comment.body()).toList());
+        assertEquals(1, transferredHistory.workLogs().size());
+        assertEquals(targetMembershipId, transferredHistory.workLogs().getFirst().membershipId());
+        assertEquals(45, transferredHistory.workLogs().getFirst().minutes());
+        assertEquals("Retained exit-batch effort", transferredHistory.workLogs().getFirst().note());
         projects.approveExit(mentorId, requestId, "Ready after batches");
+        var historyAfterApproval = projectPages.history(mentorId, projectId).tasks().stream()
+                .filter(task -> task.id() == secondTaskId).findFirst().orElseThrow();
+        assertEquals(transferredHistory, historyAfterApproval);
 
         assertEquals(
                 List.of(targetId),
@@ -611,6 +704,10 @@ class ProjectInvitationExitIntegrationTest {
         assertEquals(notificationCount, count("select count(*) from notifications"));
     }
 
+    /**
+     * AC-PRJ-013 (Leader own leave requires replacement before approval and transfer batches),
+     * PRJ-008, PRJ-010, PRJ-020, PRJ-021, PRJ-022.
+     */
     @Test
     void leaderExitRequiresReplacementAndLeaderChangeDoesNotMoveAssignments() {
         long mentorId = user("mentor-leader-exit@example.test", "MENTOR");
@@ -637,6 +734,10 @@ class ProjectInvitationExitIntegrationTest {
         assertEquals(0, count("select count(*) from project_memberships where id = ? and left_at is null", leaderMembershipId));
     }
 
+    /**
+     * AC-PRJ-012 (cancellation and rejection restore eligibility while keeping completed reassignments),
+     * PRJ-020, PRJ-021, PRJ-022.
+     */
     @Test
     void cancellationAndRejectionRestoreEligibilityWithoutUndoingCompletedBatches() {
         long mentorId = user("mentor-reject-exit@example.test", "MENTOR");
@@ -673,6 +774,10 @@ class ProjectInvitationExitIntegrationTest {
                 "select assignee_membership_id from tasks where id = ?", secondTaskId));
     }
 
+    /**
+     * AC-PRJ-004 (direct removal transfers all unfinished Tasks to the current Leader and retains
+     * done assignment), PRJ-008, PRJ-009.
+     */
     @Test
     void directMentorRemovalTransfersAllUnfinishedTasksAtomicallyAndKeepsDoneAssignment() {
         long mentorId = user("mentor-direct-remove@example.test", "MENTOR");
@@ -694,6 +799,10 @@ class ProjectInvitationExitIntegrationTest {
         assertEquals(0, count("select count(*) from project_memberships where id = ? and left_at is null", targetMembershipId));
     }
 
+    /**
+     * AC-TSK-014 (direct removal rejected before any mutation when target owns worked unfinished Tasks),
+     * TSK-022, PRJ-008, PRJ-009, PRJ-010.
+     */
     @Test
     void directMentorRemovalRejectsWorkedUnfinishedTasksBeforeAnyMutation() {
         long mentorId = user("mentor-direct-worked-remove@example.test", "MENTOR");
@@ -756,6 +865,10 @@ class ProjectInvitationExitIntegrationTest {
                 "select assignee_membership_id from tasks where id = ?", taskId));
     }
 
+    /**
+     * AC-TSK-014 (after forecast-aware transfers, eligible unworked Tasks retain automatic transfer),
+     * TSK-022, PRJ-008, PRJ-009, PRJ-010.
+     */
     @Test
     void directLeaderRemovalAutoTransfersOnlyRemainingUnworkedTasksAfterForecastAwareTransfer() {
         long mentorId = user("mentor-direct-forecast-leader@example.test", "MENTOR");
@@ -824,6 +937,10 @@ class ProjectInvitationExitIntegrationTest {
                 "/projects/" + projectId + "/tasks/" + unworkedTaskId));
     }
 
+    /**
+     * AC-PRJ-004 (Leader removal requires a replacement and transfers unfinished Tasks to that replacement),
+     * PRJ-008, PRJ-009, PRJ-010, PRJ-011.
+     */
     @Test
     void directMentorRemovalOfCurrentLeaderReplacesLeadershipBeforeTransferring() {
         long mentorId = user("mentor-direct-leader@example.test", "MENTOR");
@@ -879,6 +996,40 @@ class ProjectInvitationExitIntegrationTest {
                 "select assignee_membership_id from tasks where id = ?", taskId));
         assertEquals("PENDING", text(
                 "select status from project_membership_exit_requests where id = ?", requestId));
+    }
+
+    /**
+     * Protects AUTH-012 §5.2 transfer ordering. Observable break: the closed Project lifecycle
+     * error leaks before authorization; the hand-derived result is access denied in both states,
+     * with the stored assignee unchanged.
+     */
+    @Test
+    void nonLeaderTransferIsDeniedBeforeLifecycleAndLeavesTaskUnchanged() {
+        long mentorId = user("mentor-transfer-order@example.test", "MENTOR");
+        long leaderId = intern("leader-transfer-order@example.test", "I281");
+        long memberId = intern("member-transfer-order@example.test", "I282");
+        long recipientId = intern("recipient-transfer-order@example.test", "I283");
+        long activeProjectId = createProject(mentorId, leaderId, "Active transfer order");
+        projects.addMembers(mentorId, activeProjectId, List.of(memberId, recipientId));
+        long sourceMembershipId = membershipId(activeProjectId, memberId);
+        long recipientMembershipId = membershipId(activeProjectId, recipientId);
+        long leaderMembershipId = membershipId(activeProjectId, leaderId);
+        long taskId = insertTask(activeProjectId, sourceMembershipId, leaderMembershipId,
+                "Transfer order", "TODO");
+        jdbc.update("update projects set status = 'ACTIVE', activated_at = ?, updated_at = ? where id = ?",
+                NOW.atOffset(java.time.ZoneOffset.UTC), NOW.atOffset(java.time.ZoneOffset.UTC), activeProjectId);
+        entityManager.clear();
+
+        assertThrows(ProjectAccessDeniedException.class, () -> projects.transferTasks(
+                memberId, activeProjectId, sourceMembershipId, Set.of(taskId), recipientMembershipId));
+        assertEquals(sourceMembershipId, number(
+                "select assignee_membership_id from tasks where id = ?", taskId));
+
+        completeProject(activeProjectId, mentorId);
+        assertThrows(ProjectAccessDeniedException.class, () -> projects.transferTasks(
+                memberId, activeProjectId, sourceMembershipId, Set.of(taskId), recipientMembershipId));
+        assertEquals(sourceMembershipId, number(
+                "select assignee_membership_id from tasks where id = ?", taskId));
     }
 
     @Test
@@ -1383,6 +1534,130 @@ class ProjectInvitationExitIntegrationTest {
                         inviteeId));
     }
 
+    /**
+     * AC-PRJ-012 (Pending warning shows remaining count and readiness),
+     * PRJ-020, PRJ-021, PRJ-022.
+     */
+    @Test
+    void exitReadinessWarningShowsRemainingCountAndReadinessBeforeAndAfterTransfers() {
+        long mentorId = user("mentor-exit-warning@example.test", "MENTOR");
+        long leaderId = intern("leader-exit-warning@example.test", "I185");
+        long targetId = intern("target-exit-warning@example.test", "I186");
+        long recipientId = intern("recipient-exit-warning@example.test", "I187");
+        long projectId = createProject(mentorId, leaderId, "Exit warning");
+        projects.addMembers(mentorId, projectId, java.util.List.of(targetId, recipientId));
+        long targetMembershipId = membershipId(projectId, targetId);
+        long recipientMembershipId = membershipId(projectId, recipientId);
+        long leaderMembershipId = membershipId(projectId, leaderId);
+        long taskId = insertTask(projectId, targetMembershipId, leaderMembershipId, "Remaining task", "TODO");
+        long requestId = projects.requestMemberRemoval(leaderId, projectId, targetMembershipId, "Handover");
+
+        // 1. Pending warning shows remaining count = 1 and readiness = false
+        var readinessBefore = projectPages.exitReadiness(leaderId, projectId).getFirst();
+        assertEquals(requestId, readinessBefore.requestId());
+        assertEquals(targetMembershipId, readinessBefore.targetMembershipId());
+        assertEquals(1L, readinessBefore.unfinishedTaskCount());
+        assertFalse(readinessBefore.readyForApproval());
+
+        // 2. Transfer task to recipient
+        projects.transferTasks(leaderId, projectId, targetMembershipId, java.util.Set.of(taskId), recipientMembershipId);
+
+        // 3. After transfer, remaining count = 0 and readiness = true
+        var readinessAfter = projectPages.exitReadiness(leaderId, projectId).getFirst();
+        assertEquals(0L, readinessAfter.unfinishedTaskCount());
+        assertTrue(readinessAfter.readyForApproval());
+    }
+
+    /**
+     * AC-PRJ-012 (approval remains blocked until zero unfinished Tasks),
+     * PRJ-020, PRJ-021, PRJ-022.
+     */
+    @Test
+    void approvalRemainsBlockedUntilZeroUnfinishedTasks() {
+        long mentorId = user("mentor-exit-blocked@example.test", "MENTOR");
+        long leaderId = intern("leader-exit-blocked@example.test", "I188");
+        long targetId = intern("target-exit-blocked@example.test", "I189");
+        long recipientId = intern("recipient-exit-blocked@example.test", "I190");
+        long projectId = createProject(mentorId, leaderId, "Blocked exit approval");
+        projects.addMembers(mentorId, projectId, java.util.List.of(targetId, recipientId));
+        long targetMembershipId = membershipId(projectId, targetId);
+        long recipientMembershipId = membershipId(projectId, recipientId);
+        long leaderMembershipId = membershipId(projectId, leaderId);
+        long taskId = insertTask(projectId, targetMembershipId, leaderMembershipId, "Unfinished exit task", "TODO");
+        long requestId = projects.requestMemberRemoval(leaderId, projectId, targetMembershipId, "Handover required");
+
+        // 1. approveExit is refused while at least one unfinished Task remains
+        assertThrows(ProjectRuleViolationException.class,
+                () -> projects.approveExit(mentorId, requestId, "Attempt while task unfinished"));
+        assertEquals("PENDING", text(
+                "select status from project_membership_exit_requests where id = ?", requestId));
+
+        // 2. Transfer the unfinished task to recipient
+        projects.transferTasks(leaderId, projectId, targetMembershipId, java.util.Set.of(taskId), recipientMembershipId);
+
+        // 3. approveExit succeeds when zero unfinished Tasks remain
+        projects.approveExit(mentorId, requestId, "Approved with zero unfinished");
+        assertEquals("APPROVED", text(
+                "select status from project_membership_exit_requests where id = ?", requestId));
+        assertEquals(0, count("select count(*) from project_memberships where id = ? and left_at is null", targetMembershipId));
+    }
+
+    /**
+     * AC-PRJ-013 (new Leader performs repeatable transfer batches to eligible current members,
+     * including a newly direct-added or invitation-accepted member),
+     * PRJ-008, PRJ-010, PRJ-020, PRJ-021, PRJ-022.
+     */
+    @Test
+    void leaderExitTransferBatchesCanTargetNewlyDirectAddedOrInvitationAcceptedMembers() {
+        long mentorId = user("mentor-batches-dest@example.test", "MENTOR");
+        long leaderId = intern("leader-batches-dest@example.test", "I191");
+        long replacementId = intern("replacement-batches-dest@example.test", "I192");
+        long directMemberId = intern("direct-batches-dest@example.test", "I193");
+        long invitedMemberId = intern("invited-batches-dest@example.test", "I194");
+        long projectId = createProject(mentorId, leaderId, "Batches destination");
+        projects.addMember(mentorId, projectId, replacementId);
+        long leaderMembershipId = membershipId(projectId, leaderId);
+        long replacementMembershipId = membershipId(projectId, replacementId);
+
+        long firstTaskId = insertTask(projectId, leaderMembershipId, leaderMembershipId, "To direct added", "TODO");
+        long secondTaskId = insertTask(projectId, leaderMembershipId, leaderMembershipId, "To invited", "TODO");
+
+        // Leader requests own leave
+        long requestId = projects.requestOwnLeave(leaderId, projectId, "Leaving with 2 tasks");
+
+        // Mentor appoints replacement Leader
+        projects.changeLeader(mentorId, projectId, replacementId);
+
+        // 1. Mentor directly adds a new member
+        projects.addMember(mentorId, projectId, directMemberId);
+        long directMembershipId = membershipId(projectId, directMemberId);
+
+        // 2. An invited member accepts invitation
+        long invitationId = projects.issueInvitation(replacementId, projectId, invitedMemberId);
+        projects.respondToInvitation(invitedMemberId, invitationId, InvitationResponse.ACCEPT);
+        long invitedMembershipId = membershipId(projectId, invitedMemberId);
+
+        // 3. Batch 1: Transfer firstTaskId to newly direct-added member
+        projects.transferTasks(
+                replacementId, projectId, leaderMembershipId,
+                java.util.Set.of(firstTaskId), directMembershipId);
+        assertEquals(directMembershipId, number(
+                "select assignee_membership_id from tasks where id = ?", firstTaskId));
+
+        // 4. Batch 2: Transfer secondTaskId to newly invitation-accepted member
+        projects.transferTasks(
+                replacementId, projectId, leaderMembershipId,
+                java.util.Set.of(secondTaskId), invitedMembershipId);
+        assertEquals(invitedMembershipId, number(
+                "select assignee_membership_id from tasks where id = ?", secondTaskId));
+
+        // 5. Approval succeeds once all tasks are transferred away
+        projects.approveExit(mentorId, requestId, "Approved after both batches");
+        assertEquals("APPROVED", text(
+                "select status from project_membership_exit_requests where id = ?", requestId));
+        assertEquals(0, count("select count(*) from project_memberships where id = ? and left_at is null", leaderMembershipId));
+    }
+
     private long createProject(long mentorId, long leaderId, String name) {
         return projects.create(
                 mentorId,
@@ -1508,5 +1783,544 @@ class ProjectInvitationExitIntegrationTest {
                 type,
                 actionUrl,
                 "%Transition: " + transition);
+    }
+
+    private List<String> notificationEmailStatuses(String type, String actionUrl) {
+        return jdbc.query(
+                "select email_status from notifications "
+                        + "where notification_type = ? and action_url = ? order by id",
+                (rs, rowNum) -> rs.getString(1),
+                type,
+                actionUrl);
+    }
+
+    private void activateSmtp(long adminId) {
+        long draftId = smtp.saveDraft(adminId,
+                new SmtpDraft("mailpit", 1025, SecurityMode.NONE, null, null,
+                        "notification-admin@example.com", "Lab Timesheet"));
+        smtp.testDraft(draftId, adminId, "notification-admin@example.com");
+        smtp.activate(draftId, adminId);
+    }
+
+    /**
+     * Protects {@code NOT-002}, {@code AC-NOT-004}, and {@code NOT-010}.
+     * Real domain actions across the invitation lifecycle (create, decline, create second, accept, create third, revoke)
+     * persist in-app notifications with UNAVAILABLE email status when SMTP is not configured.
+     * When SMTP is activated subsequently, retryDueEmails does not retroactively send emails for these notifications.
+     */
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
+    void invitationWorkflowPersistsUnavailableNotificationsWithoutRetroactiveSend() {
+        mail.reset();
+        long adminId = user("admin-invite-smtp@example.test", "ADMIN");
+        long mentorId = user("mentor-invite-smtp@example.test", "MENTOR");
+        long leaderId = intern("leader-invite-smtp@example.test", "I201");
+        long invitee1Id = intern("invitee1-invite-smtp@example.test", "I202");
+        long invitee2Id = intern("invitee2-invite-smtp@example.test", "I203");
+        long invitee3Id = intern("invitee3-invite-smtp@example.test", "I204");
+
+        long projectId = createProject(mentorId, leaderId, "Invite Smtp Test");
+
+        // 1. Leader issues invitation 1 -> CREATED (recipient: invitee1Id per NOT-010)
+        long inv1 = projects.issueInvitation(leaderId, projectId, invitee1Id);
+        String inv1Url = "/projects/" + projectId + "/invitations/" + inv1;
+        assertEquals(List.of(invitee1Id), notificationRecipients("PROJECT_INVITATION_CREATED", inv1Url));
+        assertEquals(List.of("UNAVAILABLE"), notificationEmailStatuses("PROJECT_INVITATION_CREATED", inv1Url));
+        assertEquals(0, mail.calls);
+
+        // 2. Invitee declines invitation 1 -> RESOLVED ("DECLINED", recipients: mentorId, leaderId per NOT-010)
+        projects.respondToInvitation(invitee1Id, inv1, InvitationResponse.DECLINE);
+        assertEquals("DECLINED", text("select status from project_invitations where id = ?", inv1));
+        assertEquals(Stream.of(mentorId, leaderId).sorted().toList(),
+                notificationRecipients("PROJECT_INVITATION_RESOLVED", inv1Url));
+        assertEquals(List.of("UNAVAILABLE", "UNAVAILABLE"), notificationEmailStatuses("PROJECT_INVITATION_RESOLVED", inv1Url));
+        assertEquals(0, mail.calls);
+
+        // 3. Leader issues invitation 2 -> CREATED (recipient: invitee2Id per NOT-010)
+        long inv2 = projects.issueInvitation(leaderId, projectId, invitee2Id);
+        String inv2Url = "/projects/" + projectId + "/invitations/" + inv2;
+        assertEquals(List.of(invitee2Id), notificationRecipients("PROJECT_INVITATION_CREATED", inv2Url));
+        assertEquals(List.of("UNAVAILABLE"), notificationEmailStatuses("PROJECT_INVITATION_CREATED", inv2Url));
+        assertEquals(0, mail.calls);
+
+        // 4. Invitee accepts invitation 2 -> RESOLVED ("ACCEPTED", recipients: mentorId, leaderId per NOT-010)
+        projects.respondToInvitation(invitee2Id, inv2, InvitationResponse.ACCEPT);
+        assertEquals("ACCEPTED", text("select status from project_invitations where id = ?", inv2));
+        assertEquals(1, count("select count(*) from project_memberships where project_id = ? and intern_user_id = ? and left_at is null", projectId, invitee2Id));
+        assertEquals(Stream.of(mentorId, leaderId).sorted().toList(),
+                notificationRecipients("PROJECT_INVITATION_RESOLVED", inv2Url));
+        assertEquals(List.of("UNAVAILABLE", "UNAVAILABLE"), notificationEmailStatuses("PROJECT_INVITATION_RESOLVED", inv2Url));
+        assertEquals(0, mail.calls);
+
+        // 5. Leader issues invitation 3 -> CREATED
+        long inv3 = projects.issueInvitation(leaderId, projectId, invitee3Id);
+        String inv3Url = "/projects/" + projectId + "/invitations/" + inv3;
+        assertEquals(List.of(invitee3Id), notificationRecipients("PROJECT_INVITATION_CREATED", inv3Url));
+        assertEquals(List.of("UNAVAILABLE"), notificationEmailStatuses("PROJECT_INVITATION_CREATED", inv3Url));
+
+        // 6. Mentor or Leader revokes invitation 3 -> RESOLVED ("REVOKED", recipients: mentorId, leaderId, invitee3Id per NOT-010)
+        projects.revokeInvitation(mentorId, inv3);
+        assertEquals("REVOKED", text("select status from project_invitations where id = ?", inv3));
+        assertEquals(Stream.of(mentorId, leaderId, invitee3Id).sorted().toList(),
+                notificationRecipients("PROJECT_INVITATION_RESOLVED", inv3Url));
+        assertEquals(List.of("UNAVAILABLE", "UNAVAILABLE", "UNAVAILABLE"), notificationEmailStatuses("PROJECT_INVITATION_RESOLVED", inv3Url));
+        assertEquals(0, mail.calls);
+
+        // 7. F1: Leader issues invitation 4 -> CREATED, Mentor direct adds invitee4 -> SUPERSEDED
+        long invitee4Id = intern("invitee4-invite-smtp@example.test", "I205");
+        long inv4 = projects.issueInvitation(leaderId, projectId, invitee4Id);
+        String inv4Url = "/projects/" + projectId + "/invitations/" + inv4;
+        assertEquals(List.of(invitee4Id), notificationRecipients("PROJECT_INVITATION_CREATED", inv4Url));
+        assertEquals(List.of("UNAVAILABLE"), notificationEmailStatuses("PROJECT_INVITATION_CREATED", inv4Url));
+
+        projects.addMembers(mentorId, projectId, List.of(invitee4Id));
+        assertEquals("SUPERSEDED", text("select status from project_invitations where id = ?", inv4));
+        assertEquals(1, count("select count(*) from project_memberships where project_id = ? and intern_user_id = ? and left_at is null", projectId, invitee4Id));
+        assertEquals(Stream.of(mentorId, leaderId, invitee4Id).sorted().toList(),
+                notificationRecipients("PROJECT_INVITATION_RESOLVED", inv4Url));
+        assertEquals(List.of("UNAVAILABLE", "UNAVAILABLE", "UNAVAILABLE"),
+                notificationEmailStatuses("PROJECT_INVITATION_RESOLVED", inv4Url));
+        assertEquals(0, mail.calls);
+
+        // 8. F2: Verify no retroactive email replay after SMTP activation (AC-NOT-004, NOT-005)
+        int countBeforeSmtp = count("select count(*) from notifications where action_url like ?", "/projects/" + projectId + "%");
+        List<String> statusesBeforeSmtp = jdbc.queryForList(
+                "select email_status from notifications where action_url like ? order by id", String.class, "/projects/" + projectId + "%");
+        assertTrue(statusesBeforeSmtp.stream().allMatch("UNAVAILABLE"::equals));
+
+        activateSmtp(adminId);
+        mail.reset();
+        assertEquals(0, notifications.retryDueEmails());
+        assertEquals(0, mail.calls);
+
+        int countAfterSmtp = count("select count(*) from notifications where action_url like ?", "/projects/" + projectId + "%");
+        assertEquals(countBeforeSmtp, countAfterSmtp);
+        List<String> statusesAfterSmtp = jdbc.queryForList(
+                "select email_status from notifications where action_url like ? order by id", String.class, "/projects/" + projectId + "%");
+        assertEquals(List.of("UNAVAILABLE"), statusesAfterSmtp.stream().distinct().toList());
+    }
+
+    /**
+     * Protects {@code NOT-002}, {@code AC-NOT-004}, and {@code NOT-010}.
+     * Real domain actions across the membership exit lifecycle (request own leave, cancel, request removal, reject, approve)
+     * persist in-app notifications with UNAVAILABLE email status when SMTP is not configured.
+     * When SMTP is activated subsequently, retryDueEmails does not retroactively send emails for these notifications.
+     */
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
+    void membershipExitWorkflowPersistsUnavailableNotificationsWithoutRetroactiveSend() {
+        mail.reset();
+        long adminId = user("admin-exit-smtp@example.test", "ADMIN");
+        long mentorId = user("mentor-exit-smtp@example.test", "MENTOR");
+        long leaderId = intern("leader-exit-smtp@example.test", "I211");
+        long memberId = intern("member-exit-smtp@example.test", "I212");
+        long replacementId = intern("replacement-exit-smtp@example.test", "I213");
+
+        long projectId = createProject(mentorId, leaderId, "Exit Smtp Test");
+        projects.addMembers(mentorId, projectId, List.of(memberId, replacementId));
+        long memberMembershipId = membershipId(projectId, memberId);
+
+        // 1. Member requests own leave -> MEMBERSHIP_EXIT_REQUESTED (recipients: mentorId, leaderId per NOT-010)
+        long ownLeaveReqId = projects.requestOwnLeave(memberId, projectId, "Personal reasons");
+        String ownLeaveUrl = "/projects/" + projectId + "/exits/" + ownLeaveReqId;
+        assertEquals("PENDING", text("select status from project_membership_exit_requests where id = ?", ownLeaveReqId));
+        assertEquals(Stream.of(mentorId, leaderId).sorted().toList(),
+                notificationRecipients("MEMBERSHIP_EXIT_REQUESTED", ownLeaveUrl));
+        assertEquals(List.of("UNAVAILABLE", "UNAVAILABLE"), notificationEmailStatuses("MEMBERSHIP_EXIT_REQUESTED", ownLeaveUrl));
+        assertEquals(0, mail.calls);
+
+        // 2. Member cancels own leave -> MEMBERSHIP_EXIT_RESOLVED (recipients: memberId, leaderId per NOT-010 - requester, target, currentLeader collapsed)
+        projects.cancelExit(memberId, ownLeaveReqId);
+        assertEquals("CANCELLED", text("select status from project_membership_exit_requests where id = ?", ownLeaveReqId));
+        assertEquals(Stream.of(memberId, leaderId).sorted().toList(),
+                notificationRecipients("MEMBERSHIP_EXIT_RESOLVED", ownLeaveUrl));
+        assertEquals(List.of("UNAVAILABLE", "UNAVAILABLE"), notificationEmailStatuses("MEMBERSHIP_EXIT_RESOLVED", ownLeaveUrl));
+        assertEquals(0, mail.calls);
+
+        // 3. Leader requests member removal -> MEMBERSHIP_EXIT_REQUESTED (recipients: mentorId, memberId per NOT-010)
+        long removalReq1Id = projects.requestMemberRemoval(leaderId, projectId, memberMembershipId, "Performance issue");
+        String removal1Url = "/projects/" + projectId + "/exits/" + removalReq1Id;
+        assertEquals("PENDING", text("select status from project_membership_exit_requests where id = ?", removalReq1Id));
+        assertEquals(Stream.of(mentorId, memberId).sorted().toList(),
+                notificationRecipients("MEMBERSHIP_EXIT_REQUESTED", removal1Url));
+        assertEquals(List.of("UNAVAILABLE", "UNAVAILABLE"), notificationEmailStatuses("MEMBERSHIP_EXIT_REQUESTED", removal1Url));
+        assertEquals(0, mail.calls);
+
+        // 4. Mentor rejects exit request 1 -> MEMBERSHIP_EXIT_RESOLVED (recipients: leaderId, memberId)
+        projects.rejectExit(mentorId, removalReq1Id, "Give another chance");
+        assertEquals("REJECTED", text("select status from project_membership_exit_requests where id = ?", removalReq1Id));
+        assertEquals(Stream.of(leaderId, memberId).sorted().toList(),
+                notificationRecipients("MEMBERSHIP_EXIT_RESOLVED", removal1Url));
+        assertEquals(List.of("UNAVAILABLE", "UNAVAILABLE"), notificationEmailStatuses("MEMBERSHIP_EXIT_RESOLVED", removal1Url));
+        assertEquals(0, mail.calls);
+
+        // 5. Leader requests member removal again -> MEMBERSHIP_EXIT_REQUESTED
+        long removalReq2Id = projects.requestMemberRemoval(leaderId, projectId, memberMembershipId, "Handover completed");
+        String removal2Url = "/projects/" + projectId + "/exits/" + removalReq2Id;
+        assertEquals("PENDING", text("select status from project_membership_exit_requests where id = ?", removalReq2Id));
+        assertEquals(Stream.of(mentorId, memberId).sorted().toList(),
+                notificationRecipients("MEMBERSHIP_EXIT_REQUESTED", removal2Url));
+        assertEquals(List.of("UNAVAILABLE", "UNAVAILABLE"), notificationEmailStatuses("MEMBERSHIP_EXIT_REQUESTED", removal2Url));
+        assertEquals(0, mail.calls);
+
+        // 6. Mentor approves exit request 2 -> MEMBERSHIP_EXIT_RESOLVED
+        projects.approveExit(mentorId, removalReq2Id, "Approved exit");
+        assertEquals("APPROVED", text("select status from project_membership_exit_requests where id = ?", removalReq2Id));
+        assertEquals(1, count("select count(*) from project_memberships where id = ? and left_at is not null", memberMembershipId));
+        assertEquals(Stream.of(leaderId, memberId).sorted().toList(),
+                notificationRecipients("MEMBERSHIP_EXIT_RESOLVED", removal2Url));
+        assertEquals(List.of("UNAVAILABLE", "UNAVAILABLE"), notificationEmailStatuses("MEMBERSHIP_EXIT_RESOLVED", removal2Url));
+        assertEquals(0, mail.calls);
+
+        // 7. F2: Verify no retroactive emails are replayed (AC-NOT-004, NOT-005)
+        int countBeforeSmtp = count("select count(*) from notifications where action_url like ?", "/projects/" + projectId + "%");
+        List<String> statusesBeforeSmtp = jdbc.queryForList(
+                "select email_status from notifications where action_url like ? order by id", String.class, "/projects/" + projectId + "%");
+        assertTrue(statusesBeforeSmtp.stream().allMatch("UNAVAILABLE"::equals));
+
+        activateSmtp(adminId);
+        mail.reset();
+        assertEquals(0, notifications.retryDueEmails());
+        assertEquals(0, mail.calls);
+
+        int countAfterSmtp = count("select count(*) from notifications where action_url like ?", "/projects/" + projectId + "%");
+        assertEquals(countBeforeSmtp, countAfterSmtp);
+        List<String> statusesAfterSmtp = jdbc.queryForList(
+                "select email_status from notifications where action_url like ? order by id", String.class, "/projects/" + projectId + "%");
+        assertEquals(List.of("UNAVAILABLE"), statusesAfterSmtp.stream().distinct().toList());
+    }
+
+    /**
+     * Protects {@code NOT-002} and {@code AC-NOT-004}.
+     * Real domain actions for membership changes and leadership transitions persist in-app notifications
+     * with UNAVAILABLE email status when SMTP is not configured.
+     * When SMTP is activated subsequently, retryDueEmails does not retroactively send emails for these notifications.
+     */
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
+    void membershipAndLeadershipChangesPersistUnavailableNotificationsWithoutRetroactiveSend() {
+        mail.reset();
+        long adminId = user("admin-member-leader-smtp@example.test", "ADMIN");
+        long mentorId = user("mentor-member-leader-smtp@example.test", "MENTOR");
+        long initialLeaderId = intern("leader-member-leader-smtp@example.test", "I221");
+        long newMemberId = intern("member-member-leader-smtp@example.test", "I222");
+        long replacementLeaderId = intern("replacement-member-leader-smtp@example.test", "I223");
+
+        long projectId = createProject(mentorId, initialLeaderId, "Membership and Leadership Test");
+        String projectUrl = "/projects/" + projectId;
+
+        // 1. Mentor adds new member -> MEMBERSHIP_CHANGED
+        projects.addMember(mentorId, projectId, newMemberId);
+        assertEquals(1, count("select count(*) from project_memberships where project_id = ? and intern_user_id = ? and left_at is null", projectId, newMemberId));
+        var memberAddedRecipients = notificationRecipients("MEMBERSHIP_CHANGED", projectUrl, "MEMBER_ADDED");
+        assertEquals(List.of(newMemberId), memberAddedRecipients);
+        var memberAddedStatuses = jdbc.query(
+                "select email_status from notifications where notification_type = 'MEMBERSHIP_CHANGED' "
+                        + "and action_url = ? and body like ? order by id",
+                (rs, rowNum) -> rs.getString(1),
+                projectUrl, "%Transition: MEMBER_ADDED");
+        assertEquals(List.of("UNAVAILABLE"), memberAddedStatuses);
+        assertEquals(0, mail.calls);
+
+        // 2. Mentor adds replacement member then changes leader -> LEADERSHIP_CHANGED
+        projects.addMember(mentorId, projectId, replacementLeaderId);
+        long formerLeaderMembershipId = membershipId(projectId, initialLeaderId);
+        projects.changeLeader(mentorId, projectId, replacementLeaderId);
+        long newLeaderMembershipId = membershipId(projectId, replacementLeaderId);
+        assertEquals(1, count("select count(*) from project_leadership_terms where project_id = ? and membership_id = ? and ended_at is not null", projectId, formerLeaderMembershipId));
+        assertEquals(1, count("select count(*) from project_leadership_terms where project_id = ? and membership_id = ? and ended_at is null", projectId, newLeaderMembershipId));
+        var leaderChangedRecipients = notificationRecipients("LEADERSHIP_CHANGED", projectUrl, "LEADER_CHANGED");
+        assertEquals(Stream.of(initialLeaderId, replacementLeaderId).sorted().toList(), leaderChangedRecipients);
+        var leaderChangedStatuses = jdbc.query(
+                "select email_status from notifications where notification_type = 'LEADERSHIP_CHANGED' "
+                        + "and action_url = ? and body like ? order by id",
+                (rs, rowNum) -> rs.getString(1),
+                projectUrl, "%Transition: LEADER_CHANGED");
+        assertEquals(List.of("UNAVAILABLE", "UNAVAILABLE"), leaderChangedStatuses);
+        assertEquals(0, mail.calls);
+
+        // 3. F2: Verify no retroactive emails are replayed (AC-NOT-004, NOT-005)
+        int countBeforeSmtp = count("select count(*) from notifications where action_url like ?", "/projects/" + projectId + "%");
+        List<String> statusesBeforeSmtp = jdbc.queryForList(
+                "select email_status from notifications where action_url like ? order by id", String.class, "/projects/" + projectId + "%");
+        assertTrue(statusesBeforeSmtp.stream().allMatch("UNAVAILABLE"::equals));
+
+        activateSmtp(adminId);
+        mail.reset();
+        assertEquals(0, notifications.retryDueEmails());
+        assertEquals(0, mail.calls);
+
+        int countAfterSmtp = count("select count(*) from notifications where action_url like ?", "/projects/" + projectId + "%");
+        assertEquals(countBeforeSmtp, countAfterSmtp);
+        List<String> statusesAfterSmtp = jdbc.queryForList(
+                "select email_status from notifications where action_url like ? order by id", String.class, "/projects/" + projectId + "%");
+        assertEquals(List.of("UNAVAILABLE"), statusesAfterSmtp.stream().distinct().toList());
+    }
+
+    /**
+     * Protects {@code AC-PRJ-017}, {@code NOT-013}, {@code NOT-002}, {@code D50}.
+     * Verifies exact recipient sets for membership and leadership changes across
+     * project lifecycle: project creation, member addition, leader replacement,
+     * invitation acceptance, exit approval, and project completion.
+     * The initiating actor (e.g. accepting Intern) and the owning Mentor are excluded.
+     */
+    @Test
+    void membershipAndLeadershipNotificationsExcludeInitiatorAcrossProjectLifecycle() {
+        long mentorId = user("mentor-ac17@example.test", "MENTOR");
+        long initialLeaderId = intern("initial-leader-ac17@example.test", "I201");
+        long addedMemberId = intern("added-member-ac17@example.test", "I202");
+        long invitedInternId = intern("invited-intern-ac17@example.test", "I203");
+        long projectId = createProject(mentorId, initialLeaderId, "AC-PRJ-017 Project");
+
+        // 1. Project creation with initial leader
+        assertEquals(
+                List.of(initialLeaderId),
+                notificationRecipients("MEMBERSHIP_CHANGED", "/projects/" + projectId, "INITIAL_MEMBER_ADDED"));
+        assertEquals(
+                List.of(initialLeaderId),
+                notificationRecipients("LEADERSHIP_CHANGED", "/projects/" + projectId, "INITIAL_LEADER_ASSIGNED"));
+
+        // 2. Mentor adds a member
+        projects.addMember(mentorId, projectId, addedMemberId);
+        assertEquals(
+                List.of(addedMemberId),
+                notificationRecipients("MEMBERSHIP_CHANGED", "/projects/" + projectId, "MEMBER_ADDED"));
+
+        // 3. Mentor replaces the leader
+        projects.changeLeader(mentorId, projectId, addedMemberId);
+        assertEquals(
+                Stream.of(initialLeaderId, addedMemberId).sorted().toList(),
+                notificationRecipients("LEADERSHIP_CHANGED", "/projects/" + projectId, "LEADER_CHANGED"));
+
+        // 4. An Intern accepts an invitation
+        long invitationId = projects.issueInvitation(addedMemberId, projectId, invitedInternId);
+        projects.respondToInvitation(invitedInternId, invitationId, InvitationResponse.ACCEPT);
+        // Under D50 / NOT-013 / AC-PRJ-017, the accepting intern does NOT receive MEMBERSHIP_CHANGED for their own acceptance
+        assertEquals(
+                List.of(),
+                notificationRecipients("MEMBERSHIP_CHANGED", "/projects/" + projectId, "INVITATION_ACCEPTED"));
+
+        // 5. Mentor approves removal of a member (initialLeaderId)
+        long initialLeaderMembershipId = membershipId(projectId, initialLeaderId);
+        long removalRequestId = projects.requestMemberRemoval(
+                addedMemberId, projectId, initialLeaderMembershipId, "Handover completed");
+        projects.approveExit(mentorId, removalRequestId, "Removal approved");
+        assertEquals(
+                List.of(initialLeaderId),
+                notificationRecipients("MEMBERSHIP_CHANGED", "/projects/" + projectId, "MEMBER_REMOVED"));
+
+        // 6. Mentor completes the project
+        jdbc.update("update projects set status = 'ACTIVE', activated_at = timestamp with time zone '2026-08-13 00:00:00+00', updated_at = timestamp with time zone '2026-08-13 00:00:00+00' where id = ?", projectId);
+        jdbc.update("update project_leadership_terms set started_at = timestamp with time zone '2026-08-12 00:00:00+00', ended_at = timestamp with time zone '2026-08-13 00:00:00+00' where project_id = ? and ended_at is not null", projectId);
+        jdbc.update("update project_leadership_terms set started_at = timestamp with time zone '2026-08-13 00:00:00+00' where project_id = ? and ended_at is null", projectId);
+        entityManager.clear();
+        projects.complete(mentorId, projectId);
+        assertEquals(
+                Stream.of(addedMemberId, invitedInternId).sorted().toList(),
+                notificationRecipients("MEMBERSHIP_CHANGED", "/projects/" + projectId, "PROJECT_COMPLETED"));
+        assertEquals(
+                List.of(addedMemberId),
+                notificationRecipients("LEADERSHIP_CHANGED", "/projects/" + projectId, "LEADER_REMOVED"));
+
+        // 7. Verify the acting Mentor never receives MEMBERSHIP_CHANGED or LEADERSHIP_CHANGED
+        var allMembershipRecipients = notificationRecipients("MEMBERSHIP_CHANGED", "/projects/" + projectId);
+        assertTrue(!allMembershipRecipients.contains(mentorId));
+        var allLeadershipRecipients = notificationRecipients("LEADERSHIP_CHANGED", "/projects/" + projectId);
+        assertTrue(!allLeadershipRecipients.contains(mentorId));
+    }
+
+    /**
+     * Protects {@code AC-PRJ-017}, {@code NOT-013}, {@code NOT-002}, {@code D50}.
+     * Verifies that cancelling a project notifies all current members with
+     * MEMBERSHIP_CHANGED (PROJECT_CANCELLED) and the current leader with
+     * LEADERSHIP_CHANGED (LEADER_REMOVED), while excluding the acting Mentor.
+     */
+    @Test
+    void projectCancellationNotifiesCurrentMembersAndLeaderWhileExcludingMentor() {
+        long mentorId = user("mentor-cancel@example.test", "MENTOR");
+        long leaderId = intern("leader-cancel@example.test", "I204");
+        long memberId = intern("member-cancel@example.test", "I205");
+        long projectId = createProject(mentorId, leaderId, "Project Cancellation");
+        projects.addMember(mentorId, projectId, memberId);
+
+        projects.cancel(mentorId, projectId, "Cancelling project for testing");
+
+        assertEquals(
+                Stream.of(leaderId, memberId).sorted().toList(),
+                notificationRecipients("MEMBERSHIP_CHANGED", "/projects/" + projectId, "PROJECT_CANCELLED"));
+        assertEquals(
+                List.of(leaderId),
+                notificationRecipients("LEADERSHIP_CHANGED", "/projects/" + projectId, "LEADER_REMOVED"));
+
+        var allMembershipRecipients = notificationRecipients("MEMBERSHIP_CHANGED", "/projects/" + projectId);
+        assertTrue(!allMembershipRecipients.contains(mentorId));
+        var allLeadershipRecipients = notificationRecipients("LEADERSHIP_CHANGED", "/projects/" + projectId);
+        assertTrue(!allLeadershipRecipients.contains(mentorId));
+    }
+
+    /**
+     * Protects {@code NOT-006}, {@code NOT-012}, {@code AC-NOT-008}, and {@code D49}.
+     * Verifies that when SMTP is active and holds message delivery, completing a project
+     * (which raises multiple emails) commits its domain action and in-app notifications and
+     * returns immediately while messages are still held in PENDING state.
+     * Once released, emails reach SENT, and the initial attempt begins within one minute of commit.
+     */
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
+    void acNot008ProjectCompletionReturnsBeforeSmtpDeliveryAndDispatchesAsynchronously() throws Exception {
+        mail.reset();
+        bootstrap.bootstrap("admin-ac008@example.test", "Admin User", "correct horse battery staple");
+        long adminId = jdbc.queryForObject("select id from app_users where email = ?", Long.class, "admin-ac008@example.test");
+        String mentorEmail = "mentor-ac008@example.test";
+        long mentorId = user(mentorEmail, "MENTOR");
+        long leaderId = intern("leader-ac008@example.test", "I230");
+        long memberId = intern("member-ac008@example.test", "I231");
+
+        long projectId = createProject(mentorId, leaderId, "Asynchronous Delivery Project");
+        projects.addMember(mentorId, projectId, memberId);
+
+        activateSmtp(adminId);
+        mail.reset();
+
+        jdbc.update("update projects set status = 'ACTIVE', activated_at = timestamp with time zone '2026-08-13 00:00:00+00', updated_at = timestamp with time zone '2026-08-13 00:00:00+00' where id = ?", projectId);
+        jdbc.update("update project_leadership_terms set started_at = timestamp with time zone '2026-08-12 00:00:00+00', ended_at = timestamp with time zone '2026-08-13 00:00:00+00' where project_id = ? and ended_at is not null", projectId);
+        jdbc.update("update project_leadership_terms set started_at = timestamp with time zone '2026-08-13 00:00:00+00' where project_id = ? and ended_at is null", projectId);
+
+        Long minCompletionId = jdbc.queryForObject("select coalesce(max(id), 0) from notifications", Long.class);
+        mail.blockForOverlap();
+        // Wall-clock instant captured immediately before the HTTP call; used to verify that
+        // SMTP dispatch begins within 60 s of the commit, regardless of the fixed test clock
+        // (TestcontainersConfiguration supplies Clock.fixed, so created_at is always the
+        // anchored test instant, not a live timestamp — cannot compare the two directly).
+        Instant wallBeforeDispatch = Instant.now();
+
+        try {
+            MvcResult mvcResult = mockMvc.perform(
+                    post("/projects/" + projectId + "/complete")
+                            .with(csrf())
+                            .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user(mentorEmail).roles("MENTOR")))
+                    .andExpect(status().is3xxRedirection())
+                    .andReturn();
+
+            // When latch is held: response returned (status 3xx), all completion emails are PENDING
+            int statusCode = mvcResult.getResponse().getStatus();
+            assertTrue(statusCode >= 300 && statusCode < 400);
+
+            // Project status and in-app notifications committed
+            assertEquals("COMPLETED", text("select status from projects where id = ?", projectId));
+            List<String> inAppTypes = jdbc.queryForList(
+                    "select notification_type from notifications where id > ? and action_url like ? order by id",
+                    String.class, minCompletionId, "/projects/" + projectId + "%");
+            assertTrue(inAppTypes.contains("MEMBERSHIP_CHANGED"));
+            assertTrue(inAppTypes.contains("LEADERSHIP_CHANGED"));
+
+            // While held, all email statuses are PENDING
+            List<String> heldStatuses = jdbc.queryForList(
+                    "select email_status from notifications where id > ? and action_url like ? and email_status is not null order by id",
+                    String.class, minCompletionId, "/projects/" + projectId + "%");
+            assertFalse(heldStatuses.isEmpty());
+            assertTrue(heldStatuses.stream().allMatch("PENDING"::equals));
+
+            // Release SMTP delivery
+            mail.releaseOverlap();
+
+            // Await delivery to reach SENT
+            long deadline = System.currentTimeMillis() + 5000;
+            List<String> finalStatuses;
+            do {
+                Thread.sleep(50);
+                finalStatuses = jdbc.queryForList(
+                        "select email_status from notifications where id > ? and action_url like ? and email_status is not null order by id",
+                        String.class, minCompletionId, "/projects/" + projectId + "%");
+            } while (System.currentTimeMillis() < deadline && !finalStatuses.stream().allMatch("SENT"::equals));
+
+            assertTrue(finalStatuses.stream().allMatch("SENT"::equals));
+            assertTrue(mail.calls >= 2);
+
+            // For each email, the fake sender's first attempt must begin within 60 s of the
+            // HTTP call that triggered the commit (wallBeforeDispatch).  We compare against wall
+            // time rather than DB created_at because the test clock is fixed and does not advance
+            // with real time, so the two clocks cannot be subtracted meaningfully.
+            List<String> sentRecipients = jdbc.queryForList(
+                    "select email_to from notifications where id > ? and action_url like ? and email_status = 'SENT'",
+                    String.class, minCompletionId, "/projects/" + projectId + "%");
+            assertFalse(sentRecipients.isEmpty());
+            for (String emailTo : sentRecipients) {
+                Instant deliveryStartedAt = mail.sendStartTimes.get(emailTo);
+                assertNotNull(deliveryStartedAt, "fake sender must record delivery start time for " + emailTo);
+                long secondsAfterDispatch = deliveryStartedAt.getEpochSecond() - wallBeforeDispatch.getEpochSecond();
+                assertTrue(secondsAfterDispatch >= 0 && secondsAfterDispatch <= 60,
+                        "delivery attempt must begin within 60s of commit dispatch; wallBefore="
+                                + wallBeforeDispatch.getEpochSecond() + ", delivered="
+                                + deliveryStartedAt.getEpochSecond() + ", diff=" + secondsAfterDispatch);
+            }
+        } finally {
+            mail.releaseOverlap();
+        }
+    }
+
+    @TestConfiguration(proxyBeanMethods = false)
+    static class MailProbeConfiguration {
+        @Bean
+        @Primary
+        RecordingSmtpProbe recordingSmtpProbe() {
+            return new RecordingSmtpProbe();
+        }
+    }
+
+    static final class RecordingSmtpProbe implements SmtpProbe {
+        private volatile int calls;
+        private volatile boolean blockForOverlap;
+        private volatile CountDownLatch entered = new CountDownLatch(0);
+        private volatile CountDownLatch release = new CountDownLatch(0);
+        private final java.util.concurrent.CopyOnWriteArrayList<String> recipients =
+                new java.util.concurrent.CopyOnWriteArrayList<>();
+        final java.util.concurrent.ConcurrentHashMap<String, Instant> sendStartTimes =
+                new java.util.concurrent.ConcurrentHashMap<>();
+
+        @Override
+        public void send(SmtpConnection connection, String recipient, String subject, String body) {
+            sendStartTimes.putIfAbsent(recipient, Instant.now());
+            calls++;
+            recipients.add(recipient);
+            if (blockForOverlap) {
+                entered.countDown();
+                try {
+                    if (!release.await(10, TimeUnit.SECONDS)) {
+                        throw new IllegalStateException("timed out waiting to release SMTP overlap");
+                    }
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException("SMTP overlap interrupted", interrupted);
+                }
+            }
+        }
+
+        void reset() {
+            calls = 0;
+            recipients.clear();
+            sendStartTimes.clear();
+            blockForOverlap = false;
+            entered = new CountDownLatch(0);
+            release = new CountDownLatch(0);
+        }
+
+        void blockForOverlap() {
+            blockForOverlap = true;
+            entered = new CountDownLatch(1);
+            release = new CountDownLatch(1);
+        }
+
+        boolean awaitEntered() throws InterruptedException {
+            return entered.await(10, TimeUnit.SECONDS);
+        }
+
+        void releaseOverlap() {
+            release.countDown();
+        }
     }
 }

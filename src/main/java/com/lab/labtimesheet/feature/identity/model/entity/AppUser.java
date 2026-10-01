@@ -170,18 +170,38 @@ public class AppUser {
     }
 
     /**
-     * Deactivates a credential-bearing account and retains its historical identity.
+     * Deactivates an account and retains its historical identity and any lock used by reinstatement.
      *
      * @param now server timestamp recorded for deactivation and update
-     * @throws IllegalStateException when the account is pending activation or already deactivated
+     * @throws IllegalStateException when the account is already deactivated
      */
     public void deactivate(Instant now) {
-        if (accountStatus == AccountStatus.PENDING_ACTIVATION || accountStatus == AccountStatus.DEACTIVATED) {
-            throw new IllegalStateException("Account cannot be deactivated in this state");
+        if (accountStatus == AccountStatus.DEACTIVATED) {
+            throw new IllegalStateException("Account is already deactivated");
         }
         accountStatus = AccountStatus.DEACTIVATED;
-        lockedAt = null;
         deactivatedAt = now;
+        updatedAt = now;
+    }
+
+    /**
+     * Reinstates a deactivated account to the state its retained activation and lock timestamps permit.
+     *
+     * @param now server timestamp recorded for reinstatement and update
+     * @throws IllegalStateException when this account is not deactivated
+     */
+    public void reinstate(Instant now) {
+        if (accountStatus != AccountStatus.DEACTIVATED) {
+            throw new IllegalStateException("Only a deactivated account can be reinstated");
+        }
+        if (activatedAt == null) {
+            accountStatus = AccountStatus.PENDING_ACTIVATION;
+        } else if (lockedAt != null) {
+            accountStatus = AccountStatus.LOCKED;
+        } else {
+            accountStatus = AccountStatus.ACTIVE;
+        }
+        deactivatedAt = null;
         updatedAt = now;
     }
 
