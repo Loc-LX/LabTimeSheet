@@ -58,9 +58,23 @@
         <div class="inline-actions" th:if="${intern and (selectedLeave.status.name() == 'PENDING' or selectedLeave.status.name() == 'OVERDUE')}"><form method="post" th:action="@{/attendance/leave/{id}/withdraw(id=${selectedLeave.id})}"><button class="button button-danger" type="submit">Withdraw request</button></form></div>
         <div class="inline-actions" th:if="${intern and selectedLeave.status.name() == 'APPROVED'}"><form method="post" th:action="@{/attendance/leave/{id}/cancel(id=${selectedLeave.id})}"><button class="button button-danger" type="submit">Cancel approved leave</button></form></div>
         <div class="inline-actions" th:if="${mentor and (selectedLeave.status.name() == 'PENDING' or selectedLeave.status.name() == 'OVERDUE')}"><form method="post" th:action="@{/attendance/leave/{id}/approve(id=${selectedLeave.id})}"><button class="button button-primary" type="submit">Approve</button></form><form method="post" th:action="@{/attendance/leave/{id}/reject(id=${selectedLeave.id})}"><button class="button button-danger" type="submit">Reject</button></form></div>
+        <form class="form-grid" th:if="${mentor and selectedLeave.status.name() == 'APPROVED' and leaveStarted}" method="post" th:action="@{/attendance/leave/{id}/amend(id=${selectedLeave.id})}">
+            <header class="panel-header"><h3 class="panel-title">Amend approved leave</h3></header>
+            <div class="field">
+                <span class="field-label">Dates to withdraw</span>
+                <div th:each="allocation : ${selectedLeave.allocations}" th:unless="${allocation.isApprovalWithdrawn()}">
+                    <label><input type="checkbox" name="withdrawnDates" th:value="${allocation.leaveDate}"> <span th:text="${#temporals.format(allocation.leaveDate, 'dd/MM/yyyy')}">Date</span></label>
+                </div>
+            </div>
+            <div class="field">
+                <label class="field-label" for="amend-reason">Reason</label>
+                <input class="control" id="amend-reason" name="reason" required maxlength="500" placeholder="Reason for withdrawing approval">
+            </div>
+            <div class="form-actions"><button class="button button-danger" type="submit">Amend leave</button></div>
+        </form>
         <section th:each="group : ${selectedLeave.allocationsByQuotaMonth()}">
             <h3 th:text="|Quota month ${#temporals.format(group.key, 'MM/yyyy')}|">Quota month</h3>
-            <ul><li th:each="allocation : ${group.value}" th:text="${#temporals.format(allocation.leaveDate, 'dd/MM/yyyy')}">Allocation</li></ul>
+            <ul><li th:each="allocation : ${group.value}"><span th:text="${#temporals.format(allocation.leaveDate, 'dd/MM/yyyy')}">Allocation</span> <span class="badge" th:if="${allocation.isApprovalWithdrawn()}">Approval withdrawn</span></li></ul>
         </section>
     </section>
 </main>

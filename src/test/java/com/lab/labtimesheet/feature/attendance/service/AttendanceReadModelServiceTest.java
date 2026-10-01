@@ -11,6 +11,7 @@ import com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestSummary;
 import com.lab.labtimesheet.feature.attendance.model.entity.LeaveRequestEntity;
 import com.lab.labtimesheet.feature.attendance.repository.AttendanceCorrectionRepository;
 import com.lab.labtimesheet.feature.attendance.repository.LeaveRequestDayRepository;
+import com.lab.labtimesheet.feature.attendance.repository.LeaveRequestDecisionRepository;
 import com.lab.labtimesheet.feature.attendance.repository.LeaveRequestRepository;
 import com.lab.labtimesheet.feature.calendar.model.AttendancePolicy;
 import com.lab.labtimesheet.feature.identity.model.AccountStatus;
@@ -60,7 +61,9 @@ class AttendanceReadModelServiceTest {
         AuthorizationPolicy policy = spy(AttendanceAuthorizationTestPolicy.create());
         LeaveApplicationService service = new LeaveApplicationService(
                 Clock.fixed(Instant.parse("2026-08-20T00:00:00Z"), ZoneOffset.UTC),
-                requests, mock(LeaveRequestDayRepository.class), accounts, mock(InternshipService.class),
+                requests, mock(LeaveRequestDayRepository.class),
+                mock(LeaveRequestDecisionRepository.class),
+                accounts, mock(InternshipService.class),
                 mock(CalendarApplicationService.class), mock(TransactionTemplate.class),
                 mock(com.lab.labtimesheet.feature.notification.service.NotificationService.class), policy,
                 mock(AttendanceExceptionNotificationRecipients.class));
@@ -95,6 +98,7 @@ class AttendanceReadModelServiceTest {
         LeaveApplicationService service = new LeaveApplicationService(
                 Clock.fixed(Instant.parse("2026-08-20T00:00:00Z"), ZoneOffset.UTC),
                 requests, mock(LeaveRequestDayRepository.class),
+                mock(LeaveRequestDecisionRepository.class),
                 accounts, mock(InternshipService.class), mock(CalendarApplicationService.class),
                 mock(TransactionTemplate.class),
                 mock(com.lab.labtimesheet.feature.notification.service.NotificationService.class),
@@ -125,7 +129,9 @@ class AttendanceReadModelServiceTest {
 
         LeaveApplicationService service = new LeaveApplicationService(
                 Clock.fixed(Instant.parse("2026-08-20T00:00:00Z"), ZoneOffset.UTC),
-                mock(LeaveRequestRepository.class), days, accounts, mock(InternshipService.class), calendar,
+                mock(LeaveRequestRepository.class), days,
+                mock(LeaveRequestDecisionRepository.class),
+                accounts, mock(InternshipService.class), calendar,
                 mock(TransactionTemplate.class),
                 mock(com.lab.labtimesheet.feature.notification.service.NotificationService.class),
                 AttendanceAuthorizationTestPolicy.create(),

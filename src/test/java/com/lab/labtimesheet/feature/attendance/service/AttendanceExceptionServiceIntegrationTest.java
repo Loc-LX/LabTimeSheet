@@ -77,7 +77,7 @@ class AttendanceExceptionServiceIntegrationTest {
                 role == GlobalRole.INTERN ? java.time.LocalDate.of(2026, 12, 31) : null),
                 accounts.requireActiveAdminId("admin@example.test"));
         assertThat(creation.deliverySucceeded()).isTrue();
-        assertThat(accounts.activate(mail.onlyActivationToken(), "new secure fixture password")).isTrue();
+        assertThat(accounts.activate(mail.activationTokenFor(email), "new secure fixture password")).isTrue();
         return creation.userId();
     }
 

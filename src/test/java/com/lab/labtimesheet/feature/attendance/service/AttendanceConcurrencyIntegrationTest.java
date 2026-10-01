@@ -57,6 +57,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
@@ -105,6 +106,9 @@ class AttendanceConcurrencyIntegrationTest {
 
     @Autowired
     private TransactionTemplate transactions;
+
+    @Autowired
+    private JdbcTemplate jdbc;
 
     @Autowired
     private BootstrapService bootstrap;
@@ -312,7 +316,8 @@ class AttendanceConcurrencyIntegrationTest {
                         new AttendanceActor(mentorId, GlobalRole.MENTOR),
                         submittedCorrection.id(),
                         CorrectionDecision.APPROVE,
-                        "pool-sized approval");
+                        "pool-sized approval",
+                        null);
                 return "CORRECTION_APPROVED";
             } catch (RuntimeException failure) {
                 return "FAILURE:" + failure.getClass().getSimpleName();
@@ -337,7 +342,7 @@ class AttendanceConcurrencyIntegrationTest {
         List<String> outcomes = runConcurrently(() -> {
             try {
                 corrections.decide(new AttendanceActor(mentorId, GlobalRole.MENTOR), submitted.id(),
-                        CorrectionDecision.APPROVE, "race");
+                        CorrectionDecision.APPROVE, "race", null);
                 return "SUCCESS";
             } catch (CorrectionException failure) {
                 return "CONFLICT";
@@ -513,9 +518,10 @@ class AttendanceConcurrencyIntegrationTest {
                 LocalDate.of(2026, 8, 1),
                 LocalDate.of(2026, 12, 31)), adminId);
         assertThat(creation.deliverySucceeded()).isTrue();
-        assertThat(accounts.activate(mail.onlyActivationToken(), "new secure intern password")).isTrue();
+        assertThat(accounts.activate(mail.activationTokenFor("concurrency-intern@example.test"), "new secure intern password")).isTrue();
         internships.activateInternship(creation.userId(), adminId);
         concurrencyInternId = creation.userId();
+        linkResponsibleMentor();
         return concurrencyInternId;
     }
 
@@ -533,9 +539,17 @@ class AttendanceConcurrencyIntegrationTest {
                 null,
                 null), adminId);
         assertThat(creation.deliverySucceeded()).isTrue();
-        assertThat(accounts.activate(mail.onlyActivationToken(), "new secure mentor password")).isTrue();
+        assertThat(accounts.activate(mail.activationTokenFor("concurrency-mentor@example.test"), "new secure mentor password")).isTrue();
         concurrencyMentorId = creation.userId();
+        linkResponsibleMentor();
         return concurrencyMentorId;
+    }
+
+    private void linkResponsibleMentor() {
+        if (concurrencyMentorId != 0L && concurrencyInternId != 0L) {
+            jdbc.update("update intern_profiles set responsible_mentor_user_id = ? where user_id = ?",
+                    concurrencyMentorId, concurrencyInternId);
+        }
     }
 
     private static String punchOutcome(Runnable punch) {

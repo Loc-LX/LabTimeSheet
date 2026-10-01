@@ -8,6 +8,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.MapsId;
 import jakarta.persistence.Table;
+import java.time.Instant;
 import java.time.LocalDate;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
@@ -36,6 +37,9 @@ public class LeaveRequestDayEntity {
 
     @Column(name = "monthly_quota_snapshot", nullable = false)
     private int monthlyQuotaSnapshot;
+
+    @Column(name = "approval_withdrawn_at")
+    private Instant approvalWithdrawnAt;
 
     /**
      * Creates an immutable frozen allocation after the parent request has been persisted.
@@ -91,5 +95,27 @@ public class LeaveRequestDayEntity {
      */
     public long policyVersionId() {
         return policyVersionId;
+    }
+
+    /**
+     * Returns the optional approval-withdrawal timestamp.
+     *
+     * @return withdrawal instant, or {@code null} when approval has not been withdrawn
+     */
+    public Instant approvalWithdrawnAt() {
+        return approvalWithdrawnAt;
+    }
+
+    /**
+     * Marks this day's approval as withdrawn. The day must not have been withdrawn already.
+     *
+     * @param now server timestamp of the amendment
+     * @throws IllegalStateException if approval has already been withdrawn
+     */
+    public void withdrawApproval(Instant now) {
+        if (approvalWithdrawnAt != null) {
+            throw new IllegalStateException("Approval has already been withdrawn for this leave day");
+        }
+        this.approvalWithdrawnAt = now;
     }
 }

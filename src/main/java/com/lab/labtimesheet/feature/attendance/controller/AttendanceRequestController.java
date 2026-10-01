@@ -11,6 +11,7 @@ import com.lab.labtimesheet.feature.attendance.model.dto.CorrectionDecision;
 import com.lab.labtimesheet.feature.attendance.model.dto.CorrectionRequestCommand;
 import com.lab.labtimesheet.feature.attendance.model.dto.LeaveBalance;
 import com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestCommand;
+import com.lab.labtimesheet.feature.attendance.model.dto.LeaveRequestView;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceApplicationService;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceCorrectionApplicationService;
 import com.lab.labtimesheet.feature.attendance.service.AttendanceCurrentUserService;
@@ -28,6 +29,8 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.time.format.DateTimeParseException;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -233,9 +236,16 @@ public class AttendanceRequestController {
         model.addAttribute("intern", canSubmitAttendanceRequest(actor));
         model.addAttribute("mentor", actor.role() == GlobalRole.MENTOR);
         model.addAttribute("leaveRequests", leave.list(actor));
-        model.addAttribute("selectedLeave", leave.view(actor, requestId));
-        if (actor.role() == GlobalRole.INTERN) {
-            YearMonth selectedMonth = YearMonth.from(calendar.currentBusinessDate());
+        LeaveRequestView selectedLeave = leave.view(actor, requestId);
+        model.addAttribute("selectedLeave", selectedLeave);
+        LocalDate today = calendar.currentBusinessDate();
+        boolean leaveStarted = today != null
+                && selectedLeave != null
+                && selectedLeave.firstCountedStartAt() != null
+                && !today.isBefore(selectedLeave.startDate());
+        model.addAttribute("leaveStarted", leaveStarted);
+        if (actor.role() == GlobalRole.INTERN && today != null) {
+            YearMonth selectedMonth = YearMonth.from(today);
             model.addAttribute("selectedMonth", selectedMonth);
             model.addAttribute("balance", leave.balance(actor, selectedMonth));
         }
@@ -412,6 +422,35 @@ public class AttendanceRequestController {
     }
 
     /**
+     * Amends an approved leave request by withdrawing approval from specific dates.
+     *
+     * @param principal authenticated Mentor
+     * @param requestId leave request identifier
+     * @param withdrawnDates list of date strings to withdraw
+     * @param reason amendment reason
+     * @param redirectAttributes transition feedback destination
+     * @return selected Leave detail redirect
+     */
+    @PostMapping("/leave/{requestId}/amend")
+    public String amendLeave(
+            Principal principal,
+            @PathVariable long requestId,
+            @RequestParam(name = "withdrawnDates", required = false) List<String> withdrawnDates,
+            @RequestParam(name = "reason", required = false) String reason,
+            RedirectAttributes redirectAttributes) {
+        try {
+            List<LocalDate> dates = withdrawnDates == null ? List.of() : withdrawnDates.stream()
+                    .map(dateStr -> requiredDate(dateStr, "Enter valid leave dates."))
+                    .toList();
+            leave.amend(currentUsers.actor(principal), requestId, dates, reason);
+            redirectAttributes.addFlashAttribute("message", "Leave request amended");
+        } catch (LeaveException | IllegalArgumentException failure) {
+            redirectAttributes.addFlashAttribute("requestError", failure.getMessage());
+        }
+        return "redirect:/attendance/leave/" + requestId;
+    }
+
+    /**
      * Submits one proposed effective checkout without changing the raw attendance row.
      *
      * @param principal authenticated Intern owner
@@ -460,6 +499,8 @@ public class AttendanceRequestController {
      * @param correctionId correction identifier
      * @param decision requested state transition
      * @param note optional decision note
+     * @param reason optional justification for amend and reverse transitions
+     * @param proposedCheckout immutable field rejection guard
      * @param redirectAttributes transition feedback destination
      * @return selected Correction detail redirect
      */
@@ -469,19 +510,29 @@ public class AttendanceRequestController {
             @PathVariable long correctionId,
             @RequestParam String decision,
             @RequestParam(required = false) String note,
+            @RequestParam(required = false) String reason,
+            @RequestParam(required = false) String proposedCheckout,
             RedirectAttributes redirectAttributes) {
         try {
+            if (proposedCheckout != null) {
+                throw new CorrectionException("The proposed checkout cannot be changed");
+            }
             corrections.decide(
                     currentUsers.actor(principal),
                     correctionId,
                     requiredDecision(decision),
-                    note);
+                    note,
+                    reason);
             redirectAttributes.addFlashAttribute("message", "Correction decision saved");
         } catch (CorrectionException | IllegalArgumentException failure) {
             redirectAttributes.addFlashAttribute("requestError", failure.getMessage());
-            redirectAttributes.addFlashAttribute("correctionDecisionInput", Map.of(
-                    "decision", decision,
-                    "note", note == null ? "" : note));
+            Map<String, Object> input = new HashMap<>();
+            input.put("decision", decision);
+            input.put("note", note == null ? "" : note);
+            if (reason != null) {
+                input.put("reason", reason);
+            }
+            redirectAttributes.addFlashAttribute("correctionDecisionInput", input);
         }
         return "redirect:/attendance/corrections/" + correctionId;
     }

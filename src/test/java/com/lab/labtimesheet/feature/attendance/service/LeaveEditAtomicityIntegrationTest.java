@@ -88,7 +88,7 @@ class LeaveEditAtomicityIntegrationTest {
                 "atomic-intern@example.test", "Atomic Intern", GlobalRole.INTERN,
                 "INT-ATOMIC", LocalDate.of(2026, 8, 1), LocalDate.of(2026, 12, 31)), adminId);
         assertThat(creation.deliverySucceeded()).isTrue();
-        assertThat(accounts.activate(mail.onlyActivationToken(), "new secure intern password")).isTrue();
+        assertThat(accounts.activate(mail.activationTokenFor("atomic-intern@example.test"), "new secure intern password")).isTrue();
         internships.activateInternship(creation.userId(), adminId);
         internId = creation.userId();
     }

@@ -272,7 +272,7 @@ class AttendanceExceptionOverdueIntegrationTest {
                 role == GlobalRole.INTERN ? LocalDate.of(2026, 8, 1) : null,
                 role == GlobalRole.INTERN ? LocalDate.of(2026, 12, 31) : null), adminId);
         assertThat(creation.deliverySucceeded()).isTrue();
-        assertThat(accounts.activate(mail.onlyActivationToken(), "new secure fixture password")).isTrue();
+        assertThat(accounts.activate(mail.activationTokenFor(email), "new secure fixture password")).isTrue();
         return creation.userId();
     }
 

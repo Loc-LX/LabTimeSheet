@@ -335,7 +335,7 @@ class CorrectionSubmissionWindowIntegrationTest {
         clock.set(approveAt);
 
         CorrectionView decidedView = corrections.decide(
-                mentorActor, view.id(), CorrectionDecision.APPROVE, "Approved before deadline");
+                mentorActor, view.id(), CorrectionDecision.APPROVE, "Approved before deadline", null);
 
         assertThat(decidedView.status()).isEqualTo(CorrectionStatus.APPROVED);
         assertThat(correctionRequests.findById(view.id()).orElseThrow().status()).isEqualTo(CorrectionStatus.APPROVED);
@@ -449,7 +449,7 @@ class CorrectionSubmissionWindowIntegrationTest {
                 role == GlobalRole.INTERN ? LocalDate.of(2026, 8, 1) : null,
                 role == GlobalRole.INTERN ? LocalDate.of(2026, 12, 31) : null), adminId);
         assertThat(creation.deliverySucceeded()).isTrue();
-        assertThat(accounts.activate(mail.onlyActivationToken(), "new secure fixture password")).isTrue();
+        assertThat(accounts.activate(mail.activationTokenFor(email), "new secure fixture password")).isTrue();
         return creation.userId();
     }
 

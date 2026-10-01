@@ -218,8 +218,9 @@ class AttendancePersistenceIntegrationTest {
 
     private long createActiveMentor() {
         mail.clear();
+        String email = "mentor-" + internId + "-" + (++mentorSequence) + "@example.test";
         var creation = internships.create(new CreateAccountCommand(
-                "mentor-" + internId + "-" + (++mentorSequence) + "@example.test",
+                email,
                 "Mentor",
                 GlobalRole.MENTOR,
                 null,
@@ -227,8 +228,11 @@ class AttendancePersistenceIntegrationTest {
                 null),
                 adminId);
         assertThat(creation.deliverySucceeded()).isTrue();
-        assertThat(accounts.activate(mail.onlyActivationToken(), "new secure mentor password")).isTrue();
-        return creation.userId();
+        assertThat(accounts.activate(mail.activationTokenFor(email), "new secure mentor password")).isTrue();
+        long mentorUserId = creation.userId();
+        jdbc.update("update intern_profiles set responsible_mentor_user_id = ? where user_id = ?",
+                mentorUserId, internId);
+        return mentorUserId;
     }
 
     private long createActiveIntern(
@@ -243,7 +247,7 @@ class AttendancePersistenceIntegrationTest {
                 endDate),
                 adminId);
         assertThat(creation.deliverySucceeded()).isTrue();
-        assertThat(accounts.activate(mail.onlyActivationToken(), "new secure report intern password")).isTrue();
+        assertThat(accounts.activate(mail.activationTokenFor(email), "new secure report intern password")).isTrue();
         internships.activateInternship(creation.userId(), adminId);
         return creation.userId();
     }
@@ -279,7 +283,7 @@ class AttendancePersistenceIntegrationTest {
                 LocalDate.of(2026, 8, 1),
                 LocalDate.of(2026, 12, 31)), adminId);
         assertThat(creation.deliverySucceeded()).isTrue();
-        assertThat(accounts.activate(mail.onlyActivationToken(), "new secure intern password")).isTrue();
+        assertThat(accounts.activate(mail.activationTokenFor("intern@example.test"), "new secure intern password")).isTrue();
         internships.activateInternship(creation.userId(), adminId);
 
         mentorId = adminId + 1;
@@ -1534,6 +1538,7 @@ class AttendancePersistenceIntegrationTest {
         assertThat(notificationRows.findAll()).filteredOn(row -> row.getNotificationType() == NotificationType.LEAVE_SUBMITTED)
                 .extracting(NotificationEntity::getRecipientUserId)
                 .containsExactly(mentor, adminId);
+        jdbc.update("update intern_profiles set responsible_mentor_user_id = ? where user_id = ?", mentor, internId);
         leaves.reject(new AttendanceActor(mentor, GlobalRole.MENTOR), rejected.id());
         assertThat(notificationRows.findAll())
                 .filteredOn(row -> row.getNotificationType() == NotificationType.LEAVE_DECIDED)
@@ -1608,20 +1613,23 @@ class AttendancePersistenceIntegrationTest {
         assertThat(submissions).allSatisfy(row ->
                 assertThat(row.getEmailStatus()).isEqualTo(NotificationEmailStatus.UNAVAILABLE));
 
-        corrections.decide(
-                new AttendanceActor(mentor, GlobalRole.MENTOR),
-                submitted.id(),
-                CorrectionDecision.APPROVE,
-                null);
-        corrections.decide(
-                new AttendanceActor(mentor, GlobalRole.MENTOR),
-                submitted.id(),
-                CorrectionDecision.REOPEN,
-                "reopen for review");
         clock.set(submitted.decisionDeadline());
         assertThat(corrections.view(intern, submitted.id()).status()).isEqualTo(CorrectionStatus.OVERDUE);
         assertThat(corrections.expire(100)).isZero();
         assertThat(corrections.expire(100)).isZero();
+
+        corrections.decide(
+                new AttendanceActor(mentor, GlobalRole.MENTOR),
+                submitted.id(),
+                CorrectionDecision.APPROVE,
+                null,
+                null);
+        corrections.decide(
+                new AttendanceActor(mentor, GlobalRole.MENTOR),
+                submitted.id(),
+                CorrectionDecision.REVERSE,
+                null,
+                "reverse for review");
 
         clock.set(Instant.parse("2026-08-17T02:00:00Z"));
         attendance.checkIn(internId);
@@ -1638,7 +1646,8 @@ class AttendancePersistenceIntegrationTest {
                 new AttendanceActor(mentor, GlobalRole.MENTOR),
                 rejected.id(),
                 CorrectionDecision.REJECT,
-                "manual rejection");
+                "manual rejection",
+                null);
 
         List<NotificationEntity> decisions = notificationRows.findAll().stream()
                 .filter(row -> row.getNotificationType() == NotificationType.CORRECTION_DECIDED)
@@ -1651,7 +1660,7 @@ class AttendancePersistenceIntegrationTest {
         });
         assertThat(decisions).extracting(NotificationEntity::getBody)
                 .anySatisfy(body -> assertThat(body).contains("APPROVED"))
-                .anySatisfy(body -> assertThat(body).contains("REVERTED"))
+                .anySatisfy(body -> assertThat(body).contains("REVERSED"))
                 .anySatisfy(body -> {
                     assertThat(body).contains("REJECTED");
                     assertThat(body).doesNotContain("AUTO_REJECTED");
@@ -1796,6 +1805,7 @@ class AttendancePersistenceIntegrationTest {
     void ambientTransactionLateMutationCommitsExpiryBeforePublicException() {
         AttendanceActor intern = new AttendanceActor(internId, GlobalRole.INTERN);
         long mentor = createActiveMentor();
+        jdbc.update("update intern_profiles set responsible_mentor_user_id = ? where user_id = ?", mentor, internId);
         var submittedLeave = leaves.submit(intern, new LeaveRequestCommand(
                 LocalDate.of(2026, 8, 17), LocalDate.of(2026, 8, 17), "ambient late cancel"));
 
@@ -1929,11 +1939,15 @@ class AttendancePersistenceIntegrationTest {
         assertThat(corrections.expire(100)).isEqualTo(0);
     }
 
+    /**
+     * Protects COR-007 and COR-008: at its decision deadline a pending correction is marked OVERDUE by the access guard, and the responsible Mentor's approval in the same call then succeeds; the decided correction is never locked.
+     */
     @Test
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
-    void lateCorrectionDecisionCommitsExpiryBeforeRejectingDecision() {
+    void lateCorrectionDecisionCommitsOverdueThenAcceptsApproval() {
         long mentor = createActiveMentor();
+        jdbc.update("update intern_profiles set responsible_mentor_user_id = ? where user_id = ?", mentor, internId);
         clock.set(Instant.parse("2026-08-14T02:00:00Z"));
         attendance.checkIn(internId);
         long recordId = records.findByInternUserIdAndWorkDate(internId, LocalDate.of(2026, 8, 14))
@@ -1952,7 +1966,8 @@ class AttendancePersistenceIntegrationTest {
                 new AttendanceActor(mentor, GlobalRole.MENTOR),
                 submitted.id(),
                 CorrectionDecision.APPROVE,
-                "approved overdue");
+                "approved overdue",
+                null);
         assertThat(decided.status()).isEqualTo(CorrectionStatus.APPROVED);
         assertThat(correctionRequests.findById(submitted.id()).orElseThrow().status())
                 .isEqualTo(CorrectionStatus.APPROVED);
@@ -2588,7 +2603,7 @@ class AttendancePersistenceIntegrationTest {
 
         @Transactional(propagation = Propagation.REQUIRES_NEW)
         public void decideCorrection(AttendanceActor actor, long correctionId, CorrectionDecision decision) {
-            corrections.decide(actor, correctionId, decision, "ambient");
+            corrections.decide(actor, correctionId, decision, "ambient", null);
         }
     }
 
@@ -2644,20 +2659,34 @@ class AttendancePersistenceIntegrationTest {
 
     static final class RecordingSmtpProbe implements SmtpProbe {
 
-        private final List<String> messages = new ArrayList<>();
-
-        @Override
-        public void send(SmtpConnection connection, String recipient, String subject, String body) {
-            messages.add(body);
+        private record SentMessage(String recipient, String body) {
         }
 
-        void clear() {
+        private final List<SentMessage> messages = new ArrayList<>();
+
+        @Override
+        public synchronized void send(SmtpConnection connection, String recipient, String subject, String body) {
+            messages.add(new SentMessage(recipient, body));
+        }
+
+        synchronized void clear() {
             messages.clear();
         }
 
-        String onlyActivationToken() {
-            assertThat(messages).hasSize(1);
-            String body = messages.getFirst();
+        /**
+         * Returns the activation token mailed to {@code recipient}.
+         *
+         * <p>Notification email is delivered by background workers after commit ({@code NOT-006},
+         * {@code D49}), so mail for other recipients can arrive at any moment; the fixture asserts
+         * exactly one message to the new address instead of exactly one message overall.
+         */
+        synchronized String activationTokenFor(String recipient) {
+            List<String> addressed = messages.stream()
+                    .filter(message -> message.recipient().equals(recipient))
+                    .map(SentMessage::body)
+                    .toList();
+            assertThat(addressed).hasSize(1);
+            String body = addressed.getFirst();
             int tokenStart = body.indexOf("token=");
             assertThat(tokenStart).isGreaterThanOrEqualTo(0);
             return body.substring(tokenStart + "token=".length()).trim();
@@ -2753,6 +2782,7 @@ class AttendancePersistenceIntegrationTest {
     @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
     void mentorCorrectionApprovalWithoutSmtpPersistsUnavailableNotificationAndDoesNotReplayOnSmtpActivation() {
         long mentor = createActiveMentor();
+        jdbc.update("update intern_profiles set responsible_mentor_user_id = ? where user_id = ?", mentor, internId);
         AttendanceActor intern = new AttendanceActor(internId, GlobalRole.INTERN);
         clock.set(Instant.parse("2026-08-14T02:00:00Z"));
         attendance.checkIn(internId);
@@ -2773,6 +2803,7 @@ class AttendancePersistenceIntegrationTest {
                 new AttendanceActor(mentor, GlobalRole.MENTOR),
                 submitted.id(),
                 CorrectionDecision.APPROVE,
+                null,
                 null);
         org.junit.jupiter.api.Assertions.assertEquals("APPROVED",
                 jdbc.queryForObject("select status from attendance_corrections where id = ?", String.class, submitted.id()));

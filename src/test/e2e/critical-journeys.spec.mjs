@@ -38,6 +38,15 @@ test('Iteration 3 setup and critical Admin/Intern/Mentor journeys', async ({ pag
     end: dates.internshipEnd,
   });
 
+  // Temporary: replace with the Admin responsible-Mentor assignment once internship/responsible-mentor is built (ACC-026).
+  const container = process.env.E2E_DB_CONTAINER;
+  test.skip(!container, 'Set E2E_DB_CONTAINER to the disposable end-to-end PostgreSQL container; this journey seeds its precondition there.');
+  execFileSync('docker', [
+    'exec', '-i', container,
+    'psql', '-U', process.env.E2E_DB_USER || 'labtimesheet', '-d', process.env.E2E_DB_NAME || 'labtimesheet',
+    '-c', `update intern_profiles set responsible_mentor_user_id = (select id from app_users where email = '${mentor.email}') where user_id = (select id from app_users where email = '${intern.email}');`,
+  ], { stdio: ['pipe', 'ignore', 'pipe'] });
+
   await signIn(page, admin);
   await page.goto('/admin/accounts');
   await expect(page.getByRole('heading', { name: 'Accounts' })).toBeVisible();
